@@ -1,5 +1,8 @@
+echo '[variables]
+JAVA_VERSION = "17"
+
 [phases.build]
-cmd = './mvnw clean package -DskipTests'
+cmd = "mvn clean package -DskipTests"
 
 [phases.start]
-cmd = 'java -Dserver.port=$PORT -jar target/*.jar'
+cmd = "java -Dserver.port=$PORT -jar target/*.jar"' > nixpacks.toml
