@@ -1,0 +1,134 @@
+<!-- 2. property-owner-dashboard.html -->
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{/general/head.html}"></head>
+<body class="skin-blue fixed-layout">
+    <div id="main-wrapper">
+        <div th:insert="~{/general/header.html}"></div>
+        <div th:insert="~{/general/left-sidebar.html}"></div>
+        
+        <div class="page-wrapper">
+            <div class="container-fluid">
+                <div class="row page-titles">
+                    <div class="col-md-8 align-self-center">
+                        <h3 class="text-themecolor">
+                            <i class="fas fa-building text-primary"></i> 
+                            My Property Portfolio
+                        </h3>
+                        <p class="text-muted">Organize and manage your properties</p>
+                    </div>
+                    <div class="col-md-4 text-right">
+                        <a href="/portfolio/create" class="btn btn-success">
+                            <i class="fas fa-plus"></i> Create Portfolio
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Portfolio Overview -->
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <h3 th:text="${#lists.size(portfolios ?: {})}">0</h3>
+                                <p class="mb-0">My Portfolios</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <h3 th:text="${aggregateStats?.totalProperties ?: 0}">0</h3>
+                                <p class="mb-0">Total Properties</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body text-center">
+                                <h3 id="unassignedCount">0</h3>
+                                <p class="mb-0">Unassigned</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <h3 th:text="${aggregateStats?.totalSynced ?: 0}">0</h3>
+                                <p class="mb-0">PayProp Synced</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- My Portfolios -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4>My Portfolios</h4>
+                            </div>
+                            <div class="card-body">
+                                <div th:if="${#lists.isEmpty(portfolios ?: {})}" class="text-center py-5">
+                                    <i class="fas fa-folder-plus fa-4x text-muted mb-3"></i>
+                                    <h5>No Portfolios Yet</h5>
+                                    <p class="text-muted">Create your first portfolio to start organizing your properties.</p>
+                                    <a href="/portfolio/create" class="btn btn-success btn-lg">
+                                        <i class="fas fa-plus"></i> Create Your First Portfolio
+                                    </a>
+                                </div>
+
+                                <div th:unless="${#lists.isEmpty(portfolios ?: {})}" class="row">
+                                    <div th:each="portfolioData : ${portfolios}" class="col-lg-6 col-xl-4 mb-4">
+                                        <div class="card border-primary h-100">
+                                            <div class="card-body">
+                                                <h5 class="card-title" th:text="${portfolioData.portfolio.name}">Portfolio Name</h5>
+                                                <p class="card-text text-muted" th:text="${portfolioData.portfolio.description}">Description</p>
+                                                
+                                                <div class="row text-center mb-3">
+                                                    <div class="col-4">
+                                                        <strong th:text="${portfolioData.analytics?.totalProperties ?: 0}">0</strong>
+                                                        <small class="d-block text-muted">Properties</small>
+                                                    </div>
+                                                    <div class="col-4">
+                                                        <strong th:text="${portfolioData.analytics?.occupiedProperties ?: 0}">0</strong>
+                                                        <small class="d-block text-muted">Occupied</small>
+                                                    </div>
+                                                    <div class="col-4">
+                                                        <span th:if="${portfolioData.portfolio.isSyncedWithPayProp()}" 
+                                                              class="badge badge-success">Synced</span>
+                                                        <span th:unless="${portfolioData.portfolio.isSyncedWithPayProp()}" 
+                                                              class="badge badge-warning">Pending</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="card-footer">
+                                                <div class="d-flex justify-content-between">
+                                                    <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id}}" 
+                                                       class="btn btn-primary btn-sm">
+                                                        <i class="fas fa-eye"></i> View
+                                                    </a>
+                                                    <button class="btn btn-success btn-sm" 
+                                                            th:onclick="'assignProperties(' + ${portfolioData.portfolio.id} + ')'">
+                                                        <i class="fas fa-plus"></i> Assign Properties
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function assignProperties(portfolioId) {
+        // This will open a modal to assign properties to the portfolio
+        window.location.href = '/portfolio/' + portfolioId + '/assign';
+    }
+    </script>
+</body>
+</html>

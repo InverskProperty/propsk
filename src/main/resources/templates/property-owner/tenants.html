@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
+    <title>My Tenants - CRM</title>
+    
+    <!-- Bootstrap Core CSS -->
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link th:href="@{/css/style.min.css}" rel="stylesheet">
+    <!-- DataTables CSS -->
+    <link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link th:href="@{/css/all.css}" rel="stylesheet">
+    
+    <style>
+        .tenant-card {
+            transition: transform 0.2s;
+            height: 100%;
+        }
+        .tenant-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .tenant-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        .status-active {
+            color: #28a745;
+            font-weight: 500;
+        }
+        .status-inactive {
+            color: #dc3545;
+            font-weight: 500;
+        }
+        .rental-info {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        .tenant-stats {
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:insert="~{/general/header.html}"></div>
+    <div th:insert="~{/general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">
+                        <i class="fas fa-users text-primary"></i> 
+                        My Tenants
+                    </h3>
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/property-owner/dashboard">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Tenants</li>
+                    </ol>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <button class="btn btn-success" onclick="showComingSoon('Add New Tenant')">
+                        <i class="fas fa-plus"></i> Add Tenant
+                    </button>
+                </div>
+            </div>
+
+            <!-- Coming Soon Alert -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert alert-success alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+                        <h4><i class="icon fas fa-check"></i> Tenant Management Active!</h4>
+                        Your tenant management system is operational. View tenant details, track payments, and manage your properties.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tenant Stats Cards -->
+            <div class="row tenant-stats">
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex">
+                                <div class="align-self-center">
+                                    <h2 th:text="${#lists.size(tenants ?: {})}">0</h2>
+                                    <h6 class="mb-0">Total Tenants</h6>
+                                </div>
+                                <div class="align-self-center display-6 ml-auto">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex">
+                                <div class="align-self-center">
+                                    <h2 th:text="${activeTenantsCount ?: 0}">0</h2>
+                                    <h6 class="mb-0">Active Leases</h6>
+                                </div>
+                                <div class="align-self-center display-6 ml-auto">
+                                    <i class="fas fa-file-contract"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex">
+                                <div class="align-self-center">
+                                    <h2 th:text="${pendingTenantsCount ?: 0}">0</h2>
+                                    <h6 class="mb-0">Pending Reviews</h6>
+                                </div>
+                                <div class="align-self-center display-6 ml-auto">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex">
+                                <div class="align-self-center">
+                                    <h2 th:text="'£' + ${totalRentalIncome ?: 0}">£0</h2>
+                                    <h6 class="mb-0">Monthly Income</h6>
+                                </div>
+                                <div class="align-self-center display-6 ml-auto">
+                                    <i class="fas fa-pound-sign"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Section -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h4 class="card-title mb-0">Tenant Management</h4>
+                                    <p class="text-muted">
+                                        Manage tenants across your 
+                                        <span th:text="${#lists.size(properties ?: {})}">0</span> properties
+                                    </p>
+                                </div>
+                                <div class="col-md-4">
+                                    <select class="form-control" id="propertyFilter" onchange="filterByProperty()">
+                                        <option value="">All Properties</option>
+                                        <option th:each="property : ${properties ?: {}}" 
+                                                th:value="${property.id}" 
+                                                th:text="${(property.addressLine1 ?: property.propertyName ?: 'Unknown Property') + ', ' + (property.city ?: 'Unknown City')}"
+                                                th:selected="${selectedPropertyId != null and selectedPropertyId == property.id}">
+                                            Property Address
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tenants Grid -->
+            <div class="row">
+                <div class="col-12">
+                    <!-- Show message when no tenants -->
+                    <div th:if="${tenants == null or #lists.isEmpty(tenants)}" class="card">
+                        <div class="card-body text-center py-5">
+                            <i class="fas fa-users fa-4x text-muted mb-3"></i>
+                            <h4 class="text-muted">No Tenants Found</h4>
+                            <p class="text-muted mb-4">
+                                <span th:if="${selectedPropertyId != null}">
+                                    No tenants found for the selected property.
+                                </span>
+                                <span th:if="${selectedPropertyId == null}">
+                                    You haven't added any tenants yet. Start by adding your first tenant.
+                                </span>
+                            </p>
+                            <button class="btn btn-primary" onclick="showComingSoon('Add New Tenant')">
+                                <i class="fas fa-plus"></i> Add Your First Tenant
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Tenant Cards -->
+                    <div th:if="${tenants != null and !#lists.isEmpty(tenants)}" class="row">
+                        <div th:each="tenant : ${tenants}" class="col-lg-6 col-xl-4 mb-4">
+                            <div class="card tenant-card">
+                                <div class="card-body">
+                                    <!-- Tenant Header -->
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div class="tenant-avatar" th:text="${#strings.substring((tenant.firstName ?: tenant.businessName ?: 'T'), 0, 1)}">T</div>
+                                        <div class="ml-3 flex-grow-1">
+                                            <h5 class="mb-0">
+                                                <span th:if="${tenant.firstName != null and tenant.lastName != null}" th:text="${tenant.firstName + ' ' + tenant.lastName}"></span>
+                                                <span th:if="${tenant.firstName != null and tenant.lastName == null}" th:text="${tenant.firstName}"></span>
+                                                <span th:if="${tenant.firstName == null and tenant.businessName != null}" th:text="${tenant.businessName}"></span>
+                                                <span th:if="${tenant.firstName == null and tenant.businessName == null}">Tenant Name</span>
+                                            </h5>
+                                            <p class="text-muted mb-0 small" th:text="${tenant.emailAddress ?: 'No email provided'}">Email</p>
+                                            <small class="status-active">
+                                                <i class="fas fa-circle"></i> 
+                                                <span th:text="${tenant.status ?: 'Active'}">Active</span> Lease
+                                            </small>
+                                        </div>
+                                        <div class="dropdown">
+                                            <button class="btn btn-link text-muted" data-toggle="dropdown">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <div class="dropdown-menu dropdown-menu-right">
+                                                <a class="dropdown-item" href="#" onclick="showTenantDetails(this)" 
+                                                   th:attr="data-tenant-name=${tenant.firstName != null ? (tenant.firstName + ' ' + (tenant.lastName ?: '')) : (tenant.businessName ?: 'Tenant')}, data-tenant-email=${tenant.emailAddress ?: 'No email'}">
+                                                    <i class="fas fa-eye"></i> View Details
+                                                </a>
+                                                <a class="dropdown-item" href="#" onclick="showComingSoon('Edit Tenant')">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </a>
+                                                <a class="dropdown-item" href="#" onclick="showComingSoon('Contact Tenant')">
+                                                    <i class="fas fa-envelope"></i> Contact
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Property Information -->
+                                    <div class="mb-3">
+                                        <h6><i class="fas fa-home text-primary"></i> Property</h6>
+                                        <p class="mb-0" th:text="${tenant.property?.addressLine1 ?: tenant.property?.propertyName ?: 'Property Address Not Set'}">Property Address</p>
+                                        <small class="text-muted" th:text="${(tenant.property?.city ?: 'City') + ', ' + (tenant.property?.postcode ?: 'Postcode')}">City, Postcode</small>
+                                    </div>
+                                    
+                                    <!-- Rental Information -->
+                                    <div class="rental-info">
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <small class="text-muted d-block">Monthly Rent</small>
+                                                <strong th:text="'£' + ${tenant.property?.monthlyPayment ?: (tenant.monthlyRent ?: 0)}">£0</strong>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted d-block">Move-in Date</small>
+                                                <strong>
+                                                    <span th:if="${tenant.moveInDate != null}" th:text="${#temporals.format(tenant.moveInDate, 'MMM yyyy')}"></span>
+                                                    <span th:if="${tenant.moveInDate == null}">Not Set</span>
+                                                </strong>
+                                            </div>
+                                        </div>
+                                        <div class="row mt-2" th:if="${tenant.moveOutDate != null}">
+                                            <div class="col-12">
+                                                <small class="text-muted d-block">Move-out Date</small>
+                                                <strong th:text="${#temporals.format(tenant.moveOutDate, 'dd MMM yyyy')}">Date</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Action Buttons -->
+                                    <div class="mt-3">
+                                        <button class="btn btn-primary btn-sm" onclick="showTenantDetails(this)"
+                                                th:attr="data-tenant-name=${tenant.firstName != null ? (tenant.firstName + ' ' + (tenant.lastName ?: '')) : (tenant.businessName ?: 'Tenant')}, data-tenant-email=${tenant.emailAddress ?: 'No email'}">
+                                            <i class="fas fa-eye"></i> View Details
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm ml-2" onclick="showComingSoon('Rent History')">
+                                            <i class="fas fa-history"></i> Rent History
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tenant Details Modal -->
+<div class="modal fade" id="tenantModal" tabindex="-1" role="dialog" aria-labelledby="tenantModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="tenantModalLabel">
+                    <i class="fas fa-user"></i> Tenant Details
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="tenantDetails">
+                <!-- Content populated by JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="showComingSoon('Full Tenant Management')">
+                    <i class="fas fa-edit"></i> Manage Tenant
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script>
+function filterByProperty() {
+    const propertyId = document.getElementById('propertyFilter').value;
+    if (propertyId) {
+        window.location.href = `/property-owner/tenants?propertyId=${propertyId}`;
+    } else {
+        window.location.href = '/property-owner/tenants';
+    }
+}
+
+function showTenantDetails(button) {
+    const tenantName = button.getAttribute('data-tenant-name');
+    const tenantEmail = button.getAttribute('data-tenant-email');
+    
+    document.getElementById('tenantDetails').innerHTML = `
+        <div class="row">
+            <div class="col-12">
+                <div class="text-center mb-4">
+                    <div class="tenant-avatar mx-auto mb-3" style="width: 80px; height: 80px; font-size: 2rem;">
+                        ${tenantName ? tenantName.charAt(0) : 'T'}
+                    </div>
+                    <h4>${tenantName || 'Tenant Name'}</h4>
+                    <p class="text-muted">${tenantEmail || 'No email provided'}</p>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-info-circle text-primary"></i> Current Features</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-check text-success"></i> Basic tenant information</li>
+                            <li><i class="fas fa-check text-success"></i> Property assignment</li>
+                            <li><i class="fas fa-check text-success"></i> Contact details</li>
+                            <li><i class="fas fa-check text-success"></i> Lease dates</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-rocket text-warning"></i> Coming Soon</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-clock text-warning"></i> Payment history tracking</li>
+                            <li><i class="fas fa-clock text-warning"></i> Maintenance request management</li>
+                            <li><i class="fas fa-clock text-warning"></i> Document storage</li>
+                            <li><i class="fas fa-clock text-warning"></i> Automated rent reminders</li>
+                            <li><i class="fas fa-clock text-warning"></i> Lease renewal notifications</li>
+                            <li><i class="fas fa-clock text-warning"></i> Communication history</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-lightbulb"></i>
+                    <strong>Stay tuned!</strong> We're working hard to bring you comprehensive tenant management tools. 
+                    These features will help you streamline your property management workflow.
+                </div>
+            </div>
+        </div>
+    `;
+    
+    $('#tenantModal').modal('show');
+}
+
+function showComingSoon(feature) {
+    // Create a more attractive coming soon modal
+    const modal = `
+        <div class="modal fade" id="comingSoonModal" tabindex="-1" role="dialog">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-rocket"></i> ${feature} - Coming Soon!
+                        </h5>
+                        <button type="button" class="close text-white" data-dismiss="modal">
+                            <span>&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <i class="fas fa-tools fa-4x text-primary mb-3"></i>
+                        <h4>We're Building Something Amazing!</h4>
+                        <p class="text-muted">
+                            ${feature} functionality is currently in development. 
+                            We're working hard to bring you the best tenant management experience.
+                        </p>
+                        <div class="progress mb-3">
+                            <div class="progress-bar bg-primary" style="width: 65%"></div>
+                        </div>
+                        <small class="text-muted">Development Progress: 65% Complete</small>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-dismiss="modal">
+                            <i class="fas fa-bell"></i> Notify Me When Ready
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if present
+    $('#comingSoonModal').remove();
+    
+    // Add and show new modal
+    $('body').append(modal);
+    $('#comingSoonModal').modal('show');
+    
+    // Remove modal from DOM after it's hidden
+    $('#comingSoonModal').on('hidden.bs.modal', function () {
+        $(this).remove();
+    });
+}
+
+// Initialize page
+$(document).ready(function() {
+    // Add any initialization code here
+    console.log('Tenants page loaded successfully');
+});
+</script>
+
+</body>
+</html>

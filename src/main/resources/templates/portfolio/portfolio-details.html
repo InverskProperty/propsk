@@ -1,0 +1,136 @@
+<!-- 3. portfolio-details.html -->
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{/general/head.html}"></head>
+<body class="skin-blue fixed-layout">
+    <div id="main-wrapper">
+        <div th:insert="~{/general/header.html}"></div>
+        <div th:insert="~{/general/left-sidebar.html}"></div>
+        
+        <div class="page-wrapper">
+            <div class="container-fluid">
+                <div class="row page-titles">
+                    <div class="col-md-8 align-self-center">
+                        <h3 class="text-themecolor" th:text="${portfolio.name}">Portfolio Name</h3>
+                        <p class="text-muted" th:text="${portfolio.description}">Portfolio description</p>
+                    </div>
+                    <div class="col-md-4 text-right">
+                        <div class="btn-group">
+                            <a th:if="${canEdit}" th:href="@{'/portfolio/' + ${portfolio.id} + '/edit'}" 
+                               class="btn btn-warning">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            <button th:if="${canManageProperties}" class="btn btn-success" 
+                                    onclick="assignProperties()">
+                                <i class="fas fa-plus"></i> Assign Properties
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Portfolio Analytics -->
+                <div class="row" th:if="${analytics}">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <h3 th:text="${analytics.totalProperties}">0</h3>
+                                <p class="mb-0">Total Properties</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <h3 th:text="${analytics.occupiedProperties}">0</h3>
+                                <p class="mb-0">Occupied</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body text-center">
+                                <h3 th:text="${analytics.vacantProperties}">0</h3>
+                                <p class="mb-0">Vacant</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <h3 th:text="${#numbers.formatDecimal(analytics.occupancyRate, 0, 'COMMA', 1, 'POINT')} + '%'">0%</h3>
+                                <p class="mb-0">Occupancy Rate</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Properties in Portfolio -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4>Properties in this Portfolio</h4>
+                            </div>
+                            <div class="card-body">
+                                <div th:if="${#lists.isEmpty(properties)}" class="text-center py-5">
+                                    <i class="fas fa-building fa-4x text-muted mb-3"></i>
+                                    <h5>No Properties Assigned</h5>
+                                    <p class="text-muted">Assign properties to this portfolio to start organizing.</p>
+                                    <button th:if="${canManageProperties}" class="btn btn-success" 
+                                            onclick="assignProperties()">
+                                        <i class="fas fa-plus"></i> Assign Properties
+                                    </button>
+                                </div>
+
+                                <div th:unless="${#lists.isEmpty(properties)}" class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Property Name</th>
+                                                <th>Address</th>
+                                                <th>Type</th>
+                                                <th>Monthly Rent</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr th:each="property : ${properties}">
+                                                <td th:text="${property.propertyName}">Property Name</td>
+                                                <td th:text="${property.fullAddress}">Address</td>
+                                                <td th:text="${property.propertyType}">Type</td>
+                                                <td>
+                                                    <span th:if="${property.monthlyPayment}" 
+                                                          th:text="'£' + ${#numbers.formatDecimal(property.monthlyPayment, 0, 'COMMA', 0, 'POINT')}">£0</span>
+                                                    <span th:unless="${property.monthlyPayment}" class="text-muted">Not set</span>
+                                                </td>
+                                                <td>
+                                                    <span th:if="${property.isActive()}" class="badge badge-success">Active</span>
+                                                    <span th:unless="${property.isActive()}" class="badge badge-secondary">Archived</span>
+                                                </td>
+                                                <td>
+                                                    <a th:href="@{'/property/' + ${property.id}}" 
+                                                       class="btn btn-sm btn-info">
+                                                        <i class="fas fa-eye"></i>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function assignProperties() {
+        // Implement property assignment modal
+        alert('Property assignment feature coming soon!');
+    }
+    </script>
+</body>
+</html>

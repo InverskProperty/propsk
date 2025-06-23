@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
+    <title>Create Portfolio - CRM</title>
+    
+    <!-- Bootstrap Core CSS -->
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link th:href="@{/css/style.min.css}" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link th:href="@{/css/all.css}" rel="stylesheet">
+    
+    <style>
+        .payprop-tag {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid #dee2e6;
+        }
+        .payprop-tag:hover {
+            border-color: #007bff;
+            transform: translateY(-2px);
+        }
+        .payprop-tag.selected {
+            border-color: #28a745;
+            background-color: #f8fff9;
+        }
+        .sync-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        .creation-option {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        .creation-option:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .creation-option.selected {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:insert="~{/general/header.html}"></div>
+    <div th:insert="~{/general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">
+                        <i class="fas fa-plus text-success"></i> 
+                        Create Portfolio
+                    </h3>
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/property-owner/dashboard">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Create Portfolio</li>
+                    </ol>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <button class="btn btn-info" onclick="refreshPayPropTags()">
+                        <i class="fas fa-sync"></i> Refresh PayProp Tags
+                    </button>
+                    <a href="/property-owner/dashboard" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </a>
+                </div>
+            </div>
+
+            <!-- PayProp Integration Notice -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <h4><i class="fas fa-sync text-info"></i> PayProp Integration</h4>
+                        <p class="mb-0">
+                            Portfolios are synchronized with your PayProp tags system. You can adopt existing PayProp tags 
+                            as portfolios or create new ones that will be automatically synced to PayProp.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Creation Options -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card creation-option" id="adoptOption" onclick="selectCreationMode('adopt')">
+                        <div class="card-body text-center">
+                            <i class="fas fa-download fa-3x text-success mb-3"></i>
+                            <h4>Adopt PayProp Tag</h4>
+                            <p class="text-muted">
+                                Convert an existing PayProp tag into a managed portfolio
+                            </p>
+                            <div class="badge badge-success">Recommended</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card creation-option" id="createOption" onclick="selectCreationMode('create')">
+                        <div class="card-body text-center">
+                            <i class="fas fa-plus-circle fa-3x text-primary mb-3"></i>
+                            <h4>Create New Portfolio</h4>
+                            <p class="text-muted">
+                                Create a new portfolio and sync it to PayProp as a tag
+                            </p>
+                            <div class="badge badge-info">Auto-Sync</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Adopt PayProp Tag Section -->
+            <div id="adoptSection" style="display: none;">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-success">
+                                <h4 class="text-white mb-0">
+                                    <i class="fas fa-tags"></i> Available PayProp Tags
+                                </h4>
+                            </div>
+                            <div class="card-body">
+                                <div id="payPropTagsLoading" class="text-center py-4">
+                                    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                                    <p class="text-muted mt-2">Loading PayProp tags...</p>
+                                </div>
+                                
+                                <div id="payPropTagsList" style="display: none;">
+                                    <!-- PayProp tags will be loaded here via AJAX -->
+                                    <div class="row">
+                                        <div class="col-md-4 mb-3">
+                                            <div class="card payprop-tag" onclick="selectPayPropTag('residential-central')">
+                                                <div class="card-body">
+                                                    <div class="sync-status">
+                                                        <span class="badge badge-success">
+                                                            <i class="fas fa-sync"></i> Synced
+                                                        </span>
+                                                    </div>
+                                                    <h5>Residential Central</h5>
+                                                    <p class="text-muted mb-0">12 properties tagged</p>
+                                                    <small class="text-info">PayProp Tag</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <!-- More tags will be loaded dynamically -->
+                                    </div>
+                                </div>
+
+                                <div id="noPayPropTags" style="display: none;" class="text-center py-4">
+                                    <i class="fas fa-tags fa-3x text-muted mb-3"></i>
+                                    <h5>No PayProp Tags Found</h5>
+                                    <p class="text-muted">You don't have any tags in PayProp yet. Create a new portfolio instead.</p>
+                                    <button class="btn btn-primary" onclick="selectCreationMode('create')">
+                                        <i class="fas fa-plus"></i> Create New Portfolio
+                                    </button>
+                                </div>
+
+                                <div class="text-right mt-3">
+                                    <button id="adoptSelectedBtn" class="btn btn-success" disabled onclick="adoptSelectedTag()">
+                                        <i class="fas fa-download"></i> Adopt Selected Tag as Portfolio
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Create New Portfolio Section -->
+            <div id="createSection" style="display: none;">
+                <div class="row">
+                    <div class="col-md-8 offset-md-2">
+                        <div class="card">
+                            <div class="card-header bg-primary">
+                                <h4 class="text-white mb-0">
+                                    <i class="fas fa-folder-plus"></i> Create New Portfolio
+                                </h4>
+                            </div>
+                            <div class="card-body">
+                                <form id="createPortfolioForm" th:action="@{/portfolio/create}" method="post">
+                                    <!-- CSRF Token -->
+                                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                                    
+                                    <!-- Portfolio Name -->
+                                    <div class="form-group">
+                                        <label for="portfolioName">Portfolio Name <span class="text-danger">*</span></label>
+                                        <input type="text" 
+                                               class="form-control" 
+                                               id="portfolioName" 
+                                               name="name"
+                                               placeholder="e.g., City Center Properties, Student Housing"
+                                               required>
+                                        <small class="form-text text-muted">
+                                            <i class="fas fa-info-circle"></i> 
+                                            This will be created as a tag in PayProp automatically
+                                        </small>
+                                    </div>
+
+                                    <!-- Portfolio Description -->
+                                    <div class="form-group">
+                                        <label for="portfolioDescription">Description</label>
+                                        <textarea class="form-control" 
+                                                  id="portfolioDescription" 
+                                                  name="description"
+                                                  rows="3"
+                                                  placeholder="Describe the purpose and strategy of this portfolio..."></textarea>
+                                    </div>
+
+                                    <!-- PayProp Sync Options -->
+                                    <div class="form-group">
+                                        <label>PayProp Synchronization</label>
+                                        <div class="card border-info">
+                                            <div class="card-body">
+                                                <div class="custom-control custom-switch">
+                                                    <input type="checkbox" 
+                                                           class="custom-control-input" 
+                                                           id="autoSync" 
+                                                           name="autoSync"
+                                                           checked disabled>
+                                                    <label class="custom-control-label" for="autoSync">
+                                                        <strong>Automatic PayProp Sync</strong>
+                                                    </label>
+                                                </div>
+                                                <small class="text-info">
+                                                    <i class="fas fa-sync"></i> 
+                                                    Your portfolio will be automatically created as a tag in PayProp and 
+                                                    kept in sync with property assignments.
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Portfolio Type (for internal organization) -->
+                                    <div class="form-group">
+                                        <label>Portfolio Type (Internal Organization)</label>
+                                        <select class="form-control" name="portfolioType" required>
+                                            <option value="">Select type...</option>
+                                            <option value="RESIDENTIAL">Residential Properties</option>
+                                            <option value="COMMERCIAL">Commercial Properties</option>
+                                            <option value="MIXED">Mixed Use</option>
+                                            <option value="GEOGRAPHIC">Geographic Grouping</option>
+                                        </select>
+                                        <small class="form-text text-muted">
+                                            This helps organize your portfolios internally (not sent to PayProp)
+                                        </small>
+                                    </div>
+
+                                    <!-- Submit Buttons -->
+                                    <div class="form-group">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <button type="submit" class="btn btn-primary btn-block">
+                                                    <i class="fas fa-save"></i> Create & Sync to PayProp
+                                                </button>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <button type="button" class="btn btn-secondary btn-block" onclick="selectCreationMode('adopt')">
+                                                    <i class="fas fa-arrow-left"></i> Back to Adopt Mode
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PayProp Integration Information -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-info-circle text-info"></i> How PayProp Integration Works
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5><i class="fas fa-download text-success"></i> Adopting PayProp Tags</h5>
+                                    <ul>
+                                        <li>Import existing tags from your PayProp account</li>
+                                        <li>Convert them into managed portfolios in your CRM</li>
+                                        <li>Properties already tagged in PayProp are automatically assigned</li>
+                                        <li>Maintains existing PayProp organization</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5><i class="fas fa-upload text-primary"></i> Creating New Portfolios</h5>
+                                    <ul>
+                                        <li>Create a new portfolio in your CRM</li>
+                                        <li>Automatically creates corresponding tag in PayProp</li>
+                                        <li>Two-way sync keeps everything in alignment</li>
+                                        <li>Assign properties to sync tags in PayProp</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-warning mt-3">
+                                <h6><i class="fas fa-exclamation-triangle"></i> Important Notes</h6>
+                                <ul class="mb-0">
+                                    <li>All portfolio changes sync automatically with PayProp</li>
+                                    <li>Property assignments update PayProp tags in real-time</li>
+                                    <li>Deleting a portfolio will remove the corresponding PayProp tag</li>
+                                    <li>PayProp tag names must be unique across your account</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div th:insert="~{/general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script>
+let selectedCreationMode = null;
+let selectedPayPropTag = null;
+
+function selectCreationMode(mode) {
+    selectedCreationMode = mode;
+    
+    // Update visual selection
+    document.querySelectorAll('.creation-option').forEach(option => {
+        option.classList.remove('selected');
+    });
+    
+    if (mode === 'adopt') {
+        document.getElementById('adoptOption').classList.add('selected');
+        document.getElementById('adoptSection').style.display = 'block';
+        document.getElementById('createSection').style.display = 'none';
+        loadPayPropTags();
+    } else if (mode === 'create') {
+        document.getElementById('createOption').classList.add('selected');
+        document.getElementById('createSection').style.display = 'block';
+        document.getElementById('adoptSection').style.display = 'none';
+    }
+}
+
+function selectPayPropTag(tagId) {
+    selectedPayPropTag = tagId;
+    
+    // Update visual selection
+    document.querySelectorAll('.payprop-tag').forEach(tag => {
+        tag.classList.remove('selected');
+    });
+    event.currentTarget.classList.add('selected');
+    
+    // Enable adopt button
+    document.getElementById('adoptSelectedBtn').disabled = false;
+}
+
+function loadPayPropTags() {
+    document.getElementById('payPropTagsLoading').style.display = 'block';
+    document.getElementById('payPropTagsList').style.display = 'none';
+    document.getElementById('noPayPropTags').style.display = 'none';
+    
+    // AJAX call to load PayProp tags
+    fetch('/portfolio/payprop-tags', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('payPropTagsLoading').style.display = 'none';
+        
+        if (data.success && data.tags && data.tags.length > 0) {
+            displayPayPropTags(data.tags);
+            document.getElementById('payPropTagsList').style.display = 'block';
+        } else {
+            document.getElementById('noPayPropTags').style.display = 'block';
+        }
+    })
+    .catch(error => {
+        console.error('Error loading PayProp tags:', error);
+        document.getElementById('payPropTagsLoading').style.display = 'none';
+        document.getElementById('noPayPropTags').style.display = 'block';
+    });
+}
+
+function displayPayPropTags(tags) {
+    const container = document.querySelector('#payPropTagsList .row');
+    container.innerHTML = '';
+    
+    tags.forEach(tag => {
+        const tagHtml = `
+            <div class="col-md-4 mb-3">
+                <div class="card payprop-tag" onclick="selectPayPropTag('${tag.id}')">
+                    <div class="card-body">
+                        <div class="sync-status">
+                            <span class="badge badge-success">
+                                <i class="fas fa-sync"></i> Synced
+                            </span>
+                        </div>
+                        <h5>${tag.name}</h5>
+                        <p class="text-muted mb-0">${tag.propertyCount || 0} properties tagged</p>
+                        <small class="text-info">PayProp Tag</small>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML += tagHtml;
+    });
+}
+
+function refreshPayPropTags() {
+    if (selectedCreationMode === 'adopt') {
+        loadPayPropTags();
+    }
+}
+
+function adoptSelectedTag() {
+    if (!selectedPayPropTag) {
+        alert('Please select a PayProp tag to adopt.');
+        return;
+    }
+    
+    // Submit adoption request
+    const formData = new FormData();
+    formData.append('payPropTagId', selectedPayPropTag);
+    formData.append('_token', document.querySelector('input[name="_token"]').value);
+    
+    fetch('/portfolio/adopt-payprop-tag', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = `/portfolio/${data.portfolioId}`;
+        } else {
+            alert('Error adopting PayProp tag: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error adopting PayProp tag. Please try again.');
+    });
+}
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    // Default to adopt mode
+    selectCreationMode('adopt');
+});
+</script>
+
+</body>
+</html>

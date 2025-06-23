@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{/general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- Dashboard specific CSS -->
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.css">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:insert="~{/general/header.html}"></div>
+    <div th:insert="~{/general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h4 class="text-themecolor">Portfolio Overview</h4>
+                    <p class="text-muted">Comprehensive analysis of your property portfolio performance</p>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0)">Home</a></li>
+                            <li class="breadcrumb-item"><a th:href="${home + 'employee/property/all-properties'}">Properties</a></li>
+                            <li class="breadcrumb-item active">Portfolio Overview</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Portfolio Statistics Overview -->
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card bg-gradient-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-light">
+                                    <i class="fas fa-building text-white"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light text-white" th:text="${totalProperties ?: 0}">0</h3>
+                                    <h5 class="text-light m-b-0">Total Properties</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card bg-gradient-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-light">
+                                    <i class="fas fa-home text-white"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light text-white" th:text="${occupiedCount ?: 0}">0</h3>
+                                    <h5 class="text-light m-b-0">Occupied</h5>
+                                    <small class="text-light" th:if="${totalProperties > 0}" 
+                                           th:text="'(' + ${#numbers.formatDecimal((occupiedCount * 100.0) / totalProperties, 0, 'COMMA', 1, 'POINT')} + '%)'">
+                                        (0%)
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card bg-gradient-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-light">
+                                    <i class="fas fa-exclamation-triangle text-white"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light text-white" th:text="${vacantCount ?: 0}">0</h3>
+                                    <h5 class="text-light m-b-0">Vacant</h5>
+                                    <small class="text-light" th:if="${totalProperties > 0}" 
+                                           th:text="'(' + ${#numbers.formatDecimal((vacantCount * 100.0) / totalProperties, 0, 'COMMA', 1, 'POINT')} + '%)'">
+                                        (0%)
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card bg-gradient-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-light">
+                                    <i class="fas fa-pound-sign text-white"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light text-white" 
+                                        th:text="'£' + ${#numbers.formatDecimal(totalRentPotential ?: 0, 0, 'COMMA', 0, 'POINT')}">£0</h3>
+                                    <h5 class="text-light m-b-0">Monthly Rent</h5>
+                                    <small class="text-light" 
+                                           th:text="'£' + ${#numbers.formatDecimal((totalRentPotential ?: 0) * 12, 0, 'COMMA', 0, 'POINT')} + ' annually'">
+                                        £0 annually
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PayProp Integration Status -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h4 class="card-title">
+                                        <i class="fas fa-sync text-primary"></i> PayProp Integration Status
+                                    </h4>
+                                    <p class="text-muted mb-2">Track your property synchronization with PayProp platform</p>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="text-center">
+                                                <span class="badge badge-success badge-lg" th:text="${syncedCount ?: 0}">0</span>
+                                                <p class="text-muted mb-0">Synced</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="text-center">
+                                                <span class="badge badge-warning badge-lg" th:text="${readyForSync ?: 0}">0</span>
+                                                <p class="text-muted mb-0">Ready for Sync</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="text-center">
+                                                <span class="badge badge-info badge-lg" 
+                                                      th:text="${totalProperties > 0 ? #numbers.formatDecimal((syncedCount * 100.0) / totalProperties, 0, 'COMMA', 0, 'POINT') + '%' : '0%'}">0%</span>
+                                                <p class="text-muted mb-0">Sync Rate</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 text-center">
+                                    <div class="mt-3">
+                                        <a th:href="${home + 'employee/property/sync-status'}" class="btn btn-primary btn-lg">
+                                            <i class="fas fa-sync"></i> View Sync Status
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Portfolio Performance Charts -->
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Property Distribution</h4>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="propertyDistributionChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Occupancy Analysis</h4>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="occupancyChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Financial Overview -->
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Monthly Revenue Trend</h4>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="revenueChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Key Performance Metrics</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center mb-4">
+                                <h2 class="text-success" th:if="${totalProperties > 0 and occupiedCount > 0}" 
+                                    th:text="${#numbers.formatDecimal((occupiedCount * 100.0) / totalProperties, 0, 'COMMA', 1, 'POINT')} + '%'">0%</h2>
+                                <h2 class="text-muted" th:unless="${totalProperties > 0 and occupiedCount > 0}">0%</h2>
+                                <p class="text-muted">Occupancy Rate</p>
+                            </div>
+                            
+                            <div class="list-group">
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>Average Rent</span>
+                                    <strong th:if="${totalProperties > 0}" 
+                                            th:text="'£' + ${#numbers.formatDecimal((totalRentPotential ?: 0) / totalProperties, 0, 'COMMA', 0, 'POINT')}">£0</strong>
+                                    <strong th:unless="${totalProperties > 0}">£0</strong>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>PayProp Sync Rate</span>
+                                    <strong th:if="${totalProperties > 0}" 
+                                            th:text="${#numbers.formatDecimal((syncedCount * 100.0) / totalProperties, 0, 'COMMA', 0, 'POINT')} + '%'">0%</strong>
+                                    <strong th:unless="${totalProperties > 0}">0%</strong>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>Annual Potential</span>
+                                    <strong th:text="'£' + ${#numbers.formatDecimal((totalRentPotential ?: 0) * 12, 0, 'COMMA', 0, 'POINT')}">£0</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions & Recent Properties -->
+            <div class="row">
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Quick Actions</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="list-group list-group-flush">
+                                <a th:href="${home + 'employee/property/vacant-properties'}" 
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
+                                        View Vacant Properties
+                                    </div>
+                                    <span class="badge badge-warning" th:text="${vacantCount ?: 0}">0</span>
+                                </a>
+                                
+                                <a th:href="${home + 'employee/property/occupied'}" 
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-home text-success mr-2"></i>
+                                        Occupied Properties
+                                    </div>
+                                    <span class="badge badge-success" th:text="${occupiedCount ?: 0}">0</span>
+                                </a>
+                                
+                                <a th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}" 
+                                   th:href="${home + 'employee/property/create-property'}" 
+                                   class="list-group-item list-group-item-action">
+                                    <i class="fas fa-plus text-primary mr-2"></i>
+                                    Add New Property
+                                </a>
+                                
+                                <a th:href="${home + 'employee/property/sync-status'}" 
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-sync text-info mr-2"></i>
+                                        PayProp Sync Status
+                                    </div>
+                                    <span class="badge badge-info" th:text="${readyForSync ?: 0}">0</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h4 class="card-title mb-0">Recent Properties</h4>
+                            <a th:href="${home + 'employee/property/all-properties'}" class="btn btn-sm btn-outline-primary">
+                                View All Properties
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Property</th>
+                                            <th>Type</th>
+                                            <th>Monthly Rent</th>
+                                            <th>Status</th>
+                                            <th>PayProp</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="property, iterStat : ${properties}" th:if="${iterStat.index < 5}">
+                                            <td>
+                                                <strong th:text="${property.propertyName}">Property Name</strong>
+                                                <br>
+                                                <small class="text-muted" th:text="${property.postcode}">Postcode</small>
+                                            </td>
+                                            <td th:text="${property.propertyType ?: 'Not specified'}">House</td>
+                                            <td>
+                                                <span th:if="${property.monthlyPayment}" 
+                                                      th:text="'£' + ${#numbers.formatDecimal(property.monthlyPayment, 0, 'COMMA', 0, 'POINT')}">£1200</span>
+                                                <span th:unless="${property.monthlyPayment}" class="text-muted">Not set</span>
+                                            </td>
+                                            <td>
+                                                <span th:if="${property.isActive()}" class="badge badge-success">Active</span>
+                                                <span th:unless="${property.isActive()}" class="badge badge-secondary">Archived</span>
+                                            </td>
+                                            <td>
+                                                <span th:if="${property.payPropId}" class="badge badge-success">
+                                                    <i class="fas fa-sync"></i> Synced
+                                                </span>
+                                                <span th:unless="${property.payPropId}" class="badge badge-warning">
+                                                    <i class="fas fa-clock"></i> Pending
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <a th:href="${home + 'employee/property/property-details/' + property.id}" 
+                                                   class="btn btn-sm btn-info" title="View Details">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        <tr th:if="${#lists.isEmpty(properties)}">
+                                            <td colspan="6" class="text-center text-muted">
+                                                No properties found. <a th:href="${home + 'employee/property/create-property'}">Add your first property</a>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div th:insert="~{/general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
+<script th:inline="javascript">
+$(document).ready(function() {
+    // Get data from server-side variables
+    const totalProperties = /*[[${totalProperties ?: 0}]]*/ 0;
+    const occupiedCount = /*[[${occupiedCount ?: 0}]]*/ 0;
+    const vacantCount = /*[[${vacantCount ?: 0}]]*/ 0;
+    const syncedCount = /*[[${syncedCount ?: 0}]]*/ 0;
+    const totalRentPotential = /*[[${totalRentPotential ?: 0}]]*/ 0;
+
+    // Property Distribution Chart
+    const propertyDistCtx = document.getElementById('propertyDistributionChart').getContext('2d');
+    new Chart(propertyDistCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Occupied', 'Vacant'],
+            datasets: [{
+                data: [occupiedCount, vacantCount],
+                backgroundColor: [
+                    '#28a745',
+                    '#ffc107'
+                ],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Occupancy Chart
+    const occupancyCtx = document.getElementById('occupancyChart').getContext('2d');
+    new Chart(occupancyCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Properties'],
+            datasets: [
+                {
+                    label: 'Occupied',
+                    data: [occupiedCount],
+                    backgroundColor: '#28a745'
+                },
+                {
+                    label: 'Vacant',
+                    data: [vacantCount],
+                    backgroundColor: '#ffc107'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Revenue Trend Chart (mock data for demonstration)
+    const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+    const monthlyRent = totalRentPotential;
+    const revenueData = [];
+    const labels = [];
+    
+    // Generate last 6 months of data
+    for (let i = 5; i >= 0; i--) {
+        const date = new Date();
+        date.setMonth(date.getMonth() - i);
+        labels.push(date.toLocaleDateString('en-GB', { month: 'short' }));
+        // Simulate some variance in revenue
+        const variance = (Math.random() - 0.5) * 0.2;
+        revenueData.push(Math.round(monthlyRent * (1 + variance)));
+    }
+
+    new Chart(revenueCtx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Monthly Revenue (£)',
+                data: revenueData,
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '£' + value.toLocaleString();
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': £' + context.parsed.y.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+
+</body>
+</html>

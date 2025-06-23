@@ -1,0 +1,641 @@
+package site.easy.to.build.crm.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.property.TenantService;
+import site.easy.to.build.crm.service.user.UserService;
+import site.easy.to.build.crm.util.AuthenticationUtils;
+import site.easy.to.build.crm.util.AuthorizationUtil;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Controller
+@RequestMapping("/employee/property")
+public class PropertyController {
+
+    private final PropertyService propertyService;
+    private final TenantService tenantService;
+    private final UserService userService;
+    private final AuthenticationUtils authenticationUtils;
+    // TODO: Add PayPropSyncService after it's implemented
+    // private final PayPropSyncService payPropSyncService;
+
+    @Autowired
+    public PropertyController(PropertyService propertyService, TenantService tenantService,
+                             UserService userService, AuthenticationUtils authenticationUtils) {
+        this.propertyService = propertyService;
+        this.tenantService = tenantService;
+        this.userService = userService;
+        this.authenticationUtils = authenticationUtils;
+    }
+
+    // 🔄 UNIFIED - Single endpoint for all properties with role-based filtering
+    @GetMapping("/all-properties")
+    public String getAllProperties(Model model, Authentication authentication) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        if (userId == -1) {
+            return "error/not-found";
+        }
+        
+        User user = userService.findById(userId);
+        if (user.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+        
+        List<Property> properties;
+        try {
+            // Role-based property filtering
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                // Managers see all properties
+                properties = propertyService.findAll();
+            } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+                // Property owners see only their properties - FIXED: Use correct method name and parameter type
+                properties = propertyService.findByPropertyOwnerId(userId);
+            } else {
+                // Employees see properties they manage
+                properties = propertyService.getRecentProperties((long) userId, 100);
+            }
+            
+            // Add comprehensive portfolio statistics
+            addComprehensivePortfolioStatistics(model, properties);
+            
+        } catch (Exception e) {
+            return "error/500";
+        }
+        
+        model.addAttribute("properties", properties);
+        model.addAttribute("pageTitle", "All Properties");
+        return "property/all-properties";
+    }
+
+    // 🔄 Updated - PayProp compatible vacancy logic with role filtering
+    @GetMapping("/vacant-properties")
+    public String getVacantProperties(Model model, Authentication authentication) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User user = userService.findById(userId);
+        if (user.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        List<Property> allVacantProperties = propertyService.findVacantProperties();
+        List<Property> properties;
+        
+        // Filter based on role
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            properties = allVacantProperties;
+        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+            properties = allVacantProperties.stream()
+                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(userId))
+                .collect(Collectors.toList());
+        } else {
+            properties = allVacantProperties.stream()
+                .filter(p -> p.getCreatedBy() != null && p.getCreatedBy().equals((long) userId))
+                .collect(Collectors.toList());
+        }
+        
+        // Calculate lost rent potential
+        BigDecimal lostRentPotential = properties.stream()
+            .map(Property::getMonthlyPayment)
+            .filter(rent -> rent != null)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        addComprehensivePortfolioStatistics(model, properties);
+        model.addAttribute("properties", properties);
+        model.addAttribute("lostRentPotential", lostRentPotential);
+        model.addAttribute("pageTitle", "Vacant Properties");
+        return "property/vacant-properties";
+    }
+
+    // 🔄 Updated - PayProp compatible occupancy logic with role filtering
+    @GetMapping("/occupied")
+    public String getOccupiedProperties(Model model, Authentication authentication) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User user = userService.findById(userId);
+        if (user.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        List<Property> allOccupiedProperties = propertyService.findOccupiedProperties();
+        List<Property> properties;
+        
+        // Filter based on role
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            properties = allOccupiedProperties;
+        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+            properties = allOccupiedProperties.stream()
+                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(userId))
+                .collect(Collectors.toList());
+        } else {
+            properties = allOccupiedProperties.stream()
+                .filter(p -> p.getCreatedBy() != null && p.getCreatedBy().equals((long) userId))
+                .collect(Collectors.toList());
+        }
+        
+        addComprehensivePortfolioStatistics(model, properties);
+        model.addAttribute("properties", properties);
+        model.addAttribute("pageTitle", "Occupied Properties");
+        return "property/all-properties";
+    }
+
+    @GetMapping("/portfolio-overview")
+    public String getPortfolioOverview(Model model, Authentication authentication) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User user = userService.findById(userId);
+        if (user.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        List<Property> properties;
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            properties = propertyService.findAll();
+        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+            // FIXED: Use correct method name and parameter type
+            properties = propertyService.findByPropertyOwnerId(userId);
+        } else {
+            properties = propertyService.getRecentProperties((long) userId, 100);
+        }
+
+        addComprehensivePortfolioStatistics(model, properties);
+        addDetailedAnalytics(model, properties);
+        
+        model.addAttribute("properties", properties);
+        return "property/portfolio-overview";
+    }
+
+    // 🆕 COMPREHENSIVE Helper method - provides ALL required template attributes
+    private void addComprehensivePortfolioStatistics(Model model, List<Property> properties) {
+        int totalProperties = properties.size();
+        
+        // Get global statistics for accurate counts
+        List<Property> allOccupiedProperties = propertyService.findOccupiedProperties();
+        List<Property> allVacantProperties = propertyService.findVacantProperties();
+        
+        // Calculate filtered counts
+        int occupied = (int) properties.stream()
+            .filter(p -> allOccupiedProperties.stream()
+                .anyMatch(op -> op.getId().equals(p.getId())))
+            .count();
+        
+        int vacant = (int) properties.stream()
+            .filter(p -> allVacantProperties.stream()
+                .anyMatch(vp -> vp.getId().equals(p.getId())))
+            .count();
+
+        // Calculate synced properties
+        int synced = (int) properties.stream()
+            .filter(p -> p.getPayPropId() != null)
+            .count();
+
+        // Calculate rent potential
+        BigDecimal totalRentPotential = properties.stream()
+            .map(Property::getMonthlyPayment)
+            .filter(rent -> rent != null)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Add ALL required model attributes for templates
+        model.addAttribute("totalProperties", totalProperties);
+        model.addAttribute("occupiedCount", occupied);
+        model.addAttribute("vacantCount", vacant);
+        model.addAttribute("syncedCount", synced);
+        model.addAttribute("totalRentPotential", totalRentPotential);
+        
+        // Additional attributes for dashboard
+        model.addAttribute("occupiedProperties", occupied);
+        model.addAttribute("vacantProperties", vacant);
+        model.addAttribute("readyForSync", totalProperties - synced);
+    }
+
+    // Helper method to add detailed analytics
+    private void addDetailedAnalytics(Model model, List<Property> properties) {
+        // PayProp sync statistics
+        long syncedProperties = properties.stream()
+            .filter(p -> p.getPayPropId() != null)
+            .count();
+        
+        long readyForSync = properties.stream()
+            .filter(Property::isReadyForPayPropSync)
+            .count();
+
+        // Property type breakdown
+        long flats = properties.stream()
+            .filter(p -> "Flat".equals(p.getPropertyType()))
+            .count();
+        
+        long houses = properties.stream()
+            .filter(p -> "House".equals(p.getPropertyType()))
+            .count();
+
+        // Average rent calculation
+        BigDecimal averageRent = properties.stream()
+            .map(Property::getMonthlyPayment)
+            .filter(rent -> rent != null)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        if (properties.size() > 0) {
+            averageRent = averageRent.divide(BigDecimal.valueOf(properties.size()), 2, BigDecimal.ROUND_HALF_UP);
+        }
+
+        model.addAttribute("syncedProperties", syncedProperties);
+        model.addAttribute("readyForSync", readyForSync);
+        model.addAttribute("flatCount", flats);
+        model.addAttribute("houseCount", houses);
+        model.addAttribute("averageRent", averageRent);
+    }
+
+    // 🆕 New PayProp sync endpoints
+    @GetMapping("/sync-status")
+    public String showSyncStatus(Model model, Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return "redirect:/access-denied";
+        }
+
+        List<Property> needsSync = propertyService.findPropertiesNeedingSync();
+        List<Property> synced = propertyService.findPropertiesByPayPropSyncStatus(true);
+        List<Property> missingFields = propertyService.findPropertiesWithMissingPayPropFields();
+
+        model.addAttribute("needsSync", needsSync);
+        model.addAttribute("synced", synced);
+        model.addAttribute("missingFields", missingFields);
+        
+        return "property/sync-status";
+    }
+
+    @GetMapping("/archived")
+    public String getArchivedProperties(Model model, Authentication authentication) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User user = userService.findById(userId);
+        if (user.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        List<Property> allArchivedProperties = propertyService.findArchivedProperties();
+        List<Property> properties;
+        
+        // Filter based on role
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            properties = allArchivedProperties;
+        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+            properties = allArchivedProperties.stream()
+                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(userId))
+                .collect(Collectors.toList());
+        } else {
+            properties = allArchivedProperties.stream()
+                .filter(p -> p.getCreatedBy() != null && p.getCreatedBy().equals((long) userId))
+                .collect(Collectors.toList());
+        }
+        
+        addComprehensivePortfolioStatistics(model, properties);
+        model.addAttribute("properties", properties);
+        model.addAttribute("pageTitle", "Archived Properties");
+        return "property/all-properties";
+    }
+
+    @GetMapping("/ready-for-sync")
+    public String getPropertiesReadyForSync(Model model, Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return "redirect:/access-denied";
+        }
+
+        List<Property> properties = propertyService.findPropertiesReadyForSync();
+        addComprehensivePortfolioStatistics(model, properties);
+        model.addAttribute("properties", properties);
+        model.addAttribute("pageTitle", "Properties Ready for PayProp Sync");
+        return "property/all-properties";
+    }
+
+    @GetMapping("/{id}")
+    public String showPropertyDetail(@PathVariable("id") Long id, Model model, Authentication authentication) {
+        Property property = propertyService.findById(id);
+        if (property == null) {
+            return "error/not-found";
+        }
+
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User loggedInUser = userService.findById(userId);
+        if (loggedInUser.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        // Check authorization - role-based access
+        boolean hasAccess = false;
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            hasAccess = true;
+        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") && 
+                   property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(userId)) {
+            hasAccess = true;
+        } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
+            hasAccess = true;
+        }
+        
+        if (!hasAccess) {
+            return "redirect:/access-denied";
+        }
+
+        // Add tenant count for this property
+        long tenantCount = tenantService.countByPropertyId(property.getId());
+        model.addAttribute("tenantCount", tenantCount);
+
+        model.addAttribute("property", property);
+        return "property/property-details";
+    }
+
+    @GetMapping("/create-property")
+    public String showCreatePropertyForm(Model model, Authentication authentication) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User user = userService.findById(userId);
+        if (user.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        model.addAttribute("property", new Property());
+        return "property/create-property";
+    }
+
+    @PostMapping("/create-property")
+    public String createProperty(@ModelAttribute("property") @Validated Property property, 
+                                BindingResult bindingResult, Authentication authentication, 
+                                Model model, RedirectAttributes redirectAttributes) {
+        if (bindingResult.hasErrors()) {
+            return "property/create-property";
+        }
+
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User loggedInUser = userService.findById(userId);
+        if (loggedInUser.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        // Set audit fields
+        property.setCreatedBy((long) userId);
+        property.setCreatedAt(LocalDateTime.now());
+        property.setUpdatedBy((long) userId);
+        property.setUpdatedAt(LocalDateTime.now());
+
+        try {
+            Property savedProperty = propertyService.save(property);
+            
+            // TODO: Add PayProp sync after service is implemented
+            // payPropSyncService.createProperty(savedProperty);
+            
+            redirectAttributes.addFlashAttribute("successMessage", 
+                "Property created successfully! It will be synced to PayProp on June 17, 2025.");
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to create property: " + e.getMessage());
+            return "property/create-property";
+        }
+
+        return "redirect:/employee/property/all-properties";
+    }
+
+    @GetMapping("/update/{id}")
+    public String showUpdatePropertyForm(@PathVariable("id") Long id, Model model, Authentication authentication) {
+        Property property = propertyService.findById(id);
+        if (property == null) {
+            return "error/not-found";
+        }
+
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User loggedInUser = userService.findById(userId);
+        if (loggedInUser.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        // Check authorization
+        boolean hasAccess = false;
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            hasAccess = true;
+        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") && 
+                   property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(userId)) {
+            hasAccess = true;
+        } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
+            hasAccess = true;
+        }
+        
+        if (!hasAccess) {
+            return "redirect:/access-denied";
+        }
+
+        model.addAttribute("property", property);
+        return "property/update-property";
+    }
+
+    @PostMapping("/update")
+    public String updateProperty(@ModelAttribute("property") @Validated Property property, 
+                                BindingResult bindingResult, Authentication authentication, 
+                                Model model, RedirectAttributes redirectAttributes) {
+        if (bindingResult.hasErrors()) {
+            return "property/update-property";
+        }
+
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User loggedInUser = userService.findById(userId);
+        if (loggedInUser.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        Property existingProperty = propertyService.findById(property.getId());
+        if (existingProperty == null) {
+            return "error/not-found";
+        }
+
+        // Check authorization
+        boolean hasAccess = false;
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            hasAccess = true;
+        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") && 
+                   existingProperty.getPropertyOwnerId() != null && existingProperty.getPropertyOwnerId().equals(userId)) {
+            hasAccess = true;
+        } else if (existingProperty.getCreatedBy() != null && existingProperty.getCreatedBy().equals((long) userId)) {
+            hasAccess = true;
+        }
+        
+        if (!hasAccess) {
+            return "redirect:/access-denied";
+        }
+
+        // Preserve audit fields and PayProp sync data
+        property.setCreatedBy(existingProperty.getCreatedBy());
+        property.setCreatedAt(existingProperty.getCreatedAt());
+        property.setUpdatedBy((long) userId);
+        property.setUpdatedAt(LocalDateTime.now());
+        property.setPayPropId(existingProperty.getPayPropId()); // Preserve PayProp sync
+
+        try {
+            Property savedProperty = propertyService.save(property);
+            
+            // TODO: Add PayProp sync after service is implemented
+            // payPropSyncService.updateProperty(savedProperty);
+            
+            redirectAttributes.addFlashAttribute("successMessage", "Property updated successfully!");
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Failed to update property: " + e.getMessage());
+            return "property/update-property";
+        }
+
+        return "redirect:/employee/property/" + property.getId();
+    }
+
+    @PostMapping("/delete/{id}")
+    public String deleteProperty(@PathVariable("id") Long id, Authentication authentication, 
+                                RedirectAttributes redirectAttributes) {
+        Property property = propertyService.findById(id);
+        if (property == null) {
+            return "error/not-found";
+        }
+
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User user = userService.findById(userId);
+        if (user.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        // Only managers can delete properties
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            redirectAttributes.addFlashAttribute("error", 
+                "Sorry, you are not authorized to delete this property. Only managers have permission to delete properties.");
+            return "redirect:/employee/property/all-properties";
+        }
+
+        try {
+            // TODO: Add PayProp sync before deletion
+            // payPropSyncService.deleteProperty(property);
+            
+            propertyService.delete(property);
+            redirectAttributes.addFlashAttribute("successMessage", "Property deleted successfully!");
+        } catch (Exception e) {
+            return "error/500";
+        }
+
+        return "redirect:/employee/property/all-properties";
+    }
+
+    // 🔄 Updated search method - PayProp compatible with role filtering
+    @GetMapping("/search")
+    public String searchProperties(@RequestParam(value = "propertyName", required = false) String propertyName,
+                                  @RequestParam(value = "city", required = false) String city,
+                                  @RequestParam(value = "postalCode", required = false) String postalCode,
+                                  @RequestParam(value = "isArchived", required = false) Boolean isArchived,
+                                  @RequestParam(value = "propertyType", required = false) String propertyType,
+                                  @RequestParam(value = "bedrooms", required = false) Integer bedrooms,
+                                  Model model, Authentication authentication) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User user = userService.findById(userId);
+        if (user.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        List<Property> allResults = propertyService.searchProperties(propertyName, city, postalCode, 
+                                                                    isArchived, propertyType, bedrooms, 50);
+        List<Property> properties;
+        
+        // Filter search results based on role
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            properties = allResults;
+        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+            properties = allResults.stream()
+                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(userId))
+                .collect(Collectors.toList());
+        } else {
+            properties = allResults.stream()
+                .filter(p -> p.getCreatedBy() != null && p.getCreatedBy().equals((long) userId))
+                .collect(Collectors.toList());
+        }
+        
+        addComprehensivePortfolioStatistics(model, properties);
+        model.addAttribute("properties", properties);
+        model.addAttribute("searchPerformed", true);
+        model.addAttribute("propertyName", propertyName);
+        model.addAttribute("city", city);
+        model.addAttribute("postalCode", postalCode);
+        model.addAttribute("isArchived", isArchived);
+        model.addAttribute("propertyType", propertyType);
+        model.addAttribute("bedrooms", bedrooms);
+        
+        return "property/all-properties";
+    }
+
+    // 🔄 Updated - PayProp compatible archive logic
+    @PostMapping("/archive/{id}")
+    public String archiveProperty(@PathVariable("id") Long id, Authentication authentication,
+                                 RedirectAttributes redirectAttributes) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User user = userService.findById(userId);
+        if (user.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        Property property = propertyService.findById(id);
+        if (property == null) {
+            return "error/not-found";
+        }
+
+        // Check authorization
+        boolean hasAccess = false;
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            hasAccess = true;
+        } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
+            hasAccess = true;
+        }
+        
+        if (!hasAccess) {
+            return "redirect:/access-denied";
+        }
+
+        propertyService.archiveProperty(id);
+        
+        // TODO: Add PayProp sync
+        // payPropSyncService.archiveProperty(property);
+        
+        redirectAttributes.addFlashAttribute("successMessage", "Property archived successfully!");
+        return "redirect:/employee/property/" + id;
+    }
+
+    @PostMapping("/unarchive/{id}")
+    public String unarchiveProperty(@PathVariable("id") Long id, Authentication authentication,
+                                   RedirectAttributes redirectAttributes) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User user = userService.findById(userId);
+        if (user.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+
+        Property property = propertyService.findById(id);
+        if (property == null) {
+            return "error/not-found";
+        }
+
+        // Check authorization
+        boolean hasAccess = false;
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            hasAccess = true;
+        } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
+            hasAccess = true;
+        }
+        
+        if (!hasAccess) {
+            return "redirect:/access-denied";
+        }
+
+        propertyService.unarchiveProperty(id);
+        
+        // TODO: Add PayProp sync
+        // payPropSyncService.unarchiveProperty(property);
+        
+        redirectAttributes.addFlashAttribute("successMessage", "Property restored successfully!");
+        return "redirect:/employee/property/" + id;
+    }
+}

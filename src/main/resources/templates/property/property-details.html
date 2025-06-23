@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{/general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- CSS -->
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:insert="~{/general/header.html}"></div>
+    <div th:insert="~{/general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h4 class="text-themecolor" th:text="${property.propertyName}">Property Name</h4>
+                    <p class="text-muted" th:text="${property.fullAddress}">Property Address</p>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0)">Home</a></li>
+                            <li class="breadcrumb-item"><a th:href="${home + 'employee/property/all-properties'}">Properties</a></li>
+                            <li class="breadcrumb-item active">Property Details</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="btn-group" role="group">
+                        <a th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}" 
+                           th:href="${home + 'employee/property/update/' + property.id}" 
+                           class="btn btn-warning">
+                            <i class="fas fa-edit"></i> Edit Property
+                        </a>
+                        <a th:href="${home + 'employee/tenant/create-tenant?propertyId=' + property.id}" 
+                           class="btn btn-success">
+                            <i class="fas fa-user-plus"></i> Add Tenant
+                        </a>
+                        <a th:href="${home + 'employee/maintenance/create-ticket?propertyId=' + property.id}" 
+                           class="btn btn-info">
+                            <i class="fas fa-wrench"></i> Create Maintenance
+                        </a>
+                        <a th:href="${home + 'employee/drive/list-files?folder=' + property.propertyName}" 
+                           class="btn btn-primary">
+                            <i class="fas fa-folder"></i> View Documents
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Property Status Cards -->
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-success">
+                                    <i class="fas fa-pound-sign"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light">£<span th:text="${#numbers.formatDecimal(property.monthlyPayment, 0, 'COMMA', 0, 'POINT')}">1200</span></h3>
+                                    <h5 class="text-muted m-b-0">Monthly Rent</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div th:class="${property.isActive() ? 'round round-lg align-self-center round-info' : 'round round-lg align-self-center round-danger'}">
+                                    <i th:class="${property.isActive() ? 'fas fa-check-circle' : 'fas fa-archive'}"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${property.isActive() ? 'Active' : 'Archived'}">Active</h3>
+                                    <h5 class="text-muted m-b-0">Property Status</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div th:class="${property.payPropId != null ? 'round round-lg align-self-center round-success' : 'round round-lg align-self-center round-warning'}">
+                                    <i th:class="${property.payPropId != null ? 'fas fa-sync' : 'fas fa-clock'}"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${property.payPropId != null ? 'Synced' : 'Pending'}">Pending</h3>
+                                    <h5 class="text-muted m-b-0">PayProp Status</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-primary">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${tenantCount ?: 0}">0</h3>
+                                    <h5 class="text-muted m-b-0">Active Tenants</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Property Information -->
+            <div class="row">
+                <div class="col-lg-8">
+                    <!-- Basic Information -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Property Information</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <table class="table table-borderless">
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>Property Name:</strong></td>
+                                                <td th:text="${property.propertyName}">Property Name</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Type:</strong></td>
+                                                <td th:text="${property.propertyType ?: 'Not specified'}">Flat</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Bedrooms:</strong></td>
+                                                <td th:text="${property.bedrooms ?: 'Not specified'}">2</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Bathrooms:</strong></td>
+                                                <td th:text="${property.bathrooms ?: 'Not specified'}">1</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Furnished:</strong></td>
+                                                <td th:text="${property.furnished ?: 'Not specified'}">Furnished</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>EPC Rating:</strong></td>
+                                                <td>
+                                                    <span th:if="${property.epcRating}" 
+                                                          th:class="'badge badge-' + ${property.epcRating == 'A' || property.epcRating == 'B' ? 'success' : 
+                                                                                        property.epcRating == 'C' || property.epcRating == 'D' ? 'warning' : 'danger'}"
+                                                          th:text="${property.epcRating}">C</span>
+                                                    <span th:unless="${property.epcRating}" class="text-muted">Not specified</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <table class="table table-borderless">
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>Monthly Rent:</strong></td>
+                                                <td class="text-success font-weight-bold">
+                                                    £<span th:text="${#numbers.formatDecimal(property.monthlyPayment, 0, 'COMMA', 0, 'POINT')}">1200</span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Deposit Amount:</strong></td>
+                                                <td th:text="${property.depositAmount != null ? '£' + #numbers.formatDecimal(property.depositAmount, 0, 'COMMA', 0, 'POINT') : 'Not specified'}">£1200</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Available From:</strong></td>
+                                                <td th:text="${property.listedFrom != null ? #temporals.format(property.listedFrom, 'dd/MM/yyyy') : 'Not specified'}">01/01/2025</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Available Until:</strong></td>
+                                                <td th:text="${property.listedUntil != null ? #temporals.format(property.listedUntil, 'dd/MM/yyyy') : 'Open-ended'}">Open-ended</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Managing Agent:</strong></td>
+                                                <td th:text="${property.agentName ?: 'Not specified'}">Agent Name</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Council Tax Band:</strong></td>
+                                                <td th:text="${property.councilTaxBand ?: 'Not specified'}">C</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Address Information -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Address Details</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <p class="lead" th:text="${property.fullAddress}">Full Address</p>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <table class="table table-borderless">
+                                        <tbody>
+                                            <tr th:if="${property.addressLine1}">
+                                                <td><strong>Address Line 1:</strong></td>
+                                                <td th:text="${property.addressLine1}">123 Oak Street</td>
+                                            </tr>
+                                            <tr th:if="${property.addressLine2}">
+                                                <td><strong>Address Line 2:</strong></td>
+                                                <td th:text="${property.addressLine2}">City Centre</td>
+                                            </tr>
+                                            <tr th:if="${property.addressLine3}">
+                                                <td><strong>Address Line 3:</strong></td>
+                                                <td th:text="${property.addressLine3}">District</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <table class="table table-borderless">
+                                        <tbody>
+                                            <tr th:if="${property.city}">
+                                                <td><strong>City:</strong></td>
+                                                <td th:text="${property.city}">Manchester</td>
+                                            </tr>
+                                            <tr th:if="${property.county}">
+                                                <td><strong>County:</strong></td>
+                                                <td th:text="${property.county}">Greater Manchester</td>
+                                            </tr>
+                                            <tr th:if="${property.postcode}">
+                                                <td><strong>Postcode:</strong></td>
+                                                <td th:text="${property.postcode}">M1 1AA</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PayProp Integration -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">PayProp Integration</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <table class="table table-borderless">
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>PayProp ID:</strong></td>
+                                                <td>
+                                                    <span th:if="${property.payPropId}" 
+                                                          class="badge badge-success" 
+                                                          th:text="${property.payPropId}">PP123456</span>
+                                                    <span th:unless="${property.payPropId}" 
+                                                          class="badge badge-warning">Pending Sync</span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Customer ID:</strong></td>
+                                                <td th:text="${property.customerId ?: 'Auto-generated'}">PROP_123456</td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Payments Enabled:</strong></td>
+                                                <td>
+                                                    <span th:if="${property.enablePaymentsAsBoolean}" class="badge badge-success">Yes</span>
+                                                    <span th:unless="${property.enablePaymentsAsBoolean}" class="badge badge-danger">No</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <table class="table table-borderless">
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>Hold Owner Funds:</strong></td>
+                                                <td>
+                                                    <span th:if="${property.holdOwnerFundsAsBoolean}" class="badge badge-info">Yes</span>
+                                                    <span th:unless="${property.holdOwnerFundsAsBoolean}" class="badge badge-secondary">No</span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Minimum Balance:</strong></td>
+                                                <td>£<span th:text="${#numbers.formatDecimal(property.propertyAccountMinimumBalance ?: 0, 0, 'COMMA', 0, 'POINT')}">0</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Sync Status:</strong></td>
+                                                <td>
+                                                    <span th:if="${property.payPropId}" class="badge badge-success">
+                                                        <i class="fas fa-check-circle"></i> Synced
+                                                    </span>
+                                                    <span th:unless="${property.payPropId}" class="badge badge-warning">
+                                                        <i class="fas fa-clock"></i> Awaiting Sync (June 17, 2025)
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <div th:unless="${property.payPropId}" class="alert alert-info mt-3">
+                                <h6><i class="fas fa-info-circle"></i> PayProp Integration Status</h6>
+                                <p class="mb-2">This property will be automatically synced to PayProp on <strong>June 17, 2025</strong>.</p>
+                                <div class="progress mb-2">
+                                    <div class="progress-bar bg-success" role="progressbar" style="width: 95%" aria-valuenow="95" aria-valuemin="0" aria-valuemax="100">95%</div>
+                                </div>
+                                <small class="text-muted">All required fields are complete. Ready for sync.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Comments and Notes -->
+                    <div th:if="${property.comment}" class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Notes & Comments</h4>
+                        </div>
+                        <div class="card-body">
+                            <p th:text="${property.comment}">Property comments and notes...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <div class="col-lg-4">
+                    <!-- Quick Actions -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Quick Actions</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="list-group list-group-flush">
+                                <a th:href="${home + 'employee/tenant/all-tenants?propertyId=' + property.id}" 
+                                   class="list-group-item list-group-item-action">
+                                    <i class="fas fa-users text-primary"></i> View Tenants
+                                </a>
+                                <a th:href="${home + 'employee/maintenance/all-tickets?propertyId=' + property.id}" 
+                                   class="list-group-item list-group-item-action">
+                                    <i class="fas fa-wrench text-info"></i> Maintenance History
+                                </a>
+                                <a th:href="${home + 'employee/drive/list-files?folder=' + property.propertyName}" 
+                                   class="list-group-item list-group-item-action">
+                                    <i class="fas fa-folder text-warning"></i> Property Documents
+                                </a>
+                                <a th:href="${home + 'employee/owner/all-owners?propertyId=' + property.id}" 
+                                   class="list-group-item list-group-item-action">
+                                    <i class="fas fa-user-tie text-success"></i> Property Owners
+                                </a>
+                                <a th:href="${home + 'employee/property/portfolio-overview'}" 
+                                   class="list-group-item list-group-item-action">
+                                    <i class="fas fa-chart-bar text-purple"></i> Portfolio Overview
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Recent Activity</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="timeline">
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-success"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Property Created</h6>
+                                        <p class="timeline-text">Property added to system</p>
+                                        <span class="timeline-date" th:text="${property.createdAt != null ? #temporals.format(property.createdAt, 'dd/MM/yyyy HH:mm') : 'Unknown'}">15/06/2025 14:30</span>
+                                    </div>
+                                </div>
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-info"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">PayProp Ready</h6>
+                                        <p class="timeline-text">All required fields completed</p>
+                                        <span class="timeline-date">15/06/2025 14:35</span>
+                                    </div>
+                                </div>
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-warning"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Pending Sync</h6>
+                                        <p class="timeline-text">Awaiting PayProp integration</p>
+                                        <span class="timeline-date">Goes live 17/06/2025</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Property Tags -->
+                    <div th:if="${property.tags}" class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Tags</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="tags">
+                                <span th:each="tag : ${#strings.listSplit(property.tags, ',')}" 
+                                      class="badge badge-light mr-1 mb-1" 
+                                      th:text="${#strings.trim(tag)}">Tag</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Archive/Unarchive Actions -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Property Management</h4>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${property.isActive()}">
+                                <form th:action="@{/employee/property/archive/{id}(id=${property.id})}" method="post" class="mb-2">
+                                    <button type="submit" class="btn btn-warning btn-block" 
+                                            onclick="return confirm('Are you sure you want to archive this property?')">
+                                        <i class="fas fa-archive"></i> Archive Property
+                                    </button>
+                                </form>
+                                <small class="text-muted">Archiving will hide this property from active listings.</small>
+                            </div>
+                            <div th:unless="${property.isActive()}">
+                                <form th:action="@{/employee/property/unarchive/{id}(id=${property.id})}" method="post" class="mb-2">
+                                    <button type="submit" class="btn btn-success btn-block">
+                                        <i class="fas fa-undo"></i> Restore Property
+                                    </button>
+                                </form>
+                                <small class="text-muted">Restore this property to active status.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div th:insert="~{/general/right-sidebar.html}"></div>
+        </div>
+    </div>
+    
+    <div th:insert="~{/general/footer.html}"></div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e9ecef;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -22px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    z-index: 1;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    border-left: 3px solid #007bff;
+}
+
+.timeline-title {
+    margin: 0 0 5px 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.timeline-text {
+    margin: 0 0 5px 0;
+    font-size: 13px;
+    color: #6c757d;
+}
+
+.timeline-date {
+    font-size: 12px;
+    color: #999;
+}
+
+.tags .badge {
+    font-size: 12px;
+    padding: 5px 8px;
+}
+</style>
+
+</body>
+</html>

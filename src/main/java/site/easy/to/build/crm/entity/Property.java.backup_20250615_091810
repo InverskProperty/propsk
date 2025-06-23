@@ -1,0 +1,315 @@
+// Property.java
+package site.easy.to.build.crm.entity;
+
+import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Entity
+@Table(name = "properties")
+public class Property {
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    // PayProp Integration Fields
+    @Column(name = "payprop_id", length = 32, unique = true)
+    @Pattern(regexp = "^[a-zA-Z0-9]+$")
+    private String payPropId;
+    
+    @Column(name = "payprop_user")
+    private String paypropUser;
+    
+    @Column(name = "customer_id", length = 50)
+    @Pattern(regexp = "^[a-zA-Z0-9_-]+$")
+    private String customerId;
+    
+    // Required Fields
+    @Column(name = "property_name", nullable = false, length = 255)
+    @NotBlank
+    @Pattern(regexp = "^.*\\S.*$")
+    private String propertyName;
+    
+    // Address fields
+    @Column(name = "address_line_1", length = 50)
+    @Size(max = 50)
+    private String addressLine1;
+    
+    @Column(name = "address_line_2", length = 50)
+    @Size(max = 50)
+    private String addressLine2;
+    
+    @Column(name = "address_line_3", length = 50)
+    @Size(max = 50)
+    private String addressLine3;
+    
+    @Column(name = "city", length = 50)
+    @Size(max = 50)
+    private String city;
+    
+    @Column(name = "county", length = 50)
+    @Size(max = 50)
+    private String county;
+    
+    @Column(name = "country", length = 2)
+    private String country = "UK";
+    
+    @Column(name = "postcode", length = 10)
+    @Size(max = 10)
+    private String postcode;
+    
+    // Property Details
+    @Column(name = "property_type")
+    private String propertyType;
+    
+    private Integer bedrooms;
+    private Integer bathrooms;
+    private String furnished;
+    
+    @Column(name = "epc_rating")
+    private String epcRating;
+    
+    @Column(name = "council_tax_band")
+    private String councilTaxBand;
+    
+    // Financial Fields with PayProp specifications
+    @Column(name = "monthly_payment_required", precision = 10, scale = 2)
+    @DecimalMin("0.01")
+    @Digits(integer = 8, fraction = 2)
+    private BigDecimal monthlyPaymentRequired;
+    
+    @Column(name = "deposit_amount", precision = 10, scale = 2)
+    @DecimalMin("0.01")
+    @Digits(integer = 8, fraction = 2)
+    private BigDecimal depositAmount;
+    
+    @Column(name = "property_account_minimum_balance", precision = 10, scale = 2)
+    @DecimalMin("0")
+    @Digits(integer = 8, fraction = 2)
+    private BigDecimal propertyAccountMinimumBalance = BigDecimal.ZERO;
+    
+    // Settings
+    @Column(name = "allow_payments")
+    private Boolean allowPayments = true;
+    
+    @Column(name = "approval_required")
+    private String approvalRequired;
+    
+    @Column(name = "hold_owner_funds")
+    private Boolean holdOwnerFunds = false;
+    
+    @Column(name = "listed_from")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate listedFrom;
+    
+    @Column(name = "listed_until")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate listedUntil;
+    
+    // Other fields
+    private String status;
+    private String agent;
+    
+    @Column(name = "service_level")
+    private String serviceLevel;
+    
+    @Column(name = "customer_reference", length = 50)
+    @Size(max = 50)
+    private String customerReference;
+    
+    private String tags;
+    
+    @Column(name = "comment", columnDefinition = "TEXT")
+    private String comment;
+    
+    // Audit fields
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+    
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+    
+    @Column(name = "created_by")
+    private Long createdBy;
+    
+    @Column(name = "updated_by")
+    private Long updatedBy;
+    
+    // Foreign key (keeping original structure)
+    @Column(name = "property_owner_id")
+    private Integer propertyOwnerId;
+    
+    // Relationships
+    @OneToMany(mappedBy = "property", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Tenant> tenants;
+    
+    @OneToMany(mappedBy = "property", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<PropertyOwner> propertyOwners;
+    
+    // Constructors
+    public Property() {}
+    
+    public Property(String propertyName) {
+        this.propertyName = propertyName;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+    
+    // Getters and Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    
+    public String getPayPropId() { return payPropId; }
+    public void setPayPropId(String payPropId) { this.payPropId = payPropId; }
+    
+    public String getPaypropUser() { return paypropUser; }
+    public void setPaypropUser(String paypropUser) { this.paypropUser = paypropUser; }
+    
+    public String getCustomerId() { return customerId; }
+    public void setCustomerId(String customerId) { this.customerId = customerId; }
+    
+    public String getPropertyName() { return propertyName; }
+    public void setPropertyName(String propertyName) { this.propertyName = propertyName; }
+    
+    public String getAddressLine1() { return addressLine1; }
+    public void setAddressLine1(String addressLine1) { this.addressLine1 = addressLine1; }
+    
+    public String getAddressLine2() { return addressLine2; }
+    public void setAddressLine2(String addressLine2) { this.addressLine2 = addressLine2; }
+    
+    public String getAddressLine3() { return addressLine3; }
+    public void setAddressLine3(String addressLine3) { this.addressLine3 = addressLine3; }
+    
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+    
+    public String getCounty() { return county; }
+    public void setCounty(String county) { this.county = county; }
+    
+    public String getCountry() { return country; }
+    public void setCountry(String country) { this.country = country; }
+    
+    public String getPostcode() { return postcode; }
+    public void setPostcode(String postcode) { this.postcode = postcode; }
+    
+    public String getPropertyType() { return propertyType; }
+    public void setPropertyType(String propertyType) { this.propertyType = propertyType; }
+    
+    public Integer getBedrooms() { return bedrooms; }
+    public void setBedrooms(Integer bedrooms) { this.bedrooms = bedrooms; }
+    
+    public Integer getBathrooms() { return bathrooms; }
+    public void setBathrooms(Integer bathrooms) { this.bathrooms = bathrooms; }
+    
+    public String getFurnished() { return furnished; }
+    public void setFurnished(String furnished) { this.furnished = furnished; }
+    
+    public String getEpcRating() { return epcRating; }
+    public void setEpcRating(String epcRating) { this.epcRating = epcRating; }
+    
+    public String getCouncilTaxBand() { return councilTaxBand; }
+    public void setCouncilTaxBand(String councilTaxBand) { this.councilTaxBand = councilTaxBand; }
+    
+    public BigDecimal getMonthlyPaymentRequired() { return monthlyPaymentRequired; }
+    public void setMonthlyPaymentRequired(BigDecimal monthlyPaymentRequired) { this.monthlyPaymentRequired = monthlyPaymentRequired; }
+    
+    public BigDecimal getDepositAmount() { return depositAmount; }
+    public void setDepositAmount(BigDecimal depositAmount) { this.depositAmount = depositAmount; }
+    
+    public BigDecimal getPropertyAccountMinimumBalance() { return propertyAccountMinimumBalance; }
+    public void setPropertyAccountMinimumBalance(BigDecimal propertyAccountMinimumBalance) { this.propertyAccountMinimumBalance = propertyAccountMinimumBalance; }
+    
+    public Boolean getAllowPayments() { return allowPayments; }
+    public void setAllowPayments(Boolean allowPayments) { this.allowPayments = allowPayments; }
+    
+    public String getApprovalRequired() { return approvalRequired; }
+    public void setApprovalRequired(String approvalRequired) { this.approvalRequired = approvalRequired; }
+    
+    public Boolean getHoldOwnerFunds() { return holdOwnerFunds; }
+    public void setHoldOwnerFunds(Boolean holdOwnerFunds) { this.holdOwnerFunds = holdOwnerFunds; }
+    
+    public LocalDate getListedFrom() { return listedFrom; }
+    public void setListedFrom(LocalDate listedFrom) { this.listedFrom = listedFrom; }
+    
+    public LocalDate getListedUntil() { return listedUntil; }
+    public void setListedUntil(LocalDate listedUntil) { this.listedUntil = listedUntil; }
+    
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    
+    public String getAgent() { return agent; }
+    public void setAgent(String agent) { this.agent = agent; }
+    
+    public String getServiceLevel() { return serviceLevel; }
+    public void setServiceLevel(String serviceLevel) { this.serviceLevel = serviceLevel; }
+    
+    public String getCustomerReference() { return customerReference; }
+    public void setCustomerReference(String customerReference) { this.customerReference = customerReference; }
+    
+    public String getTags() { return tags; }
+    public void setTags(String tags) { this.tags = tags; }
+    
+    public String getComment() { return comment; }
+    public void setComment(String comment) { this.comment = comment; }
+    
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    
+    public Long getCreatedBy() { return createdBy; }
+    public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
+    
+    public Long getUpdatedBy() { return updatedBy; }
+    public void setUpdatedBy(Long updatedBy) { this.updatedBy = updatedBy; }
+    
+    public Integer getPropertyOwnerId() { return propertyOwnerId; }
+    public void setPropertyOwnerId(Integer propertyOwnerId) { this.propertyOwnerId = propertyOwnerId; }
+    
+    public List<Tenant> getTenants() { return tenants; }
+    public void setTenants(List<Tenant> tenants) { this.tenants = tenants; }
+    
+    public List<PropertyOwner> getPropertyOwners() { return propertyOwners; }
+    public void setPropertyOwners(List<PropertyOwner> propertyOwners) { this.propertyOwners = propertyOwners; }
+    
+    // Utility methods
+    public String getFullAddress() {
+        StringBuilder address = new StringBuilder();
+        if (addressLine1 != null && !addressLine1.trim().isEmpty()) {
+            address.append(addressLine1);
+        }
+        if (addressLine2 != null && !addressLine2.trim().isEmpty()) {
+            address.append(", ").append(addressLine2);
+        }
+        if (addressLine3 != null && !addressLine3.trim().isEmpty()) {
+            address.append(", ").append(addressLine3);
+        }
+        if (city != null && !city.trim().isEmpty()) {
+            address.append(", ").append(city);
+        }
+        if (postcode != null && !postcode.trim().isEmpty()) {
+            address.append(" ").append(postcode);
+        }
+        return address.toString();
+    }
+    
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+        if (listedFrom == null) {
+            listedFrom = LocalDate.now();
+        }
+    }
+    
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+}

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{/general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- Form CSS -->
+<link th:href="@{/css/bootstrap-datepicker.min.css}" rel="stylesheet">
+<link th:href="@{/css/tagify.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:insert="~{/general/header.html}"></div>
+    <div th:insert="~{/general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-5 align-self-center">
+                    <h4 class="text-themecolor">Add New Property</h4>
+                </div>
+                <div class="col-md-7 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0)">Home</a></li>
+                            <li class="breadcrumb-item"><a th:href="${home + 'employee/property/all-properties'}">Properties</a></li>
+                            <li class="breadcrumb-item active">Add Property</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PayProp Integration Status -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <h5><i class="fas fa-info-circle"></i> PayProp Integration</h5>
+                        <p class="mb-0">Properties created will be automatically synced to PayProp on <strong>June 17, 2025</strong>. Ensure all required fields are completed for seamless integration.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Property Form -->
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4 class="card-title">Property Information</h4>
+                            
+                            <form th:action="@{/employee/property/create-property}" th:object="${property}" method="post">
+                                <!-- Basic Information -->
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="form-group">
+                                            <label for="propertyName" class="required">Property Name *</label>
+                                            <input type="text" class="form-control" id="propertyName" 
+                                                   th:field="*{propertyName}" placeholder="e.g., 123 Oak Street, Manchester" required>
+                                            <small class="form-text text-muted">This will be visible to tenants and used in PayProp</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="propertyType">Property Type</label>
+                                            <select class="form-control" th:field="*{propertyType}">
+                                                <option value="">Select Type</option>
+                                                <option value="Flat">Flat</option>
+                                                <option value="House">House</option>
+                                                <option value="Studio">Studio</option>
+                                                <option value="Maisonette">Maisonette</option>
+                                                <option value="Bungalow">Bungalow</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Address -->
+                                <div class="card mt-4">
+                                    <div class="card-header">
+                                        <h5>Property Address</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="addressLine1">Address Line 1</label>
+                                                    <input type="text" class="form-control" th:field="*{addressLine1}" 
+                                                           placeholder="Building number and street name">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="addressLine2">Address Line 2</label>
+                                                    <input type="text" class="form-control" th:field="*{addressLine2}" 
+                                                           placeholder="District or area (optional)">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label for="city">City</label>
+                                                    <input type="text" class="form-control" th:field="*{city}" 
+                                                           placeholder="Manchester, Birmingham, etc.">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label for="county">County</label>
+                                                    <input type="text" class="form-control" th:field="*{county}" 
+                                                           placeholder="Greater Manchester, West Midlands">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label for="postcode">Postcode</label>
+                                                    <input type="text" class="form-control" th:field="*{postcode}" 
+                                                           placeholder="M1 1AA" style="text-transform: uppercase;">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Property Details -->
+                                <div class="card mt-4">
+                                    <div class="card-header">
+                                        <h5>Property Details</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <div class="form-group">
+                                                    <label for="bedrooms">Bedrooms</label>
+                                                    <select class="form-control" th:field="*{bedrooms}">
+                                                        <option value="">Select</option>
+                                                        <option value="0">Studio</option>
+                                                        <option value="1">1 Bedroom</option>
+                                                        <option value="2">2 Bedrooms</option>
+                                                        <option value="3">3 Bedrooms</option>
+                                                        <option value="4">4 Bedrooms</option>
+                                                        <option value="5">5+ Bedrooms</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="form-group">
+                                                    <label for="bathrooms">Bathrooms</label>
+                                                    <select class="form-control" th:field="*{bathrooms}">
+                                                        <option value="">Select</option>
+                                                        <option value="1">1 Bathroom</option>
+                                                        <option value="2">2 Bathrooms</option>
+                                                        <option value="3">3 Bathrooms</option>
+                                                        <option value="4">4+ Bathrooms</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="form-group">
+                                                    <label for="furnished">Furnished</label>
+                                                    <select class="form-control" th:field="*{furnished}">
+                                                        <option value="">Select</option>
+                                                        <option value="Furnished">Furnished</option>
+                                                        <option value="Unfurnished">Unfurnished</option>
+                                                        <option value="Part Furnished">Part Furnished</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="form-group">
+                                                    <label for="epcRating">EPC Rating</label>
+                                                    <select class="form-control" th:field="*{epcRating}">
+                                                        <option value="">Select</option>
+                                                        <option value="A">A</option>
+                                                        <option value="B">B</option>
+                                                        <option value="C">C</option>
+                                                        <option value="D">D</option>
+                                                        <option value="E">E</option>
+                                                        <option value="F">F</option>
+                                                        <option value="G">G</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Financial Information -->
+                                <div class="card mt-4">
+                                    <div class="card-header">
+                                        <h5>Financial Information</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label for="monthlyPayment" class="required">Monthly Rent *</label>
+                                                    <div class="input-group">
+                                                        <div class="input-group-prepend">
+                                                            <span class="input-group-text">£</span>
+                                                        </div>
+                                                        <input type="number" class="form-control" th:field="*{monthlyPayment}" 
+                                                               placeholder="1200" step="0.01" min="0" required>
+                                                    </div>
+                                                    <small class="form-text text-muted">Required for PayProp integration</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label for="depositAmount">Deposit Amount</label>
+                                                    <div class="input-group">
+                                                        <div class="input-group-prepend">
+                                                            <span class="input-group-text">£</span>
+                                                        </div>
+                                                        <input type="number" class="form-control" th:field="*{depositAmount}" 
+                                                               placeholder="1200" step="0.01" min="0">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label for="propertyAccountMinimumBalance">Minimum Balance</label>
+                                                    <div class="input-group">
+                                                        <div class="input-group-prepend">
+                                                            <span class="input-group-text">£</span>
+                                                        </div>
+                                                        <input type="number" class="form-control" th:field="*{propertyAccountMinimumBalance}" 
+                                                               placeholder="500" step="0.01" min="0" value="0">
+                                                    </div>
+                                                    <small class="form-text text-muted">Minimum balance for property account in PayProp</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- PayProp Settings -->
+                                <div class="card mt-4">
+                                    <div class="card-header">
+                                        <h5>PayProp Settings</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label for="agentName">Managing Agent</label>
+                                                    <input type="text" class="form-control" th:field="*{agentName}" 
+                                                           placeholder="Agent or company name">
+                                                    <small class="form-text text-muted">For portfolio subdivision in PayProp</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label for="listedFrom">Available From</label>
+                                                    <input type="date" class="form-control" th:field="*{listedFrom}">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label for="listedUntil">Available Until</label>
+                                                    <input type="date" class="form-control" th:field="*{listedUntil}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input type="checkbox" class="form-check-input" id="enablePayments" 
+                                                           th:checked="*{enablePayments == 'Y'}" name="enablePaymentsCheck">
+                                                    <label class="form-check-label" for="enablePayments">
+                                                        Enable Payments in PayProp
+                                                    </label>
+                                                    <input type="hidden" th:field="*{enablePayments}" value="Y">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input type="checkbox" class="form-check-input" id="holdOwnerFunds" 
+                                                           th:checked="*{holdOwnerFunds == 'Y'}" name="holdOwnerFundsCheck">
+                                                    <label class="form-check-label" for="holdOwnerFunds">
+                                                        Hold Owner Funds
+                                                    </label>
+                                                    <input type="hidden" th:field="*{holdOwnerFunds}" value="N">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Additional Information -->
+                                <div class="card mt-4">
+                                    <div class="card-header">
+                                        <h5>Additional Information</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="form-group">
+                                            <label for="comment">Notes/Comments</label>
+                                            <textarea class="form-control" th:field="*{comment}" rows="4" 
+                                                      placeholder="Any additional notes about the property..."></textarea>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="tags">Tags</label>
+                                            <input type="text" class="form-control" th:field="*{tags}" 
+                                                   placeholder="luxury, city-center, parking, garden" 
+                                                   data-toggle="tags">
+                                            <small class="form-text text-muted">Separate tags with commas</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Form Actions -->
+                                <div class="card mt-4">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-12 text-right">
+                                                <a th:href="@{/employee/property/all-properties}" class="btn btn-secondary mr-2">
+                                                    <i class="fas fa-times"></i> Cancel
+                                                </a>
+                                                <button type="submit" class="btn btn-success">
+                                                    <i class="fas fa-save"></i> Create Property
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div th:insert="~{/general/right-sidebar.html}"></div>
+        </div>
+    </div>
+    
+    <div th:insert="~{/general/footer.html}"></div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+<script th:src="@{/js/library/bootstrap-datepicker.min.js}"></script>
+<script th:src="@{/js/library/tagify.min.js}"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize date pickers
+    $('input[type="date"]').datepicker({
+        format: 'yyyy-mm-dd',
+        autoclose: true,
+        todayHighlight: true
+    });
+
+    // Initialize tags
+    $('[data-toggle="tags"]').each(function() {
+        new Tagify(this);
+    });
+
+    // Handle checkbox state for PayProp settings
+    $('#enablePayments').change(function() {
+        $('input[name="enablePayments"]').val(this.checked ? 'Y' : 'N');
+    });
+
+    $('#holdOwnerFunds').change(function() {
+        $('input[name="holdOwnerFunds"]').val(this.checked ? 'Y' : 'N');
+    });
+
+    // Auto-generate customer ID based on property name
+    $('#propertyName').on('blur', function() {
+        if (!$('#customerId').val()) {
+            const propertyName = $(this).val();
+            const customerId = 'PROP_' + propertyName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10).toUpperCase() + '_' + Date.now();
+            $('#customerId').val(customerId);
+        }
+    });
+
+    // Postcode formatting
+    $('#postcode').on('input', function() {
+        this.value = this.value.toUpperCase();
+    });
+
+    // Form validation
+    $('form').on('submit', function(e) {
+        const requiredFields = ['propertyName', 'monthlyPayment'];
+        let isValid = true;
+        
+        requiredFields.forEach(function(field) {
+            const $field = $(`#${field}`);
+            if (!$field.val()) {
+                $field.addClass('is-invalid');
+                isValid = false;
+            } else {
+                $field.removeClass('is-invalid');
+            }
+        });
+
+        if (!isValid) {
+            e.preventDefault();
+            alert('Please fill in all required fields marked with *');
+        }
+    });
+});
+</script>
+
+</body>
+</html>

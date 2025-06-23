@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{/general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- DataTables CSS -->
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/responsive.dataTables.min.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:insert="~{/general/header.html}"></div>
+    <div th:insert="~{/general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-5 align-self-center">
+                    <h4 class="text-themecolor">Vacant Properties</h4>
+                    <p class="text-muted">Properties available for letting</p>
+                </div>
+                <div class="col-md-7 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0)">Home</a></li>
+                            <li class="breadcrumb-item"><a th:href="${home + 'employee/property/all-properties'}">Properties</a></li>
+                            <li class="breadcrumb-item active">Vacant Properties</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alert for Lost Rent -->
+            <div th:if="${lostRentPotential != null and lostRentPotential > 0}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-warning">
+                        <h5><i class="fas fa-exclamation-triangle"></i> Lost Rent Potential</h5>
+                        <p class="mb-0">
+                            You have <strong th:text="${#lists.size(properties)}">0</strong> vacant properties 
+                            with a potential monthly rental income of 
+                            <strong th:text="'£' + ${#numbers.formatDecimal(lostRentPotential, 0, 'COMMA', 0, 'POINT')}">£0</strong>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-warning">
+                                    <i class="fas fa-home"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${#lists.size(properties)}">0</h3>
+                                    <h5 class="text-muted m-b-0">Vacant Properties</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-danger">
+                                    <i class="fas fa-pound-sign"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light">£<span th:text="${#numbers.formatDecimal(lostRentPotential ?: 0, 0, 'COMMA', 0, 'POINT')}">0</span></h3>
+                                    <h5 class="text-muted m-b-0">Lost Monthly Rent</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-info">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light">£<span th:text="${#numbers.formatDecimal((lostRentPotential ?: 0) * 12, 0, 'COMMA', 0, 'POINT')}">0</span></h3>
+                                    <h5 class="text-muted m-b-0">Lost Annual Rent</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="btn-group" role="group">
+                        <a th:href="${home + 'employee/property/all-properties'}" 
+                           class="btn btn-outline-primary">
+                            <i class="fas fa-arrow-left"></i> Back to All Properties
+                        </a>
+                        <a th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}" 
+                           th:href="${home + 'employee/property/create-property'}" 
+                           class="btn btn-success">
+                            <i class="fas fa-plus"></i> Add New Property
+                        </a>
+                        <a th:href="${home + 'employee/property/occupied'}" 
+                           class="btn btn-info">
+                            <i class="fas fa-home"></i> View Occupied Properties  
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vacant Properties -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-exclamation-triangle text-warning"></i> 
+                                Vacant Properties
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${#lists.isEmpty(properties)}" class="text-center py-5">
+                                <i class="fas fa-home fa-3x text-muted mb-3"></i>
+                                <h4 class="text-muted">No Vacant Properties</h4>
+                                <p class="text-muted">All your properties are currently occupied. Great job!</p>
+                                <a th:href="${home + 'employee/property/all-properties'}" 
+                                   class="btn btn-primary">
+                                    <i class="fas fa-eye"></i> View All Properties
+                                </a>
+                            </div>
+                            
+                            <div th:unless="${#lists.isEmpty(properties)}" class="table-responsive">
+                                <table id="vacantPropertiesTable" class="table table-striped table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Property Name</th>
+                                            <th>Address</th>
+                                            <th>Type</th>
+                                            <th>Bedrooms</th>
+                                            <th>Monthly Rent</th>
+                                            <th>Available From</th>
+                                            <th>PayProp Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="property : ${properties}">
+                                            <td>
+                                                <strong th:text="${property.propertyName}">Property Name</strong>
+                                            </td>
+                                            <td>
+                                                <div th:text="${property.fullAddress}">Full Address</div>
+                                                <small class="text-muted" th:text="${property.postcode}">Postcode</small>
+                                            </td>
+                                            <td th:text="${property.propertyType ?: 'Not specified'}">House</td>
+                                            <td>
+                                                <span th:if="${property.bedrooms}" th:text="${property.bedrooms}">2</span>
+                                                <span th:unless="${property.bedrooms}" class="text-muted">-</span>
+                                            </td>
+                                            <td>
+                                                <strong th:if="${property.monthlyPayment}" 
+                                                        th:text="'£' + ${#numbers.formatDecimal(property.monthlyPayment, 0, 'COMMA', 0, 'POINT')}" 
+                                                        class="text-success">£1200</strong>
+                                                <span th:unless="${property.monthlyPayment}" class="text-muted">Not set</span>
+                                            </td>
+                                            <td>
+                                                <span th:if="${property.listedFrom}" 
+                                                      th:text="${#temporals.format(property.listedFrom, 'dd/MM/yyyy')}">01/01/2025</span>
+                                                <span th:unless="${property.listedFrom}" class="text-muted">Available now</span>
+                                            </td>
+                                            <td>
+                                                <span th:if="${property.payPropId}" class="badge badge-success">
+                                                    <i class="fas fa-sync"></i> Synced
+                                                </span>
+                                                <span th:unless="${property.payPropId}" class="badge badge-warning">
+                                                    <i class="fas fa-clock"></i> Pending
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div class="btn-group" role="group">
+                                                    <a th:href="${home + 'employee/property/' + property.id}"
+                                                       class="btn btn-sm btn-info" title="View Details">
+                                                        <i class="fas fa-eye"></i>
+                                                    </a>
+                                                    <a th:href="${home + 'employee/tenant/create-tenant?propertyId=' + property.id}" 
+                                                       class="btn btn-sm btn-success" title="Add Tenant">
+                                                        <i class="fas fa-user-plus"></i>
+                                                    </a>
+                                                    <a th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}" 
+                                                       th:href="${home + 'employee/property/update/' + property.id}" 
+                                                       class="btn btn-sm btn-warning" title="Edit Property">
+                                                        <i class="fas fa-edit"></i>
+                                                    </a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Letting Tips -->
+            <div th:unless="${#lists.isEmpty(properties)}" class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-lightbulb text-warning"></i> 
+                                Quick Letting Tips
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <ul class="list-unstyled">
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success"></i> 
+                                            Ensure all properties have competitive rent prices
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success"></i> 
+                                            Add high-quality photos to property listings
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success"></i> 
+                                            Verify all property details are up to date
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <ul class="list-unstyled">
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success"></i> 
+                                            Schedule viewings promptly
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success"></i> 
+                                            Sync all properties with PayProp for better management
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success"></i> 
+                                            Market properties on multiple platforms
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div th:insert="~{/general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<!-- DataTables -->
+<script th:src="@{/js/library/jquery.dataTables.min.js}"></script>
+<script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
+
+<script th:inline="none">
+$(document).ready(function() {
+    $('#vacantPropertiesTable').DataTable({
+        "pageLength": 25,
+        "order": [[ 4, "desc" ]], // Order by rent amount descending
+        "columnDefs": [
+            { "orderable": false, "targets": 7 }
+        ]
+    });
+});
+</script>
+
+</body>
+</html>

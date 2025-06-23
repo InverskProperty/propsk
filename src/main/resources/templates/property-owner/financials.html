@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
+    <title>Financial Summary - CRM</title>
+    
+    <!-- Bootstrap Core CSS -->
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link th:href="@{/css/style.min.css}" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link th:href="@{/css/all.css}" rel="stylesheet">
+    
+    <style>
+        .financial-card {
+            border-left: 4px solid;
+            transition: all 0.3s ease;
+        }
+        .financial-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .income-card { border-left-color: #28a745; }
+        .expense-card { border-left-color: #dc3545; }
+        .profit-card { border-left-color: #007bff; }
+        .occupancy-card { border-left-color: #ffc107; }
+        
+        .metric-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+        .income-icon { background: #28a745; }
+        .expense-icon { background: #dc3545; }
+        .profit-icon { background: #007bff; }
+        .occupancy-icon { background: #ffc107; }
+    </style>
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:insert="~{/general/header.html}"></div>
+    <div th:insert="~{/general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">
+                        <i class="fas fa-chart-line text-success"></i> 
+                        Financial Summary
+                    </h3>
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/property-owner/dashboard">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Financials</li>
+                    </ol>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <a href="/property-owner/dashboard" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- Success Alert - Financial Dashboard Active -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert alert-success alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+                        <h4><i class="icon fas fa-check-circle"></i> Financial Dashboard Active!</h4>
+                        Real-time financial analytics for your property portfolio. Data updated from your current tenant and property information.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Key Financial Metrics -->
+            <div class="row">
+                <div class="col-lg-3 col-md-6">
+                    <div class="card financial-card income-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="metric-icon income-icon">
+                                    <i class="fas fa-pound-sign"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="mb-0" th:text="'£' + ${currentMonthlyIncome ?: '0'}">£0</h3>
+                                    <p class="text-muted mb-0">Monthly Income</p>
+                                    <small class="text-success">
+                                        <i class="fas fa-arrow-up"></i> From occupied properties
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-3 col-md-6">
+                    <div class="card financial-card profit-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="metric-icon profit-icon">
+                                    <i class="fas fa-chart-line"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="mb-0" th:text="'£' + ${annualRentPotential ?: '0'}">£0</h3>
+                                    <p class="text-muted mb-0">Annual Potential</p>
+                                    <small class="text-info">
+                                        <i class="fas fa-calculator"></i> If 100% occupied
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-3 col-md-6">
+                    <div class="card financial-card expense-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="metric-icon expense-icon">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="mb-0" th:text="'£' + ${lostMonthlyIncome ?: '0'}">£0</h3>
+                                    <p class="text-muted mb-0">Lost Income</p>
+                                    <small class="text-danger">
+                                        <i class="fas fa-arrow-down"></i> From vacant properties
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-3 col-md-6">
+                    <div class="card financial-card occupancy-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="metric-icon occupancy-icon">
+                                    <i class="fas fa-home"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="mb-0" th:text="${occupancyRate ?: '0'} + '%'">0%</h3>
+                                    <p class="text-muted mb-0">Occupancy Rate</p>
+                                    <small class="text-warning">
+                                        <i class="fas fa-users"></i> 
+                                        <span th:text="${occupiedProperties ?: 0}">0</span> of 
+                                        <span th:text="${totalProperties ?: 0}">0</span> occupied
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-tools"></i> Financial Tools
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="list-group">
+                                <a href="#" onclick="showComingSoon('Expense Tracking')" class="list-group-item list-group-item-action">
+                                    <i class="fas fa-receipt text-danger"></i> Expense Tracking
+                                    <span class="badge badge-secondary float-right">Soon</span>
+                                </a>
+                                <a href="#" onclick="showComingSoon('Tax Reports')" class="list-group-item list-group-item-action">
+                                    <i class="fas fa-file-invoice text-info"></i> Tax Reports
+                                    <span class="badge badge-secondary float-right">Soon</span>
+                                </a>
+                                <a href="#" onclick="showComingSoon('Cash Flow')" class="list-group-item list-group-item-action">
+                                    <i class="fas fa-chart-line text-success"></i> Cash Flow Analysis
+                                    <span class="badge badge-secondary float-right">Soon</span>
+                                </a>
+                                <a href="#" onclick="showComingSoon('ROI Calculator')" class="list-group-item list-group-item-action">
+                                    <i class="fas fa-calculator text-warning"></i> ROI Calculator
+                                    <span class="badge badge-secondary float-right">Soon</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Property Breakdown -->
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-building"></i> Property Performance
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Property</th>
+                                            <th>Status</th>
+                                            <th>Monthly Rent</th>
+                                            <th>Actual Income</th>
+                                            <th>Performance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="propertyData : ${enhancedProperties}">
+                                            <td>
+                                                <strong th:text="${propertyData.property.addressLine1 ?: propertyData.property.propertyName ?: 'Unnamed Property'}">Property Address</strong><br>
+                                                <small class="text-muted" th:text="${(propertyData.property.city ?: 'Unknown City') + ', ' + (propertyData.property.postcode ?: 'Unknown Postcode')}">City, Postcode</small>
+                                                <div th:if="${propertyData.tenantNames != null and !#strings.isEmpty(propertyData.tenantNames)}" class="mt-1">
+                                                    <small class="text-info">
+                                                        <i class="fas fa-user"></i> <span th:text="${propertyData.tenantNames}">Tenant Names</span>
+                                                    </small>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span th:if="${propertyData.isOccupied}" class="badge badge-success">
+                                                    <i class="fas fa-home"></i> Occupied
+                                                </span>
+                                                <span th:unless="${propertyData.isOccupied}" class="badge badge-warning">
+                                                    <i class="fas fa-home"></i> Vacant
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <strong th:text="'£' + ${propertyData.property.monthlyPayment ?: 0}">£0</strong>
+                                                <br><small class="text-muted">per month</small>
+                                            </td>
+                                            <td>
+                                                <span th:if="${propertyData.isOccupied}" 
+                                                      th:text="'£' + ${propertyData.property.monthlyPayment ?: 0}" 
+                                                      class="text-success font-weight-bold">£0</span>
+                                                <span th:unless="${propertyData.isOccupied}" 
+                                                      class="text-danger font-weight-bold">£0</span>
+                                                <br><small th:if="${propertyData.isOccupied}" class="text-success">Income received</small>
+                                                <small th:unless="${propertyData.isOccupied}" class="text-danger">No income</small>
+                                            </td>
+                                            <td>
+                                                <div class="progress" style="height: 20px;">
+                                                    <div th:if="${propertyData.isOccupied}" 
+                                                         class="progress-bar bg-success" 
+                                                         style="width: 100%">
+                                                         <small class="text-white">100%</small>
+                                                    </div>
+                                                    <div th:unless="${propertyData.isOccupied}" 
+                                                         class="progress-bar bg-danger" 
+                                                         style="width: 100%; background-color: #dc3545;">
+                                                         <small class="text-white">0%</small>
+                                                    </div>
+                                                </div>
+                                                <small th:if="${propertyData.isOccupied}" class="text-success">Fully utilized</small>
+                                                <small th:unless="${propertyData.isOccupied}" class="text-danger">Not earning</small>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Financial Summary -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-calendar-alt"></i> Monthly Financial Overview
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-md-3">
+                                    <div class="border-right">
+                                        <h3 class="text-success" th:text="'£' + ${currentMonthlyIncome ?: '0'}">£0</h3>
+                                        <p class="text-muted mb-0">Actual Income</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="border-right">
+                                        <h3 class="text-primary" th:text="'£' + ${totalMonthlyRent ?: '0'}">£0</h3>
+                                        <p class="text-muted mb-0">Potential Income</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="border-right">
+                                        <h3 class="text-danger" th:text="'£' + ${lostMonthlyIncome ?: '0'}">£0</h3>
+                                        <p class="text-muted mb-0">Lost Income</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <h3 class="text-warning" th:text="${occupancyRate ?: '0'} + '%'">0%</h3>
+                                    <p class="text-muted mb-0">Efficiency Rate</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div th:insert="~{/general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script>
+function showComingSoon(feature) {
+    alert(feature + ' is coming soon! We\'re working on bringing you comprehensive financial management tools.');
+}
+</script>
+
+</body>
+</html>

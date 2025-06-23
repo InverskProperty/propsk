@@ -1,0 +1,97 @@
+package site.easy.to.build.crm.repository;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import site.easy.to.build.crm.entity.Property;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface PropertyRepository extends JpaRepository<Property, Long> {
+    
+    // Find by PayProp ID (unique)
+    Optional<Property> findByPayPropId(String payPropId);
+    
+    // Find by customer ID
+    Optional<Property> findByCustomerId(String customerId);
+    
+    // Find by property owner (legacy FK)
+    List<Property> findByPropertyOwnerId(Integer propertyOwnerId);
+    
+    // Find by status
+    List<Property> findByStatus(String status);
+    
+    // Find by property type
+    List<Property> findByPropertyType(String propertyType);
+    
+    // Find by city
+    List<Property> findByCity(String city);
+    
+    // Find by postcode
+    List<Property> findByPostcode(String postcode);
+    
+    // Find by tags (contains)
+    List<Property> findByTagsContaining(String tag);
+    
+    // Find active properties
+    List<Property> findByStatusOrderByCreatedAtDesc(String status);
+    
+    // Find properties with payments allowed
+    List<Property> findByAllowPayments(Boolean allowPayments);
+    
+    // Find properties by date range
+    List<Property> findByListedFromBetween(LocalDate startDate, LocalDate endDate);
+    
+    // Find properties by bedroom count
+    List<Property> findByBedrooms(Integer bedrooms);
+    
+    // Find properties by furnished status
+    List<Property> findByFurnished(String furnished);
+    
+    // Find properties requiring approval
+    List<Property> findByApprovalRequired(String approvalRequired);
+    
+    // Search by property name (case insensitive)
+    List<Property> findByPropertyNameContainingIgnoreCase(String propertyName);
+    
+    // Find by created by user with pagination
+    List<Property> findByCreatedByOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    
+    // Count by status
+    long countByStatus(String status);
+    
+    // Count by created by user
+    long countByCreatedBy(Long userId);
+    
+    // Custom query for complex search
+    @Query("SELECT p FROM Property p WHERE " +
+           "(:propertyName IS NULL OR LOWER(p.propertyName) LIKE LOWER(CONCAT('%', :propertyName, '%'))) AND " +
+           "(:city IS NULL OR LOWER(p.city) LIKE LOWER(CONCAT('%', :city, '%'))) AND " +
+           "(:postcode IS NULL OR LOWER(p.postcode) LIKE LOWER(CONCAT('%', :postcode, '%'))) AND " +
+           "(:status IS NULL OR p.status = :status) AND " +
+           "(:propertyType IS NULL OR p.propertyType = :propertyType) AND " +
+           "(:bedrooms IS NULL OR p.bedrooms = :bedrooms)")
+    List<Property> searchProperties(@Param("propertyName") String propertyName,
+                                   @Param("city") String city,
+                                   @Param("postcode") String postcode,
+                                   @Param("status") String status,
+                                   @Param("propertyType") String propertyType,
+                                   @Param("bedrooms") Integer bedrooms,
+                                   Pageable pageable);
+    
+    // Find properties with upcoming listing expiry
+    @Query("SELECT p FROM Property p WHERE p.listedUntil IS NOT NULL AND p.listedUntil <= :date")
+    List<Property> findPropertiesWithUpcomingExpiry(@Param("date") LocalDate date);
+    
+    // Find properties by address components
+    @Query("SELECT p FROM Property p WHERE " +
+           "LOWER(CONCAT(COALESCE(p.addressLine1, ''), ' ', COALESCE(p.addressLine2, ''), ' ', " +
+           "COALESCE(p.addressLine3, ''), ' ', COALESCE(p.city, ''), ' ', COALESCE(p.postcode, ''))) " +
+           "LIKE LOWER(CONCAT('%', :address, '%'))")
+    List<Property> findByFullAddressContaining(@Param("address") String address);
+}

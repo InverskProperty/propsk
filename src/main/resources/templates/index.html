@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{/general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- Dashboard CSS -->
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/fullcalendar.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">Property CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:insert="~{/general/header.html}"></div>
+    <div th:insert="~{/general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Page Title -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">Property Management Dashboard</h3>
+                    <p class="text-muted">Comprehensive overview of your property portfolio</p>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0)">Home</a></li>
+                            <li class="breadcrumb-item active">Dashboard</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PayProp Integration Status -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card bg-gradient-info text-white">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h4><i class="fas fa-rocket"></i> PayProp Integration Status</h4>
+                                    <p class="mb-2">Your property management system is ready for PayProp integration!</p>
+                                    <div class="progress mb-2" style="height: 8px;">
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: 95%" aria-valuenow="95" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                    <small class="opacity-75">Go-live date: <strong>June 17, 2025</strong> | 95% Complete</small>
+                                </div>
+                                <div class="col-md-4 text-center">
+                                    <div class="countdown-timer">
+                                        <h2 class="mb-0" id="daysLeft">2</h2>
+                                        <small>Days to Go-Live</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Key Performance Indicators -->
+            <div class="row">
+                <div class="col-md-3 col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-primary">
+                                    <i class="fas fa-building"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${totalProperties ?: 0}">32</h3>
+                                    <h5 class="text-muted m-b-0">Total Properties</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-success">
+                                    <i class="fas fa-home"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${occupiedProperties ?: 0}">28</h3>
+                                    <h5 class="text-muted m-b-0">Occupied</h5>
+                                    <small class="text-success" th:text="'(' + ${#numbers.formatDecimal((occupiedProperties ?: 0) * 100.0 / (totalProperties ?: 1), 1, 'COMMA', 1, 'POINT')} + '%)'">87.5%</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${vacantProperties ?: 0}">4</h3>
+                                    <h5 class="text-muted m-b-0">Vacant</h5>
+                                    <small class="text-warning">Needs Attention</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-info">
+                                    <i class="fas fa-pound-sign"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light">£<span th:text="${#numbers.formatDecimal(totalRentPotential ?: 0, 0, 'COMMA', 0, 'POINT')}">38,200</span></h3>
+                                    <h5 class="text-muted m-b-0">Monthly Potential</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions & Analytics -->
+            <div class="row">
+                <!-- Quick Actions -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Quick Actions</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="list-group list-group-flush">
+                                <a th:href="@{/employee/property/vacant-properties}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
+                                        Urgent: View Vacant Properties
+                                    </div>
+                                    <span class="badge badge-warning" th:text="${vacantProperties ?: 0}">4</span>
+                                </a>
+                                
+                                <a th:href="@{/employee/property/create-property}" class="list-group-item list-group-item-action">
+                                    <i class="fas fa-plus text-success mr-2"></i>
+                                    Add New Property
+                                </a>
+                                
+                                <a th:href="@{/employee/tenant/create-tenant}" class="list-group-item list-group-item-action">
+                                    <i class="fas fa-user-plus text-primary mr-2"></i>
+                                    Add New Tenant
+                                </a>
+                                
+                                <a th:href="@{/employee/maintenance/create-ticket}" class="list-group-item list-group-item-action">
+                                    <i class="fas fa-wrench text-info mr-2"></i>
+                                    Create Maintenance Ticket
+                                </a>
+                                
+                                <a th:href="@{/employee/drive/list-files}" class="list-group-item list-group-item-action">
+                                    <i class="fas fa-folder text-secondary mr-2"></i>
+                                    Property Documents
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Property Portfolio Chart -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Portfolio Breakdown</h4>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="portfolioChart" width="300" height="200"></canvas>
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between">
+                                    <span><i class="fas fa-circle text-success"></i> Occupied</span>
+                                    <span th:text="${occupiedProperties ?: 0}">28</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span><i class="fas fa-circle text-warning"></i> Vacant</span>
+                                    <span th:text="${vacantProperties ?: 0}">4</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PayProp Sync Status -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">PayProp Sync Status</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="sync-status-item mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>Properties Ready</span>
+                                    <span class="badge badge-success" th:text="${readyForSync ?: totalProperties}">32</span>
+                                </div>
+                                <div class="progress mt-1" style="height: 4px;">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                         th:style="'width: ' + ${(readyForSync ?: totalProperties) * 100.0 / (totalProperties ?: 1)} + '%'"
+                                         style="width: 100%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="sync-status-item mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>Tenants Ready</span>
+                                    <span class="badge badge-info" th:text="${countCustomers ?: 0}">25</span>
+                                </div>
+                                <div class="progress mt-1" style="height: 4px;">
+                                    <div class="progress-bar bg-info" role="progressbar" style="width: 89%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="sync-status-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>Owners Ready</span>
+                                    <span class="badge badge-primary">2</span>
+                                </div>
+                                <div class="progress mt-1" style="height: 4px;">
+                                    <div class="progress-bar bg-primary" role="progressbar" style="width: 100%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center mt-3">
+                                <a th:href="@{/employee/property/sync-status}" class="btn btn-sm btn-outline-primary">
+                                    View Detailed Status
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Property Performance & Recent Activity -->
+            <div class="row">
+                <!-- Recent Properties -->
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Recent Properties</h4>
+                            <div class="card-actions">
+                                <a th:href="@{/employee/property/all-properties}" class="btn btn-sm btn-primary">View All</a>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Property</th>
+                                            <th>Type</th>
+                                            <th>Rent</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:if="${recentProperties}" th:each="property : ${recentProperties}">
+                                            <td>
+                                                <a th:href="@{/employee/property/{id}(id=${property.id})}" 
+                                                   th:text="${property.propertyName}">Property Name</a>
+                                                <br>
+                                                <small class="text-muted" th:text="${property.city}">City</small>
+                                            </td>
+                                            <td th:text="${property.propertyType}">Flat</td>
+                                            <td class="text-success">£<span th:text="${#numbers.formatDecimal(property.monthlyPayment ?: 0, 0, 'COMMA', 0, 'POINT')}">1200</span></td>
+                                            <td>
+                                                <span th:if="${property.payPropId}" class="badge badge-success">Synced</span>
+                                                <span th:unless="${property.payPropId}" class="badge badge-warning">Pending</span>
+                                            </td>
+                                        </tr>
+                                        <tr th:unless="${recentProperties}">
+                                            <td colspan="4" class="text-center text-muted">No properties found</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Recent Activity</h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="timeline">
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-success"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">PayProp Data Import Complete</h6>
+                                        <p class="timeline-text">All property and tenant data successfully imported</p>
+                                        <span class="timeline-date">Today, 10:30 AM</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-info"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">System Integration Testing</h6>
+                                        <p class="timeline-text">Two-way sync functionality verified</p>
+                                        <span class="timeline-date">Yesterday, 3:45 PM</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-warning"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Vacant Properties Alert</h6>
+                                        <p class="timeline-text" th:text="${vacantProperties} + ' properties need attention'">4 properties need attention</p>
+                                        <span class="timeline-date">2 hours ago</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-primary"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Owner Notifications Sent</h6>
+                                        <p class="timeline-text">Portfolio updates sent to Rama Talluri & Udayan Bhardwaj</p>
+                                        <span class="timeline-date">This morning</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Traditional CRM Stats -->
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex no-block align-items-center">
+                                <div>
+                                    <h3><i class="fas fa-users"></i></h3>
+                                    <p class="text-muted">CUSTOMERS</p>
+                                </div>
+                                <div class="ml-auto">
+                                    <h2 class="counter text-primary" th:text="${countCustomers ?: 0}">25</h2>
+                                </div>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-primary" role="progressbar" style="width: 85%; height: 6px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex no-block align-items-center">
+                                <div>
+                                    <h3><i class="fas fa-ticket-alt"></i></h3>
+                                    <p class="text-muted">TICKETS</p>
+                                </div>
+                                <div class="ml-auto">
+                                    <h2 class="counter text-cyan" th:text="${countTickets ?: 0}">12</h2>
+                                </div>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-cyan" role="progressbar" style="width: 70%; height: 6px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex no-block align-items-center">
+                                <div>
+                                    <h3><i class="fas fa-file-contract"></i></h3>
+                                    <p class="text-muted">CONTRACTS</p>
+                                </div>
+                                <div class="ml-auto">
+                                    <h2 class="counter text-purple" th:text="${countContracts ?: 0}">8</h2>
+                                </div>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-purple" role="progressbar" style="width: 60%; height: 6px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex no-block align-items-center">
+                                <div>
+                                    <h3><i class="fas fa-pencil-alt"></i></h3>
+                                    <p class="text-muted">LEADS</p>
+                                </div>
+                                <div class="ml-auto">
+                                    <h2 class="counter text-success" th:text="${countLeads ?: 0}">15</h2>
+                                </div>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: 45%; height: 6px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div th:insert="~{/general/right-sidebar.html}"></div>
+        </div>
+    </div>
+    
+    <div th:insert="~{/general/footer.html}"></div>
+</div>
+
+<!-- Scripts -->
+<script th:inline="javascript">
+    var home = /*[[${home}]]*/ null;
+    var totalProperties = /*[[${totalProperties}]]*/ 0;
+    var occupiedProperties = /*[[${occupiedProperties}]]*/ 0;
+    var vacantProperties = /*[[${vacantProperties}]]*/ 0;
+</script>
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize Portfolio Chart
+    const ctx = document.getElementById('portfolioChart').getContext('2d');
+    const portfolioChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Occupied', 'Vacant'],
+            datasets: [{
+                data: [occupiedProperties, vacantProperties],
+                backgroundColor: [
+                    '#28a745',
+                    '#ffc107'
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            legend: {
+                display: false
+            },
+            cutout: '70%'
+        }
+    });
+
+    // Countdown Timer to PayProp Go-Live
+    function updateCountdown() {
+        const goLiveDate = new Date('2025-06-17T00:00:00');
+        const now = new Date();
+        const timeDiff = goLiveDate - now;
+        
+        if (timeDiff > 0) {
+            const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+            $('#daysLeft').text(days);
+        } else {
+            $('#daysLeft').text('LIVE');
+        }
+    }
+    
+    updateCountdown();
+    setInterval(updateCountdown, 86400000); // Update daily
+
+    // Animate counters
+    $('.counter').each(function() {
+        const $this = $(this);
+        const countTo = parseInt($this.text());
+        
+        $({ countNum: 0 }).animate({
+            countNum: countTo
+        }, {
+            duration: 2000,
+            easing: 'linear',
+            step: function() {
+                $this.text(Math.floor(this.countNum));
+            },
+            complete: function() {
+                $this.text(this.countNum);
+            }
+        });
+    });
+
+    // Property status real-time updates (simulate)
+    function simulateRealTimeUpdates() {
+        // This would normally connect to PayProp API or WebSocket
+        // For now, we'll simulate periodic updates
+        setInterval(function() {
+            // Update sync progress
+            const currentProgress = $('.progress-bar').first().width();
+            // Add small incremental progress simulation
+        }, 30000); // Every 30 seconds
+    }
+
+    simulateRealTimeUpdates();
+
+    // Quick action shortcuts
+    $(document).keydown(function(e) {
+        if (e.ctrlKey) {
+            switch(e.which) {
+                case 80: // Ctrl+P - Add Property
+                    e.preventDefault();
+                    window.location.href = home + 'employee/property/create-property';
+                    break;
+                case 84: // Ctrl+T - Add Tenant
+                    e.preventDefault();
+                    window.location.href = home + 'employee/tenant/create-tenant';
+                    break;
+                case 77: // Ctrl+M - Maintenance
+                    e.preventDefault();
+                    window.location.href = home + 'employee/maintenance/create-ticket';
+                    break;
+                case 86: // Ctrl+V - Vacant Properties
+                    e.preventDefault();
+                    window.location.href = home + 'employee/property/vacant-properties';
+                    break;
+            }
+        }
+    });
+
+    // Show keyboard shortcuts tooltip
+    $('body').append(`
+        <div id="shortcutsTooltip" class="tooltip fade show" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: none;">
+            <div class="tooltip-inner">
+                <strong>Keyboard Shortcuts:</strong><br>
+                Ctrl+P: Add Property<br>
+                Ctrl+T: Add Tenant<br>
+                Ctrl+M: Maintenance<br>
+                Ctrl+V: Vacant Properties
+            </div>
+        </div>
+    `);
+
+    // Show shortcuts on Ctrl hold
+    let ctrlTimer;
+    $(document).keydown(function(e) {
+        if (e.which === 17) { // Ctrl key
+            ctrlTimer = setTimeout(function() {
+                $('#shortcutsTooltip').fadeIn();
+            }, 1000);
+        }
+    }).keyup(function(e) {
+        if (e.which === 17) {
+            clearTimeout(ctrlTimer);
+            $('#shortcutsTooltip').fadeOut();
+        }
+    });
+});
+</script>
+
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e9ecef;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -22px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    z-index: 1;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    border-left: 3px solid #007bff;
+}
+
+.timeline-title {
+    margin: 0 0 5px 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.timeline-text {
+    margin: 0 0 5px 0;
+    font-size: 13px;
+    color: #6c757d;
+}
+
+.timeline-date {
+    font-size: 12px;
+    color: #999;
+}
+
+.countdown-timer h2 {
+    font-size: 3rem;
+    font-weight: 700;
+}
+
+.sync-status-item .progress {
+    height: 4px;
+}
+
+.card-actions {
+    float: right;
+}
+
+.bg-gradient-info {
+    background: linear-gradient(45deg, #17a2b8, #138496);
+}
+
+.opacity-75 {
+    opacity: 0.75;
+}
+
+/* Hover effects for quick actions */
+.list-group-item-action:hover {
+    background-color: #f8f9fa;
+    transform: translateX(5px);
+    transition: all 0.2s ease;
+}
+
+/* Progress bar animations */
+.progress-bar {
+    transition: width 0.6s ease;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .countdown-timer h2 {
+        font-size: 2rem;
+    }
+    
+    .timeline {
+        padding-left: 20px;
+    }
+    
+    .timeline::before {
+        left: 10px;
+    }
+    
+    .timeline-marker {
+        left: -17px;
+    }
+}
+
+/* Loading states */
+.card.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.card.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Success animations */
+.badge.animate-success {
+    animation: pulse-success 2s infinite;
+}
+
+@keyframes pulse-success {
+    0% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+    }
+}
+</style>
+
+</body>
+</html>
