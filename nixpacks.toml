@@ -1,0 +1,5 @@
+[phases.build]
+cmd = './mvnw clean package -DskipTests'
+
+[phases.start]
+cmd = 'java -Dserver.port=$PORT -jar target/*.jar'
