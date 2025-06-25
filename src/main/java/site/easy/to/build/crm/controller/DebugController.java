@@ -1,9 +1,12 @@
 package site.easy.to.build.crm.controller;
 
+
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.http.ResponseEntity;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -60,6 +63,30 @@ public class DebugController {
         model.addAttribute("property", property);
         
         return "property/update-property";
+    }
+
+    @GetMapping("/oauth-info")
+    public ResponseEntity<String> getOAuthDebugInfo(HttpServletRequest request) {
+        String scheme = request.getScheme();
+        String serverName = request.getServerName();
+        int serverPort = request.getServerPort();
+        
+        String baseUrl = scheme + "://" + serverName;
+        if ((scheme.equals("http") && serverPort != 80) || (scheme.equals("https") && serverPort != 443)) {
+            baseUrl += ":" + serverPort;
+        }
+        
+        String redirectUri = baseUrl + "/login/oauth2/code/google";
+        
+        String response = "Scheme: " + scheme + "<br>" +
+                        "Server Name: " + serverName + "<br>" +
+                        "Server Port: " + serverPort + "<br>" +
+                        "Base URL: " + baseUrl + "<br>" +
+                        "Expected Redirect URI: " + redirectUri + "<br><br>" +
+                        "Add this EXACT URI to your Google Console:<br>" +
+                        "<strong>" + redirectUri + "</strong>";
+        
+        return ResponseEntity.ok(response);
     }
 
     // Simple test class to avoid dependency issues
