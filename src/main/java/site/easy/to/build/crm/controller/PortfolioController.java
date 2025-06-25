@@ -2,6 +2,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -17,8 +18,8 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.payprop.PayPropPortfolioSyncService;
-import site.easy.to.build.crm.service.payprop.PayPropTagDTO;        // ← ADD THIS
-import site.easy.to.build.crm.service.payprop.SyncResult;           // ← ADD THIS
+import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
+import site.easy.to.build.crm.service.payprop.SyncResult;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 
@@ -37,17 +38,21 @@ public class PortfolioController {
 
     private final PortfolioService portfolioService;
     private final PropertyService propertyService;
-    private final PayPropPortfolioSyncService syncService;
     private final AuthenticationUtils authenticationUtils;
+    
+    // Make PayProp service optional
+    @Autowired(required = false)
+    private PayPropPortfolioSyncService payPropSyncService;
+    
+    @Value("${payprop.enabled:false}")
+    private boolean payPropEnabled;
 
     @Autowired
     public PortfolioController(PortfolioService portfolioService,
                               PropertyService propertyService,
-                              PayPropPortfolioSyncService syncService,
                               AuthenticationUtils authenticationUtils) {
         this.portfolioService = portfolioService;
         this.propertyService = propertyService;
-        this.syncService = syncService;
         this.authenticationUtils = authenticationUtils;
     }
 
@@ -78,8 +83,9 @@ public class PortfolioController {
             // Role-based permissions
             boolean canCreatePortfolio = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
                                        AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER");
-            boolean canSyncPayProp = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
-                                   AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE");
+            boolean canSyncPayProp = (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
+                                   AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) && 
+                                   payPropEnabled && payPropSyncService != null;
             boolean isPropertyOwner = AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER");
             
             // Add model attributes
@@ -88,6 +94,7 @@ public class PortfolioController {
             model.addAttribute("canCreatePortfolio", canCreatePortfolio);
             model.addAttribute("canSyncPayProp", canSyncPayProp);
             model.addAttribute("isPropertyOwner", isPropertyOwner);
+            model.addAttribute("payPropEnabled", payPropEnabled);
             model.addAttribute("pageTitle", "Portfolio Dashboard");
             
             // Determine view based on role
@@ -145,6 +152,7 @@ public class PortfolioController {
             model.addAttribute("analyticsHistory", analyticsHistory);
             model.addAttribute("canEdit", canEdit);
             model.addAttribute("canManageProperties", canManageProperties);
+            model.addAttribute("payPropEnabled", payPropEnabled);
             model.addAttribute("pageTitle", portfolio.getName());
             
             return "portfolio/portfolio-details";
@@ -176,6 +184,7 @@ public class PortfolioController {
         
         model.addAttribute("portfolio", portfolio);
         model.addAttribute("portfolioTypes", PortfolioType.values());
+        model.addAttribute("payPropEnabled", payPropEnabled);
         model.addAttribute("pageTitle", "Create Portfolio");
         
         return "portfolio/create-portfolio";
@@ -190,6 +199,13 @@ public class PortfolioController {
         Map<String, Object> response = new HashMap<>();
         
         try {
+            // Check if PayProp is enabled and service is available
+            if (!payPropEnabled || payPropSyncService == null) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
             if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
                 !AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
                 response.put("success", false);
@@ -200,7 +216,7 @@ public class PortfolioController {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             
             // Get all PayProp tags via the sync service
-            List<PayPropTagDTO> payPropTags = syncService.getAllPayPropTags();
+            List<PayPropTagDTO> payPropTags = payPropSyncService.getAllPayPropTags();
             
             // Filter out tags that are already adopted as portfolios
             List<PayPropTagDTO> availableTags = payPropTags.stream()
@@ -236,6 +252,13 @@ public class PortfolioController {
         Map<String, Object> response = new HashMap<>();
         
         try {
+            // Check if PayProp is enabled and service is available
+            if (!payPropEnabled || payPropSyncService == null) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
             if (!canUserCreatePortfolio(authentication)) {
                 response.put("success", false);
                 response.put("message", "Access denied");
@@ -253,7 +276,7 @@ public class PortfolioController {
             }
             
             // Get tag details from PayProp
-            PayPropTagDTO tagData = syncService.getPayPropTag(payPropTagId);
+            PayPropTagDTO tagData = payPropSyncService.getPayPropTag(payPropTagId);
             if (tagData == null) {
                 response.put("success", false);
                 response.put("message", "PayProp tag not found");
@@ -285,7 +308,7 @@ public class PortfolioController {
             Portfolio savedPortfolio = portfolioService.save(portfolio);
             
             // Sync properties that already have this tag in PayProp
-            SyncResult syncResult = syncService.handlePayPropTagChange(
+            SyncResult syncResult = payPropSyncService.handlePayPropTagChange(
                 payPropTagId, "TAG_APPLIED", tagData, null);
             
             response.put("success", true);
@@ -319,6 +342,7 @@ public class PortfolioController {
         
         if (bindingResult.hasErrors()) {
             model.addAttribute("portfolioTypes", PortfolioType.values());
+            model.addAttribute("payPropEnabled", payPropEnabled);
             return "portfolio/create-portfolio";
         }
         
@@ -346,6 +370,7 @@ public class PortfolioController {
         } catch (Exception e) {
             model.addAttribute("error", "Failed to create portfolio: " + e.getMessage());
             model.addAttribute("portfolioTypes", PortfolioType.values());
+            model.addAttribute("payPropEnabled", payPropEnabled);
             return "portfolio/create-portfolio";
         }
     }
@@ -366,6 +391,7 @@ public class PortfolioController {
         
         model.addAttribute("portfolio", portfolio);
         model.addAttribute("portfolioTypes", PortfolioType.values());
+        model.addAttribute("payPropEnabled", payPropEnabled);
         model.addAttribute("pageTitle", "Edit Portfolio");
         
         return "portfolio/edit-portfolio";
@@ -388,6 +414,7 @@ public class PortfolioController {
         
         if (bindingResult.hasErrors()) {
             model.addAttribute("portfolioTypes", PortfolioType.values());
+            model.addAttribute("payPropEnabled", payPropEnabled);
             return "portfolio/edit-portfolio";
         }
         
@@ -423,6 +450,7 @@ public class PortfolioController {
         } catch (Exception e) {
             model.addAttribute("error", "Failed to update portfolio: " + e.getMessage());
             model.addAttribute("portfolioTypes", PortfolioType.values());
+            model.addAttribute("payPropEnabled", payPropEnabled);
             return "portfolio/edit-portfolio";
         }
     }
@@ -513,6 +541,13 @@ public class PortfolioController {
         Map<String, Object> response = new HashMap<>();
         
         try {
+            // Check if PayProp is enabled and service is available
+            if (!payPropEnabled || payPropSyncService == null) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
             if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
                 !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
                 response.put("success", false);
@@ -545,6 +580,13 @@ public class PortfolioController {
         Map<String, Object> response = new HashMap<>();
         
         try {
+            // Check if PayProp is enabled and service is available
+            if (!payPropEnabled || payPropSyncService == null) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
             if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 response.put("success", false);
                 response.put("message", "Access denied - Manager role required");
@@ -576,6 +618,13 @@ public class PortfolioController {
         Map<String, Object> response = new HashMap<>();
         
         try {
+            // Check if PayProp is enabled and service is available
+            if (!payPropEnabled || payPropSyncService == null) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
             if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 response.put("success", false);
                 response.put("message", "Access denied - Manager role required");
@@ -583,11 +632,11 @@ public class PortfolioController {
             }
             
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            // Call PayProp sync service to pull all tags
-            // SyncResult result = syncService.pullAllTagsFromPayProp((long) userId);
+            SyncResult result = payPropSyncService.pullAllTagsFromPayProp((long) userId);
             
-            response.put("success", true);
-            response.put("message", "PayProp tags pulled successfully");
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("details", result.getDetails());
             
             return ResponseEntity.ok(response);
             
@@ -653,8 +702,12 @@ public class PortfolioController {
                 stats.totalVacant += analytics.getVacantProperties();
                 stats.totalMonthlyRent = stats.totalMonthlyRent.add(analytics.getTotalMonthlyRent());
                 stats.totalActualIncome = stats.totalActualIncome.add(analytics.getActualMonthlyIncome());
-                stats.totalSynced += analytics.getPropertiesSynced();
-                stats.totalPendingSync += analytics.getPropertiesPendingSync();
+                
+                // Only include sync stats if PayProp is enabled
+                if (payPropEnabled) {
+                    stats.totalSynced += analytics.getPropertiesSynced();
+                    stats.totalPendingSync += analytics.getPropertiesPendingSync();
+                }
             }
         }
         
