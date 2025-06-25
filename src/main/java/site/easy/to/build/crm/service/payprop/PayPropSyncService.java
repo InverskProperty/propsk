@@ -2,6 +2,7 @@ package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -16,6 +17,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
+@ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Service
 public class PayPropSyncService {
 
@@ -777,10 +779,10 @@ class PayPropAddressDTO {
 class PayPropSettingsDTO {
     private Boolean enable_payments;
     private Boolean hold_owner_funds;
-    private java.math.BigDecimal monthly_payment;
-    private java.math.BigDecimal minimum_balance;
-    private java.time.LocalDate listing_from;
-    private java.time.LocalDate listing_to;
+    private BigDecimal monthly_payment;
+    private BigDecimal minimum_balance;
+    private LocalDate listing_from;
+    private LocalDate listing_to;
     
     // Getters and setters
     public Boolean getEnable_payments() { return enable_payments; }
@@ -789,15 +791,15 @@ class PayPropSettingsDTO {
     public Boolean getHold_owner_funds() { return hold_owner_funds; }
     public void setHold_owner_funds(Boolean hold_owner_funds) { this.hold_owner_funds = hold_owner_funds; }
     
-    public java.math.BigDecimal getMonthly_payment() { return monthly_payment; }
-    public void setMonthly_payment(java.math.BigDecimal monthly_payment) { this.monthly_payment = monthly_payment; }
+    public BigDecimal getMonthly_payment() { return monthly_payment; }
+    public void setMonthly_payment(BigDecimal monthly_payment) { this.monthly_payment = monthly_payment; }
     
-    public java.math.BigDecimal getMinimum_balance() { return minimum_balance; }
-    public void setMinimum_balance(java.math.BigDecimal minimum_balance) { this.minimum_balance = minimum_balance; }
+    public BigDecimal getMinimum_balance() { return minimum_balance; }
+    public void setMinimum_balance(BigDecimal minimum_balance) { this.minimum_balance = minimum_balance; }
     
-    public java.time.LocalDate getListing_from() { return listing_from; }
-    public void setListing_from(java.time.LocalDate listing_from) { this.listing_from = listing_from; }
+    public LocalDate getListing_from() { return listing_from; }
+    public void setListing_from(LocalDate listing_from) { this.listing_from = listing_from; }
     
-    public java.time.LocalDate getListing_to() { return listing_to; }
-    public void setListing_to(java.time.LocalDate listing_to) { this.listing_to = listing_to; }
+    public LocalDate getListing_to() { return listing_to; }
+    public void setListing_to(LocalDate listing_to) { this.listing_to = listing_to; }
 }

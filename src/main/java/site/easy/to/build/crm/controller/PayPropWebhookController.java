@@ -2,6 +2,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +17,7 @@ import java.util.Map;
  * PayPropWebhookController - Handles incoming PayProp webhooks for two-way synchronization
  * This enables PayProp tag changes to automatically update local portfolios
  */
+@ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @RestController
 @RequestMapping("/api/payprop/webhook")
 public class PayPropWebhookController {

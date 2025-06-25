@@ -2,6 +2,7 @@
 package site.easy.to.build.crm.service.portfolio;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,7 +32,13 @@ public class PortfolioServiceImpl implements PortfolioService {
     private final PropertyService propertyService;
     private final TenantService tenantService;
     private final AuthenticationUtils authenticationUtils;
-    private final PayPropPortfolioSyncService syncService;
+    
+    // Make PayProp service optional
+    @Autowired(required = false)
+    private PayPropPortfolioSyncService payPropSyncService;
+    
+    @Value("${payprop.enabled:false}")
+    private boolean payPropEnabled;
     
     @Autowired
     public PortfolioServiceImpl(PortfolioRepository portfolioRepository,
@@ -39,15 +46,13 @@ public class PortfolioServiceImpl implements PortfolioService {
                                PortfolioAnalyticsRepository analyticsRepository,
                                PropertyService propertyService,
                                TenantService tenantService,
-                               AuthenticationUtils authenticationUtils,
-                               PayPropPortfolioSyncService syncService) {
+                               AuthenticationUtils authenticationUtils) {
         this.portfolioRepository = portfolioRepository;
         this.blockRepository = blockRepository;
         this.analyticsRepository = analyticsRepository;
         this.propertyService = propertyService;
         this.tenantService = tenantService;
         this.authenticationUtils = authenticationUtils;
-        this.syncService = syncService;
     }
     
     @Override
@@ -94,11 +99,13 @@ public class PortfolioServiceImpl implements PortfolioService {
         // Set sharing based on ownership
         portfolio.setIsShared(propertyOwnerId == null ? "Y" : "N");
         
-        // Set PayProp sync information
-        portfolio.setPayPropTags(tagId);
-        portfolio.setPayPropTagNames(tagData.getName());
-        portfolio.setSyncStatus(SyncStatus.SYNCED);
-        portfolio.setLastSyncAt(LocalDateTime.now());
+        // Set PayProp sync information only if PayProp is enabled
+        if (payPropEnabled) {
+            portfolio.setPayPropTags(tagId);
+            portfolio.setPayPropTagNames(tagData.getName());
+            portfolio.setSyncStatus(SyncStatus.SYNCED);
+            portfolio.setLastSyncAt(LocalDateTime.now());
+        }
         
         Portfolio savedPortfolio = portfolioRepository.save(portfolio);
         
@@ -110,6 +117,9 @@ public class PortfolioServiceImpl implements PortfolioService {
 
     @Override
     public boolean isPayPropTagAdopted(String tagId) {
+        if (!payPropEnabled) {
+            return false;
+        }
         List<Portfolio> existingPortfolios = findByPayPropTag(tagId);
         return !existingPortfolios.isEmpty();
     }
@@ -184,10 +194,16 @@ public class PortfolioServiceImpl implements PortfolioService {
                 property.setPortfolioAssignmentDate(LocalDateTime.now());
                 propertyService.save(property);
                 
-                // If portfolio has PayProp tags, apply them to the property
-                if (portfolio.isSyncedWithPayProp() && property.getPayPropId() != null) {
+                // If portfolio has PayProp tags and PayProp is enabled, apply them to the property
+                if (payPropEnabled && payPropSyncService != null && 
+                    portfolio.isSyncedWithPayProp() && property.getPayPropId() != null) {
                     // Trigger PayProp tag application
-                    syncService.syncPortfolioToPayProp(portfolioId, assignedBy);
+                    try {
+                        payPropSyncService.syncPortfolioToPayProp(portfolioId, assignedBy);
+                    } catch (Exception e) {
+                        // Log error but don't fail the assignment
+                        System.err.println("PayProp sync failed: " + e.getMessage());
+                    }
                 }
             }
         }
@@ -318,8 +334,8 @@ public class PortfolioServiceImpl implements PortfolioService {
                     totalRent = totalRent.add(property.getMonthlyPayment());
                 }
                 
-                // PayProp sync status
-                if (property.isPayPropSynced()) {
+                // PayProp sync status (only check if PayProp is enabled)
+                if (payPropEnabled && property.isPayPropSynced()) {
                     syncedProperties++;
                 }
             }
@@ -331,8 +347,15 @@ public class PortfolioServiceImpl implements PortfolioService {
         analytics.setActualMonthlyIncome(actualIncome);
         analytics.setLostMonthlyIncome(totalRent.subtract(actualIncome));
         analytics.setTotalTenants(totalTenants);
-        analytics.setPropertiesSynced(syncedProperties);
-        analytics.setPropertiesPendingSync(properties.size() - syncedProperties);
+        
+        // Only set sync stats if PayProp is enabled
+        if (payPropEnabled) {
+            analytics.setPropertiesSynced(syncedProperties);
+            analytics.setPropertiesPendingSync(properties.size() - syncedProperties);
+        } else {
+            analytics.setPropertiesSynced(0);
+            analytics.setPropertiesPendingSync(0);
+        }
         
         // Calculate occupancy rate
         if (analytics.getTotalProperties() > 0) {
@@ -370,17 +393,40 @@ public class PortfolioServiceImpl implements PortfolioService {
     
     @Override
     public void syncPortfolioWithPayProp(Long portfolioId, Long initiatedBy) {
-        syncService.syncPortfolioToPayProp(portfolioId, initiatedBy);
+        if (payPropEnabled && payPropSyncService != null) {
+            try {
+                payPropSyncService.syncPortfolioToPayProp(portfolioId, initiatedBy);
+            } catch (Exception e) {
+                System.err.println("PayProp sync failed: " + e.getMessage());
+                throw new RuntimeException("PayProp sync failed", e);
+            }
+        } else {
+            throw new IllegalStateException("PayProp integration is not enabled");
+        }
     }
     
     @Override
     public void syncAllPortfoliosWithPayProp(Long initiatedBy) {
-        syncService.syncAllPortfolios(initiatedBy);
+        if (payPropEnabled && payPropSyncService != null) {
+            try {
+                payPropSyncService.syncAllPortfolios(initiatedBy);
+            } catch (Exception e) {
+                System.err.println("PayProp bulk sync failed: " + e.getMessage());
+                throw new RuntimeException("PayProp bulk sync failed", e);
+            }
+        } else {
+            throw new IllegalStateException("PayProp integration is not enabled");
+        }
     }
     
     @Override
     public List<Portfolio> findPortfoliosNeedingSync() {
-        return portfolioRepository.findPortfoliosNeedingSync();
+        if (payPropEnabled) {
+            return portfolioRepository.findPortfoliosNeedingSync();
+        } else {
+            // Return empty list if PayProp is disabled
+            return List.of();
+        }
     }
     
     @Override
