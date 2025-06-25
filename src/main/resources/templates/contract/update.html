@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 
-<div th:insert="~{/general/head.html}"></div>
+<div th:insert="~{general/head.html}"></div>
 <meta name="_csrf" content="${_csrf.token}"/>
 <meta name="_csrf_header" content="${_csrf.headerName}"/>
 <link rel="stylesheet" th:href="@{/css/bootstrap-wysihtml5.css}"/>
@@ -42,14 +42,14 @@
     <!-- ============================================================== -->
     <!-- Topbar header - style you can find in pages.scss -->
     <!-- ============================================================== -->
-    <div th:replace="~{general/header}"></div>
+    <div th:replace="~{general/header.html}"></div>
     <!-- ============================================================== -->
     <!-- End Topbar header -->
     <!-- ============================================================== -->
     <!-- ============================================================== -->
     <!-- Left Sidebar - style you can find in sidebar.scss  -->
     <!-- ============================================================== -->
-    <div th:replace="~{general/left-sidebar}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
     <!-- ============================================================== -->
     <!-- End Left Sidebar - style you can find in sidebar.scss  -->
     <!-- ============================================================== -->
@@ -64,7 +64,7 @@
             <!-- ============================================================== -->
             <!-- Bread crumb and right sidebar toggle -->
             <!-- ============================================================== -->
-            <div th:insert="~{/general/page-titles.html}"></div>
+            <div th:insert="~{general/page-titles.html}"></div>
             <!-- ============================================================== -->
             <!-- End Bread crumb and right sidebar toggle -->
             <!-- ============================================================== -->
@@ -189,7 +189,7 @@
             <!-- Right sidebar -->
             <!-- ============================================================== -->
             <!-- .right-sidebar -->
-            <div th:insert="~{/general/right-sidebar.html}"></div>
+            <div th:insert="~{general/right-sidebar.html}"></div>
             <!-- ============================================================== -->
             <!-- End Right sidebar -->
             <!-- ============================================================== -->
@@ -204,7 +204,7 @@
     <!-- ============================================================== -->
     <!-- footer -->
     <!-- ============================================================== -->
-    <div th:replace="~{general/footer}"></div>
+    <div th:replace="~{general/footer.html}"></div>
     <!-- ============================================================== -->
     <!-- End footer -->
     <!-- ============================================================== -->
@@ -268,3 +268,4 @@
         th:data-csrf-token="${_csrf.token}" th:data-csrf-header="${_csrf.headerName}"></script>
 </body>
 </html>
+

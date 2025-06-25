@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 
-<div th:insert="~{/general/head.html}"></div>
+<div th:insert="~{general/head.html}"></div>
     <!-- Custom CSS -->
     <link th:href="@{/css/style.min.css}" rel="stylesheet">
     <!-- page css -->
@@ -39,14 +39,14 @@
         <!-- ============================================================== -->
         <!-- Topbar header - style you can find in pages.scss -->
         <!-- ============================================================== -->
-        <div th:replace="~{general/header}"></div>
+        <div th:replace="~{general/header.html}"></div>
         <!-- ============================================================== -->
         <!-- End Topbar header -->
         <!-- ============================================================== -->
         <!-- ============================================================== -->
         <!-- Left Sidebar - style you can find in sidebar.scss  -->
         <!-- ============================================================== -->
-        <div th:replace="~{general/left-sidebar}"></div>
+        <div th:replace="~{general/left-sidebar.html}"></div>
 
         <div class="page-wrapper">
             <!-- ============================================================== -->
@@ -56,7 +56,7 @@
                 <!-- ============================================================== -->
                 <!-- Bread crumb and right sidebar toggle -->
                 <!-- ============================================================== -->
-                <div th:insert="~{/general/page-titles.html}"></div>
+                <div th:insert="~{general/page-titles.html}"></div>
                 <!-- ============================================================== -->
                 <!-- End Bread crumb and right sidebar toggle -->
                 <!-- ============================================================== -->
@@ -117,7 +117,7 @@
                 <!-- Right sidebar -->
                 <!-- ============================================================== -->
                 <!-- .right-sidebar -->
-                <div th:insert="~{/general/right-sidebar.html}"></div>
+                <div th:insert="~{general/right-sidebar.html}"></div>
                 <!-- ============================================================== -->
                 <!-- End Right sidebar -->
                 <!-- ============================================================== -->
@@ -130,7 +130,7 @@
         <!-- ============================================================== -->
         <!-- footer -->
         <!-- ============================================================== -->
-        <div th:replace="~{general/footer}"></div>
+        <div th:replace="~{general/footer.html}"></div>
         <!-- ============================================================== -->
         <!-- End footer -->
         <!-- ============================================================== -->
@@ -253,3 +253,4 @@ $(document).ready(function() {
 </body>
 
 </html>
+
