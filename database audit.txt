@@ -1,0 +1,148 @@
+-- =====================================================
+-- COMPREHENSIVE CRM DATABASE STATE REPORT
+-- =====================================================
+
+-- METADATA & OVERVIEW
+-- =====================================================
+SELECT 'DATABASE OVERVIEW' as section, '' as subsection, 'Total Tables' as metric, COUNT(*) as value
+FROM information_schema.tables 
+WHERE table_schema = DATABASE();
+
+SELECT 'DATABASE OVERVIEW' as section, '' as subsection, 'Current Database' as metric, DATABASE() as value;
+
+SELECT 'DATABASE OVERVIEW' as section, '' as subsection, 'Report Generated' as metric, NOW() as value;
+
+-- CUSTOMER RELATIONSHIP AUDIT
+-- =====================================================
+SELECT 'CUSTOMER AUDIT' as section, 'Login Relationships' as subsection, 'Total Customers' as metric, COUNT(*) as value FROM customer;
+
+SELECT 'CUSTOMER AUDIT' as section, 'Login Relationships' as subsection, 'Customers WITHOUT login credentials' as metric, COUNT(*) as value
+FROM customer c LEFT JOIN customer_login_info cli ON c.profile_id = cli.id WHERE cli.id IS NULL;
+
+SELECT 'CUSTOMER AUDIT' as section, 'Login Relationships' as subsection, 'Customers WITH login credentials' as metric, COUNT(*) as value
+FROM customer c INNER JOIN customer_login_info cli ON c.profile_id = cli.id;
+
+SELECT 'CUSTOMER AUDIT' as section, 'Login Relationships' as subsection, 'Orphaned login records' as metric, COUNT(*) as value
+FROM customer_login_info cli LEFT JOIN customer c ON c.profile_id = cli.id WHERE c.customer_id IS NULL;
+
+SELECT 'CUSTOMER AUDIT' as section, 'Login Relationships' as subsection, 'Total login records' as metric, COUNT(*) as value FROM customer_login_info;
+
+-- CUSTOMER TYPE BREAKDOWN
+-- =====================================================
+SELECT 'CUSTOMER AUDIT' as section, 'By Type' as subsection, 
+       CONCAT(COALESCE(customer_type, 'NULL_TYPE'), ' - Total') as metric, 
+       COUNT(*) as value
+FROM customer GROUP BY customer_type;
+
+SELECT 'CUSTOMER AUDIT' as section, 'By Type' as subsection, 
+       CONCAT(COALESCE(c.customer_type, 'NULL_TYPE'), ' - With Login') as metric, 
+       COUNT(cli.id) as value
+FROM customer c LEFT JOIN customer_login_info cli ON c.profile_id = cli.id 
+GROUP BY c.customer_type;
+
+SELECT 'CUSTOMER AUDIT' as section, 'By Type' as subsection, 
+       CONCAT(COALESCE(c.customer_type, 'NULL_TYPE'), ' - Missing Login') as metric, 
+       COUNT(*) - COUNT(cli.id) as value
+FROM customer c LEFT JOIN customer_login_info cli ON c.profile_id = cli.id 
+GROUP BY c.customer_type;
+
+-- PAYPROP INTEGRATION STATUS
+-- =====================================================
+SELECT 'PAYPROP AUDIT' as section, 'Sync Status' as subsection, 'Total customers' as metric, COUNT(*) as value FROM customer;
+
+SELECT 'PAYPROP AUDIT' as section, 'Sync Status' as subsection, 'Has PayProp Entity ID' as metric, COUNT(payprop_entity_id) as value FROM customer;
+
+SELECT 'PAYPROP AUDIT' as section, 'Sync Status' as subsection, 'Has PayProp Customer ID' as metric, COUNT(payprop_customer_id) as value FROM customer;
+
+SELECT 'PAYPROP AUDIT' as section, 'Sync Status' as subsection, 'Marked as Synced' as metric, 
+       SUM(CASE WHEN payprop_synced = 1 THEN 1 ELSE 0 END) as value FROM customer;
+
+SELECT 'PAYPROP AUDIT' as section, 'Sync Status' as subsection, 'Not Synced' as metric, 
+       SUM(CASE WHEN payprop_synced = 0 OR payprop_synced IS NULL THEN 1 ELSE 0 END) as value FROM customer;
+
+-- ENTITY TABLE RELATIONSHIPS
+-- =====================================================
+SELECT 'ENTITY AUDIT' as section, 'Separate Tables' as subsection, 'Total Tenant Entities' as metric, COUNT(*) as value FROM tenants;
+
+SELECT 'ENTITY AUDIT' as section, 'Separate Tables' as subsection, 'Tenants Linked to Customers' as metric, COUNT(c.customer_id) as value
+FROM tenants t LEFT JOIN customer c ON t.email_address = c.email AND c.customer_type = 'TENANT';
+
+SELECT 'ENTITY AUDIT' as section, 'Separate Tables' as subsection, 'Orphaned Tenant Entities' as metric, 
+       COUNT(*) - COUNT(c.customer_id) as value
+FROM tenants t LEFT JOIN customer c ON t.email_address = c.email AND c.customer_type = 'TENANT';
+
+SELECT 'ENTITY AUDIT' as section, 'Separate Tables' as subsection, 'Total Property Owner Entities' as metric, COUNT(*) as value FROM property_owners;
+
+SELECT 'ENTITY AUDIT' as section, 'Separate Tables' as subsection, 'Property Owners Linked to Customers' as metric, COUNT(c.customer_id) as value
+FROM property_owners po LEFT JOIN customer c ON po.email_address = c.email AND c.customer_type = 'PROPERTY_OWNER';
+
+SELECT 'ENTITY AUDIT' as section, 'Separate Tables' as subsection, 'Total Contractor Entities' as metric, COUNT(*) as value FROM contractors;
+
+SELECT 'ENTITY AUDIT' as section, 'Separate Tables' as subsection, 'Contractors Linked to Customers' as metric, COUNT(c.customer_id) as value
+FROM contractors co LEFT JOIN customer c ON co.email_address = c.email AND c.customer_type = 'CONTRACTOR';
+
+-- ROLE & SECURITY AUDIT
+-- =====================================================
+SELECT 'SECURITY AUDIT' as section, 'Roles' as subsection, 'Total Roles' as metric, COUNT(*) as value FROM roles;
+
+SELECT 'SECURITY AUDIT' as section, 'Roles' as subsection, CONCAT('Role: ', name) as metric, COUNT(*) as value 
+FROM roles GROUP BY name;
+
+SELECT 'SECURITY AUDIT' as section, 'User Roles' as subsection, 'Total User-Role Assignments' as metric, COUNT(*) as value FROM user_roles;
+
+-- EMAIL & COMMUNICATION AUDIT
+-- =====================================================
+SELECT 'EMAIL AUDIT' as section, 'Addresses' as subsection, 'Unique Customer Emails' as metric, COUNT(DISTINCT email) as value FROM customer;
+
+SELECT 'EMAIL AUDIT' as section, 'Addresses' as subsection, 'Duplicate Customer Emails' as metric, 
+       COUNT(*) - COUNT(DISTINCT email) as value FROM customer;
+
+SELECT 'EMAIL AUDIT' as section, 'Addresses' as subsection, 'Customers Missing Email' as metric, 
+       COUNT(*) as value FROM customer WHERE email IS NULL OR email = '';
+
+-- PROPERTY & BUSINESS DATA AUDIT  
+-- =====================================================
+SELECT 'BUSINESS AUDIT' as section, 'Properties' as subsection, 'Total Properties' as metric, COUNT(*) as value FROM property;
+
+SELECT 'BUSINESS AUDIT' as section, 'Properties' as subsection, 'Properties with PayProp ID' as metric, 
+       COUNT(payprop_id) as value FROM property;
+
+SELECT 'BUSINESS AUDIT' as section, 'Users' as subsection, 'Total System Users' as metric, COUNT(*) as value FROM users;
+
+SELECT 'BUSINESS AUDIT' as section, 'Users' as subsection, 'Active System Users' as metric, 
+       COUNT(*) as value FROM users WHERE status = 'active';
+
+-- DETAILED PROBLEMATIC RECORDS
+-- =====================================================
+SELECT 'PROBLEM RECORDS' as section, 'Customers Without Login' as subsection, 
+       CONCAT('ID:', customer_id, ' | ', COALESCE(name, 'NO_NAME'), ' | ', email, ' | ', customer_type) as details,
+       customer_id as value
+FROM customer c 
+LEFT JOIN customer_login_info cli ON c.profile_id = cli.id 
+WHERE cli.id IS NULL
+ORDER BY customer_type, customer_id
+LIMIT 20;
+
+-- SUMMARY STATISTICS
+-- =====================================================
+SELECT 'SUMMARY' as section, 'Critical Issues' as subsection, 
+       CONCAT(
+           (SELECT COUNT(*) FROM customer c LEFT JOIN customer_login_info cli ON c.profile_id = cli.id WHERE cli.id IS NULL),
+           ' customers cannot login, ',
+           (SELECT COUNT(*) FROM customer WHERE payprop_synced = 0 OR payprop_synced IS NULL),
+           ' not synced with PayProp, ',
+           (SELECT COUNT(*) - COUNT(c.customer_id) FROM tenants t LEFT JOIN customer c ON t.email_address = c.email),
+           ' orphaned tenant entities'
+       ) as details,
+       0 as value;
+
+SELECT 'SUMMARY' as section, 'Data Readiness' as subsection,
+       CONCAT(
+           ROUND((SELECT COUNT(cli.id) * 100.0 / COUNT(*) FROM customer c LEFT JOIN customer_login_info cli ON c.profile_id = cli.id), 1),
+           '% login coverage, ',
+           ROUND((SELECT COUNT(payprop_entity_id) * 100.0 / COUNT(*) FROM customer), 1),
+           '% PayProp integration, ',
+           (SELECT COUNT(DISTINCT email) FROM customer),
+           ' unique email addresses'
+       ) as details,
+       0 as value;
