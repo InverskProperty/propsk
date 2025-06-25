@@ -19,8 +19,8 @@
 </div>
 
 <div id="main-wrapper">
-    <div th:insert="~{/general/header.html}"></div>
-    <div th:insert="~{/general/left-sidebar.html}"></div>
+    <div th:replace="~{general/header}"></div>
+    <div th:replace="~{general/left-sidebar}"></div>
     
     <div class="page-wrapper">
         <div class="container-fluid">
@@ -375,7 +375,7 @@
             </div>
         </div>
         
-        <div th:insert="~{/general/footer.html}"></div>
+        <div th:replace="~{general/footer}"></div>
     </div>
 </div>
 
