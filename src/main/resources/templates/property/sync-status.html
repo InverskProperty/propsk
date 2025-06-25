@@ -1,34 +1,33 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <div th:replace="~{general/head.html}"></div>
+    <meta name="_csrf" content="${_csrf.token}"/>
+    <meta name="_csrf_header" content="${_csrf.headerName}"/>
 
-<div th:insert="~{general/head.html}"></div>
-<meta name="_csrf" content="${_csrf.token}"/>
-<meta name="_csrf_header" content="${_csrf.headerName}"/>
+    <!-- DataTables and status specific CSS -->
+    <link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+    <link th:href="@{/css/responsive.dataTables.min.css}" rel="stylesheet">
+    <link th:href="@{/css/style.min.css}" rel="stylesheet">
 
-<!-- DataTables and status specific CSS -->
-<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
-<link th:href="@{/css/responsive.dataTables.min.css}" rel="stylesheet">
-<link th:href="@{/css/style.min.css}" rel="stylesheet">
-
-<style>
-.sync-status-badge {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-}
-.status-synced { background-color: #28a745; }
-.status-pending { background-color: #ffc107; }
-.status-error { background-color: #dc3545; }
-.status-missing-fields { background-color: #fd7e14; }
-.progress-thin { height: 4px; }
-.validation-error { 
-    background-color: #fff3cd; 
-    border: 1px solid #ffeaa7; 
-    border-radius: 4px; 
-    padding: 8px 12px;
-    margin: 4px 0;
-}
-</style>
-
+    <style>
+    .sync-status-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    .status-synced { background-color: #28a745; }
+    .status-pending { background-color: #ffc107; }
+    .status-error { background-color: #dc3545; }
+    .status-missing-fields { background-color: #fd7e14; }
+    .progress-thin { height: 4px; }
+    .validation-error { 
+        background-color: #fff3cd; 
+        border: 1px solid #ffeaa7; 
+        border-radius: 4px; 
+        padding: 8px 12px;
+        margin: 4px 0;
+    }
+    </style>
 </head>
 
 <body class="skin-blue fixed-layout">
