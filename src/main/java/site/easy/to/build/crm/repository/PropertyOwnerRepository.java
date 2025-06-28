@@ -194,9 +194,9 @@ public interface PropertyOwnerRepository extends JpaRepository<PropertyOwner, Lo
     
     // Find property owners ready for PayProp sync
     @Query("SELECT po FROM PropertyOwner po WHERE po.payPropId IS NULL AND " +
-           "((po.accountType = 'INDIVIDUAL' AND po.firstName IS NOT NULL AND po.firstName != '' AND po.lastName IS NOT NULL AND po.lastName != '') OR " +
-           "(po.accountType = 'BUSINESS' AND po.businessName IS NOT NULL AND po.businessName != '')) AND " +
-           "po.emailAddress IS NOT NULL AND po.emailAddress != '' AND " +
+           "((po.accountType = 'INDIVIDUAL' AND po.firstName IS NOT NULL AND LENGTH(TRIM(po.firstName)) > 0 AND po.lastName IS NOT NULL AND LENGTH(TRIM(po.lastName)) > 0) OR " +
+           "(po.accountType = 'BUSINESS' AND po.businessName IS NOT NULL AND LENGTH(TRIM(po.businessName)) > 0)) AND " +
+           "po.emailAddress IS NOT NULL AND LENGTH(TRIM(po.emailAddress)) > 0 AND " +
            "po.paymentMethod IS NOT NULL")
     List<PropertyOwner> findPropertyOwnersReadyForSync();
     
