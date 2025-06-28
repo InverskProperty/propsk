@@ -80,20 +80,12 @@
                         <div class="card-body">
                             <div th:if="${hasTokens}" class="alert alert-success">
                                 <h5><i class="fas fa-check-circle"></i> Connected to PayProp</h5>
-                                <p class="mb-0">Your application is successfully connected to PayProp staging environment.</p>
-                                
-                                <div th:if="${tokens}" class="mt-3">
-                                    <small class="text-muted">
-                                        <strong>Token expires:</strong> <span th:text="${tokens.expiresAt}">N/A</span><br>
-                                        <strong>Scopes:</strong> <span th:text="${tokens.scopes}">N/A</span>
-                                    </small>
-                                </div>
+                                <p class="mb-0">Your application is successfully connected to PayProp and ready for sync operations.</p>
                             </div>
-                            
                             <div th:unless="${hasTokens}" class="alert alert-warning">
                                 <h5><i class="fas fa-exclamation-triangle"></i> Not Connected</h5>
-                                <p class="mb-0">PayProp authorization required before sync operations.</p>
-                                <a href="/api/payprop/oauth/authorize" class="btn btn-primary mt-2">
+                                <p class="mb-2">PayProp authorization required before sync operations.</p>
+                                <a href="/api/payprop/oauth/authorize" class="btn btn-warning">
                                     <i class="fas fa-key"></i> Authorize PayProp Access
                                 </a>
                             </div>
@@ -108,11 +100,11 @@
                     <div class="card">
                         <div class="card-body">
                             <div class="d-flex flex-row">
-                                <div class="round round-lg align-self-center round-primary">
-                                    <i class="fas fa-building"></i>
+                                <div class="round align-self-center round-info">
+                                    <i class="fas fa-home"></i>
                                 </div>
                                 <div class="m-l-10 align-self-center">
-                                    <h3 class="m-b-0 font-light" th:text="${propertiesSynced ?: 0}">0</h3>
+                                    <h3 class="m-b-0" th:text="${propertiesSynced ?: 0}">0</h3>
                                     <h5 class="text-muted m-b-0">Properties Synced</h5>
                                     <small class="text-muted">
                                         Ready: <span th:text="${propertiesReadyForSync ?: 0}">0</span> | 
@@ -123,16 +115,15 @@
                         </div>
                     </div>
                 </div>
-                
                 <div class="col-md-4">
                     <div class="card">
                         <div class="card-body">
                             <div class="d-flex flex-row">
-                                <div class="round round-lg align-self-center round-success">
+                                <div class="round align-self-center round-success">
                                     <i class="fas fa-users"></i>
                                 </div>
                                 <div class="m-l-10 align-self-center">
-                                    <h3 class="m-b-0 font-light" th:text="${tenantsSynced ?: 0}">0</h3>
+                                    <h3 class="m-b-0" th:text="${tenantsSynced ?: 0}">0</h3>
                                     <h5 class="text-muted m-b-0">Tenants Synced</h5>
                                     <small class="text-muted">
                                         Ready: <span th:text="${tenantsReadyForSync ?: 0}">0</span> | 
@@ -143,16 +134,15 @@
                         </div>
                     </div>
                 </div>
-                
                 <div class="col-md-4">
                     <div class="card">
                         <div class="card-body">
                             <div class="d-flex flex-row">
-                                <div class="round round-lg align-self-center round-warning">
+                                <div class="round align-self-center round-warning">
                                     <i class="fas fa-user-tie"></i>
                                 </div>
                                 <div class="m-l-10 align-self-center">
-                                    <h3 class="m-b-0 font-light" th:text="${ownersSynced ?: 0}">0</h3>
+                                    <h3 class="m-b-0" th:text="${ownersSynced ?: 0}">0</h3>
                                     <h5 class="text-muted m-b-0">Owners Synced</h5>
                                     <small class="text-muted">
                                         Ready: <span th:text="${ownersReadyForSync ?: 0}">0</span> | 
@@ -284,7 +274,7 @@
 <script th:src="@{/js/library/custom.min.js}"></script>
 
 <script th:inline="javascript">
-// PayProp Admin Dashboard JavaScript
+// PayProp Admin Dashboard JavaScript - FIXED URLS
 
 function addResult(message, type = 'info') {
     const resultsDiv = document.getElementById('syncResults');
@@ -297,6 +287,10 @@ function addResult(message, type = 'info') {
     
     resultsDiv.innerHTML += `<div class="${colorClass}">[${timestamp}] ${message}</div>`;
     resultsDiv.scrollTop = resultsDiv.scrollHeight;
+}
+
+function getCsrfToken() {
+    return document.querySelector('meta[name="_csrf"]').getAttribute('content');
 }
 
 function syncProperty() {
@@ -312,10 +306,15 @@ function syncProperty() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
+            'X-CSRF-TOKEN': getCsrfToken()
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             addResult(`✅ Property sync successful! PayProp ID: ${data.payPropId}`, 'success');
@@ -341,10 +340,15 @@ function syncTenant() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
+            'X-CSRF-TOKEN': getCsrfToken()
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             addResult(`✅ Tenant sync successful! PayProp ID: ${data.payPropId}`, 'success');
@@ -366,14 +370,20 @@ function syncOwner() {
     
     addResult(`Starting sync for Owner ID: ${ownerId}...`);
     
-    fetch(`/admin/payprop/sync/owner/${ownerId}`, {
+    // FIXED: Changed from /sync/owner/ to /sync/beneficiary/
+    fetch(`/admin/payprop/sync/beneficiary/${ownerId}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
+            'X-CSRF-TOKEN': getCsrfToken()
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             addResult(`✅ Owner sync successful! PayProp ID: ${data.payPropId}`, 'success');
@@ -393,10 +403,15 @@ function syncAllProperties() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
+            'X-CSRF-TOKEN': getCsrfToken()
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             addResult(`✅ Bulk property sync initiated: ${data.message}`, 'success');
@@ -416,10 +431,15 @@ function syncAllTenants() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
+            'X-CSRF-TOKEN': getCsrfToken()
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             addResult(`✅ Bulk tenant sync initiated: ${data.message}`, 'success');
@@ -435,14 +455,20 @@ function syncAllTenants() {
 function syncAllOwners() {
     addResult('Starting bulk owner sync...');
     
-    fetch('/admin/payprop/sync/owners/bulk', {
+    // FIXED: Changed from /sync/owners/bulk to /sync/beneficiaries/bulk
+    fetch('/admin/payprop/sync/beneficiaries/bulk', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
+            'X-CSRF-TOKEN': getCsrfToken()
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             addResult(`✅ Bulk owner sync initiated: ${data.message}`, 'success');
