@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- DataTables CSS -->
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/responsive.dataTables.min.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-link text-primary"></i> PayProp Admin Dashboard
+                    </h4>
+                    <p class="text-muted">Manage PayProp integration and sync operations</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <a href="/api/payprop/oauth/status" class="btn btn-info mr-2">
+                            <i class="fas fa-cog"></i> OAuth Setup
+                        </a>
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="/">Home</a></li>
+                            <li class="breadcrumb-item active">PayProp Admin</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Success/Error Messages -->
+            <div th:if="${successMessage}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-success alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <h4><i class="icon fa fa-check"></i> Success!</h4>
+                        <span th:text="${successMessage}">Success message</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div th:if="${error}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <h4><i class="icon fa fa-ban"></i> Error!</h4>
+                        <span th:text="${error}">Error message</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OAuth Status -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="card-title text-white">
+                                <i class="fas fa-shield-alt"></i> PayProp Connection Status
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${hasTokens}" class="alert alert-success">
+                                <h5><i class="fas fa-check-circle"></i> Connected to PayProp</h5>
+                                <p class="mb-0">Your application is successfully connected to PayProp staging environment.</p>
+                                
+                                <div th:if="${tokens}" class="mt-3">
+                                    <small class="text-muted">
+                                        <strong>Token expires:</strong> <span th:text="${tokens.expiresAt}">N/A</span><br>
+                                        <strong>Scopes:</strong> <span th:text="${tokens.scopes}">N/A</span>
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <div th:unless="${hasTokens}" class="alert alert-warning">
+                                <h5><i class="fas fa-exclamation-triangle"></i> Not Connected</h5>
+                                <p class="mb-0">PayProp authorization required before sync operations.</p>
+                                <a href="/api/payprop/oauth/authorize" class="btn btn-primary mt-2">
+                                    <i class="fas fa-key"></i> Authorize PayProp Access
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sync Statistics -->
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-primary">
+                                    <i class="fas fa-building"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${propertiesSynced ?: 0}">0</h3>
+                                    <h5 class="text-muted m-b-0">Properties Synced</h5>
+                                    <small class="text-muted">
+                                        Ready: <span th:text="${propertiesReadyForSync ?: 0}">0</span> | 
+                                        Pending: <span th:text="${propertiesNeedingSync ?: 0}">0</span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-success">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${tenantsSynced ?: 0}">0</h3>
+                                    <h5 class="text-muted m-b-0">Tenants Synced</h5>
+                                    <small class="text-muted">
+                                        Ready: <span th:text="${tenantsReadyForSync ?: 0}">0</span> | 
+                                        Pending: <span th:text="${tenantsNeedingSync ?: 0}">0</span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-warning">
+                                    <i class="fas fa-user-tie"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${ownersSynced ?: 0}">0</h3>
+                                    <h5 class="text-muted m-b-0">Owners Synced</h5>
+                                    <small class="text-muted">
+                                        Ready: <span th:text="${ownersReadyForSync ?: 0}">0</span> | 
+                                        Pending: <span th:text="${ownersNeedingSync ?: 0}">0</span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-sync"></i> Sync Operations
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <h6>Properties</h6>
+                                    <button class="btn btn-primary btn-block" onclick="syncAllProperties()">
+                                        <i class="fas fa-sync"></i> Sync All Ready Properties
+                                    </button>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6>Tenants</h6>
+                                    <button class="btn btn-success btn-block" onclick="syncAllTenants()">
+                                        <i class="fas fa-sync"></i> Sync All Ready Tenants
+                                    </button>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6>Property Owners</h6>
+                                    <button class="btn btn-warning btn-block" onclick="syncAllOwners()">
+                                        <i class="fas fa-sync"></i> Sync All Ready Owners
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Individual Entity Testing -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-vial"></i> Individual Entity Testing
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <h6>Test Property Sync</h6>
+                                    <div class="input-group">
+                                        <input type="number" id="propertyId" class="form-control" placeholder="Property ID">
+                                        <div class="input-group-append">
+                                            <button class="btn btn-primary" onclick="syncProperty()">
+                                                <i class="fas fa-sync"></i> Sync
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6>Test Tenant Sync</h6>
+                                    <div class="input-group">
+                                        <input type="number" id="tenantId" class="form-control" placeholder="Tenant ID">
+                                        <div class="input-group-append">
+                                            <button class="btn btn-success" onclick="syncTenant()">
+                                                <i class="fas fa-sync"></i> Sync
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6>Test Owner Sync</h6>
+                                    <div class="input-group">
+                                        <input type="number" id="ownerId" class="form-control" placeholder="Owner ID">
+                                        <div class="input-group-append">
+                                            <button class="btn btn-warning" onclick="syncOwner()">
+                                                <i class="fas fa-sync"></i> Sync
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Area -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-terminal"></i> Sync Results
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div id="syncResults" class="bg-light p-3" style="min-height: 100px; font-family: monospace;">
+                                <em>Sync results will appear here...</em>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script th:inline="javascript">
+// PayProp Admin Dashboard JavaScript
+
+function addResult(message, type = 'info') {
+    const resultsDiv = document.getElementById('syncResults');
+    const timestamp = new Date().toLocaleTimeString();
+    const colorClass = type === 'success' ? 'text-success' : type === 'error' ? 'text-danger' : 'text-info';
+    
+    if (resultsDiv.innerHTML.includes('Sync results will appear here')) {
+        resultsDiv.innerHTML = '';
+    }
+    
+    resultsDiv.innerHTML += `<div class="${colorClass}">[${timestamp}] ${message}</div>`;
+    resultsDiv.scrollTop = resultsDiv.scrollHeight;
+}
+
+function syncProperty() {
+    const propertyId = document.getElementById('propertyId').value;
+    if (!propertyId) {
+        addResult('Please enter a Property ID', 'error');
+        return;
+    }
+    
+    addResult(`Starting sync for Property ID: ${propertyId}...`);
+    
+    fetch(`/admin/payprop/sync/property/${propertyId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ Property sync successful! PayProp ID: ${data.payPropId}`, 'success');
+        } else {
+            addResult(`❌ Property sync failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Property sync error: ${error.message}`, 'error');
+    });
+}
+
+function syncTenant() {
+    const tenantId = document.getElementById('tenantId').value;
+    if (!tenantId) {
+        addResult('Please enter a Tenant ID', 'error');
+        return;
+    }
+    
+    addResult(`Starting sync for Tenant ID: ${tenantId}...`);
+    
+    fetch(`/admin/payprop/sync/tenant/${tenantId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ Tenant sync successful! PayProp ID: ${data.payPropId}`, 'success');
+        } else {
+            addResult(`❌ Tenant sync failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Tenant sync error: ${error.message}`, 'error');
+    });
+}
+
+function syncOwner() {
+    const ownerId = document.getElementById('ownerId').value;
+    if (!ownerId) {
+        addResult('Please enter an Owner ID', 'error');
+        return;
+    }
+    
+    addResult(`Starting sync for Owner ID: ${ownerId}...`);
+    
+    fetch(`/admin/payprop/sync/owner/${ownerId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ Owner sync successful! PayProp ID: ${data.payPropId}`, 'success');
+        } else {
+            addResult(`❌ Owner sync failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Owner sync error: ${error.message}`, 'error');
+    });
+}
+
+function syncAllProperties() {
+    addResult('Starting bulk property sync...');
+    
+    fetch('/admin/payprop/sync/properties/bulk', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ Bulk property sync initiated: ${data.message}`, 'success');
+        } else {
+            addResult(`❌ Bulk property sync failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Bulk property sync error: ${error.message}`, 'error');
+    });
+}
+
+function syncAllTenants() {
+    addResult('Starting bulk tenant sync...');
+    
+    fetch('/admin/payprop/sync/tenants/bulk', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ Bulk tenant sync initiated: ${data.message}`, 'success');
+        } else {
+            addResult(`❌ Bulk tenant sync failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Bulk tenant sync error: ${error.message}`, 'error');
+    });
+}
+
+function syncAllOwners() {
+    addResult('Starting bulk owner sync...');
+    
+    fetch('/admin/payprop/sync/owners/bulk', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').getAttribute('content')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ Bulk owner sync initiated: ${data.message}`, 'success');
+        } else {
+            addResult(`❌ Bulk owner sync failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Bulk owner sync error: ${error.message}`, 'error');
+    });
+}
+</script>
+
+</body>
+</html>
