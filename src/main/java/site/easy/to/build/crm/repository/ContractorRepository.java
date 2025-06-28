@@ -59,12 +59,13 @@ public interface ContractorRepository extends JpaRepository<Contractor, Long> {
     List<Contractor> findByTagsContaining(String tag);
     
     // Find Gas Safe certified contractors
-    @Query("SELECT c FROM Contractor c WHERE c.gasSafeNumber IS NOT NULL AND c.gasSafeNumber != '' " +
+    @Query("SELECT c FROM Contractor c WHERE c.gasSafeNumber IS NOT NULL AND LENGTH(TRIM(c.gasSafeNumber)) > 0 " +
            "AND c.gasSafeExpiry IS NOT NULL AND c.gasSafeExpiry > :currentDate")
     List<Contractor> findGasSafeCertified(@Param("currentDate") LocalDateTime currentDate);
     
     // Find NICEIC certified contractors
-    @Query("SELECT c FROM Contractor c WHERE c.niceicNumber IS NOT NULL AND c.niceicNumber != '' " +
+
+    @Query("SELECT c FROM Contractor c WHERE c.niceicNumber IS NOT NULL AND LENGTH(TRIM(c.niceicNumber)) > 0 " +
            "AND c.niceicExpiry IS NOT NULL AND c.niceicExpiry > :currentDate")
     List<Contractor> findNiceicCertified(@Param("currentDate") LocalDateTime currentDate);
     
@@ -186,7 +187,7 @@ public interface ContractorRepository extends JpaRepository<Contractor, Long> {
     List<Contractor> findByBankName(String bankName);
     
     // Find contractors with website
-    @Query("SELECT c FROM Contractor c WHERE c.website IS NOT NULL AND c.website != ''")
+    @Query("SELECT c FROM Contractor c WHERE c.website IS NOT NULL AND LENGTH(TRIM(c.website)) > 0")
     List<Contractor> findWithWebsite();
     
     // Find contractors by full address

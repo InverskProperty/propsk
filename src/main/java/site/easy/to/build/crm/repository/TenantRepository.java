@@ -170,9 +170,9 @@ public interface TenantRepository extends JpaRepository<Tenant, Long> {
     
     // Find tenants with missing PayProp required fields
     @Query("SELECT t FROM Tenant t WHERE t.payPropId IS NULL AND " +
-           "((t.accountType = 'INDIVIDUAL' AND (t.firstName IS NULL OR t.firstName = '' OR t.lastName IS NULL OR t.lastName = '')) OR " +
-           "(t.accountType = 'BUSINESS' AND (t.businessName IS NULL OR t.businessName = '')) OR " +
-           "t.emailAddress IS NULL OR t.emailAddress = '')")
+           "((t.accountType = 'INDIVIDUAL' AND (t.firstName IS NULL OR LENGTH(TRIM(t.firstName)) = 0 OR t.lastName IS NULL OR LENGTH(TRIM(t.lastName)) = 0)) OR " +
+           "(t.accountType = 'BUSINESS' AND (t.businessName IS NULL OR LENGTH(TRIM(t.businessName)) = 0)) OR " +
+           "t.emailAddress IS NULL OR LENGTH(TRIM(t.emailAddress)) = 0)")
     List<Tenant> findTenantsWithMissingPayPropFields();
     
     // Find active tenants not synced to PayProp
