@@ -143,12 +143,12 @@ public interface PropertyOwnerRepository extends JpaRepository<PropertyOwner, Lo
                                            @Param("propertyId") Long propertyId,
                                            Pageable pageable);
     
-    // Find owners with IBAN (international accounts)
-    @Query("SELECT po FROM PropertyOwner po WHERE po.iban IS NOT NULL AND po.iban != ''")
+    // ✅ FIXED: Find owners with IBAN (international accounts)
+    @Query("SELECT po FROM PropertyOwner po WHERE po.iban IS NOT NULL AND LENGTH(TRIM(po.iban)) > 0")
     List<PropertyOwner> findOwnersWithIban();
     
-    // Find owners with SWIFT code
-    @Query("SELECT po FROM PropertyOwner po WHERE po.swiftCode IS NOT NULL AND po.swiftCode != ''")
+    // ✅ FIXED: Find owners with SWIFT code
+    @Query("SELECT po FROM PropertyOwner po WHERE po.swiftCode IS NOT NULL AND LENGTH(TRIM(po.swiftCode)) > 0")
     List<PropertyOwner> findOwnersWithSwiftCode();
     
     // Find by full name (for individual accounts)
@@ -175,7 +175,7 @@ public interface PropertyOwnerRepository extends JpaRepository<PropertyOwner, Lo
     List<PropertyOwner> findByBankDetails(@Param("accountNumber") String accountNumber,
                                          @Param("branchCode") String branchCode);
 
-    // ======= ADD THESE MISSING METHODS =======
+    // ======= PAYPROP INTEGRATION METHODS =======
     
     // Find by customer reference
     List<PropertyOwner> findByCustomerReference(String customerReference);
@@ -192,7 +192,7 @@ public interface PropertyOwnerRepository extends JpaRepository<PropertyOwner, Lo
     // Find by payment method and country
     List<PropertyOwner> findByPaymentMethodAndCountry(PaymentMethod paymentMethod, String country);
     
-    // Find property owners ready for PayProp sync
+    // ✅ FIXED: Find property owners ready for PayProp sync
     @Query("SELECT po FROM PropertyOwner po WHERE po.payPropId IS NULL AND " +
            "((po.accountType = 'INDIVIDUAL' AND po.firstName IS NOT NULL AND LENGTH(TRIM(po.firstName)) > 0 AND po.lastName IS NOT NULL AND LENGTH(TRIM(po.lastName)) > 0) OR " +
            "(po.accountType = 'BUSINESS' AND po.businessName IS NOT NULL AND LENGTH(TRIM(po.businessName)) > 0)) AND " +
@@ -200,11 +200,11 @@ public interface PropertyOwnerRepository extends JpaRepository<PropertyOwner, Lo
            "po.paymentMethod IS NOT NULL")
     List<PropertyOwner> findPropertyOwnersReadyForSync();
     
-    // Find property owners with missing PayProp required fields
+    // ✅ FIXED: Find property owners with missing PayProp required fields
     @Query("SELECT po FROM PropertyOwner po WHERE po.payPropId IS NULL AND " +
-           "((po.accountType = 'INDIVIDUAL' AND (po.firstName IS NULL OR po.firstName = '' OR po.lastName IS NULL OR po.lastName = '')) OR " +
-           "(po.accountType = 'BUSINESS' AND (po.businessName IS NULL OR po.businessName = '')) OR " +
-           "po.emailAddress IS NULL OR po.emailAddress = '' OR " +
+           "((po.accountType = 'INDIVIDUAL' AND (po.firstName IS NULL OR LENGTH(TRIM(po.firstName)) = 0 OR po.lastName IS NULL OR LENGTH(TRIM(po.lastName)) = 0)) OR " +
+           "(po.accountType = 'BUSINESS' AND (po.businessName IS NULL OR LENGTH(TRIM(po.businessName)) = 0)) OR " +
+           "po.emailAddress IS NULL OR LENGTH(TRIM(po.emailAddress)) = 0 OR " +
            "po.paymentMethod IS NULL)")
     List<PropertyOwner> findPropertyOwnersWithMissingPayPropFields();
 }
