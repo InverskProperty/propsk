@@ -1,4 +1,4 @@
-// PayPropPortfolioSyncService.java - Two-way synchronization between portfolios and PayProp tags
+// PayPropPortfolioSyncService.java - OAuth2 Integration FIXED
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,24 +25,24 @@ public class PayPropPortfolioSyncService {
     private final PropertyService propertyService;
     private final PortfolioSyncLogRepository syncLogRepository;
     private final RestTemplate restTemplate;
+    private final PayPropOAuth2Service oAuth2Service; // 🔧 FIXED: Added OAuth2 service
     
-    @Value("${payprop.api.base-url:https://uk.payprop.com/api/agency/v1.1}")
+    @Value("${payprop.api.base-url:https://ukapi.staging.payprop.com/api/agency/v1.1}")
     private String payPropApiBase;
-    
-    @Value("${payprop.api.key}")
-    private String apiKey;
     
     @Autowired
     public PayPropPortfolioSyncService(PortfolioRepository portfolioRepository,
                                       BlockRepository blockRepository,
                                       PropertyService propertyService,
                                       PortfolioSyncLogRepository syncLogRepository,
-                                      RestTemplate restTemplate) {
+                                      RestTemplate restTemplate,
+                                      PayPropOAuth2Service oAuth2Service) { // 🔧 FIXED: Added OAuth2 service
         this.portfolioRepository = portfolioRepository;
         this.blockRepository = blockRepository;
         this.propertyService = propertyService;
         this.syncLogRepository = syncLogRepository;
         this.restTemplate = restTemplate;
+        this.oAuth2Service = oAuth2Service; // 🔧 FIXED: Store OAuth2 service
     }
     
     // ===== PORTFOLIO TO PAYPROP SYNCHRONIZATION =====
@@ -126,7 +126,7 @@ public class PayPropPortfolioSyncService {
      * Get all PayProp tags - public method for controller access
      */
     public List<PayPropTagDTO> getAllPayPropTags() throws Exception {
-        HttpHeaders headers = createHeaders();
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders(); // 🔧 FIXED: Use OAuth2
         HttpEntity<String> request = new HttpEntity<>(headers);
         
         try {
@@ -161,7 +161,7 @@ public class PayPropPortfolioSyncService {
      * Get specific PayProp tag - public method for controller access
      */
     public PayPropTagDTO getPayPropTag(String tagId) throws Exception {
-        HttpHeaders headers = createHeaders();
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders(); // 🔧 FIXED: Use OAuth2
         HttpEntity<String> request = new HttpEntity<>(headers);
         
         try {
@@ -361,7 +361,7 @@ public class PayPropPortfolioSyncService {
     // ===== PAYPROP API METHODS =====
     
     private PayPropTagDTO createPayPropTag(PayPropTagDTO tag) throws Exception {
-        HttpHeaders headers = createHeaders();
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders(); // 🔧 FIXED: Use OAuth2
         HttpEntity<PayPropTagDTO> request = new HttpEntity<>(tag, headers);
         
         try {
@@ -387,7 +387,7 @@ public class PayPropPortfolioSyncService {
     }
     
     private void applyTagToProperty(String payPropPropertyId, String tagId) throws Exception {
-        HttpHeaders headers = createHeaders();
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders(); // 🔧 FIXED: Use OAuth2
         Map<String, Object> requestBody = Map.of("tag_id", tagId);
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
         
@@ -403,7 +403,7 @@ public class PayPropPortfolioSyncService {
     }
     
     private void removeTagFromProperty(String payPropPropertyId, String tagId) throws Exception {
-        HttpHeaders headers = createHeaders();
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders(); // 🔧 FIXED: Use OAuth2
         HttpEntity<String> request = new HttpEntity<>(headers);
         
         try {
@@ -424,6 +424,10 @@ public class PayPropPortfolioSyncService {
      * Sync all portfolios that need synchronization
      */
     public SyncResult syncAllPortfolios(Long initiatedBy) {
+        if (!oAuth2Service.hasValidTokens()) { // 🔧 FIXED: Check OAuth2 tokens
+            throw new IllegalStateException("No valid OAuth2 tokens. Please authorize PayProp first.");
+        }
+        
         List<Portfolio> portfoliosNeedingSync = findPortfoliosNeedingSync();
         
         int successCount = 0;
@@ -538,13 +542,6 @@ public class PayPropPortfolioSyncService {
             .filter(portfolio -> portfolio.getSyncStatus() == SyncStatus.PENDING || 
                                portfolio.getSyncStatus() == SyncStatus.FAILED)
             .collect(Collectors.toList());
-    }
-    
-    private HttpHeaders createHeaders() {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "APIkey " + apiKey);
-        return headers;
     }
     
     private PortfolioSyncLog createSyncLog(Long portfolioId, Long blockId, Long propertyId, 
