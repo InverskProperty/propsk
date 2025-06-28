@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
+    <title th:text="${pageTitle}">PayProp Integration Setup - CRM</title>
+    
+    <!-- CSRF Meta Tags -->
+    <meta name="_csrf" content="${_csrf.token}"/>
+    <meta name="_csrf_header" content="${_csrf.headerName}"/>
+    
+    <!-- Bootstrap Core CSS -->
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link th:href="@{/css/style.min.css}" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link th:href="@{/css/all.css}" rel="stylesheet">
+    
+    <!-- Fix for white-on-white text issue -->
+    <style>
+        .text-muted {
+            color: #6c757d !important;
+        }
+        .card-body {
+            color: #495057 !important;
+        }
+        .list-group-item {
+            color: #495057 !important;
+        }
+        .text-primary {
+            color: #007bff !important;
+        }
+        .text-success {
+            color: #28a745 !important;
+        }
+        .text-warning {
+            color: #ffc107 !important;
+        }
+        .text-info {
+            color: #17a2b8 !important;
+        }
+        .text-themecolor {
+            color: #2f3d4a !important;
+        }
+        body {
+            color: #495057;
+        }
+        .card {
+            background-color: #ffffff;
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            color: #495057;
+        }
+        .btn {
+            color: #fff !important;
+        }
+        .btn-success {
+            background-color: #28a745;
+            border-color: #28a745;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .btn-warning {
+            background-color: #ffc107;
+            border-color: #ffc107;
+            color: #212529 !important;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            border-color: #dc3545;
+        }
+    </style>
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Page Header -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">
+                        <i class="fas fa-link text-primary"></i> 
+                        PayProp Integration Setup
+                    </h3>
+                    <p class="text-muted mb-0">Configure OAuth2 authentication for PayProp API integration</p>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <a href="/portfolio/dashboard" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- Success/Error Messages -->
+            <div th:if="${successMessage}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-success alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+                        <h4><i class="icon fa fa-check"></i> Success!</h4>
+                        <span th:text="${successMessage}">Success message</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div th:if="${error}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+                        <h4><i class="icon fa fa-ban"></i> Error!</h4>
+                        <span th:text="${error}">Error message</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OAuth2 Status Card -->
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-shield-alt text-info"></i> Connection Status
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${hasTokens}" class="alert alert-success">
+                                <h5><i class="fas fa-check-circle"></i> Connected to PayProp</h5>
+                                <p class="mb-0">Your application is successfully connected to PayProp staging environment.</p>
+                                
+                                <div th:if="${tokens}" class="mt-3">
+                                    <small class="text-muted">
+                                        <strong>Token expires:</strong> <span th:text="${tokens.expiresAt}">N/A</span><br>
+                                        <strong>Scopes:</strong> <span th:text="${tokens.scopes}">N/A</span><br>
+                                        <strong>Obtained:</strong> <span th:text="${tokens.obtainedAt}">N/A</span>
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <div th:unless="${hasTokens}" class="alert alert-warning">
+                                <h5><i class="fas fa-exclamation-triangle"></i> Not Connected</h5>
+                                <p class="mb-0">You need to authorize this application with PayProp before you can sync data.</p>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="mt-3">
+                                <div th:unless="${hasTokens}">
+                                    <a href="/api/payprop/oauth/authorize" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-key"></i> Authorize PayProp Access
+                                    </a>
+                                    <p class="text-muted mt-2">
+                                        <small>You will be redirected to PayProp to authorize this application.</small>
+                                    </p>
+                                </div>
+                                
+                                <div th:if="${hasTokens}" class="btn-group" role="group">
+                                    <button type="button" class="btn btn-success" id="testConnectionBtn">
+                                        <i class="fas fa-satellite-dish"></i> Test Connection
+                                    </button>
+                                    <button type="button" class="btn btn-warning" id="refreshTokenBtn">
+                                        <i class="fas fa-sync"></i> Refresh Token
+                                    </button>
+                                    <button type="button" class="btn btn-danger" id="disconnectBtn">
+                                        <i class="fas fa-unlink"></i> Disconnect
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Integration Info Card -->
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-info-circle text-primary"></i> Integration Details
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="list-group list-group-flush">
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <strong>Environment:</strong>
+                                    <span class="badge badge-warning">Staging</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <strong>Client ID:</strong>
+                                    <code>Propsk</code>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <strong>Features:</strong>
+                                    <small>Properties, Tenants, Beneficiaries</small>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <strong>Export:</strong>
+                                    <span class="badge badge-success">Enabled</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test Results Card -->
+            <div id="testResults" class="row" style="display: none;">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-flask text-info"></i> Test Results
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div id="testResultContent"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div th:if="${hasTokens}" class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-rocket text-success"></i> Quick Actions
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <a href="/admin/payprop/dashboard" class="btn btn-info btn-block">
+                                        <i class="fas fa-tachometer-alt"></i> Admin Dashboard
+                                    </a>
+                                </div>
+                                <div class="col-md-3">
+                                    <button class="btn btn-primary btn-block" onclick="exportData('properties')">
+                                        <i class="fas fa-download"></i> Export Properties
+                                    </button>
+                                </div>
+                                <div class="col-md-3">
+                                    <button class="btn btn-warning btn-block" onclick="exportData('tenants')">
+                                        <i class="fas fa-users"></i> Export Tenants
+                                    </button>
+                                </div>
+                                <div class="col-md-3">
+                                    <a href="/portfolio/dashboard" class="btn btn-success btn-block">
+                                        <i class="fas fa-folder"></i> Portfolio Dashboard
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script>
+    // Test Connection
+    $('#testConnectionBtn').click(function() {
+        var btn = $(this);
+        btn.prop('disabled', true);
+        btn.html('<i class="fas fa-spinner fa-spin"></i> Testing...');
+        
+        $.post('/api/payprop/oauth/test-connection')
+            .done(function(data) {
+                showTestResult(data);
+            })
+            .fail(function() {
+                showTestResult({ success: false, message: 'Connection test failed' });
+            })
+            .always(function() {
+                btn.prop('disabled', false);
+                btn.html('<i class="fas fa-satellite-dish"></i> Test Connection');
+            });
+    });
+
+    // Refresh Token
+    $('#refreshTokenBtn').click(function() {
+        var btn = $(this);
+        btn.prop('disabled', true);
+        btn.html('<i class="fas fa-spinner fa-spin"></i> Refreshing...');
+        
+        $.post('/api/payprop/oauth/refresh')
+            .done(function(data) {
+                if (data.success) {
+                    showAlert('success', data.message);
+                    setTimeout(function() { location.reload(); }, 1500);
+                } else {
+                    showAlert('danger', data.message);
+                }
+            })
+            .fail(function() {
+                showAlert('danger', 'Token refresh failed');
+            })
+            .always(function() {
+                btn.prop('disabled', false);
+                btn.html('<i class="fas fa-sync"></i> Refresh Token');
+            });
+    });
+
+    // Disconnect
+    $('#disconnectBtn').click(function() {
+        if (confirm('Are you sure you want to disconnect from PayProp? You will need to re-authorize to sync data.')) {
+            var btn = $(this);
+            btn.prop('disabled', true);
+            btn.html('<i class="fas fa-spinner fa-spin"></i> Disconnecting...');
+            
+            $.post('/api/payprop/oauth/disconnect')
+                .done(function(data) {
+                    if (data.success) {
+                        showAlert('success', data.message);
+                        setTimeout(function() { location.reload(); }, 1500);
+                    } else {
+                        showAlert('danger', data.message);
+                    }
+                })
+                .fail(function() {
+                    showAlert('danger', 'Disconnect failed');
+                    btn.prop('disabled', false);
+                    btn.html('<i class="fas fa-unlink"></i> Disconnect');
+                });
+        }
+    });
+
+    function showTestResult(data) {
+        var resultContent = '';
+        
+        if (data.success) {
+            resultContent = `
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-check-circle"></i> Connection Successful</h5>
+                    <p>${data.message}</p>
+                    ${data.tokenStatus ? `<small><strong>Token Status:</strong> ${data.tokenStatus}</small><br>` : ''}
+                    ${data.expiresAt ? `<small><strong>Expires:</strong> ${data.expiresAt}</small><br>` : ''}
+                    ${data.scopes ? `<small><strong>Scopes:</strong> ${data.scopes}</small>` : ''}
+                </div>
+            `;
+        } else {
+            resultContent = `
+                <div class="alert alert-danger">
+                    <h5><i class="fas fa-exclamation-triangle"></i> Connection Failed</h5>
+                    <p>${data.message}</p>
+                </div>
+            `;
+        }
+        
+        $('#testResultContent').html(resultContent);
+        $('#testResults').show();
+        $('#testResults')[0].scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function showAlert(type, message) {
+        var alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        var iconClass = type === 'success' ? 'fa-check' : 'fa-ban';
+        
+        var alertHtml = `
+            <div class="alert ${alertClass} alert-dismissible">
+                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
+                <h4><i class="icon fa ${iconClass}"></i> ${type === 'success' ? 'Success!' : 'Error!'}</h4>
+                ${message}
+            </div>
+        `;
+        
+        $('.container-fluid').prepend(alertHtml);
+    }
+
+    function exportData(type) {
+        $.post(`/admin/payprop/export/${type}`, { page: 1, rows: 10 })
+            .done(function(data) {
+                if (data.success) {
+                    console.log(`${type} export:`, data.data);
+                    showAlert('success', `Exported ${data.data.length} ${type} from PayProp. Check console for details.`);
+                } else {
+                    showAlert('danger', data.message);
+                }
+            })
+            .fail(function() {
+                showAlert('danger', `Failed to export ${type}`);
+            });
+    }
+
+    // Auto-refresh token status every 30 seconds if connected
+    $(function() {
+        if ($('.alert-success').length) {
+            setInterval(function() {
+                $.get('/api/payprop/oauth/token-status')
+                    .done(function(data) {
+                        if (!data.isValid && data.hasTokens) {
+                            showAlert('warning', 'OAuth2 token has expired. Please refresh or re-authorize.');
+                        }
+                    });
+            }, 30000);
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -1,3 +1,4 @@
+// Updated PayPropSyncService.java - OAuth2 Integration
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +11,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
-import site.easy.to.build.crm.service.property.PropertyOwnerService; // Assuming this exists
+import site.easy.to.build.crm.service.property.PropertyOwnerService;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -25,22 +26,22 @@ public class PayPropSyncService {
     private final TenantService tenantService;
     private final PropertyOwnerService propertyOwnerService;
     private final RestTemplate restTemplate;
+    private final PayPropOAuth2Service oAuth2Service;
     
-    @Value("${payprop.api.base-url:https://uk.payprop.com/api/agency/v1.1}")
+    @Value("${payprop.api.base-url:https://ukapi.staging.payprop.com/api/agency/v1.1}")
     private String payPropApiBase;
-    
-    @Value("${payprop.api.key}")
-    private String apiKey;
     
     @Autowired
     public PayPropSyncService(PropertyService propertyService, 
                              TenantService tenantService,
                              PropertyOwnerService propertyOwnerService,
-                             RestTemplate restTemplate) {
+                             RestTemplate restTemplate,
+                             PayPropOAuth2Service oAuth2Service) {
         this.propertyService = propertyService;
         this.tenantService = tenantService;
         this.propertyOwnerService = propertyOwnerService;
         this.restTemplate = restTemplate;
+        this.oAuth2Service = oAuth2Service;
     }
     
     // ===== PROPERTY SYNC METHODS =====
@@ -55,9 +56,11 @@ public class PayPropSyncService {
             // Convert to PayProp format
             PayPropPropertyDTO dto = convertPropertyToPayPropFormat(property);
             
-            // Make API call to PayProp
-            HttpHeaders headers = createHeaders();
+            // Make OAuth2 authenticated API call
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<PayPropPropertyDTO> request = new HttpEntity<>(dto, headers);
+            
+            System.out.println("🏠 Syncing property to PayProp: " + property.getPropertyName());
             
             ResponseEntity<Map> response = restTemplate.postForEntity(
                 payPropApiBase + "/entity/property", 
@@ -68,13 +71,19 @@ public class PayPropSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String payPropId = (String) response.getBody().get("id");
                 propertyService.markPropertyAsSynced(propertyId, payPropId);
+                
+                System.out.println("✅ Property synced successfully! PayProp ID: " + payPropId);
                 return payPropId;
             }
             
             throw new RuntimeException("Failed to create property in PayProp");
             
         } catch (HttpClientErrorException e) {
+            System.err.println("❌ PayProp API error: " + e.getResponseBodyAsString());
             throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            System.err.println("❌ Property sync failed: " + e.getMessage());
+            throw new RuntimeException("Property sync failed", e);
         }
     }
     
@@ -87,7 +96,7 @@ public class PayPropSyncService {
         try {
             PayPropPropertyDTO dto = convertPropertyToPayPropFormat(property);
             
-            HttpHeaders headers = createHeaders();
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<PayPropPropertyDTO> request = new HttpEntity<>(dto, headers);
             
             restTemplate.put(
@@ -95,8 +104,13 @@ public class PayPropSyncService {
                 request
             );
             
+            System.out.println("✅ Property updated in PayProp: " + property.getPayPropId());
+            
         } catch (HttpClientErrorException e) {
+            System.err.println("❌ Failed to update property in PayProp: " + e.getResponseBodyAsString());
             throw new RuntimeException("Failed to update property in PayProp: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            throw new RuntimeException("Property update failed", e);
         }
     }
     
@@ -116,8 +130,10 @@ public class PayPropSyncService {
         try {
             PayPropTenantDTO dto = convertTenantToPayPropFormat(tenant);
             
-            HttpHeaders headers = createHeaders();
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<PayPropTenantDTO> request = new HttpEntity<>(dto, headers);
+            
+            System.out.println("👤 Syncing tenant to PayProp: " + tenant.getFullName());
             
             ResponseEntity<Map> response = restTemplate.postForEntity(
                 payPropApiBase + "/entity/tenant", 
@@ -129,13 +145,19 @@ public class PayPropSyncService {
                 String payPropId = (String) response.getBody().get("id");
                 tenant.setPayPropId(payPropId);
                 tenantService.save(tenant);
+                
+                System.out.println("✅ Tenant synced successfully! PayProp ID: " + payPropId);
                 return payPropId;
             }
             
             throw new RuntimeException("Failed to create tenant in PayProp");
             
         } catch (HttpClientErrorException e) {
+            System.err.println("❌ PayProp API error: " + e.getResponseBodyAsString());
             throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            System.err.println("❌ Tenant sync failed: " + e.getMessage());
+            throw new RuntimeException("Tenant sync failed", e);
         }
     }
     
@@ -148,7 +170,7 @@ public class PayPropSyncService {
         try {
             PayPropTenantDTO dto = convertTenantToPayPropFormat(tenant);
             
-            HttpHeaders headers = createHeaders();
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<PayPropTenantDTO> request = new HttpEntity<>(dto, headers);
             
             restTemplate.put(
@@ -156,8 +178,13 @@ public class PayPropSyncService {
                 request
             );
             
+            System.out.println("✅ Tenant updated in PayProp: " + tenant.getPayPropId());
+            
         } catch (HttpClientErrorException e) {
+            System.err.println("❌ Failed to update tenant in PayProp: " + e.getResponseBodyAsString());
             throw new RuntimeException("Failed to update tenant in PayProp: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            throw new RuntimeException("Tenant update failed", e);
         }
     }
     
@@ -177,8 +204,10 @@ public class PayPropSyncService {
         try {
             PayPropBeneficiaryDTO dto = convertBeneficiaryToPayPropFormat(owner);
             
-            HttpHeaders headers = createHeaders();
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<PayPropBeneficiaryDTO> request = new HttpEntity<>(dto, headers);
+            
+            System.out.println("🏦 Syncing beneficiary to PayProp: " + owner.getFullName());
             
             ResponseEntity<Map> response = restTemplate.postForEntity(
                 payPropApiBase + "/entity/beneficiary", 
@@ -190,13 +219,126 @@ public class PayPropSyncService {
                 String payPropId = (String) response.getBody().get("id");
                 owner.setPayPropId(payPropId);
                 propertyOwnerService.save(owner);
+                
+                System.out.println("✅ Beneficiary synced successfully! PayProp ID: " + payPropId);
                 return payPropId;
             }
             
             throw new RuntimeException("Failed to create beneficiary in PayProp");
             
         } catch (HttpClientErrorException e) {
+            System.err.println("❌ PayProp API error: " + e.getResponseBodyAsString());
             throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            System.err.println("❌ Beneficiary sync failed: " + e.getMessage());
+            throw new RuntimeException("Beneficiary sync failed", e);
+        }
+    }
+    
+    // ===== EXPORT METHODS (Bulk Data Retrieval) =====
+    
+    /**
+     * Export properties from PayProp (handles hashed IDs)
+     */
+    public PayPropExportResult exportPropertiesFromPayProp(int page, int rows) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/export/properties?page=" + page + "&rows=" + Math.min(rows, 25);
+            
+            System.out.println("📥 Exporting properties from PayProp - Page " + page);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                
+                PayPropExportResult result = new PayPropExportResult();
+                result.setItems((List<Map<String, Object>>) responseBody.get("items"));
+                result.setPagination((Map<String, Object>) responseBody.get("pagination"));
+                
+                System.out.println("✅ Exported " + result.getItems().size() + " properties from PayProp");
+                
+                return result;
+            }
+            
+            throw new RuntimeException("Failed to export properties from PayProp");
+            
+        } catch (HttpClientErrorException e) {
+            System.err.println("❌ PayProp export error: " + e.getResponseBodyAsString());
+            throw new RuntimeException("PayProp export error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            System.err.println("❌ Property export failed: " + e.getMessage());
+            throw new RuntimeException("Property export failed", e);
+        }
+    }
+    
+    /**
+     * Export tenants from PayProp (handles hashed IDs)
+     */
+    public PayPropExportResult exportTenantsFromPayProp(int page, int rows) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/export/tenants?page=" + page + "&rows=" + Math.min(rows, 25);
+            
+            System.out.println("📥 Exporting tenants from PayProp - Page " + page);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                
+                PayPropExportResult result = new PayPropExportResult();
+                result.setItems((List<Map<String, Object>>) responseBody.get("items"));
+                result.setPagination((Map<String, Object>) responseBody.get("pagination"));
+                
+                System.out.println("✅ Exported " + result.getItems().size() + " tenants from PayProp");
+                
+                return result;
+            }
+            
+            throw new RuntimeException("Failed to export tenants from PayProp");
+            
+        } catch (Exception e) {
+            System.err.println("❌ Tenant export failed: " + e.getMessage());
+            throw new RuntimeException("Tenant export failed", e);
+        }
+    }
+    
+    /**
+     * Export beneficiaries from PayProp (handles hashed IDs)
+     */
+    public PayPropExportResult exportBeneficiariesFromPayProp(int page, int rows) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/export/beneficiaries?page=" + page + "&rows=" + Math.min(rows, 25);
+            
+            System.out.println("📥 Exporting beneficiaries from PayProp - Page " + page);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                
+                PayPropExportResult result = new PayPropExportResult();
+                result.setItems((List<Map<String, Object>>) responseBody.get("items"));
+                result.setPagination((Map<String, Object>) responseBody.get("pagination"));
+                
+                System.out.println("✅ Exported " + result.getItems().size() + " beneficiaries from PayProp");
+                
+                return result;
+            }
+            
+            throw new RuntimeException("Failed to export beneficiaries from PayProp");
+            
+        } catch (Exception e) {
+            System.err.println("❌ Beneficiary export failed: " + e.getMessage());
+            throw new RuntimeException("Beneficiary export failed", e);
         }
     }
     
@@ -253,7 +395,6 @@ public class PayPropSyncService {
         dto.setMobile_number(formatMobileForPayProp(tenant.getMobileNumber()));
         dto.setPhone(tenant.getPhoneNumber());
         dto.setFax(tenant.getFaxNumber());
-        // FIXED: Changed from getCustomerId() to getPayPropCustomerId()
         dto.setCustomer_id(tenant.getPayPropCustomerId());
         dto.setCustomer_reference(tenant.getCustomerReference());
         dto.setComment(tenant.getComment());
@@ -307,7 +448,7 @@ public class PayPropSyncService {
         dto.setMobile(formatMobileForPayProp(owner.getMobile()));
         dto.setPhone(owner.getPhone());
         dto.setFax(owner.getFax());
-        dto.setCustomer_id(owner.getCustomerId());
+        dto.setCustomer_id(owner.getPayPropCustomerId());
         dto.setCustomer_reference(owner.getCustomerReference());
         dto.setComment(owner.getComment());
         dto.setId_number(owner.getIdNumber());
@@ -427,13 +568,6 @@ public class PayPropSyncService {
     
     // ===== UTILITY METHODS =====
     
-    private HttpHeaders createHeaders() {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("Authorization", "APIkey " + apiKey);
-        return headers;
-    }
-    
     private String formatMobileForPayProp(String mobile) {
         if (mobile == null || mobile.trim().isEmpty()) {
             return null;
@@ -452,35 +586,93 @@ public class PayPropSyncService {
         return mobile;
     }
     
+    // ===== BULK SYNC METHODS =====
+    
     public void syncAllReadyProperties() {
+        if (!oAuth2Service.hasValidTokens()) {
+            throw new IllegalStateException("No valid OAuth2 tokens. Please authorize PayProp first.");
+        }
+        
         List<Property> readyProperties = propertyService.findPropertiesReadyForSync();
-        System.out.println("Found " + readyProperties.size() + " properties ready for sync");
+        System.out.println("📋 Found " + readyProperties.size() + " properties ready for sync");
+        
+        int successCount = 0;
+        int errorCount = 0;
         
         for (Property property : readyProperties) {
             try {
                 String payPropId = syncPropertyToPayProp(property.getId());
-                System.out.println("Successfully synced property " + property.getId() + " -> " + payPropId);
+                System.out.println("✅ Successfully synced property " + property.getId() + " -> " + payPropId);
+                successCount++;
             } catch (Exception e) {
-                System.err.println("Failed to sync property " + property.getId() + ": " + e.getMessage());
+                System.err.println("❌ Failed to sync property " + property.getId() + ": " + e.getMessage());
+                errorCount++;
             }
         }
+        
+        System.out.println("🏁 Property sync completed. Success: " + successCount + ", Errors: " + errorCount);
     }
     
     public void syncAllReadyTenants() {
+        if (!oAuth2Service.hasValidTokens()) {
+            throw new IllegalStateException("No valid OAuth2 tokens. Please authorize PayProp first.");
+        }
+        
         List<Tenant> readyTenants = tenantService.findTenantsReadyForPayPropSync();
-        System.out.println("Found " + readyTenants.size() + " tenants ready for sync");
+        System.out.println("📋 Found " + readyTenants.size() + " tenants ready for sync");
+        
+        int successCount = 0;
+        int errorCount = 0;
         
         for (Tenant tenant : readyTenants) {
             try {
                 String payPropId = syncTenantToPayProp(tenant.getId());
-                System.out.println("Successfully synced tenant " + tenant.getId() + " -> " + payPropId);
+                System.out.println("✅ Successfully synced tenant " + tenant.getId() + " -> " + payPropId);
+                successCount++;
             } catch (Exception e) {
-                System.err.println("Failed to sync tenant " + tenant.getId() + ": " + e.getMessage());
+                System.err.println("❌ Failed to sync tenant " + tenant.getId() + ": " + e.getMessage());
+                errorCount++;
             }
         }
+        
+        System.out.println("🏁 Tenant sync completed. Success: " + successCount + ", Errors: " + errorCount);
+    }
+    
+    public void syncAllReadyBeneficiaries() {
+        if (!oAuth2Service.hasValidTokens()) {
+            throw new IllegalStateException("No valid OAuth2 tokens. Please authorize PayProp first.");
+        }
+        
+        List<PropertyOwner> readyOwners = propertyOwnerService.findPropertyOwnersReadyForSync();
+        System.out.println("📋 Found " + readyOwners.size() + " beneficiaries ready for sync");
+        
+        int successCount = 0;
+        int errorCount = 0;
+        
+        for (PropertyOwner owner : readyOwners) {
+            try {
+                String payPropId = syncBeneficiaryToPayProp(owner.getId());
+                System.out.println("✅ Successfully synced beneficiary " + owner.getId() + " -> " + payPropId);
+                successCount++;
+            } catch (Exception e) {
+                System.err.println("❌ Failed to sync beneficiary " + owner.getId() + ": " + e.getMessage());
+                errorCount++;
+            }
+        }
+        
+        System.out.println("🏁 Beneficiary sync completed. Success: " + successCount + ", Errors: " + errorCount);
     }
     
     public void checkSyncStatus() {
+        System.out.println("=== PayProp OAuth2 Sync Status ===");
+        System.out.println("OAuth2 Status: " + (oAuth2Service.hasValidTokens() ? "✅ Authorized" : "❌ Not Authorized"));
+        
+        if (oAuth2Service.hasValidTokens()) {
+            PayPropOAuth2Service.PayPropTokens tokens = oAuth2Service.getCurrentTokens();
+            System.out.println("Token Expires: " + tokens.getExpiresAt());
+            System.out.println("Scopes: " + tokens.getScopes());
+        }
+        
         long totalProperties = propertyService.getTotalProperties();
         List<Property> needsSync = propertyService.findPropertiesNeedingSync();
         List<Property> synced = propertyService.findPropertiesByPayPropSyncStatus(true);
@@ -490,7 +682,7 @@ public class PayPropSyncService {
         List<Tenant> tenantsNeedingSync = tenantService.findByPayPropIdIsNull();
         List<Tenant> tenantsSynced = tenantService.findByPayPropIdIsNotNull();
         
-        System.out.println("=== PayProp Sync Status ===");
+        System.out.println();
         System.out.println("PROPERTIES:");
         System.out.println("  Total: " + totalProperties);
         System.out.println("  Needs Sync: " + needsSync.size());
@@ -502,304 +694,16 @@ public class PayPropSyncService {
         System.out.println("  Needs Sync: " + tenantsNeedingSync.size());
         System.out.println("  Already Synced: " + tenantsSynced.size());
     }
-}
-
-// ===== ADDITIONAL DTO CLASSES =====
-
-class PayPropTenantDTO {
-    private String account_type;
-    private String first_name;
-    private String last_name;
-    private String business_name;
-    private String email_address;
-    private String mobile_number;
-    private String phone;
-    private String fax;
-    private String customer_id;
-    private String customer_reference;
-    private String comment;
-    private LocalDate date_of_birth;
-    private String id_number;
-    private String vat_number;
-    private Boolean notify_email;
-    private Boolean notify_sms;
-    private PayPropAddressDTO address;
-    private PayPropBankAccountDTO bank_account;
-    private Boolean has_bank_account;
     
-    // Getters and setters
-    public String getAccount_type() { return account_type; }
-    public void setAccount_type(String account_type) { this.account_type = account_type; }
-    
-    public String getFirst_name() { return first_name; }
-    public void setFirst_name(String first_name) { this.first_name = first_name; }
-    
-    public String getLast_name() { return last_name; }
-    public void setLast_name(String last_name) { this.last_name = last_name; }
-    
-    public String getBusiness_name() { return business_name; }
-    public void setBusiness_name(String business_name) { this.business_name = business_name; }
-    
-    public String getEmail_address() { return email_address; }
-    public void setEmail_address(String email_address) { this.email_address = email_address; }
-    
-    public String getMobile_number() { return mobile_number; }
-    public void setMobile_number(String mobile_number) { this.mobile_number = mobile_number; }
-    
-    public String getPhone() { return phone; }
-    public void setPhone(String phone) { this.phone = phone; }
-    
-    public String getFax() { return fax; }
-    public void setFax(String fax) { this.fax = fax; }
-    
-    public String getCustomer_id() { return customer_id; }
-    public void setCustomer_id(String customer_id) { this.customer_id = customer_id; }
-    
-    public String getCustomer_reference() { return customer_reference; }
-    public void setCustomer_reference(String customer_reference) { this.customer_reference = customer_reference; }
-    
-    public String getComment() { return comment; }
-    public void setComment(String comment) { this.comment = comment; }
-    
-    public LocalDate getDate_of_birth() { return date_of_birth; }
-    public void setDate_of_birth(LocalDate date_of_birth) { this.date_of_birth = date_of_birth; }
-    
-    public String getId_number() { return id_number; }
-    public void setId_number(String id_number) { this.id_number = id_number; }
-    
-    public String getVat_number() { return vat_number; }
-    public void setVat_number(String vat_number) { this.vat_number = vat_number; }
-    
-    public Boolean getNotify_email() { return notify_email; }
-    public void setNotify_email(Boolean notify_email) { this.notify_email = notify_email; }
-    
-    public Boolean getNotify_sms() { return notify_sms; }
-    public void setNotify_sms(Boolean notify_sms) { this.notify_sms = notify_sms; }
-    
-    public PayPropAddressDTO getAddress() { return address; }
-    public void setAddress(PayPropAddressDTO address) { this.address = address; }
-    
-    public PayPropBankAccountDTO getBank_account() { return bank_account; }
-    public void setBank_account(PayPropBankAccountDTO bank_account) { this.bank_account = bank_account; }
-    
-    public Boolean getHas_bank_account() { return has_bank_account; }
-    public void setHas_bank_account(Boolean has_bank_account) { this.has_bank_account = has_bank_account; }
-}
-
-class PayPropBeneficiaryDTO {
-    private String account_type;
-    private String payment_method;
-    private String first_name;
-    private String last_name;
-    private String business_name;
-    private String email_address;
-    private String mobile;
-    private String phone;
-    private String fax;
-    private String customer_id;
-    private String customer_reference;
-    private String comment;
-    private String id_number;
-    private String vat_number;
-    private PayPropAddressDTO address;
-    private PayPropBankAccountDTO bank_account;
-    private PayPropCommunicationDTO communication_preferences;
-    
-    // Getters and setters
-    public String getAccount_type() { return account_type; }
-    public void setAccount_type(String account_type) { this.account_type = account_type; }
-    
-    public String getPayment_method() { return payment_method; }
-    public void setPayment_method(String payment_method) { this.payment_method = payment_method; }
-    
-    public String getFirst_name() { return first_name; }
-    public void setFirst_name(String first_name) { this.first_name = first_name; }
-    
-    public String getLast_name() { return last_name; }
-    public void setLast_name(String last_name) { this.last_name = last_name; }
-    
-    public String getBusiness_name() { return business_name; }
-    public void setBusiness_name(String business_name) { this.business_name = business_name; }
-    
-    public String getEmail_address() { return email_address; }
-    public void setEmail_address(String email_address) { this.email_address = email_address; }
-    
-    public String getMobile() { return mobile; }
-    public void setMobile(String mobile) { this.mobile = mobile; }
-    
-    public String getPhone() { return phone; }
-    public void setPhone(String phone) { this.phone = phone; }
-    
-    public String getFax() { return fax; }
-    public void setFax(String fax) { this.fax = fax; }
-    
-    public String getCustomer_id() { return customer_id; }
-    public void setCustomer_id(String customer_id) { this.customer_id = customer_id; }
-    
-    public String getCustomer_reference() { return customer_reference; }
-    public void setCustomer_reference(String customer_reference) { this.customer_reference = customer_reference; }
-    
-    public String getComment() { return comment; }
-    public void setComment(String comment) { this.comment = comment; }
-    
-    public String getId_number() { return id_number; }
-    public void setId_number(String id_number) { this.id_number = id_number; }
-    
-    public String getVat_number() { return vat_number; }
-    public void setVat_number(String vat_number) { this.vat_number = vat_number; }
-    
-    public PayPropAddressDTO getAddress() { return address; }
-    public void setAddress(PayPropAddressDTO address) { this.address = address; }
-    
-    public PayPropBankAccountDTO getBank_account() { return bank_account; }
-    public void setBank_account(PayPropBankAccountDTO bank_account) { this.bank_account = bank_account; }
-    
-    public PayPropCommunicationDTO getCommunication_preferences() { return communication_preferences; }
-    public void setCommunication_preferences(PayPropCommunicationDTO communication_preferences) { this.communication_preferences = communication_preferences; }
-}
-
-class PayPropBankAccountDTO {
-    private String account_name;
-    private String account_number;
-    private String branch_code;
-    private String bank_name;
-    private String branch_name;
-    private String iban;
-    private String swift_code;
-    private String country_code;
-    
-    // Getters and setters
-    public String getAccount_name() { return account_name; }
-    public void setAccount_name(String account_name) { this.account_name = account_name; }
-    
-    public String getAccount_number() { return account_number; }
-    public void setAccount_number(String account_number) { this.account_number = account_number; }
-    
-    public String getBranch_code() { return branch_code; }
-    public void setBranch_code(String branch_code) { this.branch_code = branch_code; }
-    
-    public String getBank_name() { return bank_name; }
-    public void setBank_name(String bank_name) { this.bank_name = bank_name; }
-    
-    public String getBranch_name() { return branch_name; }
-    public void setBranch_name(String branch_name) { this.branch_name = branch_name; }
-    
-    public String getIban() { return iban; }
-    public void setIban(String iban) { this.iban = iban; }
-    
-    public String getSwift_code() { return swift_code; }
-    public void setSwift_code(String swift_code) { this.swift_code = swift_code; }
-    
-    public String getCountry_code() { return country_code; }
-    public void setCountry_code(String country_code) { this.country_code = country_code; }
-}
-
-class PayPropCommunicationDTO {
-    private PayPropEmailDTO email;
-    
-    public PayPropEmailDTO getEmail() { return email; }
-    public void setEmail(PayPropEmailDTO email) { this.email = email; }
-}
-
-class PayPropEmailDTO {
-    private Boolean enabled;
-    private Boolean payment_advice;
-    
-    public Boolean getEnabled() { return enabled; }
-    public void setEnabled(Boolean enabled) { this.enabled = enabled; }
-    
-    public Boolean getPayment_advice() { return payment_advice; }
-    public void setPayment_advice(Boolean payment_advice) { this.payment_advice = payment_advice; }
-}
-
-class PayPropPropertyDTO {
-    private String name;
-    private String customer_id;
-    private String customer_reference;
-    private String agent_name;
-    private String notes;
-    private PayPropAddressDTO address;
-    private PayPropSettingsDTO settings;
-    
-    // Getters and setters
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-    
-    public String getCustomer_id() { return customer_id; }
-    public void setCustomer_id(String customer_id) { this.customer_id = customer_id; }
-    
-    public String getCustomer_reference() { return customer_reference; }
-    public void setCustomer_reference(String customer_reference) { this.customer_reference = customer_reference; }
-    
-    public String getAgent_name() { return agent_name; }
-    public void setAgent_name(String agent_name) { this.agent_name = agent_name; }
-    
-    public String getNotes() { return notes; }
-    public void setNotes(String notes) { this.notes = notes; }
-    
-    public PayPropAddressDTO getAddress() { return address; }
-    public void setAddress(PayPropAddressDTO address) { this.address = address; }
-    
-    public PayPropSettingsDTO getSettings() { return settings; }
-    public void setSettings(PayPropSettingsDTO settings) { this.settings = settings; }
-}
-
-class PayPropAddressDTO {
-    private String address_line_1;
-    private String address_line_2;
-    private String address_line_3;
-    private String city;
-    private String state;
-    private String postal_code;
-    private String country_code;
-    
-    // Getters and setters
-    public String getAddress_line_1() { return address_line_1; }
-    public void setAddress_line_1(String address_line_1) { this.address_line_1 = address_line_1; }
-    
-    public String getAddress_line_2() { return address_line_2; }
-    public void setAddress_line_2(String address_line_2) { this.address_line_2 = address_line_2; }
-    
-    public String getAddress_line_3() { return address_line_3; }
-    public void setAddress_line_3(String address_line_3) { this.address_line_3 = address_line_3; }
-    
-    public String getCity() { return city; }
-    public void setCity(String city) { this.city = city; }
-    
-    public String getState() { return state; }
-    public void setState(String state) { this.state = state; }
-    
-    public String getPostal_code() { return postal_code; }
-    public void setPostal_code(String postal_code) { this.postal_code = postal_code; }
-    
-    public String getCountry_code() { return country_code; }
-    public void setCountry_code(String country_code) { this.country_code = country_code; }
-}
-
-class PayPropSettingsDTO {
-    private Boolean enable_payments;
-    private Boolean hold_owner_funds;
-    private BigDecimal monthly_payment;
-    private BigDecimal minimum_balance;
-    private LocalDate listing_from;
-    private LocalDate listing_to;
-    
-    // Getters and setters
-    public Boolean getEnable_payments() { return enable_payments; }
-    public void setEnable_payments(Boolean enable_payments) { this.enable_payments = enable_payments; }
-    
-    public Boolean getHold_owner_funds() { return hold_owner_funds; }
-    public void setHold_owner_funds(Boolean hold_owner_funds) { this.hold_owner_funds = hold_owner_funds; }
-    
-    public BigDecimal getMonthly_payment() { return monthly_payment; }
-    public void setMonthly_payment(BigDecimal monthly_payment) { this.monthly_payment = monthly_payment; }
-    
-    public BigDecimal getMinimum_balance() { return minimum_balance; }
-    public void setMinimum_balance(BigDecimal minimum_balance) { this.minimum_balance = minimum_balance; }
-    
-    public LocalDate getListing_from() { return listing_from; }
-    public void setListing_from(LocalDate listing_from) { this.listing_from = listing_from; }
-    
-    public LocalDate getListing_to() { return listing_to; }
-    public void setListing_to(LocalDate listing_to) { this.listing_to = listing_to; }
+    // Export result wrapper
+    public static class PayPropExportResult {
+        private List<Map<String, Object>> items;
+        private Map<String, Object> pagination;
+        
+        public List<Map<String, Object>> getItems() { return items; }
+        public void setItems(List<Map<String, Object>> items) { this.items = items; }
+        
+        public Map<String, Object> getPagination() { return pagination; }
+        public void setPagination(Map<String, Object> pagination) { this.pagination = pagination; }
+    }
 }
