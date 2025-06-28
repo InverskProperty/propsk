@@ -19,15 +19,18 @@ public interface PropertyOwnerService {
     // PayProp integration methods
     Optional<PropertyOwner> findByPayPropId(String payPropId);
     Optional<PropertyOwner> findByPayPropCustomerId(String payPropCustomerId);
-    Optional<PropertyOwner> findByEmailAddress(String emailAddress); // KEPT: Only this one
-    List<PropertyOwner> findByCustomerReference(String customerReference); // ADDED: Missing method
+    Optional<PropertyOwner> findByEmailAddress(String emailAddress);
+    List<PropertyOwner> findByCustomerReference(String customerReference);
+    
+    // 🔧 FIXED: Added missing PayProp sync methods
+    List<PropertyOwner> findByPayPropIdIsNull();
+    List<PropertyOwner> findByPayPropIdIsNotNull();
     
     // Search methods
     List<PropertyOwner> findByAccountType(AccountType accountType);
     List<PropertyOwner> findByPaymentMethod(PaymentMethod paymentMethod);
     List<PropertyOwner> findByFirstNameAndLastName(String firstName, String lastName);
     List<PropertyOwner> findByBusinessName(String businessName);
-    // REMOVED: Duplicate findByEmailAddress() method
     List<PropertyOwner> searchByName(String name);
     
     // User-based queries

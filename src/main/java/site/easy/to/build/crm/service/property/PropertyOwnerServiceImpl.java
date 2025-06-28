@@ -59,10 +59,20 @@ public class PropertyOwnerServiceImpl implements PropertyOwnerService {
         return propertyOwnerRepository.findByPayPropCustomerId(payPropCustomerId);
     }
 
-    // FIXED: Changed to return List<PropertyOwner> to match repository
     @Override
     public List<PropertyOwner> findByCustomerReference(String customerReference) {
         return propertyOwnerRepository.findByCustomerReference(customerReference);
+    }
+
+    // 🔧 FIXED: Added missing PayProp sync methods
+    @Override
+    public List<PropertyOwner> findByPayPropIdIsNull() {
+        return propertyOwnerRepository.findByPayPropIdIsNull();
+    }
+
+    @Override
+    public List<PropertyOwner> findByPayPropIdIsNotNull() {
+        return propertyOwnerRepository.findByPayPropIdIsNotNull();
     }
 
     // Search methods
@@ -86,7 +96,6 @@ public class PropertyOwnerServiceImpl implements PropertyOwnerService {
         return propertyOwnerRepository.findByBusinessName(businessName);
     }
 
-    // FIXED: Changed to return Optional<PropertyOwner> to match repository
     @Override
     public Optional<PropertyOwner> findByEmailAddress(String emailAddress) {
         return propertyOwnerRepository.findByEmailAddress(emailAddress);
