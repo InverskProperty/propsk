@@ -315,20 +315,29 @@
 <script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
 <!-- Editable -->
-<script th:src="@{/js/library/jquery.dataTables.min.js}"></script>
-<script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
+<script th:src="@{/js/library/jquery.dataTables.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/dataTables.responsive.min.js}" type="text/javascript"></script>
 
 <script>
-$('#config-table').DataTable({
-    responsive: true,
-    order: [[6, 'desc']], // Sort by created date descending
-    columnDefs: [
-        { targets: [7], orderable: false } // Disable sorting on Actions column
-    ]
+// Wait for all scripts to load before initializing
+$(document).ready(function() {
+    // Initialize DataTable
+    $('#config-table').DataTable({
+        responsive: true,
+        order: [[6, 'desc']], // Sort by created date descending
+        columnDefs: [
+            { targets: [7], orderable: false } // Disable sorting on Actions column
+        ]
+    });
+
+    // Ensure perfect scrollbar is initialized properly
+    if (typeof $.fn.perfectScrollbar !== 'undefined') {
+        $('.scroll-sidebar').perfectScrollbar();
+    }
 });
 
 function showBidModal(ticketId, ticketSubject) {
