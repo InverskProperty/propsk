@@ -15,6 +15,26 @@
 <!-- page css -->
 <link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
 
+<!-- SIDEBAR SCROLL FIX -->
+<style>
+.scroll-sidebar {
+    height: calc(100vh - 60px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+.left-sidebar {
+    position: fixed !important;
+    height: 100vh !important;
+    overflow: hidden !important;
+}
+
+/* Ensure perfect scrollbar fallback */
+.ps__rail-y {
+    display: block !important;
+}
+</style>
+
 <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
 <!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
