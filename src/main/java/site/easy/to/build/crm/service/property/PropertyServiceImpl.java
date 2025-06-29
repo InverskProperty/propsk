@@ -69,7 +69,7 @@ public class PropertyServiceImpl implements PropertyService {
         return propertyRepository.findByPortfolioId(portfolioId);
     }
 
-    @Override
+    // FIXED: Removed @Override annotation since this method is not in the interface
     public long getTotalCount() {
         return propertyRepository.count();
     }
