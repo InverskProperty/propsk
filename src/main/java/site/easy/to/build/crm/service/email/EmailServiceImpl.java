@@ -6,19 +6,27 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.EmailTemplate;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.entity.Tenant;
+import site.easy.to.build.crm.entity.PropertyOwner;
 import site.easy.to.build.crm.google.service.acess.GoogleAccessService;
 import site.easy.to.build.crm.google.service.gmail.GoogleGmailApiService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.user.UserService;
+import site.easy.to.build.crm.service.property.TenantService;
+import site.easy.to.build.crm.service.property.PropertyOwnerService;
+import site.easy.to.build.crm.repository.TenantRepository;
+import site.easy.to.build.crm.repository.PropertyOwnerRepository;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.util.regex.Pattern;
 
 /**
@@ -34,6 +42,19 @@ public class EmailServiceImpl implements EmailService {
     private final UserService userService;
     private final CustomerService customerService;
     private final Environment environment;
+    
+    @Autowired
+    private TenantService tenantService;
+
+    @Autowired
+    private PropertyOwnerService propertyOwnerService;
+    
+    // Add repositories for Spring Data's findAllById method
+    @Autowired
+    private TenantRepository tenantRepository;
+    
+    @Autowired
+    private PropertyOwnerRepository propertyOwnerRepository;
     
     // Email validation pattern
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
@@ -190,8 +211,62 @@ public class EmailServiceImpl implements EmailService {
     public boolean isValidEmail(String email) {
         return email != null && EMAIL_PATTERN.matcher(email).matches();
     }
-    
-    // Helper methods
+
+    // ===== NEW METHODS FOR EMPLOYEE DASHBOARD (CORRECTED) =====
+
+    @Override
+    public void sendBulkEmailToPropertyOwners(String subject, String message, List<Long> ownerIds) {
+        if (ownerIds == null || ownerIds.isEmpty()) {
+            logger.warn("No property owner IDs provided for bulk email");
+            return;
+        }
+        
+        // ✅ FIXED: Use Spring Data's built-in findAllById method
+        List<PropertyOwner> owners = propertyOwnerRepository.findAllById(ownerIds);
+        List<Customer> customers = new ArrayList<>();
+        
+        // Convert PropertyOwners to Customers for your existing bulk email system
+        for (PropertyOwner owner : owners) {
+            if (owner.getEmailAddress() != null && !owner.getEmailAddress().isEmpty()) {
+                Customer tempCustomer = createTempCustomerFromPropertyOwner(owner);
+                customers.add(tempCustomer);
+            }
+        }
+        
+        if (!customers.isEmpty()) {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            int sentCount = sendBulkEmail(customers, subject, message, auth);
+            logger.info("Sent bulk email to {} property owners out of {} requested", sentCount, ownerIds.size());
+        }
+    }
+
+    @Override
+    public void sendBulkEmailToTenants(String subject, String message, List<Long> tenantIds) {
+        if (tenantIds == null || tenantIds.isEmpty()) {
+            logger.warn("No tenant IDs provided for bulk email");
+            return;
+        }
+        
+        // ✅ FIXED: Use Spring Data's built-in findAllById method
+        List<Tenant> tenants = tenantRepository.findAllById(tenantIds);
+        List<Customer> customers = new ArrayList<>();
+        
+        // Convert Tenants to Customers for your existing bulk email system
+        for (Tenant tenant : tenants) {
+            if (tenant.getEmailAddress() != null && !tenant.getEmailAddress().isEmpty()) {
+                Customer tempCustomer = createTempCustomerFromTenant(tenant);
+                customers.add(tempCustomer);
+            }
+        }
+        
+        if (!customers.isEmpty()) {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            int sentCount = sendBulkEmail(customers, subject, message, auth);
+            logger.info("Sent bulk email to {} tenants out of {} requested", sentCount, tenantIds.size());
+        }
+    }
+
+    // ===== HELPER METHODS =====
     
     private String personalizeEmailContent(String content, Customer customer) {
         if (content == null || customer == null) {
@@ -251,6 +326,62 @@ public class EmailServiceImpl implements EmailService {
             message,
             getApplicationName()
         );
+    }
+
+    private Customer createTempCustomerFromPropertyOwner(PropertyOwner owner) {
+        Customer tempCustomer = new Customer();
+        tempCustomer.setEmail(owner.getEmailAddress());
+        
+        if (owner.getAccountType() == site.easy.to.build.crm.entity.AccountType.BUSINESS) {
+            tempCustomer.setName(owner.getBusinessName() != null ? owner.getBusinessName() : "Property Owner");
+        } else {
+            String fullName = "";
+            if (owner.getFirstName() != null) fullName += owner.getFirstName();
+            if (owner.getLastName() != null) fullName += " " + owner.getLastName();
+            tempCustomer.setName(fullName.trim().isEmpty() ? "Property Owner" : fullName.trim());
+        }
+        
+        tempCustomer.setCustomerType(CustomerType.PROPERTY_OWNER);
+        tempCustomer.setPhone(owner.getPhone());
+        
+        // Build address from PropertyOwner fields
+        StringBuilder address = new StringBuilder();
+        if (owner.getAddressLine1() != null) address.append(owner.getAddressLine1());
+        if (owner.getCity() != null) {
+            if (address.length() > 0) address.append(", ");
+            address.append(owner.getCity());
+        }
+        tempCustomer.setAddress(address.toString());
+        
+        return tempCustomer;
+    }
+
+    private Customer createTempCustomerFromTenant(Tenant tenant) {
+        Customer tempCustomer = new Customer();
+        tempCustomer.setEmail(tenant.getEmailAddress());
+        
+        if (tenant.getAccountType() == site.easy.to.build.crm.entity.AccountType.BUSINESS) {
+            tempCustomer.setName(tenant.getBusinessName() != null ? tenant.getBusinessName() : "Tenant");
+        } else {
+            String fullName = "";
+            if (tenant.getFirstName() != null) fullName += tenant.getFirstName();
+            if (tenant.getLastName() != null) fullName += " " + tenant.getLastName();
+            tempCustomer.setName(fullName.trim().isEmpty() ? "Tenant" : fullName.trim());
+        }
+        
+        tempCustomer.setCustomerType(CustomerType.TENANT);
+        tempCustomer.setPhone(tenant.getPhoneNumber());
+        
+        // Build address from Tenant fields
+        StringBuilder address = new StringBuilder();
+        if (tenant.getAddressLine1() != null) address.append(tenant.getAddressLine1());
+        if (tenant.getCity() != null) {
+            if (address.length() > 0) address.append(", ");
+            address.append(tenant.getCity());
+        }
+        tempCustomer.setAddress(address.toString());
+        
+        return tempCustomer;
     }
     
     private String getApplicationName() {

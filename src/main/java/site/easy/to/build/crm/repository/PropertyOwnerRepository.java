@@ -188,6 +188,9 @@ public interface PropertyOwnerRepository extends JpaRepository<PropertyOwner, Lo
     
     // Find owners synced with PayProp
     List<PropertyOwner> findByPayPropIdIsNotNull();
+
+    List<PropertyOwner> findByFirstNameContainingOrLastNameContaining(String firstName, String lastName);
+    List<PropertyOwner> findByIdIn(List<Long> ids);
     
     // Find by payment method and country
     List<PropertyOwner> findByPaymentMethodAndCountry(PaymentMethod paymentMethod, String country);

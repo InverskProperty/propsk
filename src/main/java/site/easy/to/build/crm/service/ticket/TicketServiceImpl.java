@@ -7,6 +7,7 @@ import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.repository.TicketRepository;
 import site.easy.to.build.crm.entity.Ticket;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -79,6 +80,23 @@ public class TicketServiceImpl implements TicketService{
     @Override
     public long countByManagerId(int managerId) {
         return ticketRepository.countByManagerId(managerId);
+    }
+
+    @Override
+    public List<Ticket> findByType(String type) {
+        return ticketRepository.findByType(type);
+    }
+
+    @Override
+    public long getActiveTicketCount() {
+        return ticketRepository.countByStatus("OPEN");
+    }
+
+    @Override
+    public List<Object> findAllBids() {
+        // This depends on your bid system implementation
+        // For now, return empty list or implement based on your bid entity
+        return new ArrayList<>();
     }
 
     @Override

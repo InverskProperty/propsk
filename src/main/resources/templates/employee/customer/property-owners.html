@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- Editable CSS -->
+<link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.bootstrap4.css}">
+<link rel="stylesheet" type="text/css" th:href="@{/css/responsive.dataTables.min.css}">
+
+<!-- Custom CSS -->
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<!-- page css -->
+<link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
+
+<!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+</head>
+
+<body class="skin-blue fixed-layout">
+<!-- ============================================================== -->
+<!-- Preloader - style you can find in spinners.css -->
+<!-- ============================================================== -->
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+<!-- ============================================================== -->
+<!-- Main wrapper - style you can find in pages.scss -->
+<!-- ============================================================== -->
+<div id="main-wrapper">
+    <!-- ============================================================== -->
+    <!-- Topbar header - style you can find in pages.scss -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/header.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End Topbar header -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Page wrapper  -->
+    <!-- ============================================================== -->
+    <div class="page-wrapper">
+        <!-- ============================================================== -->
+        <!-- Container fluid  -->
+        <!-- ============================================================== -->
+        <div class="container-fluid">
+            <!-- ============================================================== -->
+            <!-- Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <div th:insert="~{general/page-titles.html}"></div>
+            <!-- ============================================================== -->
+            <!-- End Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <!-- ============================================================== -->
+            <!-- Start Page Content -->
+            <!-- ============================================================== -->
+            <div class="row">
+                <div class="col-lg-12">
+                    <!-- Success/Error Messages -->
+                    <div th:if="${successMessage}" class="alert alert-success">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-success"><i class="fa fa-check-circle"></i> Success</h3>
+                        <span th:text="${successMessage}"></span>
+                    </div>
+
+                    <!-- Filter Controls -->
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-subtitle">Search property owners by name or location</h6>
+                            <form method="get" class="form-inline m-t-20">
+                                <div class="form-group m-r-20">
+                                    <label for="owner" class="m-r-10">Search Owner:</label>
+                                    <input type="text" name="owner" id="owner" class="form-control" 
+                                           th:value="${ownerFilter}" placeholder="Enter owner name...">
+                                </div>
+                                <button type="submit" class="btn btn-primary m-r-10">
+                                    <i class="fa fa-search"></i> Search
+                                </button>
+                                <a href="/employee/customer/property-owners" class="btn btn-secondary">
+                                    <i class="fa fa-times"></i> Clear
+                                </a>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Property Owners List -->
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h4 class="card-title">Property Owners</h4>
+                                    <h6 class="card-subtitle">Total: <span th:text="${#lists.size(propertyOwners ?: {})}">0</span> property owners</h6>
+                                </div>
+                                <div>
+                                    <a href="/employee/customer/create-property-owner" class="btn btn-success m-r-10">
+                                        <i class="fa fa-plus"></i> Add Property Owner
+                                    </a>
+                                    <a href="/employee/customer/email-property-owners" class="btn btn-info">
+                                        <i class="fa fa-envelope"></i> Email All
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <div th:if="${#lists.isEmpty(propertyOwners)}" class="text-center m-t-40">
+                                <i class="fa fa-building" style="font-size: 4em; color: #ccc;"></i>
+                                <h5 class="text-muted m-t-20">No property owners found</h5>
+                                <p class="text-muted">Start by adding property owners to manage their portfolios.</p>
+                                <a href="/employee/customer/create-property-owner" class="btn btn-success">
+                                    <i class="fa fa-plus"></i> Add First Property Owner
+                                </a>
+                            </div>
+
+                            <div th:if="${!#lists.isEmpty(propertyOwners)}" class="table-responsive m-t-40">
+                                <table id="config-table" class="table display table-bordered table-striped no-wrap">
+                                    <thead>
+                                        <tr>
+                                            <th>Owner Details</th>
+                                            <th>Contact Information</th>
+                                            <th>Location</th>
+                                            <th>Properties</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="owner : ${propertyOwners}">
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="m-r-10">
+                                                        <i class="fa fa-building text-success"></i>
+                                                    </div>
+                                                    <div>
+                                                        <strong th:text="${owner.name}">Owner Name</strong>
+                                                        <br>
+                                                        <small class="text-muted">Property Owner</small>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div th:if="${owner.email}">
+                                                    <i class="fa fa-envelope text-primary"></i>
+                                                    <span th:text="${owner.email}">email@example.com</span>
+                                                </div>
+                                                <div th:if="${owner.phone}" class="m-t-5">
+                                                    <i class="fa fa-phone text-success"></i>
+                                                    <span th:text="${owner.phone}">+44 123 456 789</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div th:if="${owner.city}">
+                                                    <i class="fa fa-map-marker text-info"></i>
+                                                    <span th:text="${owner.city}">City</span>
+                                                </div>
+                                                <div th:if="${owner.postcode}">
+                                                    <small class="text-muted" th:text="${owner.postcode}">Postcode</small>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="label label-info">
+                                                    <i class="fa fa-home"></i> Properties
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="label label-success">Active</span>
+                                            </td>
+                                            <td>
+                                                <a th:href="@{'/employee/customer/' + ${owner.customerId}}" class="btn btn-sm btn-info m-r-5" title="View Details">
+                                                    <i class="fa fa-eye"></i>
+                                                </a>
+                                                <a th:href="@{'/employee/customer/' + ${owner.customerId} + '/edit'}" class="btn btn-sm btn-warning m-r-5" title="Edit">
+                                                    <i class="fa fa-edit"></i>
+                                                </a>
+                                                <a th:href="@{'/property/owner/' + ${owner.customerId}}" class="btn btn-sm btn-success" title="View Properties">
+                                                    <i class="fa fa-building"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ============================================================== -->
+            <!-- End Page Content -->
+            <!-- ============================================================== -->
+            <!-- ============================================================== -->
+            <!-- Right sidebar -->
+            <!-- ============================================================== -->
+            <div th:insert="~{general/right-sidebar.html}"></div>
+            <!-- ============================================================== -->
+            <!-- End Right sidebar -->
+            <!-- ============================================================== -->
+        </div>
+        <!-- ============================================================== -->
+        <!-- End Container fluid  -->
+        <!-- ============================================================== -->
+    </div>
+    <!-- ============================================================== -->
+    <!-- End Page wrapper  -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- footer -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/footer.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End footer -->
+    <!-- ============================================================== -->
+</div>
+<!-- ============================================================== -->
+<!-- End Wrapper -->
+<!-- ============================================================== -->
+<!-- ============================================================== -->
+<!-- All Jquery -->
+<!-- ============================================================== -->
+<script th:inline="javascript">
+    var home = /*[[${home}]]*/ null;
+</script>
+<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
+<!-- Editable -->
+<script th:src="@{/js/library/jquery.dataTables.min.js}"></script>
+<script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
+
+<script>
+$('#config-table').DataTable({
+    responsive: true
+});
+</script>
+</body>
+</html>

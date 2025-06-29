@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- Editable CSS -->
+<link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.bootstrap4.css}">
+<link rel="stylesheet" type="text/css" th:href="@{/css/responsive.dataTables.min.css}">
+
+<!-- Custom CSS -->
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<!-- page css -->
+<link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
+
+<!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+</head>
+
+<body class="skin-blue fixed-layout">
+<!-- ============================================================== -->
+<!-- Preloader - style you can find in spinners.css -->
+<!-- ============================================================== -->
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+<!-- ============================================================== -->
+<!-- Main wrapper - style you can find in pages.scss -->
+<!-- ============================================================== -->
+<div id="main-wrapper">
+    <!-- ============================================================== -->
+    <!-- Topbar header - style you can find in pages.scss -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/header.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End Topbar header -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Page wrapper  -->
+    <!-- ============================================================== -->
+    <div class="page-wrapper">
+        <!-- ============================================================== -->
+        <!-- Container fluid  -->
+        <!-- ============================================================== -->
+        <div class="container-fluid">
+            <!-- ============================================================== -->
+            <!-- Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <div th:insert="~{general/page-titles.html}"></div>
+            <!-- ============================================================== -->
+            <!-- End Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <!-- ============================================================== -->
+            <!-- Start Page Content -->
+            <!-- ============================================================== -->
+            <div class="row">
+                <div class="col-lg-12">
+                    <!-- Success/Error Messages -->
+                    <div th:if="${successMessage}" class="alert alert-success">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-success"><i class="fa fa-check-circle"></i> Success</h3>
+                        <span th:text="${successMessage}"></span>
+                    </div>
+
+                    <!-- Filter Controls -->
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-subtitle">Filter contractors by type and preferences</h6>
+                            <form method="get" class="form-inline m-t-20">
+                                <div class="form-group m-r-20">
+                                    <label for="preferred" class="m-r-10">Filter:</label>
+                                    <select name="preferred" id="preferred" class="form-control m-r-10">
+                                        <option value="">All Contractors</option>
+                                        <option value="true" th:selected="${preferredFilter == 'true'}">Preferred Only</option>
+                                    </select>
+                                </div>
+                                <div class="form-group m-r-20">
+                                    <select name="emergency" id="emergency" class="form-control">
+                                        <option value="">All Types</option>
+                                        <option value="true" th:selected="${emergencyFilter == 'true'}">Emergency Only</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary m-r-10">
+                                    <i class="fa fa-filter"></i> Filter
+                                </button>
+                                <a href="/employee/customer/contractors" class="btn btn-secondary">
+                                    <i class="fa fa-times"></i> Clear
+                                </a>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Contractors List -->
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h4 class="card-title">Contractors Management</h4>
+                                    <h6 class="card-subtitle">Total: <span th:text="${#lists.size(contractors ?: {})}">0</span> contractors</h6>
+                                </div>
+                                <div>
+                                    <a href="/employee/customer/create-contractor" class="btn btn-success m-r-10">
+                                        <i class="fa fa-plus"></i> Add New Contractor
+                                    </a>
+                                    <a href="/employee/ticket/contractor-bids" class="btn btn-warning">
+                                        <i class="fa fa-gavel"></i> View Bids
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <div th:if="${#lists.isEmpty(contractors)}" class="text-center m-t-40">
+                                <i class="fa fa-tools" style="font-size: 4em; color: #ccc;"></i>
+                                <h5 class="text-muted m-t-20">No contractors found</h5>
+                                <p class="text-muted">Add contractors to manage maintenance and repairs.</p>
+                                <a href="/employee/customer/create-contractor" class="btn btn-success">
+                                    <i class="fa fa-plus"></i> Add First Contractor
+                                </a>
+                            </div>
+
+                            <div th:if="${!#lists.isEmpty(contractors)}" class="table-responsive m-t-40">
+                                <table id="config-table" class="table display table-bordered table-striped no-wrap">
+                                    <thead>
+                                        <tr>
+                                            <th>Company</th>
+                                            <th>Contact</th>
+                                            <th>Services</th>
+                                            <th>Rating</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="contractor : ${contractors}">
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="m-r-10">
+                                                        <i class="fa fa-tools text-warning"></i>
+                                                    </div>
+                                                    <div>
+                                                        <strong th:text="${contractor.companyName}">Company Name</strong>
+                                                        <br>
+                                                        <small class="text-muted" th:text="${contractor.contactPerson}">Contact Person</small>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div th:if="${contractor.emailAddress}">
+                                                    <i class="fa fa-envelope text-primary"></i>
+                                                    <span th:text="${contractor.emailAddress}">email@example.com</span>
+                                                </div>
+                                                <div th:if="${contractor.mobileNumber}" class="m-t-5">
+                                                    <i class="fa fa-phone text-success"></i>
+                                                    <span th:text="${contractor.mobileNumber}">+44 123 456 789</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex flex-wrap">
+                                                    <span th:if="${contractor.isGasSafeCertified()}" class="label label-success m-r-5 m-b-5">
+                                                        <i class="fa fa-fire"></i> Gas Safe
+                                                    </span>
+                                                    <span th:if="${contractor.isNiceicCertified()}" class="label label-info m-r-5 m-b-5">
+                                                        <i class="fa fa-bolt"></i> NICEIC
+                                                    </span>
+                                                    <span th:if="${contractor.isPreferred()}" class="label label-warning m-r-5 m-b-5">
+                                                        <i class="fa fa-star"></i> Preferred
+                                                    </span>
+                                                    <span th:if="${contractor.isEmergency()}" class="label label-danger m-r-5 m-b-5">
+                                                        <i class="fa fa-exclamation"></i> Emergency
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div th:if="${contractor.rating != null}">
+                                                    <span th:text="${contractor.rating}">4.5</span>
+                                                    <i class="fa fa-star text-warning"></i>
+                                                    <br>
+                                                    <small class="text-muted" th:if="${contractor.completedJobs != null}">
+                                                        <span th:text="${contractor.completedJobs}">12</span> jobs
+                                                    </small>
+                                                </div>
+                                                <span th:unless="${contractor.rating != null}" class="text-muted">No rating</span>
+                                            </td>
+                                            <td>
+                                                <span th:if="${contractor.status == 'active'}" class="label label-success">Active</span>
+                                                <span th:if="${contractor.status == 'inactive'}" class="label label-secondary">Inactive</span>
+                                                <span th:unless="${contractor.status}" class="label label-light">Unknown</span>
+                                                
+                                                <div class="m-t-5">
+                                                    <span th:if="${contractor.isAvailable247()}" class="label label-info">24/7</span>
+                                                    <span th:if="${contractor.isInsuranceValid()}" class="label label-success">Insured</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <a th:href="@{'/employee/contractor/' + ${contractor.id}}" class="btn btn-sm btn-info m-r-5" title="View Details">
+                                                    <i class="fa fa-eye"></i>
+                                                </a>
+                                                <a th:href="@{'/employee/contractor/' + ${contractor.id} + '/edit'}" class="btn btn-sm btn-warning m-r-5" title="Edit">
+                                                    <i class="fa fa-edit"></i>
+                                                </a>
+                                                <a th:href="@{'/employee/ticket/create-ticket?contractorId=' + ${contractor.id}}" class="btn btn-sm btn-success" title="Assign Job">
+                                                    <i class="fa fa-plus"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ============================================================== -->
+            <!-- End Page Content -->
+            <!-- ============================================================== -->
+            <!-- ============================================================== -->
+            <!-- Right sidebar -->
+            <!-- ============================================================== -->
+            <div th:insert="~{general/right-sidebar.html}"></div>
+            <!-- ============================================================== -->
+            <!-- End Right sidebar -->
+            <!-- ============================================================== -->
+        </div>
+        <!-- ============================================================== -->
+        <!-- End Container fluid  -->
+        <!-- ============================================================== -->
+    </div>
+    <!-- ============================================================== -->
+    <!-- End Page wrapper  -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- footer -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/footer.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End footer -->
+    <!-- ============================================================== -->
+</div>
+<!-- ============================================================== -->
+<!-- End Wrapper -->
+<!-- ============================================================== -->
+<!-- ============================================================== -->
+<!-- All Jquery -->
+<!-- ============================================================== -->
+<script th:inline="javascript">
+    var home = /*[[${home}]]*/ null;
+</script>
+<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
+<!-- Editable -->
+<script th:src="@{/js/library/jquery.dataTables.min.js}"></script>
+<script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
+
+<script>
+$('#config-table').DataTable({
+    responsive: true
+});
+</script>
+</body>
+</html>

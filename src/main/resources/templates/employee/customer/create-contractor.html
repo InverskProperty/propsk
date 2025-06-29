@@ -25,12 +25,6 @@ public class TenantServiceImpl implements TenantService {
         return tenantRepository.findById(id).orElse(null);
     }
 
-    // Add this method to TenantServiceImpl.java if it doesn't exist:
-    @Override
-    public long getTotalCount() {
-        return tenantRepository.count();
-    }
-    
     @Override
     public List<Tenant> findByIdIn(List<Long> ids) {
         return tenantRepository.findByIdIn(ids);
@@ -226,6 +220,11 @@ public class TenantServiceImpl implements TenantService {
         return tenantRepository.count();
     }
 
+    @Override
+    public long getTotalCount() {
+        return tenantRepository.count();
+    }
+
     // Business logic methods
     @Override
     public boolean isTenantActive(Long tenantId) {
@@ -289,7 +288,7 @@ public class TenantServiceImpl implements TenantService {
         }
     }
 
-    // PayProp sync methods - ADD THESE IMPLEMENTATIONS
+    // PayProp sync methods
     @Override
     public List<Tenant> findTenantsReadyForPayPropSync() {
         return tenantRepository.findTenantsReadyForPayPropSync();

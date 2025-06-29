@@ -37,13 +37,13 @@ public interface ContractorRepository extends JpaRepository<Contractor, Long> {
     // Find active contractors
     List<Contractor> findByStatusOrderByCreatedAtDesc(String status);
     
-    // Find preferred contractors
+    // Find preferred contractors (using String field)
     List<Contractor> findByPreferredContractor(String preferredContractor);
     
     // Find 24/7 available contractors
     List<Contractor> findByAvailable247(String available247);
     
-    // Find contractors with emergency contact
+    // Find contractors with emergency contact (using String field)
     List<Contractor> findByEmergencyContact(String emergencyContact);
     
     // Find by city
@@ -64,7 +64,6 @@ public interface ContractorRepository extends JpaRepository<Contractor, Long> {
     List<Contractor> findGasSafeCertified(@Param("currentDate") LocalDateTime currentDate);
     
     // Find NICEIC certified contractors
-
     @Query("SELECT c FROM Contractor c WHERE c.niceicNumber IS NOT NULL AND LENGTH(TRIM(c.niceicNumber)) > 0 " +
            "AND c.niceicExpiry IS NOT NULL AND c.niceicExpiry > :currentDate")
     List<Contractor> findNiceicCertified(@Param("currentDate") LocalDateTime currentDate);
@@ -213,6 +212,7 @@ public interface ContractorRepository extends JpaRepository<Contractor, Long> {
            "(c.insuranceExpiry IS NOT NULL AND c.insuranceExpiry <= :renewalDate)")
     List<Contractor> findNeedingCertificationRenewal(@Param("renewalDate") LocalDateTime renewalDate);
 
+    // Customer relationship methods
     Optional<Contractor> findByCustomer(Customer customer);  
     List<Contractor> findByCustomerCustomerId(Integer customerId);
 }

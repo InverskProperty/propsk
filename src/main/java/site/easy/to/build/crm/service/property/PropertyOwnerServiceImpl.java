@@ -64,7 +64,6 @@ public class PropertyOwnerServiceImpl implements PropertyOwnerService {
         return propertyOwnerRepository.findByCustomerReference(customerReference);
     }
 
-    // 🔧 FIXED: Added missing PayProp sync methods
     @Override
     public List<PropertyOwner> findByPayPropIdIsNull() {
         return propertyOwnerRepository.findByPayPropIdIsNull();
@@ -106,6 +105,12 @@ public class PropertyOwnerServiceImpl implements PropertyOwnerService {
         return propertyOwnerRepository.findByFullNameContaining(name);
     }
 
+    // Employee dashboard search method
+    @Override
+    public List<PropertyOwner> findByNameContaining(String name) {
+        return propertyOwnerRepository.findByFirstNameContainingOrLastNameContaining(name, name);
+    }
+
     // User-based queries
     @Override
     public List<PropertyOwner> getRecentPropertyOwners(Long userId, int limit) {
@@ -121,6 +126,16 @@ public class PropertyOwnerServiceImpl implements PropertyOwnerService {
     @Override
     public long getTotalPropertyOwners() {
         return propertyOwnerRepository.count();
+    }
+
+    @Override
+    public long getTotalCount() {
+        return propertyOwnerRepository.count();
+    }
+
+    @Override
+    public List<PropertyOwner> findByIdIn(List<Long> ids) {
+        return propertyOwnerRepository.findByIdIn(ids);
     }
 
     // PayProp sync methods

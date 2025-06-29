@@ -22,7 +22,7 @@ public interface PropertyOwnerService {
     Optional<PropertyOwner> findByEmailAddress(String emailAddress);
     List<PropertyOwner> findByCustomerReference(String customerReference);
     
-    // 🔧 FIXED: Added missing PayProp sync methods
+    // PayProp sync methods
     List<PropertyOwner> findByPayPropIdIsNull();
     List<PropertyOwner> findByPayPropIdIsNotNull();
     
@@ -33,10 +33,19 @@ public interface PropertyOwnerService {
     List<PropertyOwner> findByBusinessName(String businessName);
     List<PropertyOwner> searchByName(String name);
     
+    // Employee dashboard search method (maps to existing searchByName)
+    List<PropertyOwner> findByNameContaining(String name);
+    
     // User-based queries
     List<PropertyOwner> getRecentPropertyOwners(Long userId, int limit);
     long countByCreatedBy(Long userId);
+    
+    // Count methods for dashboard
     long getTotalPropertyOwners();
+    long getTotalCount();  // ADDED - matches implementation
+    
+    // Bulk operations for email service
+    List<PropertyOwner> findByIdIn(List<Long> ids);  // ADDED - matches implementation
     
     // PayProp sync methods
     List<PropertyOwner> findPropertyOwnersNeedingSync();

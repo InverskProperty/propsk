@@ -1,0 +1,197 @@
+<!-- employee/customer/email-tenants.html -->
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- Custom CSS -->
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<!-- page css -->
+<link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
+
+<!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+</head>
+
+<body class="skin-blue fixed-layout">
+<!-- ============================================================== -->
+<!-- Preloader - style you can find in spinners.css -->
+<!-- ============================================================== -->
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+<!-- ============================================================== -->
+<!-- Main wrapper - style you can find in pages.scss -->
+<!-- ============================================================== -->
+<div id="main-wrapper">
+    <!-- ============================================================== -->
+    <!-- Topbar header - style you can find in pages.scss -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/header.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End Topbar header -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Page wrapper  -->
+    <!-- ============================================================== -->
+    <div class="page-wrapper">
+        <!-- ============================================================== -->
+        <!-- Container fluid  -->
+        <!-- ============================================================== -->
+        <div class="container-fluid">
+            <!-- ============================================================== -->
+            <!-- Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <div th:insert="~{general/page-titles.html}"></div>
+            <!-- ============================================================== -->
+            <!-- End Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <!-- ============================================================== -->
+            <!-- Start Page Content -->
+            <!-- ============================================================== -->
+            <div class="row">
+                <div class="col-lg-12">
+                    <!-- Success/Error Messages -->
+                    <div th:if="${successMessage}" class="alert alert-success">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-success"><i class="fa fa-check-circle"></i> Success</h3>
+                        <span th:text="${successMessage}"></span>
+                    </div>
+                    <div th:if="${errorMessage}" class="alert alert-danger">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-danger"><i class="fa fa-exclamation-circle"></i> Error</h3>
+                        <span th:text="${errorMessage}"></span>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-body">
+                            <h4 class="card-title">Email Tenants</h4>
+                            <h6 class="card-subtitle">Send bulk emails to tenants</h6>
+                            
+                            <form th:action="@{/employee/customer/email-tenants}" method="post" class="m-t-40">
+                                
+                                <!-- Recipients Selection -->
+                                <div class="form-group">
+                                    <label class="control-label">Select Recipients:</label>
+                                    <div class="form-check m-b-10">
+                                        <input class="form-check-input" type="checkbox" id="selectAll">
+                                        <label class="form-check-label" for="selectAll">
+                                            <strong>Select All Tenants</strong>
+                                        </label>
+                                    </div>
+                                    <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 15px; border-radius: 3px;">
+                                        <div th:each="tenant : ${tenants}" class="form-check">
+                                            <input class="form-check-input tenant-checkbox" type="checkbox" 
+                                                   th:id="'tenant_' + ${tenant.id}" 
+                                                   name="tenantIds" 
+                                                   th:value="${tenant.id}">
+                                            <label class="form-check-label" th:for="'tenant_' + ${tenant.id}">
+                                                <span th:text="${tenant.fullName}">Tenant Name</span>
+                                                <small class="text-muted" th:text="'(' + ${tenant.emailAddress} + ')'">email</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Email Subject -->
+                                <div class="form-group">
+                                    <label class="control-label" for="subject">Subject *</label>
+                                    <input type="text" class="form-control" id="subject" name="subject" required
+                                           placeholder="Enter email subject">
+                                </div>
+
+                                <!-- Email Message -->
+                                <div class="form-group">
+                                    <label class="control-label" for="message">Message *</label>
+                                    <textarea class="form-control" id="message" name="message" rows="10" required
+                                              placeholder="Enter your message here..."></textarea>
+                                </div>
+
+                                <!-- Submit Button -->
+                                <div class="form-group">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fa fa-paper-plane"></i> Send Email
+                                    </button>
+                                    <a href="/employee/customer/tenants" class="btn btn-secondary m-l-10">
+                                        <i class="fa fa-times"></i> Cancel
+                                    </a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ============================================================== -->
+            <!-- End Page Content -->
+            <!-- ============================================================== -->
+            <!-- ============================================================== -->
+            <!-- Right sidebar -->
+            <!-- ============================================================== -->
+            <div th:insert="~{general/right-sidebar.html}"></div>
+            <!-- ============================================================== -->
+            <!-- End Right sidebar -->
+            <!-- ============================================================== -->
+        </div>
+        <!-- ============================================================== -->
+        <!-- End Container fluid  -->
+        <!-- ============================================================== -->
+    </div>
+    <!-- ============================================================== -->
+    <!-- End Page wrapper  -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- footer -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/footer.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End footer -->
+    <!-- ============================================================== -->
+</div>
+<!-- ============================================================== -->
+<!-- End Wrapper -->
+<!-- ============================================================== -->
+<!-- ============================================================== -->
+<!-- All Jquery -->
+<!-- ============================================================== -->
+<script th:inline="javascript">
+    var home = /*[[${home}]]*/ null;
+</script>
+<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
+
+<script>
+document.getElementById('selectAll').addEventListener('change', function() {
+    const checkboxes = document.querySelectorAll('.tenant-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+    });
+});
+</script>
+</body>
+</html>

@@ -161,6 +161,8 @@ public interface TenantRepository extends JpaRepository<Tenant, Long> {
     // Find tenants already synced to PayProp
     List<Tenant> findByPayPropIdIsNotNull();
 
+    List<Tenant> findByIdIn(List<Long> ids);
+
     // Find tenants ready for PayProp sync (all required fields present)
     @Query("SELECT t FROM Tenant t WHERE t.payPropId IS NULL AND " +
            "((t.accountType = 'INDIVIDUAL' AND t.firstName IS NOT NULL AND LENGTH(TRIM(t.firstName)) > 0 AND t.lastName IS NOT NULL AND LENGTH(TRIM(t.lastName)) > 0) OR " +

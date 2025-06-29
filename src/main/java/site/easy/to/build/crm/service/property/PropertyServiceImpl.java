@@ -70,6 +70,11 @@ public class PropertyServiceImpl implements PropertyService {
     }
 
     @Override
+    public long getTotalCount() {
+        return propertyRepository.count();
+    }
+
+    @Override
     public List<Property> findByBlockId(Long blockId) {
         return propertyRepository.findByBlockId(blockId);
     }

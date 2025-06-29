@@ -24,6 +24,10 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
 
     List<Ticket> findByCustomerCustomerIdOrderByCreatedAtDesc(int customerId, Pageable pageable);
 
+    List<Ticket> findByType(String type);
+    
+    long countByStatus(String status);
+
     long countByEmployeeId(int employeeId);
 
     long countByManagerId(int managerId);

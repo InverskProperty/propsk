@@ -8,19 +8,19 @@ import java.util.Optional;
 
 public interface PropertyService {
 
-    // ✅ Core CRUD operations
+    // Core CRUD operations
     Property findById(Long id);
     List<Property> findAll();
     Property save(Property property);
     void delete(Property property);
     void deleteById(Long id);
 
-    // ✅ PayProp integration methods
+    // PayProp integration methods
     Optional<Property> findByPayPropId(String payPropId);
     Optional<Property> findByCustomerId(String customerId);
     List<Property> findByPropertyOwnerId(Integer propertyOwnerId);
     
-    // ✅ Property characteristics (PayProp compatible)
+    // Property characteristics (PayProp compatible)
     List<Property> findByPropertyType(String propertyType);
     List<Property> findByCity(String city);
     List<Property> findByPostalCode(String postalCode); // Updated field name
@@ -34,42 +34,38 @@ public interface PropertyService {
     List<Property> findActivePropertiesByBlock(Long blockId);
     List<Property> findUnassignedProperties();
     
-    // ✅ Search methods (PayProp compatible)
+    // Search methods (PayProp compatible)
     List<Property> searchByPropertyName(String propertyName);
     List<Property> searchByAddress(String address);
     List<Property> getRecentProperties(Long userId, int limit);
     
-    // 🔄 Updated search method - PayProp compatible
+    // Updated search method - PayProp compatible
     List<Property> searchProperties(String propertyName, String city, String postalCode, 
                                    Boolean isArchived, String propertyType, Integer bedrooms, int limit);
     
-    // ✅ Date-based queries
+    // Date-based queries
     List<Property> findPropertiesWithUpcomingExpiry(LocalDate date);
     
-    // ✅ User-based queries
+    // User-based queries
     long countByCreatedBy(Long userId);
+    
+    // Keep existing method name (don't add duplicate)
     long getTotalProperties();
 
-    // 🔄 PayProp compatible status methods (replace old status-based logic)
-    
-    // Replace findActiveProperties()
+    // PayProp compatible status methods (replace old status-based logic)
     List<Property> findActiveProperties(); // Uses isArchived = false
-    
-    // Replace findPropertiesWithPaymentsAllowed()
     List<Property> findPropertiesWithPaymentsEnabled(); // Uses enablePayments field
-    
-    // Replace vacancy logic with tenant relationship logic
     List<Property> findVacantProperties(); // Properties without active tenants
     List<Property> findOccupiedProperties(); // Properties with active tenants
     
-    // Replace status-based availability
+    // Status-based availability
     boolean isPropertyAvailableForTenant(Long propertyId);
     
-    // Replace status updates with archive logic
+    // Archive logic
     void archiveProperty(Long propertyId);
     void unarchiveProperty(Long propertyId);
     
-    // Replace countByStatus
+    // Count methods
     long countArchivedProperties();
     long countActiveProperties();
 
@@ -83,13 +79,13 @@ public interface PropertyService {
     long countPropertiesByPortfolio(Long portfolioId);
     long countPropertiesByBlock(Long blockId);
     
-    // 🆕 PayProp sync methods
+    // PayProp sync methods
     List<Property> findPropertiesNeedingSync();
     void markPropertyAsSynced(Long propertyId, String payPropId);
     List<Property> findPropertiesByPayPropSyncStatus(boolean synced);
     List<Property> findArchivedProperties();
     
-    // 🆕 PayProp validation methods
+    // PayProp validation methods
     List<Property> findPropertiesReadyForSync();
     boolean isPropertyReadyForPayPropSync(Long propertyId);
     List<Property> findPropertiesWithMissingPayPropFields();

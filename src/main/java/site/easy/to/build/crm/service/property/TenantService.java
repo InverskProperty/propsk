@@ -22,6 +22,8 @@ public interface TenantService {
     List<Tenant> findByPropertyId(Long propertyId);
     
     List<Tenant> findByAccountType(AccountType accountType);
+
+    List<Tenant> findByIdIn(List<Long> ids);
     
     List<Tenant> findByStatus(String status);
     
@@ -85,7 +87,10 @@ public interface TenantService {
     
     long countByCreatedBy(Long userId);
     
+    // Keep existing method name (don't add duplicate)
     long getTotalTenants();
+
+    long getTotalCount();
     
     // Business logic methods
     boolean isTenantActive(Long tenantId);
@@ -102,7 +107,7 @@ public interface TenantService {
     
     void updateNotificationPreferences(Long tenantId, Boolean emailEnabled, Boolean smsEnabled);
     
-    // PayProp sync methods - ADD THESE
+    // PayProp sync methods
     List<Tenant> findTenantsReadyForPayPropSync();
     List<Tenant> findByPayPropIdIsNull();
     List<Tenant> findByPayPropIdIsNotNull();

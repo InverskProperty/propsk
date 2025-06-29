@@ -49,4 +49,21 @@ public class ContractorServiceImpl implements ContractorService {
     public List<Contractor> findAvailableContractors() {
         return contractorRepository.findByStatus("AVAILABLE");
     }
+
+    // ===== CORRECTED METHODS FOR EMPLOYEE DASHBOARD (using String columns) =====
+
+    @Override
+    public List<Contractor> findPreferredContractors() {
+        return contractorRepository.findByPreferredContractor("Y");
+    }
+
+    @Override
+    public List<Contractor> findEmergencyContractors() {
+        return contractorRepository.findByEmergencyContact("Y");
+    }
+
+    @Override
+    public long getTotalCount() {
+        return contractorRepository.count();
+    }
 }

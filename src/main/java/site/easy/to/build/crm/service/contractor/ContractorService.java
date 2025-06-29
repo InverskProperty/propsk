@@ -12,4 +12,7 @@ public interface ContractorService {
     void delete(Contractor contractor);
     List<Contractor> findByStatus(String status);
     List<Contractor> findAvailableContractors();
+    List<Contractor> findPreferredContractors();
+    List<Contractor> findEmergencyContractors();
+    long getTotalCount();
 }

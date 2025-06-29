@@ -175,7 +175,6 @@ public class Contractor {
     @JoinColumn(name = "customer_id", referencedColumnName = "customer_id")
     private Customer customer;
 
-    // Add this getter/setter
     public Customer getCustomer() { 
         return customer; 
     }
@@ -342,8 +341,8 @@ public class Contractor {
     
     public Long getUpdatedBy() { return updatedBy; }
     public void setUpdatedBy(Long updatedBy) { this.updatedBy = updatedBy; }
-    
-    // Utility methods
+
+    // Utility methods - CORRECTED to use only String fields
     public String getFullAddress() {
         StringBuilder address = new StringBuilder();
         if (addressLine1 != null && !addressLine1.trim().isEmpty()) {
@@ -370,6 +369,10 @@ public class Contractor {
     
     public boolean isPreferred() {
         return "Y".equalsIgnoreCase(preferredContractor);
+    }
+    
+    public boolean isEmergency() {
+        return "Y".equalsIgnoreCase(emergencyContact);
     }
     
     public boolean isEmergencyContactAvailable() {

@@ -1,3 +1,4 @@
+
 package site.easy.to.build.crm.service.email;
 
 import org.springframework.security.core.Authentication;
@@ -79,6 +80,22 @@ public interface EmailService {
      * @return true if email sent successfully
      */
     boolean sendNotificationEmail(Customer customer, String subject, String message, Authentication authentication);
+    
+    /**
+     * Send bulk email to property owners by their IDs
+     * @param subject Email subject
+     * @param message Email body/content
+     * @param ownerIds List of property owner IDs
+     */
+    void sendBulkEmailToPropertyOwners(String subject, String message, List<Long> ownerIds);
+    
+    /**
+     * Send bulk email to tenants by their IDs
+     * @param subject Email subject
+     * @param message Email body/content
+     * @param tenantIds List of tenant IDs
+     */
+    void sendBulkEmailToTenants(String subject, String message, List<Long> tenantIds);
     
     /**
      * Check if Gmail API access is available for the current user

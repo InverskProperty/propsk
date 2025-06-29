@@ -32,5 +32,9 @@ public interface TicketService {
 
     long countByCustomerCustomerId(int customerId);
 
+    List<Ticket> findByType(String type);
+    long getActiveTicketCount();
+    List<Object> findAllBids(); // Adjust type based on your bid entity
+
     void deleteAllByCustomer(Customer customer);
 }
