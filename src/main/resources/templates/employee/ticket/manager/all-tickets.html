@@ -181,7 +181,6 @@
                                                     <small class="text-muted" th:text="${ticket.employee.email ?: 'No email'}">employee@email.com</small>
                                                 </div>
                                                 <span th:if="${ticket.employee == null}" class="text-muted">Unassigned</span>
-
                                             </td>
                                             <td>
                                                 <span th:if="${ticket.priority == 'critical'}" class="label label-danger">Critical</span>

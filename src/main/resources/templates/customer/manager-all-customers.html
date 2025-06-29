@@ -129,7 +129,10 @@
                         <div class="col-md-3">
                             <div class="card">
                                 <div class="card-body text-center">
-                                    <h4 class="text-success" th:text="${#lists.size(#lists.where(customers ?: {}, 'isPropertyOwner'))}">0</h4>
+                                    <h4 class="text-success">
+                                        <span th:with="propertyOwners=${#lists.select(customers ?: {}, 'isPropertyOwner')}" 
+                                            th:text="${#lists.size(propertyOwners)}">0</span>
+                                    </h4>
                                     <p class="text-muted">Property Owners</p>
                                 </div>
                             </div>
@@ -137,7 +140,10 @@
                         <div class="col-md-3">
                             <div class="card">
                                 <div class="card-body text-center">
-                                    <h4 class="text-warning" th:text="${#lists.size(#lists.where(customers ?: {}, 'isTenant'))}">0</h4>
+                                    <h4 class="text-warning">
+                                        <span th:with="tenants=${#lists.select(customers ?: {}, 'isTenant')}" 
+                                            th:text="${#lists.size(tenants)}">0</span>
+                                    </h4>
                                     <p class="text-muted">Tenants</p>
                                 </div>
                             </div>
@@ -145,13 +151,16 @@
                         <div class="col-md-3">
                             <div class="card">
                                 <div class="card-body text-center">
-                                    <h4 class="text-info" th:text="${#lists.size(#lists.where(customers ?: {}, 'isContractor'))}">0</h4>
+                                    <h4 class="text-info">
+                                        <span th:with="contractors=${#lists.select(customers ?: {}, 'isContractor')}" 
+                                            th:text="${#lists.size(contractors)}">0</span>
+                                    </h4>
                                     <p class="text-muted">Contractors</p>
                                 </div>
                             </div>
                         </div>
                     </div>
-
+                    
                     <!-- Customers List -->
                     <div class="card">
                         <div class="card-body">
