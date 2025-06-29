@@ -408,9 +408,9 @@
 <script>
 $('#config-table').DataTable({
     responsive: true,
-    order: [[7, 'desc']], // Sort by created date descending
+    order: [[7, 'desc']],
     columnDefs: [
-        { targets: [8], orderable: false } // Disable sorting on Actions column
+        { targets: [8], orderable: false }
     ]
 });
 
@@ -419,7 +419,6 @@ function showEmailModal(customerId, customerName, customerEmail) {
     document.getElementById('customerEmail').textContent = customerEmail;
     document.getElementById('emailForm').action = '/employee/customer/' + customerId + '/send-email';
     
-    // Clear form
     document.getElementById('subject').value = '';
     document.getElementById('emailMessage').value = '';
     
