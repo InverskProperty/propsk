@@ -30,13 +30,40 @@
         .card-body {
             color: #495057 !important;
         }
-        /* Override for colored card backgrounds - this fixes the white-on-white issue */
-        .card-inverse .card-body,
-        .card-inverse .card-body h2,
-        .card-inverse .card-body h6,
-        .card-inverse .card-body .text-white {
+        
+        /* SUPER SPECIFIC overrides for colored cards - maximum specificity */
+        .card.card-inverse.card-success .card-body,
+        .card.card-inverse.card-success .card-body h2,
+        .card.card-inverse.card-success .card-body h6,
+        .card.card-inverse.card-success .card-body .text-white,
+        .card.card-inverse.card-success .card-body i {
             color: #ffffff !important;
         }
+        
+        .card.card-inverse.card-primary .card-body,
+        .card.card-inverse.card-primary .card-body h2,
+        .card.card-inverse.card-primary .card-body h6,
+        .card.card-inverse.card-primary .card-body .text-white,
+        .card.card-inverse.card-primary .card-body i {
+            color: #ffffff !important;
+        }
+        
+        .card.card-inverse.card-warning .card-body,
+        .card.card-inverse.card-warning .card-body h2,
+        .card.card-inverse.card-warning .card-body h6,
+        .card.card-inverse.card-warning .card-body .text-white,
+        .card.card-inverse.card-warning .card-body i {
+            color: #ffffff !important;
+        }
+        
+        .card.card-inverse.card-info .card-body,
+        .card.card-inverse.card-info .card-body h2,
+        .card.card-inverse.card-info .card-body h6,
+        .card.card-inverse.card-info .card-body .text-white,
+        .card.card-inverse.card-info .card-body i {
+            color: #ffffff !important;
+        }
+        
         .list-group-item {
             color: #495057 !important;
         }
