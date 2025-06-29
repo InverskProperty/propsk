@@ -24,9 +24,10 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
 
     List<Ticket> findByCustomerCustomerIdOrderByCreatedAtDesc(int customerId, Pageable pageable);
 
-    // REMOVED: List<Ticket> findByType(String type); - No 'type' field exists in Ticket entity
+    // ADDED BACK: This method is now valid since Ticket entity has 'type' field and database has 'type' column
+    List<Ticket> findByType(String type);
     
-    // If you need to filter by some category, you could use existing fields like:
+    // Additional filtering methods using existing fields
     List<Ticket> findByStatus(String status);
     List<Ticket> findByPriority(String priority);
     List<Ticket> findBySubjectContainingIgnoreCase(String subject);
