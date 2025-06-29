@@ -81,7 +81,7 @@ public class CustomerController {
             
             model.addAttribute("user", user);
             model.addAttribute("pageTitle", "Customer Management Dashboard");
-            return "customer/dashboard";
+            return "customer-dashboard";
             
         } catch (Exception e) {
             model.addAttribute("error", "Error loading customer dashboard: " + e.getMessage());
