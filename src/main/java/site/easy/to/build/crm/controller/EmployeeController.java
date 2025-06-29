@@ -141,31 +141,6 @@ public class EmployeeController {
         }
     }
 
-    // ===== TICKET MANAGEMENT =====
-
-    /**
-     * Show all tickets for managers
-     */
-    @GetMapping("/ticket/manager/all-tickets")
-    public String showAllTickets(@RequestParam(required = false) String type,
-                                Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return "redirect:/access-denied";
-        }
-
-        List<Ticket> tickets;
-        
-        if ("maintenance".equals(type)) {
-            tickets = ticketService.findByType("maintenance");
-        } else {
-            tickets = ticketService.findAll();
-        }
-
-        model.addAttribute("tickets", tickets);
-        model.addAttribute("typeFilter", type);
-        return "employee/ticket/manager/all-tickets";
-    }
-
     // ===== AJAX/API ENDPOINTS =====
 
     /**
