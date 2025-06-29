@@ -586,84 +586,32 @@ public class CustomerController {
         }
     }
 
+    // REPLACE the methods I gave you earlier with these REDIRECT versions:
+
     @GetMapping("/my-customers")
-    public String showMyCustomers(Model model, Authentication authentication) {
-        try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
-            
-            List<Customer> customers = customerService.findByUserId(userId);
-            
-            model.addAttribute("customers", customers);
-            model.addAttribute("user", user);
-            model.addAttribute("pageTitle", "My Customers");
-            
-            return "customer/my-customers";
-            
-        } catch (Exception e) {
-            model.addAttribute("error", "Error loading customers: " + e.getMessage());
-            return "error/500";
-        }
+    public String showMyCustomers(Authentication authentication) {
+        // Redirect to existing dashboard until template is created
+        return "redirect:/employee/customer/dashboard";
     }
 
     @GetMapping("/create-customer")
-    public String showCreateCustomerForm(Model model, Authentication authentication) {
-        try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
-            
-            model.addAttribute("customer", new Customer());
-            model.addAttribute("user", user);
-            model.addAttribute("pageTitle", "Create Customer");
-            
-            return "customer/create-customer";
-            
-        } catch (Exception e) {
-            model.addAttribute("error", "Error loading form: " + e.getMessage());
-            return "error/500";
-        }
+    public String showCreateCustomerForm(Authentication authentication) {
+        // Redirect to create property owner as fallback
+        return "redirect:/employee/customer/create-property-owner";
     }
 
     @GetMapping("/by-type")
     public String showCustomersByType(@RequestParam(value = "type", required = false) String type,
-                                    Model model, Authentication authentication) {
-        try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
-            
-            List<Customer> customers = customerService.findByUserId(userId);
-            
-            // Filter by type if provided
-            if (type != null && !type.trim().isEmpty()) {
-                switch (type.toLowerCase()) {
-                    case "property-owners":
-                        customers = customers.stream()
-                            .filter(c -> Boolean.TRUE.equals(c.getIsPropertyOwner()))
-                            .collect(Collectors.toList());
-                        break;
-                    case "tenants":
-                        customers = customers.stream()
-                            .filter(c -> Boolean.TRUE.equals(c.getIsTenant()))
-                            .collect(Collectors.toList());
-                        break;
-                    case "contractors":
-                        customers = customers.stream()
-                            .filter(c -> Boolean.TRUE.equals(c.getIsContractor()))
-                            .collect(Collectors.toList());
-                        break;
-                }
-            }
-            
-            model.addAttribute("customers", customers);
-            model.addAttribute("user", user);
-            model.addAttribute("typeFilter", type);
-            model.addAttribute("pageTitle", "Customers by Type");
-            
-            return "customer/by-type";
-            
-        } catch (Exception e) {
-            model.addAttribute("error", "Error loading customers: " + e.getMessage());
-            return "error/500";
+                                    Authentication authentication) {
+        // Redirect based on type
+        if ("property-owners".equals(type)) {
+            return "redirect:/employee/customer/property-owners";
+        } else if ("tenants".equals(type)) {
+            return "redirect:/employee/customer/tenants";
+        } else if ("contractors".equals(type)) {
+            return "redirect:/employee/customer/contractors";
+        } else {
+            return "redirect:/employee/customer/dashboard";
         }
     }
 
