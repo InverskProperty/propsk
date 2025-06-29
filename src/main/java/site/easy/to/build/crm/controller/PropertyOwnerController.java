@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
  * Handles property owner authentication and their property portfolio view
  */
 @Controller
-@RequestMapping("/property-owner")
 public class PropertyOwnerController {
 
     // EXISTING FIELDS - Keep these as they are
@@ -67,11 +66,23 @@ public class PropertyOwnerController {
         this.authenticationUtils = authenticationUtils;
     }
 
+    // ===== EMPLOYEE PROPERTY OWNER MANAGEMENT ROUTES =====
+    
+    /**
+     * Handle /property/owner/{id} - redirect to customer details
+     */
+    @GetMapping("/property/owner/{id}")
+    public String propertyOwnerById(@PathVariable("id") Integer customerId) {
+        // Redirect to the customer details page for this property owner
+        return "redirect:/employee/customer/" + customerId;
+    }
+
+    // ===== CUSTOMER PORTAL ROUTES (for property owners who log in via customer-login) =====
+    
     /**
      * Property Owner Dashboard - Main landing page after login
      */
-
-    @GetMapping("/dashboard")
+    @GetMapping("/property-owner/dashboard")
     public String propertyOwnerDashboard(Model model, Authentication authentication) {
         System.out.println("🚀 PropertyOwnerController.propertyOwnerDashboard() - METHOD CALLED!");
         System.out.println("=== DEBUG: PropertyOwnerController.propertyOwnerDashboard ===");
@@ -203,7 +214,7 @@ public class PropertyOwnerController {
         }
     }
 
-    @GetMapping("/simple-test")
+    @GetMapping("/property-owner/simple-test")
     @ResponseBody
     public String simpleTest() {
         return "PropertyOwnerController is working! Time: " + new java.util.Date();
@@ -212,7 +223,7 @@ public class PropertyOwnerController {
     /**
      * Property Owner Portfolio - View all properties
      */
-    @GetMapping("/properties")
+    @GetMapping("/property-owner/properties")
     public String viewPortfolio(@RequestParam(value = "status", required = false) String status,
                             Model model, Authentication authentication) {
         try {
@@ -268,7 +279,7 @@ public class PropertyOwnerController {
     /**
      * Property Owner Property Details - View specific property
      */
-    @GetMapping("/property/{id}")
+    @GetMapping("/property-owner/property/{id}")
     public String viewPropertyDetails(@PathVariable("id") Long propertyId,
                                     Model model, Authentication authentication) {
         try {
@@ -309,7 +320,7 @@ public class PropertyOwnerController {
     /**
      * Property Owner Tenants - View all tenants across properties
      */
-    @GetMapping("/tenants")
+    @GetMapping("/property-owner/tenants")
     public String viewTenants(@RequestParam(value = "propertyId", required = false) Long propertyId,
                             Model model, Authentication authentication) {
         System.out.println("🔍 DEBUG: Starting viewTenants method");
@@ -391,7 +402,7 @@ public class PropertyOwnerController {
     /**
      * Property Owner Profile - View and edit profile
      */
-    @GetMapping("/profile")
+    @GetMapping("/property-owner/profile")
     public String viewProfile(Model model, Authentication authentication) {
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
@@ -415,7 +426,7 @@ public class PropertyOwnerController {
         }
     }
 
-    @GetMapping("/test")
+    @GetMapping("/property-owner/test")
     public String test() {
         return "property-owner/test";
     }
@@ -423,7 +434,7 @@ public class PropertyOwnerController {
     /**
      * Property Owner Financial Summary
      */
-    @GetMapping("/financials")
+    @GetMapping("/property-owner/financials")
     public String viewFinancials(Model model, Authentication authentication) {
         System.out.println("🔍 DEBUG: Starting BULLETPROOF financials method");
         try {
