@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- Editable CSS -->
+<link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.bootstrap4.css}">
+<link rel="stylesheet" type="text/css" th:href="@{/css/responsive.dataTables.min.css}">
+
+<!-- Custom CSS -->
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<!-- page css -->
+<link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
+
+<!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+</head>
+
+<body class="skin-blue fixed-layout">
+<!-- ============================================================== -->
+<!-- Preloader - style you can find in spinners.css -->
+<!-- ============================================================== -->
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+<!-- ============================================================== -->
+<!-- Main wrapper - style you can find in pages.scss -->
+<!-- ============================================================== -->
+<div id="main-wrapper">
+    <!-- ============================================================== -->
+    <!-- Topbar header - style you can find in pages.scss -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/header.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End Topbar header -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Page wrapper  -->
+    <!-- ============================================================== -->
+    <div class="page-wrapper">
+        <!-- ============================================================== -->
+        <!-- Container fluid  -->
+        <!-- ============================================================== -->
+        <div class="container-fluid">
+            <!-- ============================================================== -->
+            <!-- Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <div th:insert="~{general/page-titles.html}"></div>
+            <!-- ============================================================== -->
+            <!-- End Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <!-- ============================================================== -->
+            <!-- Start Page Content -->
+            <!-- ============================================================== -->
+            <div class="row">
+                <div class="col-lg-12">
+                    <!-- Success/Error Messages -->
+                    <div th:if="${successMessage}" class="alert alert-success">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-success"><i class="fa fa-check-circle"></i> Success</h3>
+                        <span th:text="${successMessage}"></span>
+                    </div>
+                    <div th:if="${errorMessage}" class="alert alert-danger">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-danger"><i class="fa fa-exclamation-circle"></i> Error</h3>
+                        <span th:text="${errorMessage}"></span>
+                    </div>
+
+                    <!-- Filter Controls -->
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-subtitle" th:text="'Search ' + ${customerType ?: 'customers'} + ' by name, email, or location'">Search customers</h6>
+                            <form method="get" class="form-inline m-t-20">
+                                <!-- Search input -->
+                                <div class="form-group m-r-20">
+                                    <label for="search" class="m-r-10">Search:</label>
+                                    <input type="text" name="search" id="search" class="form-control" 
+                                           th:value="${searchTerm}" placeholder="Enter name or email...">
+                                </div>
+                                
+                                <!-- Status filter for tenants -->
+                                <div th:if="${filterType == 'tenants'}" class="form-group m-r-20">
+                                    <label for="status" class="m-r-10">Status:</label>
+                                    <select name="status" id="status" class="form-control">
+                                        <option value="">All Statuses</option>
+                                        <option value="active" th:selected="${statusFilter == 'active'}">Active</option>
+                                        <option value="inactive" th:selected="${statusFilter == 'inactive'}">Inactive</option>
+                                        <option value="pending" th:selected="${statusFilter == 'pending'}">Pending</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- Status filter for contractors -->
+                                <div th:if="${filterType == 'contractors'}" class="form-group m-r-20">
+                                    <label for="status" class="m-r-10">Status:</label>
+                                    <select name="status" id="status" class="form-control">
+                                        <option value="">All Contractors</option>
+                                        <option value="preferred" th:selected="${statusFilter == 'preferred'}">Preferred Only</option>
+                                        <option value="emergency" th:selected="${statusFilter == 'emergency'}">Emergency Only</option>
+                                    </select>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary m-r-10">
+                                    <i class="fa fa-search"></i> Search
+                                </button>
+                                <a th:href="@{'/employee/customer/' + ${filterType ?: 'dashboard'}}" class="btn btn-secondary">
+                                    <i class="fa fa-times"></i> Clear
+                                </a>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Customer List -->
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h4 class="card-title" th:text="${customerType ?: 'Customer'} + ' Management'">Customer Management</h4>
+                                    <h6 class="card-subtitle">Total: <span th:text="${#lists.size(customers ?: {})}">0</span> 
+                                        <span th:text="${customerType?.toLowerCase() ?: 'customers'}">customers</span>
+                                    </h6>
+                                </div>
+                                <div>
+                                    <a th:href="${createUrl ?: '/employee/customer/create'}" class="btn btn-success m-r-10">
+                                        <i class="fa fa-plus"></i> Add New <span th:text="${customerType ?: 'Customer'}">Customer</span>
+                                    </a>
+                                    <a th:if="${filterType == 'tenants'}" href="/employee/customer/email-tenants" class="btn btn-info">
+                                        <i class="fa fa-envelope"></i> Email All
+                                    </a>
+                                    <a th:if="${filterType == 'property-owners'}" href="/employee/customer/email-property-owners" class="btn btn-info">
+                                        <i class="fa fa-envelope"></i> Email All
+                                    </a>
+                                    <a th:if="${filterType == 'contractors'}" href="/employee/ticket/contractor-bids" class="btn btn-warning">
+                                        <i class="fa fa-gavel"></i> View Bids
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <div th:if="${#lists.isEmpty(customers)}" class="text-center m-t-40">
+                                <!-- Dynamic icon based on customer type -->
+                                <i th:class="'fa ' + (${filterType == 'property-owners'} ? 'fa-building' : 
+                                                     ${filterType == 'tenants'} ? 'fa-users' : 
+                                                     ${filterType == 'contractors'} ? 'fa-tools' : 'fa-user')" 
+                                   style="font-size: 4em; color: #ccc;"></i>
+                                <h5 class="text-muted m-t-20">No <span th:text="${customerType?.toLowerCase() ?: 'customers'}">customers</span> found</h5>
+                                <p class="text-muted" 
+                                   th:text="'Start by adding ' + ${customerType?.toLowerCase() ?: 'customers'} + ' to manage them effectively.'">
+                                   Start by adding customers to manage them effectively.
+                                </p>
+                                <a th:href="${createUrl ?: '/employee/customer/create'}" class="btn btn-success">
+                                    <i class="fa fa-plus"></i> Add First <span th:text="${customerType ?: 'Customer'}">Customer</span>
+                                </a>
+                            </div>
+
+                            <div th:if="${!#lists.isEmpty(customers)}" class="table-responsive m-t-40">
+                                <table id="config-table" class="table display table-bordered table-striped no-wrap">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Contact Information</th>
+                                            <th>Location</th>
+                                            <th th:if="${filterType == 'contractors'}">Services</th>
+                                            <th th:if="${filterType == 'tenants'}">Property</th>
+                                            <th th:if="${filterType == 'property-owners'}">Properties</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="customer : ${customers}">
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="m-r-10">
+                                                        <!-- Dynamic icon based on customer type -->
+                                                        <i th:class="'fa ' + (${customer.isPropertyOwner} ? 'fa-building text-success' : 
+                                                                             ${customer.isTenant} ? 'fa-user text-primary' : 
+                                                                             ${customer.isContractor} ? 'fa-tools text-warning' : 'fa-user text-info')"></i>
+                                                    </div>
+                                                    <div>
+                                                        <strong th:text="${customer.name}">Customer Name</strong>
+                                                        <br>
+                                                        <small class="text-muted" th:text="${customer.typeDisplayName ?: 'Customer'}">Customer Type</small>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div th:if="${customer.email}">
+                                                    <i class="fa fa-envelope text-primary"></i>
+                                                    <span th:text="${customer.email}">email@example.com</span>
+                                                </div>
+                                                <div th:if="${customer.phone}" class="m-t-5">
+                                                    <i class="fa fa-phone text-success"></i>
+                                                    <span th:text="${customer.phone}">+44 123 456 789</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div th:if="${customer.city}">
+                                                    <i class="fa fa-map-marker text-info"></i>
+                                                    <span th:text="${customer.city}">City</span>
+                                                </div>
+                                                <div th:if="${customer.state}">
+                                                    <small class="text-muted" th:text="${customer.state}">State</small>
+                                                </div>
+                                                <div th:if="${customer.country}">
+                                                    <small class="text-muted" th:text="${customer.country}">Country</small>
+                                                </div>
+                                            </td>
+                                            
+                                            <!-- Services column for contractors -->
+                                            <td th:if="${filterType == 'contractors'}">
+                                                <div class="d-flex flex-wrap">
+                                                    <span class="label label-info m-r-5 m-b-5">
+                                                        <i class="fa fa-wrench"></i> General
+                                                    </span>
+                                                    <!-- Add more service badges based on your contractor entity -->
+                                                </div>
+                                            </td>
+                                            
+                                            <!-- Property column for tenants -->
+                                            <td th:if="${filterType == 'tenants'}">
+                                                <span class="text-muted">Property info pending</span>
+                                            </td>
+                                            
+                                            <!-- Properties column for property owners -->
+                                            <td th:if="${filterType == 'property-owners'}">
+                                                <span class="label label-info">
+                                                    <i class="fa fa-home"></i> Properties
+                                                </span>
+                                            </td>
+                                            
+                                            <td>
+                                                <!-- Dynamic status based on customer type -->
+                                                <span th:if="${customer.payPropSynced}" class="label label-success">Synced</span>
+                                                <span th:unless="${customer.payPropSynced}" class="label label-warning">Pending Sync</span>
+                                                
+                                                <div class="m-t-5">
+                                                    <span class="label label-info" th:text="${customer.customerType?.name() ?: 'REGULAR'}">Type</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <a th:href="@{'/employee/customer/' + ${customer.customerId}}" class="btn btn-sm btn-info m-r-5" title="View Details">
+                                                    <i class="fa fa-eye"></i>
+                                                </a>
+                                                <a th:href="@{'/employee/customer/' + ${customer.customerId} + '/edit'}" class="btn btn-sm btn-warning m-r-5" title="Edit">
+                                                    <i class="fa fa-edit"></i>
+                                                </a>
+                                                
+                                                <!-- Conditional action buttons based on customer type -->
+                                                <a th:if="${customer.isPropertyOwner}" 
+                                                   th:href="@{'/property/owner/' + ${customer.customerId}}" 
+                                                   class="btn btn-sm btn-success" title="View Properties">
+                                                    <i class="fa fa-building"></i>
+                                                </a>
+                                                
+                                                <a th:if="${customer.isContractor}" 
+                                                   th:href="@{'/employee/ticket/create-ticket?contractorId=' + ${customer.customerId}}" 
+                                                   class="btn btn-sm btn-success" title="Assign Job">
+                                                    <i class="fa fa-plus"></i>
+                                                </a>
+                                                
+                                                <button th:if="${customer.isTenant}" 
+                                                        type="button" class="btn btn-sm btn-danger" title="Delete"
+                                                        th:onclick="'deleteCustomer(' + ${customer.customerId} + ', \'' + ${customer.name} + '\')'">
+                                                    <i class="fa fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ============================================================== -->
+            <!-- End Page Content -->
+            <!-- ============================================================== -->
+            <!-- ============================================================== -->
+            <!-- Right sidebar -->
+            <!-- ============================================================== -->
+            <div th:insert="~{general/right-sidebar.html}"></div>
+            <!-- ============================================================== -->
+            <!-- End Right sidebar -->
+            <!-- ============================================================== -->
+        </div>
+        <!-- ============================================================== -->
+        <!-- End Container fluid  -->
+        <!-- ============================================================== -->
+    </div>
+    <!-- ============================================================== -->
+    <!-- End Page wrapper  -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- footer -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/footer.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End footer -->
+    <!-- ============================================================== -->
+</div>
+<!-- ============================================================== -->
+<!-- End Wrapper -->
+<!-- ============================================================== -->
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Confirm Delete</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="customerName"></strong>?</p>
+                <p class="text-danger">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="post" style="display: inline;">
+                    <input type="hidden" name="_method" value="delete">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- All Jquery -->
+<!-- ============================================================== -->
+<script th:inline="javascript">
+    var home = /*[[${home}]]*/ null;
+</script>
+<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
+<!-- Editable -->
+<script th:src="@{/js/library/jquery.dataTables.min.js}"></script>
+<script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
+
+<script>
+$('#config-table').DataTable({
+    responsive: true
+});
+
+function deleteCustomer(customerId, customerName) {
+    document.getElementById('customerName').textContent = customerName;
+    document.getElementById('deleteForm').action = '/employee/customer/' + customerId + '/delete';
+    $('#deleteModal').modal('show');
+}
+</script>
+</body>
+</html>
