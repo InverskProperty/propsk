@@ -3,7 +3,6 @@ package site.easy.to.build.crm.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import org.hibernate.mapping.ToOne;
 
 import java.time.LocalDateTime;
 
@@ -30,8 +29,12 @@ public class Ticket {
     @Column(name = "priority")
     @NotBlank(message = "Priority is required")
     @Pattern(regexp = "^(low|medium|high|closed|urgent|critical)$", message = "Invalid priority")
-
     private String priority;
+
+    // ADDED: Type field for categorizing tickets
+    @Column(name = "type")
+    @Pattern(regexp = "^(maintenance|support|billing|general|complaint|request)$", message = "Invalid ticket type")
+    private String type;
 
     @ManyToOne
     @JoinColumn(name = "manager_id")
@@ -51,17 +54,19 @@ public class Ticket {
     public Ticket() {
     }
 
-    public Ticket(String subject, String description, String status, String priority, User manager, User employee, Customer customer, LocalDateTime createdAt) {
+    public Ticket(String subject, String description, String status, String priority, String type, User manager, User employee, Customer customer, LocalDateTime createdAt) {
         this.subject = subject;
         this.description = description;
         this.status = status;
         this.priority = priority;
+        this.type = type;
         this.manager = manager;
         this.employee = employee;
         this.customer = customer;
         this.createdAt = createdAt;
     }
 
+    // Existing getters and setters...
     public int getTicketId() {
         return ticketId;
     }
@@ -100,6 +105,15 @@ public class Ticket {
 
     public void setPriority(String priority) {
         this.priority = priority;
+    }
+
+    // ADDED: Getter and setter for type field
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 
     public User getManager() {
