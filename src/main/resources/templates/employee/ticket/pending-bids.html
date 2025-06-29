@@ -15,6 +15,26 @@
 <!-- page css -->
 <link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
 
+<!-- SIDEBAR SCROLL FIX -->
+<style>
+.scroll-sidebar {
+    height: calc(100vh - 60px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+.left-sidebar {
+    position: fixed !important;
+    height: 100vh !important;
+    overflow: hidden !important;
+}
+
+/* Ensure perfect scrollbar fallback */
+.ps__rail-y {
+    display: block !important;
+}
+</style>
+
 <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
 <!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
@@ -315,29 +335,20 @@
 <script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/sticky-kit.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
 <script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
 <!-- Editable -->
-<script th:src="@{/js/library/jquery.dataTables.min.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/dataTables.responsive.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/jquery.dataTables.min.js}"></script>
+<script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
 
 <script>
-// Wait for all scripts to load before initializing
-$(document).ready(function() {
-    // Initialize DataTable
-    $('#config-table').DataTable({
-        responsive: true,
-        order: [[6, 'desc']], // Sort by created date descending
-        columnDefs: [
-            { targets: [7], orderable: false } // Disable sorting on Actions column
-        ]
-    });
-
-    // Ensure perfect scrollbar is initialized properly
-    if (typeof $.fn.perfectScrollbar !== 'undefined') {
-        $('.scroll-sidebar').perfectScrollbar();
-    }
+$('#config-table').DataTable({
+    responsive: true,
+    order: [[6, 'desc']], // Sort by created date descending
+    columnDefs: [
+        { targets: [7], orderable: false } // Disable sorting on Actions column
+    ]
 });
 
 function showBidModal(ticketId, ticketSubject) {
