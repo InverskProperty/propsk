@@ -22,13 +22,20 @@
     <!-- Font Awesome -->
     <link th:href="@{/css/all.css}" rel="stylesheet">
     
-    <!-- Fix for white-on-white text issue -->
+    <!-- Fix for text contrast issues -->
     <style>
         .text-muted {
             color: #6c757d !important;
         }
         .card-body {
             color: #495057 !important;
+        }
+        /* Override for colored card backgrounds - this fixes the white-on-white issue */
+        .card-inverse .card-body,
+        .card-inverse .card-body h2,
+        .card-inverse .card-body h6,
+        .card-inverse .card-body .text-white {
+            color: #ffffff !important;
         }
         .list-group-item {
             color: #495057 !important;
@@ -206,7 +213,6 @@
                         </div>
                         <div class="card-body">
                             <div class="list-group list-group-flush">
-                                <!-- FIXED: Updated URLs to property-owner paths -->
                                 <a href="/portfolio/create" class="list-group-item list-group-item-action">
                                     <i class="fas fa-plus text-success"></i> Create Portfolio
                                 </a>
@@ -382,4 +388,3 @@ function showComingSoon(feature) {
 
 </body>
 </html>
-
