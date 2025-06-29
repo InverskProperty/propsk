@@ -156,10 +156,10 @@
                             
                             <div th:if="${#lists.isEmpty(customers)}" class="text-center m-t-40">
                                 <!-- Dynamic icon based on customer type -->
-                                <i th:class="'fa ' + (${filterType == 'property-owners'} ? 'fa-building' : 
-                                                     ${filterType == 'tenants'} ? 'fa-users' : 
-                                                     ${filterType == 'contractors'} ? 'fa-tools' : 'fa-user')" 
-                                   style="font-size: 4em; color: #ccc;"></i>
+                                <i th:if="${filterType == 'property-owners'}" class="fa fa-building" style="font-size: 4em; color: #ccc;"></i>
+                                <i th:if="${filterType == 'tenants'}" class="fa fa-users" style="font-size: 4em; color: #ccc;"></i>
+                                <i th:if="${filterType == 'contractors'}" class="fa fa-tools" style="font-size: 4em; color: #ccc;"></i>
+                                <i th:if="${filterType != 'property-owners' && filterType != 'tenants' && filterType != 'contractors'}" class="fa fa-user" style="font-size: 4em; color: #ccc;"></i>
                                 <h5 class="text-muted m-t-20">No <span th:text="${customerType?.toLowerCase() ?: 'customers'}">customers</span> found</h5>
                                 <p class="text-muted" 
                                    th:text="'Start by adding ' + ${customerType?.toLowerCase() ?: 'customers'} + ' to manage them effectively.'">
