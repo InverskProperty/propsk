@@ -88,7 +88,7 @@
                     <!-- Filter Controls -->
                     <div class="card">
                         <div class="card-body">
-                            <h6 class="card-subtitle" th:text="'Search ' + ${customerType ?: 'customers'} + ' by name, email, or location'">Search customers</h6>
+                            <h6 class="card-subtitle">Search customers by name, email, or location</h6>
                             <form method="get" class="form-inline m-t-20">
                                 <!-- Search input -->
                                 <div class="form-group m-r-20">
@@ -97,31 +97,10 @@
                                            th:value="${searchTerm}" placeholder="Enter name or email...">
                                 </div>
                                 
-                                <!-- Status filter for tenants -->
-                                <div th:if="${filterType == 'tenants'}" class="form-group m-r-20">
-                                    <label for="status" class="m-r-10">Status:</label>
-                                    <select name="status" id="status" class="form-control">
-                                        <option value="">All Statuses</option>
-                                        <option value="active" th:selected="${statusFilter == 'active'}">Active</option>
-                                        <option value="inactive" th:selected="${statusFilter == 'inactive'}">Inactive</option>
-                                        <option value="pending" th:selected="${statusFilter == 'pending'}">Pending</option>
-                                    </select>
-                                </div>
-                                
-                                <!-- Status filter for contractors -->
-                                <div th:if="${filterType == 'contractors'}" class="form-group m-r-20">
-                                    <label for="status" class="m-r-10">Status:</label>
-                                    <select name="status" id="status" class="form-control">
-                                        <option value="">All Contractors</option>
-                                        <option value="preferred" th:selected="${statusFilter == 'preferred'}">Preferred Only</option>
-                                        <option value="emergency" th:selected="${statusFilter == 'emergency'}">Emergency Only</option>
-                                    </select>
-                                </div>
-                                
                                 <button type="submit" class="btn btn-primary m-r-10">
                                     <i class="fa fa-search"></i> Search
                                 </button>
-                                <a th:href="@{'/employee/customer/' + ${filterType ?: 'dashboard'}}" class="btn btn-secondary">
+                                <a href="/employee/customer/property-owners" class="btn btn-secondary">
                                     <i class="fa fa-times"></i> Clear
                                 </a>
                             </form>
@@ -133,40 +112,25 @@
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <h4 class="card-title" th:text="${customerType ?: 'Customer'} + ' Management'">Customer Management</h4>
-                                    <h6 class="card-subtitle">Total: <span th:text="${#lists.size(customers ?: {})}">0</span> 
-                                        <span th:text="${customerType?.toLowerCase() ?: 'customers'}">customers</span>
-                                    </h6>
+                                    <h4 class="card-title">Property Owner Management</h4>
+                                    <h6 class="card-subtitle">Total: <span th:text="${#lists.size(customers ?: {})}">0</span> property owners</h6>
                                 </div>
                                 <div>
-                                    <a th:href="${createUrl ?: '/employee/customer/create'}" class="btn btn-success m-r-10">
-                                        <i class="fa fa-plus"></i> Add New <span th:text="${customerType ?: 'Customer'}">Customer</span>
+                                    <a href="/employee/customer/create-property-owner" class="btn btn-success m-r-10">
+                                        <i class="fa fa-plus"></i> Add New Property Owner
                                     </a>
-                                    <a th:if="${filterType == 'tenants'}" href="/employee/customer/email-tenants" class="btn btn-info">
+                                    <a href="/employee/customer/email-property-owners" class="btn btn-info">
                                         <i class="fa fa-envelope"></i> Email All
-                                    </a>
-                                    <a th:if="${filterType == 'property-owners'}" href="/employee/customer/email-property-owners" class="btn btn-info">
-                                        <i class="fa fa-envelope"></i> Email All
-                                    </a>
-                                    <a th:if="${filterType == 'contractors'}" href="/employee/ticket/contractor-bids" class="btn btn-warning">
-                                        <i class="fa fa-gavel"></i> View Bids
                                     </a>
                                 </div>
                             </div>
                             
                             <div th:if="${#lists.isEmpty(customers)}" class="text-center m-t-40">
-                                <!-- Dynamic icon based on customer type -->
-                                <i th:if="${filterType == 'property-owners'}" class="fa fa-building" style="font-size: 4em; color: #ccc;"></i>
-                                <i th:if="${filterType == 'tenants'}" class="fa fa-users" style="font-size: 4em; color: #ccc;"></i>
-                                <i th:if="${filterType == 'contractors'}" class="fa fa-tools" style="font-size: 4em; color: #ccc;"></i>
-                                <i th:if="${filterType != 'property-owners' && filterType != 'tenants' && filterType != 'contractors'}" class="fa fa-user" style="font-size: 4em; color: #ccc;"></i>
-                                <h5 class="text-muted m-t-20">No <span th:text="${customerType?.toLowerCase() ?: 'customers'}">customers</span> found</h5>
-                                <p class="text-muted" 
-                                   th:text="'Start by adding ' + ${customerType?.toLowerCase() ?: 'customers'} + ' to manage them effectively.'">
-                                   Start by adding customers to manage them effectively.
-                                </p>
-                                <a th:href="${createUrl ?: '/employee/customer/create'}" class="btn btn-success">
-                                    <i class="fa fa-plus"></i> Add First <span th:text="${customerType ?: 'Customer'}">Customer</span>
+                                <i class="fa fa-building" style="font-size: 4em; color: #ccc;"></i>
+                                <h5 class="text-muted m-t-20">No property owners found</h5>
+                                <p class="text-muted">Start by adding property owners to manage their portfolios.</p>
+                                <a href="/employee/customer/create-property-owner" class="btn btn-success">
+                                    <i class="fa fa-plus"></i> Add First Property Owner
                                 </a>
                             </div>
 
@@ -174,12 +138,10 @@
                                 <table id="config-table" class="table display table-bordered table-striped no-wrap">
                                     <thead>
                                         <tr>
-                                            <th>Name</th>
+                                            <th>Owner Details</th>
                                             <th>Contact Information</th>
                                             <th>Location</th>
-                                            <th th:if="${filterType == 'contractors'}">Services</th>
-                                            <th th:if="${filterType == 'tenants'}">Property</th>
-                                            <th th:if="${filterType == 'property-owners'}">Properties</th>
+                                            <th>Properties</th>
                                             <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
@@ -189,15 +151,12 @@
                                             <td>
                                                 <div class="d-flex align-items-center">
                                                     <div class="m-r-10">
-                                                        <!-- Dynamic icon based on customer type -->
-                                                        <i th:class="'fa ' + (${customer.isPropertyOwner} ? 'fa-building text-success' : 
-                                                                             ${customer.isTenant} ? 'fa-user text-primary' : 
-                                                                             ${customer.isContractor} ? 'fa-tools text-warning' : 'fa-user text-info')"></i>
+                                                        <i class="fa fa-building text-success"></i>
                                                     </div>
                                                     <div>
                                                         <strong th:text="${customer.name}">Customer Name</strong>
                                                         <br>
-                                                        <small class="text-muted" th:text="${customer.typeDisplayName ?: 'Customer'}">Customer Type</small>
+                                                        <small class="text-muted">Property Owner</small>
                                                     </div>
                                                 </div>
                                             </td>
@@ -223,36 +182,17 @@
                                                     <small class="text-muted" th:text="${customer.country}">Country</small>
                                                 </div>
                                             </td>
-                                            
-                                            <!-- Services column for contractors -->
-                                            <td th:if="${filterType == 'contractors'}">
-                                                <div class="d-flex flex-wrap">
-                                                    <span class="label label-info m-r-5 m-b-5">
-                                                        <i class="fa fa-wrench"></i> General
-                                                    </span>
-                                                    <!-- Add more service badges based on your contractor entity -->
-                                                </div>
-                                            </td>
-                                            
-                                            <!-- Property column for tenants -->
-                                            <td th:if="${filterType == 'tenants'}">
-                                                <span class="text-muted">Property info pending</span>
-                                            </td>
-                                            
-                                            <!-- Properties column for property owners -->
-                                            <td th:if="${filterType == 'property-owners'}">
+                                            <td>
                                                 <span class="label label-info">
                                                     <i class="fa fa-home"></i> Properties
                                                 </span>
                                             </td>
-                                            
                                             <td>
-                                                <!-- Dynamic status based on customer type -->
                                                 <span th:if="${customer.payPropSynced}" class="label label-success">Synced</span>
                                                 <span th:unless="${customer.payPropSynced}" class="label label-warning">Pending Sync</span>
                                                 
                                                 <div class="m-t-5">
-                                                    <span class="label label-info" th:text="${customer.customerType?.name() ?: 'REGULAR'}">Type</span>
+                                                    <span class="label label-info">PROPERTY_OWNER</span>
                                                 </div>
                                             </td>
                                             <td>
@@ -262,25 +202,9 @@
                                                 <a th:href="@{'/employee/customer/' + ${customer.customerId} + '/edit'}" class="btn btn-sm btn-warning m-r-5" title="Edit">
                                                     <i class="fa fa-edit"></i>
                                                 </a>
-                                                
-                                                <!-- Conditional action buttons based on customer type -->
-                                                <a th:if="${customer.isPropertyOwner}" 
-                                                   th:href="@{'/property/owner/' + ${customer.customerId}}" 
-                                                   class="btn btn-sm btn-success" title="View Properties">
+                                                <a th:href="@{'/property/owner/' + ${customer.customerId}}" class="btn btn-sm btn-success" title="View Properties">
                                                     <i class="fa fa-building"></i>
                                                 </a>
-                                                
-                                                <a th:if="${customer.isContractor}" 
-                                                   th:href="@{'/employee/ticket/create-ticket?contractorId=' + ${customer.customerId}}" 
-                                                   class="btn btn-sm btn-success" title="Assign Job">
-                                                    <i class="fa fa-plus"></i>
-                                                </a>
-                                                
-                                                <button th:if="${customer.isTenant}" 
-                                                        type="button" class="btn btn-sm btn-danger" title="Delete"
-                                                        th:onclick="'deleteCustomer(' + ${customer.customerId} + ', \'' + ${customer.name} + '\')'">
-                                                    <i class="fa fa-trash"></i>
-                                                </button>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -320,29 +244,6 @@
 <!-- End Wrapper -->
 <!-- ============================================================== -->
 
-<!-- Delete Confirmation Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">Confirm Delete</h4>
-                <button type="button" class="close" data-dismiss="modal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete <strong id="customerName"></strong>?</p>
-                <p class="text-danger">This action cannot be undone.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                <form id="deleteForm" method="post" style="display: inline;">
-                    <input type="hidden" name="_method" value="delete">
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- ============================================================== -->
 <!-- All Jquery -->
 <!-- ============================================================== -->
@@ -366,12 +267,6 @@
 $('#config-table').DataTable({
     responsive: true
 });
-
-function deleteCustomer(customerId, customerName) {
-    document.getElementById('customerName').textContent = customerName;
-    document.getElementById('deleteForm').action = '/employee/customer/' + customerId + '/delete';
-    $('#deleteModal').modal('show');
-}
 </script>
 </body>
 </html>
