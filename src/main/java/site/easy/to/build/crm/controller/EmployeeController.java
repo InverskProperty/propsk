@@ -166,20 +166,6 @@ public class EmployeeController {
         return "employee/ticket/manager/all-tickets";
     }
 
-    /**
-     * Show contractor bids
-     */
-    @GetMapping("/ticket/contractor-bids")
-    public String showContractorBids(Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-
-        // This would depend on your ticket/bid system implementation
-        model.addAttribute("bids", ticketService.findAllBids());
-        return "employee/ticket/contractor-bids";
-    }
-
     // ===== AJAX/API ENDPOINTS =====
 
     /**
