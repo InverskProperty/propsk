@@ -30,6 +30,8 @@ import java.util.HashMap;
 /**
  * Employee Controller - Handles all /employee/** routes for dashboard functionality
  * Accessible to users with MANAGER or EMPLOYEE roles
+ * 
+ * NOTE: Customer-related routes are handled by CustomerController to avoid conflicts
  */
 @Controller
 @RequestMapping("/employee")
@@ -89,10 +91,11 @@ public class EmployeeController {
         return "employee/dashboard";
     }
 
-    // ===== TENANT MANAGEMENT =====
-
+    // ===== TENANT MANAGEMENT (ENTITIES) =====
+    // NOTE: These handle Tenant entities, not Customer entities
+    
     /**
-     * Show tenant creation form
+     * Show tenant creation form (Tenant entity, not Customer)
      */
     @GetMapping("/tenant/create-tenant")
     public String showCreateTenantForm(@RequestParam(required = false) Long propertyId, 
@@ -113,7 +116,7 @@ public class EmployeeController {
     }
 
     /**
-     * Process tenant creation
+     * Process tenant creation (Tenant entity, not Customer)
      */
     @PostMapping("/tenant/create-tenant")
     public String createTenant(@Valid @ModelAttribute Tenant tenant,
@@ -131,205 +134,11 @@ public class EmployeeController {
         try {
             tenantService.save(tenant);
             redirectAttributes.addFlashAttribute("successMessage", "Tenant created successfully");
-            return "redirect:/employee/customer/tenants";
+            return "redirect:/employee/customer/tenants"; // Redirect to CustomerController
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("errorMessage", "Error creating tenant: " + e.getMessage());
             return "redirect:/employee/tenant/create-tenant";
         }
-    }
-
-    // ===== CUSTOMER MANAGEMENT =====
-
-    /**
-     * List all tenants
-     */
-    @GetMapping("/customer/tenants")
-    public String listTenants(@RequestParam(required = false) String status,
-                             Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-
-        List<Tenant> tenants;
-        if ("active".equals(status)) {
-            tenants = tenantService.findByStatus("active");
-        } else {
-            tenants = tenantService.findAll();
-        }
-
-        model.addAttribute("tenants", tenants);
-        model.addAttribute("statusFilter", status);
-        return "employee/customer/tenants";
-    }
-
-    /**
-     * List property owners
-     */
-    @GetMapping("/customer/property-owners")
-    public String listPropertyOwners(@RequestParam(required = false) String owner,
-                                   Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-
-        List<PropertyOwner> owners;
-        if (owner != null && !owner.isEmpty()) {
-            owners = propertyOwnerService.findByNameContaining(owner);
-        } else {
-            owners = propertyOwnerService.findAll();
-        }
-
-        model.addAttribute("propertyOwners", owners);
-        model.addAttribute("ownerFilter", owner);
-        return "employee/customer/property-owners";
-    }
-
-    /**
-     * List contractors
-     */
-    @GetMapping("/customer/contractors")
-    public String listContractors(@RequestParam(required = false) String preferred,
-                                 @RequestParam(required = false) String emergency,
-                                 Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-
-        List<Contractor> contractors;
-        
-        if ("true".equals(preferred)) {
-            contractors = contractorService.findPreferredContractors();
-        } else if ("true".equals(emergency)) {
-            contractors = contractorService.findEmergencyContractors();
-        } else {
-            contractors = contractorService.findAll();
-        }
-
-        model.addAttribute("contractors", contractors);
-        model.addAttribute("preferredFilter", preferred);
-        model.addAttribute("emergencyFilter", emergency);
-        return "employee/customer/contractors";
-    }
-
-    /**
-     * Show tenant creation form (alternative route)
-     */
-    @GetMapping("/customer/create-tenant")
-    public String showCreateTenantFormAlt(Model model, Authentication authentication) {
-        return showCreateTenantForm(null, model, authentication);
-    }
-
-    /**
-     * Show contractor creation form
-     */
-    @GetMapping("/customer/create-contractor")
-    public String showCreateContractorForm(Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-
-        model.addAttribute("contractor", new Contractor());
-        return "employee/customer/create-contractor";
-    }
-
-    /**
-     * Process contractor creation
-     */
-    @PostMapping("/customer/create-contractor")
-    public String createContractor(@Valid @ModelAttribute Contractor contractor,
-                                  BindingResult result,
-                                  RedirectAttributes redirectAttributes,
-                                  Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-
-        if (result.hasErrors()) {
-            return "employee/customer/create-contractor";
-        }
-
-        try {
-            contractorService.save(contractor);
-            redirectAttributes.addFlashAttribute("successMessage", "Contractor created successfully");
-            return "redirect:/employee/customer/contractors";
-        } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Error creating contractor: " + e.getMessage());
-            return "redirect:/employee/customer/create-contractor";
-        }
-    }
-
-    // ===== EMAIL MANAGEMENT =====
-
-    /**
-     * Email property owners page
-     */
-    @GetMapping("/customer/email-property-owners")
-    public String emailPropertyOwnersForm(Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-
-        model.addAttribute("propertyOwners", propertyOwnerService.findAll());
-        return "employee/customer/email-property-owners";
-    }
-
-    /**
-     * Send email to property owners
-     */
-    @PostMapping("/customer/email-property-owners")
-    public String sendEmailToPropertyOwners(@RequestParam String subject,
-                                          @RequestParam String message,
-                                          @RequestParam(required = false) List<Long> ownerIds,
-                                          RedirectAttributes redirectAttributes,
-                                          Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-
-        try {
-            emailService.sendBulkEmailToPropertyOwners(subject, message, ownerIds);
-            redirectAttributes.addFlashAttribute("successMessage", "Emails sent successfully");
-        } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Error sending emails: " + e.getMessage());
-        }
-
-        return "redirect:/employee/customer/email-property-owners";
-    }
-
-    /**
-     * Email tenants page
-     */
-    @GetMapping("/customer/email-tenants")
-    public String emailTenantsForm(Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-
-        model.addAttribute("tenants", tenantService.findAll());
-        return "employee/customer/email-tenants";
-    }
-
-    /**
-     * Send email to tenants
-     */
-    @PostMapping("/customer/email-tenants")
-    public String sendEmailToTenants(@RequestParam String subject,
-                                   @RequestParam String message,
-                                   @RequestParam(required = false) List<Long> tenantIds,
-                                   RedirectAttributes redirectAttributes,
-                                   Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-
-        try {
-            emailService.sendBulkEmailToTenants(subject, message, tenantIds);
-            redirectAttributes.addFlashAttribute("successMessage", "Emails sent successfully");
-        } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Error sending emails: " + e.getMessage());
-        }
-
-        return "redirect:/employee/customer/email-tenants";
     }
 
     // ===== TICKET MANAGEMENT =====
@@ -374,7 +183,7 @@ public class EmployeeController {
     // ===== AJAX/API ENDPOINTS =====
 
     /**
-     * Get tenant data for AJAX requests
+     * Get tenant data for AJAX requests (Tenant entities)
      */
     @GetMapping("/api/tenants")
     @ResponseBody
@@ -395,7 +204,7 @@ public class EmployeeController {
     }
 
     /**
-     * Get property owners data for AJAX requests
+     * Get property owners data for AJAX requests (PropertyOwner entities)
      */
     @GetMapping("/api/property-owners")
     @ResponseBody
@@ -408,7 +217,7 @@ public class EmployeeController {
     }
 
     /**
-     * Get contractors data for AJAX requests
+     * Get contractors data for AJAX requests (Contractor entities)
      */
     @GetMapping("/api/contractors")
     @ResponseBody
