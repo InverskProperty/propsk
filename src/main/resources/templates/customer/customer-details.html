@@ -4,16 +4,11 @@
 <div th:insert="~{general/head.html}"></div>
 <meta name="_csrf" content="${_csrf.token}"/>
 <meta name="_csrf_header" content="${_csrf.headerName}"/>
-<link rel="stylesheet" th:href="@{/css/bootstrap-wysihtml5.css}"/>
-<!-- Editable CSS -->
 
 <!-- Custom CSS -->
 <link th:href="@{/css/style.min.css}" rel="stylesheet">
-<!-- page css -->
-<link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
 
 <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
-<!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
 <!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
 <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
@@ -67,65 +62,202 @@
             <!-- Start Page Content -->
             <!-- ============================================================== -->
             <div class="row">
-                <div class="col-lg-4 col-xlg-3 col-md-5">
-                    <div class="card">
-                        <div class="card-body">
-                            <center class="m-t-30"> <img th:src="@{/images/pp.png}" class="img-circle" width="150" />
-                                <h4 class="card-title m-t-10" th:text="${customer.name}"></h4>
-                                <h6 class="card-subtitle" th:text="${customer.position}"></h6>
-                            </center>
-                        </div>
-                        <div>
-                            <hr>
-                        </div>
-                        <div class="card-body">
-                            <small class="text-muted">Email address </small>
-                            <h6 th:text="${customer.email}"></h6>
-                            <small class="text-muted p-t-30 db">Phone</small>
-                            <h6 th:text="${customer.phone}"></h6>
-                            <small class="text-muted p-t-30 db">Address</small>
-                            <h6 th:text="${customer.address}"></h6>
-                            <small class="text-muted p-t-30 db">Social Profile</small>
-                            <br/>
-                            <a th:href="${customer.facebook}" target="_blank"><button class="btn btn-circle btn-secondary"><i class="fab fa-facebook-f"></i></button></a>
-                            <a th:href="${customer.twitter}" target="_blank"><button class="btn btn-circle btn-secondary"><i class="fab fa-twitter"></i></button></a>
-                            <a th:href="${customer.youtube}" target="_blank"><button class="btn btn-circle btn-secondary"><i class="fab fa-youtube"></i></button></a>
-                        </div>
+                <div class="col-lg-12">
+                    <!-- Success/Error Messages -->
+                    <div th:if="${successMessage}" class="alert alert-success">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-success"><i class="fa fa-check-circle"></i> Success</h3>
+                        <span th:text="${successMessage}"></span>
                     </div>
-                </div>
-                <!-- Column -->
-                <!-- Column -->
-                <div class="col-lg-8 col-xlg-9 col-md-7">
+                    <div th:if="${errorMessage}" class="alert alert-danger">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-danger"><i class="fa fa-exclamation-circle"></i> Error</h3>
+                        <span th:text="${errorMessage}"></span>
+                    </div>
+
+                    <!-- Customer Details -->
                     <div class="card">
-                        <!-- Nav tabs -->
-                        <ul class="nav nav-tabs profile-tab" role="tablist">
-                            <li class="nav-item"> <a class="nav-link active" data-toggle="tab" href="#profile" role="tab">Profile</a> </li>
-                        </ul>
-                        <!-- Tab panes -->
-                        <div class="tab-content">
-                            <!--second tab-->
-                            <div class="tab-pane active" id="profile" role="tabpanel">
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-md-3 col-xs-6 b-r"> <strong>Full Name</strong>
-                                            <br>
-                                            <p class="text-muted" th:text="${customer.name}"></p>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center m-b-30">
+                                <div>
+                                    <h4 class="card-title" th:text="${customerTypeDisplay ?: 'Customer'} + ' Details'">Customer Details</h4>
+                                    <h6 class="card-subtitle" th:text="${customer.name}">Customer Name</h6>
+                                </div>
+                                <div>
+                                    <a th:href="${backUrl ?: '/employee/customer/dashboard'}" class="btn btn-secondary m-r-10">
+                                        <i class="fa fa-arrow-left"></i> Back to List
+                                    </a>
+                                    <a th:href="@{'/employee/customer/' + ${customer.customerId} + '/edit'}" class="btn btn-warning m-r-10">
+                                        <i class="fa fa-edit"></i> Edit
+                                    </a>
+                                    <button type="button" class="btn btn-success" data-toggle="modal" data-target="#createLoginModal"
+                                            th:if="${customer.customerLoginInfo == null}">
+                                        <i class="fa fa-key"></i> Create Login
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <!-- Basic Information -->
+                                <div class="col-lg-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5><i class="fa fa-user"></i> Basic Information</h5>
                                         </div>
-                                        <div class="col-md-3 col-xs-6 b-r"> <strong>Mobile</strong>
-                                            <br>
-                                            <p class="text-muted" th:text="${customer.phone}"></p>
-                                        </div>
-                                        <div class="col-md-3 col-xs-6 b-r"> <strong>Email</strong>
-                                            <br>
-                                            <p class="text-muted" th:text="${customer.email}"></p>
-                                        </div>
-                                        <div class="col-md-3 col-xs-6"> <strong>Location</strong>
-                                            <br>
-                                            <p class="text-muted" th:text="${customer.country}"></p>
+                                        <div class="card-body">
+                                            <table class="table table-borderless">
+                                                <tr>
+                                                    <td><strong>Name:</strong></td>
+                                                    <td th:text="${customer.name}">Customer Name</td>
+                                                </tr>
+                                                <tr>
+                                                    <td><strong>Email:</strong></td>
+                                                    <td>
+                                                        <a th:href="'mailto:' + ${customer.email}" th:text="${customer.email}">email@example.com</a>
+                                                    </td>
+                                                </tr>
+                                                <tr th:if="${customer.phone}">
+                                                    <td><strong>Phone:</strong></td>
+                                                    <td th:text="${customer.phone}">+44 123 456 789</td>
+                                                </tr>
+                                                <tr th:if="${customer.position}">
+                                                    <td><strong>Position:</strong></td>
+                                                    <td th:text="${customer.position}">Position</td>
+                                                </tr>
+                                                <tr>
+                                                    <td><strong>Customer Type:</strong></td>
+                                                    <td>
+                                                        <span class="label label-info" th:text="${customerTypeDisplay}">Customer Type</span>
+                                                    </td>
+                                                </tr>
+                                                <tr th:if="${customer.createdAt}">
+                                                    <td><strong>Created:</strong></td>
+                                                    <td th:text="${#temporals.format(customer.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2024 10:30</td>
+                                                </tr>
+                                            </table>
                                         </div>
                                     </div>
-                                    <hr>
-                                    <p class="m-t-30" th:utext="${customer.description}"></p>
+                                </div>
+
+                                <!-- Contact & Location -->
+                                <div class="col-lg-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5><i class="fa fa-map-marker"></i> Contact & Location</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-borderless">
+                                                <tr th:if="${customer.address}">
+                                                    <td><strong>Address:</strong></td>
+                                                    <td th:text="${customer.address}">Address</td>
+                                                </tr>
+                                                <tr th:if="${customer.city}">
+                                                    <td><strong>City:</strong></td>
+                                                    <td th:text="${customer.city}">City</td>
+                                                </tr>
+                                                <tr th:if="${customer.state}">
+                                                    <td><strong>State:</strong></td>
+                                                    <td th:text="${customer.state}">State</td>
+                                                </tr>
+                                                <tr th:if="${customer.country}">
+                                                    <td><strong>Country:</strong></td>
+                                                    <td th:text="${customer.country}">Country</td>
+                                                </tr>
+                                                <tr th:if="${customer.twitter}">
+                                                    <td><strong>Twitter:</strong></td>
+                                                    <td>
+                                                        <a th:href="'https://twitter.com/' + ${customer.twitter}" target="_blank" th:text="'@' + ${customer.twitter}">@twitter</a>
+                                                    </td>
+                                                </tr>
+                                                <tr th:if="${customer.facebook}">
+                                                    <td><strong>Facebook:</strong></td>
+                                                    <td>
+                                                        <a th:href="${customer.facebook}" target="_blank" th:text="${customer.facebook}">Facebook</a>
+                                                    </td>
+                                                </tr>
+                                                <tr th:if="${customer.youtube}">
+                                                    <td><strong>YouTube:</strong></td>
+                                                    <td>
+                                                        <a th:href="${customer.youtube}" target="_blank" th:text="${customer.youtube}">YouTube</a>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- PayProp Integration Status -->
+                            <div class="row" th:if="${customer.payPropEntityId != null || customer.payPropSynced != null}">
+                                <div class="col-lg-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5><i class="fa fa-sync"></i> PayProp Integration Status</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <table class="table table-borderless">
+                                                <tr th:if="${customer.payPropEntityId}">
+                                                    <td><strong>PayProp Entity ID:</strong></td>
+                                                    <td th:text="${customer.payPropEntityId}">Entity ID</td>
+                                                </tr>
+                                                <tr th:if="${customer.payPropCustomerId}">
+                                                    <td><strong>PayProp Customer ID:</strong></td>
+                                                    <td th:text="${customer.payPropCustomerId}">Customer ID</td>
+                                                </tr>
+                                                <tr>
+                                                    <td><strong>Sync Status:</strong></td>
+                                                    <td>
+                                                        <span th:if="${customer.payPropSynced}" class="label label-success">
+                                                            <i class="fa fa-check"></i> Synced
+                                                        </span>
+                                                        <span th:unless="${customer.payPropSynced}" class="label label-warning">
+                                                            <i class="fa fa-clock-o"></i> Pending Sync
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                                <tr th:if="${customer.payPropLastSync}">
+                                                    <td><strong>Last Sync:</strong></td>
+                                                    <td th:text="${#temporals.format(customer.payPropLastSync, 'dd/MM/yyyy HH:mm')}">01/01/2024 10:30</td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Login Information -->
+                            <div class="row" th:if="${customer.customerLoginInfo != null}">
+                                <div class="col-lg-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5><i class="fa fa-key"></i> Portal Access</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="alert alert-success">
+                                                <i class="fa fa-check-circle"></i>
+                                                <strong>Portal access is enabled.</strong> 
+                                                This customer can log in to their portal using their email address.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Description -->
+                            <div class="row" th:if="${customer.description}">
+                                <div class="col-lg-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5><i class="fa fa-info-circle"></i> Additional Information</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <p th:text="${customer.description}">Description</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -138,7 +270,6 @@
             <!-- ============================================================== -->
             <!-- Right sidebar -->
             <!-- ============================================================== -->
-            <!-- .right-sidebar -->
             <div th:insert="~{general/right-sidebar.html}"></div>
             <!-- ============================================================== -->
             <!-- End Right sidebar -->
@@ -162,31 +293,49 @@
 <!-- ============================================================== -->
 <!-- End Wrapper -->
 <!-- ============================================================== -->
+
+<!-- Create Login Modal -->
+<div class="modal fade" id="createLoginModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Create Portal Login</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Create portal login credentials for <strong th:text="${customer.name}">Customer Name</strong>?</p>
+                <p>This will:</p>
+                <ul>
+                    <li>Generate a temporary password</li>
+                    <li>Send welcome email with login instructions</li>
+                    <li>Enable portal access for this customer</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <form th:action="@{'/employee/customer/' + ${customer.customerId} + '/create-login'}" method="post" style="display: inline;">
+                    <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
+                    <button type="submit" class="btn btn-success">Create Login</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ============================================================== -->
 <!-- All Jquery -->
 <!-- ============================================================== -->
 <script th:inline="javascript">
     var home = /*[[${home}]]*/ null;
 </script>
-<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript">></script>
-<!--    &lt;!&ndash; Bootstrap tether Core JavaScript &ndash;&gt;-->
-<script th:src="@{/js/library/popper.min.js}" type="text/javascript">></script>
-<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript">></script>
-<!--    &lt;!&ndash; slimscrollbar scrollbar JavaScript &ndash;&gt;-->
-<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript">></script>
-<!--Wave Effects -->
-<script th:src="@{/js/library/waves.js}" type="text/javascript">></script>
-<!--Menu sidebar -->
-<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript">></script>
-<!--stickey kit -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/sticky-kit.min.js}"></script>
-<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript">></script>
-<!--Custom JavaScript -->
-<script th:src="@{/js/library/custom.min.js}" type="text/javascript">></script>
-<!-- Editable -->
-
-<script th:src="@{/js/library/wysihtml5-0.3.0.js}"></script>
-<script th:src="@{/js/library/bootstrap-wysihtml5.js}"></script>
+<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
 </body>
 </html>
-

@@ -555,7 +555,6 @@ public class CustomerController {
             customer.setCustomerId(id);
             customer.setUser(existingCustomer.getUser()); // Keep original user relationship
             customer.setCreatedAt(existingCustomer.getCreatedAt()); // Keep creation date
-            customer.setUpdatedAt(LocalDateTime.now());
             
             // Preserve customer type flags
             customer.setIsPropertyOwner(existingCustomer.getIsPropertyOwner());
