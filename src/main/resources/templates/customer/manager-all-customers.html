@@ -129,7 +129,7 @@
                         <div class="col-md-3">
                             <div class="card">
                                 <div class="card-body text-center">
-                                    <h4 class="text-success" th:text="${#lists.size(#lists.where(customers ?: {}, 'isPropertyOwner'))}">0</h4>
+                                    <h4 class="text-success">--</h4>
                                     <p class="text-muted">Property Owners</p>
                                 </div>
                             </div>
@@ -137,7 +137,7 @@
                         <div class="col-md-3">
                             <div class="card">
                                 <div class="card-body text-center">
-                                    <h4 class="text-warning" th:text="${#lists.size(#lists.where(customers ?: {}, 'isTenant'))}">0</h4>
+                                    <h4 class="text-warning">--</h4>
                                     <p class="text-muted">Tenants</p>
                                 </div>
                             </div>
@@ -145,7 +145,7 @@
                         <div class="col-md-3">
                             <div class="card">
                                 <div class="card-body text-center">
-                                    <h4 class="text-info" th:text="${#lists.size(#lists.where(customers ?: {}, 'isContractor'))}">0</h4>
+                                    <h4 class="text-info">--</h4>
                                     <p class="text-muted">Contractors</p>
                                 </div>
                             </div>
