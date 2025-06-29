@@ -139,6 +139,12 @@ public class CustomerController {
             model.addAttribute("pageTitle", "Create Property Owner");
             model.addAttribute("submitUrl", "/employee/customer/create-property-owner");
             model.addAttribute("cancelUrl", "/employee/customer/property-owners");
+            
+            // Add missing attributes that the template expects
+            model.addAttribute("isGoogleUser", false);
+            model.addAttribute("hasGoogleGmailAccess", false);
+            model.addAttribute("isEdit", false);
+            
             return "customer/create-customer";
             
         } catch (Exception e) {
@@ -171,6 +177,30 @@ public class CustomerController {
             redirectAttributes.addFlashAttribute("errorMessage", 
                 "Error creating property owner: " + e.getMessage());
             return "redirect:/employee/customer/create-property-owner";
+        }
+    }
+
+    // ===== EMAIL PROPERTY OWNERS =====
+    
+    @GetMapping("/email-property-owners")
+    public String emailPropertyOwnersForm(Model model, Authentication authentication) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User user = userService.findById(userId);
+            
+            List<Customer> propertyOwners = customerService.findPropertyOwners();
+            
+            model.addAttribute("customers", propertyOwners);
+            model.addAttribute("customerType", "Property Owners");
+            model.addAttribute("user", user);
+            model.addAttribute("pageTitle", "Email Property Owners");
+            model.addAttribute("backUrl", "/employee/customer/property-owners");
+            
+            return "customer/email-form";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading email form: " + e.getMessage());
+            return "error/500";
         }
     }
 
@@ -236,6 +266,12 @@ public class CustomerController {
             model.addAttribute("pageTitle", "Create Tenant");
             model.addAttribute("submitUrl", "/employee/customer/create-tenant");
             model.addAttribute("cancelUrl", "/employee/customer/tenants");
+            
+            // Add missing attributes that the template expects
+            model.addAttribute("isGoogleUser", false);
+            model.addAttribute("hasGoogleGmailAccess", false);
+            model.addAttribute("isEdit", false);
+            
             return "customer/create-customer";
             
         } catch (Exception e) {
@@ -269,6 +305,30 @@ public class CustomerController {
             redirectAttributes.addFlashAttribute("errorMessage", 
                 "Error creating tenant: " + e.getMessage());
             return "redirect:/employee/customer/create-tenant";
+        }
+    }
+
+    // ===== EMAIL TENANTS =====
+    
+    @GetMapping("/email-tenants")
+    public String emailTenantsForm(Model model, Authentication authentication) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User user = userService.findById(userId);
+            
+            List<Customer> tenants = customerService.findTenants();
+            
+            model.addAttribute("customers", tenants);
+            model.addAttribute("customerType", "Tenants");
+            model.addAttribute("user", user);
+            model.addAttribute("pageTitle", "Email Tenants");
+            model.addAttribute("backUrl", "/employee/customer/tenants");
+            
+            return "customer/email-form";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading email form: " + e.getMessage());
+            return "error/500";
         }
     }
 
@@ -334,6 +394,12 @@ public class CustomerController {
             model.addAttribute("pageTitle", "Create Contractor");
             model.addAttribute("submitUrl", "/employee/customer/create-contractor");
             model.addAttribute("cancelUrl", "/employee/customer/contractors");
+            
+            // Add missing attributes that the template expects
+            model.addAttribute("isGoogleUser", false);
+            model.addAttribute("hasGoogleGmailAccess", false);
+            model.addAttribute("isEdit", false);
+            
             return "customer/create-customer";
             
         } catch (Exception e) {
@@ -371,7 +437,7 @@ public class CustomerController {
 
     // ===== CUSTOMER DETAILS & MANAGEMENT =====
     
-    @GetMapping("/{id}")
+    @GetMapping("/{id:[0-9]+}")  // FIXED: Only match numeric IDs
     public String showCustomerDetail(@PathVariable("id") int id, Model model, Authentication authentication) {
         try {
             Customer customer = customerService.findByCustomerId(id);
@@ -416,9 +482,113 @@ public class CustomerController {
         }
     }
 
+    // ===== EDIT CUSTOMER =====
+    
+    @GetMapping("/{id:[0-9]+}/edit")
+    public String editCustomerForm(@PathVariable("id") int id, Model model, Authentication authentication) {
+        try {
+            Customer customer = customerService.findByCustomerId(id);
+            if (customer == null) {
+                return "error/not-found";
+            }
+
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User loggedInUser = userService.findById(userId);
+            
+            // Check if user can access this customer
+            if (customer.getUser() != null && 
+                !customer.getUser().getId().equals(loggedInUser.getId()) && 
+                !loggedInUser.getRoles().stream().anyMatch(r -> r.getName().contains("MANAGER"))) {
+                return "redirect:/access-denied";
+            }
+
+            // Determine customer type for proper display
+            String customerTypeDisplay = "Customer";
+            String backUrl = "/employee/customer/dashboard";
+            
+            if (Boolean.TRUE.equals(customer.getIsPropertyOwner())) {
+                customerTypeDisplay = "Property Owner";
+                backUrl = "/employee/customer/property-owners";
+            } else if (Boolean.TRUE.equals(customer.getIsTenant())) {
+                customerTypeDisplay = "Tenant";
+                backUrl = "/employee/customer/tenants";
+            } else if (Boolean.TRUE.equals(customer.getIsContractor())) {
+                customerTypeDisplay = "Contractor";
+                backUrl = "/employee/customer/contractors";
+            }
+
+            model.addAttribute("customer", customer);
+            model.addAttribute("customerTypeDisplay", customerTypeDisplay);
+            model.addAttribute("customerType", customerTypeDisplay);
+            model.addAttribute("backUrl", backUrl);
+            model.addAttribute("user", loggedInUser);
+            model.addAttribute("pageTitle", "Edit " + customerTypeDisplay);
+            model.addAttribute("submitUrl", "/employee/customer/" + id + "/edit");
+            model.addAttribute("cancelUrl", backUrl);
+            model.addAttribute("isEdit", true);
+            
+            // Add missing attributes that the template expects
+            model.addAttribute("isGoogleUser", false);
+            model.addAttribute("hasGoogleGmailAccess", false);
+            
+            return "customer/create-customer";  // Reuse the create form for editing
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading customer for edit: " + e.getMessage());
+            return "error/500";
+        }
+    }
+
+    @PostMapping("/{id:[0-9]+}/edit")
+    public String updateCustomer(@PathVariable("id") int id,
+                               @ModelAttribute Customer customer,
+                               Authentication authentication,
+                               RedirectAttributes redirectAttributes) {
+        try {
+            Customer existingCustomer = customerService.findByCustomerId(id);
+            if (existingCustomer == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Customer not found");
+                return "redirect:/employee/customer/dashboard";
+            }
+            
+            // Update the customer
+            customer.setCustomerId(id);
+            customer.setUser(existingCustomer.getUser()); // Keep original user relationship
+            customer.setCreatedAt(existingCustomer.getCreatedAt()); // Keep creation date
+            customer.setUpdatedAt(LocalDateTime.now());
+            
+            // Preserve customer type flags
+            customer.setIsPropertyOwner(existingCustomer.getIsPropertyOwner());
+            customer.setIsTenant(existingCustomer.getIsTenant());
+            customer.setIsContractor(existingCustomer.getIsContractor());
+            customer.setCustomerType(existingCustomer.getCustomerType());
+            
+            Customer savedCustomer = customerService.save(customer);
+            
+            redirectAttributes.addFlashAttribute("successMessage", 
+                "Customer " + savedCustomer.getName() + " updated successfully!");
+            
+            // Redirect based on customer type
+            if (Boolean.TRUE.equals(savedCustomer.getIsPropertyOwner())) {
+                return "redirect:/employee/customer/property-owners";
+            } else if (Boolean.TRUE.equals(savedCustomer.getIsTenant())) {
+                return "redirect:/employee/customer/tenants";
+            } else if (Boolean.TRUE.equals(savedCustomer.getIsContractor())) {
+                return "redirect:/employee/customer/contractors";
+            } else {
+                return "redirect:/employee/customer/dashboard";
+            }
+            
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Error updating customer: " + e.getMessage());
+            return "redirect:/employee/customer/" + id + "/edit";
+        }
+    }
+
     // ===== LOGIN MANAGEMENT FOR CUSTOMERS =====
     
-    @PostMapping("/{id}/create-login")
+    @PostMapping("/{id:[0-9]+}/create-login")
     public String createCustomerLogin(@PathVariable("id") int id,
                                     Authentication authentication,
                                     RedirectAttributes redirectAttributes) {
@@ -593,7 +763,7 @@ public class CustomerController {
         return "redirect:/employee/customer/dashboard";
     }
     
-    @PostMapping("/{id}/send-email")
+    @PostMapping("/{id:[0-9]+}/send-email")
     public String sendIndividualEmail(@PathVariable("id") int id,
                                      @RequestParam("subject") String subject,
                                      @RequestParam("message") String message,
