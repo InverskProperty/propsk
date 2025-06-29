@@ -76,7 +76,7 @@ public class TicketController {
         return "ticket/show-ticket";
     }
 
-    @GetMapping("/manager/all-tickets")
+    @GetMapping("/manager/view-all-tickets")
     public String showAllTickets(Model model) {
         List<Ticket> tickets = ticketService.findAll();
         model.addAttribute("tickets",tickets);
