@@ -254,12 +254,17 @@
                                                     <i class="fa fa-edit"></i>
                                                 </a>
                                                 <button type="button" class="btn btn-sm btn-primary m-r-5" title="Send Email"
-                                                        th:onclick="'showEmailModal(' + ${customer.customerId} + ', \'' + ${customer.name} + '\', \'' + ${customer.email} + '\')'">
+                                                        th:data-customer-id="${customer.customerId}"
+                                                        th:data-customer-name="${customer.name}"
+                                                        th:data-customer-email="${customer.email}"
+                                                        onclick="showEmailModal(this.dataset.customerId, this.dataset.customerName, this.dataset.customerEmail)">
                                                     <i class="fa fa-envelope"></i>
                                                 </button>
                                                 <button type="button" class="btn btn-sm btn-success" title="Create Login"
                                                         th:if="${customer.customerLoginInfo == null}"
-                                                        th:onclick="'createLogin(' + ${customer.customerId} + ', \'' + ${customer.name} + '\')'">
+                                                        th:data-customer-id="${customer.customerId}"
+                                                        th:data-customer-name="${customer.name}"
+                                                        onclick="createLogin(this.dataset.customerId, this.dataset.customerName)">
                                                     <i class="fa fa-key"></i>
                                                 </button>
                                                 <span th:if="${customer.customerLoginInfo != null}" class="btn btn-sm btn-secondary" title="Login Exists">
