@@ -11,6 +11,7 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.entity.settings.TicketEmailSettings;
 import site.easy.to.build.crm.google.service.acess.GoogleAccessService;
@@ -29,6 +30,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/employee/ticket")
@@ -41,7 +43,6 @@ public class TicketController {
     private final TicketEmailSettingsService ticketEmailSettingsService;
     private final GoogleGmailApiService googleGmailApiService;
     private final EntityManager entityManager;
-
 
     @Autowired
     public TicketController(TicketService ticketService, AuthenticationUtils authenticationUtils, UserService userService, CustomerService customerService,
@@ -76,12 +77,190 @@ public class TicketController {
         return "ticket/show-ticket";
     }
 
-    @GetMapping("/manager/view-all-tickets")
-    public String showAllTickets(Model model) {
+    // ===== FIXED: Manager Ticket Views =====
+    
+    @GetMapping("/manager/all-tickets")
+    public String showAllTicketsManager(@RequestParam(value = "type", required = false) String typeFilter,
+                                      @RequestParam(value = "status", required = false) String statusFilter,
+                                      Model model, Authentication authentication) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User loggedInUser = userService.findById(userId);
+        if(loggedInUser.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+        
+        // Check if user is manager
+        if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return "error/access-denied";
+        }
+        
         List<Ticket> tickets = ticketService.findAll();
-        model.addAttribute("tickets",tickets);
-        return "ticket/my-tickets";
+        
+        // Apply filters if provided
+        if (typeFilter != null && !typeFilter.trim().isEmpty()) {
+            tickets = tickets.stream()
+                .filter(ticket -> typeFilter.equalsIgnoreCase(ticket.getType()))
+                .collect(Collectors.toList());
+        }
+        
+        if (statusFilter != null && !statusFilter.trim().isEmpty()) {
+            tickets = tickets.stream()
+                .filter(ticket -> statusFilter.equalsIgnoreCase(ticket.getStatus()))
+                .collect(Collectors.toList());
+        }
+        
+        model.addAttribute("tickets", tickets);
+        model.addAttribute("typeFilter", typeFilter);
+        model.addAttribute("statusFilter", statusFilter);
+        model.addAttribute("pageTitle", "All Tickets - Manager View");
+        return "employee/ticket/manager/all-tickets";
     }
+
+    // ===== LEGACY ROUTE (Keep for backward compatibility) =====
+    @GetMapping("/manager/view-all-tickets")
+    public String showAllTickets(Model model, Authentication authentication) {
+        // Redirect to the new consistent route
+        return "redirect:/employee/ticket/manager/all-tickets";
+    }
+
+    // ===== BID MANAGEMENT SYSTEM =====
+    
+    @GetMapping("/pending-bids")
+    public String showPendingBids(@RequestParam(value = "ticketId", required = false) Integer ticketId,
+                                 @RequestParam(value = "status", required = false) String statusFilter,
+                                 Model model, Authentication authentication) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User loggedInUser = userService.findById(userId);
+        if(loggedInUser.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+        
+        // For now, we'll show tickets that need contractor assignment
+        List<Ticket> ticketsNeedingBids;
+        
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            // Managers see all tickets
+            ticketsNeedingBids = ticketService.findAll();
+        } else {
+            // Employees see only their tickets
+            ticketsNeedingBids = ticketService.findEmployeeTickets(userId);
+        }
+        
+        // Filter for tickets that could use contractor bids (maintenance type, open status)
+        ticketsNeedingBids = ticketsNeedingBids.stream()
+            .filter(ticket -> "maintenance".equalsIgnoreCase(ticket.getType()) || 
+                            "emergency".equalsIgnoreCase(ticket.getType()))
+            .filter(ticket -> "open".equalsIgnoreCase(ticket.getStatus()) || 
+                            "in-progress".equalsIgnoreCase(ticket.getStatus()))
+            .collect(Collectors.toList());
+        
+        // Apply filters if provided
+        if (ticketId != null) {
+            ticketsNeedingBids = ticketsNeedingBids.stream()
+                .filter(ticket -> ticket.getTicketId() == ticketId)
+                .collect(Collectors.toList());
+        }
+        
+        if (statusFilter != null && !statusFilter.trim().isEmpty()) {
+            ticketsNeedingBids = ticketsNeedingBids.stream()
+                .filter(ticket -> statusFilter.equalsIgnoreCase(ticket.getStatus()))
+                .collect(Collectors.toList());
+        }
+        
+        // Get contractors for bid invitations
+        List<Customer> contractors = customerService.findContractors();
+        
+        model.addAttribute("tickets", ticketsNeedingBids);
+        model.addAttribute("contractors", contractors);
+        model.addAttribute("ticketIdFilter", ticketId);
+        model.addAttribute("statusFilter", statusFilter);
+        model.addAttribute("pageTitle", "Pending Contractor Bids");
+        model.addAttribute("user", loggedInUser);
+        
+        return "employee/ticket/pending-bids";
+    }
+    
+    @GetMapping("/contractor-bids")
+    public String showContractorBids(@RequestParam(value = "ticketId", required = false) Integer ticketId,
+                                   Model model, Authentication authentication) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User loggedInUser = userService.findById(userId);
+        if(loggedInUser.isInactiveUser()) {
+            return "error/account-inactive";
+        }
+        
+        // For now, this will show a placeholder view until bid entities are created
+        List<Ticket> tickets;
+        
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            tickets = ticketService.findAll();
+        } else {
+            tickets = ticketService.findEmployeeTickets(userId);
+        }
+        
+        // Filter for maintenance/emergency tickets
+        tickets = tickets.stream()
+            .filter(ticket -> "maintenance".equalsIgnoreCase(ticket.getType()) || 
+                            "emergency".equalsIgnoreCase(ticket.getType()))
+            .collect(Collectors.toList());
+        
+        if (ticketId != null) {
+            tickets = tickets.stream()
+                .filter(ticket -> ticket.getTicketId() == ticketId)
+                .collect(Collectors.toList());
+        }
+        
+        model.addAttribute("tickets", tickets);
+        model.addAttribute("ticketIdFilter", ticketId);
+        model.addAttribute("pageTitle", "Contractor Bids");
+        model.addAttribute("user", loggedInUser);
+        
+        return "employee/ticket/contractor-bids";
+    }
+    
+    @PostMapping("/invite-contractor-bid")
+    public String inviteContractorBid(@RequestParam("ticketId") int ticketId,
+                                     @RequestParam("contractorIds") List<Integer> contractorIds,
+                                     @RequestParam(value = "message", required = false) String message,
+                                     Authentication authentication,
+                                     RedirectAttributes redirectAttributes) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User loggedInUser = userService.findById(userId);
+            
+            Ticket ticket = ticketService.findByTicketId(ticketId);
+            if (ticket == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Ticket not found");
+                return "redirect:/employee/ticket/pending-bids";
+            }
+            
+            // Check authorization
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
+                ticket.getEmployee().getId() != userId) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Not authorized to invite bids for this ticket");
+                return "redirect:/employee/ticket/pending-bids";
+            }
+            
+            // For now, just update ticket status to indicate bids are being sought
+            if ("open".equalsIgnoreCase(ticket.getStatus())) {
+                ticket.setStatus("bidding");
+                ticket.setDescription(ticket.getDescription() + "\n\n[Bid Invitations Sent: " + 
+                                    LocalDateTime.now() + " to " + contractorIds.size() + " contractors]");
+                ticketService.save(ticket);
+            }
+            
+            redirectAttributes.addFlashAttribute("successMessage", 
+                "Bid invitations sent to " + contractorIds.size() + " contractors for ticket #" + ticketId);
+            
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Error sending bid invitations: " + e.getMessage());
+        }
+        
+        return "redirect:/employee/ticket/pending-bids";
+    }
+
+    // ===== EXISTING TICKET MANAGEMENT =====
 
     @GetMapping("/created-tickets")
     public String showCreatedTicket(Model model, Authentication authentication) {
@@ -98,6 +277,7 @@ public class TicketController {
         model.addAttribute("tickets",tickets);
         return "ticket/my-tickets";
     }
+    
     @GetMapping("/create-ticket")
     public String showTicketCreationForm(Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);

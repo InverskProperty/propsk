@@ -1,4 +1,4 @@
-<!-- employee/ticket/manager/all-tickets.html -->
+<!-- employee/ticket/pending-bids.html -->
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 
@@ -79,65 +79,67 @@
                         <span th:text="${successMessage}"></span>
                     </div>
 
+                    <div th:if="${errorMessage}" class="alert alert-danger">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-danger"><i class="fa fa-exclamation-circle"></i> Error</h3>
+                        <span th:text="${errorMessage}"></span>
+                    </div>
+
                     <!-- Filter Controls -->
                     <div class="card">
                         <div class="card-body">
-                            <h6 class="card-subtitle">Filter tickets by type and status</h6>
+                            <h6 class="card-subtitle">Filter tickets needing contractor bids</h6>
                             <form method="get" class="form-inline m-t-20">
                                 <div class="form-group m-r-20">
-                                    <label for="type" class="m-r-10">Type:</label>
-                                    <select name="type" id="type" class="form-control">
-                                        <option value="">All Types</option>
-                                        <option value="maintenance" th:selected="${typeFilter == 'maintenance'}">Maintenance</option>
-                                        <option value="support" th:selected="${typeFilter == 'support'}">Support</option>
-                                        <option value="emergency" th:selected="${typeFilter == 'emergency'}">Emergency</option>
-                                    </select>
+                                    <label for="ticketId" class="m-r-10">Ticket ID:</label>
+                                    <input type="number" name="ticketId" id="ticketId" class="form-control" 
+                                           th:value="${ticketIdFilter}" placeholder="Enter ticket ID">
                                 </div>
                                 <div class="form-group m-r-20">
                                     <label for="status" class="m-r-10">Status:</label>
                                     <select name="status" id="status" class="form-control">
                                         <option value="">All Statuses</option>
-                                        <option value="open">Open</option>
-                                        <option value="in-progress">In Progress</option>
-                                        <option value="on-hold">On Hold</option>
-                                        <option value="resolved">Resolved</option>
-                                        <option value="closed">Closed</option>
+                                        <option value="open" th:selected="${statusFilter == 'open'}">Open</option>
+                                        <option value="in-progress" th:selected="${statusFilter == 'in-progress'}">In Progress</option>
+                                        <option value="bidding" th:selected="${statusFilter == 'bidding'}">Awaiting Bids</option>
                                     </select>
                                 </div>
                                 <button type="submit" class="btn btn-primary m-r-10">
                                     <i class="fa fa-filter"></i> Filter
                                 </button>
-                                <a href="/employee/ticket/manager/all-tickets" class="btn btn-secondary">
+                                <a href="/employee/ticket/pending-bids" class="btn btn-secondary">
                                     <i class="fa fa-times"></i> Clear
                                 </a>
                             </form>
                         </div>
                     </div>
 
-                    <!-- Tickets List -->
+                    <!-- Tickets Needing Bids -->
                     <div class="card">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <h4 class="card-title">All Tickets</h4>
-                                    <h6 class="card-subtitle">Total: <span th:text="${#lists.size(tickets ?: {})}">0</span> tickets</h6>
+                                    <h4 class="card-title">Tickets Needing Contractor Bids</h4>
+                                    <h6 class="card-subtitle">Maintenance and Emergency tickets: <span th:text="${#lists.size(tickets ?: {})}">0</span> tickets</h6>
                                 </div>
                                 <div>
-                                    <a href="/employee/ticket/create-ticket" class="btn btn-success m-r-10">
-                                        <i class="fa fa-plus"></i> Create New Ticket
+                                    <a href="/employee/ticket/contractor-bids" class="btn btn-info m-r-10">
+                                        <i class="fa fa-eye"></i> View Contractor Bids
                                     </a>
-                                    <a href="/employee/ticket/contractor-bids" class="btn btn-warning">
-                                        <i class="fa fa-gavel"></i> View Contractor Bids
+                                    <a href="/employee/ticket/manager/all-tickets" class="btn btn-secondary">
+                                        <i class="fa fa-list"></i> All Tickets
                                     </a>
                                 </div>
                             </div>
                             
                             <div th:if="${#lists.isEmpty(tickets)}" class="text-center m-t-40">
-                                <i class="fa fa-ticket-alt" style="font-size: 4em; color: #ccc;"></i>
-                                <h5 class="text-muted m-t-20">No tickets found</h5>
-                                <p class="text-muted">No tickets match the current filter criteria.</p>
+                                <i class="fa fa-gavel" style="font-size: 4em; color: #ccc;"></i>
+                                <h5 class="text-muted m-t-20">No tickets need contractor bids</h5>
+                                <p class="text-muted">All maintenance and emergency tickets are either assigned or completed.</p>
                                 <a href="/employee/ticket/create-ticket" class="btn btn-success">
-                                    <i class="fa fa-plus"></i> Create First Ticket
+                                    <i class="fa fa-plus"></i> Create New Ticket
                                 </a>
                             </div>
 
@@ -147,8 +149,8 @@
                                         <tr>
                                             <th>Ticket #</th>
                                             <th>Subject</th>
+                                            <th>Type</th>
                                             <th>Customer</th>
-                                            <th>Assigned To</th>
                                             <th>Priority</th>
                                             <th>Status</th>
                                             <th>Created</th>
@@ -168,20 +170,18 @@
                                                 </div>
                                             </td>
                                             <td>
+                                                <span th:if="${ticket.type == 'maintenance'}" class="label label-warning">Maintenance</span>
+                                                <span th:if="${ticket.type == 'emergency'}" class="label label-danger">Emergency</span>
+                                                <span th:if="${ticket.type == 'support'}" class="label label-info">Support</span>
+                                                <span th:unless="${ticket.type == 'maintenance' || ticket.type == 'emergency' || ticket.type == 'support'}" 
+                                                      class="label label-secondary" th:text="${ticket.type}">Other</span>
+                                            </td>
+                                            <td>
                                                 <div th:if="${ticket.customer}">
                                                     <span th:text="${ticket.customer.name}">Customer Name</span>
                                                     <br>
                                                     <small class="text-muted" th:text="${ticket.customer.email}">customer@email.com</small>
                                                 </div>
-                                            </td>
-                                            <td>
-                                                <div th:if="${ticket.employee != null}">
-                                                    <span th:text="${(ticket.employee.firstName ?: '') + ' ' + (ticket.employee.lastName ?: '')}">Employee Name</span>
-                                                    <br>
-                                                    <small class="text-muted" th:text="${ticket.employee.email ?: 'No email'}">employee@email.com</small>
-                                                </div>
-                                                <span th:if="${ticket.employee == null}" class="text-muted">Unassigned</span>
-
                                             </td>
                                             <td>
                                                 <span th:if="${ticket.priority == 'critical'}" class="label label-danger">Critical</span>
@@ -193,6 +193,7 @@
                                             <td>
                                                 <span th:if="${ticket.status == 'open'}" class="label label-primary">Open</span>
                                                 <span th:if="${ticket.status == 'in-progress'}" class="label label-warning">In Progress</span>
+                                                <span th:if="${ticket.status == 'bidding'}" class="label label-info">Awaiting Bids</span>
                                                 <span th:if="${ticket.status == 'on-hold'}" class="label label-secondary">On Hold</span>
                                                 <span th:if="${ticket.status == 'resolved'}" class="label label-success">Resolved</span>
                                                 <span th:if="${ticket.status == 'closed'}" class="label label-dark">Closed</span>
@@ -204,13 +205,13 @@
                                                 <a th:href="@{'/employee/ticket/show-ticket/' + ${ticket.ticketId}}" class="btn btn-sm btn-info m-r-5" title="View Details">
                                                     <i class="fa fa-eye"></i>
                                                 </a>
-                                                <a th:href="@{'/employee/ticket/update-ticket/' + ${ticket.ticketId}}" class="btn btn-sm btn-warning m-r-5" title="Edit">
+                                                <button type="button" class="btn btn-sm btn-success m-r-5" title="Invite Contractor Bids"
+                                                        th:onclick="'showBidModal(' + ${ticket.ticketId} + ', \'' + ${ticket.subject} + '\')'">
+                                                    <i class="fa fa-gavel"></i>
+                                                </button>
+                                                <a th:href="@{'/employee/ticket/update-ticket/' + ${ticket.ticketId}}" class="btn btn-sm btn-warning" title="Edit">
                                                     <i class="fa fa-edit"></i>
                                                 </a>
-                                                <button type="button" class="btn btn-sm btn-danger" title="Delete"
-                                                        onclick="deleteTicket([[${ticket.ticketId}]], '[[${ticket.subject}]]')">
-                                                    <i class="fa fa-trash"></i>
-                                                </button>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -250,25 +251,54 @@
 <!-- End Wrapper -->
 <!-- ============================================================== -->
 
-<!-- Delete Confirmation Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
-    <div class="modal-dialog">
+<!-- Invite Bid Modal -->
+<div class="modal fade" id="bidModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h4 class="modal-title">Confirm Delete</h4>
+                <h4 class="modal-title">Invite Contractor Bids</h4>
                 <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete ticket <strong id="ticketSubject"></strong>?</p>
-                <p class="text-danger">This action cannot be undone.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                <form id="deleteForm" method="post" style="display: inline;">
-                    <input type="hidden" name="_method" value="delete">
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-            </div>
+            <form id="bidForm" method="post" action="/employee/ticket/invite-contractor-bid">
+                <div class="modal-body">
+                    <p>Invite contractors to bid on ticket: <strong id="ticketSubject"></strong></p>
+                    
+                    <input type="hidden" id="ticketIdInput" name="ticketId" value="">
+                    
+                    <div class="form-group">
+                        <label>Select Contractors:</label>
+                        <div class="contractor-list" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
+                            <div th:each="contractor : ${contractors}" class="form-check">
+                                <input type="checkbox" class="form-check-input" 
+                                       th:id="'contractor-' + ${contractor.customerId}"
+                                       name="contractorIds" 
+                                       th:value="${contractor.customerId}">
+                                <label class="form-check-label" th:for="'contractor-' + ${contractor.customerId}">
+                                    <strong th:text="${contractor.name}">Contractor Name</strong>
+                                    <br>
+                                    <small class="text-muted" th:text="${contractor.email}">contractor@email.com</small>
+                                    <span th:if="${contractor.phone}" class="text-muted">
+                                        | <span th:text="${contractor.phone}">Phone</span>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                        <small class="form-text text-muted">Select one or more contractors to invite bids from.</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="message">Additional Message (Optional):</label>
+                        <textarea name="message" id="message" class="form-control" rows="3" 
+                                  placeholder="Add any specific requirements or details for the contractors..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fa fa-paper-plane"></i> Send Bid Invitations
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -294,14 +324,36 @@
 
 <script>
 $('#config-table').DataTable({
-    responsive: true
+    responsive: true,
+    order: [[6, 'desc']], // Sort by created date descending
+    columnDefs: [
+        { targets: [7], orderable: false } // Disable sorting on Actions column
+    ]
 });
 
-function deleteTicket(ticketId, ticketSubject) {
+function showBidModal(ticketId, ticketSubject) {
+    document.getElementById('ticketIdInput').value = ticketId;
     document.getElementById('ticketSubject').textContent = ticketSubject;
-    document.getElementById('deleteForm').action = '/employee/ticket/delete-ticket/' + ticketId;
-    $('#deleteModal').modal('show');
+    
+    // Clear previous selections
+    const checkboxes = document.querySelectorAll('input[name="contractorIds"]');
+    checkboxes.forEach(checkbox => checkbox.checked = false);
+    
+    // Clear message
+    document.getElementById('message').value = '';
+    
+    $('#bidModal').modal('show');
 }
+
+// Form validation
+document.getElementById('bidForm').addEventListener('submit', function(e) {
+    const checkboxes = document.querySelectorAll('input[name="contractorIds"]:checked');
+    if (checkboxes.length === 0) {
+        e.preventDefault();
+        alert('Please select at least one contractor to invite.');
+        return false;
+    }
+});
 </script>
 </body>
 </html>

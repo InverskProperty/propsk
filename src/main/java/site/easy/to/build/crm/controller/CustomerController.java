@@ -12,6 +12,7 @@ import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.email.EmailService;
 import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
+import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.util.EmailTokenUtils;
 
 import java.time.LocalDateTime;
@@ -701,6 +702,69 @@ public class CustomerController {
             
         } catch (Exception e) {
             model.addAttribute("error", "Error searching customers: " + e.getMessage());
+            return "error/500";
+        }
+    }
+
+    // ===== MANAGER CUSTOMER VIEWS =====
+
+    @GetMapping("/manager/all-customers")
+    public String showAllCustomersManager(@RequestParam(value = "search", required = false) String search,
+                                        @RequestParam(value = "type", required = false) String typeFilter,
+                                        Model model, Authentication authentication) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User user = userService.findById(userId);
+            
+            // Check if user is manager
+            if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                return "error/access-denied";
+            }
+            
+            List<Customer> customers = customerService.findAll();
+            
+            // Apply type filter if provided
+            if (typeFilter != null && !typeFilter.trim().isEmpty()) {
+                switch (typeFilter.toLowerCase()) {
+                    case "property-owners":
+                        customers = customers.stream()
+                            .filter(c -> Boolean.TRUE.equals(c.getIsPropertyOwner()))
+                            .collect(Collectors.toList());
+                        break;
+                    case "tenants":
+                        customers = customers.stream()
+                            .filter(c -> Boolean.TRUE.equals(c.getIsTenant()))
+                            .collect(Collectors.toList());
+                        break;
+                    case "contractors":
+                        customers = customers.stream()
+                            .filter(c -> Boolean.TRUE.equals(c.getIsContractor()))
+                            .collect(Collectors.toList());
+                        break;
+                }
+            }
+            
+            // Apply search filter if provided
+            if (search != null && !search.trim().isEmpty()) {
+                customers = customers.stream()
+                    .filter(c -> c.getName().toLowerCase().contains(search.toLowerCase()) ||
+                                c.getEmail().toLowerCase().contains(search.toLowerCase()) ||
+                                (c.getCity() != null && c.getCity().toLowerCase().contains(search.toLowerCase())))
+                    .collect(Collectors.toList());
+            }
+            
+            model.addAttribute("customers", customers);
+            model.addAttribute("customerType", "All Customers");
+            model.addAttribute("pageTitle", "All Customers - Manager View");
+            model.addAttribute("searchTerm", search);
+            model.addAttribute("typeFilter", typeFilter);
+            model.addAttribute("user", user);
+            model.addAttribute("isManagerView", true);
+            
+            return "customer/manager-all-customers";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading customers: " + e.getMessage());
             return "error/500";
         }
     }
