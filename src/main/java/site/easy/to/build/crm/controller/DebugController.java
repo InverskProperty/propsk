@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.http.ResponseEntity;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -76,6 +77,12 @@ public class DebugController {
             "requestPath", request.getRequestURI(),
             "method", request.getMethod()
         );
+    }
+
+    @GetMapping("/deployment-test")
+    @ResponseBody
+    public String deploymentTest() {
+        return "Deployment test v3 - " + new Date().toString();
     }
 
     @GetMapping("/oauth-info")
