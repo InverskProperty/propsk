@@ -18,8 +18,6 @@ import site.easy.to.build.crm.entity.Tenant;
 import site.easy.to.build.crm.entity.PropertyOwner;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import org.springframework.http.HttpStatus;
-import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
-import site.easy.to.build.crm.service.payprop.PayPropPortfolioSyncService;
 
 import java.util.HashMap;
 import java.util.List;
@@ -48,9 +46,6 @@ public class PayPropAdminController {
         this.tenantService = tenantService;
         this.propertyOwnerService = propertyOwnerService;
     }
-
-    @Autowired(required = false)
-    private PayPropPortfolioSyncService payPropSyncService;
 
     /**
      * Admin dashboard for PayProp integration
@@ -387,30 +382,45 @@ public class PayPropAdminController {
     }
 
 
-    @GetMapping("/test-api-access")
+    @GetMapping("/test-basic-api")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> testApiAccess() {
-        Map<String, Object> response = new HashMap<>();
-        
+    public ResponseEntity<String> testBasicApi() {
         try {
-            // Test 1: Try to get tags (read access)
-            List<PayPropTagDTO> tags = payPropSyncService.getAllPayPropTags();
-            response.put("readAccess", true);
-            response.put("tagCount", tags.size());
+            if (!oAuth2Service.hasValidTokens()) {
+                return ResponseEntity.ok("❌ No OAuth tokens - authorize first");
+            }
             
-            // Test 2: Check if we can access tag creation methods
-            response.put("writeAccess", "Testing read first");
+            StringBuilder results = new StringBuilder();
+            results.append("🔑 OAuth tokens: ✅ Valid\n\n");
             
-            response.put("success", true);
-            response.put("message", "API access working - can read " + tags.size() + " tags");
-            return ResponseEntity.ok(response);
+            // Test 1: Try to get properties
+            try {
+                PayPropSyncService.PayPropExportResult properties = syncService.exportPropertiesFromPayProp(1, 5);
+                results.append("📊 GET Properties: ✅ SUCCESS - Found ").append(properties.getItems().size()).append(" properties\n");
+            } catch (Exception e) {
+                results.append("📊 GET Properties: ❌ FAILED - ").append(e.getMessage()).append("\n");
+            }
+            
+            // Test 2: Try to get tenants  
+            try {
+                PayPropSyncService.PayPropExportResult tenants = syncService.exportTenantsFromPayProp(1, 5);
+                results.append("👥 GET Tenants: ✅ SUCCESS - Found ").append(tenants.getItems().size()).append(" tenants\n");
+            } catch (Exception e) {
+                results.append("👥 GET Tenants: ❌ FAILED - ").append(e.getMessage()).append("\n");
+            }
+            
+            // Test 3: Try basic sync status
+            try {
+                syncService.checkSyncStatus();
+                results.append("🔍 Check Status: ✅ SUCCESS\n");
+            } catch (Exception e) {
+                results.append("🔍 Check Status: ❌ FAILED - ").append(e.getMessage()).append("\n");
+            }
+            
+            return ResponseEntity.ok(results.toString());
+            
         } catch (Exception e) {
-            response.put("success", false);
-            response.put("error", e.getMessage());
-            response.put("scopeIssue", e.getMessage().contains("scope") || 
-                                    e.getMessage().contains("permission") || 
-                                    e.getMessage().contains("403"));
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            return ResponseEntity.ok("💥 GENERAL ERROR: " + e.getMessage());
         }
     }
 
