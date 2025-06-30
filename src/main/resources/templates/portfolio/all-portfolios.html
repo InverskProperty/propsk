@@ -235,9 +235,8 @@
                             <!-- Card View -->
                             <div id="cardView" th:unless="${#lists.isEmpty(portfolios ?: {})}" class="row">
                                 <div th:each="portfolioData : ${portfolios}" class="col-lg-6 col-xl-4 mb-4">
-                                    <div class="card portfolio-card h-100"
-                                         th:classappend="${portfolioData.portfolio.isShared == 'Y'} ? 'shared' : 
-                                                        ${portfolioData.portfolio.isSyncedWithPayProp()} ? 'synced' : 'pending'">
+                                    <!-- Fixed CSS class assignment -->
+                                    <div th:class="'card portfolio-card h-100 ' + ${portfolioData.portfolio.isShared == 'Y' ? 'shared' : (portfolioData.portfolio.payPropId != null ? 'synced' : 'pending')}">
                                         <div class="card-header d-flex justify-content-between align-items-center">
                                             <h6 class="mb-0" th:text="${portfolioData.portfolio.name}">Portfolio Name</h6>
                                             <div>
@@ -278,11 +277,11 @@
                                             <!-- PayProp Status -->
                                             <div class="mb-3">
                                                 <strong>PayProp:</strong>
-                                                <span th:if="${portfolioData.portfolio.isSyncedWithPayProp()}" 
+                                                <span th:if="${portfolioData.portfolio.payPropId != null}" 
                                                       class="badge badge-success">
                                                     <i class="fas fa-sync"></i> Synced
                                                 </span>
-                                                <span th:unless="${portfolioData.portfolio.isSyncedWithPayProp()}" 
+                                                <span th:unless="${portfolioData.portfolio.payPropId != null}" 
                                                       class="badge badge-warning">
                                                     <i class="fas fa-clock"></i> Pending
                                                 </span>
@@ -354,11 +353,11 @@
                                                     <span th:text="${#numbers.formatDecimal(portfolioData.analytics?.occupancyRate ?: 0, 0, 'COMMA', 1, 'POINT')} + '%'">0%</span>
                                                 </td>
                                                 <td>
-                                                    <span th:if="${portfolioData.portfolio.isSyncedWithPayProp()}" 
+                                                    <span th:if="${portfolioData.portfolio.payPropId != null}" 
                                                           class="badge badge-success">
                                                         <i class="fas fa-sync"></i> Synced
                                                     </span>
-                                                    <span th:unless="${portfolioData.portfolio.isSyncedWithPayProp()}" 
+                                                    <span th:unless="${portfolioData.portfolio.payPropId != null}" 
                                                           class="badge badge-warning">
                                                         <i class="fas fa-clock"></i> Pending
                                                     </span>
