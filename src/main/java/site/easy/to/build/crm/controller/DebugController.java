@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Map;
 
 @Controller
 @RequestMapping("/debug")
@@ -63,6 +64,18 @@ public class DebugController {
         model.addAttribute("property", property);
         
         return "property/update-property";
+    }
+
+    @GetMapping("/routes")
+    @ResponseBody
+    public Map<String, Object> getRoutes(HttpServletRequest request) {
+        // This will help us see the actual route mappings Spring Boot registered
+        return Map.of(
+            "message", "Route debugging",
+            "timestamp", new Date().toString(),
+            "requestPath", request.getRequestURI(),
+            "method", request.getMethod()
+        );
     }
 
     @GetMapping("/oauth-info")
