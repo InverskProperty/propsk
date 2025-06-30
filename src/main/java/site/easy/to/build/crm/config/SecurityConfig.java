@@ -1,3 +1,4 @@
+
 package site.easy.to.build.crm.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +44,7 @@ public class SecurityConfig {
         this.customerLoginFailureHandler = customerLoginFailureHandler;
     }
 
-    // Customer security filter chain - handles customer-specific routes
+    // Customer security filter chain - handles customer-specific routes ONLY
     @Bean
     @Order(1) 
     public SecurityFilterChain customerSecurityFilterChain(HttpSecurity http) throws Exception {
@@ -56,17 +57,17 @@ public class SecurityConfig {
                 .csrfTokenRepository(httpSessionCsrfTokenRepository)
         );
 
-        // FIXED: Match controller expectations
+        // FIXED: Removed /portfolio/** from customer security matcher
+        // This allows /portfolio/** routes to be handled by the main security filter chain
         http.securityMatcher("/customer-login/**", "/customer-logout", "/set-password/**", 
-                "/property-owner/**", "/tenant/**", "/contractor/**", "/portfolio/**")
+                "/property-owner/**", "/tenant/**", "/contractor/**")
                 .authorizeHttpRequests((authorize) -> authorize
                         .requestMatchers("/customer-login/**").permitAll()
                         .requestMatchers("/set-password/**").permitAll()
-                        // CHANGED: Use CUSTOMER role consistently
                         .requestMatchers("/property-owner/**").hasRole("PROPERTY_OWNER")
                         .requestMatchers("/tenant/**").hasRole("TENANT")
                         .requestMatchers("/contractor/**").hasRole("CONTRACTOR")
-                        .requestMatchers("/portfolio/**").hasAnyRole("CUSTOMER", "MANAGER", "EMPLOYEE", "PROPERTY_OWNER")
+                        // REMOVED: .requestMatchers("/portfolio/**").hasAnyRole("CUSTOMER", "MANAGER", "EMPLOYEE", "PROPERTY_OWNER")
                         .anyRequest().authenticated()
                 )
                 .formLogin((form) -> {
@@ -86,7 +87,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // Main security filter chain - handles employee/admin routes
+    // Main security filter chain - handles employee/admin routes INCLUDING /portfolio/**
     @Bean
     @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -112,8 +113,11 @@ public class SecurityConfig {
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/**/manager/**")).hasRole("MANAGER")
                         .requestMatchers("/employee/**").hasAnyRole("MANAGER", "EMPLOYEE")
                         .requestMatchers("/customer/**").hasRole("CUSTOMER")
-                        // FIXED: Add portfolio access for employees and managers (fallback for employee login)
-                        .requestMatchers("/portfolio/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER")
+                        // FIXED: Add missing admin/payprop routes for PayProp integration
+                        .requestMatchers("/admin/payprop/**").hasRole("MANAGER")
+                        .requestMatchers("/api/payprop/**").hasAnyRole("MANAGER", "EMPLOYEE")
+                        // Portfolio access for employees and managers (now properly handled here)
+                        .requestMatchers("/portfolio/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER")
                         .requestMatchers("/property/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER")
                         .anyRequest().authenticated()
                 )
