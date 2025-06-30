@@ -1,4 +1,4 @@
-// PortfolioController.java - Unified portfolio management for employees and property owners
+// PortfolioController.java - FIXED: Proper route ordering to prevent conflicts
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +13,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import site.easy.to.build.crm.controller.PortfolioController.PortfolioWithAnalytics;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import site.easy.to.build.crm.service.property.PropertyService;
@@ -30,8 +29,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * PortfolioController - Unified portfolio dashboard for both employees and property owners
- * Handles portfolio organization, analytics, and PayProp synchronization
+ * PortfolioController - FIXED: Route ordering to prevent conflicts
+ * Specific routes come BEFORE parameterized routes like /{id}
  */
 @Controller
 @RequestMapping("/portfolio")
@@ -41,11 +40,9 @@ public class PortfolioController {
     private final PropertyService propertyService;
     private final AuthenticationUtils authenticationUtils;
     
-    // Add customer service for manager functionality
     @Autowired(required = false)
     private CustomerService customerService;
     
-    // Make PayProp service optional
     @Autowired(required = false)
     private PayPropPortfolioSyncService payPropSyncService;
     
@@ -61,23 +58,18 @@ public class PortfolioController {
         this.authenticationUtils = authenticationUtils;
     }
 
-    // ===== UNIFIED DASHBOARD =====
+    // ===== SPECIFIC ROUTES FIRST (BEFORE /{id}) =====
 
     /**
-     * Portfolio Dashboard - Main entry point for both employees and property owners
+     * Portfolio Dashboard - Main entry point
      */
     @GetMapping("/dashboard")
     public String portfolioDashboard(Model model, Authentication authentication) {
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            
-            // Get portfolios based on user role
             List<Portfolio> userPortfolios = portfolioService.findPortfoliosForUser(authentication);
-            
-            // Calculate aggregate statistics across all user's portfolios
             PortfolioAggregateStats aggregateStats = calculateAggregateStats(userPortfolios);
             
-            // Get recent analytics for each portfolio
             List<PortfolioWithAnalytics> portfoliosWithAnalytics = userPortfolios.stream()
                 .map(portfolio -> {
                     PortfolioAnalytics analytics = portfolioService.getLatestPortfolioAnalytics(portfolio.getId());
@@ -85,7 +77,6 @@ public class PortfolioController {
                 })
                 .collect(Collectors.toList());
             
-            // Role-based permissions
             boolean canCreatePortfolio = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
                                        AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER");
             boolean canSyncPayProp = (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
@@ -93,7 +84,6 @@ public class PortfolioController {
                                    payPropEnabled && payPropSyncService != null;
             boolean isPropertyOwner = AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER");
             
-            // Add model attributes
             model.addAttribute("portfolios", portfoliosWithAnalytics);
             model.addAttribute("aggregateStats", aggregateStats);
             model.addAttribute("canCreatePortfolio", canCreatePortfolio);
@@ -102,7 +92,6 @@ public class PortfolioController {
             model.addAttribute("payPropEnabled", payPropEnabled);
             model.addAttribute("pageTitle", "Portfolio Dashboard");
             
-            // Determine view based on role
             return isPropertyOwner ? "portfolio/property-owner-dashboard" : "portfolio/employee-dashboard";
             
         } catch (Exception e) {
@@ -112,66 +101,7 @@ public class PortfolioController {
     }
 
     /**
-     * Portfolio Details - View specific portfolio with full analytics
-     */
-    @GetMapping("/{id}")
-    public String viewPortfolio(@PathVariable("id") Long portfolioId, Model model, Authentication authentication) {
-        try {
-            // Check access permissions
-            if (!portfolioService.canUserAccessPortfolio(portfolioId, authentication)) {
-                return "redirect:/access-denied";
-            }
-            
-            Portfolio portfolio = portfolioService.findById(portfolioId);
-            if (portfolio == null) {
-                return "error/not-found";
-            }
-            
-            // Get latest analytics
-            PortfolioAnalytics analytics = portfolioService.getLatestPortfolioAnalytics(portfolioId);
-            if (analytics == null) {
-                // Calculate if not exists
-                analytics = portfolioService.calculatePortfolioAnalytics(portfolioId, LocalDate.now());
-            }
-            
-            // Get blocks in this portfolio
-            List<Block> blocks = portfolioService.findBlocksByPortfolio(portfolioId);
-            
-            // Get properties in this portfolio
-            List<Property> properties = propertyService.findByPortfolioId(portfolioId);
-            
-            // Get analytics history for charts (last 6 months)
-            LocalDate sixMonthsAgo = LocalDate.now().minusMonths(6);
-            List<PortfolioAnalytics> analyticsHistory = portfolioService
-                .getPortfolioAnalyticsHistory(portfolioId, sixMonthsAgo, LocalDate.now());
-            
-            // Role-based permissions
-            boolean canEdit = canUserEditPortfolio(portfolioId, authentication);
-            boolean canManageProperties = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
-                                        AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE");
-            
-            model.addAttribute("portfolio", portfolio);
-            model.addAttribute("analytics", analytics);
-            model.addAttribute("blocks", blocks);
-            model.addAttribute("properties", properties);
-            model.addAttribute("analyticsHistory", analyticsHistory);
-            model.addAttribute("canEdit", canEdit);
-            model.addAttribute("canManageProperties", canManageProperties);
-            model.addAttribute("payPropEnabled", payPropEnabled);
-            model.addAttribute("pageTitle", portfolio.getName());
-            
-            return "portfolio/portfolio-details";
-            
-        } catch (Exception e) {
-            model.addAttribute("error", "Error loading portfolio: " + e.getMessage());
-            return "error/500";
-        }
-    }
-
-    // ===== PORTFOLIO MANAGEMENT =====
-
-    /**
-     * Enhanced Create Portfolio Form for Managers
+     * Create Portfolio Form
      */
     @GetMapping("/create")
     public String showCreatePortfolioForm(Model model, Authentication authentication) {
@@ -181,25 +111,20 @@ public class PortfolioController {
         
         Portfolio portfolio = new Portfolio();
         
-        // For managers, provide list of property owners to choose from
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            // Get all property owners - use existing methods that work
             if (customerService != null) {
                 try {
-                    // Use existing customer service methods
                     List<Customer> allCustomers = customerService.findAll();
                     List<Customer> propertyOwners = allCustomers.stream()
                         .filter(customer -> customer.getIsPropertyOwner() != null && customer.getIsPropertyOwner())
                         .collect(Collectors.toList());
                     model.addAttribute("propertyOwners", propertyOwners);
                 } catch (Exception e) {
-                    System.out.println("Property owners filtering failed: " + e.getMessage());
                     model.addAttribute("propertyOwners", new ArrayList<>());
                 }
             }
             model.addAttribute("isManager", true);
         } else {
-            // For property owners, auto-set themselves
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             portfolio.setPropertyOwnerId(userId);
             model.addAttribute("isManager", false);
@@ -214,143 +139,7 @@ public class PortfolioController {
     }
 
     /**
-     * Get available PayProp tags for adoption
-     */
-    @GetMapping("/payprop-tags")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> getPayPropTags(Authentication authentication) {
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            // Check if PayProp is enabled and service is available
-            if (!payPropEnabled || payPropSyncService == null) {
-                response.put("success", false);
-                response.put("message", "PayProp integration is not enabled");
-                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
-            }
-            
-            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
-                !AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
-                response.put("success", false);
-                response.put("message", "Access denied");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
-            }
-            
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            
-            // Get all PayProp tags via the sync service
-            List<PayPropTagDTO> payPropTags = payPropSyncService.getAllPayPropTags();
-            
-            // Filter out tags that are already adopted as portfolios
-            List<PayPropTagDTO> availableTags = payPropTags.stream()
-                .filter(tag -> {
-                    List<Portfolio> existingPortfolios = portfolioService.findByPayPropTag(tag.getId());
-                    return existingPortfolios.isEmpty();
-                })
-                .collect(Collectors.toList());
-            
-            response.put("success", true);
-            response.put("tags", availableTags);
-            response.put("totalTags", payPropTags.size());
-            response.put("availableTags", availableTags.size());
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "Failed to load PayProp tags: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-        }
-    }
-
-    /**
-     * Adopt an existing PayProp tag as a portfolio
-     */
-    @PostMapping("/adopt-payprop-tag")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> adoptPayPropTag(
-            @RequestParam String payPropTagId,
-            Authentication authentication) {
-        
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            // Check if PayProp is enabled and service is available
-            if (!payPropEnabled || payPropSyncService == null) {
-                response.put("success", false);
-                response.put("message", "PayProp integration is not enabled");
-                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
-            }
-            
-            if (!canUserCreatePortfolio(authentication)) {
-                response.put("success", false);
-                response.put("message", "Access denied");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
-            }
-            
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            
-            // Check if tag is already adopted
-            List<Portfolio> existingPortfolios = portfolioService.findByPayPropTag(payPropTagId);
-            if (!existingPortfolios.isEmpty()) {
-                response.put("success", false);
-                response.put("message", "This PayProp tag is already adopted as a portfolio");
-                return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
-            }
-            
-            // Get tag details from PayProp
-            PayPropTagDTO tagData = payPropSyncService.getPayPropTag(payPropTagId);
-            if (tagData == null) {
-                response.put("success", false);
-                response.put("message", "PayProp tag not found");
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-            }
-            
-            // Create portfolio from PayProp tag
-            Portfolio portfolio = new Portfolio();
-            portfolio.setName(tagData.getName());
-            portfolio.setDescription("Adopted from PayProp tag: " + tagData.getName());
-            portfolio.setPortfolioType(PortfolioType.CUSTOM);
-            portfolio.setColorCode(tagData.getColor());
-            portfolio.setCreatedBy((long) userId);
-            
-            // Set owner for property owner users
-            if (AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
-                portfolio.setPropertyOwnerId(userId);
-                portfolio.setIsShared("N");
-            } else {
-                portfolio.setIsShared("Y");
-            }
-            
-            // Set PayProp sync information
-            portfolio.setPayPropTags(payPropTagId);
-            portfolio.setPayPropTagNames(tagData.getName());
-            portfolio.setSyncStatus(SyncStatus.SYNCED);
-            portfolio.setLastSyncAt(LocalDateTime.now());
-            
-            Portfolio savedPortfolio = portfolioService.save(portfolio);
-            
-            // Sync properties that already have this tag in PayProp
-            SyncResult syncResult = payPropSyncService.handlePayPropTagChange(
-                payPropTagId, "TAG_APPLIED", tagData, null);
-            
-            response.put("success", true);
-            response.put("message", "PayProp tag successfully adopted as portfolio");
-            response.put("portfolioId", savedPortfolio.getId());
-            response.put("portfolioName", savedPortfolio.getName());
-            response.put("syncResult", syncResult.getMessage());
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "Failed to adopt PayProp tag: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-        }
-    }
-
-    /**
-     * Enhanced Create Portfolio Processing
+     * Create Portfolio Processing
      */
     @PostMapping("/create")
     public String createPortfolio(@ModelAttribute("portfolio") @Validated Portfolio portfolio,
@@ -391,21 +180,18 @@ public class PortfolioController {
             
             // Handle property owner assignment
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                // Manager can create for specific owner or as shared
                 if (selectedOwnerId != null && selectedOwnerId > 0) {
                     portfolio.setPropertyOwnerId(selectedOwnerId);
-                    portfolio.setIsShared("N"); // Owner-specific
+                    portfolio.setIsShared("N");
                 } else {
                     portfolio.setPropertyOwnerId(null);
-                    portfolio.setIsShared("Y"); // Shared portfolio
+                    portfolio.setIsShared("Y");
                 }
             } else {
-                // Property owners create for themselves
                 portfolio.setPropertyOwnerId(userId);
                 portfolio.setIsShared("N");
             }
             
-            // Create the portfolio
             Portfolio savedPortfolio = portfolioService.createPortfolio(
                 portfolio.getName(),
                 portfolio.getDescription(),
@@ -414,13 +200,12 @@ public class PortfolioController {
                 (long) userId
             );
             
-            // Set additional properties
             savedPortfolio.setTargetMonthlyIncome(portfolio.getTargetMonthlyIncome());
             savedPortfolio.setTargetOccupancyRate(portfolio.getTargetOccupancyRate());
             savedPortfolio.setColorCode(portfolio.getColorCode());
             savedPortfolio.setIsShared(portfolio.getIsShared());
             
-            // Handle PayProp sync if enabled and user has permission
+            // Handle PayProp sync if enabled
             if (enablePayPropSync && payPropEnabled && payPropSyncService != null && 
                 AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 
@@ -429,7 +214,6 @@ public class PortfolioController {
                     redirectAttributes.addFlashAttribute("successMessage", 
                         "Portfolio '" + savedPortfolio.getName() + "' created and synced to PayProp successfully!");
                 } catch (Exception e) {
-                    // Portfolio created but sync failed
                     redirectAttributes.addFlashAttribute("warningMessage", 
                         "Portfolio '" + savedPortfolio.getName() + "' created successfully, but PayProp sync failed: " + e.getMessage());
                 }
@@ -439,12 +223,10 @@ public class PortfolioController {
             }
             
             portfolioService.save(savedPortfolio);
-            
             return "redirect:/portfolio/" + savedPortfolio.getId();
             
         } catch (Exception e) {
             model.addAttribute("error", "Failed to create portfolio: " + e.getMessage());
-            
             // Re-populate model for form redisplay
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 if (customerService != null) {
@@ -467,7 +249,7 @@ public class PortfolioController {
     }
 
     /**
-     * Get All Portfolios (Manager View) - SIMPLIFIED VERSION
+     * Get All Portfolios (Manager View)
      */
     @GetMapping("/all")
     public String showAllPortfolios(Model model, Authentication authentication,
@@ -481,10 +263,9 @@ public class PortfolioController {
         }
         
         try {
-            // Use existing service methods - get all portfolios for now
-            List<Portfolio> allPortfolios = portfolioService.findAll(); // Use existing method
+            List<Portfolio> allPortfolios = portfolioService.findAll();
             
-            // Apply simple filtering if needed
+            // Apply filtering
             if (ownerId != null) {
                 allPortfolios = allPortfolios.stream()
                     .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(ownerId))
@@ -510,7 +291,6 @@ public class PortfolioController {
                     .collect(Collectors.toList());
             }
             
-            // Get analytics for each portfolio
             List<PortfolioWithAnalytics> portfoliosWithAnalytics = allPortfolios.stream()
                 .map(portfolio -> {
                     PortfolioAnalytics analytics = portfolioService.getLatestPortfolioAnalytics(portfolio.getId());
@@ -518,10 +298,8 @@ public class PortfolioController {
                 })
                 .collect(Collectors.toList());
             
-            // Calculate aggregate statistics
             PortfolioAggregateStats aggregateStats = calculateAggregateStats(allPortfolios);
             
-            // Get property owners for filter dropdown - use existing methods
             List<Customer> propertyOwners = new ArrayList<>();
             if (customerService != null) {
                 try {
@@ -553,7 +331,7 @@ public class PortfolioController {
     }
 
     /**
-     * Assign Properties Interface - SIMPLIFIED VERSION
+     * Assign Properties Interface
      */
     @GetMapping("/assign-properties")
     public String showAssignPropertiesPage(Model model, Authentication authentication) {
@@ -563,13 +341,8 @@ public class PortfolioController {
         }
         
         try {
-            // Get all portfolios - use existing method
             List<Portfolio> portfolios = portfolioService.findAll();
-            
-            // Get all properties - use existing method
             List<Property> allProperties = propertyService.findAll();
-            
-            // Filter unassigned properties manually
             List<Property> unassignedProperties = allProperties.stream()
                 .filter(property -> property.getPortfolio() == null)
                 .collect(Collectors.toList());
@@ -587,8 +360,208 @@ public class PortfolioController {
         }
     }
 
+    // ===== PAYPROP SPECIFIC ROUTES =====
+
     /**
-     * Bulk Property Assignment - FIXED VERSION
+     * Get available PayProp tags for adoption
+     */
+    @GetMapping("/payprop-tags")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getPayPropTags(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!payPropEnabled || payPropSyncService == null) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
+                !AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            List<PayPropTagDTO> payPropTags = payPropSyncService.getAllPayPropTags();
+            List<PayPropTagDTO> availableTags = payPropTags.stream()
+                .filter(tag -> {
+                    List<Portfolio> existingPortfolios = portfolioService.findByPayPropTag(tag.getId());
+                    return existingPortfolios.isEmpty();
+                })
+                .collect(Collectors.toList());
+            
+            response.put("success", true);
+            response.put("tags", availableTags);
+            response.put("totalTags", payPropTags.size());
+            response.put("availableTags", availableTags.size());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Failed to load PayProp tags: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * Adopt an existing PayProp tag as a portfolio
+     */
+    @PostMapping("/adopt-payprop-tag")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> adoptPayPropTag(
+            @RequestParam String payPropTagId,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!payPropEnabled || payPropSyncService == null) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            if (!canUserCreatePortfolio(authentication)) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            
+            List<Portfolio> existingPortfolios = portfolioService.findByPayPropTag(payPropTagId);
+            if (!existingPortfolios.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "This PayProp tag is already adopted as a portfolio");
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+            }
+            
+            PayPropTagDTO tagData = payPropSyncService.getPayPropTag(payPropTagId);
+            if (tagData == null) {
+                response.put("success", false);
+                response.put("message", "PayProp tag not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            Portfolio portfolio = new Portfolio();
+            portfolio.setName(tagData.getName());
+            portfolio.setDescription("Adopted from PayProp tag: " + tagData.getName());
+            portfolio.setPortfolioType(PortfolioType.CUSTOM);
+            portfolio.setColorCode(tagData.getColor());
+            portfolio.setCreatedBy((long) userId);
+            
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+                portfolio.setPropertyOwnerId(userId);
+                portfolio.setIsShared("N");
+            } else {
+                portfolio.setIsShared("Y");
+            }
+            
+            portfolio.setPayPropTags(payPropTagId);
+            portfolio.setPayPropTagNames(tagData.getName());
+            portfolio.setSyncStatus(SyncStatus.SYNCED);
+            portfolio.setLastSyncAt(LocalDateTime.now());
+            
+            Portfolio savedPortfolio = portfolioService.save(portfolio);
+            
+            SyncResult syncResult = payPropSyncService.handlePayPropTagChange(
+                payPropTagId, "TAG_APPLIED", tagData, null);
+            
+            response.put("success", true);
+            response.put("message", "PayProp tag successfully adopted as portfolio");
+            response.put("portfolioId", savedPortfolio.getId());
+            response.put("portfolioName", savedPortfolio.getName());
+            response.put("syncResult", syncResult.getMessage());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Failed to adopt PayProp tag: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * Pull Tags from PayProp (Two-way sync) - FIXED: Now comes BEFORE /{id}
+     */
+    @PostMapping("/pull-payprop-tags")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> pullPayPropTags(Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!payPropEnabled || payPropSyncService == null) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                response.put("success", false);
+                response.put("message", "Access denied - Manager role required");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            SyncResult result = payPropSyncService.pullAllTagsFromPayProp((long) userId);
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("details", result.getDetails());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * Sync All Portfolios with PayProp
+     */
+    @PostMapping("/sync-all")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> syncAllPortfoliosWithPayProp(Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!payPropEnabled || payPropSyncService == null) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                response.put("success", false);
+                response.put("message", "Access denied - Manager role required");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            portfolioService.syncAllPortfoliosWithPayProp((long) userId);
+            
+            response.put("success", true);
+            response.put("message", "Bulk portfolio sync initiated successfully");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * Bulk Property Assignment
      */
     @PostMapping("/bulk-assign")
     @ResponseBody
@@ -608,8 +581,6 @@ public class PortfolioController {
             }
             
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            
-            // Use the method that exists - this returns void, not int
             portfolioService.assignPropertiesToPortfolio(portfolioId, propertyIds, (long) userId);
             
             response.put("success", true);
@@ -622,6 +593,57 @@ public class PortfolioController {
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    // ===== PARAMETERIZED ROUTES LAST =====
+
+    /**
+     * Portfolio Details - MOVED TO END to prevent route conflicts
+     */
+    @GetMapping("/{id}")
+    public String viewPortfolio(@PathVariable("id") Long portfolioId, Model model, Authentication authentication) {
+        try {
+            if (!portfolioService.canUserAccessPortfolio(portfolioId, authentication)) {
+                return "redirect:/access-denied";
+            }
+            
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            if (portfolio == null) {
+                return "error/not-found";
+            }
+            
+            PortfolioAnalytics analytics = portfolioService.getLatestPortfolioAnalytics(portfolioId);
+            if (analytics == null) {
+                analytics = portfolioService.calculatePortfolioAnalytics(portfolioId, LocalDate.now());
+            }
+            
+            List<Block> blocks = portfolioService.findBlocksByPortfolio(portfolioId);
+            List<Property> properties = propertyService.findByPortfolioId(portfolioId);
+            
+            LocalDate sixMonthsAgo = LocalDate.now().minusMonths(6);
+            List<PortfolioAnalytics> analyticsHistory = portfolioService
+                .getPortfolioAnalyticsHistory(portfolioId, sixMonthsAgo, LocalDate.now());
+            
+            boolean canEdit = canUserEditPortfolio(portfolioId, authentication);
+            boolean canManageProperties = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
+                                        AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE");
+            
+            model.addAttribute("portfolio", portfolio);
+            model.addAttribute("analytics", analytics);
+            model.addAttribute("blocks", blocks);
+            model.addAttribute("properties", properties);
+            model.addAttribute("analyticsHistory", analyticsHistory);
+            model.addAttribute("canEdit", canEdit);
+            model.addAttribute("canManageProperties", canManageProperties);
+            model.addAttribute("payPropEnabled", payPropEnabled);
+            model.addAttribute("pageTitle", portfolio.getName());
+            
+            return "portfolio/portfolio-details";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading portfolio: " + e.getMessage());
+            return "error/500";
         }
     }
 
@@ -676,7 +698,6 @@ public class PortfolioController {
             
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             
-            // Update fields
             existingPortfolio.setName(portfolio.getName());
             existingPortfolio.setDescription(portfolio.getDescription());
             existingPortfolio.setPortfolioType(portfolio.getPortfolioType());
@@ -685,7 +706,6 @@ public class PortfolioController {
             existingPortfolio.setColorCode(portfolio.getColorCode());
             existingPortfolio.setUpdatedBy((long) userId);
             
-            // Only managers can change sharing settings
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 existingPortfolio.setIsShared(portfolio.getIsShared());
             }
@@ -704,8 +724,6 @@ public class PortfolioController {
             return "portfolio/edit-portfolio";
         }
     }
-
-    // ===== PROPERTY ASSIGNMENT =====
 
     /**
      * Assign Properties to Portfolio
@@ -777,8 +795,6 @@ public class PortfolioController {
         }
     }
 
-    // ===== PAYPROP SYNCHRONIZATION =====
-
     /**
      * Sync Portfolio with PayProp
      */
@@ -791,7 +807,6 @@ public class PortfolioController {
         Map<String, Object> response = new HashMap<>();
         
         try {
-            // Check if PayProp is enabled and service is available
             if (!payPropEnabled || payPropSyncService == null) {
                 response.put("success", false);
                 response.put("message", "PayProp integration is not enabled");
@@ -819,85 +834,6 @@ public class PortfolioController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
-
-    /**
-     * Sync All Portfolios with PayProp
-     */
-    @PostMapping("/sync-all")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> syncAllPortfoliosWithPayProp(Authentication authentication) {
-        
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            // Check if PayProp is enabled and service is available
-            if (!payPropEnabled || payPropSyncService == null) {
-                response.put("success", false);
-                response.put("message", "PayProp integration is not enabled");
-                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
-            }
-            
-            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                response.put("success", false);
-                response.put("message", "Access denied - Manager role required");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
-            }
-            
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            portfolioService.syncAllPortfoliosWithPayProp((long) userId);
-            
-            response.put("success", true);
-            response.put("message", "Bulk portfolio sync initiated successfully");
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-        }
-    }
-
-    /**
-     * Pull Tags from PayProp (Two-way sync)
-     */
-    @PostMapping("/pull-payprop-tags")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> pullPayPropTags(Authentication authentication) {
-        
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            // Check if PayProp is enabled and service is available
-            if (!payPropEnabled || payPropSyncService == null) {
-                response.put("success", false);
-                response.put("message", "PayProp integration is not enabled");
-                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
-            }
-            
-            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                response.put("success", false);
-                response.put("message", "Access denied - Manager role required");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
-            }
-            
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            SyncResult result = payPropSyncService.pullAllTagsFromPayProp((long) userId);
-            
-            response.put("success", result.isSuccess());
-            response.put("message", result.getMessage());
-            response.put("details", result.getDetails());
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-        }
-    }
-
-    // ===== ANALYTICS AND REPORTING =====
 
     /**
      * Recalculate Portfolio Analytics
@@ -953,7 +889,6 @@ public class PortfolioController {
                 stats.totalMonthlyRent = stats.totalMonthlyRent.add(analytics.getTotalMonthlyRent());
                 stats.totalActualIncome = stats.totalActualIncome.add(analytics.getActualMonthlyIncome());
                 
-                // Only include sync stats if PayProp is enabled
                 if (payPropEnabled) {
                     stats.totalSynced += analytics.getPropertiesSynced();
                     stats.totalPendingSync += analytics.getPropertiesPendingSync();
@@ -961,7 +896,6 @@ public class PortfolioController {
             }
         }
         
-        // Calculate overall occupancy rate
         if (stats.totalProperties > 0) {
             stats.overallOccupancyRate = (stats.totalOccupied * 100.0) / stats.totalProperties;
         }
@@ -987,13 +921,11 @@ public class PortfolioController {
         
         int userId = authenticationUtils.getLoggedInUserId(authentication);
         
-        // Property owners can edit their own portfolios
         if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER")) {
             return portfolio.getPropertyOwnerId() != null && 
                    portfolio.getPropertyOwnerId().equals(userId);
         }
         
-        // Employees can edit shared portfolios they created
         if (AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
             return portfolio.getCreatedBy().equals((long) userId);
         }
