@@ -17,6 +17,7 @@ import site.easy.to.build.crm.controller.PortfolioController.PortfolioWithAnalyt
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.payprop.PayPropPortfolioSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
 import site.easy.to.build.crm.service.payprop.SyncResult;
@@ -39,6 +40,10 @@ public class PortfolioController {
     private final PortfolioService portfolioService;
     private final PropertyService propertyService;
     private final AuthenticationUtils authenticationUtils;
+    
+    // Add customer service for manager functionality
+    @Autowired(required = false)
+    private CustomerService customerService;
     
     // Make PayProp service optional
     @Autowired(required = false)
@@ -166,7 +171,7 @@ public class PortfolioController {
     // ===== PORTFOLIO MANAGEMENT =====
 
     /**
-     * Create Portfolio Form
+     * Enhanced Create Portfolio Form for Managers
      */
     @GetMapping("/create")
     public String showCreatePortfolioForm(Model model, Authentication authentication) {
@@ -176,10 +181,25 @@ public class PortfolioController {
         
         Portfolio portfolio = new Portfolio();
         
-        // Set default owner for property owner users
-        if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER")) {
+        // For managers, provide list of property owners to choose from
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            // Get all property owners for selection
+            if (customerService != null) {
+                try {
+                    List<Customer> propertyOwners = customerService.findAllPropertyOwners();
+                    model.addAttribute("propertyOwners", propertyOwners);
+                } catch (Exception e) {
+                    // If service method doesn't exist yet, just log and continue
+                    System.out.println("Property owners service not available: " + e.getMessage());
+                    model.addAttribute("propertyOwners", new ArrayList<>());
+                }
+            }
+            model.addAttribute("isManager", true);
+        } else {
+            // For property owners, auto-set themselves
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             portfolio.setPropertyOwnerId(userId);
+            model.addAttribute("isManager", false);
         }
         
         model.addAttribute("portfolio", portfolio);
@@ -327,11 +347,13 @@ public class PortfolioController {
     }
 
     /**
-     * Create Portfolio
+     * Enhanced Create Portfolio Processing
      */
     @PostMapping("/create")
     public String createPortfolio(@ModelAttribute("portfolio") @Validated Portfolio portfolio,
                                  BindingResult bindingResult,
+                                 @RequestParam(value = "selectedOwnerId", required = false) Integer selectedOwnerId,
+                                 @RequestParam(value = "enablePayPropSync", defaultValue = "false") boolean enablePayPropSync,
                                  Authentication authentication,
                                  Model model,
                                  RedirectAttributes redirectAttributes) {
@@ -341,6 +363,18 @@ public class PortfolioController {
         }
         
         if (bindingResult.hasErrors()) {
+            // Re-populate model for form redisplay
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                if (customerService != null) {
+                    try {
+                        List<Customer> propertyOwners = customerService.findAllPropertyOwners();
+                        model.addAttribute("propertyOwners", propertyOwners);
+                    } catch (Exception e) {
+                        model.addAttribute("propertyOwners", new ArrayList<>());
+                    }
+                }
+                model.addAttribute("isManager", true);
+            }
             model.addAttribute("portfolioTypes", PortfolioType.values());
             model.addAttribute("payPropEnabled", payPropEnabled);
             return "portfolio/create-portfolio";
@@ -349,11 +383,23 @@ public class PortfolioController {
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             
-            // For property owners, ensure they can only create portfolios for themselves
-            if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER")) {
+            // Handle property owner assignment
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                // Manager can create for specific owner or as shared
+                if (selectedOwnerId != null && selectedOwnerId > 0) {
+                    portfolio.setPropertyOwnerId(selectedOwnerId);
+                    portfolio.setIsShared("N"); // Owner-specific
+                } else {
+                    portfolio.setPropertyOwnerId(null);
+                    portfolio.setIsShared("Y"); // Shared portfolio
+                }
+            } else {
+                // Property owners create for themselves
                 portfolio.setPropertyOwnerId(userId);
+                portfolio.setIsShared("N");
             }
             
+            // Create the portfolio
             Portfolio savedPortfolio = portfolioService.createPortfolio(
                 portfolio.getName(),
                 portfolio.getDescription(),
@@ -362,16 +408,196 @@ public class PortfolioController {
                 (long) userId
             );
             
-            redirectAttributes.addFlashAttribute("successMessage", 
-                "Portfolio '" + savedPortfolio.getName() + "' created successfully!");
+            // Set additional properties
+            savedPortfolio.setTargetMonthlyIncome(portfolio.getTargetMonthlyIncome());
+            savedPortfolio.setTargetOccupancyRate(portfolio.getTargetOccupancyRate());
+            savedPortfolio.setColorCode(portfolio.getColorCode());
+            savedPortfolio.setIsShared(portfolio.getIsShared());
+            
+            // Handle PayProp sync if enabled and user has permission
+            if (enablePayPropSync && payPropEnabled && payPropSyncService != null && 
+                AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                
+                try {
+                    portfolioService.syncPortfolioWithPayProp(savedPortfolio.getId(), (long) userId);
+                    redirectAttributes.addFlashAttribute("successMessage", 
+                        "Portfolio '" + savedPortfolio.getName() + "' created and synced to PayProp successfully!");
+                } catch (Exception e) {
+                    // Portfolio created but sync failed
+                    redirectAttributes.addFlashAttribute("warningMessage", 
+                        "Portfolio '" + savedPortfolio.getName() + "' created successfully, but PayProp sync failed: " + e.getMessage());
+                }
+            } else {
+                redirectAttributes.addFlashAttribute("successMessage", 
+                    "Portfolio '" + savedPortfolio.getName() + "' created successfully!");
+            }
+            
+            portfolioService.save(savedPortfolio);
             
             return "redirect:/portfolio/" + savedPortfolio.getId();
             
         } catch (Exception e) {
             model.addAttribute("error", "Failed to create portfolio: " + e.getMessage());
+            
+            // Re-populate model for form redisplay
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                if (customerService != null) {
+                    try {
+                        List<Customer> propertyOwners = customerService.findAllPropertyOwners();
+                        model.addAttribute("propertyOwners", propertyOwners);
+                    } catch (Exception e2) {
+                        model.addAttribute("propertyOwners", new ArrayList<>());
+                    }
+                }
+                model.addAttribute("isManager", true);
+            }
             model.addAttribute("portfolioTypes", PortfolioType.values());
             model.addAttribute("payPropEnabled", payPropEnabled);
             return "portfolio/create-portfolio";
+        }
+    }
+
+    /**
+     * Get All Portfolios (Manager View)
+     */
+    @GetMapping("/all")
+    public String showAllPortfolios(Model model, Authentication authentication,
+                                   @RequestParam(value = "owner", required = false) Integer ownerId,
+                                   @RequestParam(value = "type", required = false) String type,
+                                   @RequestParam(value = "search", required = false) String search) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
+            !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+            return "redirect:/access-denied";
+        }
+        
+        try {
+            List<Portfolio> allPortfolios;
+            
+            // Apply filters
+            if (ownerId != null) {
+                allPortfolios = portfolioService.findByPropertyOwnerId(ownerId);
+            } else if (type != null && !type.isEmpty()) {
+                allPortfolios = portfolioService.findByPortfolioType(PortfolioType.valueOf(type.toUpperCase()));
+            } else if (search != null && !search.trim().isEmpty()) {
+                allPortfolios = portfolioService.searchPortfolios(search.trim());
+            } else {
+                allPortfolios = portfolioService.findAllPortfolios();
+            }
+            
+            // Get analytics for each portfolio
+            List<PortfolioWithAnalytics> portfoliosWithAnalytics = allPortfolios.stream()
+                .map(portfolio -> {
+                    PortfolioAnalytics analytics = portfolioService.getLatestPortfolioAnalytics(portfolio.getId());
+                    return new PortfolioWithAnalytics(portfolio, analytics);
+                })
+                .collect(Collectors.toList());
+            
+            // Calculate aggregate statistics
+            PortfolioAggregateStats aggregateStats = calculateAggregateStats(allPortfolios);
+            
+            // Get property owners for filter dropdown
+            List<Customer> propertyOwners = new ArrayList<>();
+            if (customerService != null) {
+                try {
+                    propertyOwners = customerService.findAllPropertyOwners();
+                } catch (Exception e) {
+                    System.out.println("Property owners service not available: " + e.getMessage());
+                }
+            }
+            
+            model.addAttribute("portfolios", portfoliosWithAnalytics);
+            model.addAttribute("aggregateStats", aggregateStats);
+            model.addAttribute("propertyOwners", propertyOwners);
+            model.addAttribute("portfolioTypes", PortfolioType.values());
+            model.addAttribute("selectedOwner", ownerId);
+            model.addAttribute("selectedType", type);
+            model.addAttribute("searchTerm", search);
+            model.addAttribute("payPropEnabled", payPropEnabled);
+            model.addAttribute("pageTitle", "All Portfolios");
+            
+            return "portfolio/all-portfolios";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading portfolios: " + e.getMessage());
+            return "error/500";
+        }
+    }
+
+    /**
+     * Assign Properties Interface
+     */
+    @GetMapping("/assign-properties")
+    public String showAssignPropertiesPage(Model model, Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
+            !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+            return "redirect:/access-denied";
+        }
+        
+        try {
+            // Get all portfolios
+            List<Portfolio> portfolios = portfolioService.findAllPortfolios();
+            
+            // Get unassigned properties
+            List<Property> unassignedProperties = new ArrayList<>();
+            List<Property> allProperties = new ArrayList<>();
+            
+            try {
+                // These methods may not exist yet, so use try-catch
+                unassignedProperties = propertyService.findPropertiesWithoutPortfolio();
+                allProperties = propertyService.findAllActiveProperties();
+            } catch (Exception e) {
+                System.out.println("Property service methods not available: " + e.getMessage());
+                // Fallback to basic property list
+                allProperties = propertyService.findAll();
+            }
+            
+            model.addAttribute("portfolios", portfolios);
+            model.addAttribute("unassignedProperties", unassignedProperties);
+            model.addAttribute("allProperties", allProperties);
+            model.addAttribute("pageTitle", "Assign Properties to Portfolios");
+            
+            return "portfolio/assign-properties";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading assignment page: " + e.getMessage());
+            return "error/500";
+        }
+    }
+
+    /**
+     * Bulk Property Assignment
+     */
+    @PostMapping("/bulk-assign")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> bulkAssignProperties(
+            @RequestParam("portfolioId") Long portfolioId,
+            @RequestParam("propertyIds") List<Long> propertyIds,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
+                !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            int assignedCount = portfolioService.assignPropertiesToPortfolio(portfolioId, propertyIds, (long) userId);
+            
+            response.put("success", true);
+            response.put("message", assignedCount + " properties assigned successfully");
+            response.put("assignedCount", assignedCount);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
 
@@ -721,7 +947,8 @@ public class PortfolioController {
 
     private boolean canUserCreatePortfolio(Authentication authentication) {
         return AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
-            AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER"); // NOT ROLE_CUSTOMER
+               AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER") ||
+               AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER");
     }
 
     private boolean canUserEditPortfolio(Long portfolioId, Authentication authentication) {

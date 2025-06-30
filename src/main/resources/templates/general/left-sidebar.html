@@ -43,6 +43,41 @@
                     </ul>
                 </li>
 
+                <!-- Add this section to your left-sidebar.html right after PROPERTY MANAGEMENT section -->
+
+                <!-- PORTFOLIO MANAGEMENT - New section for managers -->
+                <li>
+                    <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
+                        <i class="fas fa-chart-pie"></i>
+                        <span class="hide-menu">Portfolios</span>
+                    </a>
+                    <ul class="collapse">
+                        <!-- Portfolio Dashboard - main entry point -->
+                        <li><a th:href="${home + 'portfolio/dashboard'}"><i class="fas fa-tachometer-alt"></i> Portfolio Dashboard</a></li>
+                        
+                        <!-- Portfolio Management -->
+                        <li><a th:href="${home + 'portfolio/create'}"><i class="fas fa-plus"></i> Create Portfolio</a></li>
+                        <li><a th:href="${home + 'portfolio/all'}"><i class="fas fa-list"></i> All Portfolios</a></li>
+                        
+                        <!-- Property Assignment -->
+                        <li><a th:href="${home + 'portfolio/assign-properties'}"><i class="fas fa-home"></i> Assign Properties</a></li>
+                        <li><a th:href="${home + 'portfolio/unassigned'}"><i class="fas fa-exclamation-triangle text-warning"></i> Unassigned Properties</a></li>
+                        
+                        <!-- PayProp Integration (Manager only) -->
+                        <li th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">
+                            <a href="javascript:void(0)" class="has-arrow">PayProp Sync</a>
+                            <ul class="collapse">
+                                <li><a th:href="${home + 'admin/payprop/dashboard'}"><i class="fas fa-sync"></i> PayProp Admin</a></li>
+                                <li><a th:href="${home + 'portfolio/sync-all'}"><i class="fas fa-cloud-upload-alt"></i> Sync All Portfolios</a></li>
+                                <li><a th:href="${home + 'portfolio/pull-payprop-tags'}"><i class="fas fa-cloud-download-alt"></i> Import PayProp Tags</a></li>
+                            </ul>
+                        </li>
+                        
+                        <!-- Analytics -->
+                        <li><a th:href="${home + 'portfolio/analytics'}"><i class="fas fa-chart-bar"></i> Portfolio Analytics</a></li>
+                    </ul>
+                </li>
+
                 <!-- PEOPLE MANAGEMENT - Using existing CustomerController with extensions -->
                 <li>
                     <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">

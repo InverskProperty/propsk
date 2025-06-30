@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- DataTables CSS -->
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/responsive.dataTables.min.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+<style>
+.property-item {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+.property-item:hover {
+    border-color: #007bff;
+    background-color: #f8f9fa;
+}
+.property-item.selected {
+    border-color: #28a745;
+    background-color: #f8fff9;
+}
+.portfolio-target {
+    min-height: 100px;
+    border: 2px dashed #dee2e6;
+    transition: all 0.3s ease;
+}
+.portfolio-target.drag-over {
+    border-color: #007bff;
+    background-color: #f8f9fa;
+}
+.drag-source {
+    max-height: 400px;
+    overflow-y: auto;
+}
+</style>
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">
+                        <i class="fas fa-tasks text-success"></i> 
+                        Property Assignment Center
+                    </h3>
+                    <p class="text-muted">Assign properties to portfolios with drag & drop</p>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <div class="btn-group">
+                        <button class="btn btn-info" onclick="toggleAssignmentMode()">
+                            <i class="fas fa-exchange-alt"></i> Toggle Mode
+                        </button>
+                        <a href="/portfolio/all" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Back to Portfolios
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assignment Mode Toggle -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-0">Assignment Mode</h6>
+                                    <p class="text-muted mb-0">Choose how you want to assign properties</p>
+                                </div>
+                                <div class="btn-group">
+                                    <button id="dragDropMode" class="btn btn-primary" onclick="setMode('dragdrop')">
+                                        <i class="fas fa-hand-paper"></i> Drag & Drop
+                                    </button>
+                                    <button id="bulkMode" class="btn btn-outline-primary" onclick="setMode('bulk')">
+                                        <i class="fas fa-check-square"></i> Bulk Select
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body text-center">
+                            <h4 th:text="${#lists.size(unassignedProperties ?: {})}">0</h4>
+                            <p class="mb-0">Unassigned Properties</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <h4 th:text="${#lists.size(allProperties ?: {}) - #lists.size(unassignedProperties ?: {})}">0</h4>
+                            <p class="mb-0">Assigned Properties</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <h4 th:text="${#lists.size(portfolios ?: {})}">0</h4>
+                            <p class="mb-0">Available Portfolios</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Drag & Drop Mode -->
+            <div id="dragDropInterface">
+                <div class="row">
+                    <!-- Unassigned Properties -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-warning text-white">
+                                <h4 class="text-white mb-0">
+                                    <i class="fas fa-exclamation-triangle"></i> Unassigned Properties
+                                </h4>
+                            </div>
+                            <div class="card-body drag-source">
+                                <div th:if="${#lists.isEmpty(unassignedProperties ?: {})}" class="text-center py-4">
+                                    <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                                    <h5>All Properties Assigned</h5>
+                                    <p class="text-muted">Great! All properties are assigned to portfolios.</p>
+                                </div>
+
+                                <div th:unless="${#lists.isEmpty(unassignedProperties ?: {})}" class="property-list">
+                                    <div th:each="property : ${unassignedProperties}" 
+                                         class="card property-item mb-3" 
+                                         draggable="true"
+                                         th:data-property-id="${property.id}"
+                                         ondragstart="dragStart(event)">
+                                        <div class="card-body p-3">
+                                            <h6 class="mb-1" th:text="${property.propertyName}">Property Name</h6>
+                                            <p class="text-muted mb-1 small" th:text="${property.fullAddress}">Address</p>
+                                            <div class="d-flex justify-content-between">
+                                                <span class="badge badge-secondary" th:text="${property.propertyType}">Type</span>
+                                                <span th:if="${property.monthlyPayment}" 
+                                                      class="text-success small"
+                                                      th:text="'£' + ${#numbers.formatDecimal(property.monthlyPayment, 0, 'COMMA', 0, 'POINT')}">£0</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Portfolio Targets -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-success text-white">
+                                <h4 class="text-white mb-0">
+                                    <i class="fas fa-chart-pie"></i> Portfolio Targets
+                                </h4>
+                            </div>
+                            <div class="card-body">
+                                <div style="max-height: 500px; overflow-y: auto;">
+                                    <div th:each="portfolio : ${portfolios}" class="mb-3">
+                                        <div class="card portfolio-target"
+                                             th:data-portfolio-id="${portfolio.id}"
+                                             ondrop="drop(event)" 
+                                             ondragover="allowDrop(event)"
+                                             ondragenter="dragEnter(event)"
+                                             ondragleave="dragLeave(event)">
+                                            <div class="card-header d-flex justify-content-between align-items-center">
+                                                <h6 class="mb-0" th:text="${portfolio.name}">Portfolio Name</h6>
+                                                <div>
+                                                    <span th:if="${portfolio.isShared == 'Y'}" 
+                                                          class="badge badge-primary">Shared</span>
+                                                    <span th:unless="${portfolio.isShared == 'Y'}" 
+                                                          class="badge badge-info">Owner-Specific</span>
+                                                </div>
+                                            </div>
+                                            <div class="card-body">
+                                                <p class="text-muted small mb-2" th:text="${portfolio.description}">Description</p>
+                                                <div class="d-flex justify-content-between">
+                                                    <small class="text-muted">
+                                                        Owner: 
+                                                        <span th:if="${portfolio.propertyOwnerId}" 
+                                                              th:text="'ID ' + ${portfolio.propertyOwnerId}">Owner ID</span>
+                                                        <span th:unless="${portfolio.propertyOwnerId}">Shared</span>
+                                                    </small>
+                                                    <small class="text-info">
+                                                        <i class="fas fa-home"></i> Drop properties here
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bulk Selection Mode -->
+            <div id="bulkInterface" style="display: none;">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4 class="card-title">
+                                    <i class="fas fa-check-square"></i> Bulk Property Assignment
+                                </h4>
+                            </div>
+                            <div class="card-body">
+                                <form id="bulkAssignForm">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label>Select Target Portfolio</label>
+                                                <select class="form-control" id="targetPortfolio" required>
+                                                    <option value="">Choose portfolio...</option>
+                                                    <option th:each="portfolio : ${portfolios}" 
+                                                            th:value="${portfolio.id}" 
+                                                            th:text="${portfolio.name + ' (' + (portfolio.isShared == 'Y' ? 'Shared' : 'Owner-Specific') + ')'}">Portfolio</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label>&nbsp;</label>
+                                                <div>
+                                                    <button type="button" class="btn btn-success mr-2" onclick="assignSelected()">
+                                                        <i class="fas fa-check"></i> Assign Selected
+                                                    </button>
+                                                    <button type="button" class="btn btn-secondary" onclick="clearSelection()">
+                                                        <i class="fas fa-times"></i> Clear Selection
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="table-responsive">
+                                        <table id="propertyTable" class="table table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>
+                                                        <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                                                    </th>
+                                                    <th>Property</th>
+                                                    <th>Address</th>
+                                                    <th>Type</th>
+                                                    <th>Monthly Rent</th>
+                                                    <th>Current Portfolio</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr th:each="property : ${allProperties}">
+                                                    <td>
+                                                        <input type="checkbox" 
+                                                               class="property-checkbox" 
+                                                               th:value="${property.id}"
+                                                               name="selectedProperties">
+                                                    </td>
+                                                    <td th:text="${property.propertyName}">Property Name</td>
+                                                    <td th:text="${property.fullAddress}">Address</td>
+                                                    <td>
+                                                        <span class="badge badge-secondary" th:text="${property.propertyType}">Type</span>
+                                                    </td>
+                                                    <td>
+                                                        <span th:if="${property.monthlyPayment}" 
+                                                              th:text="'£' + ${#numbers.formatDecimal(property.monthlyPayment, 0, 'COMMA', 0, 'POINT')}">£0</span>
+                                                        <span th:unless="${property.monthlyPayment}" class="text-muted">Not set</span>
+                                                    </td>
+                                                    <td>
+                                                        <span th:if="${property.portfolio}" 
+                                                              class="badge badge-info" 
+                                                              th:text="${property.portfolio.name}">Portfolio</span>
+                                                        <span th:unless="${property.portfolio}" 
+                                                              class="badge badge-warning">Unassigned</span>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+<!-- DataTables -->
+<script th:src="@{/js/library/jquery.dataTables.min.js}"></script>
+<script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
+
+<script>
+let currentMode = 'dragdrop';
+
+function setMode(mode) {
+    currentMode = mode;
+    
+    if (mode === 'dragdrop') {
+        document.getElementById('dragDropInterface').style.display = 'block';
+        document.getElementById('bulkInterface').style.display = 'none';
+        document.getElementById('dragDropMode').classList.remove('btn-outline-primary');
+        document.getElementById('dragDropMode').classList.add('btn-primary');
+        document.getElementById('bulkMode').classList.remove('btn-primary');
+        document.getElementById('bulkMode').classList.add('btn-outline-primary');
+    } else {
+        document.getElementById('dragDropInterface').style.display = 'none';
+        document.getElementById('bulkInterface').style.display = 'block';
+        document.getElementById('bulkMode').classList.remove('btn-outline-primary');
+        document.getElementById('bulkMode').classList.add('btn-primary');
+        document.getElementById('dragDropMode').classList.remove('btn-primary');
+        document.getElementById('dragDropMode').classList.add('btn-outline-primary');
+        
+        // Initialize DataTable
+        if (!$.fn.DataTable.isDataTable('#propertyTable')) {
+            $('#propertyTable').DataTable({
+                responsive: true,
+                order: [1, 'asc'],
+                columnDefs: [
+                    { targets: [0], orderable: false }
+                ]
+            });
+        }
+    }
+}
+
+function toggleAssignmentMode() {
+    setMode(currentMode === 'dragdrop' ? 'bulk' : 'dragdrop');
+}
+
+// Drag and Drop Functions
+function dragStart(event) {
+    event.dataTransfer.setData("text/plain", event.target.getAttribute('data-property-id'));
+    event.target.style.opacity = '0.5';
+}
+
+function allowDrop(event) {
+    event.preventDefault();
+}
+
+function dragEnter(event) {
+    event.preventDefault();
+    event.currentTarget.classList.add('drag-over');
+}
+
+function dragLeave(event) {
+    event.currentTarget.classList.remove('drag-over');
+}
+
+function drop(event) {
+    event.preventDefault();
+    
+    const propertyId = event.dataTransfer.getData("text/plain");
+    const portfolioId = event.currentTarget.getAttribute('data-portfolio-id');
+    
+    event.currentTarget.classList.remove('drag-over');
+    
+    if (propertyId && portfolioId) {
+        assignPropertyToPortfolio(propertyId, portfolioId);
+    }
+}
+
+function assignPropertyToPortfolio(propertyId, portfolioId) {
+    fetch('/portfolio/' + portfolioId + '/assign-properties', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
+        },
+        body: 'propertyIds=' + propertyId
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Remove the property from unassigned list
+            const propertyElement = document.querySelector('[data-property-id="' + propertyId + '"]');
+            if (propertyElement) {
+                propertyElement.style.opacity = '1';
+                propertyElement.remove();
+            }
+            
+            showSuccess('Property assigned successfully!');
+        } else {
+            showError('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showError('Failed to assign property');
+    });
+}
+
+// Bulk Assignment Functions
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.property-checkbox');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+}
+
+function clearSelection() {
+    document.getElementById('selectAll').checked = false;
+    document.querySelectorAll('.property-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+}
+
+function assignSelected() {
+    const portfolioId = document.getElementById('targetPortfolio').value;
+    const selectedProperties = Array.from(document.querySelectorAll('.property-checkbox:checked'))
+        .map(checkbox => checkbox.value);
+    
+    if (!portfolioId) {
+        showError('Please select a target portfolio');
+        return;
+    }
+    
+    if (selectedProperties.length === 0) {
+        showError('Please select at least one property');
+        return;
+    }
+    
+    if (confirm(`Assign ${selectedProperties.length} properties to the selected portfolio?`)) {
+        fetch('/portfolio/bulk-assign', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
+            },
+            body: 'portfolioId=' + portfolioId + '&propertyIds=' + selectedProperties.join('&propertyIds=')
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess(data.message);
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showError('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Failed to assign properties');
+        });
+    }
+}
+
+function showSuccess(message) {
+    // Simple alert for now - you can enhance with toast notifications
+    alert('✅ ' + message);
+}
+
+function showError(message) {
+    alert('❌ ' + message);
+}
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    setMode('dragdrop');
+});
+</script>
+
+</body>
+</html>
