@@ -17,6 +17,9 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.Tenant;
 import site.easy.to.build.crm.entity.PropertyOwner;
 import site.easy.to.build.crm.util.AuthorizationUtil;
+import org.springframework.http.HttpStatus;
+import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
+import site.easy.to.build.crm.service.payprop.PayPropPortfolioSyncService;
 
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +48,9 @@ public class PayPropAdminController {
         this.tenantService = tenantService;
         this.propertyOwnerService = propertyOwnerService;
     }
+
+    @Autowired(required = false)
+    private PayPropPortfolioSyncService payPropSyncService;
 
     /**
      * Admin dashboard for PayProp integration
