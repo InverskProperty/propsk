@@ -183,14 +183,17 @@ public class PortfolioController {
         
         // For managers, provide list of property owners to choose from
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            // Get all property owners for selection
+            // Get all property owners - use existing methods that work
             if (customerService != null) {
                 try {
-                    List<Customer> propertyOwners = customerService.findAllPropertyOwners();
+                    // Use existing customer service methods
+                    List<Customer> allCustomers = customerService.findAll();
+                    List<Customer> propertyOwners = allCustomers.stream()
+                        .filter(customer -> customer.getIsPropertyOwner() != null && customer.getIsPropertyOwner())
+                        .collect(Collectors.toList());
                     model.addAttribute("propertyOwners", propertyOwners);
                 } catch (Exception e) {
-                    // If service method doesn't exist yet, just log and continue
-                    System.out.println("Property owners service not available: " + e.getMessage());
+                    System.out.println("Property owners filtering failed: " + e.getMessage());
                     model.addAttribute("propertyOwners", new ArrayList<>());
                 }
             }
@@ -367,7 +370,10 @@ public class PortfolioController {
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 if (customerService != null) {
                     try {
-                        List<Customer> propertyOwners = customerService.findAllPropertyOwners();
+                        List<Customer> allCustomers = customerService.findAll();
+                        List<Customer> propertyOwners = allCustomers.stream()
+                            .filter(customer -> customer.getIsPropertyOwner() != null && customer.getIsPropertyOwner())
+                            .collect(Collectors.toList());
                         model.addAttribute("propertyOwners", propertyOwners);
                     } catch (Exception e) {
                         model.addAttribute("propertyOwners", new ArrayList<>());
@@ -443,7 +449,10 @@ public class PortfolioController {
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 if (customerService != null) {
                     try {
-                        List<Customer> propertyOwners = customerService.findAllPropertyOwners();
+                        List<Customer> allCustomers = customerService.findAll();
+                        List<Customer> propertyOwners = allCustomers.stream()
+                            .filter(customer -> customer.getIsPropertyOwner() != null && customer.getIsPropertyOwner())
+                            .collect(Collectors.toList());
                         model.addAttribute("propertyOwners", propertyOwners);
                     } catch (Exception e2) {
                         model.addAttribute("propertyOwners", new ArrayList<>());
@@ -458,7 +467,7 @@ public class PortfolioController {
     }
 
     /**
-     * Get All Portfolios (Manager View)
+     * Get All Portfolios (Manager View) - SIMPLIFIED VERSION
      */
     @GetMapping("/all")
     public String showAllPortfolios(Model model, Authentication authentication,
@@ -472,17 +481,33 @@ public class PortfolioController {
         }
         
         try {
-            List<Portfolio> allPortfolios;
+            // Use existing service methods - get all portfolios for now
+            List<Portfolio> allPortfolios = portfolioService.findAll(); // Use existing method
             
-            // Apply filters
+            // Apply simple filtering if needed
             if (ownerId != null) {
-                allPortfolios = portfolioService.findByPropertyOwnerId(ownerId);
-            } else if (type != null && !type.isEmpty()) {
-                allPortfolios = portfolioService.findByPortfolioType(PortfolioType.valueOf(type.toUpperCase()));
-            } else if (search != null && !search.trim().isEmpty()) {
-                allPortfolios = portfolioService.searchPortfolios(search.trim());
-            } else {
-                allPortfolios = portfolioService.findAllPortfolios();
+                allPortfolios = allPortfolios.stream()
+                    .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(ownerId))
+                    .collect(Collectors.toList());
+            }
+            
+            if (type != null && !type.isEmpty()) {
+                try {
+                    PortfolioType portfolioType = PortfolioType.valueOf(type.toUpperCase());
+                    allPortfolios = allPortfolios.stream()
+                        .filter(p -> p.getPortfolioType() == portfolioType)
+                        .collect(Collectors.toList());
+                } catch (IllegalArgumentException e) {
+                    // Invalid type, ignore filter
+                }
+            }
+            
+            if (search != null && !search.trim().isEmpty()) {
+                String searchLower = search.toLowerCase().trim();
+                allPortfolios = allPortfolios.stream()
+                    .filter(p -> (p.getName() != null && p.getName().toLowerCase().contains(searchLower)) ||
+                               (p.getDescription() != null && p.getDescription().toLowerCase().contains(searchLower)))
+                    .collect(Collectors.toList());
             }
             
             // Get analytics for each portfolio
@@ -496,13 +521,16 @@ public class PortfolioController {
             // Calculate aggregate statistics
             PortfolioAggregateStats aggregateStats = calculateAggregateStats(allPortfolios);
             
-            // Get property owners for filter dropdown
+            // Get property owners for filter dropdown - use existing methods
             List<Customer> propertyOwners = new ArrayList<>();
             if (customerService != null) {
                 try {
-                    propertyOwners = customerService.findAllPropertyOwners();
+                    List<Customer> allCustomers = customerService.findAll();
+                    propertyOwners = allCustomers.stream()
+                        .filter(customer -> customer.getIsPropertyOwner() != null && customer.getIsPropertyOwner())
+                        .collect(Collectors.toList());
                 } catch (Exception e) {
-                    System.out.println("Property owners service not available: " + e.getMessage());
+                    System.out.println("Property owners filtering failed: " + e.getMessage());
                 }
             }
             
@@ -525,7 +553,7 @@ public class PortfolioController {
     }
 
     /**
-     * Assign Properties Interface
+     * Assign Properties Interface - SIMPLIFIED VERSION
      */
     @GetMapping("/assign-properties")
     public String showAssignPropertiesPage(Model model, Authentication authentication) {
@@ -535,22 +563,16 @@ public class PortfolioController {
         }
         
         try {
-            // Get all portfolios
-            List<Portfolio> portfolios = portfolioService.findAllPortfolios();
+            // Get all portfolios - use existing method
+            List<Portfolio> portfolios = portfolioService.findAll();
             
-            // Get unassigned properties
-            List<Property> unassignedProperties = new ArrayList<>();
-            List<Property> allProperties = new ArrayList<>();
+            // Get all properties - use existing method
+            List<Property> allProperties = propertyService.findAll();
             
-            try {
-                // These methods may not exist yet, so use try-catch
-                unassignedProperties = propertyService.findPropertiesWithoutPortfolio();
-                allProperties = propertyService.findAllActiveProperties();
-            } catch (Exception e) {
-                System.out.println("Property service methods not available: " + e.getMessage());
-                // Fallback to basic property list
-                allProperties = propertyService.findAll();
-            }
+            // Filter unassigned properties manually
+            List<Property> unassignedProperties = allProperties.stream()
+                .filter(property -> property.getPortfolio() == null)
+                .collect(Collectors.toList());
             
             model.addAttribute("portfolios", portfolios);
             model.addAttribute("unassignedProperties", unassignedProperties);
@@ -566,7 +588,7 @@ public class PortfolioController {
     }
 
     /**
-     * Bulk Property Assignment
+     * Bulk Property Assignment - FIXED VERSION
      */
     @PostMapping("/bulk-assign")
     @ResponseBody
@@ -586,11 +608,13 @@ public class PortfolioController {
             }
             
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            int assignedCount = portfolioService.assignPropertiesToPortfolio(portfolioId, propertyIds, (long) userId);
+            
+            // Use the method that exists - this returns void, not int
+            portfolioService.assignPropertiesToPortfolio(portfolioId, propertyIds, (long) userId);
             
             response.put("success", true);
-            response.put("message", assignedCount + " properties assigned successfully");
-            response.put("assignedCount", assignedCount);
+            response.put("message", propertyIds.size() + " properties assigned successfully");
+            response.put("assignedCount", propertyIds.size());
             
             return ResponseEntity.ok(response);
             
