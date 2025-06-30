@@ -380,6 +380,34 @@ public class PayPropAdminController {
         }
     }
 
+
+    @GetMapping("/test-api-access")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testApiAccess() {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Test 1: Try to get tags (read access)
+            List<PayPropTagDTO> tags = payPropSyncService.getAllPayPropTags();
+            response.put("readAccess", true);
+            response.put("tagCount", tags.size());
+            
+            // Test 2: Check if we can access tag creation methods
+            response.put("writeAccess", "Testing read first");
+            
+            response.put("success", true);
+            response.put("message", "API access working - can read " + tags.size() + " tags");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            response.put("scopeIssue", e.getMessage().contains("scope") || 
+                                    e.getMessage().contains("permission") || 
+                                    e.getMessage().contains("403"));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+        }
+    }
+
     /**
      * Get sync status summary
      */
