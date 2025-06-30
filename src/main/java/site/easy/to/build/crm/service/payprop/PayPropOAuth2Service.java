@@ -1,4 +1,4 @@
-// PayPropOAuth2Service.java - OAuth2 Authentication for PayProp API
+// Enhanced PayPropOAuth2Service.java - With Detailed Logging and Error Handling
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -8,6 +8,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
@@ -48,7 +51,14 @@ public class PayPropOAuth2Service {
      * Get the authorization URL for OAuth2 flow
      */
     public String getAuthorizationUrl(String state) {
-        return UriComponentsBuilder.fromHttpUrl(authorizationUrl)
+        System.out.println("🔧 BUILDING AUTHORIZATION URL:");
+        System.out.println("   Base URL: " + authorizationUrl);
+        System.out.println("   Client ID: " + clientId);
+        System.out.println("   Redirect URI: " + redirectUri);
+        System.out.println("   Scopes: " + scopes);
+        System.out.println("   State: " + state);
+        
+        String fullUrl = UriComponentsBuilder.fromHttpUrl(authorizationUrl)
                 .queryParam("response_type", "code")
                 .queryParam("client_id", clientId)
                 .queryParam("redirect_uri", redirectUri)
@@ -56,15 +66,24 @@ public class PayPropOAuth2Service {
                 .queryParam("state", state)
                 .build()
                 .toUriString();
+        
+        System.out.println("🔗 FULL AUTHORIZATION URL: " + fullUrl);
+        return fullUrl;
     }
 
     /**
      * Exchange authorization code for access token
      */
     public PayPropTokens exchangeCodeForToken(String authorizationCode) throws Exception {
+        System.out.println("🔄 STARTING TOKEN EXCHANGE:");
+        System.out.println("   Token URL: " + tokenUrl);
+        System.out.println("   Authorization Code: " + authorizationCode.substring(0, Math.min(20, authorizationCode.length())) + "...");
+        System.out.println("   Client ID: " + clientId);
+        System.out.println("   Redirect URI: " + redirectUri);
+        
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-
+        
         MultiValueMap<String, String> requestBody = new LinkedMultiValueMap<>();
         requestBody.add("grant_type", "authorization_code");
         requestBody.add("code", authorizationCode);
@@ -73,12 +92,25 @@ public class PayPropOAuth2Service {
         requestBody.add("redirect_uri", redirectUri);
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(requestBody, headers);
+        
+        System.out.println("📤 TOKEN REQUEST BODY:");
+        System.out.println("   grant_type: authorization_code");
+        System.out.println("   code: " + authorizationCode.substring(0, Math.min(20, authorizationCode.length())) + "...");
+        System.out.println("   client_id: " + clientId);
+        System.out.println("   client_secret: [HIDDEN]");
+        System.out.println("   redirect_uri: " + redirectUri);
 
         try {
+            System.out.println("🌐 MAKING TOKEN EXCHANGE REQUEST...");
             ResponseEntity<Map> response = restTemplate.postForEntity(tokenUrl, request, Map.class);
+            
+            System.out.println("📥 TOKEN RESPONSE:");
+            System.out.println("   Status Code: " + response.getStatusCode());
+            System.out.println("   Headers: " + response.getHeaders());
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
+                System.out.println("   Response Body: " + responseBody);
                 
                 PayPropTokens tokens = new PayPropTokens();
                 tokens.setAccessToken((String) responseBody.get("access_token"));
@@ -96,18 +128,46 @@ public class PayPropOAuth2Service {
                 // Store tokens
                 this.currentTokens = tokens;
                 
-                System.out.println("✅ PayProp OAuth2 tokens obtained successfully!");
-                System.out.println("Access Token: " + tokens.getAccessToken().substring(0, 20) + "...");
-                System.out.println("Expires At: " + tokens.getExpiresAt());
+                System.out.println("✅ TOKENS OBTAINED SUCCESSFULLY!");
+                System.out.println("   Access Token: " + tokens.getAccessToken().substring(0, 20) + "...");
+                System.out.println("   Token Type: " + tokens.getTokenType());
+                System.out.println("   Expires At: " + tokens.getExpiresAt());
+                System.out.println("   Has Refresh Token: " + (tokens.getRefreshToken() != null));
                 
                 return tokens;
+            } else {
+                System.err.println("❌ UNEXPECTED RESPONSE:");
+                System.err.println("   Status: " + response.getStatusCode());
+                System.err.println("   Body: " + response.getBody());
+                throw new RuntimeException("Unexpected response from token endpoint");
             }
             
-            throw new RuntimeException("Failed to exchange authorization code for token");
+        } catch (HttpClientErrorException e) {
+            System.err.println("❌ HTTP CLIENT ERROR:");
+            System.err.println("   Status Code: " + e.getStatusCode());
+            System.err.println("   Status Text: " + e.getStatusText());
+            System.err.println("   Response Body: " + e.getResponseBodyAsString());
+            System.err.println("   Response Headers: " + e.getResponseHeaders());
+            throw new RuntimeException("PayProp token exchange failed: " + e.getResponseBodyAsString(), e);
+            
+        } catch (HttpServerErrorException e) {
+            System.err.println("❌ HTTP SERVER ERROR:");
+            System.err.println("   Status Code: " + e.getStatusCode());
+            System.err.println("   Response Body: " + e.getResponseBodyAsString());
+            throw new RuntimeException("PayProp server error: " + e.getResponseBodyAsString(), e);
+            
+        } catch (ResourceAccessException e) {
+            System.err.println("❌ NETWORK/CONNECTION ERROR:");
+            System.err.println("   Message: " + e.getMessage());
+            System.err.println("   Cause: " + (e.getCause() != null ? e.getCause().getMessage() : "Unknown"));
+            throw new RuntimeException("Network error connecting to PayProp: " + e.getMessage(), e);
             
         } catch (Exception e) {
-            System.err.println("❌ Failed to exchange authorization code: " + e.getMessage());
-            throw e;
+            System.err.println("❌ UNEXPECTED ERROR:");
+            System.err.println("   Type: " + e.getClass().getSimpleName());
+            System.err.println("   Message: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Unexpected error during token exchange", e);
         }
     }
 
@@ -118,6 +178,9 @@ public class PayPropOAuth2Service {
         if (currentTokens == null || currentTokens.getRefreshToken() == null) {
             throw new IllegalStateException("No refresh token available");
         }
+
+        System.out.println("🔄 REFRESHING ACCESS TOKEN:");
+        System.out.println("   Token URL: " + tokenUrl);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -133,8 +196,12 @@ public class PayPropOAuth2Service {
         try {
             ResponseEntity<Map> response = restTemplate.postForEntity(tokenUrl, request, Map.class);
             
+            System.out.println("📥 REFRESH RESPONSE:");
+            System.out.println("   Status Code: " + response.getStatusCode());
+            
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
+                System.out.println("   Response Body: " + responseBody);
                 
                 currentTokens.setAccessToken((String) responseBody.get("access_token"));
                 
@@ -148,15 +215,20 @@ public class PayPropOAuth2Service {
                     currentTokens.setExpiresAt(LocalDateTime.now().plusSeconds(expiresIn));
                 }
                 
-                System.out.println("✅ PayProp tokens refreshed successfully!");
-                
+                System.out.println("✅ TOKENS REFRESHED SUCCESSFULLY!");
                 return currentTokens;
             }
             
             throw new RuntimeException("Failed to refresh token");
             
+        } catch (HttpClientErrorException e) {
+            System.err.println("❌ REFRESH TOKEN ERROR:");
+            System.err.println("   Status: " + e.getStatusCode());
+            System.err.println("   Body: " + e.getResponseBodyAsString());
+            throw new RuntimeException("Failed to refresh token: " + e.getResponseBodyAsString(), e);
+            
         } catch (Exception e) {
-            System.err.println("❌ Failed to refresh token: " + e.getMessage());
+            System.err.println("❌ REFRESH FAILED: " + e.getMessage());
             throw e;
         }
     }
@@ -194,9 +266,16 @@ public class PayPropOAuth2Service {
      * Check if we have valid tokens
      */
     public boolean hasValidTokens() {
-        return currentTokens != null && currentTokens.getAccessToken() != null &&
-               (currentTokens.getExpiresAt() == null || 
-                currentTokens.getExpiresAt().isAfter(LocalDateTime.now()));
+        boolean hasTokens = currentTokens != null && currentTokens.getAccessToken() != null;
+        boolean notExpired = currentTokens == null || currentTokens.getExpiresAt() == null || 
+                           currentTokens.getExpiresAt().isAfter(LocalDateTime.now());
+        
+        System.out.println("🔍 TOKEN VALIDITY CHECK:");
+        System.out.println("   Has Tokens: " + hasTokens);
+        System.out.println("   Not Expired: " + notExpired);
+        System.out.println("   Overall Valid: " + (hasTokens && notExpired));
+        
+        return hasTokens && notExpired;
     }
 
     /**
@@ -214,7 +293,7 @@ public class PayPropOAuth2Service {
         System.out.println("🔓 PayProp OAuth2 tokens cleared");
     }
 
-    // Token data class
+    // Token data class (unchanged)
     public static class PayPropTokens {
         private String accessToken;
         private String refreshToken;
