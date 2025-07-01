@@ -1,4 +1,3 @@
-
 package site.easy.to.build.crm.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,11 +43,11 @@ public class SecurityConfig {
         this.customerLoginFailureHandler = customerLoginFailureHandler;
     }
 
-    // Customer security filter chain - handles customer-specific routes ONLY
+    // FIXED: Customer security filter chain - ONLY handles customer-specific routes
     @Bean
     @Order(1) 
     public SecurityFilterChain customerSecurityFilterChain(HttpSecurity http) throws Exception {
-        System.out.println("=== DEBUG: Configuring customer security filter chain ===");
+        System.out.println("=== FIXED: Customer security filter chain - NO /portfolio/** interference ===");
     
         HttpSessionCsrfTokenRepository httpSessionCsrfTokenRepository = new HttpSessionCsrfTokenRepository();
         httpSessionCsrfTokenRepository.setParameterName("csrf");
@@ -57,40 +56,48 @@ public class SecurityConfig {
                 .csrfTokenRepository(httpSessionCsrfTokenRepository)
         );
 
-        // FIXED: Removed /portfolio/** from customer security matcher
-        // This allows /portfolio/** routes to be handled by the main security filter chain
-        http.securityMatcher("/customer-login/**", "/customer-logout", "/set-password/**", 
-                "/property-owner/**", "/tenant/**", "/contractor/**")
-                .authorizeHttpRequests((authorize) -> authorize
-                        .requestMatchers("/customer-login/**").permitAll()
-                        .requestMatchers("/set-password/**").permitAll()
-                        .requestMatchers("/property-owner/**").hasRole("PROPERTY_OWNER")
-                        .requestMatchers("/tenant/**").hasRole("TENANT")
-                        .requestMatchers("/contractor/**").hasRole("CONTRACTOR")
-                        // REMOVED: .requestMatchers("/portfolio/**").hasAnyRole("CUSTOMER", "MANAGER", "EMPLOYEE", "PROPERTY_OWNER")
-                        .anyRequest().authenticated()
-                )
-                .formLogin((form) -> {
-                    form.loginPage("/customer-login")
-                        .loginProcessingUrl("/customer-login")
-                        .usernameParameter("username")
-                        .passwordParameter("password")
-                        .successHandler(customerLoginSuccessHandler)
-                        .failureHandler(customerLoginFailureHandler)
-                        .permitAll();
-                }).userDetailsService(customerUserDetails)
-                .logout((logout) -> logout
-                        .logoutUrl("/customer-logout")
-                        .logoutSuccessUrl("/customer-login")
-                        .permitAll());
+        // CRITICAL FIX: Only match specific customer routes - NO wildcards that could catch /portfolio/**
+        http.securityMatcher(
+                "/customer-login", 
+                "/customer-login/**", 
+                "/customer-logout", 
+                "/set-password/**", 
+                "/property-owner/**", 
+                "/tenant/**", 
+                "/contractor/**"
+                // REMOVED: Any patterns that might interfere with /portfolio/**
+            )
+            .authorizeHttpRequests((authorize) -> authorize
+                    .requestMatchers("/customer-login", "/customer-login/**").permitAll()
+                    .requestMatchers("/set-password/**").permitAll()
+                    .requestMatchers("/property-owner/**").hasRole("PROPERTY_OWNER")
+                    .requestMatchers("/tenant/**").hasRole("TENANT")
+                    .requestMatchers("/contractor/**").hasRole("CONTRACTOR")
+                    .anyRequest().authenticated()
+            )
+            .formLogin((form) -> {
+                form.loginPage("/customer-login")
+                    .loginProcessingUrl("/customer-login")
+                    .usernameParameter("username")
+                    .passwordParameter("password")
+                    .successHandler(customerLoginSuccessHandler)
+                    .failureHandler(customerLoginFailureHandler)
+                    .permitAll();
+            }).userDetailsService(customerUserDetails)
+            .logout((logout) -> logout
+                    .logoutUrl("/customer-logout")
+                    .logoutSuccessUrl("/customer-login")
+                    .permitAll());
 
         return http.build();
     }
 
-    // Main security filter chain - handles employee/admin routes INCLUDING /portfolio/**
+    // FIXED: Main security filter chain - PROPERLY handles /portfolio/** and PayProp routes
     @Bean
     @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        System.out.println("=== FIXED: Main security filter chain - HANDLES /portfolio/** routes ===");
+        
         HttpSessionCsrfTokenRepository httpSessionCsrfTokenRepository = new HttpSessionCsrfTokenRepository();
         httpSessionCsrfTokenRepository.setParameterName("csrf");
 
@@ -99,26 +106,58 @@ public class SecurityConfig {
         );
 
         http.authorizeHttpRequests((authorize) -> authorize
+                        // Public access routes
                         .requestMatchers("/register/**").permitAll()
                         .requestMatchers("/set-employee-password/**").permitAll()
                         .requestMatchers("/change-password/**").permitAll()
-                        .requestMatchers("/login/**").permitAll() // Make sure login page is accessible
-                        .requestMatchers("/test-password").permitAll() // Allow test password URL
+                        .requestMatchers("/login", "/login/**").permitAll() 
+                        .requestMatchers("/test-password").permitAll()
+                        
+                        // Static resources
                         .requestMatchers("/font-awesome/**").permitAll()
                         .requestMatchers("/fonts/**").permitAll()
                         .requestMatchers("/images/**").permitAll()
-                        .requestMatchers("/save").permitAll()
                         .requestMatchers("/js/**").permitAll()
                         .requestMatchers("/css/**").permitAll()
+                        .requestMatchers("/save").permitAll()
+                        
+                        // Debug routes (temporary)
+                        .requestMatchers("/debug/**").permitAll()
+                        
+                        // Role-based access - Manager routes
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/**/manager/**")).hasRole("MANAGER")
+                        
+                        // Employee and Manager routes
                         .requestMatchers("/employee/**").hasAnyRole("MANAGER", "EMPLOYEE")
+                        
+                        // Customer routes (handled by main chain for consistency)
                         .requestMatchers("/customer/**").hasRole("CUSTOMER")
-                        // FIXED: Add missing admin/payprop routes for PayProp integration
-                        .requestMatchers("/admin/payprop/**").hasRole("MANAGER")
-                        .requestMatchers("/api/payprop/**").hasAnyRole("MANAGER", "EMPLOYEE")
-                        // Portfolio access for employees and managers (now properly handled here)
-                        .requestMatchers("/portfolio/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER")
-                        .requestMatchers("/property/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER")
+                        
+                        // CRITICAL FIX: PayProp routes - MUST come BEFORE /portfolio/**
+                        .requestMatchers("/admin/payprop/**").hasAnyRole("MANAGER", "OIDC_USER")
+                        .requestMatchers("/api/payprop/oauth/**").hasAnyRole("MANAGER", "OIDC_USER")
+                        .requestMatchers("/api/payprop/webhook/**").permitAll() // Webhooks need public access
+                        .requestMatchers("/api/payprop/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        
+                        // CRITICAL FIX: Portfolio specific routes - MUST come BEFORE general /portfolio/**
+                        .requestMatchers("/portfolio/pull-payprop-tags").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        .requestMatchers("/portfolio/payprop-tags").hasAnyRole("MANAGER", "PROPERTY_OWNER", "OIDC_USER")
+                        .requestMatchers("/portfolio/adopt-payprop-tag").hasAnyRole("MANAGER", "PROPERTY_OWNER", "OIDC_USER") 
+                        .requestMatchers("/portfolio/sync-all").hasAnyRole("MANAGER", "OIDC_USER")
+                        .requestMatchers("/portfolio/bulk-assign").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        .requestMatchers("/portfolio/create").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
+                        .requestMatchers("/portfolio/all").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        .requestMatchers("/portfolio/assign-properties").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        .requestMatchers("/portfolio/dashboard").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
+                        .requestMatchers("/portfolio/test/**").permitAll() // Allow test routes
+                        
+                        // CRITICAL FIX: General portfolio routes - NOW properly handled by main chain
+                        .requestMatchers("/portfolio/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
+                        
+                        // Property routes
+                        .requestMatchers("/property/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
+                        
+                        // Default - require authentication
                         .anyRequest().authenticated()
                 )
                 .formLogin((form) -> form
