@@ -13,6 +13,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import site.easy.to.build.crm.controller.PortfolioController.PortfolioWithAnalytics;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import site.easy.to.build.crm.service.property.PropertyService;
@@ -488,7 +489,7 @@ public class PortfolioController {
     /**
      * Pull Tags from PayProp (Two-way sync) - FIXED: Now comes BEFORE /{id}
      */
-    @PostMapping("/pull-payprop-tags")
+    @PostMapping("/actions/pull-payprop-tags")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> pullPayPropTags(Authentication authentication) {
         
