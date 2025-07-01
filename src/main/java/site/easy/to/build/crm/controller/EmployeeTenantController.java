@@ -7,11 +7,13 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import site.easy.to.build.crm.entity.*;
+import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * EmployeeTenantController - Employee-facing tenant management
@@ -24,11 +26,15 @@ public class EmployeeTenantController {
 
     private final TenantService tenantService;
     private final PropertyService propertyService;
+    private final CustomerService customerService;
 
     @Autowired
-    public EmployeeTenantController(TenantService tenantService, PropertyService propertyService) {
+    public EmployeeTenantController(TenantService tenantService, 
+                                   PropertyService propertyService,
+                                   CustomerService customerService) {
         this.tenantService = tenantService;
         this.propertyService = propertyService;
+        this.customerService = customerService;
     }
 
     /**
@@ -260,6 +266,29 @@ public class EmployeeTenantController {
             }
             
             Tenant savedTenant = tenantService.save(tenant);
+            
+            // Update corresponding Customer record if it exists
+            try {
+                List<Customer> customers = customerService.findAll().stream()
+                    .filter(c -> c.getEntityType() != null && c.getEntityType().equals("tenant") 
+                             && c.getEntityId() != null && c.getEntityId().equals(savedTenant.getId()))
+                    .collect(Collectors.toList());
+                
+                if (!customers.isEmpty()) {
+                    Customer customer = customers.get(0);
+                    customer.setName(savedTenant.getFullName());
+                    customer.setEmail(savedTenant.getEmailAddress());
+                    customer.setPhone(savedTenant.getMobileNumber());
+                    customer.setCity(savedTenant.getCity());
+                    customer.setCountry(savedTenant.getCountry());
+                    customer.setAddress(savedTenant.getAddressLine1());
+                    customer.setState(savedTenant.getCounty());
+                    customerService.save(customer);
+                }
+            } catch (Exception e) {
+                // Log but don't fail the main update
+                System.err.println("Warning: Could not update corresponding customer record: " + e.getMessage());
+            }
             
             redirectAttributes.addFlashAttribute("successMessage", 
                 "Tenant " + savedTenant.getFullName() + " updated successfully!");
