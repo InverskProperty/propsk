@@ -361,6 +361,30 @@ public class PortfolioController {
         }
     }
 
+    @GetMapping("/debug/test-payprop-direct")
+    @ResponseBody
+    public ResponseEntity<String> testPayPropDirect(Authentication authentication) {
+        StringBuilder result = new StringBuilder();
+        
+        try {
+            result.append("🔍 PayProp Direct Test\n");
+            result.append("payPropEnabled: ").append(payPropEnabled).append("\n");
+            result.append("payPropSyncService: ").append(payPropSyncService != null ? "AVAILABLE" : "NULL").append("\n");
+            
+            if (payPropSyncService != null) {
+                result.append("Calling pullAllTagsFromPayProp...\n");
+                SyncResult syncResult = payPropSyncService.pullAllTagsFromPayProp(54L);
+                result.append("Result: ").append(syncResult.getMessage()).append("\n");
+            }
+            
+            return ResponseEntity.ok(result.toString());
+            
+        } catch (Exception e) {
+            result.append("ERROR: ").append(e.getMessage()).append("\n");
+            return ResponseEntity.ok(result.toString());
+        }
+    }
+
     // ===== PAYPROP SPECIFIC ROUTES =====
 
     /**
