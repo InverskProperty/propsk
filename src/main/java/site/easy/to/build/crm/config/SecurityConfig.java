@@ -140,7 +140,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/payprop/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         
                         // CRITICAL FIX: Portfolio specific routes - MUST come BEFORE general /portfolio/**
-                        .requestMatchers("/portfolio/pull-payprop-tags").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        .requestMatchers("/portfolio/actions/pull-payprop-tags").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         .requestMatchers("/portfolio/payprop-tags").hasAnyRole("MANAGER", "PROPERTY_OWNER", "OIDC_USER")
                         .requestMatchers("/portfolio/adopt-payprop-tag").hasAnyRole("MANAGER", "PROPERTY_OWNER", "OIDC_USER") 
                         .requestMatchers("/portfolio/sync-all").hasAnyRole("MANAGER", "OIDC_USER")
