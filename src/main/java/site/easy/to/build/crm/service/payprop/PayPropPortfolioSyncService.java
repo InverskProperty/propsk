@@ -12,6 +12,7 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.property.PropertyService;
 
+import java.net.http.HttpHeaders;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -126,7 +127,7 @@ public class PayPropPortfolioSyncService {
      * Get all PayProp tags - public method for controller access
      */
     public List<PayPropTagDTO> getAllPayPropTags() throws Exception {
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders(); // 🔧 FIXED: Use OAuth2
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
         try {
@@ -138,11 +139,32 @@ public class PayPropPortfolioSyncService {
             );
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                List<Map<String, Object>> tags = (List<Map<String, Object>>) response.getBody().get("data");
+                Map<String, Object> responseBody = response.getBody();
                 
-                // ADD THIS NULL CHECK:
+                // FIXED: Check for different possible response formats
+                List<Map<String, Object>> tags = null;
+                
+                // Try different response formats PayProp might use
+                if (responseBody.containsKey("data")) {
+                    tags = (List<Map<String, Object>>) responseBody.get("data");
+                } else if (responseBody.containsKey("tags")) {
+                    tags = (List<Map<String, Object>>) responseBody.get("tags");
+                } else if (responseBody.containsKey("items")) {
+                    tags = (List<Map<String, Object>>) responseBody.get("items");
+                } else {
+                    // Response might be the tags array directly
+                    if (responseBody instanceof List) {
+                        tags = (List<Map<String, Object>>) responseBody;
+                    } else {
+                        // Log the actual response format for debugging
+                        System.out.println("🔍 PayProp /tags response format: " + responseBody.keySet());
+                        tags = new ArrayList<>();
+                    }
+                }
+                
+                // NULL-SAFETY: Check if tags is null
                 if (tags == null) {
-                    System.out.println("⚠️ PayProp API returned null for tags data");
+                    System.out.println("⚠️ PayProp API returned null for tags");
                     return new ArrayList<>();
                 }
                 
@@ -159,6 +181,7 @@ public class PayPropPortfolioSyncService {
             return new ArrayList<>();
             
         } catch (HttpClientErrorException e) {
+            System.err.println("❌ PayProp API error: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
             throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
         }
     }

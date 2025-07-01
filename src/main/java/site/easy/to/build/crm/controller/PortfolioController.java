@@ -567,23 +567,7 @@ public class PortfolioController {
         }
     }
 
-    @GetMapping("/debug/raw-api-call")
-    @ResponseBody
-    public ResponseEntity<String> debugRawApiCall(Authentication authentication) {
-        try {
-            // Let's call the PayProp sync service directly and catch the raw response
-            return ResponseEntity.ok("About to call PayProp tags API...\n" +
-                                "Base URL: " + payPropApiBase + "\n" +
-                                "Full URL: " + payPropApiBase + "/tags");
-            
-        } catch (Exception e) {
-            return ResponseEntity.ok("ERROR: " + e.getMessage());
-        }
-    }
 
-    /**
-     * Sync All Portfolios with PayProp
-     */
     @PostMapping("/sync-all")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> syncAllPortfoliosWithPayProp(Authentication authentication) {
