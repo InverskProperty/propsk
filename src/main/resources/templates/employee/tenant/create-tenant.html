@@ -83,19 +83,28 @@
 
                     <div class="card">
                         <div class="card-body">
-                            <h4 class="card-title">Create New Tenant</h4>
-                            <h6 class="card-subtitle">Add a new tenant to the system</h6>
+                            <h4 class="card-title">
+                                <span th:if="${isEdit}">Edit Tenant</span>
+                                <span th:unless="${isEdit}">Create New Tenant</span>
+                            </h4>
+                            <h6 class="card-subtitle">
+                                <span th:if="${isEdit}">Update tenant information</span>
+                                <span th:unless="${isEdit}">Add a new tenant to the system</span>
+                                <br><small class="text-info"><i class="fa fa-info-circle"></i> PayProp recommends using Business account type for all tenants</small>
+                            </h6>
                             
                             <form th:action="${isEdit != null and isEdit ? '/admin/tenants/' + tenant.id + '/edit' : '/admin/tenants/create'}" 
-                                th:object="${tenant}" method="post" class="m-t-40">
+                                  th:object="${tenant}" method="post" class="m-t-40">
                             
-                                <!-- Account Type -->
+                                <!-- Account Type - Default to Business per PayProp recommendation -->
                                 <div class="form-group">
-                                    <label class="control-label">Account Type *</label>
+                                    <label class="control-label">Account Type * 
+                                        <small class="text-info">(PayProp recommends Business for all tenants)</small>
+                                    </label>
                                     <select class="form-control" th:field="*{accountType}" id="accountType" onchange="toggleNameFields()">
                                         <option value="">Select Account Type</option>
-                                        <option value="INDIVIDUAL">Individual</option>
-                                        <option value="BUSINESS">Business</option>
+                                        <option value="BUSINESS" th:selected="${tenant.accountType?.name() == 'BUSINESS'}">Business (Recommended)</option>
+                                        <option value="INDIVIDUAL" th:selected="${tenant.accountType?.name() == 'INDIVIDUAL'}">Individual</option>
                                     </select>
                                     <span class="text-danger" th:if="${#fields.hasErrors('accountType')}" th:errors="*{accountType}"></span>
                                 </div>
@@ -114,30 +123,35 @@
                                     </select>
                                 </div>
 
-                                <!-- Individual Name Fields -->
+                                <!-- Individual Name Fields - Always shown for data consistency -->
                                 <div class="row" id="individualFields">
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label class="control-label">First Name *</label>
-                                            <input type="text" class="form-control" th:field="*{firstName}" id="firstName">
+                                            <input type="text" class="form-control" th:field="*{firstName}" id="firstName" 
+                                                   onblur="autoPopulateBusinessName()" placeholder="Enter first name">
                                             <span class="text-danger" th:if="${#fields.hasErrors('firstName')}" th:errors="*{firstName}"></span>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label class="control-label">Last Name *</label>
-                                            <input type="text" class="form-control" th:field="*{lastName}" id="lastName">
+                                            <input type="text" class="form-control" th:field="*{lastName}" id="lastName"
+                                                   onblur="autoPopulateBusinessName()" placeholder="Enter last name">
                                             <span class="text-danger" th:if="${#fields.hasErrors('lastName')}" th:errors="*{lastName}"></span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <!-- Business Name Field -->
-                                <div class="row" id="businessFields" style="display: none;">
+                                <!-- Business Name Field - Auto-populated, always shown for Business accounts -->
+                                <div class="row" id="businessFields">
                                     <div class="col-md-12">
                                         <div class="form-group">
-                                            <label class="control-label">Business Name *</label>
-                                            <input type="text" class="form-control" th:field="*{businessName}" id="businessName">
+                                            <label class="control-label">Business Name * 
+                                                <small class="text-muted">(Auto-populated from names above. For multiple tenants, use format: "Mr A Blag and Mrs B Blag")</small>
+                                            </label>
+                                            <input type="text" class="form-control" th:field="*{businessName}" id="businessName" 
+                                                   placeholder="Business name or tenant name(s)">
                                             <span class="text-danger" th:if="${#fields.hasErrors('businessName')}" th:errors="*{businessName}"></span>
                                         </div>
                                     </div>
@@ -148,15 +162,20 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label class="control-label">Email Address</label>
-                                            <input type="email" class="form-control" th:field="*{emailAddress}" id="emailAddress">
+                                            <input type="email" class="form-control" th:field="*{emailAddress}" id="emailAddress" 
+                                                   placeholder="tenant@example.com">
                                             <span class="text-danger" th:if="${#fields.hasErrors('emailAddress')}" th:errors="*{emailAddress}"></span>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-group">
-                                            <label class="control-label">Mobile Number</label>
-                                            <input type="text" class="form-control" th:field="*{mobileNumber}" id="mobileNumber">
+                                            <label class="control-label">Mobile Number 
+                                                <small class="text-muted">(UK format: 07123456789)</small>
+                                            </label>
+                                            <input type="text" class="form-control" th:field="*{mobileNumber}" id="mobileNumber" 
+                                                   placeholder="07123456789" pattern="^(0[1-9]\d{8,9}|\+44[1-9]\d{8,9})?$">
                                             <span class="text-danger" th:if="${#fields.hasErrors('mobileNumber')}" th:errors="*{mobileNumber}"></span>
+                                            <small class="text-muted">Optional. Use UK format starting with 0 or +44</small>
                                         </div>
                                     </div>
                                 </div>
@@ -165,13 +184,15 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label class="control-label">Phone Number</label>
-                                            <input type="text" class="form-control" th:field="*{phoneNumber}" id="phoneNumber">
+                                            <input type="text" class="form-control" th:field="*{phoneNumber}" id="phoneNumber" 
+                                                   placeholder="01234567890">
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label class="control-label">Occupation</label>
-                                            <input type="text" class="form-control" th:field="*{occupation}" id="occupation">
+                                            <input type="text" class="form-control" th:field="*{occupation}" id="occupation" 
+                                                   placeholder="e.g., Software Engineer">
                                         </div>
                                     </div>
                                 </div>
@@ -182,7 +203,8 @@
                                     <div class="col-md-12">
                                         <div class="form-group">
                                             <label class="control-label">Address Line 1</label>
-                                            <input type="text" class="form-control" th:field="*{addressLine1}" id="addressLine1">
+                                            <input type="text" class="form-control" th:field="*{addressLine1}" id="addressLine1" 
+                                                   placeholder="House number and street name">
                                         </div>
                                     </div>
                                 </div>
@@ -191,13 +213,15 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label class="control-label">Address Line 2</label>
-                                            <input type="text" class="form-control" th:field="*{addressLine2}" id="addressLine2">
+                                            <input type="text" class="form-control" th:field="*{addressLine2}" id="addressLine2" 
+                                                   placeholder="Apartment, suite, etc. (optional)">
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label class="control-label">City</label>
-                                            <input type="text" class="form-control" th:field="*{city}" id="city">
+                                            <input type="text" class="form-control" th:field="*{city}" id="city" 
+                                                   placeholder="City">
                                         </div>
                                     </div>
                                 </div>
@@ -206,13 +230,15 @@
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label class="control-label">County</label>
-                                            <input type="text" class="form-control" th:field="*{county}" id="county">
+                                            <input type="text" class="form-control" th:field="*{county}" id="county" 
+                                                   placeholder="County">
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label class="control-label">Postcode</label>
-                                            <input type="text" class="form-control" th:field="*{postcode}" id="postcode">
+                                            <input type="text" class="form-control" th:field="*{postcode}" id="postcode" 
+                                                   placeholder="e.g., SW1A 1AA">
                                         </div>
                                     </div>
                                 </div>
@@ -244,14 +270,20 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="form-check">
-                                            <input type="checkbox" class="form-check-input" th:field="*{notifyEmail}" value="Y" id="notifyEmail">
-                                            <label class="form-check-label" for="notifyEmail">Email Notifications</label>
+                                            <input type="hidden" th:field="*{notifyEmail}" value="N">
+                                            <input type="checkbox" class="form-check-input" 
+                                                   th:checked="${tenant.notifyEmail == 'Y'}" 
+                                                   onchange="updateNotifyEmail(this)" id="notifyEmailCheck">
+                                            <label class="form-check-label" for="notifyEmailCheck">Email Notifications</label>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-check">
-                                            <input type="checkbox" class="form-check-input" th:field="*{notifyText}" value="Y" id="notifyText">
-                                            <label class="form-check-label" for="notifyText">SMS Notifications</label>
+                                            <input type="hidden" th:field="*{notifyText}" value="N">
+                                            <input type="checkbox" class="form-check-input" 
+                                                   th:checked="${tenant.notifyText == 'Y'}" 
+                                                   onchange="updateNotifyText(this)" id="notifyTextCheck">
+                                            <label class="form-check-label" for="notifyTextCheck">SMS Notifications</label>
                                         </div>
                                     </div>
                                 </div>
@@ -259,14 +291,17 @@
                                 <!-- Notes -->
                                 <div class="form-group m-t-20">
                                     <label class="control-label">Notes</label>
-                                    <textarea class="form-control" th:field="*{notes}" id="notes" rows="3" maxlength="6000"></textarea>
+                                    <textarea class="form-control" th:field="*{notes}" id="notes" rows="3" maxlength="6000" 
+                                              placeholder="Any additional notes about the tenant..."></textarea>
                                     <small class="text-muted">Maximum 6000 characters</small>
                                 </div>
 
                                 <!-- Submit Buttons -->
                                 <div class="form-group m-t-30">
                                     <button type="submit" class="btn btn-success">
-                                        <i class="fa fa-save"></i> Create Tenant
+                                        <i class="fa fa-save"></i> 
+                                        <span th:if="${isEdit}">Update Tenant</span>
+                                        <span th:unless="${isEdit}">Create Tenant</span>
                                     </button>
                                     <a href="/employee/customer/tenants" class="btn btn-secondary m-l-10">
                                         <i class="fa fa-times"></i> Cancel
@@ -323,23 +358,117 @@
 <script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
 
 <script>
+// PayProp best practices: Always show both name fields for Business accounts
 function toggleNameFields() {
     const accountType = document.getElementById('accountType').value;
     const individualFields = document.getElementById('individualFields');
     const businessFields = document.getElementById('businessFields');
     
     if (accountType === 'BUSINESS') {
-        individualFields.style.display = 'none';
+        // For business accounts, show both individual and business name fields
+        individualFields.style.display = 'block';
         businessFields.style.display = 'block';
+        autoPopulateBusinessName();
+    } else if (accountType === 'INDIVIDUAL') {
+        // For individual accounts, show individual fields, hide business
+        individualFields.style.display = 'block';
+        businessFields.style.display = 'none';
+        // Clear business name for individual accounts
+        document.getElementById('businessName').value = '';
     } else {
+        // No selection, show individual fields only
         individualFields.style.display = 'block';
         businessFields.style.display = 'none';
     }
 }
 
+// Auto-populate business name from individual names
+function autoPopulateBusinessName() {
+    const firstName = document.getElementById('firstName').value.trim();
+    const lastName = document.getElementById('lastName').value.trim();
+    const businessName = document.getElementById('businessName');
+    const accountType = document.getElementById('accountType').value;
+    
+    if (accountType === 'BUSINESS' && firstName && lastName && !businessName.value.trim()) {
+        businessName.value = firstName + ' ' + lastName;
+    }
+}
+
+// Handle notification checkbox updates (convert boolean to Y/N string)
+function updateNotifyEmail(checkbox) {
+    const hiddenField = document.querySelector('input[name="notifyEmail"]');
+    hiddenField.value = checkbox.checked ? 'Y' : 'N';
+}
+
+function updateNotifyText(checkbox) {
+    const hiddenField = document.querySelector('input[name="notifyText"]');
+    hiddenField.value = checkbox.checked ? 'Y' : 'N';
+}
+
+// Validate mobile number format
+function validateMobileNumber() {
+    const mobileField = document.getElementById('mobileNumber');
+    const mobile = mobileField.value.trim();
+    
+    if (mobile && !mobile.match(/^(0[1-9]\d{8,9}|\+44[1-9]\d{8,9})$/)) {
+        mobileField.setCustomValidity('Please use UK mobile number format (e.g., 07123456789 or +447123456789)');
+        return false;
+    } else {
+        mobileField.setCustomValidity('');
+        return true;
+    }
+}
+
+// Auto-populate when individual names change
+document.getElementById('firstName').addEventListener('blur', autoPopulateBusinessName);
+document.getElementById('lastName').addEventListener('blur', autoPopulateBusinessName);
+document.getElementById('mobileNumber').addEventListener('blur', validateMobileNumber);
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
+    // Set default account type to Business if not already set
+    const accountTypeField = document.getElementById('accountType');
+    if (!accountTypeField.value) {
+        accountTypeField.value = 'BUSINESS';
+    }
+    
     toggleNameFields();
+    
+    // Set up notification checkboxes based on current values
+    const notifyEmailValue = document.querySelector('input[name="notifyEmail"]').value;
+    const notifyTextValue = document.querySelector('input[name="notifyText"]').value;
+    
+    document.getElementById('notifyEmailCheck').checked = (notifyEmailValue === 'Y');
+    document.getElementById('notifyTextCheck').checked = (notifyTextValue === 'Y');
+});
+
+// Form validation before submit
+document.querySelector('form').addEventListener('submit', function(e) {
+    const accountType = document.getElementById('accountType').value;
+    const firstName = document.getElementById('firstName').value.trim();
+    const lastName = document.getElementById('lastName').value.trim();
+    const businessName = document.getElementById('businessName').value.trim();
+    
+    // Ensure we have required fields
+    if (accountType === 'BUSINESS' && !businessName) {
+        e.preventDefault();
+        alert('Business name is required for Business account type.');
+        return false;
+    }
+    
+    if (accountType === 'INDIVIDUAL' && (!firstName || !lastName)) {
+        e.preventDefault();
+        alert('First name and last name are required for Individual account type.');
+        return false;
+    }
+    
+    // Validate mobile number if provided
+    if (!validateMobileNumber()) {
+        e.preventDefault();
+        return false;
+    }
+    
+    return true;
 });
 </script>
 </body>

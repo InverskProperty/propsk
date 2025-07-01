@@ -16,6 +16,7 @@ import java.util.List;
 /**
  * EmployeeTenantController - Employee-facing tenant management
  * Handles CRUD operations for tenants from the employee perspective
+ * Follows PayProp best practices: Always use BUSINESS account type
  */
 @Controller
 @RequestMapping("/admin/tenants")
@@ -31,17 +32,17 @@ public class EmployeeTenantController {
     }
 
     /**
-     * Create Tenant Form - GET /employee/tenants/create
+     * Create Tenant Form - GET /admin/tenants/create
      */
     @GetMapping("/create")
     public String showCreateTenantForm(Model model, Authentication authentication) {
         try {
-            // Create new Tenant entity
+            // Create new Tenant entity with PayProp best practice defaults
             Tenant tenant = new Tenant();
-            tenant.setAccountType(AccountType.INDIVIDUAL); // Default
-            tenant.setCountry("UK"); // Default
-            tenant.setNotifyEmail("Y"); // Default
-            tenant.setNotifyText("Y"); // Default
+            tenant.setAccountType(AccountType.BUSINESS); // PayProp recommendation
+            tenant.setCountry("UK");
+            tenant.setNotifyEmail("Y");
+            tenant.setNotifyText("Y");
             
             // Get all properties for the dropdown
             List<Property> properties = propertyService.findAll();
@@ -62,13 +63,77 @@ public class EmployeeTenantController {
     }
 
     /**
-     * Create Tenant - POST /employee/tenants/create
+     * Create Tenant - POST /admin/tenants/create
+     * Implements PayProp best practices for tenant creation
      */
     @PostMapping("/create")
     public String createTenant(@ModelAttribute Tenant tenant, 
                               Authentication authentication,
                               RedirectAttributes redirectAttributes) {
         try {
+            // PayProp best practice: Always use BUSINESS account type
+            tenant.setAccountType(AccountType.BUSINESS);
+            
+            // Handle name population intelligently for PayProp compatibility
+            if (tenant.getFirstName() != null && tenant.getLastName() != null 
+                && !tenant.getFirstName().trim().isEmpty() && !tenant.getLastName().trim().isEmpty()) {
+                
+                // Standard case: Individual names provided - populate business name
+                if (tenant.getBusinessName() == null || tenant.getBusinessName().trim().isEmpty()) {
+                    tenant.setBusinessName(tenant.getFirstName().trim() + " " + tenant.getLastName().trim());
+                }
+                
+            } else if (tenant.getBusinessName() != null && !tenant.getBusinessName().trim().isEmpty()) {
+                
+                // Business name provided, try to extract individual names for compatibility
+                String businessName = tenant.getBusinessName().trim();
+                
+                // Simple heuristic: if it doesn't contain "and", "And", "&", treat as single person
+                if (!businessName.toLowerCase().contains(" and ") && !businessName.contains(" & ")) {
+                    String[] nameParts = businessName.split("\\s+", 2);
+                    if (nameParts.length >= 2) {
+                        // Standard "First Last" format
+                        tenant.setFirstName(nameParts[0]);
+                        tenant.setLastName(nameParts[1]);
+                    } else {
+                        // Single name - use as first name
+                        tenant.setFirstName(businessName);
+                        tenant.setLastName(""); // Empty but not null to avoid validation issues
+                    }
+                } else {
+                    // Multiple people (e.g., "Mr A Blag and Mrs B Blag") - use generic values
+                    tenant.setFirstName("Tenant");
+                    tenant.setLastName("Multiple");
+                }
+            }
+            
+            // Validation: Ensure we have the minimum required fields for both PayProp and internal use
+            if (tenant.getBusinessName() == null || tenant.getBusinessName().trim().isEmpty()) {
+                redirectAttributes.addFlashAttribute("errorMessage", 
+                    "Business name is required. Please provide tenant name(s).");
+                return "redirect:/admin/tenants/create";
+            }
+            
+            // Ensure individual names exist for internal compatibility
+            if (tenant.getFirstName() == null || tenant.getFirstName().trim().isEmpty()) {
+                tenant.setFirstName("Tenant"); // Default value
+            }
+            if (tenant.getLastName() == null || tenant.getLastName().trim().isEmpty()) {
+                tenant.setLastName("Name"); // Default value
+            }
+            
+            // Clean up mobile number to avoid validation issues
+            if (tenant.getMobileNumber() != null && tenant.getMobileNumber().trim().isEmpty()) {
+                tenant.setMobileNumber(null);
+            }
+            
+            // Validate UK mobile number format if provided
+            if (tenant.getMobileNumber() != null && !tenant.getMobileNumber().matches("^(0[1-9]\\d{8,9}|\\+44[1-9]\\d{8,9})$")) {
+                redirectAttributes.addFlashAttribute("errorMessage", 
+                    "Invalid mobile number format. Use UK format (e.g., 07123456789).");
+                return "redirect:/admin/tenants/create";
+            }
+            
             // Set audit fields
             tenant.setCreatedAt(LocalDateTime.now());
             tenant.setUpdatedAt(LocalDateTime.now());
@@ -78,12 +143,11 @@ public class EmployeeTenantController {
                 tenant.setPayPropCustomerId("TENANT_" + System.currentTimeMillis());
             }
             
-            // Set default status
+            // Set default status values
             if (tenant.getStatus() == null || tenant.getStatus().isEmpty()) {
                 tenant.setStatus("Active");
             }
             
-            // Set default tenancy status
             if (tenant.getTenancyStatus() == null || tenant.getTenancyStatus().isEmpty()) {
                 tenant.setTenancyStatus("active");
             }
@@ -92,20 +156,28 @@ public class EmployeeTenantController {
             Tenant savedTenant = tenantService.save(tenant);
             
             redirectAttributes.addFlashAttribute("successMessage", 
-                "Tenant " + savedTenant.getFullName() + " created successfully!");
+                "Tenant " + savedTenant.getFullName() + " created successfully! (PayProp Business Account)");
             
             // Redirect to tenant list
             return "redirect:/employee/customer/tenants";
             
         } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("errorMessage", 
-                "Error creating tenant: " + e.getMessage());
+            String errorMessage = "Error creating tenant: " + e.getMessage();
+            
+            // Handle specific validation errors
+            if (e.getMessage().contains("mobile_number")) {
+                errorMessage = "Invalid mobile number format. Please use UK format (e.g., 07123456789).";
+            } else if (e.getMessage().contains("business_name")) {
+                errorMessage = "Business name is required and must be 2-50 characters.";
+            }
+            
+            redirectAttributes.addFlashAttribute("errorMessage", errorMessage);
             return "redirect:/admin/tenants/create";
         }
     }
 
     /**
-     * Edit Tenant Form - GET /employee/tenant/{id}/edit
+     * Edit Tenant Form - GET /admin/tenants/{id}/edit
      */
     @GetMapping("/{id}/edit")
     public String editTenantForm(@PathVariable Long id, Model model, Authentication authentication) {
@@ -113,6 +185,17 @@ public class EmployeeTenantController {
             Tenant tenant = tenantService.findById(id);
             if (tenant == null) {
                 return "error/not-found";
+            }
+            
+            // Ensure business account type for PayProp compatibility
+            if (tenant.getAccountType() != AccountType.BUSINESS) {
+                tenant.setAccountType(AccountType.BUSINESS);
+                // Populate business name if missing
+                if (tenant.getBusinessName() == null || tenant.getBusinessName().trim().isEmpty()) {
+                    if (tenant.getFirstName() != null && tenant.getLastName() != null) {
+                        tenant.setBusinessName(tenant.getFirstName() + " " + tenant.getLastName());
+                    }
+                }
             }
             
             // Get all properties for the dropdown
@@ -133,7 +216,7 @@ public class EmployeeTenantController {
     }
 
     /**
-     * Update Tenant - POST /employee/tenant/{id}/edit
+     * Update Tenant - POST /admin/tenants/{id}/edit
      */
     @PostMapping("/{id}/edit")
     public String updateTenant(@PathVariable Long id,
@@ -145,6 +228,23 @@ public class EmployeeTenantController {
             if (existingTenant == null) {
                 redirectAttributes.addFlashAttribute("errorMessage", "Tenant not found");
                 return "redirect:/employee/customer/tenants";
+            }
+            
+            // Apply the same PayProp business account logic as create
+            tenant.setAccountType(AccountType.BUSINESS);
+            
+            // Handle name population for updates
+            if (tenant.getFirstName() != null && tenant.getLastName() != null 
+                && !tenant.getFirstName().trim().isEmpty() && !tenant.getLastName().trim().isEmpty()) {
+                
+                if (tenant.getBusinessName() == null || tenant.getBusinessName().trim().isEmpty()) {
+                    tenant.setBusinessName(tenant.getFirstName().trim() + " " + tenant.getLastName().trim());
+                }
+            }
+            
+            // Clean up mobile number
+            if (tenant.getMobileNumber() != null && tenant.getMobileNumber().trim().isEmpty()) {
+                tenant.setMobileNumber(null);
             }
             
             // Preserve the ID and audit fields
@@ -174,7 +274,7 @@ public class EmployeeTenantController {
     }
 
     /**
-     * View Tenant Details - GET /employee/tenant/{id}
+     * View Tenant Details - GET /admin/tenants/{id}
      */
     @GetMapping("/{id}")
     public String viewTenantDetails(@PathVariable Long id, Model model, Authentication authentication) {
@@ -198,7 +298,8 @@ public class EmployeeTenantController {
     }
 
     /**
-     * Delete Tenant - POST /employee/tenant/{id}/delete
+     * Delete Tenant - POST /admin/tenants/{id}/delete
+     * Soft delete - mark as inactive instead of hard delete
      */
     @PostMapping("/{id}/delete")
     public String deleteTenant(@PathVariable Long id,

@@ -1,4 +1,3 @@
-// Tenant.java - Migration Safe Version (COMPLETE) - FIXED
 package site.easy.to.build.crm.entity;
 
 import jakarta.persistence.*;
@@ -30,35 +29,39 @@ public class Tenant {
     @Column(name = "account_type", nullable = false)
     private AccountType accountType;
     
+    // FIXED: Individual name fields - only required when actually used
     @Column(name = "first_name", length = 50)
-    @Size(min = 2, max = 50)
+    @Size(min = 1, max = 50, message = "First name must be 1-50 characters")
     private String firstName;
     
     @Column(name = "last_name", length = 50)
-    @Size(min = 2, max = 50)
+    @Size(min = 1, max = 50, message = "Last name must be 1-50 characters") 
     private String lastName;
     
+    // FIXED: Business name validation - controller ensures this is populated
     @Column(name = "business_name", length = 50)
-    @Size(min = 2, max = 50)
+    @Size(min = 2, max = 50, message = "Business name must be 2-50 characters")
     private String businessName;
     
     // Contact Details
     @Column(name = "email_address", length = 50)
-    @Email
+    @Email(message = "Invalid email format")
     @Size(max = 50)
     private String emailAddress;
     
     @ElementCollection
     @CollectionTable(name = "tenant_email_cc", joinColumns = @JoinColumn(name = "tenant_id"))
-    @Size(max = 10)
+    @Size(max = 10, message = "Maximum 10 CC email addresses allowed")
     private List<@Email String> emailCc;
     
     @Column(name = "phone_number", length = 15)
     @Size(max = 15)
     private String phoneNumber;
     
+    // FIXED: Mobile number pattern for UK numbers, made optional
     @Column(name = "mobile_number", length = 15)
-    @Pattern(regexp = "^[1-9]\\d+$")
+    @Pattern(regexp = "^(0[1-9]\\d{8,9}|\\+44[1-9]\\d{8,9})?$", 
+             message = "Invalid UK mobile number format (e.g., 07123456789)")
     @Size(max = 15)
     private String mobileNumber;
     
@@ -121,7 +124,7 @@ public class Tenant {
     @Size(max = 50)
     private String vatNumber;
     
-    // Tenancy details (NOTE: PayProp doesn't store rent amounts in tenant entity)
+    // Tenancy details
     @Column(name = "tenant_type")
     private String tenantType;
     
@@ -150,8 +153,8 @@ public class Tenant {
     private String depositPaid;
     
     @Column(name = "invoice_lead_days")
-    @Min(0)
-    @Max(31)
+    @Min(value = 0, message = "Invoice lead days cannot be negative")
+    @Max(value = 31, message = "Invoice lead days cannot exceed 31")
     private Integer invoiceLeadDays = 0;
     
     // Financial details (for record keeping only per PayProp specs)
@@ -209,7 +212,7 @@ public class Tenant {
     @Column(name = "pet_details")
     private String petDetails;
     
-    // 🔧 FIXED: Keep as String to avoid migration issues
+    // Keep as String to avoid migration issues
     @Column(name = "notify_email", length = 1)
     private String notifyEmail = "Y";
     
@@ -273,7 +276,7 @@ public class Tenant {
         this.customer = customer; 
     }
     
-    // 🔧 FIXED: PayProp-compatible getters that convert String to Boolean
+    // PayProp-compatible getters that convert String to Boolean
     public Boolean getNotifyEmailAsBoolean() {
         return "Y".equalsIgnoreCase(notifyEmail);
     }
@@ -488,7 +491,7 @@ public class Tenant {
     
     // Utility Methods
     public String getFullName() {
-        if (accountType == AccountType.BUSINESS) {
+        if (accountType == AccountType.BUSINESS && businessName != null && !businessName.trim().isEmpty()) {
             return businessName;
         }
         StringBuilder name = new StringBuilder();
@@ -535,18 +538,20 @@ public class Tenant {
         return accountType == AccountType.BUSINESS;
     }
     
-    // FIXED: Changed customerId references to payPropCustomerId
+    // FIXED: Updated for PayProp business account best practice
     public boolean isReadyForPayPropSync() {
         boolean hasRequiredFields = payPropCustomerId != null && !payPropCustomerId.trim().isEmpty() &&
                                    accountType != null;
         
-        if (isIndividualAccount()) {
+        // For PayProp best practice (always business accounts), require business name
+        if (accountType == AccountType.BUSINESS) {
+            return hasRequiredFields && 
+                   businessName != null && !businessName.trim().isEmpty();
+        } else {
+            // Legacy individual account support
             return hasRequiredFields && 
                    firstName != null && !firstName.trim().isEmpty() &&
                    lastName != null && !lastName.trim().isEmpty();
-        } else {
-            return hasRequiredFields && 
-                   businessName != null && !businessName.trim().isEmpty();
         }
     }
     
@@ -560,7 +565,6 @@ public class Tenant {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
-        // FIXED: Changed customerId to payPropCustomerId
         if (payPropCustomerId == null) {
             payPropCustomerId = "TENANT_" + System.currentTimeMillis();
         }
