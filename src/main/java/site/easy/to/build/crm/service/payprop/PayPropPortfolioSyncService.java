@@ -140,6 +140,12 @@ public class PayPropPortfolioSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 List<Map<String, Object>> tags = (List<Map<String, Object>>) response.getBody().get("data");
                 
+                // ADD THIS NULL CHECK:
+                if (tags == null) {
+                    System.out.println("⚠️ PayProp API returned null for tags data");
+                    return new ArrayList<>();
+                }
+                
                 return tags.stream().map(tagMap -> {
                     PayPropTagDTO tag = new PayPropTagDTO();
                     tag.setId((String) tagMap.get("id"));
