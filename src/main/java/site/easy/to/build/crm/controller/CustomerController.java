@@ -224,7 +224,7 @@ public class CustomerController {
             if (search != null && !search.trim().isEmpty()) {
                 tenants = tenants.stream()
                     .filter(c -> c.getName().toLowerCase().contains(search.toLowerCase()) ||
-                                c.getEmail().toLowerCase().contains(search.toLowerCase()) ||
+                                (c.getEmail() != null && c.getEmail().toLowerCase().contains(search.toLowerCase())) ||
                                 (c.getCity() != null && c.getCity().toLowerCase().contains(search.toLowerCase())))
                     .collect(Collectors.toList());
             }
@@ -245,7 +245,7 @@ public class CustomerController {
             model.addAttribute("searchTerm", search);
             model.addAttribute("statusFilter", status);
             model.addAttribute("user", user);
-            model.addAttribute("createUrl", "/admin/tenants/create"); // NEW: Use admin route
+            model.addAttribute("createUrl", "/employee/customer/create-tenant");
             
             return "customer/customer-list";
             
@@ -255,21 +255,71 @@ public class CustomerController {
         }
     }
 
-    // In CustomerController.java - Update the showCreateTenantForm method
     @GetMapping("/create-tenant")
     public String showCreateTenantForm(Model model, Authentication authentication) {
-        return "redirect:/admin/tenants/create"; // Changed route
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User user = userService.findById(userId);
+            
+            Customer customer = new Customer();
+            customer.setIsTenant(true);
+            customer.setCustomerType(CustomerType.TENANT);
+            customer.setEntityType("tenant");
+            
+            model.addAttribute("customer", customer);
+            model.addAttribute("customerType", "Tenant");
+            model.addAttribute("user", user);
+            model.addAttribute("pageTitle", "Create Tenant");
+            model.addAttribute("submitUrl", "/employee/customer/create-tenant");
+            model.addAttribute("cancelUrl", "/employee/customer/tenants");
+            
+            // Template compatibility
+            model.addAttribute("isGoogleUser", false);
+            model.addAttribute("hasGoogleGmailAccess", false);
+            model.addAttribute("isEdit", false);
+            
+            return "customer/create-customer";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading create tenant form: " + e.getMessage());
+            return "error/500";
+        }
     }
 
     @PostMapping("/create-tenant")
     public String createTenant(@ModelAttribute Customer customer, 
                             Authentication authentication,
                             RedirectAttributes redirectAttributes) {
-        // This method can be removed or kept for legacy compatibility
-        // Redirect to the proper TenantController method
-        return "redirect:/employee/tenant/create-tenant";
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User user = userService.findById(userId);
+            
+            customer.setUser(user);
+            customer.setIsTenant(true);
+            customer.setCustomerType(CustomerType.TENANT);
+            customer.setEntityType("tenant");
+            customer.setCreatedAt(LocalDateTime.now());
+            customer.setDescription("Active");
+            
+            // PayProp reference for future import/sync
+            if (customer.getCustomerReference() == null || customer.getCustomerReference().isEmpty()) {
+                customer.setCustomerReference("LOCAL_TENANT_" + System.currentTimeMillis());
+            }
+            
+            Customer savedCustomer = customerService.save(customer);
+            
+            redirectAttributes.addFlashAttribute("successMessage", 
+                "Tenant " + savedCustomer.getName() + " created successfully!");
+            
+            return "redirect:/employee/customer/tenants";
+            
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Error creating tenant: " + e.getMessage());
+            return "redirect:/employee/customer/create-tenant";
+        }
     }
-
+    
     // ===== EMAIL TENANTS =====
     
     @GetMapping("/email-tenants")
