@@ -257,6 +257,7 @@ public class CustomerController {
 
     @GetMapping("/create-tenant")
     public String showCreateTenantForm(Model model, Authentication authentication) {
+        System.out.println("🔍 DEBUG: CustomerController.showCreateTenantForm() called!");
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             User user = userService.findById(userId);
@@ -319,7 +320,7 @@ public class CustomerController {
             return "redirect:/employee/customer/create-tenant";
         }
     }
-    
+
     // ===== EMAIL TENANTS =====
     
     @GetMapping("/email-tenants")
