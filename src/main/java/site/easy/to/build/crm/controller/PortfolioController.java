@@ -1,4 +1,4 @@
-// PortfolioController.java - FIXED: Proper route ordering to prevent conflicts
+// FORCE REBUILD - Route fix deployment v4 - Remove after successful deployment
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
