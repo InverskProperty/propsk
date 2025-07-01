@@ -548,6 +548,29 @@ public class PortfolioController {
         }
     }
 
+    // ADD THIS NEW METHOD HERE:
+    @GetMapping("/debug/raw-payprop-response")
+    @ResponseBody
+    public ResponseEntity<String> debugRawPayPropResponse(Authentication authentication) {
+        try {
+            org.springframework.http.HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            ResponseEntity<String> response = restTemplate.exchange(
+                payPropApiBase + "/tags", 
+                HttpMethod.GET, 
+                request, 
+                String.class
+            );
+            
+            return ResponseEntity.ok("Status: " + response.getStatusCode() + "\n" +
+                                    "Body: " + response.getBody());
+            
+        } catch (Exception e) {
+            return ResponseEntity.ok("ERROR: " + e.getMessage());
+        }
+    }
+
     /**
      * Sync All Portfolios with PayProp
      */
