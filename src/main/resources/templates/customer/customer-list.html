@@ -100,7 +100,9 @@
                                 <button type="submit" class="btn btn-primary m-r-10">
                                     <i class="fa fa-search"></i> Search
                                 </button>
-                                <a href="/employee/customer/property-owners" class="btn btn-secondary">
+                                <a th:href="${filterType == 'tenants' ? '/employee/customer/tenants' : 
+                                            filterType == 'contractors' ? '/employee/customer/contractors' : 
+                                            '/employee/customer/property-owners'}" class="btn btn-secondary">
                                     <i class="fa fa-times"></i> Clear
                                 </a>
                             </form>
@@ -112,25 +114,39 @@
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <h4 class="card-title">Property Owner Management</h4>
-                                    <h6 class="card-subtitle">Total: <span th:text="${#lists.size(customers ?: {})}">0</span> property owners</h6>
+                                    <h4 class="card-title" th:text="${customerType + ' Management'}">Customer Management</h4>
+                                    <h6 class="card-subtitle">Total: <span th:text="${#lists.size(customers ?: {})}">0</span> 
+                                        <span th:text="${customerType == 'Property Owner' ? 'property owners' : 
+                                                        customerType == 'Tenant' ? 'tenants' : 
+                                                        customerType == 'Contractor' ? 'contractors' : 'customers'}">customers</span>
+                                    </h6>
                                 </div>
                                 <div>
-                                    <a href="/employee/customer/create-property-owner" class="btn btn-success m-r-10">
-                                        <i class="fa fa-plus"></i> Add New Property Owner
+                                    <a th:href="${createUrl}" class="btn btn-success m-r-10">
+                                        <i class="fa fa-plus"></i> <span th:text="'Add New ' + ${customerType}">Add New Customer</span>
                                     </a>
-                                    <a href="/employee/customer/email-property-owners" class="btn btn-info">
+                                    <a th:href="${'/employee/customer/email-' + (customerType == 'Property Owner' ? 'property-owners' : 
+                                                  customerType == 'Tenant' ? 'tenants' : 'contractors')}" 
+                                       class="btn btn-info" 
+                                       th:if="${customerType == 'Property Owner' or customerType == 'Tenant'}">
                                         <i class="fa fa-envelope"></i> Email All
                                     </a>
                                 </div>
                             </div>
                             
                             <div th:if="${#lists.isEmpty(customers)}" class="text-center m-t-40">
-                                <i class="fa fa-building" style="font-size: 4em; color: #ccc;"></i>
-                                <h5 class="text-muted m-t-20">No property owners found</h5>
-                                <p class="text-muted">Start by adding property owners to manage their portfolios.</p>
-                                <a href="/employee/customer/create-property-owner" class="btn btn-success">
-                                    <i class="fa fa-plus"></i> Add First Property Owner
+                                <i th:class="${customerType == 'Property Owner' ? 'fa fa-building' : 
+                                              customerType == 'Tenant' ? 'fa fa-user' : 'fa fa-wrench'}" 
+                                   style="font-size: 4em; color: #ccc;"></i>
+                                <h5 class="text-muted m-t-20" th:text="'No ' + ${customerType == 'Property Owner' ? 'property owners' : 
+                                                                                customerType == 'Tenant' ? 'tenants' : 'contractors'} + ' found'">No customers found</h5>
+                                <p class="text-muted" th:text="'Start by adding ' + ${customerType == 'Property Owner' ? 'property owners to manage their portfolios' : 
+                                                                                     customerType == 'Tenant' ? 'tenants to the system' : 
+                                                                                     'contractors to handle maintenance'} + '.'">
+                                    Start by adding customers to the system.
+                                </p>
+                                <a th:href="${createUrl}" class="btn btn-success">
+                                    <i class="fa fa-plus"></i> <span th:text="'Add First ' + ${customerType}">Add First Customer</span>
                                 </a>
                             </div>
 
@@ -138,10 +154,11 @@
                                 <table id="config-table" class="table display table-bordered table-striped no-wrap">
                                     <thead>
                                         <tr>
-                                            <th>Owner Details</th>
+                                            <th th:text="${customerType + ' Details'}">Customer Details</th>
                                             <th>Contact Information</th>
                                             <th>Location</th>
-                                            <th>Properties</th>
+                                            <th th:text="${customerType == 'Property Owner' ? 'Properties' : 
+                                                           customerType == 'Tenant' ? 'Tenancy' : 'Jobs'}">Properties</th>
                                             <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
@@ -151,12 +168,13 @@
                                             <td>
                                                 <div class="d-flex align-items-center">
                                                     <div class="m-r-10">
-                                                        <i class="fa fa-building text-success"></i>
+                                                        <i th:class="${customerType == 'Property Owner' ? 'fa fa-building text-success' : 
+                                                                      customerType == 'Tenant' ? 'fa fa-user text-info' : 'fa fa-wrench text-warning'}"></i>
                                                     </div>
                                                     <div>
                                                         <strong th:text="${customer.name}">Customer Name</strong>
                                                         <br>
-                                                        <small class="text-muted">Property Owner</small>
+                                                        <small class="text-muted" th:text="${customerType}">Customer Type</small>
                                                     </div>
                                                 </div>
                                             </td>
@@ -183,8 +201,12 @@
                                                 </div>
                                             </td>
                                             <td>
-                                                <span class="label label-info">
-                                                    <i class="fa fa-home"></i> Properties
+                                                <span th:class="${customerType == 'Property Owner' ? 'label label-info' : 
+                                                                 customerType == 'Tenant' ? 'label label-success' : 'label label-warning'}">
+                                                    <i th:class="${customerType == 'Property Owner' ? 'fa fa-home' : 
+                                                                  customerType == 'Tenant' ? 'fa fa-key' : 'fa fa-tools'}"></i> 
+                                                    <span th:text="${customerType == 'Property Owner' ? 'Properties' : 
+                                                                    customerType == 'Tenant' ? 'Tenancy' : 'Available'}">Properties</span>
                                                 </span>
                                             </td>
                                             <td>
@@ -192,7 +214,11 @@
                                                 <span th:unless="${customer.payPropSynced}" class="label label-warning">Pending Sync</span>
                                                 
                                                 <div class="m-t-5">
-                                                    <span class="label label-info">PROPERTY_OWNER</span>
+                                                    <span class="label" 
+                                                          th:class="${customerType == 'Property Owner' ? 'label-success' : 
+                                                                     customerType == 'Tenant' ? 'label-info' : 'label-warning'}"
+                                                          th:text="${customerType == 'Property Owner' ? 'PROPERTY_OWNER' : 
+                                                                    customerType == 'Tenant' ? 'TENANT' : 'CONTRACTOR'}">CUSTOMER_TYPE</span>
                                                 </div>
                                             </td>
                                             <td>
@@ -202,8 +228,18 @@
                                                 <a th:href="@{'/employee/customer/' + ${customer.customerId} + '/edit'}" class="btn btn-sm btn-warning m-r-5" title="Edit">
                                                     <i class="fa fa-edit"></i>
                                                 </a>
-                                                <a th:href="@{'/property/owner/' + ${customer.customerId}}" class="btn btn-sm btn-success" title="View Properties">
+                                                <!-- Dynamic action button based on customer type -->
+                                                <a th:if="${customerType == 'Property Owner'}" 
+                                                   th:href="@{'/property/owner/' + ${customer.customerId}}" class="btn btn-sm btn-success" title="View Properties">
                                                     <i class="fa fa-building"></i>
+                                                </a>
+                                                <a th:if="${customerType == 'Tenant'}" 
+                                                   th:href="@{'/employee/tenant/' + ${customer.customerId}}" class="btn btn-sm btn-info" title="View Tenancy">
+                                                    <i class="fa fa-home"></i>
+                                                </a>
+                                                <a th:if="${customerType == 'Contractor'}" 
+                                                   th:href="@{'/employee/contractor/' + ${customer.customerId}}" class="btn btn-sm btn-warning" title="View Jobs">
+                                                    <i class="fa fa-wrench"></i>
                                                 </a>
                                             </td>
                                         </tr>

@@ -207,6 +207,9 @@ public class CustomerController {
 
     // ===== TENANTS SECTION =====
     
+
+    // Replace the existing listTenants() method in CustomerController.java (around lines 170-207)
+
     @GetMapping("/tenants")
     public String listTenants(@RequestParam(value = "search", required = false) String search,
                             @RequestParam(value = "status", required = false) String status,
@@ -242,7 +245,8 @@ public class CustomerController {
             model.addAttribute("searchTerm", search);
             model.addAttribute("statusFilter", status);
             model.addAttribute("user", user);
-            model.addAttribute("createUrl", "/employee/customer/create-tenant");
+            model.addAttribute("createUrl", "/employee/tenant/create-tenant"); // FIXED: Use tenant controller
+            
             return "customer/customer-list";
             
         } catch (Exception e) {
