@@ -86,9 +86,9 @@
                             <h4 class="card-title">Create New Tenant</h4>
                             <h6 class="card-subtitle">Add a new tenant to the system</h6>
                             
-                            <form th:action="${isEdit != null and isEdit ? '/employee/tenant/' + tenant.id + '/edit' : '/employee/tenant/create-tenant'}" 
-                                  th:object="${tenant}" method="post" class="m-t-40">
-                                
+                            <form th:action="${isEdit != null and isEdit ? '/admin/tenants/' + tenant.id + '/edit' : '/admin/tenants/create'}" 
+                                th:object="${tenant}" method="post" class="m-t-40">
+                            
                                 <!-- Account Type -->
                                 <div class="form-group">
                                     <label class="control-label">Account Type *</label>

@@ -18,7 +18,7 @@ import java.util.List;
  * Handles CRUD operations for tenants from the employee perspective
  */
 @Controller
-@RequestMapping("/employee/tenant")
+@RequestMapping("/admin/tenants")
 public class EmployeeTenantController {
 
     private final TenantService tenantService;
@@ -31,9 +31,9 @@ public class EmployeeTenantController {
     }
 
     /**
-     * Create Tenant Form - GET /employee/tenant/create-tenant
+     * Create Tenant Form - GET /employee/tenants/create
      */
-    @GetMapping("/create-tenant")
+    @GetMapping("/create")
     public String showCreateTenantForm(Model model, Authentication authentication) {
         try {
             // Create new Tenant entity
@@ -62,9 +62,9 @@ public class EmployeeTenantController {
     }
 
     /**
-     * Create Tenant - POST /employee/tenant/create-tenant
+     * Create Tenant - POST /employee/tenants/create
      */
-    @PostMapping("/create-tenant")
+    @PostMapping("/create")
     public String createTenant(@ModelAttribute Tenant tenant, 
                               Authentication authentication,
                               RedirectAttributes redirectAttributes) {
@@ -100,7 +100,7 @@ public class EmployeeTenantController {
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("errorMessage", 
                 "Error creating tenant: " + e.getMessage());
-            return "redirect:/employee/tenant/create-tenant";
+            return "redirect:/admin/tenants/create";
         }
     }
 
@@ -169,7 +169,7 @@ public class EmployeeTenantController {
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("errorMessage", 
                 "Error updating tenant: " + e.getMessage());
-            return "redirect:/employee/tenant/" + id + "/edit";
+            return "redirect:/admin/tenants/" + id + "/edit";
         }
     }
 

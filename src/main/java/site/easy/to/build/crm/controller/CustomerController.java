@@ -245,7 +245,7 @@ public class CustomerController {
             model.addAttribute("searchTerm", search);
             model.addAttribute("statusFilter", status);
             model.addAttribute("user", user);
-            model.addAttribute("createUrl", "/employee/tenant/create-tenant"); // FIXED: Use tenant controller
+            model.addAttribute("createUrl", "/admin/tenants/create"); // NEW: Use admin route
             
             return "customer/customer-list";
             
@@ -258,8 +258,7 @@ public class CustomerController {
     // In CustomerController.java - Update the showCreateTenantForm method
     @GetMapping("/create-tenant")
     public String showCreateTenantForm(Model model, Authentication authentication) {
-        // Redirect to the new employee tenant controller
-        return "redirect:/employee/tenant/create-tenant";
+        return "redirect:/admin/tenants/create"; // Changed route
     }
 
     @PostMapping("/create-tenant")
