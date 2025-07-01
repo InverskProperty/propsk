@@ -513,7 +513,7 @@ public class PortfolioController {
     /**
      * Pull Tags from PayProp (Two-way sync) - FIXED: Now comes BEFORE /{id}
      */
-    @PostMapping("/actions/pull-payprop-tags")
+    @GetMapping("/actions/pull-payprop-tags")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> pullPayPropTags(Authentication authentication) {
         
