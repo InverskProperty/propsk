@@ -253,60 +253,17 @@ public class CustomerController {
 
     @GetMapping("/create-tenant")
     public String showCreateTenantForm(Model model, Authentication authentication) {
-        try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
-            
-            Customer customer = new Customer();
-            customer.setIsTenant(true);
-            customer.setCustomerType(CustomerType.TENANT);
-            
-            model.addAttribute("customer", customer);
-            model.addAttribute("customerType", "Tenant");
-            model.addAttribute("user", user);
-            model.addAttribute("pageTitle", "Create Tenant");
-            model.addAttribute("submitUrl", "/employee/customer/create-tenant");
-            model.addAttribute("cancelUrl", "/employee/customer/tenants");
-            
-            // Add missing attributes that the template expects
-            model.addAttribute("isGoogleUser", false);
-            model.addAttribute("hasGoogleGmailAccess", false);
-            model.addAttribute("isEdit", false);
-            
-            return "customer/create-customer";
-            
-        } catch (Exception e) {
-            model.addAttribute("error", "Error loading create tenant form: " + e.getMessage());
-            return "error/500";
-        }
+        // Redirect to the proper TenantController method
+        return "redirect:/employee/tenant/create-tenant";
     }
 
     @PostMapping("/create-tenant")
     public String createTenant(@ModelAttribute Customer customer, 
-                             Authentication authentication,
-                             RedirectAttributes redirectAttributes) {
-        try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
-            
-            customer.setUser(user);
-            customer.setIsTenant(true);
-            customer.setCustomerType(CustomerType.TENANT);
-            customer.setCreatedAt(LocalDateTime.now());
-            customer.setDescription("Active"); // Set as active tenant
-            
-            Customer savedCustomer = customerService.save(customer);
-            
-            redirectAttributes.addFlashAttribute("successMessage", 
-                "Tenant " + savedCustomer.getName() + " created successfully!");
-            
-            return "redirect:/employee/customer/tenants";
-            
-        } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("errorMessage", 
-                "Error creating tenant: " + e.getMessage());
-            return "redirect:/employee/customer/create-tenant";
-        }
+                            Authentication authentication,
+                            RedirectAttributes redirectAttributes) {
+        // This method can be removed or kept for legacy compatibility
+        // Redirect to the proper TenantController method
+        return "redirect:/employee/tenant/create-tenant";
     }
 
     // ===== EMAIL TENANTS =====
