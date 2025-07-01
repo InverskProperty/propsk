@@ -548,26 +548,22 @@ public class PortfolioController {
         }
     }
 
-    // ADD THIS NEW METHOD HERE:
     @GetMapping("/debug/raw-payprop-response")
     @ResponseBody
     public ResponseEntity<String> debugRawPayPropResponse(Authentication authentication) {
         try {
-            org.springframework.http.HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
+            if (payPropSyncService == null) {
+                return ResponseEntity.ok("PayProp sync service is null");
+            }
             
-            ResponseEntity<String> response = restTemplate.exchange(
-                payPropApiBase + "/tags", 
-                HttpMethod.GET, 
-                request, 
-                String.class
-            );
+            List<PayPropTagDTO> tags = payPropSyncService.getAllPayPropTags();
             
-            return ResponseEntity.ok("Status: " + response.getStatusCode() + "\n" +
-                                    "Body: " + response.getBody());
+            return ResponseEntity.ok("Found " + tags.size() + " tags:\n" + 
+                                tags.toString());
             
         } catch (Exception e) {
-            return ResponseEntity.ok("ERROR: " + e.getMessage());
+            return ResponseEntity.ok("ERROR: " + e.getMessage() + 
+                                "\nCause: " + (e.getCause() != null ? e.getCause().getMessage() : "None"));
         }
     }
 
