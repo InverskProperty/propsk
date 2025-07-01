@@ -255,9 +255,10 @@ public class CustomerController {
         }
     }
 
+    // In CustomerController.java - Update the showCreateTenantForm method
     @GetMapping("/create-tenant")
     public String showCreateTenantForm(Model model, Authentication authentication) {
-        // Redirect to the proper TenantController method
+        // Redirect to the new employee tenant controller
         return "redirect:/employee/tenant/create-tenant";
     }
 
