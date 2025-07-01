@@ -107,7 +107,7 @@
                                         <option value="">Select Property</option>
                                         <option th:each="prop : ${properties}" 
                                                 th:value="${prop.id}" 
-                                                th:text="${prop.name}"
+                                                th:text="${prop.propertyName}"
                                                 th:selected="${selectedProperty != null and prop.id == selectedProperty.id}">
                                             Property Name
                                         </option>
