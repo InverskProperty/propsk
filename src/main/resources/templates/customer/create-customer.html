@@ -92,7 +92,7 @@
                                 <span th:unless="${isEdit}">Add a new customer to the system</span>
                             </h6>
                             
-                            <form action="/employee/customer/create-customer" method="post" class="m-t-40">
+                            <form action="/employee/create-customer" method="post" class="m-t-40"></form>
                                 <input type="hidden" name="${_csrf.parameterName}" value="${_csrf.token}"/>
                                 
                                 <!-- Customer Type Selection -->

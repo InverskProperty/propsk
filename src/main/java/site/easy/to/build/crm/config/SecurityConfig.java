@@ -129,7 +129,10 @@ public class SecurityConfig {
                         
                         // Employee and Manager routes
                         .requestMatchers("/employee/**").hasAnyRole("MANAGER", "EMPLOYEE")
-                        
+
+                        // CUSTOMER MANAGEMENT FIX: Specific employee customer routes before general customer routes
+                        .requestMatchers("/employee/customer/**").hasAnyRole("MANAGER", "EMPLOYEE")
+
                         // Customer routes (handled by main chain for consistency)
                         .requestMatchers("/customer/**").hasRole("CUSTOMER")
                         
