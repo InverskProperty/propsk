@@ -645,6 +645,77 @@ public class CustomerController {
         }
     }
 
+    @PostMapping("/add-customer")
+    public String addCustomer(@ModelAttribute Customer customer,
+                            @RequestParam(value = "customerTypeSelection", required = false) String customerTypeSelection,
+                            Authentication authentication,
+                            RedirectAttributes redirectAttributes) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User user = userService.findById(userId);
+            
+            // Set basic properties
+            customer.setUser(user);
+            customer.setCreatedAt(LocalDateTime.now());
+            customer.setDescription("Active");
+            
+            // Set customer type based on selection
+            if ("TENANT".equals(customerTypeSelection)) {
+                customer.setIsTenant(true);
+                customer.setCustomerType(CustomerType.TENANT);
+                customer.setEntityType("tenant");
+            } else if ("PROPERTY_OWNER".equals(customerTypeSelection)) {
+                customer.setIsPropertyOwner(true);
+                customer.setCustomerType(CustomerType.PROPERTY_OWNER);
+                customer.setEntityType("property_owner");
+            } else if ("CONTRACTOR".equals(customerTypeSelection)) {
+                customer.setIsContractor(true);
+                customer.setCustomerType(CustomerType.CONTRACTOR);
+                customer.setEntityType("contractor");
+            } else {
+                // Default to tenant
+                customer.setIsTenant(true);
+                customer.setCustomerType(CustomerType.TENANT);
+                customer.setEntityType("tenant");
+            }
+            
+            Customer savedCustomer = customerService.save(customer);
+            
+            redirectAttributes.addFlashAttribute("successMessage", 
+                getCustomerTypeDisplay(customer) + " " + savedCustomer.getName() + " created successfully!");
+            
+            return "redirect:" + getRedirectUrl(customer);
+            
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Error creating customer: " + e.getMessage());
+            return "redirect:/employee/customer/create-customer";
+        }
+    }
+
+    // Helper methods (if not already present)
+    private String getCustomerTypeDisplay(Customer customer) {
+        if (Boolean.TRUE.equals(customer.getIsTenant())) {
+            return "Tenant";
+        } else if (Boolean.TRUE.equals(customer.getIsPropertyOwner())) {
+            return "Property Owner";
+        } else if (Boolean.TRUE.equals(customer.getIsContractor())) {
+            return "Contractor";
+        }
+        return "Customer";
+    }
+
+    private String getRedirectUrl(Customer customer) {
+        if (Boolean.TRUE.equals(customer.getIsTenant())) {
+            return "/employee/customer/tenants";
+        } else if (Boolean.TRUE.equals(customer.getIsPropertyOwner())) {
+            return "/employee/customer/property-owners";
+        } else if (Boolean.TRUE.equals(customer.getIsContractor())) {
+            return "/employee/customer/contractors";
+        }
+        return "/employee/customer/dashboard";
+    }
+
     @GetMapping("/by-type")
     public String showCustomersByType(@RequestParam(value = "type", required = false) String type,
                                     Authentication authentication) {
