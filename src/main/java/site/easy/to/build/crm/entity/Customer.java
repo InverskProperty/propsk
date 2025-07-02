@@ -83,6 +83,9 @@ public class Customer {
     @Enumerated(EnumType.STRING)
     private CustomerType customerType = CustomerType.REGULAR_CUSTOMER;
 
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
     @Column(name = "payprop_entity_id", unique = true, length = 32)
     private String payPropEntityId;
 
@@ -374,6 +377,9 @@ public class Customer {
 
     public String getLastName() { return lastName; }
     public void setLastName(String lastName) { this.lastName = lastName; }
+
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
 
     public LocalDate getDateOfBirth() { return dateOfBirth; }
     public void setDateOfBirth(LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
