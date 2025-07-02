@@ -351,14 +351,14 @@ public class CustomerEntityBridgeService {
     }
 
     private String getPropertyOwnerDisplayName(PropertyOwner owner) {
-        if (owner.getAccountType() == AccountType.BUSINESS && owner.getBusinessName() != null) {
+        if (owner.getAccountType() == AccountType.business && owner.getBusinessName() != null) {
             return owner.getBusinessName();
         }
         return buildFullName(owner.getFirstName(), owner.getLastName());
     }
 
     private String getTenantDisplayName(Tenant tenant) {
-        if (tenant.getAccountType() == AccountType.BUSINESS && tenant.getBusinessName() != null) {
+        if (tenant.getAccountType() == AccountType.business && tenant.getBusinessName() != null) {
             return tenant.getBusinessName();
         }
         return buildFullName(tenant.getFirstName(), tenant.getLastName());

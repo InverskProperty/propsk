@@ -453,7 +453,7 @@ public class PropertyOwner {
     
     // Utility methods
     public String getFullName() {
-        if (accountType == AccountType.BUSINESS) {
+        if (accountType == AccountType.business) {
             return businessName;
         }
         StringBuilder name = new StringBuilder();

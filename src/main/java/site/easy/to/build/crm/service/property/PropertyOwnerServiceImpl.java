@@ -173,7 +173,7 @@ public class PropertyOwnerServiceImpl implements PropertyOwnerService {
         }
         
         // Check account type specific requirements
-        if (owner.getAccountType() == AccountType.INDIVIDUAL) {
+        if (owner.getAccountType() == AccountType.individual) {
             if (owner.getFirstName() == null || owner.getFirstName().trim().isEmpty() ||
                 owner.getLastName() == null || owner.getLastName().trim().isEmpty()) {
                 return false;

@@ -491,7 +491,7 @@ public class Tenant {
     
     // Utility Methods
     public String getFullName() {
-        if (accountType == AccountType.BUSINESS && businessName != null && !businessName.trim().isEmpty()) {
+        if (accountType == AccountType.business && businessName != null && !businessName.trim().isEmpty()) {
             return businessName;
         }
         StringBuilder name = new StringBuilder();
@@ -531,11 +531,11 @@ public class Tenant {
     }
     
     public boolean isIndividualAccount() {
-        return accountType == AccountType.INDIVIDUAL;
+        return accountType == AccountType.individual;
     }
     
     public boolean isBusinessAccount() {
-        return accountType == AccountType.BUSINESS;
+        return accountType == AccountType.business;
     }
     
     // FIXED: Updated for PayProp business account best practice
@@ -544,7 +544,7 @@ public class Tenant {
                                    accountType != null;
         
         // For PayProp best practice (always business accounts), require business name
-        if (accountType == AccountType.BUSINESS) {
+        if (accountType == AccountType.business) {
             return hasRequiredFields && 
                    businessName != null && !businessName.trim().isEmpty();
         } else {

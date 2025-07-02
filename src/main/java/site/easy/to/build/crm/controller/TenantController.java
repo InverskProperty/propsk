@@ -208,7 +208,7 @@ public class TenantController {
         try {
             // Create new Tenant entity (not Customer)
             Tenant tenant = new Tenant();
-            tenant.setAccountType(AccountType.INDIVIDUAL); // Default
+            tenant.setAccountType(AccountType.individual); // Default
             tenant.setCountry("UK"); // Default
             tenant.setNotifyEmail("Y"); // Default
             tenant.setNotifyText("Y"); // Default

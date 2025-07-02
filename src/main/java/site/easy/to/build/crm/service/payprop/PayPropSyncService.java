@@ -383,7 +383,7 @@ public class PayPropSyncService {
         // Account type and conditional fields
         dto.setAccount_type(tenant.getAccountType().getValue());
         
-        if (tenant.getAccountType() == AccountType.INDIVIDUAL) {
+        if (tenant.getAccountType() == AccountType.individual) {
             dto.setFirst_name(tenant.getFirstName());
             dto.setLast_name(tenant.getLastName());
         } else {
@@ -436,7 +436,7 @@ public class PayPropSyncService {
         dto.setAccount_type(owner.getAccountType().getValue());
         dto.setPayment_method(owner.getPaymentMethod().getPayPropCode());
         
-        if (owner.getAccountType() == AccountType.INDIVIDUAL) {
+        if (owner.getAccountType() == AccountType.individual) {
             dto.setFirst_name(owner.getFirstName());
             dto.setLast_name(owner.getLastName());
         } else {
@@ -505,7 +505,7 @@ public class PayPropSyncService {
     
     private boolean isTenanReadyForSync(Tenant tenant) {
         // Check account type specific requirements
-        if (tenant.getAccountType() == AccountType.INDIVIDUAL) {
+        if (tenant.getAccountType() == AccountType.individual) {
             if (tenant.getFirstName() == null || tenant.getFirstName().trim().isEmpty() ||
                 tenant.getLastName() == null || tenant.getLastName().trim().isEmpty()) {
                 return false;
@@ -528,7 +528,7 @@ public class PayPropSyncService {
     
     private boolean isBeneficiaryReadyForSync(PropertyOwner owner) {
         // Check account type specific requirements
-        if (owner.getAccountType() == AccountType.INDIVIDUAL) {
+        if (owner.getAccountType() == AccountType.individual) {
             if (owner.getFirstName() == null || owner.getFirstName().trim().isEmpty() ||
                 owner.getLastName() == null || owner.getLastName().trim().isEmpty()) {
                 return false;

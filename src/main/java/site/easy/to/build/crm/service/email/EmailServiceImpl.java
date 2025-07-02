@@ -332,7 +332,7 @@ public class EmailServiceImpl implements EmailService {
         Customer tempCustomer = new Customer();
         tempCustomer.setEmail(owner.getEmailAddress());
         
-        if (owner.getAccountType() == site.easy.to.build.crm.entity.AccountType.BUSINESS) {
+        if (owner.getAccountType() == site.easy.to.build.crm.entity.AccountType.business) {
             tempCustomer.setName(owner.getBusinessName() != null ? owner.getBusinessName() : "Property Owner");
         } else {
             String fullName = "";
@@ -360,7 +360,7 @@ public class EmailServiceImpl implements EmailService {
         Customer tempCustomer = new Customer();
         tempCustomer.setEmail(tenant.getEmailAddress());
         
-        if (tenant.getAccountType() == site.easy.to.build.crm.entity.AccountType.BUSINESS) {
+        if (tenant.getAccountType() == site.easy.to.build.crm.entity.AccountType.business) {
             tempCustomer.setName(tenant.getBusinessName() != null ? tenant.getBusinessName() : "Tenant");
         } else {
             String fullName = "";

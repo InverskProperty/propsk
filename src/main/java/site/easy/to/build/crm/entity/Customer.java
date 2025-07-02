@@ -170,7 +170,7 @@ public class Customer {
     // PayProp Account Type
     @Column(name = "account_type")
     @Enumerated(EnumType.STRING)
-    private AccountType accountType = AccountType.INDIVIDUAL;
+    private AccountType accountType = AccountType.individual;
 
     // PayProp Tenant Fields
     @Column(name = "invoice_lead_days")
@@ -530,11 +530,11 @@ public class Customer {
     // NEW PAYPROP VALIDATION METHODS
 
     public boolean isPayPropIndividualAccount() {
-        return accountType == AccountType.INDIVIDUAL;
+        return accountType == AccountType.individual;
     }
 
     public boolean isPayPropBusinessAccount() {
-        return accountType == AccountType.BUSINESS;
+        return accountType == AccountType.business;
     }
 
     public boolean hasValidIndividualDetails() {
@@ -715,7 +715,7 @@ public class Customer {
         
         // Set default PayProp values
         if (accountType == null) {
-            accountType = AccountType.INDIVIDUAL;
+            accountType = AccountType.individual;
         }
         if (countryCode == null) {
             countryCode = "GB";
