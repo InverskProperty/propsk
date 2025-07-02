@@ -246,7 +246,7 @@ public class Customer {
 
     @Column(name = "payprop_sync_status")
     @Enumerated(EnumType.STRING)
-    private SyncStatus payPropSyncStatus = SyncStatus.PENDING;
+    private SyncStatus payPropSyncStatus = SyncStatus.pending;
 
     @Column(name = "payprop_last_sync_error", columnDefinition = "TEXT")
     private String payPropLastSyncError;
@@ -733,7 +733,7 @@ public class Customer {
             hasBankAccount = false;
         }
         if (payPropSyncStatus == null) {
-            payPropSyncStatus = SyncStatus.PENDING;
+            payPropSyncStatus = SyncStatus.pending;
         }
         
         // Generate customer reference if not set
@@ -773,7 +773,7 @@ public class Customer {
         if (isPayPropEntity() && Boolean.TRUE.equals(payPropSynced)) {
             // Mark as needing re-sync if critical fields changed
             payPropSynced = false;
-            payPropSyncStatus = SyncStatus.PENDING;
+            payPropSyncStatus = SyncStatus.pending;
         }
     }
 

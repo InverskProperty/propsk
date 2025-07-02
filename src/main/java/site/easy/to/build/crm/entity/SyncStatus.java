@@ -1,12 +1,9 @@
 package site.easy.to.build.crm.entity;
 
 public enum SyncStatus {
-    PENDING("Pending Sync"),
-    SYNCING("Sync in Progress"), 
-    SYNCED("Successfully Synced"),
-    ERROR("Sync Error"),        // Changed from FAILED to ERROR for PayProp compatibility
-    FAILED("Sync Failed"),      // Keep FAILED for backward compatibility
-    CONFLICT("Sync Conflict - Manual Resolution Required");
+    pending("Pending Sync"),
+    synced("Successfully Synced"),
+    error("Sync Error");
     
     private final String displayName;
     
@@ -18,6 +15,10 @@ public enum SyncStatus {
         return displayName; 
     }
     
+    public String getValue() {
+        return this.name();  // Returns lowercase: "pending", "synced", "error"
+    }
+    
     // Helper method for PayProp compatibility
     public static SyncStatus fromCode(String code) {
         for (SyncStatus status : values()) {
@@ -25,6 +26,6 @@ public enum SyncStatus {
                 return status;
             }
         }
-        return PENDING; // Default fallback
+        return pending; // Default fallback (now lowercase)
     }
 }

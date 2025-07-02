@@ -487,7 +487,7 @@ public class PortfolioController {
             
             portfolio.setPayPropTags(payPropTagId);
             portfolio.setPayPropTagNames(tagData.getName());
-            portfolio.setSyncStatus(SyncStatus.SYNCED);
+            portfolio.setSyncStatus(SyncStatus.synced);
             portfolio.setLastSyncAt(LocalDateTime.now());
             
             Portfolio savedPortfolio = portfolioService.save(portfolio);

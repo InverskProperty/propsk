@@ -52,7 +52,7 @@ public class Block {
     
     @Column(name = "sync_status")
     @Enumerated(EnumType.STRING)
-    private SyncStatus syncStatus = SyncStatus.PENDING;
+    private SyncStatus syncStatus = SyncStatus.pending;
     
     // Management Information
     @Column(name = "max_properties")
@@ -224,7 +224,7 @@ public class Block {
             displayOrder = 0;
         }
         if (syncStatus == null) {
-            syncStatus = SyncStatus.PENDING;
+            syncStatus = SyncStatus.pending;
         }
     }
     

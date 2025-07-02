@@ -60,7 +60,7 @@ public class PayPropPortfolioSyncService {
             "PORTFOLIO_TO_PAYPROP", "CREATE", initiatedBy);
         
         try {
-            portfolio.setSyncStatus(SyncStatus.SYNCING);
+            portfolio.setSyncStatus(SyncStatus.pending);
             portfolioRepository.save(portfolio);
             
             // Step 1: Create or get PayProp tag for this portfolio
@@ -79,7 +79,7 @@ public class PayPropPortfolioSyncService {
             }
             
             // Step 4: Update portfolio sync status
-            portfolio.setSyncStatus(SyncStatus.SYNCED);
+            portfolio.setSyncStatus(SyncStatus.synced);
             portfolio.setLastSyncAt(LocalDateTime.now());
             portfolioRepository.save(portfolio);
             
@@ -88,7 +88,7 @@ public class PayPropPortfolioSyncService {
             return SyncResult.success("Portfolio synced successfully", Map.of("payPropTagId", tag.getId()));
             
         } catch (Exception e) {
-            portfolio.setSyncStatus(SyncStatus.FAILED);
+            portfolio.setSyncStatus(SyncStatus.error);
             portfolioRepository.save(portfolio);
             
             completeSyncLog(syncLog, "FAILED", e.getMessage(), null);
@@ -283,7 +283,7 @@ public class PayPropPortfolioSyncService {
             newPortfolio.setColorCode(tagData.getColor());
             newPortfolio.setCreatedBy(1L); // System user
             newPortfolio.setIsShared("Y"); // Make PayProp-created portfolios shared
-            newPortfolio.setSyncStatus(SyncStatus.SYNCED);
+            newPortfolio.setSyncStatus(SyncStatus.synced);
             newPortfolio.setLastSyncAt(LocalDateTime.now());
             
             portfolioRepository.save(newPortfolio);
@@ -325,7 +325,7 @@ public class PayPropPortfolioSyncService {
             removePayPropTagFromPortfolio(portfolio, tagId);
             if (portfolio.getPayPropTags() == null || portfolio.getPayPropTags().isEmpty()) {
                 // If this was the only PayProp tag, mark as unsynced but don't delete
-                portfolio.setSyncStatus(SyncStatus.PENDING);
+                portfolio.setSyncStatus(SyncStatus.pending);
             }
             portfolio.setLastSyncAt(LocalDateTime.now());
             portfolioRepository.save(portfolio);
@@ -567,8 +567,8 @@ public class PayPropPortfolioSyncService {
     private List<Portfolio> findPortfoliosNeedingSync() {
         // This would ideally use a repository method
         return portfolioRepository.findAll().stream()
-            .filter(portfolio -> portfolio.getSyncStatus() == SyncStatus.PENDING || 
-                               portfolio.getSyncStatus() == SyncStatus.FAILED)
+            .filter(portfolio -> portfolio.getSyncStatus() == SyncStatus.pending || 
+                               portfolio.getSyncStatus() == SyncStatus.error)
             .collect(Collectors.toList());
     }
     

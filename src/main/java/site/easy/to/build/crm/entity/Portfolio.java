@@ -40,7 +40,7 @@ public class Portfolio {
     
     @Column(name = "sync_status")
     @Enumerated(EnumType.STRING)
-    private SyncStatus syncStatus = SyncStatus.PENDING;
+    private SyncStatus syncStatus = SyncStatus.pending;
     
     // Ownership and Access Control
     @Column(name = "created_by", nullable = false)
@@ -205,11 +205,11 @@ public class Portfolio {
     }
     
     public boolean isSyncedWithPayProp() {
-        return syncStatus == SyncStatus.SYNCED && payPropTags != null && !payPropTags.trim().isEmpty();
+        return syncStatus == SyncStatus.synced && payPropTags != null && !payPropTags.trim().isEmpty();
     }
     
     public boolean needsPayPropSync() {
-        return syncStatus == SyncStatus.PENDING || syncStatus == SyncStatus.FAILED;
+        return syncStatus == SyncStatus.pending || syncStatus == SyncStatus.error;
     }
     
     // PayProp Tag Utilities
@@ -248,7 +248,7 @@ public class Portfolio {
             displayOrder = 0;
         }
         if (syncStatus == null) {
-            syncStatus = SyncStatus.PENDING;
+            syncStatus = SyncStatus.pending;
         }
     }
     

@@ -103,7 +103,7 @@ public class PortfolioServiceImpl implements PortfolioService {
         if (payPropEnabled) {
             portfolio.setPayPropTags(tagId);
             portfolio.setPayPropTagNames(tagData.getName());
-            portfolio.setSyncStatus(SyncStatus.SYNCED);
+            portfolio.setSyncStatus(SyncStatus.synced);
             portfolio.setLastSyncAt(LocalDateTime.now());
         }
         
