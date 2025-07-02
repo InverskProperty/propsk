@@ -127,11 +127,11 @@ public class SecurityConfig {
                         // Role-based access - Manager routes
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/**/manager/**")).hasRole("MANAGER")
                         
-                        // Employee and Manager routes
-                        .requestMatchers("/employee/**").hasAnyRole("MANAGER", "EMPLOYEE")
-
-                        // CUSTOMER MANAGEMENT FIX: Specific employee customer routes before general customer routes
+                        // CUSTOMER MANAGEMENT FIX: Specific employee customer routes FIRST
                         .requestMatchers("/employee/customer/**").hasAnyRole("MANAGER", "EMPLOYEE")
+
+                        // Employee and Manager routes (general - comes AFTER specific)
+                        .requestMatchers("/employee/**").hasAnyRole("MANAGER", "EMPLOYEE")
 
                         // Customer routes (handled by main chain for consistency)
                         .requestMatchers("/customer/**").hasRole("CUSTOMER")
