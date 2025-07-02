@@ -693,29 +693,6 @@ public class CustomerController {
         }
     }
 
-    // Helper methods (if not already present)
-    private String getCustomerTypeDisplay(Customer customer) {
-        if (Boolean.TRUE.equals(customer.getIsTenant())) {
-            return "Tenant";
-        } else if (Boolean.TRUE.equals(customer.getIsPropertyOwner())) {
-            return "Property Owner";
-        } else if (Boolean.TRUE.equals(customer.getIsContractor())) {
-            return "Contractor";
-        }
-        return "Customer";
-    }
-
-    private String getRedirectUrl(Customer customer) {
-        if (Boolean.TRUE.equals(customer.getIsTenant())) {
-            return "/employee/customer/tenants";
-        } else if (Boolean.TRUE.equals(customer.getIsPropertyOwner())) {
-            return "/employee/customer/property-owners";
-        } else if (Boolean.TRUE.equals(customer.getIsContractor())) {
-            return "/employee/customer/contractors";
-        }
-        return "/employee/customer/dashboard";
-    }
-
     @GetMapping("/by-type")
     public String showCustomersByType(@RequestParam(value = "type", required = false) String type,
                                     Authentication authentication) {
