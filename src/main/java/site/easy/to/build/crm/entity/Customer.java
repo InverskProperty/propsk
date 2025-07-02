@@ -671,16 +671,16 @@ public class Customer {
         if (paymentMethod == null) return false;
         
         switch (paymentMethod) {
-            case LOCAL:
+            case local:
                 return bankAccountName != null && 
-                       bankAccountNumber != null && 
-                       bankSortCode != null;
-            case INTERNATIONAL:
+                    bankAccountNumber != null && 
+                    bankSortCode != null;
+            case international:
                 boolean hasIban = bankIban != null && !bankIban.trim().isEmpty();
                 boolean hasAccountAndSwift = internationalAccountNumber != null && 
-                                           bankSwiftCode != null;
+                                        bankSwiftCode != null;
                 return hasIban || hasAccountAndSwift;
-            case CHEQUE:
+            case cheque:
                 return true; // Cheque doesn't need bank details
             default:
                 return false;
