@@ -252,21 +252,29 @@
 
 <script>
 $(document).ready(function() {
-    // Show/hide copy button for tenants only
-    $('#customerTypeSelection').change(function() {
-        if ($(this).val() === 'TENANT') {
+    // Check if tenant is pre-selected from URL
+    function checkTenantSelection() {
+        const customerType = $('#customerTypeSelection').val();
+        if (customerType === 'TENANT') {
             $('.tenant-only').show();
         } else {
             $('.tenant-only').hide();
         }
+    }
+    
+    // Initial check on page load
+    checkTenantSelection();
+    
+    // Show/hide copy button when selection changes
+    $('#customerTypeSelection').change(function() {
+        checkTenantSelection();
     });
 
     // Handle copy from property button
     $('#copyPropertyAddress').click(function() {
-        // Show property selection modal
-        const propertyList = `
+        const modalHtml = `
             <div class="modal fade" id="propertyModal" tabindex="-1">
-                <div class="modal-dialog">
+                <div class="modal-dialog modal-lg">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title">Select Property to Copy Address</h5>
@@ -274,7 +282,9 @@ $(document).ready(function() {
                         </div>
                         <div class="modal-body">
                             <div class="list-group" id="propertyList">
-                                <div class="text-center">Loading properties...</div>
+                                <div class="text-center p-3">
+                                    <i class="fa fa-spinner fa-spin"></i> Loading properties...
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -282,29 +292,40 @@ $(document).ready(function() {
             </div>
         `;
         
-        // Add modal to page if not exists
-        if ($('#propertyModal').length === 0) {
-            $('body').append(propertyList);
-        }
+        // Remove existing modal and add new one
+        $('#propertyModal').remove();
+        $('body').append(modalHtml);
         
-        // Load properties via AJAX
-        $.get('/employee/property/api/all', function(properties) {
-            let propertyHtml = '';
-            properties.forEach(function(property) {
-                propertyHtml += `
-                    <a href="#" class="list-group-item list-group-item-action property-item" 
-                       data-id="${property.id}"
-                       data-address="${property.addressLine1 || ''}"
-                       data-city="${property.city || ''}"
-                       data-county="${property.county || ''}"
-                       data-postcode="${property.postcode || ''}">
-                        <h6>${property.propertyName}</h6>
-                        <small class="text-muted">${property.addressLine1 || ''}, ${property.city || ''}</small>
-                    </a>
-                `;
+        // Load properties
+        $.get('/employee/property/api/all')
+            .done(function(properties) {
+                let propertyHtml = '';
+                if (properties.length === 0) {
+                    propertyHtml = '<div class="text-center p-3">No properties found</div>';
+                } else {
+                    properties.forEach(function(property) {
+                        const displayAddress = [property.addressLine1, property.city, property.postcode]
+                            .filter(x => x).join(', ') || 'No address available';
+                        
+                        propertyHtml += `
+                            <a href="#" class="list-group-item list-group-item-action property-item" 
+                               data-address1="${property.addressLine1 || ''}"
+                               data-city="${property.city || ''}"
+                               data-county="${property.county || ''}"
+                               data-postcode="${property.postcode || ''}">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">${property.propertyName || 'Unnamed Property'}</h6>
+                                </div>
+                                <small class="text-muted">${displayAddress}</small>
+                            </a>
+                        `;
+                    });
+                }
+                $('#propertyList').html(propertyHtml);
+            })
+            .fail(function() {
+                $('#propertyList').html('<div class="text-center p-3 text-danger">Error loading properties</div>');
             });
-            $('#propertyList').html(propertyHtml);
-        });
         
         $('#propertyModal').modal('show');
     });
@@ -313,23 +334,19 @@ $(document).ready(function() {
     $(document).on('click', '.property-item', function(e) {
         e.preventDefault();
         
-        // Get property data
-        const address = $(this).data('address');
+        const address1 = $(this).data('address1');
         const city = $(this).data('city');
         const county = $(this).data('county');
-        const postcode = $(this).data('postcode');
         
         // Fill address fields
-        $('input[name="address"]').val(address);
+        $('input[name="address"]').val(address1);
         $('input[name="city"]').val(city);
         $('input[name="state"]').val(county);
-        // Keep existing country value
         
-        // Close modal
         $('#propertyModal').modal('hide');
         
-        // Show success message
-        alert('Address copied from property!');
+        const addressDisplay = [address1, city].filter(x => x).join(', ');
+        alert('✅ Address copied: ' + addressDisplay);
     });
 });
 </script>
