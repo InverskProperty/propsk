@@ -648,45 +648,103 @@ public class CustomerController {
     @PostMapping("/add-customer")
     public String addCustomer(@ModelAttribute Customer customer,
                             @RequestParam(value = "customerTypeSelection", required = false) String customerTypeSelection,
+                            @RequestParam(value = "isTenant", required = false) Boolean isTenant,
+                            @RequestParam(value = "isPropertyOwner", required = false) Boolean isPropertyOwner,
+                            @RequestParam(value = "isContractor", required = false) Boolean isContractor,
+                            @RequestParam(value = "entityType", required = false) String entityType,
                             Authentication authentication,
                             RedirectAttributes redirectAttributes) {
+        
+        // === COMPREHENSIVE DEBUG LOGGING ===
+        System.out.println("=== DEBUG: addCustomer method called ===");
+        System.out.println("🔍 Authentication type: " + authentication.getClass().getSimpleName());
+        System.out.println("🔍 Principal: " + authentication.getName());
+        System.out.println("🔍 Authorities: " + authentication.getAuthorities());
+        System.out.println("🔍 Is authenticated: " + authentication.isAuthenticated());
+        System.out.println("🔍 Customer type selection: " + customerTypeSelection);
+        System.out.println("🔍 Customer object: " + (customer != null ? customer.getName() : "NULL"));
+        
+        // Check specific roles
+        boolean hasManager = authentication.getAuthorities().stream()
+            .anyMatch(auth -> auth.getAuthority().equals("ROLE_MANAGER"));
+        boolean hasEmployee = authentication.getAuthorities().stream()
+            .anyMatch(auth -> auth.getAuthority().equals("ROLE_EMPLOYEE"));
+        boolean hasOIDC = authentication.getAuthorities().stream()
+            .anyMatch(auth -> auth.getAuthority().equals("OIDC_USER"));
+        
+        System.out.println("🔍 Has ROLE_MANAGER: " + hasManager);
+        System.out.println("🔍 Has ROLE_EMPLOYEE: " + hasEmployee);
+        System.out.println("🔍 Has OIDC_USER: " + hasOIDC);
+        
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             User user = userService.findById(userId);
+            
+            System.out.println("🔍 User ID from utils: " + userId);
+            System.out.println("🔍 User from DB: " + (user != null ? user.getEmail() : "NULL"));
             
             // Set basic properties
             customer.setUser(user);
             customer.setCreatedAt(LocalDateTime.now());
             customer.setDescription("Active");
             
-            // Set customer type based on selection
-            if ("TENANT".equals(customerTypeSelection)) {
-                customer.setIsTenant(true);
-                customer.setCustomerType(CustomerType.TENANT);
-                customer.setEntityType("tenant");
-            } else if ("PROPERTY_OWNER".equals(customerTypeSelection)) {
-                customer.setIsPropertyOwner(true);
-                customer.setCustomerType(CustomerType.PROPERTY_OWNER);
-                customer.setEntityType("property_owner");
-            } else if ("CONTRACTOR".equals(customerTypeSelection)) {
-                customer.setIsContractor(true);
-                customer.setCustomerType(CustomerType.CONTRACTOR);
-                customer.setEntityType("contractor");
-            } else {
-                // Default to tenant
-                customer.setIsTenant(true);
-                customer.setCustomerType(CustomerType.TENANT);
-                customer.setEntityType("tenant");
+            // Determine customer type from form selection or hidden fields
+            String finalCustomerType = customerTypeSelection;
+            if (finalCustomerType == null && customer.getCustomerType() != null) {
+                finalCustomerType = customer.getCustomerType().toString();
             }
             
+            System.out.println("🔍 Final customer type: " + finalCustomerType);
+            
+            // Set customer type properties
+            if ("TENANT".equals(finalCustomerType) || Boolean.TRUE.equals(isTenant)) {
+                customer.setIsTenant(true);
+                customer.setIsPropertyOwner(false);
+                customer.setIsContractor(false);
+                customer.setCustomerType(CustomerType.TENANT);
+                customer.setEntityType("tenant");
+                System.out.println("🔍 Setting as TENANT");
+            } else if ("PROPERTY_OWNER".equals(finalCustomerType) || Boolean.TRUE.equals(isPropertyOwner)) {
+                customer.setIsPropertyOwner(true);
+                customer.setIsTenant(false);
+                customer.setIsContractor(false);
+                customer.setCustomerType(CustomerType.PROPERTY_OWNER);
+                customer.setEntityType("property_owner");
+                System.out.println("🔍 Setting as PROPERTY_OWNER");
+            } else if ("CONTRACTOR".equals(finalCustomerType) || Boolean.TRUE.equals(isContractor)) {
+                customer.setIsContractor(true);
+                customer.setIsTenant(false);
+                customer.setIsPropertyOwner(false);
+                customer.setCustomerType(CustomerType.CONTRACTOR);
+                customer.setEntityType("contractor");
+                System.out.println("🔍 Setting as CONTRACTOR");
+            } else {
+                // Default to tenant if no type specified (backward compatibility)
+                customer.setIsTenant(true);
+                customer.setCustomerType(CustomerType.TENANT);
+                customer.setEntityType("tenant");
+                System.out.println("🔍 Defaulting to TENANT");
+            }
+            
+            System.out.println("🔍 About to save customer...");
             Customer savedCustomer = customerService.save(customer);
+            System.out.println("🔍 Customer saved successfully with ID: " + savedCustomer.getCustomerId());
             
+            // Determine success message and redirect based on customer type
+            String customerTypeDisplay = getCustomerTypeDisplay(savedCustomer);
             redirectAttributes.addFlashAttribute("successMessage", 
-                getCustomerTypeDisplay(customer) + " " + savedCustomer.getName() + " created successfully!");
+                customerTypeDisplay + " " + savedCustomer.getName() + " created successfully!");
             
-            return "redirect:" + getRedirectUrl(customer);
+            // Determine redirect URL
+            String redirectUrl = getRedirectUrl(savedCustomer);
+            System.out.println("🔍 Redirecting to: " + redirectUrl);
+            
+            return "redirect:" + redirectUrl;
             
         } catch (Exception e) {
+            System.err.println("❌ ERROR in addCustomer: " + e.getMessage());
+            e.printStackTrace();
+            
             redirectAttributes.addFlashAttribute("errorMessage", 
                 "Error creating customer: " + e.getMessage());
             return "redirect:/employee/customer/create-customer";
