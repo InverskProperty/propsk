@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 
@@ -10,59 +11,24 @@
 <!-- page css -->
 <link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
 
-<!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
-<!--[if lt IE 9]>
-<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
-<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
-<![endif]-->
 </head>
 
 <body class="skin-blue fixed-layout">
-<!-- ============================================================== -->
-<!-- Preloader - style you can find in spinners.css -->
-<!-- ============================================================== -->
 <div class="preloader">
     <div class="loader">
         <div class="loader__figure"></div>
         <p class="loader__label">CRM</p>
     </div>
 </div>
-<!-- ============================================================== -->
-<!-- Main wrapper - style you can find in pages.scss -->
-<!-- ============================================================== -->
+
 <div id="main-wrapper">
-    <!-- ============================================================== -->
-    <!-- Topbar header - style you can find in pages.scss -->
-    <!-- ============================================================== -->
     <div th:replace="~{general/header.html}"></div>
-    <!-- ============================================================== -->
-    <!-- End Topbar header -->
-    <!-- ============================================================== -->
-    <!-- ============================================================== -->
-    <!-- Left Sidebar - style you can find in sidebar.scss  -->
-    <!-- ============================================================== -->
     <div th:replace="~{general/left-sidebar.html}"></div>
-    <!-- ============================================================== -->
-    <!-- End Left Sidebar - style you can find in sidebar.scss  -->
-    <!-- ============================================================== -->
-    <!-- ============================================================== -->
-    <!-- Page wrapper  -->
-    <!-- ============================================================== -->
+    
     <div class="page-wrapper">
-        <!-- ============================================================== -->
-        <!-- Container fluid  -->
-        <!-- ============================================================== -->
         <div class="container-fluid">
-            <!-- ============================================================== -->
-            <!-- Bread crumb and right sidebar toggle -->
-            <!-- ============================================================== -->
             <div th:insert="~{general/page-titles.html}"></div>
-            <!-- ============================================================== -->
-            <!-- End Bread crumb and right sidebar toggle -->
-            <!-- ============================================================== -->
-            <!-- ============================================================== -->
-            <!-- Start Page Content -->
-            <!-- ============================================================== -->
+            
             <div class="row">
                 <div class="col-lg-12">
                     <!-- Success/Error Messages -->
@@ -92,32 +58,20 @@
                                 <span th:unless="${isEdit}">Add a new customer to the system</span>
                             </h6>
                             
-                            <form action="/employee/create-customer" method="post" class="m-t-40"></form>
-                                <input type="hidden" name="${_csrf.parameterName}" value="${_csrf.token}"/>
+                            <!-- SIMPLIFIED FORM - NO JAVASCRIPT VALIDATION -->
+                            <form action="/employee/customer/create-customer" method="post" class="m-t-40">
+                                <input type="hidden" name="csrf" value="${_csrf.token}"/>
                                 
-                                <!-- Customer Type Selection -->
-                                <div class="form-group" th:unless="${isEdit}">
+                                <!-- Customer Type Selection (Simplified) -->
+                                <div class="form-group">
                                     <label class="control-label">Customer Type *</label>
-                                    <select class="form-control" id="customerType" name="customerTypeSelection" onchange="updateCustomerType()" required>
+                                    <select class="form-control" name="customerTypeSelection" required>
                                         <option value="">Select Customer Type</option>
-                                        <option value="TENANT" th:selected="${customerType == 'Tenant'}">
-                                            <i class="fa fa-user"></i> Tenant
-                                        </option>
-                                        <option value="PROPERTY_OWNER" th:selected="${customerType == 'Property Owner'}">
-                                            <i class="fa fa-building"></i> Property Owner
-                                        </option>
-                                        <option value="CONTRACTOR" th:selected="${customerType == 'Contractor'}">
-                                            <i class="fa fa-wrench"></i> Contractor
-                                        </option>
+                                        <option value="TENANT" th:selected="${customerType == 'Tenant'}">Tenant</option>
+                                        <option value="PROPERTY_OWNER" th:selected="${customerType == 'Property Owner'}">Property Owner</option>
+                                        <option value="CONTRACTOR" th:selected="${customerType == 'Contractor'}">Contractor</option>
                                     </select>
                                 </div>
-
-                                <!-- Hidden fields for customer type (set by JavaScript) -->
-                                <input type="hidden" id="hiddenCustomerType" name="customerType" th:value="${customer?.customerType?.name()}">
-                                <input type="hidden" id="hiddenIsTenant" name="isTenant" th:value="${customer?.isTenant}">
-                                <input type="hidden" id="hiddenIsPropertyOwner" name="isPropertyOwner" th:value="${customer?.isPropertyOwner}">
-                                <input type="hidden" id="hiddenIsContractor" name="isContractor" th:value="${customer?.isContractor}">
-                                <input type="hidden" name="entityType" id="hiddenEntityType" th:value="${customer?.entityType}">
 
                                 <!-- Basic Information (Always Visible) -->
                                 <h5 class="m-t-30 m-b-20">Basic Information</h5>
@@ -147,7 +101,7 @@
                                                    placeholder="07123456789">
                                         </div>
                                     </div>
-                                    <div class="col-md-6" id="positionField">
+                                    <div class="col-md-6">
                                         <div class="form-group">
                                             <label class="control-label">Position/Occupation</label>
                                             <input type="text" class="form-control" name="position" th:value="${customer?.position}" 
@@ -193,168 +147,6 @@
                                     </div>
                                 </div>
 
-                                <!-- Tenant-Specific Fields -->
-                                <div id="tenantFields" style="display: none;">
-                                    <h5 class="m-t-30 m-b-20"><i class="fa fa-user text-info"></i> Tenant Information</h5>
-                                    
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label class="control-label">Rental Property</label>
-                                                <select class="form-control" name="tenantProperty">
-                                                    <option value="">Select Property (Optional)</option>
-                                                    <!-- Properties would be populated here -->
-                                                    <option value="property1">Example Property 1</option>
-                                                    <option value="property2">Example Property 2</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label class="control-label">Move-in Date</label>
-                                                <input type="date" class="form-control" name="moveInDate">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label class="control-label">Monthly Rent</label>
-                                                <div class="input-group">
-                                                    <div class="input-group-prepend">
-                                                        <span class="input-group-text">£</span>
-                                                    </div>
-                                                    <input type="number" class="form-control" name="monthlyRent" 
-                                                           placeholder="1200" step="0.01">
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label class="control-label">Deposit Amount</label>
-                                                <div class="input-group">
-                                                    <div class="input-group-prepend">
-                                                        <span class="input-group-text">£</span>
-                                                    </div>
-                                                    <input type="number" class="form-control" name="depositAmount" 
-                                                           placeholder="1400" step="0.01">
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Property Owner-Specific Fields -->
-                                <div id="propertyOwnerFields" style="display: none;">
-                                    <h5 class="m-t-30 m-b-20"><i class="fa fa-building text-success"></i> Property Owner Information</h5>
-                                    
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label class="control-label">Portfolio Name</label>
-                                                <input type="text" class="form-control" name="portfolioName" 
-                                                       placeholder="e.g., London Portfolio">
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label class="control-label">Number of Properties</label>
-                                                <input type="number" class="form-control" name="propertyCount" 
-                                                       placeholder="5" min="0">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label class="control-label">Preferred Payment Method</label>
-                                                <select class="form-control" name="preferredPayment">
-                                                    <option value="">Select Payment Method</option>
-                                                    <option value="bank_transfer">Bank Transfer</option>
-                                                    <option value="cheque">Cheque</option>
-                                                    <option value="paypal">PayPal</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label class="control-label">Tax Reference</label>
-                                                <input type="text" class="form-control" name="taxReference" 
-                                                       placeholder="Tax/UTR Number">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Contractor-Specific Fields -->
-                                <div id="contractorFields" style="display: none;">
-                                    <h5 class="m-t-30 m-b-20"><i class="fa fa-wrench text-warning"></i> Contractor Information</h5>
-                                    
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label class="control-label">Company Name</label>
-                                                <input type="text" class="form-control" name="companyName" 
-                                                       placeholder="Contractor Company Ltd">
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label class="control-label">Trade/Specialization</label>
-                                                <select class="form-control" name="tradeSpecialization">
-                                                    <option value="">Select Trade</option>
-                                                    <option value="plumbing">Plumbing</option>
-                                                    <option value="electrical">Electrical</option>
-                                                    <option value="heating">Heating & Gas</option>
-                                                    <option value="carpentry">Carpentry</option>
-                                                    <option value="painting">Painting & Decorating</option>
-                                                    <option value="roofing">Roofing</option>
-                                                    <option value="general">General Maintenance</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label class="control-label">Hourly Rate</label>
-                                                <div class="input-group">
-                                                    <div class="input-group-prepend">
-                                                        <span class="input-group-text">£</span>
-                                                    </div>
-                                                    <input type="number" class="form-control" name="hourlyRate" 
-                                                           placeholder="45" step="0.01">
-                                                    <div class="input-group-append">
-                                                        <span class="input-group-text">/hour</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label class="control-label">Insurance Valid Until</label>
-                                                <input type="date" class="form-control" name="insuranceExpiry">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="row">
-                                        <div class="col-md-12">
-                                            <div class="form-group">
-                                                <div class="form-check">
-                                                    <input type="checkbox" class="form-check-input" name="isPreferred" id="isPreferred">
-                                                    <label class="form-check-label" for="isPreferred">
-                                                        Mark as Preferred Contractor
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
                                 <!-- Additional Notes -->
                                 <h5 class="m-t-30 m-b-20">Additional Information</h5>
                                 <div class="form-group">
@@ -362,15 +154,6 @@
                                     <textarea class="form-control" name="description" rows="4" 
                                               th:text="${customer?.description}"
                                               placeholder="Any additional notes or comments..."></textarea>
-                                </div>
-
-                                <!-- Email Service Notice -->
-                                <div class="ribbon-wrapper card" th:unless="${isEdit}">
-                                    <div class="ribbon ribbon-info">Email Service</div>
-                                    <p class="ribbon-content">
-                                        To send the customer a registration link, please log in with your 
-                                        <a href="/oauth2/authorization/google" target="_blank">Google account</a>
-                                    </p>
                                 </div>
 
                                 <!-- Submit Buttons -->
@@ -389,41 +172,15 @@
                     </div>
                 </div>
             </div>
-            <!-- ============================================================== -->
-            <!-- End Page Content -->
-            <!-- ============================================================== -->
-            <!-- ============================================================== -->
-            <!-- Right sidebar -->
-            <!-- ============================================================== -->
+            
             <div th:insert="~{general/right-sidebar.html}"></div>
-            <!-- ============================================================== -->
-            <!-- End Right sidebar -->
-            <!-- ============================================================== -->
         </div>
-        <!-- ============================================================== -->
-        <!-- End Container fluid  -->
-        <!-- ============================================================== -->
     </div>
-    <!-- ============================================================== -->
-    <!-- End Page wrapper  -->
-    <!-- ============================================================== -->
-    <!-- ============================================================== -->
-    <!-- footer -->
-    <!-- ============================================================== -->
+    
     <div th:replace="~{general/footer.html}"></div>
-    <!-- ============================================================== -->
-    <!-- End footer -->
-    <!-- ============================================================== -->
 </div>
-<!-- ============================================================== -->
-<!-- End Wrapper -->
-<!-- ============================================================== -->
-<!-- ============================================================== -->
-<!-- All Jquery -->
-<!-- ============================================================== -->
-<script th:inline="javascript">
-    var home = /*[[${home}]]*/ null;
-</script>
+
+<!-- Basic jQuery (NO complex validation) -->
 <script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
@@ -434,89 +191,7 @@
 <script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
 
-<script>
-// Dynamic form field management
-function updateCustomerType() {
-    const customerType = document.getElementById('customerType').value;
-    
-    // Hide all specific field groups
-    document.getElementById('tenantFields').style.display = 'none';
-    document.getElementById('propertyOwnerFields').style.display = 'none';
-    document.getElementById('contractorFields').style.display = 'none';
-    
-    // Reset hidden field values
-    document.getElementById('hiddenIsTenant').value = 'false';
-    document.getElementById('hiddenIsPropertyOwner').value = 'false';
-    document.getElementById('hiddenIsContractor').value = 'false';
-    
-    // Show relevant fields and set hidden values based on selection
-    if (customerType === 'TENANT') {
-        document.getElementById('tenantFields').style.display = 'block';
-        document.getElementById('hiddenCustomerType').value = 'TENANT';
-        document.getElementById('hiddenIsTenant').value = 'true';
-        document.getElementById('hiddenEntityType').value = 'tenant';
-        
-        // Update position field label for tenants
-        document.querySelector('#positionField label').textContent = 'Occupation';
-        
-    } else if (customerType === 'PROPERTY_OWNER') {
-        document.getElementById('propertyOwnerFields').style.display = 'block';
-        document.getElementById('hiddenCustomerType').value = 'PROPERTY_OWNER';
-        document.getElementById('hiddenIsPropertyOwner').value = 'true';
-        document.getElementById('hiddenEntityType').value = 'property_owner';
-        
-        // Update position field label for property owners
-        document.querySelector('#positionField label').textContent = 'Business Position';
-        
-    } else if (customerType === 'CONTRACTOR') {
-        document.getElementById('contractorFields').style.display = 'block';
-        document.getElementById('hiddenCustomerType').value = 'CONTRACTOR';
-        document.getElementById('hiddenIsContractor').value = 'true';
-        document.getElementById('hiddenEntityType').value = 'contractor';
-        
-        // Update position field label for contractors
-        document.querySelector('#positionField label').textContent = 'Role/Position';
-    }
-}
+<!-- NO VALIDATION JAVASCRIPT - Keep it simple! -->
 
-// Initialize form on page load
-document.addEventListener('DOMContentLoaded', function() {
-    // If customer type is pre-selected (e.g., coming from tenant creation), show relevant fields
-    const preSelectedType = document.getElementById('customerType').value;
-    if (preSelectedType) {
-        updateCustomerType();
-    }
-    
-    // If editing an existing customer, determine type and show fields
-    const isEdit = /*[[${isEdit}]]*/ false;
-    if (isEdit) {
-        const customerType = /*[[${customer?.customerType?.name()}]]*/ '';
-        if (customerType) {
-            document.getElementById('customerType').value = customerType;
-            updateCustomerType();
-        }
-    }
-});
-
-// Form validation
-document.querySelector('form').addEventListener('submit', function(e) {
-    const customerType = document.getElementById('customerType').value;
-    const name = document.querySelector('input[name="name"]').value.trim();
-    
-    if (!customerType) {
-        e.preventDefault();
-        alert('Please select a customer type.');
-        return false;
-    }
-    
-    if (!name) {
-        e.preventDefault();
-        alert('Please enter a customer name.');
-        return false;
-    }
-    
-    return true;
-});
-</script>
 </body>
 </html>
