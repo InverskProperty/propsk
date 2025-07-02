@@ -128,56 +128,13 @@
                                         <i class="fa fa-copy"></i> Copy from Property
                                     </button>
                                 </h5>
-                                
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="control-label">Full Name *</label>
-                                            <input type="text" class="form-control" name="name" th:value="${customer?.name}" 
-                                                   placeholder="Enter full name" required>
-                                        </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="control-label">Email Address *</label>
-                                            <input type="email" class="form-control" name="email" th:value="${customer?.email}" 
-                                                placeholder="email@example.com" required maxlength="50">
-                                            <small class="form-text text-muted">Required for PayProp integration (max 50 characters)</small>
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="control-label">Phone Number</label>
-                                            <input type="text" class="form-control" name="phone" th:value="${customer?.phone}" 
-                                                   placeholder="07123456789">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="control-label">Position/Occupation</label>
-                                            <input type="text" class="form-control" name="position" th:value="${customer?.position}" 
-                                                   placeholder="e.g., Software Engineer">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Address Information -->
-                                <h5 class="m-t-30 m-b-20">
-                                    Address Information 
-                                    <button type="button" class="btn btn-sm btn-info tenant-only" id="copyPropertyAddress" style="display:none;">
-                                        <i class="fa fa-copy"></i> Copy from Property
-                                    </button>
-                                </h5>
-
-                                
                                 <div class="row">
                                     <div class="col-md-12">
                                         <div class="form-group">
                                             <label class="control-label">Address</label>
                                             <input type="text" class="form-control" name="address" th:value="${customer?.address}" 
-                                                   placeholder="House number and street name">
+                                                placeholder="House number and street name">
                                         </div>
                                     </div>
                                 </div>
@@ -187,14 +144,14 @@
                                         <div class="form-group">
                                             <label class="control-label">City</label>
                                             <input type="text" class="form-control" name="city" th:value="${customer?.city}" 
-                                                   placeholder="City">
+                                                placeholder="City">
                                         </div>
                                     </div>
                                     <div class="col-md-4">
                                         <div class="form-group">
                                             <label class="control-label">State/County</label>
                                             <input type="text" class="form-control" name="state" th:value="${customer?.state}" 
-                                                   placeholder="County">
+                                                placeholder="County">
                                         </div>
                                     </div>
                                     <div class="col-md-4">
