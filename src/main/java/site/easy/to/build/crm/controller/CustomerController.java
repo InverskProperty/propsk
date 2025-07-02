@@ -154,6 +154,35 @@ public class CustomerController {
         }
     }
 
+    @PostMapping("/create-customer")
+    public String createCustomer(@ModelAttribute Customer customer, 
+                            Authentication authentication,
+                            RedirectAttributes redirectAttributes) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User user = userService.findById(userId);
+            
+            customer.setUser(user);
+            customer.setIsTenant(true);  // Since this is coming from create-tenant flow
+            customer.setCustomerType(CustomerType.TENANT);
+            customer.setEntityType("tenant");
+            customer.setCreatedAt(LocalDateTime.now());
+            customer.setDescription("Active");
+            
+            Customer savedCustomer = customerService.save(customer);
+            
+            redirectAttributes.addFlashAttribute("successMessage", 
+                "Tenant " + savedCustomer.getName() + " created successfully!");
+            
+            return "redirect:/employee/customer/tenants";
+            
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Error creating tenant: " + e.getMessage());
+            return "redirect:/employee/customer/create-tenant";
+        }
+    }
+
     @PostMapping("/create-property-owner")
     public String createPropertyOwner(@ModelAttribute Customer customer, 
                                     Authentication authentication,
