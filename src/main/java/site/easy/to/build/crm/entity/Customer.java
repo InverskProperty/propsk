@@ -170,6 +170,7 @@ public class Customer {
     // PayProp Account Type
     @Column(name = "account_type")
     @Enumerated(EnumType.STRING)
+    @Convert(converter = AccountTypeConverter.class)  // Add this if the above doesn't work
     private AccountType accountType = AccountType.INDIVIDUAL;
 
     // PayProp Tenant Fields
