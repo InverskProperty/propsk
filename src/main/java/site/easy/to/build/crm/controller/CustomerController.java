@@ -126,60 +126,74 @@ public class CustomerController {
 
     @GetMapping("/create-property-owner")
     public String showCreatePropertyOwnerForm(Model model, Authentication authentication) {
-        try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
-            
-            Customer customer = new Customer();
-            customer.setIsPropertyOwner(true);
-            customer.setCustomerType(CustomerType.PROPERTY_OWNER);
-            
-            model.addAttribute("customer", customer);
-            model.addAttribute("customerType", "Property Owner");
-            model.addAttribute("user", user);
-            model.addAttribute("pageTitle", "Create Property Owner");
-            model.addAttribute("submitUrl", "/employee/customer/create-property-owner");
-            model.addAttribute("cancelUrl", "/employee/customer/property-owners");
-            
-            // Add missing attributes that the template expects
-            model.addAttribute("isGoogleUser", false);
-            model.addAttribute("hasGoogleGmailAccess", false);
-            model.addAttribute("isEdit", false);
-            
-            return "customer/create-customer";
-            
-        } catch (Exception e) {
-            model.addAttribute("error", "Error loading create property owner form: " + e.getMessage());
-            return "error/500";
-        }
+        // Redirect to unified form with property owner type pre-selected
+        return "redirect:/employee/customer/create-customer?type=PROPERTY_OWNER";
     }
 
     @PostMapping("/create-customer")
-    public String createCustomer(@ModelAttribute Customer customer, 
+    public String createCustomer(@ModelAttribute Customer customer,
+                            @RequestParam(value = "customerTypeSelection", required = false) String customerTypeSelection,
+                            @RequestParam(value = "isTenant", required = false) Boolean isTenant,
+                            @RequestParam(value = "isPropertyOwner", required = false) Boolean isPropertyOwner,
+                            @RequestParam(value = "isContractor", required = false) Boolean isContractor,
+                            @RequestParam(value = "entityType", required = false) String entityType,
                             Authentication authentication,
                             RedirectAttributes redirectAttributes) {
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             User user = userService.findById(userId);
             
+            // Set basic properties
             customer.setUser(user);
-            customer.setIsTenant(true);  // Since this is coming from create-tenant flow
-            customer.setCustomerType(CustomerType.TENANT);
-            customer.setEntityType("tenant");
             customer.setCreatedAt(LocalDateTime.now());
             customer.setDescription("Active");
             
+            // Determine customer type from form selection or hidden fields
+            String finalCustomerType = customerTypeSelection;
+            if (finalCustomerType == null && customer.getCustomerType() != null) {
+                finalCustomerType = customer.getCustomerType().toString();
+            }
+            
+            // Set customer type properties
+            if ("TENANT".equals(finalCustomerType) || Boolean.TRUE.equals(isTenant)) {
+                customer.setIsTenant(true);
+                customer.setIsPropertyOwner(false);
+                customer.setIsContractor(false);
+                customer.setCustomerType(CustomerType.TENANT);
+                customer.setEntityType("tenant");
+            } else if ("PROPERTY_OWNER".equals(finalCustomerType) || Boolean.TRUE.equals(isPropertyOwner)) {
+                customer.setIsPropertyOwner(true);
+                customer.setIsTenant(false);
+                customer.setIsContractor(false);
+                customer.setCustomerType(CustomerType.PROPERTY_OWNER);
+                customer.setEntityType("property_owner");
+            } else if ("CONTRACTOR".equals(finalCustomerType) || Boolean.TRUE.equals(isContractor)) {
+                customer.setIsContractor(true);
+                customer.setIsTenant(false);
+                customer.setIsPropertyOwner(false);
+                customer.setCustomerType(CustomerType.CONTRACTOR);
+                customer.setEntityType("contractor");
+            } else {
+                // Default to tenant if no type specified (backward compatibility)
+                customer.setIsTenant(true);
+                customer.setCustomerType(CustomerType.TENANT);
+                customer.setEntityType("tenant");
+            }
+            
             Customer savedCustomer = customerService.save(customer);
             
+            // Determine success message and redirect based on customer type
+            String customerTypeDisplay = getCustomerTypeDisplay(savedCustomer);
             redirectAttributes.addFlashAttribute("successMessage", 
-                "Tenant " + savedCustomer.getName() + " created successfully!");
+                customerTypeDisplay + " " + savedCustomer.getName() + " created successfully!");
             
-            return "redirect:/employee/customer/tenants";
+            // Redirect to appropriate list
+            return "redirect:" + getRedirectUrl(savedCustomer);
             
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("errorMessage", 
-                "Error creating tenant: " + e.getMessage());
-            return "redirect:/employee/customer/create-tenant";
+                "Error creating customer: " + e.getMessage());
+            return "redirect:/employee/customer/create-customer";
         }
     }
 
@@ -286,34 +300,8 @@ public class CustomerController {
 
     @GetMapping("/create-tenant")
     public String showCreateTenantForm(Model model, Authentication authentication) {
-        System.out.println("🔍 DEBUG: CustomerController.showCreateTenantForm() called!");
-        try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
-            
-            Customer customer = new Customer();
-            customer.setIsTenant(true);
-            customer.setCustomerType(CustomerType.TENANT);
-            customer.setEntityType("tenant");
-            
-            model.addAttribute("customer", customer);
-            model.addAttribute("customerType", "Tenant");
-            model.addAttribute("user", user);
-            model.addAttribute("pageTitle", "Create Tenant");
-            model.addAttribute("submitUrl", "/employee/customer/create-tenant");
-            model.addAttribute("cancelUrl", "/employee/customer/tenants");
-            
-            // Template compatibility
-            model.addAttribute("isGoogleUser", false);
-            model.addAttribute("hasGoogleGmailAccess", false);
-            model.addAttribute("isEdit", false);
-            
-            return "customer/create-customer";
-            
-        } catch (Exception e) {
-            model.addAttribute("error", "Error loading create tenant form: " + e.getMessage());
-            return "error/500";
-        }
+        // Redirect to unified form with tenant type pre-selected
+        return "redirect:/employee/customer/create-customer?type=TENANT";
     }
 
     @PostMapping("/create-tenant")
@@ -417,32 +405,8 @@ public class CustomerController {
 
     @GetMapping("/create-contractor")
     public String showCreateContractorForm(Model model, Authentication authentication) {
-        try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
-            
-            Customer customer = new Customer();
-            customer.setIsContractor(true);
-            customer.setCustomerType(CustomerType.CONTRACTOR);
-            
-            model.addAttribute("customer", customer);
-            model.addAttribute("customerType", "Contractor");
-            model.addAttribute("user", user);
-            model.addAttribute("pageTitle", "Create Contractor");
-            model.addAttribute("submitUrl", "/employee/customer/create-contractor");
-            model.addAttribute("cancelUrl", "/employee/customer/contractors");
-            
-            // Add missing attributes that the template expects
-            model.addAttribute("isGoogleUser", false);
-            model.addAttribute("hasGoogleGmailAccess", false);
-            model.addAttribute("isEdit", false);
-            
-            return "customer/create-customer";
-            
-        } catch (Exception e) {
-            model.addAttribute("error", "Error loading create contractor form: " + e.getMessage());
-            return "error/500";
-        }
+        // Redirect to unified form with contractor type pre-selected
+        return "redirect:/employee/customer/create-customer?type=CONTRACTOR";
     }
 
     @PostMapping("/create-contractor")
@@ -631,9 +595,54 @@ public class CustomerController {
     }
 
     @GetMapping("/create-customer")
-    public String showCreateCustomerForm(Authentication authentication) {
-        // Redirect to create property owner as fallback
-        return "redirect:/employee/customer/create-property-owner";
+    public String showCreateCustomerForm(@RequestParam(value = "type", required = false) String customerType,
+                                    Model model, Authentication authentication) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User user = userService.findById(userId);
+            
+            Customer customer = new Customer();
+            String displayType = "Customer";
+            String cancelUrl = "/employee/customer/dashboard";
+            
+            // Pre-configure based on customer type parameter
+            if ("TENANT".equals(customerType)) {
+                customer.setIsTenant(true);
+                customer.setCustomerType(CustomerType.TENANT);
+                customer.setEntityType("tenant");
+                displayType = "Tenant";
+                cancelUrl = "/employee/customer/tenants";
+            } else if ("PROPERTY_OWNER".equals(customerType)) {
+                customer.setIsPropertyOwner(true);
+                customer.setCustomerType(CustomerType.PROPERTY_OWNER);
+                customer.setEntityType("property_owner");
+                displayType = "Property Owner";
+                cancelUrl = "/employee/customer/property-owners";
+            } else if ("CONTRACTOR".equals(customerType)) {
+                customer.setIsContractor(true);
+                customer.setCustomerType(CustomerType.CONTRACTOR);
+                customer.setEntityType("contractor");
+                displayType = "Contractor";
+                cancelUrl = "/employee/customer/contractors";
+            }
+            
+            model.addAttribute("customer", customer);
+            model.addAttribute("customerType", displayType);
+            model.addAttribute("user", user);
+            model.addAttribute("pageTitle", "Create " + displayType);
+            model.addAttribute("cancelUrl", cancelUrl);
+            
+            // Template compatibility
+            model.addAttribute("isGoogleUser", false);
+            model.addAttribute("hasGoogleGmailAccess", false);
+            model.addAttribute("isEdit", false);
+            
+            return "customer/create-customer";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading create customer form: " + e.getMessage());
+            return "error/500";
+        }
     }
 
     @GetMapping("/by-type")
@@ -981,6 +990,28 @@ public class CustomerController {
             default:
                 return "You can access your customer portal to view your account details and interact with our services.";
         }
+    }
+
+    private String getCustomerTypeDisplay(Customer customer) {
+        if (Boolean.TRUE.equals(customer.getIsTenant())) {
+            return "Tenant";
+        } else if (Boolean.TRUE.equals(customer.getIsPropertyOwner())) {
+            return "Property Owner";
+        } else if (Boolean.TRUE.equals(customer.getIsContractor())) {
+            return "Contractor";
+        }
+        return "Customer";
+    }
+
+    private String getRedirectUrl(Customer customer) {
+        if (Boolean.TRUE.equals(customer.getIsTenant())) {
+            return "/employee/customer/tenants";
+        } else if (Boolean.TRUE.equals(customer.getIsPropertyOwner())) {
+            return "/employee/customer/property-owners";
+        } else if (Boolean.TRUE.equals(customer.getIsContractor())) {
+            return "/employee/customer/contractors";
+        }
+        return "/employee/customer/dashboard";
     }
     
     /**

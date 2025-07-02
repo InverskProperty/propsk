@@ -4,18 +4,13 @@
 <div th:insert="~{general/head.html}"></div>
 <meta name="_csrf" content="${_csrf.token}"/>
 <meta name="_csrf_header" content="${_csrf.headerName}"/>
-<link rel="stylesheet" th:href="@{/css/bootstrap-wysihtml5.css}"/>
-<!-- Editable CSS -->
 
 <!-- Custom CSS -->
 <link th:href="@{/css/style.min.css}" rel="stylesheet">
 <!-- page css -->
 <link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
 
-<link th:href="@{/css/ribbon-page.css}" rel="stylesheet">
-
 <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
-<!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
 <!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
 <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
@@ -70,98 +65,325 @@
             <!-- ============================================================== -->
             <div class="row">
                 <div class="col-lg-12">
+                    <!-- Success/Error Messages -->
+                    <div th:if="${successMessage}" class="alert alert-success">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-success"><i class="fa fa-check-circle"></i> Success</h3>
+                        <span th:text="${successMessage}"></span>
+                    </div>
+                    <div th:if="${errorMessage}" class="alert alert-danger">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-danger"><i class="fa fa-exclamation-circle"></i> Error</h3>
+                        <span th:text="${errorMessage}"></span>
+                    </div>
+
                     <div class="card">
                         <div class="card-body">
-                            <h4 class="card-title">Create Customer</h4>
-                            <form th:object="${customer}" th:action="@{/employee/customer/create-customer}" method="post">
-
-                                <label class="m-t-20" for="name">name:</label>
-                                <div class="input-group">
-                                    <input type="text" id="name" th:field="*{name}" class="form-control">
-                                </div>
-                                <div class="input-group">
-                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('name')}" th:errors="*{name}" autocomplete="off"></span>
-                                </div>
-
-                                <label class="m-t-20" for="email">Email:</label>
-                                <div class="input-group">
-                                    <input type="email" id="email" th:field="*{email}" class="form-control">
-                                </div>
-                                <div class="input-group">
-                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('email')}" th:errors="*{email}" autocomplete="off"></span>
-                                </div>
-
-                                <label class="m-t-20" for="position">Position:</label>
-                                <div class="input-group">
-                                    <input type="text" id="position" th:field="*{position}" class="form-control">
-                                </div>
-                                <div class="input-group">
-                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('position')}" th:errors="*{position}" autocomplete="off"></span>
-                                </div>
-
-                                <label class="m-t-20" for="phone">Phone:</label>
-                                <div class="input-group">
-                                    <input type="text" id="phone" th:field="*{phone}" class="form-control">
-                                </div>
-                                <div class="input-group">
-                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('phone')}" th:errors="*{phone}" autocomplete="off"></span>
+                            <h4 class="card-title">
+                                <span th:if="${isEdit}">Edit <span th:text="${customerType}">Customer</span></span>
+                                <span th:unless="${isEdit}">Create <span th:text="${customerType ?: 'Customer'}">Customer</span></span>
+                            </h4>
+                            <h6 class="card-subtitle">
+                                <span th:if="${isEdit}">Update customer information</span>
+                                <span th:unless="${isEdit}">Add a new customer to the system</span>
+                            </h6>
+                            
+                            <form action="/employee/customer/create-customer" method="post" class="m-t-40">
+                                <input type="hidden" name="${_csrf.parameterName}" value="${_csrf.token}"/>
+                                
+                                <!-- Customer Type Selection -->
+                                <div class="form-group" th:unless="${isEdit}">
+                                    <label class="control-label">Customer Type *</label>
+                                    <select class="form-control" id="customerType" name="customerTypeSelection" onchange="updateCustomerType()" required>
+                                        <option value="">Select Customer Type</option>
+                                        <option value="TENANT" th:selected="${customerType == 'Tenant'}">
+                                            <i class="fa fa-user"></i> Tenant
+                                        </option>
+                                        <option value="PROPERTY_OWNER" th:selected="${customerType == 'Property Owner'}">
+                                            <i class="fa fa-building"></i> Property Owner
+                                        </option>
+                                        <option value="CONTRACTOR" th:selected="${customerType == 'Contractor'}">
+                                            <i class="fa fa-wrench"></i> Contractor
+                                        </option>
+                                    </select>
                                 </div>
 
-                                <label class="m-t-20" for="address">Address:</label>
-                                <div class="input-group">
-                                    <input type="text" id="address" th:field="*{address}" class="form-control">
-                                </div>
-                                <div class="input-group">
-                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('address')}" th:errors="*{address}" autocomplete="off"></span>
+                                <!-- Hidden fields for customer type (set by JavaScript) -->
+                                <input type="hidden" id="hiddenCustomerType" name="customerType" th:value="${customer?.customerType?.name()}">
+                                <input type="hidden" id="hiddenIsTenant" name="isTenant" th:value="${customer?.isTenant}">
+                                <input type="hidden" id="hiddenIsPropertyOwner" name="isPropertyOwner" th:value="${customer?.isPropertyOwner}">
+                                <input type="hidden" id="hiddenIsContractor" name="isContractor" th:value="${customer?.isContractor}">
+                                <input type="hidden" name="entityType" id="hiddenEntityType" th:value="${customer?.entityType}">
+
+                                <!-- Basic Information (Always Visible) -->
+                                <h5 class="m-t-30 m-b-20">Basic Information</h5>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="control-label">Full Name *</label>
+                                            <input type="text" class="form-control" name="name" th:value="${customer?.name}" 
+                                                   placeholder="Enter full name" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="control-label">Email Address</label>
+                                            <input type="email" class="form-control" name="email" th:value="${customer?.email}" 
+                                                   placeholder="email@example.com">
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <label class="m-t-20" for="city">City:</label>
-                                <div class="input-group">
-                                    <input type="text" id="city" th:field="*{city}" class="form-control">
-                                </div>
-                                <div class="input-group">
-                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('city')}" th:errors="*{city}" autocomplete="off"></span>
-                                </div>
-
-                                <label class="m-t-20" for="state">State:</label>
-                                <div class="input-group">
-                                    <input type="text" id="state" th:field="*{state}" class="form-control">
-                                </div>
-                                <div class="input-group">
-                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('state')}" th:errors="*{state}" autocomplete="off"></span>
-                                </div>
-
-                                <label class="m-t-20" for="country">Country:</label>
-                                <div class="input-group">
-                                    <input type="text" id="country" th:field="*{country}" class="form-control">
-                                </div>
-                                <div class="input-group">
-                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('country')}" th:errors="*{country}" autocomplete="off"></span>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="control-label">Phone Number</label>
+                                            <input type="text" class="form-control" name="phone" th:value="${customer?.phone}" 
+                                                   placeholder="07123456789">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6" id="positionField">
+                                        <div class="form-group">
+                                            <label class="control-label">Position/Occupation</label>
+                                            <input type="text" class="form-control" name="position" th:value="${customer?.position}" 
+                                                   placeholder="e.g., Software Engineer">
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <label class="m-t-20" for="description">Information:</label>
-                                <div class="input-group">
-                                    <textarea class="textarea_editor form-control" id="description" rows="15" placeholder="Enter text ..." th:field="*{description}"></textarea>
+                                <!-- Address Information -->
+                                <h5 class="m-t-30 m-b-20">Address Information</h5>
+                                
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <div class="form-group">
+                                            <label class="control-label">Address</label>
+                                            <input type="text" class="form-control" name="address" th:value="${customer?.address}" 
+                                                   placeholder="House number and street name">
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="input-group">
-                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('description')}" th:errors="*{description}" autocomplete="off"></span>
+
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label class="control-label">City</label>
+                                            <input type="text" class="form-control" name="city" th:value="${customer?.city}" 
+                                                   placeholder="City">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label class="control-label">State/County</label>
+                                            <input type="text" class="form-control" name="state" th:value="${customer?.state}" 
+                                                   placeholder="County">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label class="control-label">Country</label>
+                                            <input type="text" class="form-control" name="country" th:value="${customer?.country}" 
+                                                   placeholder="United Kingdom" value="United Kingdom">
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="input-group" th:if="${isGoogleUser && hasGoogleGmailAccess}">
-                                    <input type="checkbox" id="sendEmail" name="SendEmail">
-                                    <label for="sendEmail" class="m-b-0 m-l-5">Send customer a registration link</label>
+
+                                <!-- Tenant-Specific Fields -->
+                                <div id="tenantFields" style="display: none;">
+                                    <h5 class="m-t-30 m-b-20"><i class="fa fa-user text-info"></i> Tenant Information</h5>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Rental Property</label>
+                                                <select class="form-control" name="tenantProperty">
+                                                    <option value="">Select Property (Optional)</option>
+                                                    <!-- Properties would be populated here -->
+                                                    <option value="property1">Example Property 1</option>
+                                                    <option value="property2">Example Property 2</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Move-in Date</label>
+                                                <input type="date" class="form-control" name="moveInDate">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Monthly Rent</label>
+                                                <div class="input-group">
+                                                    <div class="input-group-prepend">
+                                                        <span class="input-group-text">£</span>
+                                                    </div>
+                                                    <input type="number" class="form-control" name="monthlyRent" 
+                                                           placeholder="1200" step="0.01">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Deposit Amount</label>
+                                                <div class="input-group">
+                                                    <div class="input-group-prepend">
+                                                        <span class="input-group-text">£</span>
+                                                    </div>
+                                                    <input type="number" class="form-control" name="depositAmount" 
+                                                           placeholder="1400" step="0.01">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div th:if="${!isGoogleUser}" class="ribbon-wrapper card">
-                                    <div class="ribbon ribbon-danger">Email Service</div>
-                                    <p class="ribbon-content">To send emails customer a registration link, please log in with
-                                        your <a th:href="${home + 'oauth2/authorization/google'}" target="_blank">Google account</a></p>
+
+                                <!-- Property Owner-Specific Fields -->
+                                <div id="propertyOwnerFields" style="display: none;">
+                                    <h5 class="m-t-30 m-b-20"><i class="fa fa-building text-success"></i> Property Owner Information</h5>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Portfolio Name</label>
+                                                <input type="text" class="form-control" name="portfolioName" 
+                                                       placeholder="e.g., London Portfolio">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Number of Properties</label>
+                                                <input type="number" class="form-control" name="propertyCount" 
+                                                       placeholder="5" min="0">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Preferred Payment Method</label>
+                                                <select class="form-control" name="preferredPayment">
+                                                    <option value="">Select Payment Method</option>
+                                                    <option value="bank_transfer">Bank Transfer</option>
+                                                    <option value="cheque">Cheque</option>
+                                                    <option value="paypal">PayPal</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Tax Reference</label>
+                                                <input type="text" class="form-control" name="taxReference" 
+                                                       placeholder="Tax/UTR Number">
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div th:if="${isGoogleUser && !hasGoogleGmailAccess}" class="ribbon-wrapper card">
-                                    <div class="ribbon ribbon-danger">Gmail Access</div>
-                                    <p class="ribbon-content">In order to send customer a registration link, you have to grant the app access to your <a
-                                            th:href="${home + 'employee/settings/google-services'}" target="_blank">Gmail account</a>
+
+                                <!-- Contractor-Specific Fields -->
+                                <div id="contractorFields" style="display: none;">
+                                    <h5 class="m-t-30 m-b-20"><i class="fa fa-wrench text-warning"></i> Contractor Information</h5>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Company Name</label>
+                                                <input type="text" class="form-control" name="companyName" 
+                                                       placeholder="Contractor Company Ltd">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Trade/Specialization</label>
+                                                <select class="form-control" name="tradeSpecialization">
+                                                    <option value="">Select Trade</option>
+                                                    <option value="plumbing">Plumbing</option>
+                                                    <option value="electrical">Electrical</option>
+                                                    <option value="heating">Heating & Gas</option>
+                                                    <option value="carpentry">Carpentry</option>
+                                                    <option value="painting">Painting & Decorating</option>
+                                                    <option value="roofing">Roofing</option>
+                                                    <option value="general">General Maintenance</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Hourly Rate</label>
+                                                <div class="input-group">
+                                                    <div class="input-group-prepend">
+                                                        <span class="input-group-text">£</span>
+                                                    </div>
+                                                    <input type="number" class="form-control" name="hourlyRate" 
+                                                           placeholder="45" step="0.01">
+                                                    <div class="input-group-append">
+                                                        <span class="input-group-text">/hour</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Insurance Valid Until</label>
+                                                <input type="date" class="form-control" name="insuranceExpiry">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                            <div class="form-group">
+                                                <div class="form-check">
+                                                    <input type="checkbox" class="form-check-input" name="isPreferred" id="isPreferred">
+                                                    <label class="form-check-label" for="isPreferred">
+                                                        Mark as Preferred Contractor
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Additional Notes -->
+                                <h5 class="m-t-30 m-b-20">Additional Information</h5>
+                                <div class="form-group">
+                                    <label class="control-label">Notes</label>
+                                    <textarea class="form-control" name="description" rows="4" 
+                                              th:text="${customer?.description}"
+                                              placeholder="Any additional notes or comments..."></textarea>
+                                </div>
+
+                                <!-- Email Service Notice -->
+                                <div class="ribbon-wrapper card" th:unless="${isEdit}">
+                                    <div class="ribbon ribbon-info">Email Service</div>
+                                    <p class="ribbon-content">
+                                        To send the customer a registration link, please log in with your 
+                                        <a href="/oauth2/authorization/google" target="_blank">Google account</a>
                                     </p>
                                 </div>
-                                <button type="submit" class="btn btn-primary m-t-20">Create Customer</button>
+
+                                <!-- Submit Buttons -->
+                                <div class="form-group m-t-30">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fa fa-save"></i> 
+                                        <span th:if="${isEdit}">Update Customer</span>
+                                        <span th:unless="${isEdit}">Create Customer</span>
+                                    </button>
+                                    <a th:href="${cancelUrl ?: '/employee/customer/dashboard'}" class="btn btn-secondary m-l-10">
+                                        <i class="fa fa-times"></i> Cancel
+                                    </a>
+                                </div>
                             </form>
                         </div>
                     </div>
@@ -173,7 +395,6 @@
             <!-- ============================================================== -->
             <!-- Right sidebar -->
             <!-- ============================================================== -->
-            <!-- .right-sidebar -->
             <div th:insert="~{general/right-sidebar.html}"></div>
             <!-- ============================================================== -->
             <!-- End Right sidebar -->
@@ -203,31 +424,99 @@
 <script th:inline="javascript">
     var home = /*[[${home}]]*/ null;
 </script>
-<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript">></script>
-<!--    &lt;!&ndash; Bootstrap tether Core JavaScript &ndash;&gt;-->
-<script th:src="@{/js/library/popper.min.js}" type="text/javascript">></script>
-<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript">></script>
-<!--    &lt;!&ndash; slimscrollbar scrollbar JavaScript &ndash;&gt;-->
-<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript">></script>
-<!--Wave Effects -->
-<script th:src="@{/js/library/waves.js}" type="text/javascript">></script>
-<!--Menu sidebar -->
-<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript">></script>
-<!--stickey kit -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/sticky-kit.min.js}"></script>
-<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript">></script>
-<!--Custom JavaScript -->
-<script th:src="@{/js/library/custom.min.js}" type="text/javascript">></script>
-<!-- Editable -->
+<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
 
-<script th:src="@{/js/library/wysihtml5-0.3.0.js}"></script>
-<script th:src="@{/js/library/bootstrap-wysihtml5.js}"></script>
 <script>
-    $(document).ready(function() {
-        $('.textarea_editor').wysihtml5();
-    });
-</script>
+// Dynamic form field management
+function updateCustomerType() {
+    const customerType = document.getElementById('customerType').value;
+    
+    // Hide all specific field groups
+    document.getElementById('tenantFields').style.display = 'none';
+    document.getElementById('propertyOwnerFields').style.display = 'none';
+    document.getElementById('contractorFields').style.display = 'none';
+    
+    // Reset hidden field values
+    document.getElementById('hiddenIsTenant').value = 'false';
+    document.getElementById('hiddenIsPropertyOwner').value = 'false';
+    document.getElementById('hiddenIsContractor').value = 'false';
+    
+    // Show relevant fields and set hidden values based on selection
+    if (customerType === 'TENANT') {
+        document.getElementById('tenantFields').style.display = 'block';
+        document.getElementById('hiddenCustomerType').value = 'TENANT';
+        document.getElementById('hiddenIsTenant').value = 'true';
+        document.getElementById('hiddenEntityType').value = 'tenant';
+        
+        // Update position field label for tenants
+        document.querySelector('#positionField label').textContent = 'Occupation';
+        
+    } else if (customerType === 'PROPERTY_OWNER') {
+        document.getElementById('propertyOwnerFields').style.display = 'block';
+        document.getElementById('hiddenCustomerType').value = 'PROPERTY_OWNER';
+        document.getElementById('hiddenIsPropertyOwner').value = 'true';
+        document.getElementById('hiddenEntityType').value = 'property_owner';
+        
+        // Update position field label for property owners
+        document.querySelector('#positionField label').textContent = 'Business Position';
+        
+    } else if (customerType === 'CONTRACTOR') {
+        document.getElementById('contractorFields').style.display = 'block';
+        document.getElementById('hiddenCustomerType').value = 'CONTRACTOR';
+        document.getElementById('hiddenIsContractor').value = 'true';
+        document.getElementById('hiddenEntityType').value = 'contractor';
+        
+        // Update position field label for contractors
+        document.querySelector('#positionField label').textContent = 'Role/Position';
+    }
+}
 
+// Initialize form on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // If customer type is pre-selected (e.g., coming from tenant creation), show relevant fields
+    const preSelectedType = document.getElementById('customerType').value;
+    if (preSelectedType) {
+        updateCustomerType();
+    }
+    
+    // If editing an existing customer, determine type and show fields
+    const isEdit = /*[[${isEdit}]]*/ false;
+    if (isEdit) {
+        const customerType = /*[[${customer?.customerType?.name()}]]*/ '';
+        if (customerType) {
+            document.getElementById('customerType').value = customerType;
+            updateCustomerType();
+        }
+    }
+});
+
+// Form validation
+document.querySelector('form').addEventListener('submit', function(e) {
+    const customerType = document.getElementById('customerType').value;
+    const name = document.querySelector('input[name="name"]').value.trim();
+    
+    if (!customerType) {
+        e.preventDefault();
+        alert('Please select a customer type.');
+        return false;
+    }
+    
+    if (!name) {
+        e.preventDefault();
+        alert('Please enter a customer name.');
+        return false;
+    }
+    
+    return true;
+});
+</script>
 </body>
 </html>
-
