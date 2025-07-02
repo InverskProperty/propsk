@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 
@@ -10,6 +9,73 @@
 <link th:href="@{/css/style.min.css}" rel="stylesheet">
 <!-- page css -->
 <link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
+
+<style>
+.form-section {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    background-color: #f8f9fa;
+}
+
+.form-section h5 {
+    color: #495057;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 8px;
+    margin-bottom: 20px;
+}
+
+.conditional-section {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.conditional-section.show {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.property-item {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.property-item:hover {
+    background-color: #f8f9fa;
+    border-color: #007bff;
+}
+
+.property-item.selected {
+    background-color: #e3f2fd;
+    border-color: #2196f3;
+    box-shadow: 0 2px 4px rgba(33, 150, 243, 0.2);
+}
+
+.payprop-badge {
+    background-color: #28a745;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    margin-left: 10px;
+}
+
+.field-help {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 4px;
+}
+
+.required-field::after {
+    content: " *";
+    color: #dc3545;
+}
+</style>
 
 </head>
 
@@ -52,136 +118,367 @@
                             <h4 class="card-title">
                                 <span th:if="${isEdit}">Edit <span th:text="${customerType}">Customer</span></span>
                                 <span th:unless="${isEdit}">Create <span th:text="${customerType ?: 'Customer'}">Customer</span></span>
+                                <span class="payprop-badge">PayProp Ready</span>
                             </h4>
                             <h6 class="card-subtitle">
-                                <span th:if="${isEdit}">Update customer information</span>
-                                <span th:unless="${isEdit}">Add a new customer to the system</span>
+                                <span th:if="${isEdit}">Update customer information for PayProp sync</span>
+                                <span th:unless="${isEdit}">Add a new customer ready for PayProp integration</span>
                             </h6>
                             
-                            <!-- SIMPLIFIED FORM - NO JAVASCRIPT VALIDATION -->
-                            <form action="/employee/customer/create-customer" method="post" class="m-t-40">
-                                <input type="hidden" name="csrf" th:value="${_csrf.token}"/>
+                            <!-- ENHANCED FORM WITH PAYPROP FIELDS -->
+                            <form action="/employee/customer/add-customer" method="post" class="m-t-40" id="customerForm">
+                                <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
                                 
-                                <!-- Customer Type Selection (Simplified) -->
-                                <div class="form-group">
-                                    <label class="control-label">Customer Type *</label>
-                                    <select class="form-control" name="customerTypeSelection" required>
-                                        <option value="">Select Customer Type</option>
-                                        <option value="TENANT" th:selected="${customerType == 'Tenant'}">Tenant</option>
-                                        <option value="PROPERTY_OWNER" th:selected="${customerType == 'Property Owner'}">Property Owner</option>
-                                        <option value="CONTRACTOR" th:selected="${customerType == 'Contractor'}">Contractor</option>
-                                    </select>
-                                </div>
-
-                                <!-- PayProp Account Type (for Tenants/Contractors) -->
-                                <div class="form-group">
-                                    <label class="control-label">Account Type *</label>
-                                    <select class="form-control" name="accountType" required>
-                                        <option value="">Select Account Type</option>
-                                        <option value="individual">Individual Person</option>
-                                        <option value="business">Business/Company</option>
-                                    </select>
-                                </div>
-
-                                <!-- Basic Information (Always Visible) -->
-                                <h5 class="m-t-30 m-b-20">Basic Information</h5>
-
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="control-label">Full Name *</label>
-                                            <input type="text" class="form-control" name="name" th:value="${customer?.name}" 
-                                                placeholder="Enter full name" required>
+                                <!-- SECTION 1: Customer Type & Account Type -->
+                                <div class="form-section">
+                                    <h5><i class="fa fa-user-circle"></i> Customer Type & Account Information</h5>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label required-field">Customer Type</label>
+                                                <select class="form-control" name="customerTypeSelection" id="customerTypeSelection" required>
+                                                    <option value="">Select Customer Type</option>
+                                                    <option value="TENANT" th:selected="${customerType == 'Tenant'}">Tenant</option>
+                                                    <option value="PROPERTY_OWNER" th:selected="${customerType == 'Property Owner'}">Property Owner</option>
+                                                    <option value="CONTRACTOR" th:selected="${customerType == 'Contractor'}">Contractor</option>
+                                                </select>
+                                                <small class="field-help">This determines PayProp entity type and available features</small>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="control-label">Email Address *</label>
-                                            <input type="email" class="form-control" name="email" th:value="${customer?.email}" 
-                                                placeholder="email@example.com" required maxlength="50">
-                                            <small class="form-text text-muted">Required for PayProp integration (max 50 characters)</small>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label required-field">PayProp Account Type</label>
+                                                <select class="form-control" name="accountType" id="accountType" required>
+                                                    <option value="">Select Account Type</option>
+                                                    <option value="individual">Individual Person</option>
+                                                    <option value="business">Business/Company</option>
+                                                </select>
+                                                <small class="field-help">Individual or business account for PayProp</small>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="control-label">Phone Number</label>
-                                            <input type="text" class="form-control" name="phone" th:value="${customer?.phone}" 
-                                                placeholder="07123456789">
+                                <!-- SECTION 2: Basic Information -->
+                                <div class="form-section">
+                                    <h5><i class="fa fa-id-card"></i> Personal/Business Information</h5>
+
+                                    <!-- Individual Fields -->
+                                    <div id="individualFields" class="conditional-section">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label class="control-label required-field">First Name</label>
+                                                    <input type="text" class="form-control" name="firstName" th:value="${customer?.firstName}" 
+                                                        placeholder="Enter first name" maxlength="50">
+                                                    <small class="field-help">Required for PayProp individual accounts</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label class="control-label required-field">Last Name</label>
+                                                    <input type="text" class="form-control" name="lastName" th:value="${customer?.lastName}" 
+                                                        placeholder="Enter last name" maxlength="50">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label class="control-label">Date of Birth</label>
+                                                    <input type="date" class="form-control" name="dateOfBirth" th:value="${customer?.dateOfBirth}">
+                                                    <small class="field-help">Required for tenant credit checks</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label class="control-label">ID Number</label>
+                                                    <input type="text" class="form-control" name="idNumber" th:value="${customer?.idNumber}" 
+                                                        placeholder="e.g., National Insurance Number">
+                                                    <small class="field-help">For identity verification and credit checks</small>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="control-label">Position/Occupation</label>
-                                            <input type="text" class="form-control" name="position" th:value="${customer?.position}" 
-                                                placeholder="e.g., Software Engineer">
+
+                                    <!-- Business Fields -->
+                                    <div id="businessFields" class="conditional-section">
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <div class="form-group">
+                                                    <label class="control-label required-field">Business Name</label>
+                                                    <input type="text" class="form-control" name="businessName" th:value="${customer?.businessName}" 
+                                                        placeholder="Enter registered business name" maxlength="100">
+                                                    <small class="field-help">Official registered business name</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-group">
+                                                    <label class="control-label">Registration Number</label>
+                                                    <input type="text" class="form-control" name="registrationNumber" th:value="${customer?.registrationNumber}" 
+                                                        placeholder="Company number">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Common Contact Fields -->
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label required-field">Email Address</label>
+                                                <input type="email" class="form-control" name="email" th:value="${customer?.email}" 
+                                                    placeholder="email@example.com" required id="emailField">
+                                                <small class="field-help">Portal access & PayProp notifications</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Mobile Number</label>
+                                                <input type="tel" class="form-control" name="mobileNumber" th:value="${customer?.mobileNumber}" 
+                                                    placeholder="07123456789" pattern="^[0-9+\-\s()]+$">
+                                                <small class="field-help">SMS notifications from PayProp</small>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <!-- Address Information -->
-                                <h5 class="m-t-30 m-b-20">
-                                    Address Information 
-                                    <button type="button" class="btn btn-sm btn-info tenant-only" id="copyPropertyAddress" style="display:none;">
-                                        <i class="fa fa-copy"></i> Copy from Property
-                                    </button>
-                                </h5>
-
-                                <div class="row">
-                                    <div class="col-md-12">
-                                        <div class="form-group">
-                                            <label class="control-label">Address</label>
-                                            <input type="text" class="form-control" name="address" th:value="${customer?.address}" 
-                                                placeholder="House number and street name">
+                                <!-- SECTION 3: Property Selection (Tenants Only) -->
+                                <div id="propertySection" class="form-section conditional-section">
+                                    <h5><i class="fa fa-building"></i> Property Assignment</h5>
+                                    
+                                    <div class="form-group">
+                                        <label class="control-label">Select Property</label>
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="selectPropertyBtn">
+                                            <i class="fa fa-search"></i> Choose Property
+                                        </button>
+                                        <button type="button" class="btn btn-outline-success btn-sm ml-2" id="copyAddressBtn" style="display:none;">
+                                            <i class="fa fa-copy"></i> Copy Address from Property
+                                        </button>
+                                        <input type="hidden" name="propertyId" id="selectedPropertyId">
+                                        <div id="selectedPropertyDisplay" class="mt-2" style="display:none;">
+                                            <div class="alert alert-info">
+                                                <strong>Selected Property:</strong> <span id="selectedPropertyName"></span><br>
+                                                <small id="selectedPropertyAddress"></small>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <div class="form-group">
-                                            <label class="control-label">City</label>
-                                            <input type="text" class="form-control" name="city" th:value="${customer?.city}" 
-                                                placeholder="City">
+                                <!-- SECTION 4: Address Information -->
+                                <div class="form-section">
+                                    <h5><i class="fa fa-map-marker"></i> Address Information</h5>
+
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                            <div class="form-group">
+                                                <label class="control-label">Address Line 1</label>
+                                                <input type="text" class="form-control" name="addressLine1" th:value="${customer?.addressLine1}" 
+                                                    placeholder="House number and street name" maxlength="255">
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
-                                        <div class="form-group">
-                                            <label class="control-label">State/County</label>
-                                            <input type="text" class="form-control" name="state" th:value="${customer?.state}" 
-                                                placeholder="County">
+
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Address Line 2</label>
+                                                <input type="text" class="form-control" name="addressLine2" th:value="${customer?.addressLine2}" 
+                                                    placeholder="Apartment, suite, etc." maxlength="255">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">City</label>
+                                                <input type="text" class="form-control" name="city" th:value="${customer?.city}" 
+                                                    placeholder="City" maxlength="100">
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
-                                        <div class="form-group">
-                                            <label class="control-label">Country</label>
-                                            <input type="text" class="form-control" name="country" th:value="${customer?.country}" 
-                                                placeholder="United Kingdom" value="United Kingdom">
+
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label class="control-label">County/State</label>
+                                                <input type="text" class="form-control" name="county" th:value="${customer?.county}" 
+                                                    placeholder="County" maxlength="100">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label class="control-label">Postcode</label>
+                                                <input type="text" class="form-control" name="postcode" th:value="${customer?.postcode}" 
+                                                    placeholder="SW1A 1AA" maxlength="20">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label class="control-label">Country</label>
+                                                <select class="form-control" name="country">
+                                                    <option value="GB" th:selected="${customer?.country == 'GB' or customer?.country == null}">United Kingdom</option>
+                                                    <option value="IE" th:selected="${customer?.country == 'IE'}">Ireland</option>
+                                                    <option value="US" th:selected="${customer?.country == 'US'}">United States</option>
+                                                    <option value="CA" th:selected="${customer?.country == 'CA'}">Canada</option>
+                                                    <option value="AU" th:selected="${customer?.country == 'AU'}">Australia</option>
+                                                </select>
+                                                <small class="field-help">2-letter ISO country code for PayProp</small>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <!-- Additional Notes -->
-                                <h5 class="m-t-30 m-b-20">Additional Information</h5>
-                                <div class="form-group">
-                                    <label class="control-label">Notes</label>
-                                    <textarea class="form-control" name="description" rows="4" 
-                                              th:text="${customer?.description}"
-                                              placeholder="Any additional notes or comments..."></textarea>
+                                <!-- SECTION 5: PayProp Settings (Tenants) -->
+                                <div id="tenantPayPropSettings" class="form-section conditional-section">
+                                    <h5><i class="fa fa-cog"></i> PayProp Tenant Settings</h5>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Invoice Lead Days</label>
+                                                <input type="number" class="form-control" name="invoiceLeadDays" 
+                                                    th:value="${customer?.invoiceLeadDays}" min="0" max="31" value="0">
+                                                <small class="field-help">Days in advance to send invoices (0-31)</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Customer Reference</label>
+                                                <input type="text" class="form-control" name="customerReference" 
+                                                    th:value="${customer?.customerReference}" maxlength="50">
+                                                <small class="field-help">Your internal reference for this customer</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <div class="form-check">
+                                                    <input type="checkbox" class="form-check-input" name="notifyEmail" 
+                                                        th:checked="${customer?.notifyEmail}" id="notifyEmail">
+                                                    <label class="form-check-label" for="notifyEmail">
+                                                        Email Notifications
+                                                    </label>
+                                                    <small class="field-help d-block">Receive email notifications from PayProp</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <div class="form-check">
+                                                    <input type="checkbox" class="form-check-input" name="notifySms" 
+                                                        th:checked="${customer?.notifySms}" id="notifySms">
+                                                    <label class="form-check-label" for="notifySms">
+                                                        SMS Notifications
+                                                    </label>
+                                                    <small class="field-help d-block">Receive SMS notifications from PayProp</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- SECTION 6: Payment Method (Property Owners) -->
+                                <div id="paymentMethodSection" class="form-section conditional-section">
+                                    <h5><i class="fa fa-credit-card"></i> Payment Method</h5>
+                                    
+                                    <div class="form-group">
+                                        <label class="control-label required-field">Payment Method</label>
+                                        <select class="form-control" name="paymentMethod" id="paymentMethod">
+                                            <option value="">Select Payment Method</option>
+                                            <option value="local">Local Bank Transfer (UK)</option>
+                                            <option value="international">International Transfer</option>
+                                            <option value="cheque">Cheque</option>
+                                        </select>
+                                        <small class="field-help">How you want to receive payments from PayProp</small>
+                                    </div>
+
+                                    <!-- Local Bank Details -->
+                                    <div id="localBankFields" class="conditional-section">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label class="control-label">Account Name</label>
+                                                    <input type="text" class="form-control" name="bankAccountName" 
+                                                        placeholder="Account holder name">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label class="control-label">Account Number</label>
+                                                    <input type="text" class="form-control" name="bankAccountNumber" 
+                                                        placeholder="12345678" pattern="[0-9]{3,8}">
+                                                    <small class="field-help">3-8 digits</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label class="control-label">Sort Code</label>
+                                                    <input type="text" class="form-control" name="bankSortCode" 
+                                                        placeholder="12-34-56" pattern="[0-9]{6}">
+                                                    <small class="field-help">6 digits (branch code)</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label class="control-label">Bank Name</label>
+                                                    <input type="text" class="form-control" name="bankName" 
+                                                        placeholder="Bank name">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- International Bank Details -->
+                                    <div id="internationalBankFields" class="conditional-section">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label class="control-label">IBAN</label>
+                                                    <input type="text" class="form-control" name="bankIban" 
+                                                        placeholder="GB29 NWBK 6016 1331 9268 19">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label class="control-label">SWIFT Code</label>
+                                                    <input type="text" class="form-control" name="bankSwiftCode" 
+                                                        placeholder="NWBKGB2L">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- SECTION 7: Additional Notes -->
+                                <div class="form-section">
+                                    <h5><i class="fa fa-sticky-note"></i> Additional Information</h5>
+                                    <div class="form-group">
+                                        <label class="control-label">Notes</label>
+                                        <textarea class="form-control" name="notes" rows="4" 
+                                                  th:text="${customer?.notes}"
+                                                  placeholder="Any additional notes or comments..." maxlength="6000"></textarea>
+                                        <small class="field-help">Internal notes (max 6000 characters)</small>
+                                    </div>
                                 </div>
 
                                 <!-- Submit Buttons -->
                                 <div class="form-group m-t-30">
-                                    <button type="submit" class="btn btn-success">
+                                    <button type="submit" class="btn btn-success btn-lg">
                                         <i class="fa fa-save"></i> 
                                         <span th:if="${isEdit}">Update Customer</span>
                                         <span th:unless="${isEdit}">Create Customer</span>
                                     </button>
-                                    <a th:href="${cancelUrl ?: '/employee/customer/dashboard'}" class="btn btn-secondary m-l-10">
+                                    <a th:href="${cancelUrl ?: '/employee/customer/dashboard'}" class="btn btn-secondary btn-lg m-l-10">
                                         <i class="fa fa-times"></i> Cancel
                                     </a>
+                                    <button type="button" class="btn btn-info btn-lg m-l-10" id="validatePayPropBtn">
+                                        <i class="fa fa-check-circle"></i> Validate for PayProp
+                                    </button>
                                 </div>
                             </form>
                         </div>
@@ -196,115 +493,318 @@
     <div th:replace="~{general/footer.html}"></div>
 </div>
 
-<!-- Basic jQuery (NO complex validation) -->
-<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/sticky-kit.min.js}"></script>
-<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
-
-<script>
-$(document).ready(function() {
-    // Check if tenant is pre-selected from URL
-    function checkTenantSelection() {
-        const customerType = $('#customerTypeSelection').val();
-        if (customerType === 'TENANT') {
-            $('.tenant-only').show();
-        } else {
-            $('.tenant-only').hide();
-        }
-    }
-    
-    // Initial check on page load
-    checkTenantSelection();
-    
-    // Show/hide copy button when selection changes
-    $('#customerTypeSelection').change(function() {
-        checkTenantSelection();
-    });
-
-    // Handle copy from property button
-    $('#copyPropertyAddress').click(function() {
-        const modalHtml = `
-            <div class="modal fade" id="propertyModal" tabindex="-1">
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Select Property to Copy Address</h5>
-                            <button type="button" class="close" data-dismiss="modal">&times;</button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="list-group" id="propertyList">
-                                <div class="text-center p-3">
-                                    <i class="fa fa-spinner fa-spin"></i> Loading properties...
-                                </div>
-                            </div>
-                        </div>
+<!-- Property Selection Modal -->
+<div class="modal fade" id="propertyModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Select Property for Tenant</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <input type="text" class="form-control" id="propertySearch" 
+                           placeholder="Search properties...">
+                </div>
+                <div id="propertyList" class="list-group">
+                    <div class="text-center p-3">
+                        <i class="fa fa-spinner fa-spin"></i> Loading properties...
                     </div>
                 </div>
             </div>
-        `;
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/jquery.sparkline.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script>
+$(document).ready(function() {
+    let selectedProperty = null;
+
+    // Customer Type Selection Logic
+    function updateFormSections() {
+        const customerType = $('#customerTypeSelection').val();
+        const accountType = $('#accountType').val();
         
-        // Remove existing modal and add new one
-        $('#propertyModal').remove();
-        $('body').append(modalHtml);
+        // Hide all conditional sections
+        $('.conditional-section').removeClass('show');
         
-        // Load properties
+        // Show sections based on customer type
+        if (customerType === 'TENANT') {
+            $('#propertySection').addClass('show');
+            $('#tenantPayPropSettings').addClass('show');
+            $('#emailField').attr('maxlength', '50'); // Tenant email limit
+        } else if (customerType === 'PROPERTY_OWNER') {
+            $('#paymentMethodSection').addClass('show');
+            $('#emailField').attr('maxlength', '100'); // Owner email limit
+        }
+        
+        // Show account type specific fields
+        if (accountType === 'individual') {
+            $('#individualFields').addClass('show');
+        } else if (accountType === 'business') {
+            $('#businessFields').addClass('show');
+        }
+        
+        updateRequiredFields();
+    }
+
+    // Update required fields based on selections
+    function updateRequiredFields() {
+        const customerType = $('#customerTypeSelection').val();
+        const accountType = $('#accountType').val();
+        
+        // Reset all required attributes
+        $('input, select').removeAttr('required');
+        
+        // Base required fields
+        $('#customerTypeSelection, #accountType').attr('required', true);
+        
+        if (accountType === 'individual') {
+            $('input[name="firstName"], input[name="lastName"]').attr('required', true);
+        } else if (accountType === 'business') {
+            $('input[name="businessName"]').attr('required', true);
+        }
+        
+        $('input[name="email"]').attr('required', true);
+        
+        if (customerType === 'PROPERTY_OWNER') {
+            $('#paymentMethod').attr('required', true);
+        }
+    }
+
+    // Payment Method Selection Logic
+    function updatePaymentFields() {
+        const paymentMethod = $('#paymentMethod').val();
+        
+        $('#localBankFields, #internationalBankFields').removeClass('show');
+        
+        if (paymentMethod === 'local') {
+            $('#localBankFields').addClass('show');
+        } else if (paymentMethod === 'international') {
+            $('#internationalBankFields').addClass('show');
+        }
+    }
+
+    // Property Selection Logic
+    function loadProperties() {
         $.get('/employee/property/api/all')
             .done(function(properties) {
-                let propertyHtml = '';
-                if (properties.length === 0) {
-                    propertyHtml = '<div class="text-center p-3">No properties found</div>';
-                } else {
-                    properties.forEach(function(property) {
-                        const displayAddress = [property.addressLine1, property.city, property.postcode]
-                            .filter(x => x).join(', ') || 'No address available';
-                        
-                        propertyHtml += `
-                            <a href="#" class="list-group-item list-group-item-action property-item" 
-                               data-address1="${property.addressLine1 || ''}"
-                               data-city="${property.city || ''}"
-                               data-county="${property.county || ''}"
-                               data-postcode="${property.postcode || ''}">
-                                <div class="d-flex w-100 justify-content-between">
-                                    <h6 class="mb-1">${property.propertyName || 'Unnamed Property'}</h6>
-                                </div>
-                                <small class="text-muted">${displayAddress}</small>
-                            </a>
-                        `;
-                    });
-                }
-                $('#propertyList').html(propertyHtml);
+                displayProperties(properties);
             })
             .fail(function() {
-                $('#propertyList').html('<div class="text-center p-3 text-danger">Error loading properties</div>');
+                $('#propertyList').html(
+                    '<div class="alert alert-danger">Error loading properties</div>'
+                );
             });
+    }
+
+    function displayProperties(properties) {
+        if (properties.length === 0) {
+            $('#propertyList').html('<div class="text-center p-3">No properties available</div>');
+            return;
+        }
+
+        let html = '';
+        properties.forEach(function(property) {
+            const displayName = property.propertyName || 'Unnamed Property';
+            const address = property.fullAddress || [
+                property.addressLine1, 
+                property.city, 
+                property.postcode
+            ].filter(x => x).join(', ') || 'No address';
+            
+            // Check if property is archived or occupied (you can enhance this logic)
+            const isAvailable = property.isArchived === "0" || property.isArchived === false;
+            const statusBadge = isAvailable ? 
+                '<span class="badge badge-success">Available</span>' : 
+                '<span class="badge badge-danger">Not Available</span>';
+
+            html += `
+                <div class="list-group-item property-item" 
+                     data-property-id="${property.id}"
+                     data-property-name="${displayName}"
+                     data-address1="${property.addressLine1 || ''}"
+                     data-address2="${property.addressLine2 || ''}"
+                     data-city="${property.city || ''}"
+                     data-county="${property.county || ''}"
+                     data-postcode="${property.postcode || ''}"
+                     data-country="${property.countryCode || 'GB'}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">${displayName}</h6>
+                            <small class="text-muted">${address}</small>
+                            ${property.monthlyPayment ? `<br><small class="text-info">£${property.monthlyPayment}/month</small>` : ''}
+                        </div>
+                        <div>
+                            ${statusBadge}
+                            ${property.payPropSynced ? '<br><span class="badge badge-info badge-sm">PayProp</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
         
+        $('#propertyList').html(html);
+    }
+
+    function filterProperties() {
+        const searchTerm = $('#propertySearch').val().toLowerCase();
+        
+        $('.property-item').each(function() {
+            const text = $(this).text().toLowerCase();
+            $(this).toggle(text.includes(searchTerm));
+        });
+    }
+
+    function selectProperty(propertyElement) {
+        // Remove previous selection
+        $('.property-item').removeClass('selected');
+        
+        // Select current property
+        $(propertyElement).addClass('selected');
+        
+        // Store property data
+        selectedProperty = {
+            id: $(propertyElement).data('property-id'),
+            name: $(propertyElement).data('property-name'),
+            addressLine1: $(propertyElement).data('address1'),
+            addressLine2: $(propertyElement).data('address2'),
+            city: $(propertyElement).data('city'),
+            county: $(propertyElement).data('county'),
+            postcode: $(propertyElement).data('postcode'),
+            country: $(propertyElement).data('country')
+        };
+        
+        // Update form
+        $('#selectedPropertyId').val(selectedProperty.id);
+        $('#selectedPropertyName').text(selectedProperty.name);
+        $('#selectedPropertyAddress').text([
+            selectedProperty.addressLine1,
+            selectedProperty.city,
+            selectedProperty.postcode
+        ].filter(x => x).join(', '));
+        
+        $('#selectedPropertyDisplay').show();
+        $('#copyAddressBtn').show();
+        
+        // Close modal
+        $('#propertyModal').modal('hide');
+    }
+
+    function copyPropertyAddress() {
+        if (!selectedProperty) return;
+        
+        $('input[name="addressLine1"]').val(selectedProperty.addressLine1);
+        $('input[name="addressLine2"]').val(selectedProperty.addressLine2);
+        $('input[name="city"]').val(selectedProperty.city);
+        $('input[name="county"]').val(selectedProperty.county);
+        $('input[name="postcode"]').val(selectedProperty.postcode);
+        $('select[name="country"]').val(selectedProperty.country);
+        
+        // Show success message
+        const toast = $(`
+            <div class="alert alert-success alert-dismissible fade show" style="position: fixed; top: 70px; right: 20px; z-index: 9999;">
+                <i class="fa fa-check-circle"></i> Address copied from property!
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+            </div>
+        `);
+        
+        $('body').append(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    // PayProp Validation
+    function validateForPayProp() {
+        const customerType = $('#customerTypeSelection').val();
+        const accountType = $('#accountType').val();
+        const errors = [];
+        
+        if (!customerType) errors.push('Customer type is required');
+        if (!accountType) errors.push('Account type is required');
+        
+        if (accountType === 'individual') {
+            if (!$('input[name="firstName"]').val()) errors.push('First name is required for individual accounts');
+            if (!$('input[name="lastName"]').val()) errors.push('Last name is required for individual accounts');
+        } else if (accountType === 'business') {
+            if (!$('input[name="businessName"]').val()) errors.push('Business name is required for business accounts');
+        }
+        
+        if (!$('input[name="email"]').val()) errors.push('Email is required');
+        
+        if (customerType === 'TENANT') {
+            const email = $('input[name="email"]').val();
+            if (email && email.length > 50) errors.push('Tenant email must be 50 characters or less');
+        }
+        
+        if (customerType === 'PROPERTY_OWNER') {
+            if (!$('#paymentMethod').val()) errors.push('Payment method is required for property owners');
+        }
+        
+        // Show results
+        if (errors.length === 0) {
+            alert('✅ All PayProp requirements satisfied! Ready to create customer.');
+        } else {
+            alert('❌ PayProp validation failed:\n\n' + errors.join('\n'));
+        }
+    }
+
+    // Event Listeners
+    $('#customerTypeSelection, #accountType').change(updateFormSections);
+    $('#paymentMethod').change(updatePaymentFields);
+    $('#selectPropertyBtn').click(function() {
         $('#propertyModal').modal('show');
+        loadProperties();
+    });
+    
+    $('#propertySearch').on('input', filterProperties);
+    $(document).on('click', '.property-item', function() {
+        selectProperty(this);
+    });
+    
+    $('#copyAddressBtn').click(copyPropertyAddress);
+    $('#validatePayPropBtn').click(validateForPayProp);
+
+    // Form Submission Enhancement
+    $('#customerForm').submit(function(e) {
+        // Add full name for backwards compatibility
+        const firstName = $('input[name="firstName"]').val();
+        const lastName = $('input[name="lastName"]').val();
+        const businessName = $('input[name="businessName"]').val();
+        
+        if (businessName) {
+            $('<input>').attr({
+                type: 'hidden',
+                name: 'name',
+                value: businessName
+            }).appendTo(this);
+        } else if (firstName && lastName) {
+            $('<input>').attr({
+                type: 'hidden',
+                name: 'name',
+                value: firstName + ' ' + lastName
+            }).appendTo(this);
+        }
     });
 
-    // Handle property selection
-    $(document).on('click', '.property-item', function(e) {
-        e.preventDefault();
-        
-        const address1 = $(this).data('address1');
-        const city = $(this).data('city');
-        const county = $(this).data('county');
-        
-        // Fill address fields
-        $('input[name="address"]').val(address1);
-        $('input[name="city"]').val(city);
-        $('input[name="state"]').val(county);
-        
-        $('#propertyModal').modal('hide');
-        
-        const addressDisplay = [address1, city].filter(x => x).join(', ');
-        alert('✅ Address copied: ' + addressDisplay);
-    });
+    // Initialize form state
+    updateFormSections();
+    updatePaymentFields();
 });
 </script>
 

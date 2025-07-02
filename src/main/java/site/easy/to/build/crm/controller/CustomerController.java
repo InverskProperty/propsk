@@ -10,6 +10,7 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.email.EmailService;
+import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
@@ -26,17 +27,20 @@ public class CustomerController {
 
     private final CustomerService customerService;
     private final UserService userService;
+    private final PropertyService propertyService;
     private final CustomerLoginInfoService customerLoginInfoService;
     private final AuthenticationUtils authenticationUtils;
     private final EmailService emailService;
 
     @Autowired
     public CustomerController(CustomerService customerService, UserService userService, 
+                              PropertyService propertyService,
                               CustomerLoginInfoService customerLoginInfoService,
                               AuthenticationUtils authenticationUtils, 
                               EmailService emailService) {
         this.customerService = customerService;
         this.userService = userService;
+        this.propertyService = propertyService;
         this.customerLoginInfoService = customerLoginInfoService;
         this.authenticationUtils = authenticationUtils;
         this.emailService = emailService;
@@ -250,9 +254,6 @@ public class CustomerController {
     }
 
     // ===== TENANTS SECTION =====
-    
-
-    // Replace the existing listTenants() method in CustomerController.java (around lines 170-207)
 
     @GetMapping("/tenants")
     public String listTenants(@RequestParam(value = "search", required = false) String search,
@@ -466,6 +467,12 @@ public class CustomerController {
             } else if (Boolean.TRUE.equals(customer.getIsTenant())) {
                 customerTypeDisplay = "Tenant";
                 backUrl = "/employee/customer/tenants";
+                
+                // Add property information for tenants
+                if (customer.getEntityId() != null) {
+                    Property property = propertyService.findById(customer.getEntityId());
+                    model.addAttribute("assignedProperty", property);
+                }
             } else if (Boolean.TRUE.equals(customer.getIsContractor())) {
                 customerTypeDisplay = "Contractor";
                 backUrl = "/employee/customer/contractors";
@@ -476,6 +483,12 @@ public class CustomerController {
             model.addAttribute("backUrl", backUrl);
             model.addAttribute("user", loggedInUser);
             model.addAttribute("pageTitle", customerTypeDisplay + " Details");
+            
+            // PayProp sync status
+            model.addAttribute("payPropReady", customer.isPayPropEntity());
+            model.addAttribute("payPropSynced", customer.getPayPropSynced());
+            model.addAttribute("needsSync", customer.needsPayPropSync());
+            
             return "customer/customer-details";
             
         } catch (Exception e) {
@@ -587,7 +600,7 @@ public class CustomerController {
         }
     }
 
-    // REPLACE the methods I gave you earlier with these REDIRECT versions:
+    // ===== ENHANCED CUSTOMER CREATION FORM =====
 
     @GetMapping("/my-customers")
     public String showMyCustomers(Authentication authentication) {
@@ -646,72 +659,69 @@ public class CustomerController {
         }
     }
 
+    // ===== ENHANCED ADD CUSTOMER METHOD =====
+    
     @PostMapping("/add-customer")
-    public String addCustomer(@ModelAttribute Customer customer,
+    public String addCustomer(@ModelAttribute("customer") Customer customer,
                             @RequestParam(value = "customerTypeSelection", required = false) String customerTypeSelection,
-                            @RequestParam(value = "isTenant", required = false) Boolean isTenant,
-                            @RequestParam(value = "isPropertyOwner", required = false) Boolean isPropertyOwner,
-                            @RequestParam(value = "isContractor", required = false) Boolean isContractor,
-                            @RequestParam(value = "entityType", required = false) String entityType,
-                            HttpServletRequest request,  // ADDED
+                            @RequestParam(value = "accountType", required = false) String accountType,
+                            // PayProp Individual Fields
+                            @RequestParam(value = "firstName", required = false) String firstName,
+                            @RequestParam(value = "lastName", required = false) String lastName,
+                            @RequestParam(value = "dateOfBirth", required = false) String dateOfBirth,
+                            @RequestParam(value = "idNumber", required = false) String idNumber,
+                            // PayProp Business Fields
+                            @RequestParam(value = "businessName", required = false) String businessName,
+                            @RequestParam(value = "registrationNumber", required = false) String registrationNumber,
+                            // Contact Fields
+                            @RequestParam(value = "email", required = false) String email,
+                            @RequestParam(value = "mobileNumber", required = false) String mobileNumber,
+                            // Address Fields
+                            @RequestParam(value = "addressLine1", required = false) String addressLine1,
+                            @RequestParam(value = "addressLine2", required = false) String addressLine2,
+                            @RequestParam(value = "city", required = false) String city,
+                            @RequestParam(value = "county", required = false) String county,
+                            @RequestParam(value = "postcode", required = false) String postcode,
+                            @RequestParam(value = "country", required = false) String country,
+                            // Property Assignment (Tenants)
+                            @RequestParam(value = "propertyId", required = false) Long propertyId,
+                            // PayProp Tenant Settings
+                            @RequestParam(value = "invoiceLeadDays", required = false) Integer invoiceLeadDays,
+                            @RequestParam(value = "customerReference", required = false) String customerReference,
+                            @RequestParam(value = "notifyEmail", required = false) Boolean notifyEmail,
+                            @RequestParam(value = "notifySms", required = false) Boolean notifySms,
+                            // PayProp Payment Method (Property Owners)
+                            @RequestParam(value = "paymentMethod", required = false) String paymentMethod,
+                            @RequestParam(value = "bankAccountName", required = false) String bankAccountName,
+                            @RequestParam(value = "bankAccountNumber", required = false) String bankAccountNumber,
+                            @RequestParam(value = "bankSortCode", required = false) String bankSortCode,
+                            @RequestParam(value = "bankName", required = false) String bankName,
+                            @RequestParam(value = "bankIban", required = false) String bankIban,
+                            @RequestParam(value = "bankSwiftCode", required = false) String bankSwiftCode,
+                            // Notes
+                            @RequestParam(value = "notes", required = false) String notes,
+                            HttpServletRequest request,
                             Authentication authentication,
                             RedirectAttributes redirectAttributes) {
         
-        // === COMPREHENSIVE DEBUG LOGGING ===
-        System.out.println("=== DEBUG: addCustomer method called ===");
-        System.out.println("🔍 Authentication type: " + authentication.getClass().getSimpleName());
-        System.out.println("🔍 Principal: " + authentication.getName());
-        System.out.println("🔍 Authorities: " + authentication.getAuthorities());
-        System.out.println("🔍 Is authenticated: " + authentication.isAuthenticated());
+        System.out.println("=== DEBUG: Enhanced addCustomer method called ===");
         System.out.println("🔍 Customer type selection: " + customerTypeSelection);
-        System.out.println("🔍 Customer object: " + (customer != null ? customer.getName() : "NULL"));
-        
-        // Check specific roles
-        boolean hasManager = authentication.getAuthorities().stream()
-            .anyMatch(auth -> auth.getAuthority().equals("ROLE_MANAGER"));
-        boolean hasEmployee = authentication.getAuthorities().stream()
-            .anyMatch(auth -> auth.getAuthority().equals("ROLE_EMPLOYEE"));
-        boolean hasOIDC = authentication.getAuthorities().stream()
-            .anyMatch(auth -> auth.getAuthority().equals("OIDC_USER"));
-        
-        System.out.println("🔍 Has ROLE_MANAGER: " + hasManager);
-        System.out.println("🔍 Has ROLE_EMPLOYEE: " + hasEmployee);
-        System.out.println("🔍 Has OIDC_USER: " + hasOIDC);
+        System.out.println("🔍 Account type: " + accountType);
+        System.out.println("🔍 First name: " + firstName);
+        System.out.println("🔍 Last name: " + lastName);
+        System.out.println("🔍 Business name: " + businessName);
+        System.out.println("🔍 Email: " + email);
+        System.out.println("🔍 Property ID: " + propertyId);
         
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             User user = userService.findById(userId);
             
-            System.out.println("🔍 User ID from utils: " + userId);
-            System.out.println("🔍 User from DB: " + (user != null ? user.getEmail() : "NULL"));
-            
             // Set basic properties
             customer.setUser(user);
             customer.setCreatedAt(LocalDateTime.now());
-            customer.setDescription("Active");
             
-            // ADDED: Handle PayProp account type
-            String accountType = request.getParameter("accountType");
-            System.out.println("🔍 Account type from form: " + accountType);
-            if (accountType != null) {
-                // Store account type for PayProp integration
-                if ("business".equals(accountType)) {
-                    // For business accounts, we might want to prompt for business name later
-                    customer.setDescription("Active - Business Account");
-                    System.out.println("🔍 Set as Business Account");
-                } else {
-                    customer.setDescription("Active - Individual Account");
-                    System.out.println("🔍 Set as Individual Account");
-                }
-            }
-            
-            // ADDED: Set default country if empty (since you're keeping it mandatory)
-            if (customer.getCountry() == null || customer.getCountry().trim().isEmpty()) {
-                customer.setCountry("United Kingdom");
-                System.out.println("🔍 Set default country: United Kingdom");
-            }
-            
-            // Determine customer type from form selection or hidden fields
+            // ===== DETERMINE CUSTOMER TYPE =====
             String finalCustomerType = customerTypeSelection;
             if (finalCustomerType == null && customer.getCustomerType() != null) {
                 finalCustomerType = customer.getCustomerType().toString();
@@ -720,21 +730,21 @@ public class CustomerController {
             System.out.println("🔍 Final customer type: " + finalCustomerType);
             
             // Set customer type properties
-            if ("TENANT".equals(finalCustomerType) || Boolean.TRUE.equals(isTenant)) {
+            if ("TENANT".equals(finalCustomerType)) {
                 customer.setIsTenant(true);
                 customer.setIsPropertyOwner(false);
                 customer.setIsContractor(false);
                 customer.setCustomerType(CustomerType.TENANT);
                 customer.setEntityType("tenant");
                 System.out.println("🔍 Setting as TENANT");
-            } else if ("PROPERTY_OWNER".equals(finalCustomerType) || Boolean.TRUE.equals(isPropertyOwner)) {
+            } else if ("PROPERTY_OWNER".equals(finalCustomerType)) {
                 customer.setIsPropertyOwner(true);
                 customer.setIsTenant(false);
                 customer.setIsContractor(false);
                 customer.setCustomerType(CustomerType.PROPERTY_OWNER);
                 customer.setEntityType("property_owner");
                 System.out.println("🔍 Setting as PROPERTY_OWNER");
-            } else if ("CONTRACTOR".equals(finalCustomerType) || Boolean.TRUE.equals(isContractor)) {
+            } else if ("CONTRACTOR".equals(finalCustomerType)) {
                 customer.setIsContractor(true);
                 customer.setIsTenant(false);
                 customer.setIsPropertyOwner(false);
@@ -742,21 +752,128 @@ public class CustomerController {
                 customer.setEntityType("contractor");
                 System.out.println("🔍 Setting as CONTRACTOR");
             } else {
-                // Default to tenant if no type specified (backward compatibility)
+                // Default to tenant if no type specified
                 customer.setIsTenant(true);
                 customer.setCustomerType(CustomerType.TENANT);
                 customer.setEntityType("tenant");
                 System.out.println("🔍 Defaulting to TENANT");
             }
+
+            // ===== SET CORE FIELDS =====
             
+            // Name handling - build full name from individual fields or use business name
+            if ("business".equals(accountType) && businessName != null && !businessName.trim().isEmpty()) {
+                customer.setName(businessName.trim());
+            } else if (firstName != null && lastName != null) {
+                customer.setName((firstName.trim() + " " + lastName.trim()).trim());
+            } else if (customer.getName() == null || customer.getName().trim().isEmpty()) {
+                // Use email prefix as fallback name
+                if (email != null && email.contains("@")) {
+                    customer.setName(email.substring(0, email.indexOf("@")));
+                } else {
+                    customer.setName("New Customer");
+                }
+            }
+
+            // Contact information
+            if (email != null && !email.trim().isEmpty()) {
+                customer.setEmail(email.trim());
+            }
+            if (mobileNumber != null && !mobileNumber.trim().isEmpty()) {
+                customer.setPhone(mobileNumber.trim());
+            }
+
+            // Address information - Use the existing address field in Customer entity
+            StringBuilder addressBuilder = new StringBuilder();
+            if (addressLine1 != null && !addressLine1.trim().isEmpty()) {
+                addressBuilder.append(addressLine1.trim());
+            }
+            if (addressLine2 != null && !addressLine2.trim().isEmpty()) {
+                if (addressBuilder.length() > 0) addressBuilder.append(", ");
+                addressBuilder.append(addressLine2.trim());
+            }
+            customer.setAddress(addressBuilder.toString());
+            
+            if (city != null && !city.trim().isEmpty()) {
+                customer.setCity(city.trim());
+            }
+            if (county != null && !county.trim().isEmpty()) {
+                customer.setState(county.trim()); // Using state field for county
+            }
+            if (country != null && !country.trim().isEmpty()) {
+                customer.setCountry(country.trim());
+            } else {
+                customer.setCountry("United Kingdom"); // Default
+            }
+
+            // ===== PROPERTY ASSIGNMENT FOR TENANTS =====
+            if ("TENANT".equals(finalCustomerType) && propertyId != null) {
+                Property property = propertyService.findById(propertyId);
+                if (property != null) {
+                    customer.setEntityId(propertyId);
+                    customer.setEntityType("property");
+                    System.out.println("🔍 Assigned tenant to property ID: " + propertyId);
+                }
+            }
+
+            // ===== PAYPROP INTEGRATION SETUP =====
+            
+            // Generate PayProp customer ID
+            if (customerReference != null && !customerReference.trim().isEmpty()) {
+                customer.setPayPropCustomerId(customerReference.trim());
+            } else {
+                // Auto-generate customer reference
+                String prefix = "TENANT".equals(finalCustomerType) ? "TN" : 
+                               "PROPERTY_OWNER".equals(finalCustomerType) ? "PO" : "CO";
+                customer.setPayPropCustomerId(prefix + "_" + System.currentTimeMillis());
+            }
+
+            // PayProp sync status
+            customer.setPayPropSynced(false); // Will be synced later
+            
+            // Set description with PayProp account type info
+            StringBuilder descBuilder = new StringBuilder("Active");
+            if (accountType != null) {
+                descBuilder.append(" - ").append("business".equals(accountType) ? "Business" : "Individual").append(" Account");
+            }
+            if (paymentMethod != null && "PROPERTY_OWNER".equals(finalCustomerType)) {
+                descBuilder.append(" - ").append(paymentMethod.toUpperCase()).append(" Payment");
+            }
+            customer.setDescription(descBuilder.toString());
+
+            // Additional notes
+            if (notes != null && !notes.trim().isEmpty()) {
+                customer.setDescription(customer.getDescription() + "\n\nNotes: " + notes.trim());
+            }
+
             System.out.println("🔍 About to save customer...");
             Customer savedCustomer = customerService.save(customer);
             System.out.println("🔍 Customer saved successfully with ID: " + savedCustomer.getCustomerId());
             
-            // Determine success message and redirect based on customer type
+            // ===== POST-CREATION ACTIONS =====
+            
+            // Store additional PayProp data in description or future custom fields
+            if ("individual".equals(accountType)) {
+                // Store individual-specific data
+                String individualData = String.format("PayProp Individual: %s %s", 
+                    firstName != null ? firstName : "", 
+                    lastName != null ? lastName : "");
+                if (dateOfBirth != null && !dateOfBirth.trim().isEmpty()) {
+                    individualData += " | DOB: " + dateOfBirth;
+                }
+                if (idNumber != null && !idNumber.trim().isEmpty()) {
+                    individualData += " | ID: " + idNumber;
+                }
+                
+                // Append to description
+                savedCustomer.setDescription(savedCustomer.getDescription() + "\n" + individualData);
+                customerService.save(savedCustomer);
+            }
+
+            // Success message and redirect
             String customerTypeDisplay = getCustomerTypeDisplay(savedCustomer);
             redirectAttributes.addFlashAttribute("successMessage", 
-                customerTypeDisplay + " " + savedCustomer.getName() + " created successfully!");
+                customerTypeDisplay + " " + savedCustomer.getName() + " created successfully! Ready for PayProp sync.");
             
             // Determine redirect URL
             String redirectUrl = getRedirectUrl(savedCustomer);
