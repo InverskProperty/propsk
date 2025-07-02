@@ -302,11 +302,6 @@ public class CustomerController {
             customer.setCreatedAt(LocalDateTime.now());
             customer.setDescription("Active");
             
-            // PayProp reference for future import/sync
-            if (customer.getCustomerReference() == null || customer.getCustomerReference().isEmpty()) {
-                customer.setCustomerReference("LOCAL_TENANT_" + System.currentTimeMillis());
-            }
-            
             Customer savedCustomer = customerService.save(customer);
             
             redirectAttributes.addFlashAttribute("successMessage", 
