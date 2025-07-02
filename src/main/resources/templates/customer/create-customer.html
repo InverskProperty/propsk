@@ -127,7 +127,7 @@
                             
                             <!-- ENHANCED FORM WITH PAYPROP FIELDS -->
                             <form action="/employee/customer/add-customer" method="post" class="m-t-40" id="customerForm">
-                                <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
+                                <input type="hidden" name="csrf" th:value="${_csrf.token}"/>
                                 
                                 <!-- SECTION 1: Customer Type & Account Type -->
                                 <div class="form-section">
