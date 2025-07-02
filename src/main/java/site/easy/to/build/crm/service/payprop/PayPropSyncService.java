@@ -463,8 +463,8 @@ public class PayPropSyncService {
         dto.setCommunication_preferences(communication);
         
         // Address (required for international payments and cheque)
-        if (owner.getPaymentMethod() == PaymentMethod.INTERNATIONAL || 
-            owner.getPaymentMethod() == PaymentMethod.CHEQUE) {
+        if (owner.getPaymentMethod() == PaymentMethod.international || 
+            owner.getPaymentMethod() == PaymentMethod.cheque) {
             PayPropAddressDTO address = new PayPropAddressDTO();
             address.setAddress_line_1(owner.getAddressLine1());
             address.setAddress_line_2(owner.getAddressLine2());
@@ -480,12 +480,12 @@ public class PayPropSyncService {
         PayPropBankAccountDTO bankAccount = new PayPropBankAccountDTO();
         bankAccount.setAccount_name(owner.getBankAccountName());
         
-        if (owner.getPaymentMethod() == PaymentMethod.LOCAL) {
+        if (owner.getPaymentMethod() == PaymentMethod.local) {
             bankAccount.setAccount_number(owner.getBankAccountNumber());
             bankAccount.setBranch_code(owner.getBranchCode());
             bankAccount.setBank_name(owner.getBankName());
             bankAccount.setBranch_name(owner.getBranchName());
-        } else if (owner.getPaymentMethod() == PaymentMethod.INTERNATIONAL) {
+        } else if (owner.getPaymentMethod() == PaymentMethod.international) {
             if (owner.getIban() != null && !owner.getIban().isEmpty()) {
                 bankAccount.setIban(owner.getIban());
             } else {
@@ -540,7 +540,7 @@ public class PayPropSyncService {
         }
         
         // Validate payment method specific requirements
-        if (owner.getPaymentMethod() == PaymentMethod.INTERNATIONAL) {
+        if (owner.getPaymentMethod() == PaymentMethod.international) {
             // Address is required for international
             if (owner.getAddressLine1() == null || owner.getCity() == null || 
                 owner.getState() == null || owner.getPostalCode() == null) {
@@ -557,7 +557,7 @@ public class PayPropSyncService {
             }
         }
         
-        if (owner.getPaymentMethod() == PaymentMethod.LOCAL) {
+        if (owner.getPaymentMethod() == PaymentMethod.local) {
             return owner.getBankAccountName() != null && 
                    owner.getBankAccountNumber() != null && 
                    owner.getBranchCode() != null;

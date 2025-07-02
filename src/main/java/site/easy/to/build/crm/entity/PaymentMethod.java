@@ -1,10 +1,9 @@
-// PaymentMethod.java
 package site.easy.to.build.crm.entity;
 
 public enum PaymentMethod {
-    LOCAL("local"),
-    INTERNATIONAL("international"),
-    CHEQUE("cheque");
+    local("local"),
+    international("international"),
+    cheque("cheque");
     
     private final String payPropCode;
     
@@ -14,6 +13,10 @@ public enum PaymentMethod {
     
     public String getPayPropCode() {
         return payPropCode;
+    }
+    
+    public String getValue() {
+        return this.name();  // Returns "local", "international", "cheque"
     }
     
     public static PaymentMethod fromPayPropCode(String code) {

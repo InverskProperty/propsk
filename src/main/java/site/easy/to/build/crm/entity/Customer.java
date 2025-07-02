@@ -568,11 +568,11 @@ public class Customer {
         if (customerType == CustomerType.PROPERTY_OWNER) {
             if (paymentMethod == null) return false;
             
-            if (paymentMethod == PaymentMethod.LOCAL) {
+            if (paymentMethod == PaymentMethod.local) {
                 return bankAccountName != null && bankAccountNumber != null && bankSortCode != null;
             }
             
-            if (paymentMethod == PaymentMethod.INTERNATIONAL) {
+            if (paymentMethod == PaymentMethod.international) {
                 boolean hasAddress = addressLine1 != null && city != null && countryCode != null;
                 boolean hasIban = bankIban != null && !bankIban.trim().isEmpty();
                 boolean hasAccountAndSwift = internationalAccountNumber != null && bankSwiftCode != null;
@@ -607,13 +607,13 @@ public class Customer {
                 return "Payment method is required for property owners";
             }
             
-            if (paymentMethod == PaymentMethod.LOCAL) {
+            if (paymentMethod == PaymentMethod.local) {
                 if (bankAccountName == null) return "Bank account name required for local payments";
                 if (bankAccountNumber == null) return "Bank account number required for local payments";
                 if (bankSortCode == null) return "Sort code required for local payments";
             }
             
-            if (paymentMethod == PaymentMethod.INTERNATIONAL) {
+            if (paymentMethod == PaymentMethod.international) {
                 if (addressLine1 == null || city == null) return "Address required for international payments";
                 if (bankIban == null && (internationalAccountNumber == null || bankSwiftCode == null)) {
                     return "IBAN or account number + SWIFT code required for international payments";

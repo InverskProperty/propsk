@@ -185,13 +185,13 @@ public class PropertyOwnerServiceImpl implements PropertyOwnerService {
         }
         
         // Check payment method specific requirements
-        if (owner.getPaymentMethod() == PaymentMethod.LOCAL) {
+        if (owner.getPaymentMethod() == PaymentMethod.local) {
             return owner.getBankAccountName() != null && 
                    owner.getBankAccountNumber() != null && 
                    owner.getBranchCode() != null;
         }
         
-        if (owner.getPaymentMethod() == PaymentMethod.INTERNATIONAL) {
+        if (owner.getPaymentMethod() == PaymentMethod.international) {
             // Address required for international
             boolean hasAddress = owner.getAddressLine1() != null && 
                                owner.getCity() != null && 
@@ -221,26 +221,26 @@ public class PropertyOwnerServiceImpl implements PropertyOwnerService {
             return false;
         }
         
-        if (owner.getPaymentMethod() == PaymentMethod.LOCAL) {
+        if (owner.getPaymentMethod() == PaymentMethod.local) {
             return owner.getBankAccountName() != null && 
                    owner.getBankAccountNumber() != null && 
                    owner.getBranchCode() != null;
         }
         
-        if (owner.getPaymentMethod() == PaymentMethod.INTERNATIONAL) {
+        if (owner.getPaymentMethod() == PaymentMethod.international) {
             boolean hasIban = owner.getIban() != null && !owner.getIban().trim().isEmpty();
             boolean hasAccountAndSwift = owner.getInternationalAccountNumber() != null && 
                                        owner.getSwiftCode() != null;
             return hasIban || hasAccountAndSwift;
         }
         
-        return owner.getPaymentMethod() == PaymentMethod.CHEQUE; // Cheque doesn't need bank details
+        return owner.getPaymentMethod() == PaymentMethod.cheque; // Cheque doesn't need bank details
     }
 
     @Override
     public boolean isInternationalPayment(Long propertyOwnerId) {
         PropertyOwner owner = findById(propertyOwnerId);
-        return owner != null && owner.getPaymentMethod() == PaymentMethod.INTERNATIONAL;
+        return owner != null && owner.getPaymentMethod() == PaymentMethod.international;
     }
 
     @Override
