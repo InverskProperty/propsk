@@ -1,38 +1,14 @@
 package site.easy.to.build.crm.entity;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonValue;
-
 public enum AccountType {
-    INDIVIDUAL("individual"),
-    BUSINESS("business");
+    individual,  
+    business;    
     
-    private final String value;
-    
-    AccountType(String value) {
-        this.value = value;
-    }
-    
-    @JsonValue
     public String getValue() {
-        return value;
+        return this.name();  // Returns "individual" or "business"
     }
     
-    @Override
-    public String toString() {
-        return value;  // Returns lowercase for database
-    }
-    
-    // This handles database mapping
-    @JsonCreator
-    public static AccountType fromValue(String value) {
-        if (value == null) return INDIVIDUAL;
-        
-        for (AccountType type : AccountType.values()) {
-            if (type.value.equalsIgnoreCase(value) || type.name().equalsIgnoreCase(value)) {
-                return type;
-            }
-        }
-        return INDIVIDUAL; // Safe fallback
+    public String getDisplayName() {
+        return this.name().substring(0, 1).toUpperCase() + this.name().substring(1);
     }
 }
