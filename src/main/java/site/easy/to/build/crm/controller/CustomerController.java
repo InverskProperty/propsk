@@ -14,6 +14,7 @@ import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.util.EmailTokenUtils;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -652,6 +653,7 @@ public class CustomerController {
                             @RequestParam(value = "isPropertyOwner", required = false) Boolean isPropertyOwner,
                             @RequestParam(value = "isContractor", required = false) Boolean isContractor,
                             @RequestParam(value = "entityType", required = false) String entityType,
+                            HttpServletRequest request,  // ADDED
                             Authentication authentication,
                             RedirectAttributes redirectAttributes) {
         
@@ -687,6 +689,27 @@ public class CustomerController {
             customer.setUser(user);
             customer.setCreatedAt(LocalDateTime.now());
             customer.setDescription("Active");
+            
+            // ADDED: Handle PayProp account type
+            String accountType = request.getParameter("accountType");
+            System.out.println("🔍 Account type from form: " + accountType);
+            if (accountType != null) {
+                // Store account type for PayProp integration
+                if ("business".equals(accountType)) {
+                    // For business accounts, we might want to prompt for business name later
+                    customer.setDescription("Active - Business Account");
+                    System.out.println("🔍 Set as Business Account");
+                } else {
+                    customer.setDescription("Active - Individual Account");
+                    System.out.println("🔍 Set as Individual Account");
+                }
+            }
+            
+            // ADDED: Set default country if empty (since you're keeping it mandatory)
+            if (customer.getCountry() == null || customer.getCountry().trim().isEmpty()) {
+                customer.setCountry("United Kingdom");
+                System.out.println("🔍 Set default country: United Kingdom");
+            }
             
             // Determine customer type from form selection or hidden fields
             String finalCustomerType = customerTypeSelection;

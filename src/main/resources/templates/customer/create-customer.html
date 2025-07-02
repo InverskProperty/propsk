@@ -73,6 +73,17 @@
                                     </select>
                                 </div>
 
+                                <!-- PayProp Account Type (for Tenants/Contractors) -->
+                                <div class="form-group">
+                                    <label class="control-label">Account Type *</label>
+                                    <select class="form-control" name="accountType" required>
+                                        <option value="">Select Account Type</option>
+                                        <option value="individual">Individual Person</option>
+                                        <option value="business">Business/Company</option>
+                                    </select>
+                                </div>
+
+
                                 <!-- Basic Information (Always Visible) -->
                                 <h5 class="m-t-30 m-b-20">Basic Information</h5>
                                 
@@ -83,12 +94,12 @@
                                             <input type="text" class="form-control" name="name" th:value="${customer?.name}" 
                                                    placeholder="Enter full name" required>
                                         </div>
-                                    </div>
                                     <div class="col-md-6">
                                         <div class="form-group">
-                                            <label class="control-label">Email Address</label>
+                                            <label class="control-label">Email Address *</label>
                                             <input type="email" class="form-control" name="email" th:value="${customer?.email}" 
-                                                   placeholder="email@example.com">
+                                                placeholder="email@example.com" required maxlength="50">
+                                            <small class="form-text text-muted">Required for PayProp integration (max 50 characters)</small>
                                         </div>
                                     </div>
                                 </div>
@@ -142,7 +153,7 @@
                                         <div class="form-group">
                                             <label class="control-label">Country</label>
                                             <input type="text" class="form-control" name="country" th:value="${customer?.country}" 
-                                                   placeholder="United Kingdom" value="United Kingdom">
+                                                placeholder="United Kingdom" value="United Kingdom">
                                         </div>
                                     </div>
                                 </div>
