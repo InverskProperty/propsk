@@ -83,6 +83,43 @@
                                     </select>
                                 </div>
 
+                                <!-- Basic Information (Always Visible) -->
+                                <h5 class="m-t-30 m-b-20">Basic Information</h5>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="control-label">Full Name *</label>
+                                            <input type="text" class="form-control" name="name" th:value="${customer?.name}" 
+                                                placeholder="Enter full name" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="control-label">Email Address *</label>
+                                            <input type="email" class="form-control" name="email" th:value="${customer?.email}" 
+                                                placeholder="email@example.com" required maxlength="50">
+                                            <small class="form-text text-muted">Required for PayProp integration (max 50 characters)</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="control-label">Phone Number</label>
+                                            <input type="text" class="form-control" name="phone" th:value="${customer?.phone}" 
+                                                placeholder="07123456789">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="control-label">Position/Occupation</label>
+                                            <input type="text" class="form-control" name="position" th:value="${customer?.position}" 
+                                                placeholder="e.g., Software Engineer">
+                                        </div>
+                                    </div>
+                                </div>
 
                                 <!-- Address Information -->
                                 <h5 class="m-t-30 m-b-20">
