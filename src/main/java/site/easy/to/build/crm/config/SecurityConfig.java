@@ -15,6 +15,17 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import site.easy.to.build.crm.config.oauth2.CustomOAuth2UserService;
 import site.easy.to.build.crm.config.oauth2.OAuthLoginSuccessHandler;
 
+// ADD THESE IMPORTS FOR THE DEBUG FILTER
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.filter.OncePerRequestFilter;
+import java.io.IOException;
+
 @Configuration
 public class SecurityConfig {
 
@@ -97,7 +108,7 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         System.out.println("=== FIXED: Main security filter chain - HANDLES /portfolio/** routes ===");
-    
+        
         HttpSessionCsrfTokenRepository httpSessionCsrfTokenRepository = new HttpSessionCsrfTokenRepository();
         httpSessionCsrfTokenRepository.setParameterName("csrf");
 
@@ -106,21 +117,25 @@ public class SecurityConfig {
         );
 
         // ADD DEBUG FILTER
-        http.addFilterBefore((request, response, chain) -> {
-            if (request.getServletPath().equals("/employee/add-customer")) {
-                System.out.println("🔍 SECURITY DEBUG: Processing /employee/add-customer");
-                System.out.println("🔍 Request method: " + request.getMethod());
-            
-                Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-                if (auth != null) {
-                    System.out.println("🔍 Auth type: " + auth.getClass().getSimpleName());
-                    System.out.println("🔍 Auth authorities: " + auth.getAuthorities());
-                    System.out.println("🔍 Is authenticated: " + auth.isAuthenticated());
-                } else {
-                    System.out.println("🔍 No authentication found!");
+        http.addFilterBefore(new OncePerRequestFilter() {
+            @Override
+            protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) 
+                    throws ServletException, IOException {
+                if (request.getServletPath().equals("/employee/add-customer")) {
+                    System.out.println("🔍 SECURITY DEBUG: Processing /employee/add-customer");
+                    System.out.println("🔍 Request method: " + request.getMethod());
+                    
+                    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+                    if (auth != null) {
+                        System.out.println("🔍 Auth type: " + auth.getClass().getSimpleName());
+                        System.out.println("🔍 Auth authorities: " + auth.getAuthorities());
+                        System.out.println("🔍 Is authenticated: " + auth.isAuthenticated());
+                    } else {
+                        System.out.println("🔍 No authentication found!");
+                    }
                 }
+                filterChain.doFilter(request, response);
             }
-            chain.doFilter(request, response);
         }, UsernamePasswordAuthenticationFilter.class);
 
         http.authorizeHttpRequests((authorize) -> authorize
@@ -130,7 +145,7 @@ public class SecurityConfig {
                         .requestMatchers("/change-password/**").permitAll()
                         .requestMatchers("/login", "/login/**").permitAll() 
                         .requestMatchers("/test-password").permitAll()
-                    
+                        
                         // Static resources
                         .requestMatchers("/font-awesome/**").permitAll()
                         .requestMatchers("/fonts/**").permitAll()
@@ -138,13 +153,13 @@ public class SecurityConfig {
                         .requestMatchers("/js/**").permitAll()
                         .requestMatchers("/css/**").permitAll()
                         .requestMatchers("/save").permitAll()
-                    
+                        
                         // Debug routes (temporary)
                         .requestMatchers("/debug/**").permitAll()
-                    
+                        
                         // Role-based access - Manager routes
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/**/manager/**")).hasRole("MANAGER")
-                    
+                        
                         // CUSTOMER MANAGEMENT FIX: Specific employee customer routes FIRST
                         .requestMatchers("/employee/add-customer").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         .requestMatchers("/employee/customer/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
@@ -154,13 +169,13 @@ public class SecurityConfig {
 
                         // Customer routes (handled by main chain for consistency)
                         .requestMatchers("/customer/**").hasRole("CUSTOMER")
-                    
+                        
                         // CRITICAL FIX: PayProp routes - MUST come BEFORE /portfolio/**
                         .requestMatchers("/admin/payprop/**").hasAnyRole("MANAGER", "OIDC_USER")
                         .requestMatchers("/api/payprop/oauth/**").hasAnyRole("MANAGER", "OIDC_USER")
                         .requestMatchers("/api/payprop/webhook/**").permitAll() // Webhooks need public access
                         .requestMatchers("/api/payprop/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
-                    
+                        
                         // CRITICAL FIX: Portfolio specific routes - MUST come BEFORE general /portfolio/**
                         .requestMatchers("/portfolio/actions/pull-payprop-tags").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         .requestMatchers("/portfolio/payprop-tags").hasAnyRole("MANAGER", "PROPERTY_OWNER", "OIDC_USER")
@@ -172,13 +187,13 @@ public class SecurityConfig {
                         .requestMatchers("/portfolio/assign-properties").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         .requestMatchers("/portfolio/dashboard").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
                         .requestMatchers("/portfolio/test/**").permitAll() // Allow test routes
-                    
+                        
                         // CRITICAL FIX: General portfolio routes - NOW properly handled by main chain
                         .requestMatchers("/portfolio/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
-                    
+                        
                         // Property routes
                         .requestMatchers("/property/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
-                    
+                        
                         // Default - require authentication
                         .anyRequest().authenticated()
                 )
@@ -201,7 +216,7 @@ public class SecurityConfig {
                 .exceptionHandling(exception -> {
                     exception.accessDeniedHandler(accessDeniedHandler());
                 });
-
+    
         return http.build();
     }
 
