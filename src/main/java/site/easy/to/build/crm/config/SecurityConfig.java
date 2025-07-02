@@ -161,7 +161,7 @@ public class SecurityConfig {
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/**/manager/**")).hasRole("MANAGER")
                         
                         // CUSTOMER MANAGEMENT FIX: Specific employee customer routes FIRST
-                        .requestMatchers("/employee/add-customer").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        .requestMatchers("/employee/customer/add-customer").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         .requestMatchers("/employee/customer/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
 
                         // Employee and Manager routes (general - comes AFTER specific)
