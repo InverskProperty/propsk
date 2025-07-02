@@ -60,7 +60,7 @@
                             
                             <!-- SIMPLIFIED FORM - NO JAVASCRIPT VALIDATION -->
                             <form action="/employee/add-customer" method="post" class="m-t-40"></form>
-                                <input type="hidden" name="csrf" value="${_csrf.token}"/>
+                                <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
                                 
                                 <!-- Customer Type Selection (Simplified) -->
                                 <div class="form-group">
