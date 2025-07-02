@@ -199,6 +199,31 @@ public class PropertyController {
         }
     }
 
+    @GetMapping("/api/{id}")
+    @ResponseBody
+    public Property getPropertyApi(@PathVariable("id") Long id) {
+        Property property = propertyService.findById(id);
+        if (property == null) {
+            throw new RuntimeException("Property not found");
+        }
+        return property;
+    }
+
+    @GetMapping("/api/all")
+    @ResponseBody
+    public List<Property> getAllPropertiesApi(Authentication authentication) {
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        User user = userService.findById(userId);
+        
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return propertyService.findAll();
+        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+            return propertyService.findByPropertyOwnerId(userId);
+        } else {
+            return propertyService.getRecentProperties((long) userId, 100);
+        }
+    }
+
     @GetMapping("/sync-status")
     public String showSyncStatus(Model model, Authentication authentication) {
         try {

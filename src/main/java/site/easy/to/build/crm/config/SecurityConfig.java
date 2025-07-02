@@ -191,9 +191,11 @@ public class SecurityConfig {
                         // CRITICAL FIX: General portfolio routes - NOW properly handled by main chain
                         .requestMatchers("/portfolio/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
                         
+                        // Property API routes (for address copy functionality)
+                        .requestMatchers("/employee/property/api/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         // Property routes
                         .requestMatchers("/property/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
-                        
+
                         // Default - require authentication
                         .anyRequest().authenticated()
                 )

@@ -122,7 +122,13 @@
                                 </div>
 
                                 <!-- Address Information -->
-                                <h5 class="m-t-30 m-b-20">Address Information</h5>
+                                <h5 class="m-t-30 m-b-20">
+                                    Address Information 
+                                    <button type="button" class="btn btn-sm btn-info tenant-only" id="copyPropertyAddress" style="display:none;">
+                                        <i class="fa fa-copy"></i> Copy from Property
+                                    </button>
+                                </h5>
+
                                 
                                 <div class="row">
                                     <div class="col-md-12">
@@ -202,7 +208,89 @@
 <script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
 <script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
 
-<!-- NO VALIDATION JAVASCRIPT - Keep it simple! -->
+<script>
+$(document).ready(function() {
+    // Show/hide copy button for tenants only
+    $('#customerTypeSelection').change(function() {
+        if ($(this).val() === 'TENANT') {
+            $('.tenant-only').show();
+        } else {
+            $('.tenant-only').hide();
+        }
+    });
+
+    // Handle copy from property button
+    $('#copyPropertyAddress').click(function() {
+        // Show property selection modal
+        const propertyList = `
+            <div class="modal fade" id="propertyModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Select Property to Copy Address</h5>
+                            <button type="button" class="close" data-dismiss="modal">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="list-group" id="propertyList">
+                                <div class="text-center">Loading properties...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to page if not exists
+        if ($('#propertyModal').length === 0) {
+            $('body').append(propertyList);
+        }
+        
+        // Load properties via AJAX
+        $.get('/employee/property/api/all', function(properties) {
+            let propertyHtml = '';
+            properties.forEach(function(property) {
+                propertyHtml += `
+                    <a href="#" class="list-group-item list-group-item-action property-item" 
+                       data-id="${property.id}"
+                       data-address="${property.addressLine1 || ''}"
+                       data-city="${property.city || ''}"
+                       data-county="${property.county || ''}"
+                       data-postcode="${property.postcode || ''}">
+                        <h6>${property.propertyName}</h6>
+                        <small class="text-muted">${property.addressLine1 || ''}, ${property.city || ''}</small>
+                    </a>
+                `;
+            });
+            $('#propertyList').html(propertyHtml);
+        });
+        
+        $('#propertyModal').modal('show');
+    });
+
+    // Handle property selection
+    $(document).on('click', '.property-item', function(e) {
+        e.preventDefault();
+        
+        // Get property data
+        const address = $(this).data('address');
+        const city = $(this).data('city');
+        const county = $(this).data('county');
+        const postcode = $(this).data('postcode');
+        
+        // Fill address fields
+        $('input[name="address"]').val(address);
+        $('input[name="city"]').val(city);
+        $('input[name="state"]').val(county);
+        // Keep existing country value
+        
+        // Close modal
+        $('#propertyModal').modal('hide');
+        
+        // Show success message
+        alert('Address copied from property!');
+    });
+});
+</script>
 
 </body>
 </html>
