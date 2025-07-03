@@ -14,6 +14,7 @@ import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 
 import java.math.BigDecimal;
+import java.net.http.HttpHeaders;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -113,6 +114,55 @@ public class PayPropSyncService {
             throw new RuntimeException("Property update failed", e);
         }
     }
+
+    /**
+     * Create PayProp tenant from Customer entity (add to PayPropSyncService)
+     */
+    public String createTenantFromCustomer(PayPropTenantDTO dto) throws Exception {
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<PayPropTenantDTO> request = new HttpEntity<>(dto, headers);
+        
+        System.out.println("👤 Creating PayProp tenant from Customer entity");
+        
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+            payPropApiBase + "/entity/tenant", 
+            request, 
+            Map.class
+        );
+        
+        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+            String payPropId = (String) response.getBody().get("id");
+            System.out.println("✅ Customer tenant synced successfully! PayProp ID: " + payPropId);
+            return payPropId;
+        }
+        
+        throw new RuntimeException("Failed to create tenant from customer in PayProp");
+    }
+
+    /**
+     * Create PayProp beneficiary from Customer entity (add to PayPropSyncService)
+     */
+    public String createBeneficiaryFromCustomer(PayPropBeneficiaryDTO dto) throws Exception {
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<PayPropBeneficiaryDTO> request = new HttpEntity<>(dto, headers);
+        
+        System.out.println("🏦 Creating PayProp beneficiary from Customer entity");
+        
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+            payPropApiBase + "/entity/beneficiary", 
+            request, 
+            Map.class
+        );
+        
+        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+            String payPropId = (String) response.getBody().get("id");
+            System.out.println("✅ Customer beneficiary synced successfully! PayProp ID: " + payPropId);
+            return payPropId;
+        }
+        
+        throw new RuntimeException("Failed to create beneficiary from customer in PayProp");
+    }
+
     
     // ===== TENANT SYNC METHODS =====
     

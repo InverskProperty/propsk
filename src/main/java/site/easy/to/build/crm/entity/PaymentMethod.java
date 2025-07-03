@@ -20,11 +20,28 @@ public enum PaymentMethod {
     }
     
     public static PaymentMethod fromPayPropCode(String code) {
+        if (code == null) {
+            return local; // Safe default
+        }
+        
         for (PaymentMethod method : PaymentMethod.values()) {
             if (method.payPropCode.equals(code)) {
                 return method;
             }
         }
-        throw new IllegalArgumentException("Unknown payment method: " + code);
+        
+        // Log warning but don't crash
+        System.err.println("⚠️ Unknown PayProp payment method: " + code + ", defaulting to 'local'");
+        return local; // Safe fallback instead of throwing exception
+    }
+    
+    // Additional helper method for display
+    public String getDisplayName() {
+        switch (this) {
+            case local: return "Local Bank Transfer";
+            case international: return "International Transfer";
+            case cheque: return "Cheque Payment";
+            default: return this.name();
+        }
     }
 }
