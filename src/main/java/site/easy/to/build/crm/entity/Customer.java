@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.groups.Default;
 import jakarta.persistence.Convert;
+import site.easy.to.build.crm.converter.YesNoConverter;
 import site.easy.to.build.crm.customValidations.customer.UniqueEmail;
 
 import java.math.BigDecimal;
