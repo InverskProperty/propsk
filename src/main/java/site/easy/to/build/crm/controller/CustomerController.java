@@ -760,6 +760,17 @@ public class CustomerController {
             }
 
             // ===== SET CORE FIELDS =====
+
+            // ===== SET ACCOUNT TYPE =====
+            if (accountType != null) {
+                if ("individual".equals(accountType)) {
+                    customer.setAccountType(AccountType.individual);
+                } else if ("business".equals(accountType)) {
+                    customer.setAccountType(AccountType.business);
+                } else {
+                    customer.setAccountType(AccountType.individual); // Default fallback
+                }
+            }
             
             // Name handling - build full name from individual fields or use business name
             if ("business".equals(accountType) && businessName != null && !businessName.trim().isEmpty()) {
