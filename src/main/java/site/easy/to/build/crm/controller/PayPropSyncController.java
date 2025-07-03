@@ -557,6 +557,12 @@ public class PayPropSyncController {
     /**
      * Force sync status check
      */
+
+    @GetMapping("/sync-dashboard")
+    public String syncDashboard(Model model) {
+        return "payprop/sync-dashboard";
+    }
+    
     @PostMapping("/check-status")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> forceStatusCheck(Authentication authentication) {
