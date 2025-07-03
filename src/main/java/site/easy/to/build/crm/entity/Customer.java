@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.groups.Default;
+import jakarta.persistence.Convert;
 import site.easy.to.build.crm.customValidations.customer.UniqueEmail;
 
 import java.math.BigDecimal;
@@ -182,11 +183,13 @@ public class Customer {
     @Column(name = "customer_reference", length = 50)
     private String customerReference;
 
-    @Column(name = "notify_email", length = 1)
-    private String notifyEmail = "Y";
+    @Column(name = "notify_email")
+    @Convert(converter = YesNoConverter.class)
+    private Boolean notifyEmail = true;
 
-    @Column(name = "notify_sms", length = 1)
-    private String notifySms = "N";
+    @Column(name = "notify_sms")
+    @Convert(converter = YesNoConverter.class)
+    private Boolean notifySms = false;
 
     @Column(name = "has_bank_account")
     private Boolean hasBankAccount = false;
@@ -437,11 +440,11 @@ public class Customer {
     public String getCustomerReference() { return customerReference; }
     public void setCustomerReference(String customerReference) { this.customerReference = customerReference; }
 
-    public String getNotifyEmail() { return notifyEmail; }
-    public void setNotifyEmail(String notifyEmail) { this.notifyEmail = notifyEmail; }
+    public Boolean getNotifyEmail() { return notifyEmail; }
+    public void setNotifyEmail(Boolean notifyEmail) { this.notifyEmail = notifyEmail; }
 
-    public String getNotifySms() { return notifySms; }
-    public void setNotifySms(String notifySms) { this.notifySms = notifySms; }
+    public Boolean getNotifySms() { return notifySms; }
+    public void setNotifySms(Boolean notifySms) { this.notifySms = notifySms; }
 
     public Boolean getHasBankAccount() { return hasBankAccount; }
     public void setHasBankAccount(Boolean hasBankAccount) { this.hasBankAccount = hasBankAccount; }
@@ -695,21 +698,6 @@ public class Customer {
 
     // BOOLEAN HELPER METHODS FOR NOTIFICATIONS
 
-    public Boolean getNotifyEmailAsBoolean() {
-        return "Y".equalsIgnoreCase(notifyEmail);
-    }
-
-    public void setNotifyEmailFromBoolean(Boolean value) {
-        this.notifyEmail = (value != null && value) ? "Y" : "N";
-    }
-
-    public Boolean getNotifySmsAsBoolean() {
-        return "Y".equalsIgnoreCase(notifySms);
-    }
-
-    public void setNotifySmsFromBoolean(Boolean value) {
-        this.notifySms = (value != null && value) ? "Y" : "N";
-    }
 
     // LIFECYCLE CALLBACKS
 
@@ -730,10 +718,10 @@ public class Customer {
             invoiceLeadDays = 0;
         }
         if (notifyEmail == null) {
-            notifyEmail = "Y";
+            notifyEmail = true;
         }
         if (notifySms == null) {
-            notifySms = "N";
+            notifySms = false;
         }
         if (hasBankAccount == null) {
             hasBankAccount = false;
