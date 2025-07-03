@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayProp Sync Dashboard</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        .sync-card {
+            border-left: 4px solid #007bff;
+            transition: all 0.3s ease;
+        }
+        .sync-card:hover {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+        .success-card {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .warning-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .info-card {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .sync-button {
+            border-radius: 25px;
+            padding: 10px 25px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+        .sync-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .loading-spinner {
+            display: none;
+        }
+        .sync-log {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+        .conflict-badge {
+            background: linear-gradient(45deg, #ff6b6b, #feca57);
+            color: white;
+            border: none;
+        }
+        .oauth-status {
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-weight: 600;
+        }
+        .oauth-connected {
+            background: linear-gradient(45deg, #56ab2f, #a8e6cf);
+            color: white;
+        }
+        .oauth-disconnected {
+            background: linear-gradient(45deg, #ff416c, #ff4b2b);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h3 mb-1">
+                            <i class="fas fa-sync-alt text-primary"></i>
+                            PayProp Sync Dashboard
+                        </h1>
+                        <p class="text-muted mb-0">Manage two-way synchronization between CRM and PayProp</p>
+                    </div>
+                    <div>
+                        <span id="oauthStatus" class="oauth-status oauth-disconnected">
+                            <i class="fas fa-unlink"></i> Not Connected
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Status Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card metric-card text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Total Syncs (24h)</h6>
+                                <h3 id="totalSyncs" class="mb-0">-</h3>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-chart-line fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card success-card text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Success Rate</h6>
+                                <h3 id="successRate" class="mb-0">-</h3>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-check-circle fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card warning-card text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Pending Changes</h6>
+                                <h3 id="pendingChanges" class="mb-0">-</h3>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-hourglass-half fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card info-card text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Conflicts</h6>
+                                <h3 id="conflictsCount" class="mb-0">-</h3>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Sync Controls -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="card sync-card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-cogs"></i>
+                            Sync Operations
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Full Sync -->
+                            <div class="col-md-6 mb-3">
+                                <div class="border rounded p-3 h-100">
+                                    <h6 class="text-primary">
+                                        <i class="fas fa-arrows-rotate"></i>
+                                        Full Two-Way Sync
+                                    </h6>
+                                    <p class="text-muted small mb-3">
+                                        Complete synchronization of all entities between CRM and PayProp. 
+                                        Includes conflict resolution and portfolio sync.
+                                    </p>
+                                    <button id="fullSyncBtn" class="btn btn-primary sync-button w-100">
+                                        <i class="fas fa-sync-alt"></i>
+                                        Start Full Sync
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Intelligent Sync -->
+                            <div class="col-md-6 mb-3">
+                                <div class="border rounded p-3 h-100">
+                                    <h6 class="text-info">
+                                        <i class="fas fa-brain"></i>
+                                        Intelligent Sync
+                                    </h6>
+                                    <p class="text-muted small mb-3">
+                                        Smart sync that only processes changed data since last sync. 
+                                        Faster and more efficient for regular updates.
+                                    </p>
+                                    <button id="intelligentSyncBtn" class="btn btn-info sync-button w-100">
+                                        <i class="fas fa-lightbulb"></i>
+                                        Start Smart Sync
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="border-top pt-3">
+                            <h6 class="text-secondary mb-3">Quick Actions</h6>
+                            <div class="btn-group flex-wrap" role="group">
+                                <button id="detectChangesBtn" class="btn btn-outline-secondary btn-sm">
+                                    <i class="fas fa-search"></i> Detect Changes
+                                </button>
+                                <button id="syncPropertiesBtn" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-home"></i> Sync Properties
+                                </button>
+                                <button id="syncTenantsBtn" class="btn btn-outline-success btn-sm">
+                                    <i class="fas fa-users"></i> Sync Tenants
+                                </button>
+                                <button id="syncOwnersBtn" class="btn btn-outline-warning btn-sm">
+                                    <i class="fas fa-user-tie"></i> Sync Owners
+                                </button>
+                                <button id="syncPortfoliosBtn" class="btn btn-outline-info btn-sm">
+                                    <i class="fas fa-folder"></i> Sync Portfolios
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="col-md-4">
+                <div class="card sync-card">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-heartbeat"></i>
+                            System Status
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">OAuth2 Connection</label>
+                            <div id="oauthStatusDetail" class="text-danger">
+                                <i class="fas fa-times-circle"></i> Not Connected
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">System Health</label>
+                            <div id="systemHealth" class="text-warning">
+                                <i class="fas fa-question-circle"></i> Checking...
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Last Sync</label>
+                            <div id="lastSync" class="text-muted">
+                                <i class="fas fa-clock"></i> Never
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button id="checkStatusBtn" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-refresh"></i> Check Status
+                            </button>
+                            <button id="connectPayPropBtn" class="btn btn-outline-success btn-sm">
+                                <i class="fas fa-link"></i> Connect PayProp
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Change Detection & Conflicts -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card sync-card">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-search"></i>
+                            Pending Changes
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="changesContent">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-search fa-2x mb-2"></i>
+                                <p>Click "Detect Changes" to scan for pending updates</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card sync-card">
+                    <div class="card-header bg-warning text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Sync Conflicts
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="conflictsContent">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-check-circle fa-2x mb-2 text-success"></i>
+                                <p>No conflicts detected</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sync Log -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card sync-card">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-terminal"></i>
+                            Sync Activity Log
+                        </h6>
+                        <button id="clearLogBtn" class="btn btn-outline-light btn-sm">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="syncLog" class="sync-log">
+                            <div class="text-muted">
+                                <i class="fas fa-info-circle"></i> PayProp Sync Dashboard loaded. Ready for operations.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Modal -->
+        <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-sm modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-body text-center py-4">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h6 id="loadingText">Processing sync operation...</h6>
+                        <p id="loadingSubtext" class="text-muted small mb-0">Please wait while we sync your data</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Dashboard functionality
+        class PayPropSyncDashboard {
+            constructor() {
+                this.loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+                this.initializeEventListeners();
+                this.loadInitialStatus();
+                this.startStatusPolling();
+            }
+
+            initializeEventListeners() {
+                // Main sync buttons
+                document.getElementById('fullSyncBtn').addEventListener('click', () => this.performFullSync());
+                document.getElementById('intelligentSyncBtn').addEventListener('click', () => this.performIntelligentSync());
+                
+                // Quick action buttons
+                document.getElementById('detectChangesBtn').addEventListener('click', () => this.detectChanges());
+                document.getElementById('syncPropertiesBtn').addEventListener('click', () => this.syncProperties());
+                document.getElementById('syncTenantsBtn').addEventListener('click', () => this.syncTenants());
+                document.getElementById('syncOwnersBtn').addEventListener('click', () => this.syncOwners());
+                document.getElementById('syncPortfoliosBtn').addEventListener('click', () => this.syncPortfolios());
+                
+                // Status buttons
+                document.getElementById('checkStatusBtn').addEventListener('click', () => this.checkStatus());
+                document.getElementById('connectPayPropBtn').addEventListener('click', () => this.connectPayProp());
+                document.getElementById('clearLogBtn').addEventListener('click', () => this.clearLog());
+            }
+
+            async loadInitialStatus() {
+                await this.checkStatus();
+                await this.detectChanges();
+            }
+
+            startStatusPolling() {
+                // Poll status every 30 seconds
+                setInterval(() => {
+                    this.checkStatus();
+                }, 30000);
+            }
+
+            showLoading(title, subtitle) {
+                document.getElementById('loadingText').textContent = title;
+                document.getElementById('loadingSubtext').textContent = subtitle;
+                this.loadingModal.show();
+            }
+
+            hideLoading() {
+                this.loadingModal.hide();
+            }
+
+            log(message, type = 'info') {
+                const logElement = document.getElementById('syncLog');
+                const timestamp = new Date().toLocaleTimeString();
+                const icon = type === 'error' ? 'fas fa-times-circle text-danger' : 
+                           type === 'success' ? 'fas fa-check-circle text-success' : 
+                           'fas fa-info-circle text-primary';
+                
+                const logEntry = document.createElement('div');
+                logEntry.className = 'mb-1';
+                logEntry.innerHTML = `<span class="text-muted">[${timestamp}]</span> <i class="${icon}"></i> ${message}`;
+                
+                logElement.appendChild(logEntry);
+                logElement.scrollTop = logElement.scrollHeight;
+            }
+
+            clearLog() {
+                document.getElementById('syncLog').innerHTML = 
+                    '<div class="text-muted"><i class="fas fa-info-circle"></i> Log cleared.</div>';
+            }
+
+            async checkStatus() {
+                try {
+                    const response = await fetch('/api/payprop/sync/status');
+                    const data = await response.json();
+                    
+                    this.updateStatusUI(data);
+                    this.log('Status check completed', 'success');
+                } catch (error) {
+                    this.log(`Status check failed: ${error.message}`, 'error');
+                }
+            }
+
+            updateStatusUI(data) {
+                // OAuth status
+                const oauthStatus = document.getElementById('oauthStatus');
+                const oauthDetail = document.getElementById('oauthStatusDetail');
+                
+                if (data.oauthConnected) {
+                    oauthStatus.className = 'oauth-status oauth-connected';
+                    oauthStatus.innerHTML = '<i class="fas fa-link"></i> Connected';
+                    oauthDetail.className = 'text-success';
+                    oauthDetail.innerHTML = '<i class="fas fa-check-circle"></i> Connected';
+                } else {
+                    oauthStatus.className = 'oauth-status oauth-disconnected';
+                    oauthStatus.innerHTML = '<i class="fas fa-unlink"></i> Not Connected';
+                    oauthDetail.className = 'text-danger';
+                    oauthDetail.innerHTML = '<i class="fas fa-times-circle"></i> Not Connected';
+                }
+
+                // System health
+                const systemHealth = document.getElementById('systemHealth');
+                if (data.systemHealth === 'healthy') {
+                    systemHealth.className = 'text-success';
+                    systemHealth.innerHTML = '<i class="fas fa-check-circle"></i> Healthy';
+                } else {
+                    systemHealth.className = 'text-danger';
+                    systemHealth.innerHTML = '<i class="fas fa-exclamation-circle"></i> Issues Detected';
+                }
+
+                // Metrics
+                if (data.last24Hours) {
+                    document.getElementById('totalSyncs').textContent = data.last24Hours.totalSyncs || '0';
+                    document.getElementById('successRate').textContent = Math.round(data.last24Hours.successRate || 0) + '%';
+                    document.getElementById('conflictsCount').textContent = data.last24Hours.conflictsDetected || '0';
+                }
+
+                if (data.pendingChanges) {
+                    const totalChanges = (data.pendingChanges.crmChanges || 0) + (data.pendingChanges.payPropChanges || 0);
+                    document.getElementById('pendingChanges').textContent = totalChanges;
+                }
+            }
+
+            async detectChanges() {
+                try {
+                    this.log('Detecting pending changes...');
+                    const response = await fetch('/api/payprop/sync/changes');
+                    const data = await response.json();
+                    
+                    this.updateChangesUI(data);
+                    this.log('Change detection completed', 'success');
+                } catch (error) {
+                    this.log(`Change detection failed: ${error.message}`, 'error');
+                }
+            }
+
+            updateChangesUI(data) {
+                const changesContent = document.getElementById('changesContent');
+                
+                if (!data.hasChanges) {
+                    changesContent.innerHTML = `
+                        <div class="text-center text-success">
+                            <i class="fas fa-check-circle fa-2x mb-2"></i>
+                            <p>No pending changes detected</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const crmChanges = data.crmChanges || {};
+                const payPropChanges = data.payPropChanges || {};
+
+                changesContent.innerHTML = `
+                    <h6 class="text-primary mb-2">CRM Changes</h6>
+                    <ul class="list-unstyled small mb-3">
+                        <li><i class="fas fa-home text-primary"></i> Properties: ${crmChanges.newProperties || 0} new, ${crmChanges.modifiedProperties || 0} modified</li>
+                        <li><i class="fas fa-users text-success"></i> Customers: ${crmChanges.newCustomers || 0} new, ${crmChanges.modifiedCustomers || 0} modified</li>
+                    </ul>
+                    
+                    <h6 class="text-warning mb-2">PayProp Changes</h6>
+                    <ul class="list-unstyled small">
+                        <li><i class="fas fa-home text-primary"></i> Properties: ${payPropChanges.newProperties || 0} new, ${payPropChanges.modifiedProperties || 0} modified</li>
+                        <li><i class="fas fa-user text-info"></i> Tenants: ${payPropChanges.newTenants || 0} new, ${payPropChanges.modifiedTenants || 0} modified</li>
+                        <li><i class="fas fa-user-tie text-warning"></i> Owners: ${payPropChanges.newBeneficiaries || 0} new, ${payPropChanges.modifiedBeneficiaries || 0} modified</li>
+                    </ul>
+                `;
+            }
+
+            async performFullSync() {
+                this.showLoading('Performing Full Sync', 'This may take several minutes...');
+                this.log('Starting full two-way sync...');
+                
+                try {
+                    const response = await fetch('/api/payprop/sync/full', { method: 'POST' });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.log('Full sync completed successfully!', 'success');
+                    } else {
+                        this.log(`Full sync failed: ${data.error || data.message}`, 'error');
+                    }
+                } catch (error) {
+                    this.log(`Full sync failed: ${error.message}`, 'error');
+                } finally {
+                    this.hideLoading();
+                    this.checkStatus();
+                    this.detectChanges();
+                }
+            }
+
+            async performIntelligentSync() {
+                this.showLoading('Performing Intelligent Sync', 'Processing only changed data...');
+                this.log('Starting intelligent sync...');
+                
+                try {
+                    const response = await fetch('/api/payprop/sync/intelligent', { method: 'POST' });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.log('Intelligent sync completed successfully!', 'success');
+                    } else {
+                        this.log(`Intelligent sync failed: ${data.error || data.message}`, 'error');
+                    }
+                } catch (error) {
+                    this.log(`Intelligent sync failed: ${error.message}`, 'error');
+                } finally {
+                    this.hideLoading();
+                    this.checkStatus();
+                    this.detectChanges();
+                }
+            }
+
+            async syncProperties() {
+                this.log('Syncing properties...');
+                try {
+                    const response = await fetch('/api/payprop/sync/properties/batch', { method: 'POST' });
+                    const data = await response.json();
+                    this.log(data.success ? 'Properties synced successfully!' : `Properties sync failed: ${data.error}`, 
+                           data.success ? 'success' : 'error');
+                } catch (error) {
+                    this.log(`Properties sync failed: ${error.message}`, 'error');
+                }
+            }
+
+            async syncTenants() {
+                this.log('Syncing tenants...');
+                try {
+                    const response = await fetch('/api/payprop/sync/tenants/batch', { method: 'POST' });
+                    const data = await response.json();
+                    this.log(data.success ? 'Tenants synced successfully!' : `Tenants sync failed: ${data.error}`, 
+                           data.success ? 'success' : 'error');
+                } catch (error) {
+                    this.log(`Tenants sync failed: ${error.message}`, 'error');
+                }
+            }
+
+            async syncOwners() {
+                this.log('Syncing property owners...');
+                try {
+                    const response = await fetch('/api/payprop/sync/beneficiaries/batch', { method: 'POST' });
+                    const data = await response.json();
+                    this.log(data.success ? 'Property owners synced successfully!' : `Owners sync failed: ${data.error}`, 
+                           data.success ? 'success' : 'error');
+                } catch (error) {
+                    this.log(`Owners sync failed: ${error.message}`, 'error');
+                }
+            }
+
+            async syncPortfolios() {
+                this.log('Syncing portfolios...');
+                try {
+                    const response = await fetch('/api/payprop/sync/portfolios', { method: 'POST' });
+                    const data = await response.json();
+                    this.log(data.success ? 'Portfolios synced successfully!' : `Portfolios sync failed: ${data.error}`, 
+                           data.success ? 'success' : 'error');
+                } catch (error) {
+                    this.log(`Portfolios sync failed: ${error.message}`, 'error');
+                }
+            }
+
+            connectPayProp() {
+                this.log('Redirecting to PayProp OAuth setup...');
+                window.location.href = '/api/payprop/oauth/authorize';
+            }
+        }
+
+        // Initialize dashboard when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new PayPropSyncDashboard();
+        });
+    </script>
+</body>
+</html>
