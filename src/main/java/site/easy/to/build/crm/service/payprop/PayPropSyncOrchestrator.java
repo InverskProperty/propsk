@@ -25,6 +25,7 @@ public class PayPropSyncOrchestrator {
     private final PayPropSyncService payPropSyncService;
     private final PayPropPortfolioSyncService portfolioSyncService;
     private final PayPropConflictResolver conflictResolver;
+    private final PayPropChangeDetection payPropChangeDetection;
     private final PayPropSyncLogger syncLogger;
     private final CustomerService customerService;
     private final PropertyService propertyService;
@@ -42,6 +43,7 @@ public class PayPropSyncOrchestrator {
     public PayPropSyncOrchestrator(PayPropSyncService payPropSyncService,
                                   PayPropPortfolioSyncService portfolioSyncService,
                                   PayPropConflictResolver conflictResolver,
+                                  PayPropChangeDetection payPropChangeDetection,
                                   PayPropSyncLogger syncLogger,
                                   CustomerService customerService,
                                   PropertyService propertyService,
@@ -50,6 +52,7 @@ public class PayPropSyncOrchestrator {
         this.payPropSyncService = payPropSyncService;
         this.portfolioSyncService = portfolioSyncService;
         this.conflictResolver = conflictResolver;
+        this.payPropChangeDetection = payPropChangeDetection;
         this.syncLogger = syncLogger;
         this.customerService = customerService;
         this.propertyService = propertyService;
@@ -99,7 +102,7 @@ public class PayPropSyncOrchestrator {
         ComprehensiveSyncResult result = new ComprehensiveSyncResult();
         
         // Detect changes since last sync
-        SyncChangeDetection changes = detectChanges();
+        PayPropChangeDetection.SyncChangeDetection changes = payPropChangeDetection.detectChanges();
         
         if (changes.hasNoCrmChanges() && changes.hasNoPayPropChanges()) {
             result.setMessage("No changes detected - sync skipped");
@@ -414,7 +417,7 @@ public class PayPropSyncOrchestrator {
 
     private SyncResult resolveConflicts(Long initiatedBy) {
         try {
-            List<SyncConflict> conflicts = conflictResolver.detectConflicts();
+            List<PayPropConflictResolver.SyncConflict> conflicts = conflictResolver.detectConflicts();
             
             if (conflicts.isEmpty()) {
                 return SyncResult.success("No conflicts detected");
@@ -424,9 +427,9 @@ public class PayPropSyncOrchestrator {
             int resolvedCount = 0;
             int unresolvedCount = 0;
 
-            for (SyncConflict conflict : conflicts) {
+            for (PayPropConflictResolver.SyncConflict conflict : conflicts) {
                 try {
-                    ConflictResolution resolution = conflictResolver.resolveConflict(conflict);
+                    PayPropConflictResolver.ConflictResolution resolution = conflictResolver.resolveConflict(conflict);
                     if (resolution.isResolved()) {
                         resolvedCount++;
                     } else {
@@ -810,6 +813,129 @@ public class PayPropSyncOrchestrator {
         customer.setAccountType(AccountType.valueOf((String) data.get("account_type")));
         updateCustomerFromPayPropBeneficiaryData(customer, data);
         return customer;
+    }
+
+    // ===== SPECIFIC ENTITY SYNC METHODS =====
+    
+    private SyncResult syncSpecificEntities(PayPropChangeDetection.CrmChanges changes, Long initiatedBy) {
+        Map<String, Object> results = new HashMap<>();
+        int totalSuccess = 0;
+        int totalErrors = 0;
+
+        try {
+            // Sync modified and new properties
+            if (!changes.getModifiedProperties().isEmpty() || !changes.getNewProperties().isEmpty()) {
+                List<Property> allProperties = new ArrayList<>();
+                allProperties.addAll(changes.getModifiedProperties());
+                allProperties.addAll(changes.getNewProperties());
+                
+                SyncResult propertyResult = processBatchSync(allProperties, "PROPERTY", initiatedBy, 
+                    property -> payPropSyncService.syncPropertyToPayProp(property.getId()));
+                results.put("properties", propertyResult);
+                if (propertyResult.isSuccess()) totalSuccess++; else totalErrors++;
+            }
+
+            // Sync modified and new customers
+            if (!changes.getModifiedCustomers().isEmpty() || !changes.getNewCustomers().isEmpty()) {
+                List<Customer> allCustomers = new ArrayList<>();
+                allCustomers.addAll(changes.getModifiedCustomers());
+                allCustomers.addAll(changes.getNewCustomers());
+                
+                SyncResult customerResult = syncCustomerList(allCustomers, initiatedBy);
+                results.put("customers", customerResult);
+                if (customerResult.isSuccess()) totalSuccess++; else totalErrors++;
+            }
+
+            String message = String.format("Specific entity sync completed. Success: %d, Errors: %d", 
+                                          totalSuccess, totalErrors);
+            
+            return totalErrors == 0 ? 
+                SyncResult.success(message, results) : 
+                SyncResult.partial(message, results);
+                
+        } catch (Exception e) {
+            return SyncResult.failure("Specific entity sync failed: " + e.getMessage(), results);
+        }
+    }
+
+    private SyncResult pullSpecificChanges(PayPropChangeDetection.PayPropChanges changes, Long initiatedBy) {
+        Map<String, Object> results = new HashMap<>();
+        int totalSuccess = 0;
+        int totalErrors = 0;
+
+        try {
+            // Pull modified properties
+            if (!changes.getModifiedProperties().isEmpty()) {
+                int processedCount = 0;
+                for (Map<String, Object> propertyData : changes.getModifiedProperties()) {
+                    try {
+                        updateOrCreatePropertyFromPayProp(propertyData, initiatedBy);
+                        processedCount++;
+                    } catch (Exception e) {
+                        syncLogger.logEntityError("PROPERTY_PULL", propertyData.get("id"), e);
+                    }
+                }
+                results.put("modifiedProperties", processedCount);
+                totalSuccess++;
+            }
+
+            // Pull modified tenants
+            if (!changes.getModifiedTenants().isEmpty()) {
+                int processedCount = 0;
+                for (Map<String, Object> tenantData : changes.getModifiedTenants()) {
+                    try {
+                        updateOrCreateTenantFromPayProp(tenantData, initiatedBy);
+                        processedCount++;
+                    } catch (Exception e) {
+                        syncLogger.logEntityError("TENANT_PULL", tenantData.get("id"), e);
+                    }
+                }
+                results.put("modifiedTenants", processedCount);
+                totalSuccess++;
+            }
+
+            String message = String.format("Specific changes pull completed. Success: %d, Errors: %d", 
+                                          totalSuccess, totalErrors);
+            
+            return SyncResult.success(message, results);
+                
+        } catch (Exception e) {
+            return SyncResult.failure("Specific changes pull failed: " + e.getMessage(), results);
+        }
+    }
+
+    private SyncResult syncCustomerList(List<Customer> customers, Long initiatedBy) {
+        int successCount = 0;
+        int errorCount = 0;
+        List<String> errors = new ArrayList<>();
+
+        for (Customer customer : customers) {
+            try {
+                if (customer.getCustomerType() == CustomerType.TENANT) {
+                    syncCustomerAsTenant(customer);
+                } else if (customer.getCustomerType() == CustomerType.PROPERTY_OWNER) {
+                    syncCustomerAsBeneficiary(customer);
+                }
+                successCount++;
+            } catch (Exception e) {
+                errorCount++;
+                errors.add("Customer " + customer.getCustomerId() + ": " + e.getMessage());
+            }
+        }
+
+        Map<String, Object> details = Map.of(
+            "total", customers.size(),
+            "success", successCount,
+            "errors", errorCount,
+            "errorMessages", errors
+        );
+
+        String message = String.format("Customer sync completed. Success: %d, Errors: %d", 
+                                      successCount, errorCount);
+        
+        return errorCount == 0 ? 
+            SyncResult.success(message, details) : 
+            SyncResult.partial(message, details);
     }
 
     // ===== INTERFACE DEFINITIONS =====
