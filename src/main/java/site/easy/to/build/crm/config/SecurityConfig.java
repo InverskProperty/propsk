@@ -116,13 +116,17 @@ public class SecurityConfig {
                 .csrfTokenRepository(httpSessionCsrfTokenRepository)
         );
 
-        // ADD DEBUG FILTER
+        // ADD DEBUG FILTER - ENHANCED FOR PAYPROP
         http.addFilterBefore(new OncePerRequestFilter() {
             @Override
             protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) 
                     throws ServletException, IOException {
-                if (request.getServletPath().equals("/employee/add-customer")) {
-                    System.out.println("🔍 SECURITY DEBUG: Processing /employee/add-customer");
+                
+                String path = request.getServletPath();
+                
+                // Debug PayProp routes specifically
+                if (path.startsWith("/api/payprop/")) {
+                    System.out.println("🔍 PAYPROP DEBUG: Processing " + path);
                     System.out.println("🔍 Request method: " + request.getMethod());
                     
                     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -130,10 +134,12 @@ public class SecurityConfig {
                         System.out.println("🔍 Auth type: " + auth.getClass().getSimpleName());
                         System.out.println("🔍 Auth authorities: " + auth.getAuthorities());
                         System.out.println("🔍 Is authenticated: " + auth.isAuthenticated());
+                        System.out.println("🔍 Principal: " + auth.getPrincipal());
                     } else {
                         System.out.println("🔍 No authentication found!");
                     }
                 }
+                
                 filterChain.doFilter(request, response);
             }
         }, UsernamePasswordAuthenticationFilter.class);
