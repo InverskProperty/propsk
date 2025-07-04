@@ -314,6 +314,11 @@ public class Property {
     
     public String getServiceLevel() { return serviceLevel; }
     public void setServiceLevel(String serviceLevel) { this.serviceLevel = serviceLevel; }
+
+    // This getter is MISSING and needs to be added back
+    public String getPropertyName() { 
+        return propertyName; 
+    }
     
     public LocalDate getListedFrom() { return listedFrom; }
     public void setListedFrom(LocalDate listedFrom) { this.listedFrom = listedFrom; }
