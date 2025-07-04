@@ -71,6 +71,12 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             return oauthUser.getAccessToken();
         }
 
+        // FIXED: Check if refresh token is available before attempting refresh
+        if (oauthUser.getRefreshToken() == null || oauthUser.getRefreshToken().isEmpty() || "N/A".equals(oauthUser.getRefreshToken())) {
+            System.err.println("❌ Cannot refresh access token - no valid refresh token available");
+            throw new RuntimeException("Cannot refresh access token - no valid refresh token available. User needs to re-authenticate.");
+        }
+
         GsonFactory jsonFactory = GsonFactory.getDefaultInstance();
 
         // Create a new GoogleTokenResponse
@@ -90,9 +96,18 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             oauthUser.setAccessToken(newAccessToken);
             oauthUser.setAccessTokenExpiration(expiresAt);
 
+            // Update refresh token if a new one is provided
+            if (tokenResponse.getRefreshToken() != null) {
+                oauthUser.setRefreshToken(tokenResponse.getRefreshToken());
+                System.out.println("✅ New refresh token received and stored");
+            }
+
             oAuthUserRepository.save(oauthUser);
+            System.out.println("✅ Access token refreshed successfully");
+            
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            System.err.println("❌ Failed to refresh access token: " + e.getMessage());
+            throw new RuntimeException("Failed to refresh access token: " + e.getMessage(), e);
         }
 
         return oauthUser.getAccessToken();
@@ -131,19 +146,47 @@ public class OAuthUserServiceImpl implements OAuthUserService{
 
     @Override
     public void deleteById(int id) {
-
+        // Implementation if needed
     }
 
+    /**
+     * FIXED: Handle null refresh tokens properly
+     * Google doesn't always provide refresh tokens, especially for returning users
+     */
     public void updateOAuthUserTokens(OAuthUser oAuthUser, OAuth2AccessToken oAuth2AccessToken, OAuth2RefreshToken oAuth2RefreshToken) {
+        System.out.println("🔄 Updating OAuth user tokens...");
+        
+        // Always set access token fields
         oAuthUser.setAccessToken(oAuth2AccessToken.getTokenValue());
         oAuthUser.setAccessTokenIssuedAt(oAuth2AccessToken.getIssuedAt());
         oAuthUser.setAccessTokenExpiration(oAuth2AccessToken.getExpiresAt());
+        
+        System.out.println("✅ Access token updated - expires at: " + oAuth2AccessToken.getExpiresAt());
 
+        // Handle refresh token - Google doesn't always provide one
         if(oAuth2RefreshToken != null) {
+            System.out.println("✅ Refresh token provided by Google");
             oAuthUser.setRefreshToken(oAuth2RefreshToken.getTokenValue());
             oAuthUser.setRefreshTokenIssuedAt(oAuth2RefreshToken.getIssuedAt());
             oAuthUser.setRefreshTokenExpiration(oAuth2RefreshToken.getExpiresAt());
+            System.out.println("✅ Refresh token updated - expires at: " + oAuth2RefreshToken.getExpiresAt());
+        } else {
+            System.out.println("⚠️ No refresh token provided by Google");
+            System.out.println("   This is normal for returning users - Google only provides refresh tokens on first authorization");
+            System.out.println("   Existing refresh token will be preserved if available");
+            
+            // Don't overwrite existing refresh token with null
+            // Only set to null if there was no existing refresh token
+            if (oAuthUser.getRefreshToken() == null) {
+                System.out.println("   No existing refresh token found - setting fields to null");
+                oAuthUser.setRefreshToken(null);
+                oAuthUser.setRefreshTokenIssuedAt(null);
+                oAuthUser.setRefreshTokenExpiration(null);
+            } else {
+                System.out.println("   Preserving existing refresh token");
+            }
         }
+        
+        System.out.println("🔄 OAuth token update complete");
     }
-
 }
