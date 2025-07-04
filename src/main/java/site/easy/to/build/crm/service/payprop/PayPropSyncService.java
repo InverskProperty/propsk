@@ -304,7 +304,7 @@ public class PayPropSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
                 
-                PayPropExportResult result = new PayPropExportResult();
+                PayPropSyncService.PayPropExportResult result = new PayPropSyncService.PayPropExportResult();
                 result.setItems((List<Map<String, Object>>) responseBody.get("items"));
                 result.setPagination((Map<String, Object>) responseBody.get("pagination"));
                 
@@ -327,7 +327,8 @@ public class PayPropSyncService {
     /**
      * Export tenants from PayProp (handles hashed IDs)
      */
-    public PayPropExportResult exportTenantsFromPayProp(int page, int rows) {
+    // Replace the exportTenantsFromPayProp method with this:
+    public PayPropSyncService.PayPropExportResult exportTenantsFromPayProp(int page, int rows) {
         try {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
@@ -341,7 +342,7 @@ public class PayPropSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
                 
-                PayPropExportResult result = new PayPropExportResult();
+                PayPropSyncService.PayPropExportResult result = new PayPropSyncService.PayPropExportResult();
                 result.setItems((List<Map<String, Object>>) responseBody.get("items"));
                 result.setPagination((Map<String, Object>) responseBody.get("pagination"));
                 
@@ -361,7 +362,8 @@ public class PayPropSyncService {
     /**
      * Export beneficiaries from PayProp (handles hashed IDs)
      */
-    public PayPropExportResult exportBeneficiariesFromPayProp(int page, int rows) {
+    // Replace the exportBeneficiariesFromPayProp method with this:
+    public PayPropSyncService.PayPropExportResult exportBeneficiariesFromPayProp(int page, int rows) {
         try {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
@@ -375,7 +377,7 @@ public class PayPropSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
                 
-                PayPropExportResult result = new PayPropExportResult();
+                PayPropSyncService.PayPropExportResult result = new PayPropSyncService.PayPropExportResult();
                 result.setItems((List<Map<String, Object>>) responseBody.get("items"));
                 result.setPagination((Map<String, Object>) responseBody.get("pagination"));
                 
