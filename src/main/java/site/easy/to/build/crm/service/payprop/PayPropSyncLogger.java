@@ -1,7 +1,8 @@
-// PayPropSyncLogger.java - Comprehensive Sync Logging and Monitoring
+// PayPropSyncLogger.java - Comprehensive Sync Logging with Debug Mode
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.PortfolioSyncLog;
 import site.easy.to.build.crm.repository.PortfolioSyncLogRepository;
@@ -9,17 +10,54 @@ import site.easy.to.build.crm.service.payprop.PayPropConflictResolver.SyncConfli
 import site.easy.to.build.crm.service.payprop.PayPropConflictResolver.ConflictResolution;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class PayPropSyncLogger {
 
     private final PortfolioSyncLogRepository syncLogRepository;
+    
+    // NEW: Debug mode configuration
+    @Value("${payprop.sync.debug-mode:false}")
+    private boolean globalDebugMode;
+    
+    @Value("${payprop.sync.debug-sample-size:2}")
+    private int debugSampleSize;
+    
+    // Thread-local debug mode (for per-operation control)
+    private final ThreadLocal<Boolean> debugModeOverride = new ThreadLocal<>();
+    
+    // Counters and samples for debug mode
+    private final ThreadLocal<Map<String, AtomicInteger>> operationCounters = ThreadLocal.withInitial(ConcurrentHashMap::new);
+    private final ThreadLocal<Map<String, List<String>>> operationSamples = ThreadLocal.withInitial(ConcurrentHashMap::new);
 
     @Autowired
     public PayPropSyncLogger(PortfolioSyncLogRepository syncLogRepository) {
         this.syncLogRepository = syncLogRepository;
+    }
+
+    // ===== DEBUG MODE CONTROL =====
+    
+    public void setDebugMode(boolean enabled) {
+        debugModeOverride.set(enabled);
+        if (enabled) {
+            // Clear counters and samples for new debug session
+            operationCounters.get().clear();
+            operationSamples.get().clear();
+        }
+    }
+    
+    public void clearDebugMode() {
+        debugModeOverride.remove();
+        operationCounters.remove();
+        operationSamples.remove();
+    }
+    
+    private boolean isDebugMode() {
+        Boolean override = debugModeOverride.get();
+        return override != null ? override : globalDebugMode;
     }
 
     /**
@@ -35,19 +73,28 @@ public class PayPropSyncLogger {
         
         syncLogRepository.save(log);
         
-        System.out.println("🚀 SYNC STARTED: " + syncType + " at " + LocalDateTime.now());
+        if (isDebugMode()) {
+            System.out.println("🚀 SYNC STARTED: " + syncType + " (DEBUG MODE)");
+        } else {
+            System.out.println("🚀 SYNC STARTED: " + syncType + " at " + LocalDateTime.now());
+        }
     }
 
     /**
      * Log sync operation completion
      */
     public void logSyncComplete(String syncType, boolean success, String summary) {
-        // Find the most recent pending log for this sync type
-        // In a real implementation, you'd want better tracking
-        
-        System.out.println(success ? "✅ SYNC COMPLETED: " : "❌ SYNC FAILED: " + syncType);
-        System.out.println("Summary: " + summary);
-        System.out.println("Completed at: " + LocalDateTime.now());
+        if (isDebugMode()) {
+            System.out.println((success ? "✅ SYNC COMPLETED: " : "❌ SYNC FAILED: ") + syncType + " (DEBUG MODE)");
+            System.out.println("Summary: " + summary);
+            
+            // Print debug summary
+            printDebugSummary();
+        } else {
+            System.out.println(success ? "✅ SYNC COMPLETED: " : "❌ SYNC FAILED: " + syncType);
+            System.out.println("Summary: " + summary);
+            System.out.println("Completed at: " + LocalDateTime.now());
+        }
     }
 
     /**
@@ -64,19 +111,35 @@ public class PayPropSyncLogger {
         
         syncLogRepository.save(log);
         
-        System.err.println("❌ SYNC ERROR: " + syncType);
-        System.err.println("Error: " + error.getMessage());
-        error.printStackTrace();
+        if (isDebugMode()) {
+            System.err.println("❌ SYNC ERROR: " + syncType + " - " + error.getMessage());
+        } else {
+            System.err.println("❌ SYNC ERROR: " + syncType);
+            System.err.println("Error: " + error.getMessage());
+            error.printStackTrace();
+        }
     }
 
     /**
-     * Log entity-specific error
+     * Log entity-specific error with debug mode support
      */
     public void logEntityError(String operation, Object entityId, Exception error) {
-        System.err.println("❌ ENTITY ERROR: " + operation + " - Entity ID: " + entityId);
-        System.err.println("Error: " + error.getMessage());
+        if (isDebugMode()) {
+            // Count errors and collect samples
+            String key = operation + "_ERRORS";
+            AtomicInteger counter = operationCounters.get().computeIfAbsent(key, k -> new AtomicInteger(0));
+            counter.incrementAndGet();
+            
+            List<String> samples = operationSamples.get().computeIfAbsent(key, k -> new ArrayList<>());
+            if (samples.size() < debugSampleSize) {
+                samples.add("Entity " + entityId + ": " + error.getMessage());
+            }
+        } else {
+            System.err.println("❌ ENTITY ERROR: " + operation + " - Entity ID: " + entityId);
+            System.err.println("Error: " + error.getMessage());
+        }
         
-        // Could save to database if needed
+        // Always save to database
         PortfolioSyncLog log = new PortfolioSyncLog();
         log.setSyncType(operation);
         log.setOperation("ENTITY_ERROR");
@@ -92,7 +155,11 @@ public class PayPropSyncLogger {
      * Log conflict detection
      */
     public void logConflictDetection(int conflictCount) {
-        System.out.println("🔍 CONFLICT DETECTION: Found " + conflictCount + " conflicts");
+        if (isDebugMode()) {
+            System.out.println("🔍 CONFLICT DETECTION: Found " + conflictCount + " conflicts (DEBUG MODE)");
+        } else {
+            System.out.println("🔍 CONFLICT DETECTION: Found " + conflictCount + " conflicts");
+        }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
         log.setSyncType("CONFLICT_DETECTION");
@@ -110,15 +177,28 @@ public class PayPropSyncLogger {
     }
 
     /**
-     * Log conflict resolution
+     * Log conflict resolution with debug mode support
      */
     public void logConflictResolution(SyncConflict conflict, ConflictResolution resolution) {
-        String status = resolution.isResolved() ? "✅ RESOLVED" : "⚠️ UNRESOLVED";
+        if (isDebugMode()) {
+            // Count resolutions and collect samples
+            String key = "CONFLICT_RESOLUTIONS";
+            AtomicInteger counter = operationCounters.get().computeIfAbsent(key, k -> new AtomicInteger(0));
+            counter.incrementAndGet();
+            
+            List<String> samples = operationSamples.get().computeIfAbsent(key, k -> new ArrayList<>());
+            if (samples.size() < debugSampleSize) {
+                String status = resolution.isResolved() ? "RESOLVED" : "UNRESOLVED";
+                samples.add(conflict.getEntityType() + " " + conflict.getEntityId() + ": " + status + " (" + resolution.getStrategy() + ")");
+            }
+        } else {
+            String status = resolution.isResolved() ? "✅ RESOLVED" : "⚠️ UNRESOLVED";
+            System.out.println(status + " CONFLICT: " + conflict.getEntityType() + " " + conflict.getEntityId());
+            System.out.println("Strategy: " + resolution.getStrategy());
+            System.out.println("Reason: " + resolution.getReason());
+        }
         
-        System.out.println(status + " CONFLICT: " + conflict.getEntityType() + " " + conflict.getEntityId());
-        System.out.println("Strategy: " + resolution.getStrategy());
-        System.out.println("Reason: " + resolution.getReason());
-        
+        // Always save to database
         PortfolioSyncLog log = new PortfolioSyncLog();
         log.setSyncType("CONFLICT_RESOLUTION");
         log.setOperation("RESOLVE");
@@ -139,11 +219,23 @@ public class PayPropSyncLogger {
     }
 
     /**
-     * Log conflict error
+     * Log conflict error with debug mode support
      */
     public void logConflictError(SyncConflict conflict, Exception error) {
-        System.err.println("❌ CONFLICT RESOLUTION ERROR: " + conflict.getEntityType() + " " + conflict.getEntityId());
-        System.err.println("Error: " + error.getMessage());
+        if (isDebugMode()) {
+            // Count conflict errors and collect samples
+            String key = "CONFLICT_ERRORS";
+            AtomicInteger counter = operationCounters.get().computeIfAbsent(key, k -> new AtomicInteger(0));
+            counter.incrementAndGet();
+            
+            List<String> samples = operationSamples.get().computeIfAbsent(key, k -> new ArrayList<>());
+            if (samples.size() < debugSampleSize) {
+                samples.add(conflict.getEntityType() + " " + conflict.getEntityId() + ": " + error.getMessage());
+            }
+        } else {
+            System.err.println("❌ CONFLICT RESOLUTION ERROR: " + conflict.getEntityType() + " " + conflict.getEntityId());
+            System.err.println("Error: " + error.getMessage());
+        }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
         log.setSyncType("CONFLICT_RESOLUTION");
@@ -157,14 +249,45 @@ public class PayPropSyncLogger {
     }
 
     /**
-     * Log batch operation
+     * Print debug summary at the end of operations
      */
+    private void printDebugSummary() {
+        if (!isDebugMode()) return;
+        
+        System.out.println("\n📊 DEBUG SUMMARY:");
+        
+        Map<String, AtomicInteger> counters = operationCounters.get();
+        Map<String, List<String>> samples = operationSamples.get();
+        
+        for (Map.Entry<String, AtomicInteger> entry : counters.entrySet()) {
+            String operation = entry.getKey();
+            int count = entry.getValue().get();
+            List<String> operationSamples = samples.get(operation);
+            
+            System.out.println("  " + operation + ": " + count + " total");
+            
+            if (operationSamples != null && !operationSamples.isEmpty()) {
+                System.out.println("    Sample entries:");
+                for (String sample : operationSamples) {
+                    System.out.println("      - " + sample);
+                }
+            }
+        }
+        System.out.println();
+    }
+
+    // ===== EXISTING METHODS (simplified for debug mode) =====
+
     public void logBatchOperation(String operation, int totalCount, int successCount, int errorCount) {
-        System.out.println("📊 BATCH " + operation + ":");
-        System.out.println("  Total: " + totalCount);
-        System.out.println("  Success: " + successCount);
-        System.out.println("  Errors: " + errorCount);
-        System.out.println("  Success Rate: " + (totalCount > 0 ? (successCount * 100 / totalCount) : 0) + "%");
+        if (isDebugMode()) {
+            System.out.println("📊 BATCH " + operation + ": " + totalCount + " total, " + successCount + " success, " + errorCount + " errors");
+        } else {
+            System.out.println("📊 BATCH " + operation + ":");
+            System.out.println("  Total: " + totalCount);
+            System.out.println("  Success: " + successCount);
+            System.out.println("  Errors: " + errorCount);
+            System.out.println("  Success Rate: " + (totalCount > 0 ? (successCount * 100 / totalCount) : 0) + "%");
+        }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
         log.setSyncType("BATCH_" + operation);
@@ -183,22 +306,21 @@ public class PayPropSyncLogger {
         syncLogRepository.save(log);
     }
 
-    /**
-     * Log API call
-     */
     public void logApiCall(String endpoint, String method, boolean success, long duration) {
-        String status = success ? "✅" : "❌";
-        System.out.println(status + " API CALL: " + method + " " + endpoint + " (" + duration + "ms)");
-        
-        // Could save detailed API logs if needed for debugging
+        if (isDebugMode()) {
+            String status = success ? "✅" : "❌";
+            System.out.println(status + " API: " + method + " " + endpoint + " (" + duration + "ms)");
+        } else {
+            String status = success ? "✅" : "❌";
+            System.out.println(status + " API CALL: " + method + " " + endpoint + " (" + duration + "ms)");
+        }
     }
 
-    /**
-     * Log webhook received
-     */
     public void logWebhookReceived(String webhookType, String payload) {
         System.out.println("🔔 WEBHOOK RECEIVED: " + webhookType);
-        System.out.println("Payload size: " + (payload != null ? payload.length() : 0) + " characters");
+        if (!isDebugMode()) {
+            System.out.println("Payload size: " + (payload != null ? payload.length() : 0) + " characters");
+        }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
         log.setSyncType("WEBHOOK");
@@ -216,9 +338,6 @@ public class PayPropSyncLogger {
         syncLogRepository.save(log);
     }
 
-    /**
-     * Log data transformation
-     */
     public void logDataTransformation(String fromFormat, String toFormat, int recordCount, boolean success) {
         String status = success ? "✅" : "❌";
         System.out.println(status + " DATA TRANSFORM: " + fromFormat + " → " + toFormat + " (" + recordCount + " records)");
@@ -240,12 +359,21 @@ public class PayPropSyncLogger {
         syncLogRepository.save(log);
     }
 
-    /**
-     * Log validation errors
-     */
     public void logValidationError(String entityType, Object entityId, String validationError) {
-        System.err.println("⚠️ VALIDATION ERROR: " + entityType + " " + entityId);
-        System.err.println("Error: " + validationError);
+        if (isDebugMode()) {
+            // Count validation errors
+            String key = "VALIDATION_ERRORS";
+            AtomicInteger counter = operationCounters.get().computeIfAbsent(key, k -> new AtomicInteger(0));
+            counter.incrementAndGet();
+            
+            List<String> samples = operationSamples.get().computeIfAbsent(key, k -> new ArrayList<>());
+            if (samples.size() < debugSampleSize) {
+                samples.add(entityType + " " + entityId + ": " + validationError);
+            }
+        } else {
+            System.err.println("⚠️ VALIDATION ERROR: " + entityType + " " + entityId);
+            System.err.println("Error: " + validationError);
+        }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
         log.setSyncType("VALIDATION");
@@ -264,16 +392,17 @@ public class PayPropSyncLogger {
         syncLogRepository.save(log);
     }
 
-    /**
-     * Log performance metrics
-     */
     public void logPerformanceMetrics(String operation, long duration, int recordsProcessed) {
         double recordsPerSecond = recordsProcessed / (duration / 1000.0);
         
-        System.out.println("📈 PERFORMANCE: " + operation);
-        System.out.println("  Duration: " + duration + "ms");
-        System.out.println("  Records: " + recordsProcessed);
-        System.out.println("  Rate: " + String.format("%.2f", recordsPerSecond) + " records/sec");
+        if (isDebugMode()) {
+            System.out.println("📈 PERFORMANCE: " + operation + " - " + duration + "ms, " + recordsProcessed + " records, " + String.format("%.2f", recordsPerSecond) + " rec/sec");
+        } else {
+            System.out.println("📈 PERFORMANCE: " + operation);
+            System.out.println("  Duration: " + duration + "ms");
+            System.out.println("  Records: " + recordsProcessed);
+            System.out.println("  Rate: " + String.format("%.2f", recordsPerSecond) + " records/sec");
+        }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
         log.setSyncType("PERFORMANCE");
@@ -291,13 +420,7 @@ public class PayPropSyncLogger {
         syncLogRepository.save(log);
     }
 
-    /**
-     * Get sync statistics
-     */
     public SyncStatistics getSyncStatistics(LocalDateTime since) {
-        // This would query the database for sync statistics
-        // For now, return a simple implementation
-        
         SyncStatistics stats = new SyncStatistics();
         stats.setSince(since);
         stats.setGeneratedAt(LocalDateTime.now());
@@ -312,9 +435,7 @@ public class PayPropSyncLogger {
         return stats;
     }
 
-    /**
-     * Sync statistics class
-     */
+    // ===== SYNC STATISTICS CLASS =====
     public static class SyncStatistics {
         private LocalDateTime since;
         private LocalDateTime generatedAt;

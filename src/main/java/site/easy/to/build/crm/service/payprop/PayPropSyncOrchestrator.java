@@ -1,4 +1,4 @@
-// PayPropSyncOrchestrator.java - Central Two-Way Sync Coordinator
+// PayPropSyncOrchestrator.java - Central Two-Way Sync Coordinator with Debug Mode
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +39,13 @@ public class PayPropSyncOrchestrator {
     @Value("${payprop.sync.parallel-enabled:false}")
     private boolean parallelSyncEnabled;
 
+    // NEW: Debug mode settings
+    @Value("${payprop.sync.debug-mode:false}")
+    private boolean debugMode;
+
+    @Value("${payprop.sync.debug-sample-size:2}")
+    private int debugSampleSize;
+
     @Autowired
     public PayPropSyncOrchestrator(PayPropSyncService payPropSyncService,
                                   PayPropPortfolioSyncService portfolioSyncService,
@@ -68,8 +75,26 @@ public class PayPropSyncOrchestrator {
      */
     @Transactional
     public ComprehensiveSyncResult performFullSync(Long initiatedBy) {
+        return performFullSync(initiatedBy, false);
+    }
+
+    /**
+     * Complete two-way synchronization with debug mode control
+     */
+    @Transactional
+    public ComprehensiveSyncResult performFullSync(Long initiatedBy, boolean enableDebugMode) {
         ComprehensiveSyncResult result = new ComprehensiveSyncResult();
+        
+        // Enable debug mode in logger
+        if (enableDebugMode) {
+            syncLogger.setDebugMode(true);
+        }
+        
         syncLogger.logSyncStart("FULL_SYNC", initiatedBy);
+        
+        // Temporarily set debug mode for this operation
+        boolean originalDebugMode = this.debugMode;
+        this.debugMode = enableDebugMode;
         
         try {
             // Phase 1: Push CRM changes to PayProp
@@ -89,6 +114,14 @@ public class PayPropSyncOrchestrator {
         } catch (Exception e) {
             syncLogger.logSyncError("FULL_SYNC", e);
             result.setOverallError(e.getMessage());
+        } finally {
+            // Restore original debug mode
+            this.debugMode = originalDebugMode;
+            
+            // Clear debug mode from logger
+            if (enableDebugMode) {
+                syncLogger.clearDebugMode();
+            }
         }
         
         return result;
@@ -296,6 +329,7 @@ public class PayPropSyncOrchestrator {
             int processedCount = 0;
             int updatedCount = 0;
             int createdCount = 0;
+            List<Map<String, Object>> sampleData = new ArrayList<>();
 
             while (true) {
                 PayPropSyncService.PayPropExportResult exportResult = 
@@ -310,6 +344,11 @@ public class PayPropSyncOrchestrator {
                         boolean isNew = updateOrCreatePropertyFromPayProp(propertyData, initiatedBy);
                         if (isNew) createdCount++; else updatedCount++;
                         processedCount++;
+                        
+                        // Collect sample data for debug mode
+                        if (debugMode && sampleData.size() < debugSampleSize) {
+                            sampleData.add(createSamplePropertyData(propertyData, isNew));
+                        }
                     } catch (Exception e) {
                         syncLogger.logEntityError("PROPERTY_PULL", propertyData.get("id"), e);
                     }
@@ -318,11 +357,17 @@ public class PayPropSyncOrchestrator {
                 page++;
             }
 
-            Map<String, Object> details = Map.of(
-                "processed", processedCount,
-                "created", createdCount,
-                "updated", updatedCount
-            );
+            Map<String, Object> details = new HashMap<>();
+            details.put("processed", processedCount);
+            details.put("created", createdCount);
+            details.put("updated", updatedCount);
+            
+            // Add sample data in debug mode
+            if (debugMode && !sampleData.isEmpty()) {
+                details.put("sampleData", sampleData);
+                details.put("debugMode", true);
+                details.put("note", "Showing " + sampleData.size() + " sample records for debugging");
+            }
 
             return SyncResult.success("Properties pulled from PayProp", details);
             
@@ -337,6 +382,7 @@ public class PayPropSyncOrchestrator {
             int processedCount = 0;
             int updatedCount = 0;
             int createdCount = 0;
+            List<Map<String, Object>> sampleData = new ArrayList<>();
 
             while (true) {
                 PayPropSyncService.PayPropExportResult exportResult = 
@@ -351,6 +397,11 @@ public class PayPropSyncOrchestrator {
                         boolean isNew = updateOrCreateTenantFromPayProp(tenantData, initiatedBy);
                         if (isNew) createdCount++; else updatedCount++;
                         processedCount++;
+                        
+                        // Collect sample data for debug mode
+                        if (debugMode && sampleData.size() < debugSampleSize) {
+                            sampleData.add(createSampleTenantData(tenantData, isNew));
+                        }
                     } catch (Exception e) {
                         syncLogger.logEntityError("TENANT_PULL", tenantData.get("id"), e);
                     }
@@ -359,11 +410,17 @@ public class PayPropSyncOrchestrator {
                 page++;
             }
 
-            Map<String, Object> details = Map.of(
-                "processed", processedCount,
-                "created", createdCount,
-                "updated", updatedCount
-            );
+            Map<String, Object> details = new HashMap<>();
+            details.put("processed", processedCount);
+            details.put("created", createdCount);
+            details.put("updated", updatedCount);
+            
+            // Add sample data in debug mode
+            if (debugMode && !sampleData.isEmpty()) {
+                details.put("sampleData", sampleData);
+                details.put("debugMode", true);
+                details.put("note", "Showing " + sampleData.size() + " sample records for debugging");
+            }
 
             return SyncResult.success("Tenants pulled from PayProp", details);
             
@@ -378,6 +435,7 @@ public class PayPropSyncOrchestrator {
             int processedCount = 0;
             int updatedCount = 0;
             int createdCount = 0;
+            List<Map<String, Object>> sampleData = new ArrayList<>();
 
             while (true) {
                 PayPropSyncService.PayPropExportResult exportResult = 
@@ -392,6 +450,11 @@ public class PayPropSyncOrchestrator {
                         boolean isNew = updateOrCreateBeneficiaryFromPayProp(beneficiaryData, initiatedBy);
                         if (isNew) createdCount++; else updatedCount++;
                         processedCount++;
+                        
+                        // Collect sample data for debug mode
+                        if (debugMode && sampleData.size() < debugSampleSize) {
+                            sampleData.add(createSampleBeneficiaryData(beneficiaryData, isNew));
+                        }
                     } catch (Exception e) {
                         syncLogger.logEntityError("BENEFICIARY_PULL", beneficiaryData.get("id"), e);
                     }
@@ -400,17 +463,67 @@ public class PayPropSyncOrchestrator {
                 page++;
             }
 
-            Map<String, Object> details = Map.of(
-                "processed", processedCount,
-                "created", createdCount,
-                "updated", updatedCount
-            );
+            Map<String, Object> details = new HashMap<>();
+            details.put("processed", processedCount);
+            details.put("created", createdCount);
+            details.put("updated", updatedCount);
+            
+            // Add sample data in debug mode
+            if (debugMode && !sampleData.isEmpty()) {
+                details.put("sampleData", sampleData);
+                details.put("debugMode", true);
+                details.put("note", "Showing " + sampleData.size() + " sample records for debugging");
+            }
 
             return SyncResult.success("Beneficiaries pulled from PayProp", details);
             
         } catch (Exception e) {
             return SyncResult.failure("Failed to pull beneficiaries from PayProp: " + e.getMessage());
         }
+    }
+
+    // ===== SAMPLE DATA CREATION FOR DEBUG MODE =====
+
+    private Map<String, Object> createSamplePropertyData(Map<String, Object> fullData, boolean isNew) {
+        Map<String, Object> sample = new HashMap<>();
+        sample.put("id", fullData.get("id"));
+        sample.put("name", fullData.get("name"));
+        sample.put("customer_reference", fullData.get("customer_reference"));
+        sample.put("action", isNew ? "created" : "updated");
+        
+        // Include address if present but simplified
+        Map<String, Object> address = (Map<String, Object>) fullData.get("address");
+        if (address != null) {
+            Map<String, Object> sampleAddress = new HashMap<>();
+            sampleAddress.put("address_line_1", address.get("address_line_1"));
+            sampleAddress.put("city", address.get("city"));
+            sampleAddress.put("postal_code", address.get("postal_code"));
+            sample.put("address", sampleAddress);
+        }
+        
+        return sample;
+    }
+
+    private Map<String, Object> createSampleTenantData(Map<String, Object> fullData, boolean isNew) {
+        Map<String, Object> sample = new HashMap<>();
+        sample.put("id", fullData.get("id"));
+        sample.put("first_name", fullData.get("first_name"));
+        sample.put("last_name", fullData.get("last_name"));
+        sample.put("email_address", fullData.get("email_address"));
+        sample.put("account_type", fullData.get("account_type"));
+        sample.put("action", isNew ? "created" : "updated");
+        return sample;
+    }
+
+    private Map<String, Object> createSampleBeneficiaryData(Map<String, Object> fullData, boolean isNew) {
+        Map<String, Object> sample = new HashMap<>();
+        sample.put("id", fullData.get("id"));
+        sample.put("first_name", fullData.get("first_name"));
+        sample.put("last_name", fullData.get("last_name"));
+        sample.put("email_address", fullData.get("email_address"));
+        sample.put("payment_method", fullData.get("payment_method"));
+        sample.put("action", isNew ? "created" : "updated");
+        return sample;
     }
 
     // ===== CONFLICT RESOLUTION =====

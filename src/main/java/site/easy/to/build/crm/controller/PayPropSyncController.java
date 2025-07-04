@@ -120,8 +120,11 @@ public class PayPropSyncController {
      */
     @PostMapping("/full")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> performFullSync(Authentication authentication) {
-        System.out.println("🚀 FULL SYNC ENDPOINT REACHED - Authorization bypass working!");
+    public ResponseEntity<Map<String, Object>> performFullSync(
+            @RequestParam(defaultValue = "false") boolean debug,
+            Authentication authentication) {
+        
+        System.out.println("🚀 FULL SYNC ENDPOINT REACHED - Debug mode: " + debug);
         
         // TEMPORARILY COMMENT OUT FOR TESTING
         // if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
@@ -138,10 +141,11 @@ public class PayPropSyncController {
 
         // FIXED: Use valid user ID instead of hardcoded 1L
         Long userId = getCurrentUserId(authentication);
-        System.out.println("🔍 Using user ID: " + userId);
+        System.out.println("🔍 Using user ID: " + userId + " with debug mode: " + debug);
         
         try {
-            ComprehensiveSyncResult result = syncOrchestrator.performFullSync(userId);
+            // UPDATED: Pass debug parameter to orchestrator
+            ComprehensiveSyncResult result = syncOrchestrator.performFullSync(userId, debug);
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", result.isOverallSuccess());
@@ -153,6 +157,12 @@ public class PayPropSyncController {
                 "portfolioSync", result.getPortfolioSyncResult()
             ));
             
+            // Add debug info to response
+            if (debug) {
+                response.put("debugMode", true);
+                response.put("note", "Debug mode enabled - showing limited sample data");
+            }
+            
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
@@ -163,6 +173,7 @@ public class PayPropSyncController {
             ));
         }
     }
+
 
     // ADD THIS HELPER METHOD TO YOUR CONTROLLER
     private Long getCurrentUserId(Authentication authentication) {
