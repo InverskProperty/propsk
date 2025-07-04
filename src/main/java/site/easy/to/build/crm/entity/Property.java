@@ -31,10 +31,19 @@ public class Property {
     
     // Required Property Information
     @Column(name = "property_name", nullable = false, length = 255)
-    @NotBlank
-    @Pattern(regexp = "^.*\\S.*$")
+    @NotBlank(message = "Property name is required")
+    @Pattern(regexp = "^.*\\S.*$", message = "Property name must contain non-whitespace characters")
     private String propertyName;
-    
+
+    // Add this setter to handle PayProp data with blank names
+    public void setPropertyName(String propertyName) {
+        if (propertyName == null || propertyName.trim().isEmpty()) {
+            this.propertyName = "Unnamed Property";
+        } else {
+            this.propertyName = propertyName.trim();
+        }
+    }
+
     // Address fields - PayProp expects separate fields
     @Column(name = "address_line_1", length = 50)
     @Size(max = 50)
