@@ -634,6 +634,26 @@ public class Customer {
         return null; // No validation errors
     }
 
+    // Custom setter to handle PayProp data with null names
+    public void setName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            // Generate a name from other fields if available
+            if (this.firstName != null && this.lastName != null && 
+                !this.firstName.trim().isEmpty() && !this.lastName.trim().isEmpty()) {
+                this.name = this.firstName.trim() + " " + this.lastName.trim();
+            } else if (this.businessName != null && !this.businessName.trim().isEmpty()) {
+                this.name = this.businessName.trim();
+            } else if (this.email != null && !this.email.trim().isEmpty()) {
+                this.name = "Customer - " + this.email;
+            } else {
+                this.name = "Unnamed Customer";
+            }
+        } else {
+            this.name = name.trim();
+        }
+    }
+
+
     // UTILITY METHODS
 
     public String getFullName() {
