@@ -462,19 +462,39 @@ public class PayPropConflictResolver {
     // ===== UTILITY METHODS =====
 
     private boolean hasPropertyConflict(Property property) {
-        // Simulate conflict detection logic
-        // In real implementation, this would compare with PayProp API data
-        return property.getUpdatedAt() != null && 
-               property.getPayPropId() != null && 
-               property.getUpdatedAt().isAfter(LocalDateTime.now().minusHours(1));
+        // Only consider it a conflict if:
+        // 1. Property exists in both systems (has PayProp ID)
+        // 2. CRM was updated AFTER the last sync
+        
+        if (property.getPayPropId() == null) {
+            return false; // Not in PayProp, no conflict
+        }
+        
+        LocalDateTime lastSync = property.getPayPropLastSync();
+        LocalDateTime lastUpdate = property.getUpdatedAt();
+        
+        // If never synced, or CRM was updated after last sync
+        return lastSync != null && 
+            lastUpdate != null && 
+            lastUpdate.isAfter(lastSync.plusMinutes(5)); // 5min buffer for sync operations
     }
 
     private boolean hasCustomerConflict(Customer customer) {
-        // Simulate conflict detection logic
-        // In real implementation, this would compare with PayProp API data
-        return customer.getPayPropLastSync() != null && 
-               customer.getCreatedAt() != null &&
-               customer.getCreatedAt().isAfter(customer.getPayPropLastSync());
+        // Only consider it a conflict if:
+        // 1. Customer exists in both systems (has PayProp ID)
+        // 2. CRM was updated AFTER the last sync
+        
+        if (customer.getPayPropEntityId() == null) {
+            return false; // Not in PayProp, no conflict
+        }
+        
+        LocalDateTime lastSync = customer.getPayPropLastSync();
+        LocalDateTime lastUpdate = customer.getCreatedAt(); // Use appropriate timestamp
+        
+        // If never synced, or CRM was updated after last sync
+        return lastSync != null && 
+            lastUpdate != null && 
+            lastUpdate.isAfter(lastSync.plusMinutes(5)); // 5min buffer for sync operations
     }
 
     private boolean hasFieldAuthorityRules(SyncConflict conflict) {

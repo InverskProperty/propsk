@@ -846,30 +846,27 @@ public class PayPropSyncOrchestrator {
         customer.setPhone((String) data.get("phone"));
         customer.setNotes((String) data.get("comment"));
         
-        // FIXED: PayProp tenants are missing account_type but have both individual and business names
+        // FIXED: Set firstName/lastName FIRST, then call setName()
         String firstName = (String) data.get("first_name");
         String lastName = (String) data.get("last_name");
         String businessName = (String) data.get("business_name");
         
-        // PayProp tenants have both - prefer individual names if available
+        // Set the individual fields first
+        customer.setFirstName(firstName);
+        customer.setLastName(lastName);
+        customer.setBusinessName(businessName);
+        
+        // Now call setName() - it will use the firstName/lastName we just set
+        customer.setName(null); // This will trigger the custom setter logic
+        
+        // Set account type based on what we actually have
         if (firstName != null && !firstName.trim().isEmpty() && 
             lastName != null && !lastName.trim().isEmpty()) {
-            // Use individual data (preferred for tenants)
-            customer.setFirstName(firstName);
-            customer.setLastName(lastName);
-            customer.setName(firstName + " " + lastName);
             customer.setAccountType(AccountType.individual);
         } else if (businessName != null && !businessName.trim().isEmpty()) {
-            // Fallback to business name
-            customer.setBusinessName(businessName);
-            customer.setName(businessName);
             customer.setAccountType(AccountType.business);
         } else {
-            // Last resort: create placeholder
-            customer.setFirstName("Unknown");
-            customer.setLastName("Tenant");
-            customer.setName("Unknown Tenant");
-            customer.setAccountType(AccountType.individual);
+            customer.setAccountType(AccountType.individual); // Default
         }
         
         // Update address if present
@@ -887,15 +884,6 @@ public class PayPropSyncOrchestrator {
         customer.setPayPropLastSync(LocalDateTime.now());
     }
 
-    private Customer createCustomerFromPayPropTenantData(Map<String, Object> data) {
-        Customer customer = new Customer();
-        customer.setCustomerType(CustomerType.TENANT);
-        customer.setIsTenant(true);
-        customer.setAccountType(AccountType.valueOf((String) data.get("account_type")));
-        updateCustomerFromPayPropTenantData(customer, data);
-        return customer;
-    }
-
     private void updateCustomerFromPayPropBeneficiaryData(Customer customer, Map<String, Object> data) {
         // Update customer fields from PayProp beneficiary data
         customer.setPayPropEntityId((String) data.get("id"));
@@ -905,30 +893,27 @@ public class PayPropSyncOrchestrator {
         customer.setPhone((String) data.get("phone"));
         customer.setNotes((String) data.get("comment"));
         
-        // FIXED: PayProp beneficiaries are missing account_type but have first/last names
+        // FIXED: Set firstName/lastName FIRST, then call setName()
         String firstName = (String) data.get("first_name");
         String lastName = (String) data.get("last_name");
         String businessName = (String) data.get("business_name");
         
-        // PayProp beneficiaries are individuals with first_name/last_name
+        // Set the individual fields first
+        customer.setFirstName(firstName);
+        customer.setLastName(lastName);
+        customer.setBusinessName(businessName);
+        
+        // Now call setName() - it will use the firstName/lastName we just set
+        customer.setName(null); // This will trigger the custom setter logic
+        
+        // Set account type based on what we actually have
         if (firstName != null && !firstName.trim().isEmpty() && 
             lastName != null && !lastName.trim().isEmpty()) {
-            // Use individual data
-            customer.setFirstName(firstName);
-            customer.setLastName(lastName);
-            customer.setName(firstName + " " + lastName);
             customer.setAccountType(AccountType.individual);
         } else if (businessName != null && !businessName.trim().isEmpty()) {
-            // Fallback to business name if available
-            customer.setBusinessName(businessName);
-            customer.setName(businessName);
             customer.setAccountType(AccountType.business);
         } else {
-            // Last resort: create placeholder
-            customer.setFirstName("Unknown");
-            customer.setLastName("Beneficiary");
-            customer.setName("Unknown Beneficiary");
-            customer.setAccountType(AccountType.individual);
+            customer.setAccountType(AccountType.individual); // Default
         }
         
         // Update payment method safely
