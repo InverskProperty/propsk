@@ -290,7 +290,7 @@ public class PayPropSyncService {
     /**
      * Export properties from PayProp (handles hashed IDs)
      */
-    public PayPropExportResult exportPropertiesFromPayProp(int page, int rows) {
+    public PayPropSyncService.PayPropExportResult exportPropertiesFromPayProp(int page, int rows) {
         try {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
