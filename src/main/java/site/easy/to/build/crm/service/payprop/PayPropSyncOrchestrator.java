@@ -11,6 +11,7 @@ import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
+import site.easy.to.build.crm.service.user.UserService;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -31,6 +32,7 @@ public class PayPropSyncOrchestrator {
     private final PropertyService propertyService;
     private final TenantService tenantService;
     private final PropertyOwnerService propertyOwnerService;
+    private final UserService userService;
     private final ExecutorService executorService;
 
     @Value("${payprop.sync.batch-size:10}")
@@ -55,7 +57,8 @@ public class PayPropSyncOrchestrator {
                                   CustomerService customerService,
                                   PropertyService propertyService,
                                   TenantService tenantService,
-                                  PropertyOwnerService propertyOwnerService) {
+                                  PropertyOwnerService propertyOwnerService,
+                                  UserService userService) {
         this.payPropSyncService = payPropSyncService;
         this.portfolioSyncService = portfolioSyncService;
         this.conflictResolver = conflictResolver;
@@ -65,6 +68,7 @@ public class PayPropSyncOrchestrator {
         this.propertyService = propertyService;
         this.tenantService = tenantService;
         this.propertyOwnerService = propertyOwnerService;
+        this.userService = userService;
         this.executorService = Executors.newFixedThreadPool(5);
     }
 
@@ -152,6 +156,24 @@ public class PayPropSyncOrchestrator {
         }
         
         return result;
+    }
+
+    // ===== USER HELPER METHOD =====
+    
+    private User getCurrentUser(Long userId) {
+        if (userId != null) {
+            User user = userService.findById(userId.intValue());
+            if (user != null) return user;
+        }
+        // Fallback to management user (ID 54 based on your earlier logs)
+        User defaultUser = userService.findById(54);
+        if (defaultUser != null) return defaultUser;
+        
+        // Last resort - find any user
+        List<User> allUsers = userService.findAll();
+        if (!allUsers.isEmpty()) return allUsers.get(0);
+        
+        throw new RuntimeException("No users found in system - cannot create Customer without User");
     }
 
     // ===== CRM TO PAYPROP SYNC =====
@@ -771,9 +793,15 @@ public class PayPropSyncOrchestrator {
             customerService.save(existingCustomer);
             return false; // Not new
         } else {
+            // Create new customer from PayProp tenant
             Customer customer = new Customer();
             customer.setCustomerType(CustomerType.TENANT);
             customer.setIsTenant(true);
+
+            // Set required fields that PayProp doesn't provide
+            customer.setCountry("United Kingdom"); // Required field
+            customer.setUser(getCurrentUser(initiatedBy)); // Required User relationship
+
             updateCustomerFromPayPropTenantData(customer, tenantData);
             customer.setCreatedAt(LocalDateTime.now());
             customerService.save(customer);
@@ -796,7 +824,15 @@ public class PayPropSyncOrchestrator {
             return false; // Not new
         } else {
             // Create new customer from PayProp beneficiary
-            Customer customer = createCustomerFromPayPropBeneficiaryData(beneficiaryData);
+            Customer customer = new Customer();
+            customer.setCustomerType(CustomerType.PROPERTY_OWNER);
+            customer.setIsPropertyOwner(true);
+
+            // Set required fields that PayProp doesn't provide
+            customer.setCountry("United Kingdom"); // Required field
+            customer.setUser(getCurrentUser(initiatedBy)); // Required User relationship
+
+            updateCustomerFromPayPropBeneficiaryData(customer, beneficiaryData);
             customer.setCreatedAt(LocalDateTime.now());
             customerService.save(customer);
             return true; // New
@@ -937,15 +973,6 @@ public class PayPropSyncOrchestrator {
         
         customer.setPayPropSynced(true);
         customer.setPayPropLastSync(LocalDateTime.now());
-    }
-
-    private Customer createCustomerFromPayPropBeneficiaryData(Map<String, Object> data) {
-        Customer customer = new Customer();
-        customer.setCustomerType(CustomerType.PROPERTY_OWNER);
-        customer.setIsPropertyOwner(true);
-        customer.setAccountType(AccountType.valueOf((String) data.get("account_type")));
-        updateCustomerFromPayPropBeneficiaryData(customer, data);
-        return customer;
     }
 
     // ===== SPECIFIC ENTITY SYNC METHODS =====
