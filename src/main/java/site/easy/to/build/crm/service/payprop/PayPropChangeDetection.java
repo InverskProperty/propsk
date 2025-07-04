@@ -40,11 +40,21 @@ public class PayPropChangeDetection {
     public SyncChangeDetection detectChanges() {
         SyncChangeDetection detection = new SyncChangeDetection();
         
-        // Detect CRM changes
-        detection.setCrmChanges(detectCrmChanges());
+        try {
+            // Detect CRM changes - WRAP IN TRY-CATCH
+            detection.setCrmChanges(detectCrmChanges());
+        } catch (Exception e) {
+            System.err.println("❌ Error detecting CRM changes: " + e.getMessage());
+            detection.setCrmChanges(new CrmChanges()); // Return empty changes on error
+        }
         
-        // Detect PayProp changes (would require API calls)
-        detection.setPayPropChanges(detectPayPropChanges());
+        try {
+            // Detect PayProp changes - WRAP IN TRY-CATCH
+            detection.setPayPropChanges(detectPayPropChanges());
+        } catch (Exception e) {
+            System.err.println("❌ Error detecting PayProp changes: " + e.getMessage());
+            detection.setPayPropChanges(new PayPropChanges()); // Return empty changes on error
+        }
         
         return detection;
     }
@@ -121,7 +131,14 @@ public class PayPropChangeDetection {
             .filter(c -> c.getCreatedAt() != null && c.getCreatedAt().isAfter(since))
             .filter(c -> c.getPayPropEntityId() == null) // Only new customers not yet synced
             .filter(c -> c.isPayPropEntity()) // Only PayProp-related customers
-            .filter(c -> c.isReadyForPayPropSync()) // Only ready customers
+            .filter(c -> {
+                try {
+                    return c.isReadyForPayPropSync(); // Only ready customers - SAFE CALL
+                } catch (Exception e) {
+                    System.err.println("⚠️ Error checking sync readiness for customer " + c.getCustomerId() + ": " + e.getMessage());
+                    return false; // Skip problematic customers instead of crashing
+                }
+            })
             .toList();
     }
 
@@ -136,9 +153,46 @@ public class PayPropChangeDetection {
         return tenantService.findAll().stream()
             .filter(t -> t.getCreatedAt() != null && t.getCreatedAt().isAfter(since))
             .filter(t -> t.getPayPropId() == null) // Only new tenants not yet synced
-            .filter(t -> t.isReadyForPayPropSync()) // Only ready tenants
+            .filter(t -> {
+                try {
+                    // Use the service method instead of direct entity method
+                    return isTenanReadyForSync(t); // Use helper method
+                } catch (Exception e) {
+                    System.err.println("⚠️ Error checking sync readiness for tenant " + t.getId() + ": " + e.getMessage());
+                    return false; // Skip problematic tenants instead of crashing
+                }
+            })
             .toList();
     }
+
+    private boolean isTenanReadyForSync(Tenant tenant) {
+        try {
+            // Check account type specific requirements
+            if (tenant.getAccountType() == AccountType.individual) {
+                if (tenant.getFirstName() == null || tenant.getFirstName().trim().isEmpty() ||
+                    tenant.getLastName() == null || tenant.getLastName().trim().isEmpty()) {
+                    return false;
+                }
+            } else {
+                if (tenant.getBusinessName() == null || tenant.getBusinessName().trim().isEmpty()) {
+                    return false;
+                }
+            }
+            
+            // Email is optional but if bank account is required, validate it
+            if (tenant.getHasBankAccount() != null && tenant.getHasBankAccount()) {
+                return tenant.getAccountName() != null && 
+                    tenant.getAccountNumber() != null && 
+                    tenant.getSortCode() != null;
+            }
+            
+            return true;
+        } catch (Exception e) {
+            System.err.println("⚠️ Error in tenant readiness check: " + e.getMessage());
+            return false;
+        }
+    }
+
 
     private List<PropertyOwner> findModifiedPropertyOwners(LocalDateTime since) {
         return propertyOwnerService.findAll().stream()
