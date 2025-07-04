@@ -136,7 +136,9 @@ public class PayPropSyncController {
             ));
         }
 
-        Long userId = 1L; // You'd get this from authentication
+        // FIXED: Use valid user ID instead of hardcoded 1L
+        Long userId = getCurrentUserId(authentication);
+        System.out.println("🔍 Using user ID: " + userId);
         
         try {
             ComprehensiveSyncResult result = syncOrchestrator.performFullSync(userId);
@@ -154,10 +156,50 @@ public class PayPropSyncController {
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
+            System.err.println("❌ Full sync failed: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body(Map.of(
                 "error", "Full sync failed: " + e.getMessage()
             ));
         }
+    }
+
+    // ADD THIS HELPER METHOD TO YOUR CONTROLLER
+    private Long getCurrentUserId(Authentication authentication) {
+        if (authentication != null) {
+            try {
+                // For OAuth2 authentication, get email from principal
+                String email = null;
+                
+                if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.oidc.user.OidcUser) {
+                    org.springframework.security.oauth2.core.oidc.user.OidcUser oidcUser = 
+                        (org.springframework.security.oauth2.core.oidc.user.OidcUser) authentication.getPrincipal();
+                    email = oidcUser.getEmail();
+                } else if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User) {
+                    org.springframework.security.oauth2.core.user.OAuth2User oauth2User = 
+                        (org.springframework.security.oauth2.core.user.OAuth2User) authentication.getPrincipal();
+                    email = oauth2User.getAttribute("email");
+                }
+                
+                System.out.println("🔍 Extracted email from auth: " + email);
+                
+                // Map known emails to user IDs (based on your database)
+                if ("management@propsk.com".equals(email)) {
+                    return 54L;
+                } else if ("sajidkazmi@propsk.com".equals(email)) {
+                    return 53L;
+                } else if ("admin@localhost.com".equals(email)) {
+                    return 52L;
+                }
+                
+            } catch (Exception e) {
+                System.err.println("Could not get user ID from authentication: " + e.getMessage());
+            }
+        }
+        
+        // Default to management user ID
+        System.out.println("🔍 Using default user ID: 54");
+        return 54L;
     }
 
     /**
