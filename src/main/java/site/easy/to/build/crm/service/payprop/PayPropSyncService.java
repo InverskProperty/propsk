@@ -14,8 +14,8 @@ import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 
 import java.math.BigDecimal;
-import java.net.http.HttpHeaders;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -290,7 +290,7 @@ public class PayPropSyncService {
     /**
      * Export properties from PayProp (handles hashed IDs)
      */
-    public PayPropSyncService.PayPropExportResult exportPropertiesFromPayProp(int page, int rows) {
+    public PayPropExportResult exportPropertiesFromPayProp(int page, int rows) {
         try {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
@@ -304,7 +304,7 @@ public class PayPropSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
                 
-                PayPropSyncService.PayPropExportResult result = new PayPropSyncService.PayPropExportResult();
+                PayPropExportResult result = new PayPropExportResult();
                 result.setItems((List<Map<String, Object>>) responseBody.get("items"));
                 result.setPagination((Map<String, Object>) responseBody.get("pagination"));
                 
@@ -328,7 +328,7 @@ public class PayPropSyncService {
      * Export tenants from PayProp (handles hashed IDs)
      */
     // Replace the exportTenantsFromPayProp method with this:
-    public PayPropSyncService.PayPropExportResult exportTenantsFromPayProp(int page, int rows) {
+    public PayPropExportResult exportTenantsFromPayProp(int page, int rows) {
         try {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
@@ -342,7 +342,7 @@ public class PayPropSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
                 
-                PayPropSyncService.PayPropExportResult result = new PayPropSyncService.PayPropExportResult();
+                PayPropExportResult result = new PayPropExportResult();
                 result.setItems((List<Map<String, Object>>) responseBody.get("items"));
                 result.setPagination((Map<String, Object>) responseBody.get("pagination"));
                 
@@ -363,7 +363,7 @@ public class PayPropSyncService {
      * Export beneficiaries from PayProp (handles hashed IDs)
      */
     // Replace the exportBeneficiariesFromPayProp method with this:
-    public PayPropSyncService.PayPropExportResult exportBeneficiariesFromPayProp(int page, int rows) {
+    public PayPropExportResult exportBeneficiariesFromPayProp(int page, int rows) {
         try {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
@@ -377,7 +377,7 @@ public class PayPropSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
                 
-                PayPropSyncService.PayPropExportResult result = new PayPropSyncService.PayPropExportResult();
+                PayPropExportResult result = new PayPropExportResult();
                 result.setItems((List<Map<String, Object>>) responseBody.get("items"));
                 result.setPagination((Map<String, Object>) responseBody.get("pagination"));
                 
@@ -759,6 +759,31 @@ public class PayPropSyncService {
             System.err.println("⚠️ Error checking entity status (database tables may not exist): " + e.getMessage());
             System.out.println("PROPERTIES: Unable to check (table may not exist)");
             System.out.println("TENANTS: Unable to check (table may not exist)");
+        }
+    }
+
+    public static class PayPropExportResult {
+        private List<Map<String, Object>> items;
+        private Map<String, Object> pagination;
+        
+        public PayPropExportResult() {
+            this.items = new ArrayList<>();
+        }
+        
+        public List<Map<String, Object>> getItems() { 
+            return items; 
+        }
+        
+        public void setItems(List<Map<String, Object>> items) { 
+            this.items = items; 
+        }
+        
+        public Map<String, Object> getPagination() { 
+            return pagination; 
+        }
+        
+        public void setPagination(Map<String, Object> pagination) { 
+            this.pagination = pagination; 
         }
     }
 }
