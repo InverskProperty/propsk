@@ -846,15 +846,30 @@ public class PayPropSyncOrchestrator {
         customer.setPhone((String) data.get("phone"));
         customer.setNotes((String) data.get("comment"));
         
-        // Update account type specific fields
-        String accountType = (String) data.get("account_type");
-        if ("individual".equals(accountType)) {
-            customer.setFirstName((String) data.get("first_name"));
-            customer.setLastName((String) data.get("last_name"));
-            customer.setName(customer.getFirstName() + " " + customer.getLastName());
+        // FIXED: PayProp tenants are missing account_type but have both individual and business names
+        String firstName = (String) data.get("first_name");
+        String lastName = (String) data.get("last_name");
+        String businessName = (String) data.get("business_name");
+        
+        // PayProp tenants have both - prefer individual names if available
+        if (firstName != null && !firstName.trim().isEmpty() && 
+            lastName != null && !lastName.trim().isEmpty()) {
+            // Use individual data (preferred for tenants)
+            customer.setFirstName(firstName);
+            customer.setLastName(lastName);
+            customer.setName(firstName + " " + lastName);
+            customer.setAccountType(AccountType.individual);
+        } else if (businessName != null && !businessName.trim().isEmpty()) {
+            // Fallback to business name
+            customer.setBusinessName(businessName);
+            customer.setName(businessName);
+            customer.setAccountType(AccountType.business);
         } else {
-            customer.setBusinessName((String) data.get("business_name"));
-            customer.setName(customer.getBusinessName());
+            // Last resort: create placeholder
+            customer.setFirstName("Unknown");
+            customer.setLastName("Tenant");
+            customer.setName("Unknown Tenant");
+            customer.setAccountType(AccountType.individual);
         }
         
         // Update address if present
@@ -890,19 +905,37 @@ public class PayPropSyncOrchestrator {
         customer.setPhone((String) data.get("phone"));
         customer.setNotes((String) data.get("comment"));
         
-        // Update account type specific fields
-        String accountType = (String) data.get("account_type");
-        if ("individual".equals(accountType)) {
-            customer.setFirstName((String) data.get("first_name"));
-            customer.setLastName((String) data.get("last_name"));
-            customer.setName(customer.getFirstName() + " " + customer.getLastName());
+        // FIXED: PayProp beneficiaries are missing account_type but have first/last names
+        String firstName = (String) data.get("first_name");
+        String lastName = (String) data.get("last_name");
+        String businessName = (String) data.get("business_name");
+        
+        // PayProp beneficiaries are individuals with first_name/last_name
+        if (firstName != null && !firstName.trim().isEmpty() && 
+            lastName != null && !lastName.trim().isEmpty()) {
+            // Use individual data
+            customer.setFirstName(firstName);
+            customer.setLastName(lastName);
+            customer.setName(firstName + " " + lastName);
+            customer.setAccountType(AccountType.individual);
+        } else if (businessName != null && !businessName.trim().isEmpty()) {
+            // Fallback to business name if available
+            customer.setBusinessName(businessName);
+            customer.setName(businessName);
+            customer.setAccountType(AccountType.business);
         } else {
-            customer.setBusinessName((String) data.get("business_name"));
-            customer.setName(customer.getBusinessName());
+            // Last resort: create placeholder
+            customer.setFirstName("Unknown");
+            customer.setLastName("Beneficiary");
+            customer.setName("Unknown Beneficiary");
+            customer.setAccountType(AccountType.individual);
         }
         
-        // Update payment method
-        customer.setPaymentMethod(PaymentMethod.fromPayPropCode((String) data.get("payment_method")));
+        // Update payment method safely
+        String paymentMethod = (String) data.get("payment_method");
+        if (paymentMethod != null) {
+            customer.setPaymentMethod(PaymentMethod.fromPayPropCode(paymentMethod));
+        }
         
         // Update address if present
         Map<String, Object> address = (Map<String, Object>) data.get("address");
