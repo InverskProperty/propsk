@@ -231,9 +231,6 @@ public class Property {
     public String getCustomerReference() { return customerReference; }
     public void setCustomerReference(String customerReference) { this.customerReference = customerReference; }
     
-    public String getPropertyName() { return propertyName; }
-    public void setPropertyName(String propertyName) { this.propertyName = propertyName; }
-    
     public String getAddressLine1() { return addressLine1; }
     public void setAddressLine1(String addressLine1) { this.addressLine1 = addressLine1; }
     
