@@ -14,6 +14,7 @@ import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 
 import java.math.BigDecimal;
+import java.net.http.HttpHeaders;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -714,45 +715,48 @@ public class PayPropSyncService {
     
     public void checkSyncStatus() {
         System.out.println("=== PayProp OAuth2 Sync Status ===");
-        System.out.println("OAuth2 Status: " + (oAuth2Service.hasValidTokens() ? "✅ Authorized" : "❌ Not Authorized"));
         
-        if (oAuth2Service.hasValidTokens()) {
-            PayPropOAuth2Service.PayPropTokens tokens = oAuth2Service.getCurrentTokens();
-            System.out.println("Token Expires: " + tokens.getExpiresAt());
-            System.out.println("Scopes: " + tokens.getScopes());
+        // FIXED: Check tokens only ONCE
+        boolean hasValidTokens = oAuth2Service.hasValidTokens();
+        System.out.println("OAuth2 Status: " + (hasValidTokens ? "✅ Authorized" : "❌ Not Authorized"));
+        
+        if (hasValidTokens) {
+            try {
+                PayPropOAuth2Service.PayPropTokens tokens = oAuth2Service.getCurrentTokens();
+                System.out.println("Token Expires: " + tokens.getExpiresAt());
+                System.out.println("Scopes: " + tokens.getScopes());
+            } catch (Exception e) {
+                System.err.println("⚠️ Error getting token details: " + e.getMessage());
+            }
         }
         
-        long totalProperties = propertyService.getTotalProperties();
-        List<Property> needsSync = propertyService.findPropertiesNeedingSync();
-        List<Property> synced = propertyService.findPropertiesByPayPropSyncStatus(true);
-        List<Property> readyForSync = propertyService.findPropertiesReadyForSync();
-        
-        long totalTenants = tenantService.getTotalTenants();
-        List<Tenant> tenantsNeedingSync = tenantService.findByPayPropIdIsNull();
-        List<Tenant> tenantsSynced = tenantService.findByPayPropIdIsNotNull();
-        
-        System.out.println();
-        System.out.println("PROPERTIES:");
-        System.out.println("  Total: " + totalProperties);
-        System.out.println("  Needs Sync: " + needsSync.size());
-        System.out.println("  Already Synced: " + synced.size());
-        System.out.println("  Ready for Sync: " + readyForSync.size());
-        System.out.println();
-        System.out.println("TENANTS:");
-        System.out.println("  Total: " + totalTenants);
-        System.out.println("  Needs Sync: " + tenantsNeedingSync.size());
-        System.out.println("  Already Synced: " + tenantsSynced.size());
-    }
-    
-    // Export result wrapper
-    public static class PayPropExportResult {
-        private List<Map<String, Object>> items;
-        private Map<String, Object> pagination;
-        
-        public List<Map<String, Object>> getItems() { return items; }
-        public void setItems(List<Map<String, Object>> items) { this.items = items; }
-        
-        public Map<String, Object> getPagination() { return pagination; }
-        public void setPagination(Map<String, Object> pagination) { this.pagination = pagination; }
+        try {
+            // FIXED: Add error handling for missing tables
+            long totalProperties = propertyService.getTotalProperties();
+            List<Property> needsSync = propertyService.findPropertiesNeedingSync();
+            List<Property> synced = propertyService.findPropertiesByPayPropSyncStatus(true);
+            List<Property> readyForSync = propertyService.findPropertiesReadyForSync();
+            
+            long totalTenants = tenantService.getTotalTenants();
+            List<Tenant> tenantsNeedingSync = tenantService.findByPayPropIdIsNull();
+            List<Tenant> tenantsSynced = tenantService.findByPayPropIdIsNotNull();
+            
+            System.out.println();
+            System.out.println("PROPERTIES:");
+            System.out.println("  Total: " + totalProperties);
+            System.out.println("  Needs Sync: " + needsSync.size());
+            System.out.println("  Already Synced: " + synced.size());
+            System.out.println("  Ready for Sync: " + readyForSync.size());
+            System.out.println();
+            System.out.println("TENANTS:");
+            System.out.println("  Total: " + totalTenants);
+            System.out.println("  Needs Sync: " + tenantsNeedingSync.size());
+            System.out.println("  Already Synced: " + tenantsSynced.size());
+            
+        } catch (Exception e) {
+            System.err.println("⚠️ Error checking entity status (database tables may not exist): " + e.getMessage());
+            System.out.println("PROPERTIES: Unable to check (table may not exist)");
+            System.out.println("TENANTS: Unable to check (table may not exist)");
+        }
     }
 }

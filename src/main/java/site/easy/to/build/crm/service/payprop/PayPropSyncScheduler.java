@@ -1,4 +1,4 @@
-// PayPropSyncScheduler.java
+// PayPropSyncScheduler.java - FIXED
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+// FIXED: Check for scheduler.enabled specifically, not just payprop.enabled
 @ConditionalOnProperty(name = "payprop.scheduler.enabled", havingValue = "true", matchIfMissing = false)
 @Service
 public class PayPropSyncScheduler {
@@ -21,7 +22,7 @@ public class PayPropSyncScheduler {
     }
 
     /**
-     * Scheduled full sync (daily at 2 AM)
+     * Scheduled full sync (daily at 2 AM) - ONLY RUNS IF EXPLICITLY ENABLED
      */
     @Scheduled(cron = "${payprop.scheduler.full-sync-cron:0 0 2 * * ?}")
     public void performScheduledFullSync() {
@@ -40,7 +41,7 @@ public class PayPropSyncScheduler {
     }
 
     /**
-     * Scheduled intelligent sync (every 30 minutes)  
+     * Scheduled intelligent sync (every 30 minutes) - ONLY RUNS IF EXPLICITLY ENABLED
      */
     @Scheduled(cron = "${payprop.scheduler.intelligent-sync-cron:0 */30 * * * ?}")
     public void performScheduledIntelligentSync() {
