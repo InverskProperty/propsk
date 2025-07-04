@@ -121,11 +121,15 @@ public class PayPropSyncController {
     @PostMapping("/full")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> performFullSync(Authentication authentication) {
+        System.out.println("🚀 FULL SYNC ENDPOINT REACHED - Authorization bypass working!");
+        
         // TEMPORARILY COMMENT OUT FOR TESTING
         // if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
         //     return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
         // }
 
+        System.out.println("✅ Authorization check bypassed!");
+        
         if (!oAuth2Service.hasValidTokens()) {
             return ResponseEntity.badRequest().body(Map.of(
                 "error", "PayProp not authorized. Please complete OAuth2 setup first."
