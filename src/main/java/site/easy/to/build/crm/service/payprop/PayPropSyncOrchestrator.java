@@ -771,8 +771,10 @@ public class PayPropSyncOrchestrator {
             customerService.save(existingCustomer);
             return false; // Not new
         } else {
-            // Create new customer from PayProp tenant
-            Customer customer = createCustomerFromPayPropTenantData(tenantData);
+            Customer customer = new Customer();
+            customer.setCustomerType(CustomerType.TENANT);
+            customer.setIsTenant(true);
+            updateCustomerFromPayPropTenantData(customer, tenantData);
             customer.setCreatedAt(LocalDateTime.now());
             customerService.save(customer);
             return true; // New
