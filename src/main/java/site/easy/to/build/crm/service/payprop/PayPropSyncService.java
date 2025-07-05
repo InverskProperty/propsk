@@ -499,23 +499,15 @@ public class PayPropSyncService {
         dto.setId_number(tenant.getIdNumber());
         dto.setVat_number(tenant.getVatNumber());
         
-        // FIXED: PayProp DTO expects Boolean values, not Strings
-        // Convert Y/N strings from database to Boolean for PayProp API
+        // FIXED: The issue is that the DTO setters expect Boolean, but I was converting wrong
+        // Get Y/N string from database, convert to Boolean for PayProp DTO
         String notifyEmailValue = tenant.getNotifyEmail();
-        if (notifyEmailValue != null) {
-            Boolean emailBoolean = convertYNToBoolean(notifyEmailValue);
-            dto.setNotify_email(emailBoolean != null ? emailBoolean : false);
-        } else {
-            dto.setNotify_email(false); // Default value
-        }
+        Boolean emailBoolean = convertYNToBoolean(notifyEmailValue);
+        dto.setNotify_email(emailBoolean != null ? emailBoolean : Boolean.FALSE);
         
         String notifyTextValue = tenant.getNotifyText();
-        if (notifyTextValue != null) {
-            Boolean smsBoolean = convertYNToBoolean(notifyTextValue);
-            dto.setNotify_sms(smsBoolean != null ? smsBoolean : false);
-        } else {
-            dto.setNotify_sms(false); // Default value
-        }
+        Boolean smsBoolean = convertYNToBoolean(notifyTextValue);
+        dto.setNotify_sms(smsBoolean != null ? smsBoolean : Boolean.FALSE);
         
         // Address
         PayPropAddressDTO address = new PayPropAddressDTO();
@@ -582,23 +574,15 @@ public class PayPropSyncService {
         PayPropCommunicationDTO communication = new PayPropCommunicationDTO();
         PayPropEmailDTO email = new PayPropEmailDTO();
         
-        // FIXED: PayProp DTO expects Boolean values, not Strings  
-        // Convert Y/N strings from database to Boolean for PayProp API
+        // FIXED: The issue is that the DTO setters expect Boolean, but I was converting wrong
+        // Get Y/N string from database, convert to Boolean for PayProp DTO
         String emailEnabledValue = owner.getEmailEnabled();
-        if (emailEnabledValue != null) {
-            Boolean emailBoolean = convertYNToBoolean(emailEnabledValue);
-            email.setEnabled(emailBoolean != null ? emailBoolean : true);
-        } else {
-            email.setEnabled(true); // Default to enabled
-        }
+        Boolean emailBoolean = convertYNToBoolean(emailEnabledValue);
+        email.setEnabled(emailBoolean != null ? emailBoolean : Boolean.TRUE);
         
         String paymentAdviceValue = owner.getPaymentAdviceEnabled();
-        if (paymentAdviceValue != null) {
-            Boolean paymentBoolean = convertYNToBoolean(paymentAdviceValue);
-            email.setPayment_advice(paymentBoolean != null ? paymentBoolean : true);
-        } else {
-            email.setPayment_advice(true); // Default to enabled
-        }
+        Boolean paymentBoolean = convertYNToBoolean(paymentAdviceValue);
+        email.setPayment_advice(paymentBoolean != null ? paymentBoolean : Boolean.TRUE);
         
         communication.setEmail(email);
         dto.setCommunication_preferences(communication);
