@@ -1,4 +1,4 @@
-// Updated PayPropSyncService.java - OAuth2 Integration
+// PayPropSyncService.java - Database Compatible Version
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,8 +49,8 @@ public class PayPropSyncService {
     
     public String syncPropertyToPayProp(Long propertyId) {
         Property property = propertyService.findById(propertyId);
-        if (property == null || !property.isReadyForPayPropSync()) {
-            throw new IllegalArgumentException("Property not ready for sync");
+        if (property == null) {
+            throw new IllegalArgumentException("Property not found: " + propertyId);
         }
         
         try {
@@ -71,7 +71,10 @@ public class PayPropSyncService {
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String payPropId = (String) response.getBody().get("id");
-                propertyService.markPropertyAsSynced(propertyId, payPropId);
+                
+                // FIXED: Update property with PayProp ID using your actual method
+                property.setPayPropId(payPropId);
+                propertyService.save(property);
                 
                 System.out.println("✅ Property synced successfully! PayProp ID: " + payPropId);
                 return payPropId;
@@ -90,7 +93,7 @@ public class PayPropSyncService {
     
     public void updatePropertyInPayProp(Long propertyId) {
         Property property = propertyService.findById(propertyId);
-        if (property == null || !property.isPayPropSynced()) {
+        if (property == null || property.getPayPropId() == null) {
             throw new IllegalArgumentException("Property not synced with PayProp");
         }
         
@@ -114,55 +117,6 @@ public class PayPropSyncService {
             throw new RuntimeException("Property update failed", e);
         }
     }
-
-    /**
-     * Create PayProp tenant from Customer entity (add to PayPropSyncService)
-     */
-    public String createTenantFromCustomer(PayPropTenantDTO dto) throws Exception {
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<PayPropTenantDTO> request = new HttpEntity<>(dto, headers);
-        
-        System.out.println("👤 Creating PayProp tenant from Customer entity");
-        
-        ResponseEntity<Map> response = restTemplate.postForEntity(
-            payPropApiBase + "/entity/tenant", 
-            request, 
-            Map.class
-        );
-        
-        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-            String payPropId = (String) response.getBody().get("id");
-            System.out.println("✅ Customer tenant synced successfully! PayProp ID: " + payPropId);
-            return payPropId;
-        }
-        
-        throw new RuntimeException("Failed to create tenant from customer in PayProp");
-    }
-
-    /**
-     * Create PayProp beneficiary from Customer entity (add to PayPropSyncService)
-     */
-    public String createBeneficiaryFromCustomer(PayPropBeneficiaryDTO dto) throws Exception {
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<PayPropBeneficiaryDTO> request = new HttpEntity<>(dto, headers);
-        
-        System.out.println("🏦 Creating PayProp beneficiary from Customer entity");
-        
-        ResponseEntity<Map> response = restTemplate.postForEntity(
-            payPropApiBase + "/entity/beneficiary", 
-            request, 
-            Map.class
-        );
-        
-        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-            String payPropId = (String) response.getBody().get("id");
-            System.out.println("✅ Customer beneficiary synced successfully! PayProp ID: " + payPropId);
-            return payPropId;
-        }
-        
-        throw new RuntimeException("Failed to create beneficiary from customer in PayProp");
-    }
-
     
     // ===== TENANT SYNC METHODS =====
     
@@ -172,8 +126,8 @@ public class PayPropSyncService {
             throw new IllegalArgumentException("Tenant not found");
         }
         
-        // Validate tenant is ready for PayProp sync
-        if (!isTenanReadyForSync(tenant)) {
+        // FIXED: Use your actual validation method
+        if (!isValidForPayPropSync(tenant)) {
             throw new IllegalArgumentException("Tenant not ready for sync - missing required fields");
         }
         
@@ -183,7 +137,7 @@ public class PayPropSyncService {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<PayPropTenantDTO> request = new HttpEntity<>(dto, headers);
             
-            System.out.println("👤 Syncing tenant to PayProp: " + tenant.getFullName());
+            System.out.println("👤 Syncing tenant to PayProp: " + tenant.getFirstName() + " " + tenant.getLastName());
             
             ResponseEntity<Map> response = restTemplate.postForEntity(
                 payPropApiBase + "/entity/tenant", 
@@ -193,6 +147,8 @@ public class PayPropSyncService {
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String payPropId = (String) response.getBody().get("id");
+                
+                // FIXED: Update tenant with PayProp ID
                 tenant.setPayPropId(payPropId);
                 tenantService.save(tenant);
                 
@@ -246,8 +202,8 @@ public class PayPropSyncService {
             throw new IllegalArgumentException("Property owner not found");
         }
         
-        // Validate owner is ready for PayProp sync
-        if (!isBeneficiaryReadyForSync(owner)) {
+        // FIXED: Use your actual validation method
+        if (!isValidForPayPropSync(owner)) {
             throw new IllegalArgumentException("Beneficiary not ready for sync - missing required fields");
         }
         
@@ -257,7 +213,7 @@ public class PayPropSyncService {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<PayPropBeneficiaryDTO> request = new HttpEntity<>(dto, headers);
             
-            System.out.println("🏦 Syncing beneficiary to PayProp: " + owner.getFullName());
+            System.out.println("🏦 Syncing beneficiary to PayProp: " + owner.getFirstName() + " " + owner.getLastName());
             
             ResponseEntity<Map> response = restTemplate.postForEntity(
                 payPropApiBase + "/entity/beneficiary", 
@@ -267,6 +223,8 @@ public class PayPropSyncService {
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String payPropId = (String) response.getBody().get("id");
+                
+                // FIXED: Update property owner with PayProp ID
                 owner.setPayPropId(payPropId);
                 propertyOwnerService.save(owner);
                 
@@ -327,7 +285,6 @@ public class PayPropSyncService {
     /**
      * Export tenants from PayProp (handles hashed IDs)
      */
-    // Replace the exportTenantsFromPayProp method with this:
     public PayPropExportResult exportTenantsFromPayProp(int page, int rows) {
         try {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
@@ -362,7 +319,6 @@ public class PayPropSyncService {
     /**
      * Export beneficiaries from PayProp (handles hashed IDs)
      */
-    // Replace the exportBeneficiariesFromPayProp method with this:
     public PayPropExportResult exportBeneficiariesFromPayProp(int page, int rows) {
         try {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
@@ -393,6 +349,74 @@ public class PayPropSyncService {
             throw new RuntimeException("Beneficiary export failed", e);
         }
     }
+
+    /**
+     * NEW: Export invoices from PayProp for relationship validation
+     */
+    public PayPropExportResult exportInvoicesFromPayProp(int page, int rows) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/export/invoices?page=" + page + "&rows=" + Math.min(rows, 25);
+            
+            System.out.println("📥 Exporting invoices from PayProp - Page " + page);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                
+                PayPropExportResult result = new PayPropExportResult();
+                result.setItems((List<Map<String, Object>>) responseBody.get("items"));
+                result.setPagination((Map<String, Object>) responseBody.get("pagination"));
+                
+                System.out.println("✅ Exported " + result.getItems().size() + " invoices from PayProp");
+                
+                return result;
+            }
+            
+            throw new RuntimeException("Failed to export invoices from PayProp");
+            
+        } catch (Exception e) {
+            System.err.println("❌ Invoice export failed: " + e.getMessage());
+            throw new RuntimeException("Invoice export failed", e);
+        }
+    }
+
+    /**
+     * NEW: Export payments from PayProp for relationship validation
+     */
+    public PayPropExportResult exportPaymentsFromPayProp(int page, int rows) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/export/payments?page=" + page + "&rows=" + Math.min(rows, 25);
+            
+            System.out.println("📥 Exporting payments from PayProp - Page " + page);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                
+                PayPropExportResult result = new PayPropExportResult();
+                result.setItems((List<Map<String, Object>>) responseBody.get("items"));
+                result.setPagination((Map<String, Object>) responseBody.get("pagination"));
+                
+                System.out.println("✅ Exported " + result.getItems().size() + " payments from PayProp");
+                
+                return result;
+            }
+            
+            throw new RuntimeException("Failed to export payments from PayProp");
+            
+        } catch (Exception e) {
+            System.err.println("❌ Payment export failed: " + e.getMessage());
+            throw new RuntimeException("Payment export failed", e);
+        }
+    }
     
     // ===== CONVERSION METHODS =====
     
@@ -418,8 +442,10 @@ public class PayPropSyncService {
         
         // Convert settings to nested structure
         PayPropSettingsDTO settings = new PayPropSettingsDTO();
-        settings.setEnable_payments(property.getEnablePaymentsAsBoolean());
-        settings.setHold_owner_funds(property.getHoldOwnerFundsAsBoolean());
+        
+        // FIXED: Handle your actual boolean field conversion
+        settings.setEnable_payments(convertYNToBoolean(property.getEnablePayments()));
+        settings.setHold_owner_funds(convertYNToBoolean(property.getHoldOwnerFunds()));
         settings.setMonthly_payment(property.getMonthlyPayment());
         settings.setMinimum_balance(property.getPropertyAccountMinimumBalance());
         settings.setListing_from(property.getListedFrom());
@@ -432,10 +458,14 @@ public class PayPropSyncService {
     private PayPropTenantDTO convertTenantToPayPropFormat(Tenant tenant) {
         PayPropTenantDTO dto = new PayPropTenantDTO();
         
-        // Account type and conditional fields
-        dto.setAccount_type(tenant.getAccountType().getValue());
+        // FIXED: Handle your actual enum values
+        if (tenant.getAccountType() != null) {
+            dto.setAccount_type(tenant.getAccountType().toString().toLowerCase());
+        } else {
+            dto.setAccount_type("individual"); // Default
+        }
         
-        if (tenant.getAccountType() == AccountType.individual) {
+        if ("individual".equals(dto.getAccount_type())) {
             dto.setFirst_name(tenant.getFirstName());
             dto.setLast_name(tenant.getLastName());
         } else {
@@ -453,8 +483,10 @@ public class PayPropSyncService {
         dto.setDate_of_birth(tenant.getDateOfBirth());
         dto.setId_number(tenant.getIdNumber());
         dto.setVat_number(tenant.getVatNumber());
-        dto.setNotify_email(tenant.getNotifyEmailAsBoolean());
-        dto.setNotify_sms(tenant.getNotifyTextAsBoolean());
+        
+        // FIXED: Handle Y/N boolean conversion
+        dto.setNotify_email(convertYNToBoolean(tenant.getNotifyEmail()));
+        dto.setNotify_sms(convertYNToBoolean(tenant.getNotifyText()));
         
         // Address
         PayPropAddressDTO address = new PayPropAddressDTO();
@@ -466,8 +498,9 @@ public class PayPropSyncService {
         address.setCountry_code(tenant.getCountry());
         dto.setAddress(address);
         
-        // Bank account (if present)
-        if (tenant.getHasBankAccount() != null && tenant.getHasBankAccount()) {
+        // FIXED: Bank account handling for your bit(1) field
+        Boolean hasBankAccount = convertBitToBoolean(tenant.getHasBankAccount());
+        if (Boolean.TRUE.equals(hasBankAccount)) {
             PayPropBankAccountDTO bankAccount = new PayPropBankAccountDTO();
             bankAccount.setAccount_name(tenant.getAccountName());
             bankAccount.setAccount_number(tenant.getAccountNumber());
@@ -484,11 +517,21 @@ public class PayPropSyncService {
     private PayPropBeneficiaryDTO convertBeneficiaryToPayPropFormat(PropertyOwner owner) {
         PayPropBeneficiaryDTO dto = new PayPropBeneficiaryDTO();
         
-        // Account type and conditional fields
-        dto.setAccount_type(owner.getAccountType().getValue());
-        dto.setPayment_method(owner.getPaymentMethod().getPayPropCode());
+        // FIXED: Handle your actual enum values with case conversion
+        if (owner.getAccountType() != null) {
+            dto.setAccount_type(owner.getAccountType().toString().toLowerCase());
+        } else {
+            dto.setAccount_type("individual"); // Default
+        }
         
-        if (owner.getAccountType() == AccountType.individual) {
+        // FIXED: Handle payment method enum case conversion
+        if (owner.getPaymentMethod() != null) {
+            dto.setPayment_method(owner.getPaymentMethod().toString().toLowerCase());
+        } else {
+            dto.setPayment_method("local"); // Default
+        }
+        
+        if ("individual".equals(dto.getAccount_type())) {
             dto.setFirst_name(owner.getFirstName());
             dto.setLast_name(owner.getLastName());
         } else {
@@ -509,14 +552,16 @@ public class PayPropSyncService {
         // Communication preferences
         PayPropCommunicationDTO communication = new PayPropCommunicationDTO();
         PayPropEmailDTO email = new PayPropEmailDTO();
-        email.setEnabled(owner.getEmailEnabled());
-        email.setPayment_advice(owner.getPaymentAdviceEnabled());
+        
+        // FIXED: Handle your Y/N enum fields
+        email.setEnabled(convertYNToBoolean(owner.getEmailEnabled()));
+        email.setPayment_advice(convertYNToBoolean(owner.getPaymentAdviceEnabled()));
+        
         communication.setEmail(email);
         dto.setCommunication_preferences(communication);
         
         // Address (required for international payments and cheque)
-        if (owner.getPaymentMethod() == PaymentMethod.international || 
-            owner.getPaymentMethod() == PaymentMethod.cheque) {
+        if ("international".equals(dto.getPayment_method()) || "cheque".equals(dto.getPayment_method())) {
             PayPropAddressDTO address = new PayPropAddressDTO();
             address.setAddress_line_1(owner.getAddressLine1());
             address.setAddress_line_2(owner.getAddressLine2());
@@ -532,12 +577,12 @@ public class PayPropSyncService {
         PayPropBankAccountDTO bankAccount = new PayPropBankAccountDTO();
         bankAccount.setAccount_name(owner.getBankAccountName());
         
-        if (owner.getPaymentMethod() == PaymentMethod.local) {
+        if ("local".equals(dto.getPayment_method())) {
             bankAccount.setAccount_number(owner.getBankAccountNumber());
             bankAccount.setBranch_code(owner.getBranchCode());
             bankAccount.setBank_name(owner.getBankName());
             bankAccount.setBranch_name(owner.getBranchName());
-        } else if (owner.getPaymentMethod() == PaymentMethod.international) {
+        } else if ("international".equals(dto.getPayment_method())) {
             if (owner.getIban() != null && !owner.getIban().isEmpty()) {
                 bankAccount.setIban(owner.getIban());
             } else {
@@ -553,23 +598,27 @@ public class PayPropSyncService {
         return dto;
     }
     
-    // ===== VALIDATION METHODS =====
+    // ===== VALIDATION METHODS (FIXED FOR YOUR DATABASE) =====
     
-    private boolean isTenanReadyForSync(Tenant tenant) {
+    private boolean isValidForPayPropSync(Tenant tenant) {
         // Check account type specific requirements
-        if (tenant.getAccountType() == AccountType.individual) {
-            if (tenant.getFirstName() == null || tenant.getFirstName().trim().isEmpty() ||
-                tenant.getLastName() == null || tenant.getLastName().trim().isEmpty()) {
-                return false;
-            }
-        } else {
-            if (tenant.getBusinessName() == null || tenant.getBusinessName().trim().isEmpty()) {
-                return false;
+        if (tenant.getAccountType() != null) {
+            String accountType = tenant.getAccountType().toString().toLowerCase();
+            if ("individual".equals(accountType)) {
+                if (tenant.getFirstName() == null || tenant.getFirstName().trim().isEmpty() ||
+                    tenant.getLastName() == null || tenant.getLastName().trim().isEmpty()) {
+                    return false;
+                }
+            } else if ("business".equals(accountType)) {
+                if (tenant.getBusinessName() == null || tenant.getBusinessName().trim().isEmpty()) {
+                    return false;
+                }
             }
         }
         
-        // Email is optional but if bank account is required, validate it
-        if (tenant.getHasBankAccount() != null && tenant.getHasBankAccount()) {
+        // FIXED: Handle bank account validation for your bit(1) field
+        Boolean hasBankAccount = convertBitToBoolean(tenant.getHasBankAccount());
+        if (Boolean.TRUE.equals(hasBankAccount)) {
             return tenant.getAccountName() != null && 
                    tenant.getAccountNumber() != null && 
                    tenant.getSortCode() != null;
@@ -578,47 +627,71 @@ public class PayPropSyncService {
         return true;
     }
     
-    private boolean isBeneficiaryReadyForSync(PropertyOwner owner) {
+    private boolean isValidForPayPropSync(PropertyOwner owner) {
         // Check account type specific requirements
-        if (owner.getAccountType() == AccountType.individual) {
-            if (owner.getFirstName() == null || owner.getFirstName().trim().isEmpty() ||
-                owner.getLastName() == null || owner.getLastName().trim().isEmpty()) {
-                return false;
-            }
-        } else {
-            if (owner.getBusinessName() == null || owner.getBusinessName().trim().isEmpty()) {
-                return false;
+        if (owner.getAccountType() != null) {
+            String accountType = owner.getAccountType().toString().toLowerCase();
+            if ("individual".equals(accountType)) {
+                if (owner.getFirstName() == null || owner.getFirstName().trim().isEmpty() ||
+                    owner.getLastName() == null || owner.getLastName().trim().isEmpty()) {
+                    return false;
+                }
+            } else if ("business".equals(accountType)) {
+                if (owner.getBusinessName() == null || owner.getBusinessName().trim().isEmpty()) {
+                    return false;
+                }
             }
         }
         
         // Validate payment method specific requirements
-        if (owner.getPaymentMethod() == PaymentMethod.international) {
-            // Address is required for international
-            if (owner.getAddressLine1() == null || owner.getCity() == null || 
-                owner.getState() == null || owner.getPostalCode() == null) {
-                return false;
-            }
+        if (owner.getPaymentMethod() != null) {
+            String paymentMethod = owner.getPaymentMethod().toString().toLowerCase();
             
-            // Either IBAN or account number + SWIFT required
-            boolean hasIban = owner.getIban() != null && !owner.getIban().trim().isEmpty();
-            boolean hasAccountAndSwift = owner.getInternationalAccountNumber() != null && 
-                                       owner.getSwiftCode() != null;
-            
-            if (!hasIban && !hasAccountAndSwift) {
-                return false;
+            if ("international".equals(paymentMethod)) {
+                // Address is required for international
+                if (owner.getAddressLine1() == null || owner.getCity() == null || 
+                    owner.getState() == null || owner.getPostalCode() == null) {
+                    return false;
+                }
+                
+                // Either IBAN or account number + SWIFT required
+                boolean hasIban = owner.getIban() != null && !owner.getIban().trim().isEmpty();
+                boolean hasAccountAndSwift = owner.getInternationalAccountNumber() != null && 
+                                           owner.getSwiftCode() != null;
+                
+                if (!hasIban && !hasAccountAndSwift) {
+                    return false;
+                }
+            } else if ("local".equals(paymentMethod)) {
+                return owner.getBankAccountName() != null && 
+                       owner.getBankAccountNumber() != null && 
+                       owner.getBranchCode() != null;
             }
-        }
-        
-        if (owner.getPaymentMethod() == PaymentMethod.local) {
-            return owner.getBankAccountName() != null && 
-                   owner.getBankAccountNumber() != null && 
-                   owner.getBranchCode() != null;
         }
         
         return true;
     }
     
-    // ===== UTILITY METHODS =====
+    // ===== UTILITY METHODS (FIXED FOR YOUR DATABASE) =====
+    
+    /**
+     * Convert Y/N enum to boolean
+     */
+    private Boolean convertYNToBoolean(String ynValue) {
+        if (ynValue == null) return null;
+        return "Y".equalsIgnoreCase(ynValue.trim());
+    }
+    
+    /**
+     * Convert bit(1) to boolean - your database uses bit(1) for has_bank_account
+     */
+    private Boolean convertBitToBoolean(Object bitValue) {
+        if (bitValue == null) return null;
+        if (bitValue instanceof Boolean) return (Boolean) bitValue;
+        if (bitValue instanceof Number) return ((Number) bitValue).intValue() != 0;
+        if (bitValue instanceof String) return "1".equals(bitValue) || "true".equalsIgnoreCase((String) bitValue);
+        return false;
+    }
     
     private String formatMobileForPayProp(String mobile) {
         if (mobile == null || mobile.trim().isEmpty()) {
@@ -645,7 +718,11 @@ public class PayPropSyncService {
             throw new IllegalStateException("No valid OAuth2 tokens. Please authorize PayProp first.");
         }
         
-        List<Property> readyProperties = propertyService.findPropertiesReadyForSync();
+        // FIXED: Use your actual repository method
+        List<Property> readyProperties = propertyService.findAll().stream()
+            .filter(p -> p.getPayPropId() == null) // Not yet synced
+            .toList();
+            
         System.out.println("📋 Found " + readyProperties.size() + " properties ready for sync");
         
         int successCount = 0;
@@ -670,7 +747,11 @@ public class PayPropSyncService {
             throw new IllegalStateException("No valid OAuth2 tokens. Please authorize PayProp first.");
         }
         
-        List<Tenant> readyTenants = tenantService.findTenantsReadyForPayPropSync();
+        // FIXED: Use your actual repository method
+        List<Tenant> readyTenants = tenantService.findAll().stream()
+            .filter(t -> t.getPayPropId() == null) // Not yet synced
+            .toList();
+            
         System.out.println("📋 Found " + readyTenants.size() + " tenants ready for sync");
         
         int successCount = 0;
@@ -695,7 +776,11 @@ public class PayPropSyncService {
             throw new IllegalStateException("No valid OAuth2 tokens. Please authorize PayProp first.");
         }
         
-        List<PropertyOwner> readyOwners = propertyOwnerService.findPropertyOwnersReadyForSync();
+        // FIXED: Use your actual repository method
+        List<PropertyOwner> readyOwners = propertyOwnerService.findAll().stream()
+            .filter(o -> o.getPayPropId() == null) // Not yet synced
+            .toList();
+            
         System.out.println("📋 Found " + readyOwners.size() + " beneficiaries ready for sync");
         
         int successCount = 0;
@@ -718,7 +803,7 @@ public class PayPropSyncService {
     public void checkSyncStatus() {
         System.out.println("=== PayProp OAuth2 Sync Status ===");
         
-        // FIXED: Check tokens only ONCE
+        // Check tokens only ONCE
         boolean hasValidTokens = oAuth2Service.hasValidTokens();
         System.out.println("OAuth2 Status: " + (hasValidTokens ? "✅ Authorized" : "❌ Not Authorized"));
         
@@ -733,22 +818,28 @@ public class PayPropSyncService {
         }
         
         try {
-            // FIXED: Add error handling for missing tables
-            long totalProperties = propertyService.getTotalProperties();
-            List<Property> needsSync = propertyService.findPropertiesNeedingSync();
-            List<Property> synced = propertyService.findPropertiesByPayPropSyncStatus(true);
-            List<Property> readyForSync = propertyService.findPropertiesReadyForSync();
+            // FIXED: Use your actual repository methods
+            long totalProperties = propertyService.findAll().size();
+            List<Property> needsSync = propertyService.findAll().stream()
+                .filter(p -> p.getPayPropId() == null)
+                .toList();
+            List<Property> synced = propertyService.findAll().stream()
+                .filter(p -> p.getPayPropId() != null)
+                .toList();
             
-            long totalTenants = tenantService.getTotalTenants();
-            List<Tenant> tenantsNeedingSync = tenantService.findByPayPropIdIsNull();
-            List<Tenant> tenantsSynced = tenantService.findByPayPropIdIsNotNull();
+            long totalTenants = tenantService.findAll().size();
+            List<Tenant> tenantsNeedingSync = tenantService.findAll().stream()
+                .filter(t -> t.getPayPropId() == null)
+                .toList();
+            List<Tenant> tenantsSynced = tenantService.findAll().stream()
+                .filter(t -> t.getPayPropId() != null)
+                .toList();
             
             System.out.println();
             System.out.println("PROPERTIES:");
             System.out.println("  Total: " + totalProperties);
             System.out.println("  Needs Sync: " + needsSync.size());
             System.out.println("  Already Synced: " + synced.size());
-            System.out.println("  Ready for Sync: " + readyForSync.size());
             System.out.println();
             System.out.println("TENANTS:");
             System.out.println("  Total: " + totalTenants);
@@ -756,9 +847,9 @@ public class PayPropSyncService {
             System.out.println("  Already Synced: " + tenantsSynced.size());
             
         } catch (Exception e) {
-            System.err.println("⚠️ Error checking entity status (database tables may not exist): " + e.getMessage());
-            System.out.println("PROPERTIES: Unable to check (table may not exist)");
-            System.out.println("TENANTS: Unable to check (table may not exist)");
+            System.err.println("⚠️ Error checking entity status: " + e.getMessage());
+            System.out.println("PROPERTIES: Unable to check (error occurred)");
+            System.out.println("TENANTS: Unable to check (error occurred)");
         }
     }
 
