@@ -499,9 +499,16 @@ public class PayPropSyncService {
         dto.setId_number(tenant.getIdNumber());
         dto.setVat_number(tenant.getVatNumber());
         
-        // FIXED: Handle Y/N boolean conversion
-        dto.setNotify_email(convertYNToBoolean(tenant.getNotifyEmail()));
-        dto.setNotify_sms(convertYNToBoolean(tenant.getNotifyText()));
+        // FIXED: Handle Y/N boolean conversion with proper type checking
+        String notifyEmailValue = tenant.getNotifyEmail();
+        if (notifyEmailValue != null) {
+            dto.setNotify_email(convertYNToBoolean(notifyEmailValue));
+        }
+        
+        String notifyTextValue = tenant.getNotifyText();
+        if (notifyTextValue != null) {
+            dto.setNotify_sms(convertYNToBoolean(notifyTextValue));
+        }
         
         // Address
         PayPropAddressDTO address = new PayPropAddressDTO();
@@ -568,9 +575,16 @@ public class PayPropSyncService {
         PayPropCommunicationDTO communication = new PayPropCommunicationDTO();
         PayPropEmailDTO email = new PayPropEmailDTO();
         
-        // FIXED: Handle your Y/N enum fields
-        email.setEnabled(convertYNToBoolean(owner.getEmailEnabled()));
-        email.setPayment_advice(convertYNToBoolean(owner.getPaymentAdviceEnabled()));
+        // FIXED: Handle Y/N enum fields with proper type checking
+        String emailEnabledValue = owner.getEmailEnabled();
+        if (emailEnabledValue != null) {
+            email.setEnabled(convertYNToBoolean(emailEnabledValue));
+        }
+        
+        String paymentAdviceValue = owner.getPaymentAdviceEnabled();
+        if (paymentAdviceValue != null) {
+            email.setPayment_advice(convertYNToBoolean(paymentAdviceValue));
+        }
         
         communication.setEmail(email);
         dto.setCommunication_preferences(communication);
