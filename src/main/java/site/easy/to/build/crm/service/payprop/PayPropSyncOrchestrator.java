@@ -813,43 +813,28 @@ public class PayPropSyncOrchestrator {
         String payPropId = (String) beneficiaryData.get("id");
         String email = (String) beneficiaryData.get("email_address");
         
-        // Check for existing Customer by PayProp entity ID first
-        Customer existingCustomerByPayPropId = null;
-        if (payPropId != null) {
+        // Simplified approach: only check by email to avoid session corruption
+        Customer existingCustomer = null;
+        if (email != null && !email.trim().isEmpty()) {
             try {
-                List<Customer> customersWithPayPropId = customerService.findAll().stream()
-                    .filter(c -> payPropId.equals(c.getPayPropEntityId()))
-                    .toList();
-                
-                if (!customersWithPayPropId.isEmpty()) {
-                    existingCustomerByPayPropId = customersWithPayPropId.get(0);
-                }
+                existingCustomer = customerService.findByEmail(email);
             } catch (Exception e) {
-                syncLogger.logEntityError("BENEFICIARY_PULL", payPropId, 
-                    new RuntimeException("Error checking existing PayProp entity ID: " + e.getMessage()));
+                System.err.println("⚠️ Could not check for existing customer by email: " + e.getMessage());
             }
         }
         
-        // If found existing customer by PayProp ID, update it
-        if (existingCustomerByPayPropId != null) {
-            updateCustomerFromPayPropBeneficiaryData(existingCustomerByPayPropId, beneficiaryData);
-            existingCustomerByPayPropId.setPayPropUpdatedAt(LocalDateTime.now());
-            customerService.save(existingCustomerByPayPropId);
-            return false; // Not new
-        }
-        
-        // Check for existing Customer by email
-        Customer existingCustomerByEmail = null;
-        if (email != null && !email.trim().isEmpty()) {
-            existingCustomerByEmail = customerService.findByEmail(email);
-        }
-        
-        if (existingCustomerByEmail != null && existingCustomerByEmail.getCustomerType() == CustomerType.PROPERTY_OWNER) {
-            // Update existing customer found by email
-            updateCustomerFromPayPropBeneficiaryData(existingCustomerByEmail, beneficiaryData);
-            existingCustomerByEmail.setPayPropUpdatedAt(LocalDateTime.now());
-            customerService.save(existingCustomerByEmail);
-            return false; // Not new
+        // If found existing customer, update it
+        if (existingCustomer != null) {
+            // Update existing customer
+            updateCustomerFromPayPropBeneficiaryData(existingCustomer, beneficiaryData);
+            existingCustomer.setPayPropUpdatedAt(LocalDateTime.now());
+            try {
+                customerService.save(existingCustomer);
+                return false; // Not new
+            } catch (Exception e) {
+                syncLogger.logEntityError("BENEFICIARY_PULL", payPropId, e);
+                return false;
+            }
         }
         
         // Create new customer
@@ -859,8 +844,11 @@ public class PayPropSyncOrchestrator {
             customer.setIsPropertyOwner(true);
             customer.setCountry("United Kingdom");
             customer.setUser(getCurrentUser(initiatedBy));
+            
+            // Set PayProp entity ID BEFORE calling update method
             customer.setPayPropEntityId(payPropId);
             
+            // Update customer data
             updateCustomerFromPayPropBeneficiaryData(customer, beneficiaryData);
             customer.setCreatedAt(LocalDateTime.now());
             
@@ -877,6 +865,23 @@ public class PayPropSyncOrchestrator {
                 return false;
             }
             
+            // Check for duplicate PayProp entity ID before saving
+            if (payPropId != null) {
+                try {
+                    // Quick check to see if this PayProp ID already exists
+                    Customer existingWithSamePayPropId = customerService.findByEmail(customer.getEmail());
+                    if (existingWithSamePayPropId != null && 
+                        payPropId.equals(existingWithSamePayPropId.getPayPropEntityId())) {
+                        // This PayProp ID already exists, skip creating
+                        System.out.println("⚠️ PayProp entity ID " + payPropId + " already exists, skipping creation");
+                        return false;
+                    }
+                } catch (Exception e) {
+                    // Ignore duplicate check errors
+                    System.err.println("⚠️ Could not check for duplicate PayProp ID: " + e.getMessage());
+                }
+            }
+            
             customerService.save(customer);
             return true; // New
             
@@ -885,6 +890,7 @@ public class PayPropSyncOrchestrator {
             return false;
         }
     }
+
 
     // ===== UTILITY METHODS =====
 
