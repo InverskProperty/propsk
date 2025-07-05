@@ -533,6 +533,80 @@ public class PayPropSyncLogger {
     }
 
     /**
+     * Get sync statistics from the database
+     */
+    public SyncStatistics getSyncStatistics(LocalDateTime since) {
+        SyncStatistics stats = new SyncStatistics();
+        stats.setSince(since);
+        stats.setGeneratedAt(LocalDateTime.now());
+        
+        try {
+            // Get basic counts from sync log repository
+            List<PortfolioSyncLog> allLogs = syncLogRepository.findAll();
+            List<PortfolioSyncLog> logsInPeriod = allLogs.stream()
+                .filter(log -> log.getSyncStartedAt() != null && log.getSyncStartedAt().isAfter(since))
+                .toList();
+            
+            stats.setTotalSyncs(logsInPeriod.size());
+            
+            long successfulSyncs = logsInPeriod.stream()
+                .filter(log -> "COMPLETED".equals(log.getStatus()) || "SUCCESS".equals(log.getStatus()))
+                .count();
+            stats.setSuccessfulSyncs((int) successfulSyncs);
+            
+            long failedSyncs = logsInPeriod.stream()
+                .filter(log -> "FAILED".equals(log.getStatus()) || "ERROR".equals(log.getStatus()))
+                .count();
+            stats.setFailedSyncs((int) failedSyncs);
+            
+            // Count conflicts
+            long conflictsDetected = logsInPeriod.stream()
+                .filter(log -> "CONFLICT_DETECTION".equals(log.getSyncType()) || "CONFLICT_RESOLUTION".equals(log.getSyncType()))
+                .count();
+            stats.setConflictsDetected((int) conflictsDetected);
+            
+            long conflictsResolved = logsInPeriod.stream()
+                .filter(log -> "CONFLICT_RESOLUTION".equals(log.getSyncType()) && "COMPLETED".equals(log.getStatus()))
+                .count();
+            stats.setConflictsResolved((int) conflictsResolved);
+            
+            // Calculate average duration
+            double avgDuration = logsInPeriod.stream()
+                .filter(log -> log.getSyncStartedAt() != null && log.getSyncCompletedAt() != null)
+                .mapToLong(log -> java.time.Duration.between(log.getSyncStartedAt(), log.getSyncCompletedAt()).toMillis())
+                .average()
+                .orElse(0.0);
+            stats.setAverageSyncDuration(avgDuration);
+            
+            // Create sync type breakdown
+            Map<String, Integer> breakdown = new HashMap<>();
+            logsInPeriod.stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                    log -> log.getSyncType() != null ? log.getSyncType() : "UNKNOWN",
+                    java.util.stream.Collectors.collectingAndThen(
+                        java.util.stream.Collectors.counting(),
+                        Math::toIntExact
+                    )
+                ))
+                .forEach(breakdown::put);
+            stats.setSyncTypeBreakdown(breakdown);
+            
+        } catch (Exception e) {
+            System.err.println("Error calculating sync statistics: " + e.getMessage());
+            // Return empty stats if calculation fails
+            stats.setTotalSyncs(0);
+            stats.setSuccessfulSyncs(0);
+            stats.setFailedSyncs(0);
+            stats.setConflictsDetected(0);
+            stats.setConflictsResolved(0);
+            stats.setAverageSyncDuration(0.0);
+            stats.setSyncTypeBreakdown(new HashMap<>());
+        }
+        
+        return stats;
+    }
+
+    /**
      * Simple JSON conversion for payload storage
      * Note: Your database uses TEXT fields, not native JSON
      */
@@ -566,5 +640,58 @@ public class PayPropSyncLogger {
         json.append("}");
         
         return json.toString();
+    }
+
+    // ===== SYNC STATISTICS CLASS =====
+    public static class SyncStatistics {
+        private LocalDateTime since;
+        private LocalDateTime generatedAt;
+        private int totalSyncs;
+        private int successfulSyncs;
+        private int failedSyncs;
+        private int conflictsDetected;
+        private int conflictsResolved;
+        private double averageSyncDuration;
+        private Map<String, Integer> syncTypeBreakdown;
+
+        public SyncStatistics() {
+            this.syncTypeBreakdown = new HashMap<>();
+        }
+
+        // Getters and setters
+        public LocalDateTime getSince() { return since; }
+        public void setSince(LocalDateTime since) { this.since = since; }
+        
+        public LocalDateTime getGeneratedAt() { return generatedAt; }
+        public void setGeneratedAt(LocalDateTime generatedAt) { this.generatedAt = generatedAt; }
+        
+        public int getTotalSyncs() { return totalSyncs; }
+        public void setTotalSyncs(int totalSyncs) { this.totalSyncs = totalSyncs; }
+        
+        public int getSuccessfulSyncs() { return successfulSyncs; }
+        public void setSuccessfulSyncs(int successfulSyncs) { this.successfulSyncs = successfulSyncs; }
+        
+        public int getFailedSyncs() { return failedSyncs; }
+        public void setFailedSyncs(int failedSyncs) { this.failedSyncs = failedSyncs; }
+        
+        public int getConflictsDetected() { return conflictsDetected; }
+        public void setConflictsDetected(int conflictsDetected) { this.conflictsDetected = conflictsDetected; }
+        
+        public int getConflictsResolved() { return conflictsResolved; }
+        public void setConflictsResolved(int conflictsResolved) { this.conflictsResolved = conflictsResolved; }
+        
+        public double getAverageSyncDuration() { return averageSyncDuration; }
+        public void setAverageSyncDuration(double averageSyncDuration) { this.averageSyncDuration = averageSyncDuration; }
+        
+        public Map<String, Integer> getSyncTypeBreakdown() { return syncTypeBreakdown; }
+        public void setSyncTypeBreakdown(Map<String, Integer> syncTypeBreakdown) { this.syncTypeBreakdown = syncTypeBreakdown; }
+        
+        public double getSuccessRate() {
+            return totalSyncs > 0 ? (successfulSyncs * 100.0 / totalSyncs) : 0;
+        }
+        
+        public double getConflictResolutionRate() {
+            return conflictsDetected > 0 ? (conflictsResolved * 100.0 / conflictsDetected) : 0;
+        }
     }
 }
