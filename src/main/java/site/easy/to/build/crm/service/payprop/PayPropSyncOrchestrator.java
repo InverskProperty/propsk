@@ -813,17 +813,48 @@ public class PayPropSyncOrchestrator {
         String payPropId = (String) beneficiaryData.get("id");
         String email = (String) beneficiaryData.get("email_address");
         
-        // Look for existing Customer first (preferred approach)
-        Customer existingCustomer = customerService.findByEmail(email);
+        // FIXED: Check for existing Customer by PayProp entity ID FIRST
+        Customer existingCustomerByPayPropId = null;
+        if (payPropId != null) {
+            try {
+                // Check if Customer with this PayProp entity ID already exists
+                List<Customer> customersWithPayPropId = customerService.findAll().stream()
+                    .filter(c -> payPropId.equals(c.getPayPropEntityId()))
+                    .toList();
+                
+                if (!customersWithPayPropId.isEmpty()) {
+                    existingCustomerByPayPropId = customersWithPayPropId.get(0);
+                }
+            } catch (Exception e) {
+                syncLogger.logEntityError("BENEFICIARY_PULL", payPropId, 
+                    new RuntimeException("Error checking existing PayProp entity ID: " + e.getMessage()));
+            }
+        }
         
-        if (existingCustomer != null && existingCustomer.getCustomerType() == CustomerType.PROPERTY_OWNER) {
-            // Update existing customer
-            updateCustomerFromPayPropBeneficiaryData(existingCustomer, beneficiaryData);
-            existingCustomer.setPayPropUpdatedAt(LocalDateTime.now());
-            customerService.save(existingCustomer);
+        // If we found an existing customer by PayProp ID, update it
+        if (existingCustomerByPayPropId != null) {
+            updateCustomerFromPayPropBeneficiaryData(existingCustomerByPayPropId, beneficiaryData);
+            existingCustomerByPayPropId.setPayPropUpdatedAt(LocalDateTime.now());
+            customerService.save(existingCustomerByPayPropId);
             return false; // Not new
-        } else {
-            // Create new customer from PayProp beneficiary
+        }
+        
+        // FIXED: Check for existing Customer by email SECOND (only if no PayProp ID match)
+        Customer existingCustomerByEmail = null;
+        if (email != null && !email.trim().isEmpty()) {
+            existingCustomerByEmail = customerService.findByEmail(email);
+        }
+        
+        if (existingCustomerByEmail != null && existingCustomerByEmail.getCustomerType() == CustomerType.PROPERTY_OWNER) {
+            // Update existing customer found by email
+            updateCustomerFromPayPropBeneficiaryData(existingCustomerByEmail, beneficiaryData);
+            existingCustomerByEmail.setPayPropUpdatedAt(LocalDateTime.now());
+            customerService.save(existingCustomerByEmail);
+            return false; // Not new
+        }
+        
+        // FIXED: No existing customer found - create new one with validation
+        try {
             Customer customer = new Customer();
             customer.setCustomerType(CustomerType.PROPERTY_OWNER);
             customer.setIsPropertyOwner(true);
@@ -832,13 +863,28 @@ public class PayPropSyncOrchestrator {
             customer.setCountry("United Kingdom"); // Required field
             customer.setUser(getCurrentUser(initiatedBy)); // Required User relationship
 
+            // FIXED: Set PayProp entity ID BEFORE calling update method
+            customer.setPayPropEntityId(payPropId);
+            
             updateCustomerFromPayPropBeneficiaryData(customer, beneficiaryData);
             customer.setCreatedAt(LocalDateTime.now());
+            
+            // FIXED: Validate before saving
+            String validationError = customer.getPayPropValidationError();
+            if (validationError != null) {
+                syncLogger.logEntityError("BENEFICIARY_PULL", payPropId, 
+                    new RuntimeException("Validation failed: " + validationError));
+                return false;
+            }
+            
             customerService.save(customer);
             return true; // New
+            
+        } catch (Exception e) {
+            syncLogger.logEntityError("BENEFICIARY_PULL", payPropId, e);
+            return false;
         }
     }
-
     // ===== UTILITY METHODS =====
 
     private void updatePropertyFromPayPropData(Property property, Map<String, Object> data) {
@@ -922,16 +968,21 @@ public class PayPropSyncOrchestrator {
         customer.setPayPropLastSync(LocalDateTime.now());
     }
 
+    // FIXED: Enhanced updateCustomerFromPayPropBeneficiaryData method
     private void updateCustomerFromPayPropBeneficiaryData(Customer customer, Map<String, Object> data) {
         // Update customer fields from PayProp beneficiary data
-        customer.setPayPropEntityId((String) data.get("id"));
+        String payPropId = (String) data.get("id");
+        if (payPropId != null) {
+            customer.setPayPropEntityId(payPropId);
+        }
+        
         customer.setPayPropCustomerId((String) data.get("customer_id"));
         customer.setEmail((String) data.get("email_address"));
         customer.setMobileNumber((String) data.get("mobile"));
         customer.setPhone((String) data.get("phone"));
         customer.setNotes((String) data.get("comment"));
         
-        // FIXED: Set firstName/lastName FIRST, then call setName()
+        // FIXED: Handle name generation more robustly
         String firstName = (String) data.get("first_name");
         String lastName = (String) data.get("last_name");
         String businessName = (String) data.get("business_name");
@@ -941,34 +992,65 @@ public class PayPropSyncOrchestrator {
         customer.setLastName(lastName);
         customer.setBusinessName(businessName);
         
-        // Now call setName() - it will use the firstName/lastName we just set
-        customer.setName(null); // This will trigger the custom setter logic
+        // FIXED: Determine account type based on available data
+        boolean hasIndividualName = firstName != null && !firstName.trim().isEmpty() && 
+                                lastName != null && !lastName.trim().isEmpty();
+        boolean hasBusinessName = businessName != null && !businessName.trim().isEmpty();
         
-        // Set account type based on what we actually have
-        if (firstName != null && !firstName.trim().isEmpty() && 
-            lastName != null && !lastName.trim().isEmpty()) {
-            customer.setAccountType(AccountType.individual);
-        } else if (businessName != null && !businessName.trim().isEmpty()) {
+        if (hasBusinessName) {
             customer.setAccountType(AccountType.business);
+            customer.setName(businessName); // This will use the business name
+        } else if (hasIndividualName) {
+            customer.setAccountType(AccountType.individual);
+            customer.setName(null); // This will trigger the custom setter to use first/last name
         } else {
-            customer.setAccountType(AccountType.individual); // Default
+            // FIXED: Fallback for PayProp data with missing names
+            customer.setAccountType(AccountType.individual);
+            String email = (String) data.get("email_address");
+            if (email != null && !email.trim().isEmpty()) {
+                customer.setName("PayProp Beneficiary - " + email);
+            } else {
+                customer.setName("PayProp Beneficiary - " + payPropId);
+            }
         }
         
         // Update payment method safely
         String paymentMethod = (String) data.get("payment_method");
         if (paymentMethod != null) {
-            customer.setPaymentMethod(PaymentMethod.fromPayPropCode(paymentMethod));
+            try {
+                customer.setPaymentMethod(PaymentMethod.fromPayPropCode(paymentMethod));
+            } catch (Exception e) {
+                // Default to local if payment method is unknown
+                customer.setPaymentMethod(PaymentMethod.local);
+            }
+        } else {
+            // Default payment method for beneficiaries
+            customer.setPaymentMethod(PaymentMethod.local);
         }
         
         // Update address if present
-        Map<String, Object> address = (Map<String, Object>) data.get("address");
+        Map<String, Object> address = (Map<String, Object>) data.get("billing_address");
         if (address != null) {
-            customer.setAddressLine1((String) address.get("address_line_1"));
-            customer.setAddressLine2((String) address.get("address_line_2"));
-            customer.setAddressLine3((String) address.get("address_line_3"));
+            customer.setAddressLine1((String) address.get("first_line"));
+            customer.setAddressLine2((String) address.get("second_line"));
+            customer.setAddressLine3((String) address.get("third_line"));
             customer.setCity((String) address.get("city"));
             customer.setPostcode((String) address.get("postal_code"));
             customer.setCountryCode((String) address.get("country_code"));
+        }
+        
+        // Set other PayProp fields
+        customer.setVatNumber((String) data.get("vat_number"));
+        customer.setIdNumber((String) data.get("id_reg_number"));
+        
+        // Set notification preferences
+        Boolean notifyEmail = (Boolean) data.get("notify_email");
+        if (notifyEmail != null) {
+            customer.setNotifyEmail(notifyEmail);
+        }
+        Boolean notifySms = (Boolean) data.get("notify_sms");
+        if (notifySms != null) {
+            customer.setNotifySms(notifySms);
         }
         
         customer.setPayPropSynced(true);
