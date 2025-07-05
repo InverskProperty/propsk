@@ -499,17 +499,20 @@ public class PayPropSyncService {
         dto.setId_number(tenant.getIdNumber());
         dto.setVat_number(tenant.getVatNumber());
         
-        // FIXED: Handle Y/N boolean conversion with proper type checking
+        // FIXED: PayProp DTO expects Boolean values, not Strings
+        // Convert Y/N strings from database to Boolean for PayProp API
         String notifyEmailValue = tenant.getNotifyEmail();
         if (notifyEmailValue != null) {
-            dto.setNotify_email(convertYNToBoolean(notifyEmailValue));
+            Boolean emailBoolean = convertYNToBoolean(notifyEmailValue);
+            dto.setNotify_email(emailBoolean != null ? emailBoolean : false);
         } else {
             dto.setNotify_email(false); // Default value
         }
         
         String notifyTextValue = tenant.getNotifyText();
         if (notifyTextValue != null) {
-            dto.setNotify_sms(convertYNToBoolean(notifyTextValue));
+            Boolean smsBoolean = convertYNToBoolean(notifyTextValue);
+            dto.setNotify_sms(smsBoolean != null ? smsBoolean : false);
         } else {
             dto.setNotify_sms(false); // Default value
         }
@@ -579,17 +582,20 @@ public class PayPropSyncService {
         PayPropCommunicationDTO communication = new PayPropCommunicationDTO();
         PayPropEmailDTO email = new PayPropEmailDTO();
         
-        // FIXED: Handle Y/N enum fields with proper type checking and defaults
+        // FIXED: PayProp DTO expects Boolean values, not Strings  
+        // Convert Y/N strings from database to Boolean for PayProp API
         String emailEnabledValue = owner.getEmailEnabled();
         if (emailEnabledValue != null) {
-            email.setEnabled(convertYNToBoolean(emailEnabledValue));
+            Boolean emailBoolean = convertYNToBoolean(emailEnabledValue);
+            email.setEnabled(emailBoolean != null ? emailBoolean : true);
         } else {
             email.setEnabled(true); // Default to enabled
         }
         
         String paymentAdviceValue = owner.getPaymentAdviceEnabled();
         if (paymentAdviceValue != null) {
-            email.setPayment_advice(convertYNToBoolean(paymentAdviceValue));
+            Boolean paymentBoolean = convertYNToBoolean(paymentAdviceValue);
+            email.setPayment_advice(paymentBoolean != null ? paymentBoolean : true);
         } else {
             email.setPayment_advice(true); // Default to enabled
         }
