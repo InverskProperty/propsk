@@ -499,15 +499,9 @@ public class PayPropSyncService {
         dto.setId_number(tenant.getIdNumber());
         dto.setVat_number(tenant.getVatNumber());
         
-        // FIXED: The issue is that the DTO setters expect Boolean, but I was converting wrong
-        // Get Y/N string from database, convert to Boolean for PayProp DTO
-        String notifyEmailValue = tenant.getNotifyEmail();
-        Boolean emailBoolean = convertYNToBoolean(notifyEmailValue);
-        dto.setNotify_email(emailBoolean != null ? emailBoolean : Boolean.FALSE);
-        
-        String notifyTextValue = tenant.getNotifyText();
-        Boolean smsBoolean = convertYNToBoolean(notifyTextValue);
-        dto.setNotify_sms(smsBoolean != null ? smsBoolean : Boolean.FALSE);
+        // FIXED: Simple assignment - DTO expects Boolean, convertYNToBoolean returns Boolean
+        dto.setNotify_email(convertYNToBoolean(tenant.getNotifyEmail()));
+        dto.setNotify_sms(convertYNToBoolean(tenant.getNotifyText()));
         
         // Address
         PayPropAddressDTO address = new PayPropAddressDTO();
@@ -574,15 +568,9 @@ public class PayPropSyncService {
         PayPropCommunicationDTO communication = new PayPropCommunicationDTO();
         PayPropEmailDTO email = new PayPropEmailDTO();
         
-        // FIXED: The issue is that the DTO setters expect Boolean, but I was converting wrong
-        // Get Y/N string from database, convert to Boolean for PayProp DTO
-        String emailEnabledValue = owner.getEmailEnabled();
-        Boolean emailBoolean = convertYNToBoolean(emailEnabledValue);
-        email.setEnabled(emailBoolean != null ? emailBoolean : Boolean.TRUE);
-        
-        String paymentAdviceValue = owner.getPaymentAdviceEnabled();
-        Boolean paymentBoolean = convertYNToBoolean(paymentAdviceValue);
-        email.setPayment_advice(paymentBoolean != null ? paymentBoolean : Boolean.TRUE);
+        // FIXED: Simple assignment - DTO expects Boolean, convertYNToBoolean returns Boolean
+        email.setEnabled(convertYNToBoolean(owner.getEmailEnabled()));
+        email.setPayment_advice(convertYNToBoolean(owner.getPaymentAdviceEnabled()));
         
         communication.setEmail(email);
         dto.setCommunication_preferences(communication);
@@ -702,11 +690,12 @@ public class PayPropSyncService {
     // ===== UTILITY METHODS (FIXED FOR YOUR DATABASE) =====
     
     /**
-     * Convert Y/N enum to boolean
+     * Convert Y/N enum to boolean - FIXED to ensure Boolean return type
      */
     private Boolean convertYNToBoolean(String ynValue) {
         if (ynValue == null) return null;
-        return "Y".equalsIgnoreCase(ynValue.trim());
+        String trimmed = ynValue.trim().toUpperCase();
+        return "Y".equals(trimmed) || "YES".equals(trimmed) || "TRUE".equals(trimmed);
     }
     
     /**
