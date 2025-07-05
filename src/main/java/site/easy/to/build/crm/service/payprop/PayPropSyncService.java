@@ -14,6 +14,7 @@ import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 
 import java.math.BigDecimal;
+import java.net.http.HttpHeaders;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -569,8 +570,8 @@ public class PayPropSyncService {
         PayPropEmailDTO email = new PayPropEmailDTO();
         
         // FIXED: Simple assignment - DTO expects Boolean, convertYNToBoolean returns Boolean
-        email.setEnabled(convertYNToBoolean(owner.getEmailEnabled()));
-        email.setPayment_advice(convertYNToBoolean(owner.getPaymentAdviceEnabled()));
+        email.setEnabled(owner.getEmailEnabled());
+        email.setPayment_advice(owner.getPaymentAdviceEnabled());
         
         communication.setEmail(email);
         dto.setCommunication_preferences(communication);

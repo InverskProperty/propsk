@@ -1316,7 +1316,7 @@ public class PayPropSyncOrchestrator {
         // FIXED: Handle Y/N enum conversion properly
         Boolean notifyEmail = (Boolean) data.get("notify_email");
         if (notifyEmail != null) {
-            owner.setEmailEnabled(notifyEmail ? "Y" : "N");
+            owner.setEmailEnabled(notifyEmail);
         }
         
         // FIXED: Handle notify_sms field with proper type handling
