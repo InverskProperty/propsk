@@ -443,15 +443,23 @@ public class PayPropSyncService {
         // Convert settings to nested structure
         PayPropSettingsDTO settings = new PayPropSettingsDTO();
         
-        // FIXED: Handle your actual boolean field conversion
-        Boolean enablePayments = convertYNToBoolean(property.getEnablePayments());
-        if (enablePayments != null) {
-            settings.setEnable_payments(enablePayments);
+        // FIXED: Handle your actual boolean field conversion safely
+        try {
+            Boolean enablePayments = convertYNToBoolean(property.getEnablePayments());
+            if (enablePayments != null) {
+                settings.setEnable_payments(enablePayments);
+            }
+        } catch (Exception e) {
+            System.err.println("Could not convert enable_payments: " + e.getMessage());
         }
         
-        Boolean holdOwnerFunds = convertYNToBoolean(property.getHoldOwnerFunds());
-        if (holdOwnerFunds != null) {
-            settings.setHold_owner_funds(holdOwnerFunds);
+        try {
+            Boolean holdOwnerFunds = convertYNToBoolean(property.getHoldOwnerFunds());
+            if (holdOwnerFunds != null) {
+                settings.setHold_owner_funds(holdOwnerFunds);
+            }
+        } catch (Exception e) {
+            System.err.println("Could not convert hold_owner_funds: " + e.getMessage());
         }
         settings.setMonthly_payment(property.getMonthlyPayment());
         settings.setMinimum_balance(property.getPropertyAccountMinimumBalance());

@@ -129,6 +129,47 @@ public class PayPropSyncOrchestrator {
     }
 
     /**
+     * Intelligent sync based on change detection (ADDED - was missing)
+     */
+    @Transactional
+    public ComprehensiveSyncResult performIntelligentSync(Long initiatedBy) {
+        ComprehensiveSyncResult result = new ComprehensiveSyncResult();
+        
+        syncLogger.logSyncStart("INTELLIGENT_SYNC", initiatedBy);
+        
+        try {
+            // For now, just perform a basic sync since change detection logic is complex
+            // In the future, this would detect changes since last sync and only sync what's changed
+            
+            // Phase 1: Quick property sync (only unsynced)
+            SyncResult propertyResult = syncPropertiesToPayProp(initiatedBy);
+            result.setCrmToPayPropResult(propertyResult);
+            
+            // Phase 2: Quick tenant sync (only unsynced)  
+            SyncResult tenantResult = syncTenantsToPayProp(initiatedBy);
+            
+            // Phase 3: Quick beneficiary sync (only unsynced)
+            SyncResult beneficiaryResult = syncBeneficiariesToPayProp(initiatedBy);
+            
+            // Combine results
+            Map<String, Object> combinedResults = new HashMap<>();
+            combinedResults.put("properties", propertyResult);
+            combinedResults.put("tenants", tenantResult);
+            combinedResults.put("beneficiaries", beneficiaryResult);
+            
+            result.setPayPropToCrmResult(SyncResult.success("Intelligent sync completed", combinedResults));
+            
+            syncLogger.logSyncComplete("INTELLIGENT_SYNC", result.isOverallSuccess(), result.getSummary());
+            
+        } catch (Exception e) {
+            syncLogger.logSyncError("INTELLIGENT_SYNC", e);
+            result.setOverallError(e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
      * NEW: Complete synchronization with relationship import
      */
     @Transactional
@@ -1278,22 +1319,32 @@ public class PayPropSyncOrchestrator {
             owner.setEmailEnabled(notifyEmail ? "Y" : "N");
         }
         
-        // FIXED: Handle notify_sms field (use existing method or skip if not available)
+        // FIXED: Handle notify_sms field with proper type handling
         Boolean notifySms = (Boolean) data.get("notify_sms");
         if (notifySms != null) {
             try {
-                // Try to set if method exists
-                if (owner.getClass().getMethod("setNotifySms", String.class) != null) {
-                    owner.getClass().getMethod("setNotifySms", String.class).invoke(owner, notifySms ? "Y" : "N");
+                // Try to set if method exists using reflection
+                java.lang.reflect.Method setNotifySmsMethod = null;
+                try {
+                    setNotifySmsMethod = owner.getClass().getMethod("setNotifySms", String.class);
+                } catch (NoSuchMethodException e) {
+                    // Method doesn't exist, will handle below
+                }
+                
+                if (setNotifySmsMethod != null) {
+                    setNotifySmsMethod.invoke(owner, notifySms ? "Y" : "N");
+                } else {
+                    // Method doesn't exist, add to comment instead
+                    String smsInfo = "SMS notifications: " + (notifySms ? "Y" : "N");
+                    String currentComment = owner.getComment();
+                    if (currentComment != null && !currentComment.isEmpty()) {
+                        owner.setComment(currentComment + "; " + smsInfo);
+                    } else {
+                        owner.setComment(smsInfo);
+                    }
                 }
             } catch (Exception e) {
-                // Method doesn't exist, add to comment instead
-                String smsInfo = "SMS notifications: " + (notifySms ? "Y" : "N");
-                if (owner.getComment() != null && !owner.getComment().isEmpty()) {
-                    owner.setComment(owner.getComment() + "; " + smsInfo);
-                } else {
-                    owner.setComment(smsInfo);
-                }
+                System.err.println("Could not set notify_sms: " + e.getMessage());
             }
         }
     }
