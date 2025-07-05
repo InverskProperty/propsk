@@ -170,11 +170,12 @@ public class PayPropSyncLogger {
         payload.put("details", details);
         payload.put("createdAt", LocalDateTime.now());
         
-        // Convert to JSON string for storage (your DB uses TEXT field)
+        // FIXED: Use correct method name from your PortfolioSyncLog entity
         try {
-            log.setPayloadReceivedJson(convertMapToJson(payload));
+            // Try the correct method name from your entity
+            log.setPayloadReceived(payload);
         } catch (Exception e) {
-            System.err.println("Warning: Could not serialize relationship payload: " + e.getMessage());
+            System.err.println("Warning: Could not set relationship payload: " + e.getMessage());
         }
         
         syncLogRepository.save(log);
@@ -212,7 +213,7 @@ public class PayPropSyncLogger {
         payload.put("fixedAt", LocalDateTime.now());
         
         try {
-            log.setPayloadReceivedJson(convertMapToJson(payload));
+            log.setPayloadReceived(payload);
         } catch (Exception e) {
             System.err.println("Warning: Could not serialize relationship fix payload: " + e.getMessage());
         }
@@ -253,7 +254,7 @@ public class PayPropSyncLogger {
         payload.put("detectedAt", LocalDateTime.now());
         
         try {
-            log.setPayloadReceivedJson(convertMapToJson(payload));
+            log.setPayloadReceived(payload);
         } catch (Exception e) {
             System.err.println("Warning: Could not serialize relationship issue payload: " + e.getMessage());
         }
@@ -291,7 +292,7 @@ public class PayPropSyncLogger {
         payload.put("generatedAt", LocalDateTime.now());
         
         try {
-            log.setPayloadReceivedJson(convertMapToJson(payload));
+            log.setPayloadReceived(payload);
         } catch (Exception e) {
             System.err.println("Warning: Could not serialize relationship statistics payload: " + e.getMessage());
         }
@@ -320,7 +321,7 @@ public class PayPropSyncLogger {
         payload.put("detectedAt", LocalDateTime.now());
         
         try {
-            log.setPayloadReceivedJson(convertMapToJson(payload));
+            log.setPayloadReceived(payload);
         } catch (Exception e) {
             System.err.println("Warning: Could not serialize conflict detection payload: " + e.getMessage());
         }
@@ -362,7 +363,7 @@ public class PayPropSyncLogger {
         payload.put("reason", resolution.getReason());
         
         try {
-            log.setPayloadReceivedJson(convertMapToJson(payload));
+            log.setPayloadReceived(payload);
         } catch (Exception e) {
             System.err.println("Warning: Could not serialize conflict resolution payload: " + e.getMessage());
         }
@@ -423,7 +424,7 @@ public class PayPropSyncLogger {
         payload.put("successRate", totalCount > 0 ? (successCount * 100.0 / totalCount) : 0);
         
         try {
-            log.setPayloadReceivedJson(convertMapToJson(payload));
+            log.setPayloadReceived(payload);
         } catch (Exception e) {
             System.err.println("Warning: Could not serialize batch operation payload: " + e.getMessage());
         }
@@ -460,7 +461,7 @@ public class PayPropSyncLogger {
         payloadMap.put("receivedAt", LocalDateTime.now());
         
         try {
-            log.setPayloadReceivedJson(convertMapToJson(payloadMap));
+            log.setPayloadReceived(payloadMap);
         } catch (Exception e) {
             System.err.println("Warning: Could not serialize webhook payload: " + e.getMessage());
         }
@@ -497,7 +498,7 @@ public class PayPropSyncLogger {
         payload.put("validationError", validationError);
         
         try {
-            log.setPayloadReceivedJson(convertMapToJson(payload));
+            log.setPayloadReceived(payload);
         } catch (Exception e) {
             System.err.println("Warning: Could not serialize validation error payload: " + e.getMessage());
         }

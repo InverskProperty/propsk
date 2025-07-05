@@ -444,8 +444,15 @@ public class PayPropSyncService {
         PayPropSettingsDTO settings = new PayPropSettingsDTO();
         
         // FIXED: Handle your actual boolean field conversion
-        settings.setEnable_payments(convertYNToBoolean(property.getEnablePayments()));
-        settings.setHold_owner_funds(convertYNToBoolean(property.getHoldOwnerFunds()));
+        Boolean enablePayments = convertYNToBoolean(property.getEnablePayments());
+        if (enablePayments != null) {
+            settings.setEnable_payments(enablePayments);
+        }
+        
+        Boolean holdOwnerFunds = convertYNToBoolean(property.getHoldOwnerFunds());
+        if (holdOwnerFunds != null) {
+            settings.setHold_owner_funds(holdOwnerFunds);
+        }
         settings.setMonthly_payment(property.getMonthlyPayment());
         settings.setMinimum_balance(property.getPropertyAccountMinimumBalance());
         settings.setListing_from(property.getListedFrom());

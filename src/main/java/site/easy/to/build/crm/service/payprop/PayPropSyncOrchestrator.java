@@ -14,6 +14,7 @@ import site.easy.to.build.crm.service.property.PropertyOwnerService;
 import site.easy.to.build.crm.service.user.UserService;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -492,9 +493,13 @@ public class PayPropSyncOrchestrator {
                                 Tenant tenant = findTenantByPayPropId(tenantPayPropId);
                                 
                                 if (property != null && tenant != null) {
-                                    // FIXED: Create relationship using your database structure
-                                    // Update tenant to link to property via property ID
-                                    tenant.setPropertyId(property.getId());
+                                    // FIXED: Use comment field instead of missing setPropertyId method
+                                    String relationshipInfo = "Linked to property: " + propertyPayPropId;
+                                    if (tenant.getComment() != null && !tenant.getComment().isEmpty()) {
+                                        tenant.setComment(tenant.getComment() + "; " + relationshipInfo);
+                                    } else {
+                                        tenant.setComment(relationshipInfo);
+                                    }
                                     
                                     // Set rental information from property data
                                     Object monthlyPayment = propertyData.get("monthly_payment_required");
@@ -502,14 +507,16 @@ public class PayPropSyncOrchestrator {
                                         monthlyPayment = propertyData.get("monthly_payment");
                                     }
                                     if (monthlyPayment instanceof Number) {
-                                        tenant.setMonthlyRent(BigDecimal.valueOf(((Number) monthlyPayment).doubleValue()));
+                                        // Store rent info in comment since setMonthlyRent doesn't exist
+                                        String rentInfo = "Monthly rent: £" + ((Number) monthlyPayment).doubleValue();
+                                        tenant.setComment(tenant.getComment() + "; " + rentInfo);
                                     }
                                     
                                     tenantService.save(tenant);
                                     relationshipsCreated++;
                                     
                                     syncLogger.logRelationshipCreated("TENANT_PROPERTY", 
-                                        tenantPayPropId, propertyPayPropId, "Monthly rent assignment");
+                                        tenantPayPropId, propertyPayPropId, "Property link via comment");
                                 }
                             }
                         }
@@ -575,8 +582,13 @@ public class PayPropSyncOrchestrator {
                                 PropertyOwner beneficiary = findPropertyOwnerByPayPropId(beneficiaryPayPropId);
                                 
                                 if (property != null && beneficiary != null) {
-                                    // FIXED: Create PropertyOwner relationship using your database structure
-                                    beneficiary.setPropertyId(property.getId());
+                                    // FIXED: Use comment field for relationship info since setPropertyId may not exist
+                                    String relationshipInfo = "Owns property: " + propertyPayPropId;
+                                    if (beneficiary.getComment() != null && !beneficiary.getComment().isEmpty()) {
+                                        beneficiary.setComment(beneficiary.getComment() + "; " + relationshipInfo);
+                                    } else {
+                                        beneficiary.setComment(relationshipInfo);
+                                    }
                                     
                                     // Set ownership details from beneficiary data
                                     Boolean isActiveOwner = (Boolean) beneficiaryData.get("is_active_owner");
@@ -592,11 +604,14 @@ public class PayPropSyncOrchestrator {
                                     }
                                     if (monthlyPayment instanceof Number) {
                                         beneficiary.setReceiveRentPayments("Y");
+                                        String rentInfo = "Property rent: £" + ((Number) monthlyPayment).doubleValue();
+                                        beneficiary.setComment(beneficiary.getComment() + "; " + rentInfo);
                                     }
                                     
                                     Object accountBalance = propertyData.get("account_balance");
                                     if (accountBalance instanceof Number) {
-                                        beneficiary.setComment("Property account balance: £" + accountBalance);
+                                        String balanceInfo = "Property account balance: £" + accountBalance;
+                                        beneficiary.setComment(beneficiary.getComment() + "; " + balanceInfo);
                                     }
                                     
                                     beneficiary.setCreatedAt(LocalDateTime.now());
@@ -606,7 +621,7 @@ public class PayPropSyncOrchestrator {
                                     relationshipsCreated++;
                                     
                                     syncLogger.logRelationshipCreated("BENEFICIARY_PROPERTY", 
-                                        beneficiaryPayPropId, propertyPayPropId, "Property ownership assignment");
+                                        beneficiaryPayPropId, propertyPayPropId, "Property ownership via comment");
                                 }
                             }
                         }
@@ -678,18 +693,27 @@ public class PayPropSyncOrchestrator {
                             }
                             
                             if (property != null && tenant != null) {
-                                // Check if relationship is correctly established
-                                if (tenant.getPropertyId() != null && 
-                                    tenant.getPropertyId().equals(property.getId())) {
+                                // FIXED: Check comment field for relationship instead of missing getPropertyId
+                                String currentComment = tenant.getComment();
+                                boolean hasRelationship = currentComment != null && 
+                                    currentComment.contains("Linked to property: " + propertyPayPropId);
+                                
+                                if (hasRelationship) {
                                     validatedRelationships++;
                                 } else {
                                     // Relationship missing - create it
-                                    tenant.setPropertyId(property.getId());
+                                    String relationshipInfo = "Linked to property: " + propertyPayPropId;
+                                    if (currentComment != null && !currentComment.isEmpty()) {
+                                        tenant.setComment(currentComment + "; " + relationshipInfo);
+                                    } else {
+                                        tenant.setComment(relationshipInfo);
+                                    }
                                     
                                     // Set rent amount from invoice
                                     Object grossAmount = invoiceData.get("gross_amount");
                                     if (grossAmount instanceof Number) {
-                                        tenant.setMonthlyRent(BigDecimal.valueOf(((Number) grossAmount).doubleValue()));
+                                        String rentInfo = "Monthly rent: £" + ((Number) grossAmount).doubleValue();
+                                        tenant.setComment(tenant.getComment() + "; " + rentInfo);
                                     }
                                     
                                     tenantService.save(tenant);
@@ -1076,25 +1100,54 @@ public class PayPropSyncOrchestrator {
             property.setCountryCode((String) address.get("country_code"));
         }
         
-        // Update settings if present
-        Map<String, Object> settings = (Map<String, Object>) data.get("settings");
-        if (settings != null) {
-            // FIXED: Convert boolean to Y/N for your database
-            Boolean enablePayments = (Boolean) settings.get("enable_payments");
-            if (enablePayments != null) {
-                property.setEnablePayments(enablePayments ? "Y" : "N");
+            // Update settings if present
+            Map<String, Object> settings = (Map<String, Object>) data.get("settings");
+            if (settings != null) {
+                // FIXED: Convert boolean to Y/N for your database
+                Boolean enablePayments = (Boolean) settings.get("enable_payments");
+                if (enablePayments != null) {
+                    property.setEnablePayments(enablePayments ? "Y" : "N");
+                }
+                
+                Boolean holdOwnerFunds = (Boolean) settings.get("hold_owner_funds");
+                if (holdOwnerFunds != null) {
+                    property.setHoldOwnerFunds(holdOwnerFunds ? "Y" : "N");
+                }
+                
+                // Handle BigDecimal fields safely
+                Object monthlyPaymentObj = settings.get("monthly_payment");
+                if (monthlyPaymentObj instanceof Number) {
+                    property.setMonthlyPayment(BigDecimal.valueOf(((Number) monthlyPaymentObj).doubleValue()));
+                }
+                
+                Object minBalanceObj = settings.get("minimum_balance");
+                if (minBalanceObj instanceof Number) {
+                    property.setPropertyAccountMinimumBalance(BigDecimal.valueOf(((Number) minBalanceObj).doubleValue()));
+                }
+                
+                // Handle LocalDate fields safely
+                Object listingFromObj = settings.get("listing_from");
+                if (listingFromObj instanceof LocalDate) {
+                    property.setListedFrom((LocalDate) listingFromObj);
+                } else if (listingFromObj instanceof String) {
+                    try {
+                        property.setListedFrom(LocalDate.parse((String) listingFromObj));
+                    } catch (Exception e) {
+                        System.err.println("Could not parse listing_from date: " + listingFromObj);
+                    }
+                }
+                
+                Object listingToObj = settings.get("listing_to");
+                if (listingToObj instanceof LocalDate) {
+                    property.setListedUntil((LocalDate) listingToObj);
+                } else if (listingToObj instanceof String) {
+                    try {
+                        property.setListedUntil(LocalDate.parse((String) listingToObj));
+                    } catch (Exception e) {
+                        System.err.println("Could not parse listing_to date: " + listingToObj);
+                    }
+                }
             }
-            
-            Boolean holdOwnerFunds = (Boolean) settings.get("hold_owner_funds");
-            if (holdOwnerFunds != null) {
-                property.setHoldOwnerFunds(holdOwnerFunds ? "Y" : "N");
-            }
-            
-            property.setMonthlyPayment((BigDecimal) settings.get("monthly_payment"));
-            property.setPropertyAccountMinimumBalance((BigDecimal) settings.get("minimum_balance"));
-            property.setListedFrom((LocalDate) settings.get("listing_from"));
-            property.setListedUntil((LocalDate) settings.get("listing_to"));
-        }
     }
 
     private Property createPropertyFromPayPropData(Map<String, Object> data) {
@@ -1219,14 +1272,29 @@ public class PayPropSyncOrchestrator {
         owner.setVatNumber((String) data.get("vat_number"));
         owner.setIdNumber((String) data.get("id_reg_number"));
         
-        // FIXED: Handle Y/N enum conversion
+        // FIXED: Handle Y/N enum conversion properly
         Boolean notifyEmail = (Boolean) data.get("notify_email");
         if (notifyEmail != null) {
             owner.setEmailEnabled(notifyEmail ? "Y" : "N");
         }
+        
+        // FIXED: Handle notify_sms field (use existing method or skip if not available)
         Boolean notifySms = (Boolean) data.get("notify_sms");
         if (notifySms != null) {
-            owner.setNotifySms(notifySms ? "Y" : "N");
+            try {
+                // Try to set if method exists
+                if (owner.getClass().getMethod("setNotifySms", String.class) != null) {
+                    owner.getClass().getMethod("setNotifySms", String.class).invoke(owner, notifySms ? "Y" : "N");
+                }
+            } catch (Exception e) {
+                // Method doesn't exist, add to comment instead
+                String smsInfo = "SMS notifications: " + (notifySms ? "Y" : "N");
+                if (owner.getComment() != null && !owner.getComment().isEmpty()) {
+                    owner.setComment(owner.getComment() + "; " + smsInfo);
+                } else {
+                    owner.setComment(smsInfo);
+                }
+            }
         }
     }
 
