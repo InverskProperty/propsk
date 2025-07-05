@@ -813,9 +813,20 @@ public class PayPropSyncOrchestrator {
         String payPropId = (String) beneficiaryData.get("id");
         String email = (String) beneficiaryData.get("email_address");
         
-        // Simplified approach: only check by email to avoid session corruption
+        // Check for existing Customer by PayProp entity ID OR email
         Customer existingCustomer = null;
-        if (email != null && !email.trim().isEmpty()) {
+        
+        // First check by PayProp entity ID (most reliable)
+        if (payPropId != null) {
+            try {
+                existingCustomer = customerService.findByPayPropEntityId(payPropId);
+            } catch (Exception e) {
+                System.err.println("⚠️ Could not check for existing PayProp entity ID: " + e.getMessage());
+            }
+        }
+        
+        // If not found by PayProp ID, check by email
+        if (existingCustomer == null && email != null && !email.trim().isEmpty()) {
             try {
                 existingCustomer = customerService.findByEmail(email);
             } catch (Exception e) {
@@ -865,20 +876,19 @@ public class PayPropSyncOrchestrator {
                 return false;
             }
             
-            // Check for duplicate PayProp entity ID before saving
+            // Check for duplicate PayProp entity ID before saving (double-check)
             if (payPropId != null) {
                 try {
-                    // Quick check to see if this PayProp ID already exists
-                    Customer existingWithSamePayPropId = customerService.findByEmail(customer.getEmail());
-                    if (existingWithSamePayPropId != null && 
-                        payPropId.equals(existingWithSamePayPropId.getPayPropEntityId())) {
-                        // This PayProp ID already exists, skip creating
-                        System.out.println("⚠️ PayProp entity ID " + payPropId + " already exists, skipping creation");
+                    // Final check to prevent constraint violation
+                    Customer duplicateCheck = customerService.findByPayPropEntityId(payPropId);
+                    if (duplicateCheck != null) {
+                        System.out.println("⚠️ PayProp entity ID " + payPropId + " already exists in database, skipping creation");
                         return false;
                     }
                 } catch (Exception e) {
-                    // Ignore duplicate check errors
-                    System.err.println("⚠️ Could not check for duplicate PayProp ID: " + e.getMessage());
+                    // If check fails, skip creation to be safe
+                    System.err.println("⚠️ Could not verify PayProp ID uniqueness, skipping creation: " + e.getMessage());
+                    return false;
                 }
             }
             
@@ -890,7 +900,6 @@ public class PayPropSyncOrchestrator {
             return false;
         }
     }
-
 
     // ===== UTILITY METHODS =====
 
