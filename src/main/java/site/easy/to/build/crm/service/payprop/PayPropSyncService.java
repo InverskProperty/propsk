@@ -503,11 +503,15 @@ public class PayPropSyncService {
         String notifyEmailValue = tenant.getNotifyEmail();
         if (notifyEmailValue != null) {
             dto.setNotify_email(convertYNToBoolean(notifyEmailValue));
+        } else {
+            dto.setNotify_email(false); // Default value
         }
         
         String notifyTextValue = tenant.getNotifyText();
         if (notifyTextValue != null) {
             dto.setNotify_sms(convertYNToBoolean(notifyTextValue));
+        } else {
+            dto.setNotify_sms(false); // Default value
         }
         
         // Address
@@ -575,15 +579,19 @@ public class PayPropSyncService {
         PayPropCommunicationDTO communication = new PayPropCommunicationDTO();
         PayPropEmailDTO email = new PayPropEmailDTO();
         
-        // FIXED: Handle Y/N enum fields with proper type checking
+        // FIXED: Handle Y/N enum fields with proper type checking and defaults
         String emailEnabledValue = owner.getEmailEnabled();
         if (emailEnabledValue != null) {
             email.setEnabled(convertYNToBoolean(emailEnabledValue));
+        } else {
+            email.setEnabled(true); // Default to enabled
         }
         
         String paymentAdviceValue = owner.getPaymentAdviceEnabled();
         if (paymentAdviceValue != null) {
             email.setPayment_advice(convertYNToBoolean(paymentAdviceValue));
+        } else {
+            email.setPayment_advice(true); // Default to enabled
         }
         
         communication.setEmail(email);
