@@ -43,6 +43,8 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
                                                  @Param("propertyId") Long propertyId);
 
     // ===== PAYPROP INTEGRATION METHODS =====
+    Customer findByPayPropEntityId(String payPropEntityId);
+    
     @Query("SELECT c FROM Customer c WHERE c.payPropSynced = false AND c.customerType IN :customerTypes")
     List<Customer> findByPayPropSyncedFalseAndCustomerTypeIn(@Param("customerTypes") List<CustomerType> customerTypes);
 

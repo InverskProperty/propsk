@@ -31,6 +31,11 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    public Customer findByPayPropEntityId(String payPropEntityId) {
+        return customerRepository.findByPayPropEntityId(payPropEntityId);
+    }
+
+    @Override
     public Customer findByEmail(String email) {
         return customerRepository.findByEmail(email);
     }

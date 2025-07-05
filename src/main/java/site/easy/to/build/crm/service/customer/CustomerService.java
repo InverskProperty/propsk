@@ -75,6 +75,8 @@ public interface CustomerService {
     List<Customer> findTenantsByProperty(Long propertyId);
     
     Customer findActiveTenantForProperty(Long propertyId);
+
+    Customer findByPayPropEntityId(String payPropEntityId);
     
     void assignTenantToProperty(Long customerId, Long propertyId, BigDecimal monthlyRent, LocalDate startDate);
     
