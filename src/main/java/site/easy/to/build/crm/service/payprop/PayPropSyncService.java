@@ -19,7 +19,8 @@ import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 
 import java.math.BigDecimal;
-import java.net.http.HttpHeaders;
+// FIXED: Removed incorrect import
+// import java.net.http.HttpHeaders; // ❌ This was wrong
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -566,7 +567,7 @@ public class PayPropSyncService {
         PayPropCommunicationDTO communication = new PayPropCommunicationDTO();
         PayPropEmailDTO email = new PayPropEmailDTO();
         
-        // FIXED: Simple assignment - DTO expects Boolean, convertYNToBoolean returns Boolean
+        // FIXED: Simple assignment - DTO expects Boolean, owner methods return Boolean
         email.setEnabled(owner.getEmailEnabled());
         email.setPayment_advice(owner.getPaymentAdviceEnabled());
         
@@ -771,12 +772,46 @@ public class PayPropSyncService {
     // ===== UTILITY METHODS (FIXED FOR YOUR DATABASE) =====
     
     /**
-     * Convert Y/N enum to boolean - FIXED to ensure Boolean return type
+     * Convert Y/N/1/0 values to boolean - OPTIMIZED for your specific data patterns
+     * Based on analysis: Properties have "Y" (88.85%) and "1" (11.15%) values
      */
-    private Boolean convertYNToBoolean(String ynValue) {
-        if (ynValue == null) return null;
-        String trimmed = ynValue.trim().toUpperCase();
-        return "Y".equals(trimmed) || "YES".equals(trimmed) || "TRUE".equals(trimmed);
+    private Boolean convertYNToBoolean(Object value) {
+        if (value == null) return null;
+        
+        // If already Boolean, return as-is
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        
+        // If String, handle your actual data patterns: "Y", "N", "1", "0"
+        if (value instanceof String) {
+            String trimmed = ((String) value).trim().toUpperCase();
+            return "Y".equals(trimmed) || "YES".equals(trimmed) || "TRUE".equals(trimmed) || "1".equals(trimmed);
+        }
+        
+        // If Number, treat 0 as false, anything else as true
+        if (value instanceof Number) {
+            return ((Number) value).intValue() != 0;
+        }
+        
+        // Default: try string conversion for edge cases
+        String stringValue = value.toString().trim().toUpperCase();
+        return "Y".equals(stringValue) || "YES".equals(stringValue) || "TRUE".equals(stringValue) || "1".equals(stringValue);
+    }
+    
+    /**
+     * Convert ENUM values to boolean - for customer notify_email/notify_sms fields
+     * Based on analysis: All customer notify_email = "Y", notify_sms = "N"
+     */
+    private Boolean convertEnumToBoolean(Object value) {
+        if (value == null) return null;
+        
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        
+        String stringValue = value.toString().trim().toUpperCase();
+        return "Y".equals(stringValue) || "YES".equals(stringValue) || "TRUE".equals(stringValue);
     }
     
     /**
@@ -808,19 +843,45 @@ public class PayPropSyncService {
         return mobile;
     }
     
+    // ===== UNIFIED CUSTOMER SYNC METHODS =====
+    // Based on analysis: Your system uses a unified 'customer' table for all entities
+    
+    /**
+     * Sync customer as tenant to PayProp
+     * Based on analysis: 31 tenants, all notify_email="Y", notify_text="N", has_bank_account=NULL
+     */
+    public String syncCustomerAsTenantToPayProp(Long customerId) {
+        // Note: This method should work with your Customer entity that has is_tenant=1
+        throw new UnsupportedOperationException("Customer-based tenant sync not yet implemented. " +
+            "Your database uses unified customer table - this needs Customer entity integration.");
+    }
+    
+    /**
+     * Sync customer as property owner to PayProp
+     * Based on analysis: 2 customers with is_property_owner=1, property_owners table is empty
+     */
+    public String syncCustomerAsPropertyOwnerToPayProp(Long customerId) {
+        // Note: This method should work with your Customer entity that has is_property_owner=1
+        throw new UnsupportedOperationException("Customer-based property owner sync not yet implemented. " +
+            "Your database uses unified customer table - this needs Customer entity integration.");
+    }
     // ===== BULK SYNC METHODS WITH DUPLICATE KEY HANDLING AND SEPARATE TRANSACTIONS =====
     
+    /**
+     * UPDATED: Sync based on your actual data
+     * 296 total properties, 295 already have PayProp IDs, 1 remaining
+     */
     public void syncAllReadyProperties() {
         if (!oAuth2Service.hasValidTokens()) {
             throw new IllegalStateException("No valid OAuth2 tokens. Please authorize PayProp first.");
         }
         
-        // FIXED: Use your actual repository method
+        // UPDATED: Based on analysis - use 'properties' table
         List<Property> readyProperties = propertyService.findAll().stream()
-            .filter(p -> p.getPayPropId() == null) // Not yet synced
+            .filter(p -> p.getPayPropId() == null) // Not yet synced (analysis shows 1 remaining)
             .toList();
             
-        System.out.println("📋 Found " + readyProperties.size() + " properties ready for sync");
+        System.out.println("📋 Found " + readyProperties.size() + " properties ready for sync (Analysis: 1 expected)");
         
         int successCount = 0;
         int errorCount = 0;
@@ -853,40 +914,27 @@ public class PayPropSyncService {
         return syncPropertyToPayProp(propertyId);
     }
     
+    /**
+     * UPDATED: Sync based on your actual data
+     * 31 total tenants, 0 have PayProp IDs, all pending sync
+     */
     public void syncAllReadyTenants() {
         if (!oAuth2Service.hasValidTokens()) {
             throw new IllegalStateException("No valid OAuth2 tokens. Please authorize PayProp first.");
         }
         
-        // FIXED: Use your actual repository method
+        // UPDATED: Based on analysis - use 'tenants' table
         List<Tenant> readyTenants = tenantService.findAll().stream()
-            .filter(t -> t.getPayPropId() == null) // Not yet synced
+            .filter(t -> t.getPayPropId() == null) // Not yet synced (analysis shows 31 need sync)
             .toList();
             
-        System.out.println("📋 Found " + readyTenants.size() + " tenants ready for sync");
+        System.out.println("📋 Found " + readyTenants.size() + " tenants ready for sync (Analysis: 31 expected)");
+        System.out.println("⚠️ NOTE: Tenant sync currently disabled due to PayProp permission restrictions");
         
-        int successCount = 0;
-        int errorCount = 0;
-        int duplicateCount = 0;
-        
-        for (Tenant tenant : readyTenants) {
-            try {
-                // Each tenant sync in its own transaction
-                String payPropId = syncTenantToPayPropInSeparateTransaction(tenant.getId());
-                System.out.println("✅ Successfully synced tenant " + tenant.getId() + " -> " + payPropId);
-                successCount++;
-            } catch (DataIntegrityViolationException e) {
-                log.warn("Tenant {} already has PayProp ID during bulk sync, skipping", tenant.getId());
-                duplicateCount++;
-            } catch (Exception e) {
-                System.err.println("❌ Failed to sync tenant " + tenant.getId() + ": " + e.getMessage());
-                errorCount++;
-            }
-        }
-        
-        System.out.println("🏁 Tenant sync completed. Success: " + successCount + 
-                          ", Errors: " + errorCount + ", Duplicates: " + duplicateCount);
+        // Currently disabled - see syncTenantToPayProp method
+        System.out.println("🏁 Tenant sync skipped - insufficient PayProp permissions");
     }
+
     
     /**
      * Sync tenant in separate transaction
@@ -896,25 +944,38 @@ public class PayPropSyncService {
         return syncTenantToPayProp(tenantId);
     }
     
+    /**
+     * UPDATED: Sync based on your actual data  
+     * 0 total property_owners (table empty), but 2 customers with is_property_owner=1
+     */
     public void syncAllReadyBeneficiaries() {
         if (!oAuth2Service.hasValidTokens()) {
             throw new IllegalStateException("No valid OAuth2 tokens. Please authorize PayProp first.");
         }
         
-        // FIXED: Use your actual repository method
+        // UPDATED: Based on analysis - property_owners table is empty (0 records)
+        // But customer table has 2 records with is_property_owner=1
         List<PropertyOwner> readyOwners = propertyOwnerService.findAll().stream()
             .filter(o -> o.getPayPropId() == null) // Not yet synced
             .toList();
             
         System.out.println("📋 Found " + readyOwners.size() + " beneficiaries ready for sync");
+        System.out.println("ℹ️ NOTE: Analysis shows property_owners table is empty (0 records)");
+        System.out.println("ℹ️ Your system uses unified customer table with is_property_owner flag");
+        System.out.println("ℹ️ Consider implementing syncCustomerAsPropertyOwnerToPayProp() instead");
         
+        if (readyOwners.isEmpty()) {
+            System.out.println("🏁 No beneficiaries to sync - property_owners table is empty");
+            return;
+        }
+        
+        // Rest of sync logic...
         int successCount = 0;
         int errorCount = 0;
         int duplicateCount = 0;
         
         for (PropertyOwner owner : readyOwners) {
             try {
-                // Each beneficiary sync in its own transaction
                 String payPropId = syncBeneficiaryToPayPropInSeparateTransaction(owner.getId());
                 System.out.println("✅ Successfully synced beneficiary " + owner.getId() + " -> " + payPropId);
                 successCount++;
@@ -957,7 +1018,7 @@ public class PayPropSyncService {
         }
         
         try {
-            // FIXED: Use your actual repository methods
+            // UPDATED: Based on actual database analysis
             long totalProperties = propertyService.findAll().size();
             List<Property> needsSync = propertyService.findAll().stream()
                 .filter(p -> p.getPayPropId() == null)
@@ -974,21 +1035,26 @@ public class PayPropSyncService {
                 .filter(t -> t.getPayPropId() != null)
                 .toList();
             
+            long totalPropertyOwners = propertyOwnerService.findAll().size();
+            
             System.out.println();
-            System.out.println("PROPERTIES:");
+            System.out.println("PROPERTIES (from analysis: 296 total, 295 synced):");
             System.out.println("  Total: " + totalProperties);
             System.out.println("  Needs Sync: " + needsSync.size());
             System.out.println("  Already Synced: " + synced.size());
             System.out.println();
-            System.out.println("TENANTS:");
+            System.out.println("TENANTS (from analysis: 31 total, 0 synced):");
             System.out.println("  Total: " + totalTenants);
             System.out.println("  Needs Sync: " + tenantsNeedingSync.size());
             System.out.println("  Already Synced: " + tenantsSynced.size());
+            System.out.println();
+            System.out.println("PROPERTY OWNERS (from analysis: 0 records in property_owners table):");
+            System.out.println("  Total: " + totalPropertyOwners);
+            System.out.println("  Note: Your system uses unified customer table (38 records, 2 are property owners)");
             
         } catch (Exception e) {
             System.err.println("⚠️ Error checking entity status: " + e.getMessage());
-            System.out.println("PROPERTIES: Unable to check (error occurred)");
-            System.out.println("TENANTS: Unable to check (error occurred)");
+            System.out.println("Unable to check entity status - database error occurred");
         }
     }
 
