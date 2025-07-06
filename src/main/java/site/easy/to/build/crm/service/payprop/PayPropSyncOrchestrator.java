@@ -1488,7 +1488,7 @@ public class PayPropSyncOrchestrator {
         tenant.setPayPropId((String) data.get("id"));
         tenant.setPayPropCustomerId((String) data.get("customer_id"));
         tenant.setEmailAddress((String) data.get("email_address"));
-        tenant.setMobileNumber((String) data.get("mobile_number"));
+        tenant.setMobileNumber(formatMobileForPayProp((String) data.get("mobile_number")));
         tenant.setPhoneNumber((String) data.get("phone"));
         tenant.setComment((String) data.get("comment"));
         
@@ -1552,7 +1552,7 @@ public class PayPropSyncOrchestrator {
         owner.setPayPropId((String) data.get("id"));
         owner.setPayPropCustomerId((String) data.get("customer_id"));
         owner.setEmailAddress((String) data.get("email_address"));
-        owner.setMobile((String) data.get("mobile_number"));
+        owner.setMobile(formatMobileForPayProp((String) data.get("mobile_number")));
         owner.setComment((String) data.get("comment"));
         
         String firstName = (String) data.get("first_name");
@@ -1695,5 +1695,31 @@ public class PayPropSyncOrchestrator {
         
         public String getMessage() { return message; }
         public void setMessage(String message) { this.message = message; }
+    }
+
+    /**
+     * Format mobile number for PayProp compatibility
+     */
+    private String formatMobileForPayProp(String mobile) {
+        if (mobile == null || mobile.trim().isEmpty()) {
+            return null;
+        }
+        
+        // Remove any non-digit characters
+        mobile = mobile.replaceAll("[^\\d]", "");
+        
+        // Skip if too short or too long
+        if (mobile.length() < 10 || mobile.length() > 15) {
+            return null;
+        }
+        
+        // Add UK country code if not present
+        if (!mobile.startsWith("44") && mobile.startsWith("0")) {
+            mobile = "44" + mobile.substring(1);
+        } else if (!mobile.startsWith("44") && !mobile.startsWith("0")) {
+            mobile = "44" + mobile;
+        }
+        
+        return mobile;
     }
 }

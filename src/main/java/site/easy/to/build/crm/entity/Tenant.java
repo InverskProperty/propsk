@@ -59,10 +59,10 @@ public class Tenant {
     private String phoneNumber;
     
     // FIXED: Mobile number pattern for UK numbers, made optional
-    @Column(name = "mobile_number", length = 15)
-    @Pattern(regexp = "^(0[1-9]\\d{8,9}|\\+44[1-9]\\d{8,9})?$", 
-             message = "Invalid UK mobile number format (e.g., 07123456789)")
-    @Size(max = 15)
+    @Pattern(
+        regexp = "^(\\+[1-9]\\d{1,14}|0[1-9]\\d{8,10})$", 
+        message = "Invalid mobile number format"
+    )
     private String mobileNumber;
     
     @Column(name = "fax_number", length = 15)
