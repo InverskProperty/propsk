@@ -137,92 +137,20 @@ public class PayPropSyncService {
         }
     }
     
-    // ===== TENANT SYNC METHODS =====
+    // ===== TENANT SYNC METHODS - TEMPORARILY DISABLED =====
     
     public String syncTenantToPayProp(Long tenantId) {
-        Tenant tenant = tenantService.findById(tenantId);
-        if (tenant == null) {
-            throw new IllegalArgumentException("Tenant not found");
-        }
-        
-        // FIXED: Use your actual validation method
-        if (!isValidForPayPropSync(tenant)) {
-            throw new IllegalArgumentException("Tenant not ready for sync - missing required fields");
-        }
-        
-        try {
-            PayPropTenantDTO dto = convertTenantToPayPropFormat(tenant);
-            
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<PayPropTenantDTO> request = new HttpEntity<>(dto, headers);
-            
-            System.out.println("👤 Syncing tenant to PayProp: " + tenant.getFirstName() + " " + tenant.getLastName());
-            
-            ResponseEntity<Map> response = restTemplate.postForEntity(
-                payPropApiBase + "/entity/tenant", 
-                request, 
-                Map.class
-            );
-            
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                String payPropId = (String) response.getBody().get("id");
-                
-                // FIXED: Update tenant with PayProp ID using duplicate key handling
-                tenant.setPayPropId(payPropId);
-                try {
-                    tenantService.save(tenant);
-                    System.out.println("✅ Tenant synced successfully! PayProp ID: " + payPropId);
-                } catch (DataIntegrityViolationException e) {
-                    log.warn("Tenant with PayProp ID {} already exists when saving sync result, skipping save", payPropId);
-                    System.out.println("⚠️ Tenant synced to PayProp but already exists locally with PayProp ID: " + payPropId);
-                }
-                
-                return payPropId;
-            }
-            
-            throw new RuntimeException("Failed to create tenant in PayProp");
-            
-        } catch (HttpClientErrorException e) {
-            System.err.println("❌ PayProp API error: " + e.getResponseBodyAsString());
-            throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
-        } catch (Exception e) {
-            System.err.println("❌ Tenant sync failed: " + e.getMessage());
-            throw new RuntimeException("Tenant sync failed", e);
-        }
+        // TEMPORARILY DISABLED: Due to PayProp permission restrictions
+        log.warn("Tenant sync to PayProp is temporarily disabled due to insufficient permissions");
+        throw new UnsupportedOperationException("Tenant sync to PayProp is temporarily disabled (read-only mode). " +
+            "PayProp API returned 'Denied (create:entity:tenant)' - insufficient permissions to create tenants.");
     }
     
     public void updateTenantInPayProp(Long tenantId) {
-        Tenant tenant = tenantService.findById(tenantId);
-        if (tenant == null || tenant.getPayPropId() == null) {
-            throw new IllegalArgumentException("Tenant not synced with PayProp");
-        }
-        
-        try {
-            PayPropTenantDTO dto = convertTenantToPayPropFormat(tenant);
-            
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<PayPropTenantDTO> request = new HttpEntity<>(dto, headers);
-            
-            restTemplate.put(
-                payPropApiBase + "/entity/tenant/" + tenant.getPayPropId(), 
-                request
-            );
-            
-            // FIXED: Add duplicate key handling for update save
-            try {
-                tenantService.save(tenant);
-                System.out.println("✅ Tenant updated in PayProp: " + tenant.getPayPropId());
-            } catch (DataIntegrityViolationException e) {
-                log.warn("Tenant with PayProp ID {} already exists when saving update, skipping save", tenant.getPayPropId());
-                System.out.println("✅ Tenant updated in PayProp (local save skipped due to duplicate): " + tenant.getPayPropId());
-            }
-            
-        } catch (HttpClientErrorException e) {
-            System.err.println("❌ Failed to update tenant in PayProp: " + e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to update tenant in PayProp: " + e.getResponseBodyAsString(), e);
-        } catch (Exception e) {
-            throw new RuntimeException("Tenant update failed", e);
-        }
+        // TEMPORARILY DISABLED: Due to PayProp permission restrictions
+        log.warn("Tenant update in PayProp is temporarily disabled due to insufficient permissions");
+        throw new UnsupportedOperationException("Tenant update in PayProp is temporarily disabled (read-only mode). " +
+            "PayProp API permissions do not allow tenant modifications.");
     }
     
     // ===== BENEFICIARY SYNC METHODS =====
@@ -461,7 +389,19 @@ public class PayPropSyncService {
         
         // Basic fields
         dto.setName(property.getPropertyName());
-        dto.setCustomer_id(property.getCustomerId());
+        
+        // FIXED: Ensure customer_id is valid (non-null, non-empty, alphanumeric with dash/underscore)
+        String customerId = property.getCustomerId();
+        if (customerId == null || customerId.trim().isEmpty()) {
+            customerId = "CRM_" + property.getId(); // Generate valid customer_id
+        }
+        // Sanitize customer_id to match PayProp pattern ^[a-zA-Z0-9_-]+$
+        customerId = customerId.replaceAll("[^a-zA-Z0-9_-]", "_");
+        if (customerId.length() == 0) {
+            customerId = "CRM_" + property.getId();
+        }
+        dto.setCustomer_id(customerId);
+        
         dto.setCustomer_reference(property.getCustomerReference());
         dto.setAgent_name(property.getAgentName());
         dto.setNotes(property.getComment());
@@ -474,6 +414,13 @@ public class PayPropSyncService {
         address.setCity(property.getCity());
         address.setPostal_code(property.getPostcode());
         address.setCountry_code(property.getCountryCode());
+        
+        // FIXED: Handle state field - provide default if null/empty to avoid PayProp validation error
+        String state = property.getState();
+        if (state == null || state.trim().isEmpty()) {
+            state = "N/A"; // Minimum 1 character required by PayProp
+        }
+        address.setState(state);
         dto.setAddress(address);
         
         // Convert settings to nested structure
@@ -486,7 +433,7 @@ public class PayPropSyncService {
                 settings.setEnable_payments(enablePayments);
             }
         } catch (Exception e) {
-            System.err.println("Could not convert enable_payments: " + e.getMessage());
+            log.warn("Could not convert enable_payments: {}", e.getMessage());
         }
         
         try {
@@ -495,12 +442,29 @@ public class PayPropSyncService {
                 settings.setHold_owner_funds(holdOwnerFunds);
             }
         } catch (Exception e) {
-            System.err.println("Could not convert hold_owner_funds: " + e.getMessage());
+            log.warn("Could not convert hold_owner_funds: {}", e.getMessage());
         }
+        
+        // FIXED: Handle verify_payments field properly - provide boolean instead of null
+        try {
+            Boolean verifyPayments = convertYNToBoolean(property.getVerifyPayments());
+            settings.setVerify_payments(verifyPayments != null ? verifyPayments : false); // Default to false if null
+        } catch (Exception e) {
+            log.warn("Could not convert verify_payments: {}", e.getMessage());
+            settings.setVerify_payments(false); // Safe default
+        }
+        
         settings.setMonthly_payment(property.getMonthlyPayment());
         settings.setMinimum_balance(property.getPropertyAccountMinimumBalance());
-        settings.setListing_from(property.getListedFrom());
-        settings.setListing_to(property.getListedUntil());
+        
+        // FIXED: Handle date fields as strings to avoid array serialization issues
+        if (property.getListedFrom() != null) {
+            settings.setListing_from(property.getListedFrom().toString());
+        }
+        if (property.getListedUntil() != null) {
+            settings.setListing_to(property.getListedUntil().toString());
+        }
+        
         dto.setSettings(settings);
         
         return dto;
@@ -658,21 +622,47 @@ public class PayPropSyncService {
             if ("individual".equals(accountType)) {
                 if (tenant.getFirstName() == null || tenant.getFirstName().trim().isEmpty() ||
                     tenant.getLastName() == null || tenant.getLastName().trim().isEmpty()) {
+                    log.warn("Tenant {} missing required first/last name for individual account", tenant.getId());
                     return false;
                 }
             } else if ("business".equals(accountType)) {
                 if (tenant.getBusinessName() == null || tenant.getBusinessName().trim().isEmpty()) {
+                    log.warn("Tenant {} missing required business name for business account", tenant.getId());
                     return false;
                 }
             }
+        } else {
+            log.warn("Tenant {} missing account type", tenant.getId());
+            return false;
+        }
+        
+        // Check required email address
+        if (tenant.getEmailAddress() == null || tenant.getEmailAddress().trim().isEmpty()) {
+            log.warn("Tenant {} missing required email address", tenant.getId());
+            return false;
+        }
+        
+        // Validate email format
+        if (!isValidEmail(tenant.getEmailAddress())) {
+            log.warn("Tenant {} has invalid email format: {}", tenant.getId(), tenant.getEmailAddress());
+            return false;
         }
         
         // FIXED: Handle bank account validation for your bit(1) field
         Boolean hasBankAccount = convertBitToBoolean(tenant.getHasBankAccount());
         if (Boolean.TRUE.equals(hasBankAccount)) {
-            return tenant.getAccountName() != null && 
-                   tenant.getAccountNumber() != null && 
-                   tenant.getSortCode() != null;
+            if (tenant.getAccountName() == null || tenant.getAccountName().trim().isEmpty()) {
+                log.warn("Tenant {} has bank account but missing account name", tenant.getId());
+                return false;
+            }
+            if (tenant.getAccountNumber() == null || tenant.getAccountNumber().trim().isEmpty()) {
+                log.warn("Tenant {} has bank account but missing account number", tenant.getId());
+                return false;
+            }
+            if (tenant.getSortCode() == null || tenant.getSortCode().trim().isEmpty()) {
+                log.warn("Tenant {} has bank account but missing sort code", tenant.getId());
+                return false;
+            }
         }
         
         return true;
@@ -685,13 +675,30 @@ public class PayPropSyncService {
             if ("individual".equals(accountType)) {
                 if (owner.getFirstName() == null || owner.getFirstName().trim().isEmpty() ||
                     owner.getLastName() == null || owner.getLastName().trim().isEmpty()) {
+                    log.warn("PropertyOwner {} missing required first/last name for individual account", owner.getId());
                     return false;
                 }
             } else if ("business".equals(accountType)) {
                 if (owner.getBusinessName() == null || owner.getBusinessName().trim().isEmpty()) {
+                    log.warn("PropertyOwner {} missing required business name for business account", owner.getId());
                     return false;
                 }
             }
+        } else {
+            log.warn("PropertyOwner {} missing account type", owner.getId());
+            return false;
+        }
+        
+        // Check required email address
+        if (owner.getEmailAddress() == null || owner.getEmailAddress().trim().isEmpty()) {
+            log.warn("PropertyOwner {} missing required email address", owner.getId());
+            return false;
+        }
+        
+        // Validate email format
+        if (!isValidEmail(owner.getEmailAddress())) {
+            log.warn("PropertyOwner {} has invalid email format: {}", owner.getId(), owner.getEmailAddress());
+            return false;
         }
         
         // Validate payment method specific requirements
@@ -700,8 +707,20 @@ public class PayPropSyncService {
             
             if ("international".equals(paymentMethod)) {
                 // Address is required for international
-                if (owner.getAddressLine1() == null || owner.getCity() == null || 
-                    owner.getState() == null || owner.getPostalCode() == null) {
+                if (owner.getAddressLine1() == null || owner.getAddressLine1().trim().isEmpty()) {
+                    log.warn("PropertyOwner {} missing address line 1 for international payment", owner.getId());
+                    return false;
+                }
+                if (owner.getCity() == null || owner.getCity().trim().isEmpty()) {
+                    log.warn("PropertyOwner {} missing city for international payment", owner.getId());
+                    return false;
+                }
+                if (owner.getState() == null || owner.getState().trim().isEmpty()) {
+                    log.warn("PropertyOwner {} missing state for international payment", owner.getId());
+                    return false;
+                }
+                if (owner.getPostalCode() == null || owner.getPostalCode().trim().isEmpty()) {
+                    log.warn("PropertyOwner {} missing postal code for international payment", owner.getId());
                     return false;
                 }
                 
@@ -711,16 +730,44 @@ public class PayPropSyncService {
                                            owner.getSwiftCode() != null;
                 
                 if (!hasIban && !hasAccountAndSwift) {
+                    log.warn("PropertyOwner {} missing IBAN or account number+SWIFT for international payment", owner.getId());
                     return false;
                 }
             } else if ("local".equals(paymentMethod)) {
-                return owner.getBankAccountName() != null && 
-                       owner.getBankAccountNumber() != null && 
-                       owner.getBranchCode() != null;
+                if (owner.getBankAccountName() == null || owner.getBankAccountName().trim().isEmpty()) {
+                    log.warn("PropertyOwner {} missing bank account name for local payment", owner.getId());
+                    return false;
+                }
+                if (owner.getBankAccountNumber() == null || owner.getBankAccountNumber().trim().isEmpty()) {
+                    log.warn("PropertyOwner {} missing bank account number for local payment", owner.getId());
+                    return false;
+                }
+                if (owner.getBranchCode() == null || owner.getBranchCode().trim().isEmpty()) {
+                    log.warn("PropertyOwner {} missing branch code for local payment", owner.getId());
+                    return false;
+                }
             }
+        } else {
+            log.warn("PropertyOwner {} missing payment method", owner.getId());
+            return false;
         }
         
         return true;
+    }
+    
+    /**
+     * Simple email validation
+     */
+    private boolean isValidEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            return false;
+        }
+        // Basic email validation - contains @ and has text before and after
+        return email.contains("@") && 
+               email.indexOf("@") > 0 && 
+               email.indexOf("@") < email.length() - 1 &&
+               !email.startsWith("@") &&
+               !email.endsWith("@");
     }
     
     // ===== UTILITY METHODS (FIXED FOR YOUR DATABASE) =====

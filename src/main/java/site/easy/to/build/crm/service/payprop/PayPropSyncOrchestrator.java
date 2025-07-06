@@ -258,11 +258,13 @@ public class PayPropSyncOrchestrator {
     }
     
     /**
-     * Tenants to PayProp sync in separate transaction
+     * Tenants to PayProp sync in separate transaction - TEMPORARILY DISABLED
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult syncTenantsToPayPropInSeparateTransaction(Long initiatedBy) {
-        return syncTenantsToPayProp(initiatedBy);
+        log.info("Tenant sync to PayProp is temporarily disabled (read-only mode due to insufficient permissions)");
+        return SyncResult.success("Tenant sync to PayProp skipped (read-only mode)", 
+            Map.of("reason", "Insufficient PayProp permissions", "mode", "read-only"));
     }
     
     /**
@@ -324,17 +326,17 @@ public class PayPropSyncOrchestrator {
             results.put("properties", propertyResult);
             if (propertyResult.isSuccess()) totalSuccess++; else totalErrors++;
 
-            // Sync Tenants 
-            SyncResult tenantResult = syncTenantsToPayProp(initiatedBy);
-            results.put("tenants", tenantResult);
-            if (tenantResult.isSuccess()) totalSuccess++; else totalErrors++;
+            // TEMPORARILY DISABLED: Skip tenant sync to PayProp due to permission restrictions
+            log.info("Skipping tenant sync to PayProp (read-only mode - insufficient permissions)");
+            results.put("tenants", SyncResult.success("Tenant sync to PayProp skipped (read-only mode)"));
+            totalSuccess++;
 
             // Sync Beneficiaries
             SyncResult beneficiaryResult = syncBeneficiariesToPayProp(initiatedBy);
             results.put("beneficiaries", beneficiaryResult);
             if (beneficiaryResult.isSuccess()) totalSuccess++; else totalErrors++;
 
-            String message = String.format("CRM to PayProp sync completed. Success: %d, Errors: %d", 
+            String message = String.format("CRM to PayProp sync completed. Success: %d, Errors: %d (Tenants: read-only mode)", 
                                           totalSuccess, totalErrors);
             
             return totalErrors == 0 ? 
@@ -358,13 +360,21 @@ public class PayPropSyncOrchestrator {
     }
 
     private SyncResult syncTenantsToPayProp(Long initiatedBy) {
-        // FIXED: Use actual repository methods - your database has plural table names
-        List<Tenant> tenants = tenantService.findAll().stream()
+        // TEMPORARILY DISABLED: Due to PayProp permission restrictions
+        log.info("Tenant sync to PayProp is temporarily disabled (read-only mode)");
+        
+        // Get count of tenants that would need sync for reporting
+        List<Tenant> tenantsNeedingSync = tenantService.findAll().stream()
             .filter(t -> t.getPayPropId() == null) // Not yet synced
             .toList();
             
-        return processBatchSync(tenants, "TENANT", initiatedBy, 
-            tenant -> payPropSyncService.syncTenantToPayProp(tenant.getId()));
+        return SyncResult.success("Tenant sync to PayProp skipped (read-only mode)", 
+            Map.of(
+                "skippedCount", tenantsNeedingSync.size(),
+                "reason", "Insufficient PayProp permissions - tenant creation denied",
+                "mode", "read-only",
+                "note", "Tenants will only be imported from PayProp, not exported to PayProp"
+            ));
     }
 
     private SyncResult syncBeneficiariesToPayProp(Long initiatedBy) {
@@ -1392,6 +1402,13 @@ public class PayPropSyncOrchestrator {
             }
             property.setPostcode(postalCode);
             property.setCountryCode((String) address.get("country_code"));
+            
+            // FIXED: Handle state field properly - provide default if null
+            String state = (String) address.get("state");
+            if (state == null || state.trim().isEmpty()) {
+                state = "N/A"; // Default value to avoid PayProp validation error
+            }
+            property.setState(state);
         }
         
             // Update settings if present
@@ -1408,6 +1425,12 @@ public class PayPropSyncOrchestrator {
                     property.setHoldOwnerFunds(holdOwnerFunds ? "Y" : "N");
                 }
                 
+                // FIXED: Handle verify_payments field properly 
+                Boolean verifyPayments = (Boolean) settings.get("verify_payments");
+                if (verifyPayments != null) {
+                    property.setVerifyPayments(verifyPayments ? "Y" : "N");
+                }
+                
                 // Handle BigDecimal fields safely
                 Object monthlyPaymentObj = settings.get("monthly_payment");
                 if (monthlyPaymentObj instanceof Number) {
@@ -1419,7 +1442,7 @@ public class PayPropSyncOrchestrator {
                     property.setPropertyAccountMinimumBalance(BigDecimal.valueOf(((Number) minBalanceObj).doubleValue()));
                 }
                 
-                // Handle LocalDate fields safely
+                // FIXED: Handle LocalDate fields safely - avoid array conversion issues
                 Object listingFromObj = settings.get("listing_from");
                 if (listingFromObj instanceof LocalDate) {
                     property.setListedFrom((LocalDate) listingFromObj);
@@ -1427,8 +1450,13 @@ public class PayPropSyncOrchestrator {
                     try {
                         property.setListedFrom(LocalDate.parse((String) listingFromObj));
                     } catch (Exception e) {
-                        System.err.println("Could not parse listing_from date: " + listingFromObj);
+                        log.warn("Could not parse listing_from date: {}", listingFromObj);
+                        property.setListedFrom(null); // Set to null instead of invalid data
                     }
+                } else if (listingFromObj instanceof List) {
+                    // Handle array case - log warning and skip
+                    log.warn("listing_from received as array, skipping: {}", listingFromObj);
+                    property.setListedFrom(null);
                 }
                 
                 Object listingToObj = settings.get("listing_to");
@@ -1438,8 +1466,13 @@ public class PayPropSyncOrchestrator {
                     try {
                         property.setListedUntil(LocalDate.parse((String) listingToObj));
                     } catch (Exception e) {
-                        System.err.println("Could not parse listing_to date: " + listingToObj);
+                        log.warn("Could not parse listing_to date: {}", listingToObj);
+                        property.setListedUntil(null); // Set to null instead of invalid data
                     }
+                } else if (listingToObj instanceof List) {
+                    // Handle array case - log warning and skip
+                    log.warn("listing_to received as array, skipping: {}", listingToObj);
+                    property.setListedUntil(null);
                 }
             }
     }

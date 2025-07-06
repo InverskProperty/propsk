@@ -155,7 +155,7 @@ public class PayPropAdminController {
     }
 
     /**
-     * Sync single tenant to PayProp
+     * Sync single tenant to PayProp - TEMPORARILY DISABLED
      */
     @PostMapping("/sync/tenant/{id}")
     @ResponseBody
@@ -168,33 +168,13 @@ public class PayPropAdminController {
             return ResponseEntity.status(403).body(response);
         }
 
-        try {
-            if (!oAuth2Service.hasValidTokens()) {
-                response.put("success", false);
-                response.put("message", "PayProp not authorized. Please authorize first.");
-                return ResponseEntity.ok(response);
-            }
-
-            String payPropId = syncService.syncTenantToPayProp(id);
-
-            response.put("success", true);
-            response.put("message", "Tenant synced successfully");
-            response.put("payPropId", payPropId);
-
-            return ResponseEntity.ok(response);
-
-        } catch (DataIntegrityViolationException e) {
-            log.warn("Tenant {} already exists with PayProp ID during admin sync", id);
-            response.put("success", true);
-            response.put("message", "Tenant was already synced to PayProp (duplicate detected)");
-            response.put("warning", "Duplicate PayProp ID detected - entity may already be synced");
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error syncing tenant {} to PayProp: {}", id, e.getMessage());
-            response.put("success", false);
-            response.put("message", e.getMessage());
-            return ResponseEntity.ok(response);
-        }
+        // TEMPORARILY DISABLED: Due to PayProp permission restrictions
+        response.put("success", false);
+        response.put("message", "Tenant sync to PayProp is temporarily disabled");
+        response.put("reason", "Insufficient PayProp permissions - tenant creation denied");
+        response.put("mode", "read-only");
+        response.put("note", "Tenants are imported from PayProp only. To enable sync: resolve PayProp API permissions");
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -283,7 +263,7 @@ public class PayPropAdminController {
     }
 
     /**
-     * Bulk sync all ready tenants
+     * Bulk sync all ready tenants - TEMPORARILY DISABLED
      */
     @PostMapping("/sync/tenants/bulk")
     @ResponseBody
@@ -296,30 +276,23 @@ public class PayPropAdminController {
             return ResponseEntity.status(403).body(response);
         }
 
+        // TEMPORARILY DISABLED: Due to PayProp permission restrictions
         try {
-            if (!oAuth2Service.hasValidTokens()) {
-                response.put("success", false);
-                response.put("message", "PayProp not authorized. Please authorize first.");
-                return ResponseEntity.ok(response);
-            }
-
-            syncService.syncAllReadyTenants();
-
-            response.put("success", true);
-            response.put("message", "Bulk tenant sync initiated successfully");
-
-            return ResponseEntity.ok(response);
-
-        } catch (DataIntegrityViolationException e) {
-            log.warn("Duplicate key detected during bulk tenant sync: {}", e.getMessage());
-            response.put("success", true);
-            response.put("message", "Bulk tenant sync completed with some duplicates handled gracefully");
-            response.put("warning", "Some tenants were already synced (duplicates detected)");
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error during bulk tenant sync: {}", e.getMessage());
+            // Get count for reporting
+            List<Tenant> readyTenants = tenantService.findByPayPropIdIsNull();
+            
             response.put("success", false);
-            response.put("message", e.getMessage());
+            response.put("message", "Bulk tenant sync to PayProp is temporarily disabled");
+            response.put("reason", "Insufficient PayProp permissions - tenant creation denied");
+            response.put("mode", "read-only");
+            response.put("tenantsWouldSync", readyTenants.size());
+            response.put("note", "Tenants are imported from PayProp only. To enable sync: resolve PayProp API permissions");
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error getting tenant count: {}", e.getMessage());
+            response.put("success", false);
+            response.put("message", "Tenant sync temporarily disabled due to PayProp permissions");
             return ResponseEntity.ok(response);
         }
     }
