@@ -19,9 +19,7 @@ import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 
 import java.math.BigDecimal;
-import java.net.http.HttpHeaders;
-// FIXED: Removed incorrect import
-// import java.net.http.HttpHeaders; // ❌ This was wrong
+
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
