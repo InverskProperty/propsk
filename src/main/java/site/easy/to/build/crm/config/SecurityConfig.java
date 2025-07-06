@@ -65,8 +65,9 @@ public class SecurityConfig {
 
         http.csrf((csrf) -> csrf
                 .csrfTokenRepository(httpSessionCsrfTokenRepository)
+                .ignoringRequestMatchers("/api/payprop/**")
         );
-
+        
         // CRITICAL FIX: Only match specific customer routes - NO wildcards that could catch /portfolio/**
         http.securityMatcher(
                 "/customer-login", 
