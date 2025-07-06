@@ -19,6 +19,7 @@ import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 
 import java.math.BigDecimal;
+import java.net.http.HttpHeaders;
 // FIXED: Removed incorrect import
 // import java.net.http.HttpHeaders; // ❌ This was wrong
 import java.time.LocalDate;
@@ -450,7 +451,7 @@ public class PayPropSyncService {
         }
 
         // FIXED: verify_payments is already Boolean in database - no conversion needed
-        Boolean verifyPayments = property.getVerifyPayments(); // Already Boolean from tinyint(1)
+        Boolean verifyPayments = convertYNToBoolean(property.getVerifyPayments());
         settings.setVerify_payments(verifyPayments != null ? verifyPayments : false);
 
         settings.setMonthly_payment(property.getMonthlyPayment());

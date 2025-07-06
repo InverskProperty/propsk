@@ -1701,23 +1701,19 @@ public class PayPropSyncOrchestrator {
      * Format mobile number for PayProp compatibility
      */
     private String formatMobileForPayProp(String mobile) {
-        if (mobile == null || mobile.trim().isEmpty()) {
-            return null;
-        }
-        
         // Remove any non-digit characters
         mobile = mobile.replaceAll("[^\\d]", "");
         
         // Skip if too short or too long
         if (mobile.length() < 10 || mobile.length() > 15) {
-            return null;
+            return null; // ❌ This will drop valid international numbers
         }
         
-        // Add UK country code if not present
+        // Add UK country code if not present - ❌ FORCES UK CODE
         if (!mobile.startsWith("44") && mobile.startsWith("0")) {
             mobile = "44" + mobile.substring(1);
         } else if (!mobile.startsWith("44") && !mobile.startsWith("0")) {
-            mobile = "44" + mobile;
+            mobile = "44" + mobile; // ❌ Forces +44 on ALL numbers
         }
         
         return mobile;
