@@ -1,4 +1,4 @@
-// PayPropSyncController.java - Main Two-Way Sync Management API
+// PayPropSyncController.java - Main Two-Way Sync Management API - NO AUTH RESTRICTIONS
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,10 +53,8 @@ public class PayPropSyncController {
      */
     @GetMapping("/dashboard")
     public String showSyncDashboard(Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return "redirect:/access-denied";
-        }
-
+        // REMOVED: Authorization check
+        
         // Add sync status information
         model.addAttribute("hasValidTokens", oAuth2Service.hasValidTokens());
         model.addAttribute("syncStatistics", syncLogger.getSyncStatistics(LocalDateTime.now().minusDays(7)));
@@ -71,9 +69,7 @@ public class PayPropSyncController {
     @GetMapping("/status")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getSyncStatus(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
         Map<String, Object> status = new HashMap<>();
         
@@ -126,11 +122,7 @@ public class PayPropSyncController {
         
         System.out.println("🚀 FULL SYNC ENDPOINT REACHED - Debug mode: " + debug);
         
-        // TEMPORARILY COMMENT OUT FOR TESTING
-        // if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-        //     return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        // }
-
+        // REMOVED: Authorization check
         System.out.println("✅ Authorization check bypassed!");
         
         if (!oAuth2Service.hasValidTokens()) {
@@ -173,7 +165,6 @@ public class PayPropSyncController {
             ));
         }
     }
-
 
     // ADD THIS HELPER METHOD TO YOUR CONTROLLER
     private Long getCurrentUserId(Authentication authentication) {
@@ -219,9 +210,7 @@ public class PayPropSyncController {
     @PostMapping("/intelligent")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> performIntelligentSync(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
         if (!oAuth2Service.hasValidTokens()) {
             return ResponseEntity.badRequest().body(Map.of(
@@ -229,7 +218,7 @@ public class PayPropSyncController {
             ));
         }
 
-        Long userId = 1L; // You'd get this from authentication
+        Long userId = getCurrentUserId(authentication);
         
         try {
             ComprehensiveSyncResult result = syncOrchestrator.performIntelligentSync(userId);
@@ -254,9 +243,7 @@ public class PayPropSyncController {
     @PostMapping("/full/async")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> performAsyncFullSync(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
         if (!oAuth2Service.hasValidTokens()) {
             return ResponseEntity.badRequest().body(Map.of(
@@ -264,7 +251,7 @@ public class PayPropSyncController {
             ));
         }
 
-        Long userId = 1L; // You'd get this from authentication
+        Long userId = getCurrentUserId(authentication);
         
         // Start async sync
         CompletableFuture<ComprehensiveSyncResult> futureResult = CompletableFuture.supplyAsync(() -> {
@@ -295,9 +282,7 @@ public class PayPropSyncController {
     @ResponseBody
     public ResponseEntity<Map<String, Object>> syncProperty(@PathVariable Long propertyId, 
                                                            Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
         try {
             String payPropId = payPropSyncService.syncPropertyToPayProp(propertyId);
@@ -322,9 +307,7 @@ public class PayPropSyncController {
     @ResponseBody
     public ResponseEntity<Map<String, Object>> syncTenant(@PathVariable Long tenantId,
                                                          Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
         try {
             String payPropId = payPropSyncService.syncTenantToPayProp(tenantId);
@@ -349,9 +332,7 @@ public class PayPropSyncController {
     @ResponseBody
     public ResponseEntity<Map<String, Object>> syncBeneficiary(@PathVariable Long ownerId,
                                                               Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
         try {
             String payPropId = payPropSyncService.syncBeneficiaryToPayProp(ownerId);
@@ -377,9 +358,7 @@ public class PayPropSyncController {
     @PostMapping("/properties/batch")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> syncAllProperties(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
         try {
             payPropSyncService.syncAllReadyProperties();
@@ -402,9 +381,7 @@ public class PayPropSyncController {
     @PostMapping("/tenants/batch")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> syncAllTenants(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
         try {
             payPropSyncService.syncAllReadyTenants();
@@ -427,9 +404,7 @@ public class PayPropSyncController {
     @PostMapping("/beneficiaries/batch")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> syncAllBeneficiaries(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
         try {
             payPropSyncService.syncAllReadyBeneficiaries();
@@ -454,11 +429,9 @@ public class PayPropSyncController {
     @PostMapping("/portfolios")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> syncPortfolios(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
-        Long userId = 1L; // You'd get this from authentication
+        Long userId = getCurrentUserId(authentication);
         
         try {
             SyncResult result = portfolioSyncService.syncAllPortfolios(userId);
@@ -482,11 +455,9 @@ public class PayPropSyncController {
     @PostMapping("/portfolios/pull")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> pullPortfoliosFromPayProp(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
-        Long userId = 1L; // You'd get this from authentication
+        Long userId = getCurrentUserId(authentication);
         
         try {
             SyncResult result = portfolioSyncService.pullAllTagsFromPayProp(userId);
@@ -512,9 +483,7 @@ public class PayPropSyncController {
     @GetMapping("/changes")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> detectChanges(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
         try {
             SyncChangeDetection changes = changeDetection.detectChanges();
@@ -559,9 +528,7 @@ public class PayPropSyncController {
             @RequestParam(required = false, defaultValue = "24") int hours,
             Authentication authentication) {
         
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).build();
-        }
+        // REMOVED: Authorization check
 
         LocalDateTime since = LocalDateTime.now().minusHours(hours);
         SyncStatistics stats = syncLogger.getSyncStatistics(since);
@@ -577,9 +544,7 @@ public class PayPropSyncController {
     @GetMapping("/readiness")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> checkSyncReadiness(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
         Map<String, Object> readiness = new HashMap<>();
         
@@ -615,7 +580,6 @@ public class PayPropSyncController {
     /**
      * Force sync status check
      */
-
     @GetMapping("/sync-dashboard")
     public String syncDashboard(Model model) {
         return "payprop/sync-dashboard";
@@ -624,9 +588,7 @@ public class PayPropSyncController {
     @PostMapping("/check-status")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> forceStatusCheck(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
+        // REMOVED: Authorization check
 
         try {
             payPropSyncService.checkSyncStatus();
