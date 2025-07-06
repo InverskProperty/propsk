@@ -19,6 +19,7 @@ import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 
 import java.math.BigDecimal;
+import java.net.http.HttpHeaders;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -428,32 +429,29 @@ public class PayPropSyncService {
         
         // FIXED: Handle your actual boolean field conversion safely
         try {
-            Boolean enablePayments = convertYNToBoolean(property.getEnablePayments());
+            Boolean enablePayments = convertYNToBoolean(property.getEnablePayments()); // varchar(1) - needs conversion
             if (enablePayments != null) {
                 settings.setEnable_payments(enablePayments);
             }
         } catch (Exception e) {
             log.warn("Could not convert enable_payments: {}", e.getMessage());
+            settings.setEnable_payments(false); // Safe default
         }
-        
+
         try {
-            Boolean holdOwnerFunds = convertYNToBoolean(property.getHoldOwnerFunds());
+            Boolean holdOwnerFunds = convertYNToBoolean(property.getHoldOwnerFunds()); // varchar(1) - needs conversion
             if (holdOwnerFunds != null) {
                 settings.setHold_owner_funds(holdOwnerFunds);
             }
         } catch (Exception e) {
             log.warn("Could not convert hold_owner_funds: {}", e.getMessage());
+            settings.setHold_owner_funds(false); // Safe default
         }
-        
-        // FIXED: Handle verify_payments field properly - provide boolean instead of null
-        try {
-            Boolean verifyPayments = convertYNToBoolean(property.getVerifyPayments());
-            settings.setVerify_payments(verifyPayments != null ? verifyPayments : false); // Default to false if null
-        } catch (Exception e) {
-            log.warn("Could not convert verify_payments: {}", e.getMessage());
-            settings.setVerify_payments(false); // Safe default
-        }
-        
+
+        // FIXED: verify_payments is already Boolean in database - no conversion needed
+        Boolean verifyPayments = property.getVerifyPayments(); // Already Boolean from tinyint(1)
+        settings.setVerify_payments(verifyPayments != null ? verifyPayments : false);
+
         settings.setMonthly_payment(property.getMonthlyPayment());
         settings.setMinimum_balance(property.getPropertyAccountMinimumBalance());
         
