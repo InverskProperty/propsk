@@ -6,7 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
-import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.HttpClientErrorException;
 import org.slf4j.Logger;
@@ -761,7 +762,7 @@ public class PayPropSyncService {
         return mobile;
     }
     
-    // ===== BULK SYNC METHODS WITH DUPLICATE KEY HANDLING =====
+    // ===== BULK SYNC METHODS WITH DUPLICATE KEY HANDLING AND SEPARATE TRANSACTIONS =====
     
     public void syncAllReadyProperties() {
         if (!oAuth2Service.hasValidTokens()) {
@@ -781,7 +782,8 @@ public class PayPropSyncService {
         
         for (Property property : readyProperties) {
             try {
-                String payPropId = syncPropertyToPayProp(property.getId());
+                // Each property sync in its own transaction
+                String payPropId = syncPropertyToPayPropInSeparateTransaction(property.getId());
                 System.out.println("✅ Successfully synced property " + property.getId() + " -> " + payPropId);
                 successCount++;
             } catch (DataIntegrityViolationException e) {
@@ -795,6 +797,14 @@ public class PayPropSyncService {
         
         System.out.println("🏁 Property sync completed. Success: " + successCount + 
                           ", Errors: " + errorCount + ", Duplicates: " + duplicateCount);
+    }
+    
+    /**
+     * Sync property in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public String syncPropertyToPayPropInSeparateTransaction(Long propertyId) {
+        return syncPropertyToPayProp(propertyId);
     }
     
     public void syncAllReadyTenants() {
@@ -815,7 +825,8 @@ public class PayPropSyncService {
         
         for (Tenant tenant : readyTenants) {
             try {
-                String payPropId = syncTenantToPayProp(tenant.getId());
+                // Each tenant sync in its own transaction
+                String payPropId = syncTenantToPayPropInSeparateTransaction(tenant.getId());
                 System.out.println("✅ Successfully synced tenant " + tenant.getId() + " -> " + payPropId);
                 successCount++;
             } catch (DataIntegrityViolationException e) {
@@ -829,6 +840,14 @@ public class PayPropSyncService {
         
         System.out.println("🏁 Tenant sync completed. Success: " + successCount + 
                           ", Errors: " + errorCount + ", Duplicates: " + duplicateCount);
+    }
+    
+    /**
+     * Sync tenant in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public String syncTenantToPayPropInSeparateTransaction(Long tenantId) {
+        return syncTenantToPayProp(tenantId);
     }
     
     public void syncAllReadyBeneficiaries() {
@@ -849,7 +868,8 @@ public class PayPropSyncService {
         
         for (PropertyOwner owner : readyOwners) {
             try {
-                String payPropId = syncBeneficiaryToPayProp(owner.getId());
+                // Each beneficiary sync in its own transaction
+                String payPropId = syncBeneficiaryToPayPropInSeparateTransaction(owner.getId());
                 System.out.println("✅ Successfully synced beneficiary " + owner.getId() + " -> " + payPropId);
                 successCount++;
             } catch (DataIntegrityViolationException e) {
@@ -863,6 +883,14 @@ public class PayPropSyncService {
         
         System.out.println("🏁 Beneficiary sync completed. Success: " + successCount + 
                           ", Errors: " + errorCount + ", Duplicates: " + duplicateCount);
+    }
+    
+    /**
+     * Sync beneficiary in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public String syncBeneficiaryToPayPropInSeparateTransaction(Long propertyOwnerId) {
+        return syncBeneficiaryToPayProp(propertyOwnerId);
     }
     
     public void checkSyncStatus() {

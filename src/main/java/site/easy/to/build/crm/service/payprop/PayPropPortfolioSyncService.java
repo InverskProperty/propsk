@@ -5,7 +5,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.*;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.HttpClientErrorException;
@@ -416,59 +417,91 @@ public class PayPropPortfolioSyncService {
         Portfolio portfolio = portfolios.get(0); // Use first matching portfolio
         int assignedCount = 0;
         int duplicateCount = 0;
-        
+        int errorCount = 0;
+        List<String> errors = new ArrayList<>();
+
         for (String payPropPropertyId : propertyIds) {
-            Optional<Property> propertyOpt = propertyService.findByPayPropId(payPropPropertyId);
-            if (propertyOpt.isPresent()) {
-                Property property = propertyOpt.get();
-                property.setPortfolio(portfolio);
-                property.setPortfolioAssignmentDate(LocalDateTime.now());
-                
-                // FIXED: Add duplicate key handling for property portfolio assignment
-                try {
-                    propertyService.save(property);
-                    assignedCount++;
-                } catch (DataIntegrityViolationException e) {
-                    log.warn("Property {} already exists when assigning to portfolio, skipping save", property.getId());
-                    duplicateCount++;
+            try {
+                Optional<Property> propertyOpt = propertyService.findByPayPropId(payPropPropertyId);
+                if (propertyOpt.isPresent()) {
+                    Property property = propertyOpt.get();
+                    property.setPortfolio(portfolio);
+                    property.setPortfolioAssignmentDate(LocalDateTime.now());
+                    
+                    // FIXED: Add duplicate key handling for property portfolio assignment
+                    try {
+                        propertyService.save(property);
+                        assignedCount++;
+                    } catch (DataIntegrityViolationException e) {
+                        log.warn("Property {} already exists when assigning to portfolio, skipping save", property.getId());
+                        duplicateCount++;
+                    }
+                } else {
+                    log.warn("Property with PayProp ID {} not found in system", payPropPropertyId);
+                    errors.add("Property not found: " + payPropPropertyId);
                 }
+            } catch (Exception e) {
+                errorCount++;
+                log.error("Failed to assign property {} to portfolio: {}", payPropPropertyId, e.getMessage());
+                errors.add("Property " + payPropPropertyId + ": " + e.getMessage());
+                // Continue with next property
             }
         }
         
         completeSyncLog(syncLog, "SUCCESS", null, 
-            Map.of("portfolioId", portfolio.getId(), "assignedProperties", assignedCount, "duplicates", duplicateCount));
-        return SyncResult.success("Assigned " + assignedCount + " properties to portfolio (duplicates: " + duplicateCount + ")");
+            Map.of("portfolioId", portfolio.getId(), "assignedProperties", assignedCount, 
+                   "duplicates", duplicateCount, "errors", errorCount, "errorDetails", errors));
+        
+        String message = String.format("Assigned %d properties to portfolio (duplicates: %d, errors: %d)", 
+            assignedCount, duplicateCount, errorCount);
+        return SyncResult.success(message);
     }
     
     private SyncResult handleTagRemovedFromProperties(String tagId, List<String> propertyIds, PortfolioSyncLog syncLog) {
         int removedCount = 0;
         int duplicateCount = 0;
+        int errorCount = 0;
+        List<String> errors = new ArrayList<>();
         
         for (String payPropPropertyId : propertyIds) {
-            Optional<Property> propertyOpt = propertyService.findByPayPropId(payPropPropertyId);
-            if (propertyOpt.isPresent()) {
-                Property property = propertyOpt.get();
-                // Only remove from portfolio if this was the matching tag
-                if (property.getPortfolio() != null && 
-                    portfolioHasPayPropTag(property.getPortfolio(), tagId)) {
-                    property.setPortfolio(null);
-                    property.setPortfolioAssignmentDate(null);
-                    
-                    // FIXED: Add duplicate key handling for property portfolio removal
-                    try {
-                        propertyService.save(property);
-                        removedCount++;
-                    } catch (DataIntegrityViolationException e) {
-                        log.warn("Property {} already exists when removing from portfolio, skipping save", property.getId());
-                        duplicateCount++;
+            try {
+                Optional<Property> propertyOpt = propertyService.findByPayPropId(payPropPropertyId);
+                if (propertyOpt.isPresent()) {
+                    Property property = propertyOpt.get();
+                    // Only remove from portfolio if this was the matching tag
+                    if (property.getPortfolio() != null && 
+                        portfolioHasPayPropTag(property.getPortfolio(), tagId)) {
+                        property.setPortfolio(null);
+                        property.setPortfolioAssignmentDate(null);
+                        
+                        // FIXED: Add duplicate key handling for property portfolio removal
+                        try {
+                            propertyService.save(property);
+                            removedCount++;
+                        } catch (DataIntegrityViolationException e) {
+                            log.warn("Property {} already exists when removing from portfolio, skipping save", property.getId());
+                            duplicateCount++;
+                        }
                     }
+                } else {
+                    log.warn("Property with PayProp ID {} not found in system", payPropPropertyId);
+                    errors.add("Property not found: " + payPropPropertyId);
                 }
+            } catch (Exception e) {
+                errorCount++;
+                log.error("Failed to remove property {} from portfolio: {}", payPropPropertyId, e.getMessage());
+                errors.add("Property " + payPropPropertyId + ": " + e.getMessage());
+                // Continue with next property
             }
         }
         
         completeSyncLog(syncLog, "SUCCESS", null, 
-            Map.of("removedProperties", removedCount, "duplicates", duplicateCount));
-        return SyncResult.success("Removed " + removedCount + " properties from portfolio (duplicates: " + duplicateCount + ")");
+            Map.of("removedProperties", removedCount, "duplicates", duplicateCount, 
+                   "errors", errorCount, "errorDetails", errors));
+        
+        String message = String.format("Removed %d properties from portfolio (duplicates: %d, errors: %d)", 
+            removedCount, duplicateCount, errorCount);
+        return SyncResult.success(message);
     }
     
     // ===== PAYPROP API METHODS =====
@@ -550,7 +583,8 @@ public class PayPropPortfolioSyncService {
         
         for (Portfolio portfolio : portfoliosNeedingSync) {
             try {
-                SyncResult result = syncPortfolioToPayProp(portfolio.getId(), initiatedBy);
+                // Each portfolio sync in its own transaction
+                SyncResult result = syncPortfolioToPayPropInSeparateTransaction(portfolio.getId(), initiatedBy);
                 if (result.isSuccess()) {
                     successCount++;
                 } else {
@@ -562,7 +596,9 @@ public class PayPropPortfolioSyncService {
                 duplicateCount++;
             } catch (Exception e) {
                 failureCount++;
+                log.error("Failed to sync portfolio {}: {}", portfolio.getName(), e.getMessage());
                 errors.add("Portfolio " + portfolio.getName() + ": " + e.getMessage());
+                // Continue with next portfolio
             }
         }
         
@@ -582,6 +618,14 @@ public class PayPropPortfolioSyncService {
     }
     
     /**
+     * Portfolio sync in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncPortfolioToPayPropInSeparateTransaction(Long portfolioId, Long initiatedBy) {
+        return syncPortfolioToPayProp(portfolioId, initiatedBy);
+    }
+    
+    /**
      * Pull all tags from PayProp and sync to local portfolios
      */
     public SyncResult pullAllTagsFromPayProp(Long initiatedBy) {
@@ -591,11 +635,13 @@ public class PayPropPortfolioSyncService {
             int createdCount = 0;
             int updatedCount = 0;
             int duplicateCount = 0;
+            int errorCount = 0;
+            List<String> errors = new ArrayList<>();
             
             for (PayPropTagDTO tag : payPropTags) {
                 try {
-                    SyncResult result = handleTagCreated(tag.getId(), tag, 
-                        createSyncLog(null, null, null, "PAYPROP_TO_PORTFOLIO", "CREATE", initiatedBy));
+                    // Each tag processing in its own transaction
+                    SyncResult result = handleTagCreatedInSeparateTransaction(tag.getId(), tag, initiatedBy);
                     
                     if (result.isSuccess()) {
                         if (result.getMessage().contains("Created")) {
@@ -603,23 +649,42 @@ public class PayPropPortfolioSyncService {
                         } else {
                             updatedCount++;
                         }
+                    } else {
+                        errorCount++;
+                        errors.add("Tag " + tag.getId() + ": " + result.getMessage());
                     }
                 } catch (DataIntegrityViolationException e) {
                     log.warn("Portfolio for PayProp tag {} already exists during pull, skipping", tag.getId());
                     duplicateCount++;
+                } catch (Exception e) {
+                    errorCount++;
+                    log.error("Failed to process PayProp tag {}: {}", tag.getId(), e.getMessage());
+                    errors.add("Tag " + tag.getId() + ": " + e.getMessage());
+                    // Continue with next tag
                 }
             }
             
-            String message = String.format("PayProp tags pulled. Created: %d portfolios, Updated: %d portfolios, Duplicates: %d", 
-                createdCount, updatedCount, duplicateCount);
+            String message = String.format("PayProp tags pulled. Created: %d portfolios, Updated: %d portfolios, Duplicates: %d, Errors: %d", 
+                createdCount, updatedCount, duplicateCount, errorCount);
             return SyncResult.success(message, Map.of(
                 "created", createdCount, 
                 "updated", updatedCount,
-                "duplicates", duplicateCount));
+                "duplicates", duplicateCount,
+                "errors", errorCount,
+                "errorDetails", errors));
             
         } catch (Exception e) {
             return SyncResult.failure("Failed to pull tags from PayProp: " + e.getMessage());
         }
+    }
+    
+    /**
+     * Handle tag created in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult handleTagCreatedInSeparateTransaction(String tagId, PayPropTagDTO tagData, Long initiatedBy) {
+        PortfolioSyncLog syncLog = createSyncLog(null, null, null, "PAYPROP_TO_PORTFOLIO", "CREATE", initiatedBy);
+        return handleTagCreated(tagId, tagData, syncLog);
     }
     
     // ===== UTILITY METHODS =====

@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
@@ -83,7 +84,6 @@ public class PayPropSyncOrchestrator {
     /**
      * Complete two-way synchronization between CRM and PayProp
      */
-    @Transactional
     public ComprehensiveSyncResult performFullSync(Long initiatedBy) {
         return performFullSync(initiatedBy, false);
     }
@@ -91,7 +91,6 @@ public class PayPropSyncOrchestrator {
     /**
      * Complete two-way synchronization with debug mode control
      */
-    @Transactional
     public ComprehensiveSyncResult performFullSync(Long initiatedBy, boolean enableDebugMode) {
         ComprehensiveSyncResult result = new ComprehensiveSyncResult();
         
@@ -105,17 +104,17 @@ public class PayPropSyncOrchestrator {
         this.debugMode = enableDebugMode;
         
         try {
-            // Phase 1: Push CRM changes to PayProp
-            result.setCrmToPayPropResult(syncCrmToPayProp(initiatedBy));
+            // Phase 1: Push CRM changes to PayProp (separate transaction)
+            result.setCrmToPayPropResult(syncCrmToPayPropInSeparateTransaction(initiatedBy));
             
-            // Phase 2: Pull PayProp changes to CRM
-            result.setPayPropToCrmResult(syncPayPropToCrm(initiatedBy));
+            // Phase 2: Pull PayProp changes to CRM (separate transaction)
+            result.setPayPropToCrmResult(syncPayPropToCrmInSeparateTransaction(initiatedBy));
             
-            // Phase 3: Resolve conflicts
-            result.setConflictResolutionResult(resolveConflicts(initiatedBy));
+            // Phase 3: Resolve conflicts (separate transaction)
+            result.setConflictResolutionResult(resolveConflictsInSeparateTransaction(initiatedBy));
             
-            // Phase 4: Sync portfolios/tags
-            result.setPortfolioSyncResult(syncPortfolios(initiatedBy));
+            // Phase 4: Sync portfolios/tags (separate transaction)
+            result.setPortfolioSyncResult(syncPortfoliosInSeparateTransaction(initiatedBy));
             
             syncLogger.logSyncComplete("FULL_SYNC", result.isOverallSuccess(), result.getSummary());
             
@@ -136,7 +135,6 @@ public class PayPropSyncOrchestrator {
     /**
      * Intelligent sync based on change detection (ADDED - was missing)
      */
-    @Transactional
     public ComprehensiveSyncResult performIntelligentSync(Long initiatedBy) {
         ComprehensiveSyncResult result = new ComprehensiveSyncResult();
         
@@ -146,19 +144,18 @@ public class PayPropSyncOrchestrator {
             // For now, just perform a basic sync since change detection logic is complex
             // In the future, this would detect changes since last sync and only sync what's changed
             
-            // Phase 1: Quick property sync (only unsynced)
-            SyncResult propertyResult = syncPropertiesToPayProp(initiatedBy);
-            result.setCrmToPayPropResult(propertyResult);
+            // Phase 1: Quick property sync (only unsynced) - separate transaction
+            result.setCrmToPayPropResult(syncPropertiesToPayPropInSeparateTransaction(initiatedBy));
             
-            // Phase 2: Quick tenant sync (only unsynced)  
-            SyncResult tenantResult = syncTenantsToPayProp(initiatedBy);
+            // Phase 2: Quick tenant sync (only unsynced) - separate transaction
+            SyncResult tenantResult = syncTenantsToPayPropInSeparateTransaction(initiatedBy);
             
-            // Phase 3: Quick beneficiary sync (only unsynced)
-            SyncResult beneficiaryResult = syncBeneficiariesToPayProp(initiatedBy);
+            // Phase 3: Quick beneficiary sync (only unsynced) - separate transaction
+            SyncResult beneficiaryResult = syncBeneficiariesToPayPropInSeparateTransaction(initiatedBy);
             
             // Combine results
             Map<String, Object> combinedResults = new HashMap<>();
-            combinedResults.put("properties", propertyResult);
+            combinedResults.put("properties", result.getCrmToPayPropResult());
             combinedResults.put("tenants", tenantResult);
             combinedResults.put("beneficiaries", beneficiaryResult);
             
@@ -177,37 +174,26 @@ public class PayPropSyncOrchestrator {
     /**
      * NEW: Complete synchronization with relationship import
      */
-    @Transactional
     public ComprehensiveSyncResult performFullSyncWithRelationships(Long initiatedBy) {
         ComprehensiveSyncResult result = new ComprehensiveSyncResult();
         
         syncLogger.logSyncStart("FULL_SYNC_WITH_RELATIONSHIPS", initiatedBy);
         
         try {
-            // Phase 1: Basic entity import
-            result.setCrmToPayPropResult(syncCrmToPayProp(initiatedBy));
+            // Phase 1: Basic entity import (separate transaction)
+            result.setCrmToPayPropResult(syncCrmToPayPropInSeparateTransaction(initiatedBy));
             
-            // Phase 2: Entity import from PayProp
-            result.setPayPropToCrmResult(syncPayPropToCrm(initiatedBy));
+            // Phase 2: Entity import from PayProp (separate transaction)
+            result.setPayPropToCrmResult(syncPayPropToCrmInSeparateTransaction(initiatedBy));
             
-            // Phase 3: NEW - Relationship import
-            SyncResult tenantPropertyResult = pullTenantsWithPropertiesFromPayProp(initiatedBy);
-            SyncResult beneficiaryPropertyResult = pullBeneficiariesWithPropertiesFromPayProp(initiatedBy);
-            SyncResult relationshipValidation = validateRelationshipsFromInvoices(initiatedBy);
+            // Phase 3: NEW - Relationship import (separate transaction)
+            result.setRelationshipImportResult(syncRelationshipsInSeparateTransaction(initiatedBy));
             
-            Map<String, Object> relationshipResults = Map.of(
-                "tenantProperties", tenantPropertyResult,
-                "beneficiaryProperties", beneficiaryPropertyResult,
-                "invoiceValidation", relationshipValidation
-            );
+            // Phase 4: Conflict resolution (separate transaction)
+            result.setConflictResolutionResult(resolveConflictsInSeparateTransaction(initiatedBy));
             
-            result.setRelationshipImportResult(SyncResult.success("All relationships imported", relationshipResults));
-            
-            // Phase 4: Conflict resolution
-            result.setConflictResolutionResult(resolveConflicts(initiatedBy));
-            
-            // Phase 5: Portfolio sync
-            result.setPortfolioSyncResult(syncPortfolios(initiatedBy));
+            // Phase 5: Portfolio sync (separate transaction)
+            result.setPortfolioSyncResult(syncPortfoliosInSeparateTransaction(initiatedBy));
             
             syncLogger.logSyncComplete("FULL_SYNC_WITH_RELATIONSHIPS", result.isOverallSuccess(), result.getSummary());
             
@@ -243,6 +229,86 @@ public class PayPropSyncOrchestrator {
         }
         
         throw new RuntimeException("No users found in system - cannot create Customer without User");
+    }
+
+    // ===== SEPARATE TRANSACTION METHODS =====
+    
+    /**
+     * CRM to PayProp sync in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncCrmToPayPropInSeparateTransaction(Long initiatedBy) {
+        return syncCrmToPayProp(initiatedBy);
+    }
+    
+    /**
+     * PayProp to CRM sync in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncPayPropToCrmInSeparateTransaction(Long initiatedBy) {
+        return syncPayPropToCrm(initiatedBy);
+    }
+    
+    /**
+     * Properties to PayProp sync in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncPropertiesToPayPropInSeparateTransaction(Long initiatedBy) {
+        return syncPropertiesToPayProp(initiatedBy);
+    }
+    
+    /**
+     * Tenants to PayProp sync in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncTenantsToPayPropInSeparateTransaction(Long initiatedBy) {
+        return syncTenantsToPayProp(initiatedBy);
+    }
+    
+    /**
+     * Beneficiaries to PayProp sync in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncBeneficiariesToPayPropInSeparateTransaction(Long initiatedBy) {
+        return syncBeneficiariesToPayProp(initiatedBy);
+    }
+    
+    /**
+     * Relationship import in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncRelationshipsInSeparateTransaction(Long initiatedBy) {
+        try {
+            SyncResult tenantPropertyResult = pullTenantsWithPropertiesFromPayProp(initiatedBy);
+            SyncResult beneficiaryPropertyResult = pullBeneficiariesWithPropertiesFromPayProp(initiatedBy);
+            SyncResult relationshipValidation = validateRelationshipsFromInvoices(initiatedBy);
+            
+            Map<String, Object> relationshipResults = Map.of(
+                "tenantProperties", tenantPropertyResult,
+                "beneficiaryProperties", beneficiaryPropertyResult,
+                "invoiceValidation", relationshipValidation
+            );
+            
+            return SyncResult.success("All relationships imported", relationshipResults);
+        } catch (Exception e) {
+            return SyncResult.failure("Relationship import failed: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Conflict resolution in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult resolveConflictsInSeparateTransaction(Long initiatedBy) {
+        return resolveConflicts(initiatedBy);
+    }
+    
+    /**
+     * Portfolio sync in separate transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncPortfoliosInSeparateTransaction(Long initiatedBy) {
+        return syncPortfolios(initiatedBy);
     }
 
     // ===== CRM TO PAYPROP SYNC =====
@@ -352,7 +418,9 @@ public class PayPropSyncOrchestrator {
             int processedCount = 0;
             int updatedCount = 0;
             int createdCount = 0;
+            int errorCount = 0;
             List<Map<String, Object>> sampleData = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
 
             while (true) {
                 PayPropSyncService.PayPropExportResult exportResult = 
@@ -372,7 +440,12 @@ public class PayPropSyncOrchestrator {
                             sampleData.add(createSamplePropertyData(propertyData, isNew));
                         }
                     } catch (Exception e) {
+                        errorCount++;
+                        String propertyId = String.valueOf(propertyData.get("id"));
+                        log.error("Failed to sync property {}: {}", propertyId, e.getMessage());
+                        errors.add("Property " + propertyId + ": " + e.getMessage());
                         syncLogger.logEntityError("PROPERTY_PULL", propertyData.get("id"), e);
+                        // Continue with next property
                     }
                 }
 
@@ -383,6 +456,11 @@ public class PayPropSyncOrchestrator {
             details.put("processed", processedCount);
             details.put("created", createdCount);
             details.put("updated", updatedCount);
+            details.put("errors", errorCount);
+            
+            if (errorCount > 0) {
+                details.put("errorDetails", errors);
+            }
             
             if (debugMode && !sampleData.isEmpty()) {
                 details.put("sampleData", sampleData);
@@ -390,7 +468,12 @@ public class PayPropSyncOrchestrator {
                 details.put("note", "Showing " + sampleData.size() + " sample records for debugging");
             }
 
-            return SyncResult.success("Properties pulled from PayProp", details);
+            String message = String.format("Properties pulled from PayProp. Success: %d, Errors: %d", 
+                (createdCount + updatedCount), errorCount);
+            
+            return errorCount == 0 ? 
+                SyncResult.success(message, details) : 
+                SyncResult.partial(message, details);
             
         } catch (Exception e) {
             return SyncResult.failure("Failed to pull properties from PayProp: " + e.getMessage());
@@ -403,7 +486,9 @@ public class PayPropSyncOrchestrator {
             int processedCount = 0;
             int updatedCount = 0;
             int createdCount = 0;
+            int errorCount = 0;
             List<Map<String, Object>> sampleData = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
 
             while (true) {
                 PayPropSyncService.PayPropExportResult exportResult = 
@@ -423,7 +508,12 @@ public class PayPropSyncOrchestrator {
                             sampleData.add(createSampleTenantData(tenantData, isNew));
                         }
                     } catch (Exception e) {
+                        errorCount++;
+                        String tenantId = String.valueOf(tenantData.get("id"));
+                        log.error("Failed to sync tenant {}: {}", tenantId, e.getMessage());
+                        errors.add("Tenant " + tenantId + ": " + e.getMessage());
                         syncLogger.logEntityError("TENANT_PULL", tenantData.get("id"), e);
+                        // Continue with next tenant
                     }
                 }
 
@@ -434,6 +524,11 @@ public class PayPropSyncOrchestrator {
             details.put("processed", processedCount);
             details.put("created", createdCount);
             details.put("updated", updatedCount);
+            details.put("errors", errorCount);
+            
+            if (errorCount > 0) {
+                details.put("errorDetails", errors);
+            }
             
             if (debugMode && !sampleData.isEmpty()) {
                 details.put("sampleData", sampleData);
@@ -441,7 +536,12 @@ public class PayPropSyncOrchestrator {
                 details.put("note", "Showing " + sampleData.size() + " sample records for debugging");
             }
 
-            return SyncResult.success("Tenants pulled from PayProp", details);
+            String message = String.format("Tenants pulled from PayProp. Success: %d, Errors: %d", 
+                (createdCount + updatedCount), errorCount);
+            
+            return errorCount == 0 ? 
+                SyncResult.success(message, details) : 
+                SyncResult.partial(message, details);
             
         } catch (Exception e) {
             return SyncResult.failure("Failed to pull tenants from PayProp: " + e.getMessage());
@@ -454,7 +554,9 @@ public class PayPropSyncOrchestrator {
             int processedCount = 0;
             int updatedCount = 0;
             int createdCount = 0;
+            int errorCount = 0;
             List<Map<String, Object>> sampleData = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
 
             while (true) {
                 PayPropSyncService.PayPropExportResult exportResult = 
@@ -474,7 +576,12 @@ public class PayPropSyncOrchestrator {
                             sampleData.add(createSampleBeneficiaryData(beneficiaryData, isNew));
                         }
                     } catch (Exception e) {
+                        errorCount++;
+                        String beneficiaryId = String.valueOf(beneficiaryData.get("id"));
+                        log.error("Failed to sync beneficiary {}: {}", beneficiaryId, e.getMessage());
+                        errors.add("Beneficiary " + beneficiaryId + ": " + e.getMessage());
                         syncLogger.logEntityError("BENEFICIARY_PULL", beneficiaryData.get("id"), e);
+                        // Continue with next beneficiary
                     }
                 }
 
@@ -485,6 +592,11 @@ public class PayPropSyncOrchestrator {
             details.put("processed", processedCount);
             details.put("created", createdCount);
             details.put("updated", updatedCount);
+            details.put("errors", errorCount);
+            
+            if (errorCount > 0) {
+                details.put("errorDetails", errors);
+            }
             
             if (debugMode && !sampleData.isEmpty()) {
                 details.put("sampleData", sampleData);
@@ -492,7 +604,12 @@ public class PayPropSyncOrchestrator {
                 details.put("note", "Showing " + sampleData.size() + " sample records for debugging");
             }
 
-            return SyncResult.success("Beneficiaries pulled from PayProp", details);
+            String message = String.format("Beneficiaries pulled from PayProp. Success: %d, Errors: %d", 
+                (createdCount + updatedCount), errorCount);
+            
+            return errorCount == 0 ? 
+                SyncResult.success(message, details) : 
+                SyncResult.partial(message, details);
             
         } catch (Exception e) {
             return SyncResult.failure("Failed to pull beneficiaries from PayProp: " + e.getMessage());
@@ -509,6 +626,7 @@ public class PayPropSyncOrchestrator {
             int page = 1;
             int processedCount = 0;
             int relationshipsCreated = 0;
+            int errorCount = 0;
             List<String> errors = new ArrayList<>();
 
             while (true) {
@@ -531,51 +649,59 @@ public class PayPropSyncOrchestrator {
                             List<Map<String, Object>> properties = (List<Map<String, Object>>) propertiesObj;
                             
                             for (Map<String, Object> propertyData : properties) {
-                                String propertyPayPropId = (String) propertyData.get("id");
-                                String tenantPayPropId = (String) tenantData.get("id");
-                                
-                                // FIXED: Find entities using PayProp IDs with your database structure
-                                Property property = findPropertyByPayPropId(propertyPayPropId);
-                                Tenant tenant = findTenantByPayPropId(tenantPayPropId);
-                                
-                                if (property != null && tenant != null) {
-                                    // FIXED: Use comment field instead of missing setPropertyId method
-                                    String relationshipInfo = "Linked to property: " + propertyPayPropId;
-                                    if (tenant.getComment() != null && !tenant.getComment().isEmpty()) {
-                                        tenant.setComment(tenant.getComment() + "; " + relationshipInfo);
-                                    } else {
-                                        tenant.setComment(relationshipInfo);
-                                    }
+                                try {
+                                    String propertyPayPropId = (String) propertyData.get("id");
+                                    String tenantPayPropId = (String) tenantData.get("id");
                                     
-                                    // Set rental information from property data
-                                    Object monthlyPayment = propertyData.get("monthly_payment_required");
-                                    if (monthlyPayment == null) {
-                                        monthlyPayment = propertyData.get("monthly_payment");
-                                    }
-                                    if (monthlyPayment instanceof Number) {
-                                        // Store rent info in comment since setMonthlyRent doesn't exist
-                                        String rentInfo = "Monthly rent: £" + ((Number) monthlyPayment).doubleValue();
-                                        tenant.setComment(tenant.getComment() + "; " + rentInfo);
-                                    }
+                                    Property property = findPropertyByPayPropId(propertyPayPropId);
+                                    Tenant tenant = findTenantByPayPropId(tenantPayPropId);
                                     
-                                    // FIXED: Add duplicate key handling for relationship saves
-                                    try {
-                                        tenantService.save(tenant);
-                                        relationshipsCreated++;
-                                        syncLogger.logRelationshipCreated("TENANT_PROPERTY", 
-                                            tenantPayPropId, propertyPayPropId, "Property link via comment");
-                                    } catch (DataIntegrityViolationException e) {
-                                        log.warn("Duplicate key error when saving tenant {} relationship to property {}, skipping", 
-                                            tenantPayPropId, propertyPayPropId);
-                                        errors.add("Duplicate tenant relationship: " + tenantPayPropId + " -> " + propertyPayPropId);
+                                    if (property != null && tenant != null) {
+                                        String relationshipInfo = "Linked to property: " + propertyPayPropId;
+                                        if (tenant.getComment() != null && !tenant.getComment().isEmpty()) {
+                                            tenant.setComment(tenant.getComment() + "; " + relationshipInfo);
+                                        } else {
+                                            tenant.setComment(relationshipInfo);
+                                        }
+                                        
+                                        Object monthlyPayment = propertyData.get("monthly_payment_required");
+                                        if (monthlyPayment == null) {
+                                            monthlyPayment = propertyData.get("monthly_payment");
+                                        }
+                                        if (monthlyPayment instanceof Number) {
+                                            String rentInfo = "Monthly rent: £" + ((Number) monthlyPayment).doubleValue();
+                                            tenant.setComment(tenant.getComment() + "; " + rentInfo);
+                                        }
+                                        
+                                        // FIXED: Add duplicate key handling for relationship saves
+                                        try {
+                                            tenantService.save(tenant);
+                                            relationshipsCreated++;
+                                            syncLogger.logRelationshipCreated("TENANT_PROPERTY", 
+                                                tenantPayPropId, propertyPayPropId, "Property link via comment");
+                                        } catch (DataIntegrityViolationException e) {
+                                            log.warn("Duplicate key error when saving tenant {} relationship to property {}, skipping", 
+                                                tenantPayPropId, propertyPayPropId);
+                                            errors.add("Duplicate tenant relationship: " + tenantPayPropId + " -> " + propertyPayPropId);
+                                        }
                                     }
+                                } catch (Exception e) {
+                                    String propertyId = String.valueOf(propertyData.get("id"));
+                                    log.error("Failed to create relationship for tenant {} to property {}: {}", 
+                                        tenantData.get("id"), propertyId, e.getMessage());
+                                    errors.add("Relationship error - tenant " + tenantData.get("id") + " to property " + propertyId + ": " + e.getMessage());
+                                    // Continue with next property relationship
                                 }
                             }
                         }
                         
                     } catch (Exception e) {
-                        errors.add("Tenant " + tenantData.get("id") + ": " + e.getMessage());
+                        errorCount++;
+                        String tenantId = String.valueOf(tenantData.get("id"));
+                        log.error("Failed to process tenant {} with relationships: {}", tenantId, e.getMessage());
+                        errors.add("Tenant " + tenantId + ": " + e.getMessage());
                         syncLogger.logEntityError("TENANT_RELATIONSHIP_PULL", tenantData.get("id"), e);
+                        // Continue with next tenant
                     }
                 }
 
@@ -585,11 +711,16 @@ public class PayPropSyncOrchestrator {
             Map<String, Object> details = Map.of(
                 "processed", processedCount,
                 "relationshipsCreated", relationshipsCreated,
-                "errors", errors.size(),
+                "errors", errorCount,
                 "errorDetails", errors
             );
 
-            return SyncResult.success("Tenants with property relationships imported", details);
+            String message = String.format("Tenants with relationships imported. Success: %d, Relationships: %d, Errors: %d", 
+                (processedCount - errorCount), relationshipsCreated, errorCount);
+            
+            return errorCount == 0 ? 
+                SyncResult.success(message, details) : 
+                SyncResult.partial(message, details);
             
         } catch (Exception e) {
             return SyncResult.failure("Failed to import tenant relationships: " + e.getMessage());
@@ -1012,13 +1143,14 @@ public class PayPropSyncOrchestrator {
             List<T> batch = entities.subList(i, endIndex);
             
             if (parallelSyncEnabled) {
-                // Parallel processing
+                // Parallel processing with individual exception handling
                 List<CompletableFuture<SyncResult>> futures = batch.stream()
                     .map(entity -> CompletableFuture.supplyAsync(() -> {
                         try {
                             syncFunction.sync(entity);
                             return SyncResult.success("Synced");
                         } catch (Exception e) {
+                            log.error("Failed to sync {} entity: {}", entityType.toLowerCase(), e.getMessage());
                             return SyncResult.failure(e.getMessage());
                         }
                     }, executorService))
@@ -1027,23 +1159,32 @@ public class PayPropSyncOrchestrator {
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
                 
                 for (CompletableFuture<SyncResult> future : futures) {
-                    SyncResult result = future.join();
-                    if (result.isSuccess()) {
-                        successCount++;
-                    } else {
+                    try {
+                        SyncResult result = future.join();
+                        if (result.isSuccess()) {
+                            successCount++;
+                        } else {
+                            errorCount++;
+                            errors.add(result.getMessage());
+                        }
+                    } catch (Exception e) {
                         errorCount++;
-                        errors.add(result.getMessage());
+                        log.error("Future join failed for {} entity: {}", entityType.toLowerCase(), e.getMessage());
+                        errors.add("Future execution failed: " + e.getMessage());
+                        // Continue with next future
                     }
                 }
             } else {
-                // Sequential processing
+                // Sequential processing with individual exception handling
                 for (T entity : batch) {
                     try {
                         syncFunction.sync(entity);
                         successCount++;
                     } catch (Exception e) {
                         errorCount++;
+                        log.error("Failed to sync {} entity: {}", entityType.toLowerCase(), e.getMessage());
                         errors.add(e.getMessage());
+                        // Continue with next entity
                     }
                 }
             }
