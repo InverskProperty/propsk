@@ -1,84 +1,88 @@
-pom.xml
-site\easy\to\build\crm\CrmApplication.java
-site\easy\to\build\crm\config\CrmUserDetails.java
-site\easy\to\build\crm\config\CustomAccessDeniedHandler.java
-site\easy\to\build\crm\config\CustomerUserDetails.java
-site\easy\to\build\crm\config\RestTemplateConfig.java
-site\easy\to\build\crm\config\SecurityConfig.java
-site\easy\to\build\crm\config\init\OAuth2ClientIdInitializer.java
-site\easy\to\build\crm\config\oauth2\CustomOAuth2User.java
-site\easy\to\build\crm\config\oauth2\CustomOAuth2UserService.java
-site\easy\to\build\crm\config\oauth2\OAuthLoginSuccessHandler.java
-site\easy\to\build\crm\controller\AccountConnectionController.java
-site\easy\to\build\crm\controller\ContractController.java
-site\easy\to\build\crm\controller\CustomerController.java
-site\easy\to\build\crm\controller\CustomerEmailSettingController.java
-site\easy\to\build\crm\controller\CustomerLoginController.java
-site\easy\to\build\crm\controller\CustomerProfileController.java
-site\easy\to\build\crm\controller\CustomErrorController.java
-site\easy\to\build\crm\controller\EmailSettingsController.java
-site\easy\to\build\crm\controller\EmailTemplatesController.java
-site\easy\to\build\crm\controller\GlobalController.java
-db
-META-INF
-migration
-static
-templates
-application.properties
-schema.sql
-META-INF\spring.factories
-migration\V2__Add_Property_Tenant_Contractor_Tables.sql
-static\css
-static\flag-icon-css
-static\flat
-static\font-awesome
-static\fonts
-static\futurico
-static
-static
-site
-site.easy
-site.easy.to
-site.easy.to.build
-site.easy.to.build.crm
-site.easy.to.build.crm.config
-site.easy.to.build.crm.config.init
-site.easy.to.build.crm.config.oauth2
-site.easy.to.build.crm.controller
-site.easy.to.build.crm.converter
-site.easy.to.build.crm.cron
-site.easy.to.build.crm.customValidations
-site.easy.to.build.crm.customValidations.contract
-site.easy.to.build.crm.customValidations.customer
-site.easy.to.build.crm.customValidations.user
-site.easy.to.build.crm.entity
-site.easy.to.build.crm.entity.settings
-site.easy.to.build.crm.google
-site.easy.to.build.crm.google.config
-site.easy.to.build.crm.google.controller
-site.easy.to.build.crm.google.dao
-site.easy.to.build.crm.google.model
-site.easy.to.build.crm.google.model.calendar
-site.easy.to.build.crm.google.model.drive
-site.easy.to.build.crm.google.model.gmail
-site.easy.to.build.crm.google.service
-site.easy.to.build.crm.google.service.acess
-site.easy.to.build.crm.google.service.calendar
-site.easy.to.build.crm.google.service.drive
-site.easy.to.build.crm.google.service.gmail
-site.easy.to.build.crm.google.util
-site.easy.to.build.crm.repository
-site.easy.to.build.crm.repository.settings
-site.easy.to.build.crm.service
-site.easy.to.build.crm.service.contract
-site.easy.to.build.crm.service.customer
-site.easy.to.build.crm.service.drive
-site.easy.to.build.crm.service.email
-site.easy.to.build.crm.service.file
-site.easy.to.build.crm.service.lead
-site.easy.to.build.crm.service.role
-site.easy.to.build.crm.service.settings
-site.easy.to.build.crm.service.ticket
-site.easy.to.build.crm.service.user
-site.easy.to.build.crm.service.weather
-site.easy.to.build.crm.util
+PS C:\Users\sajid\crecrm> ./virgin_mary.ps1
+=== COMPACT PROJECT VIEW ===
+
+--- JAVA FILES ---
+  [] CrmApplication
+  [config] CrmUserDetails, CustomAccessDeniedHandler, CustomerLoginFailureHandler, CustomerLoginSuccessHandler, CustomerUserDetails, RestTemplateConfig, SecurityConfig, TestSecurityConfig
+  [config\init] OAuth2ClientIdInitializer
+  [config\oauth2] CustomOAuth2User, CustomOAuth2UserService, OAuthLoginSuccessHandler
+  [controller] AccountConnectionController, BridgeMigrationController, ContractController, ContractorController, CustomerController, CustomerEmailSettingController, CustomerLoginController, CustomerProfileController, CustomerRegistrationController, CustomErrorController, DebugController, EmailSettingsController, EmailTemplatesController, EmployeeController, GlobalController, GlobalControllerAdvice, GoogleSettingsController, HomePageController, LeadController, LogoutController, ManagerController, PasswordTestController, PayPropAdminController, PayPropOAuth2Controller, PayPropSyncController, PayPropWebhookController, PortfolioController, PropertyController, PropertyOwnerController, RegisterController, SimplePortfolioTestController, TenantController, TicketController, UrlAccessController, UserProfileController
+  [converter] StringSetConverter, YesNoConverter
+  [cron] ContractExpirationChecker
+  [customValidations] EndTimeAfterStartTime, EndTimeAfterStartTimeValidator, FutureDate, FutureDateValidator, SameDay, SameDayValidator
+  [customValidations\contract] StartDateBeforeEndDate, StartDateBeforeEndDateValidator
+  [customValidations\customer] UniqueEmail, UniqueEmailValidator
+  [customValidations\user] UniqueEmail, UniqueEmailValidator, UniqueUsername, UniqueUsernameValidator
+  [entity] AccountType, BeneficiaryType, Block, BlockType, Contract, Contractor, Customer, CustomerLoginInfo, CustomerType, EmailTemplate, File, Frequency, GoogleDriveFile, Lead, LeadAction, OAuthUser, PaymentMethod, Portfolio, PortfolioAnalytics, PortfolioAnalyticsScheduler, PortfolioSyncLog, PortfolioType, Property, PropertyOwner, Role, SyncStatus, Tenant, Ticket, User, UserProfile, WeatherData
+  [entity\settings] ContractEmailSettings, EmailSettings, LeadEmailSettings, TicketEmailSettings
+  [google\config] GoogleApiConfig, GoogleApiProperties, GoogleAuthorizationCodeFlowWrapper
+  [google\controller] GoogleCalendarController, GoogleDriveController, GoogleGmailController
+  [google\dao] EventDateTime
+  [google\model\calendar] AppointmentSlot, Event, EventAttendee, EventDateTime, EventDisplay, EventDisplayList, EventList
+  [google\model\drive] GoogleDriveFile, GoogleDriveFolder
+  [google\model\gmail] Attachment, Body, CustomHeader, EmailPage, GmailApiMessage, GmailEmailInfo, GoogleGmailEmail, Part, Payload
+  [google\service] GoogleCalendarApiService, GoogleCalendarApiServiceImpl
+  [google\service\acess] GoogleAccessService, GoogleAccessServiceImpl
+  [google\service\calendar] GoogleCalendarApiService, GoogleCalendarApiServiceImpl
+  [google\service\drive] GoogleDriveApiService, GoogleDriveApiServiceImpl
+  [google\service\gmail] GmailEmailService, GoogleGmailApiService, GoogleGmailApiServiceImpl, GoogleGmailLabelService, GoogleGmailLabelServiceImpl
+  [google\util] GoogleApiHelper, GsonUtil, PageTokenManager, StringSetWrapper, TimeDateUtil, TimeZoneLabel
+  [repository] BlockRepository, ContractorRepository, ContractRepository, CustomerLoginInfoRepository, CustomerRepository, EmailTemplateRepository, FileRepository, GoogleDriveFileRepository, LeadActionRepository, LeadRepository, OAuthUserRepository, PortfolioAnalyticsRepository, PortfolioRepository, PortfolioSyncLogRepository, PropertyOwnerRepository, PropertyRepository, RoleRepository, TenantRepository, TicketRepository, UserProfileRepository, UserRepository
+  [repository\settings] ContractEmailSettingsRepository, LeadEmailSettingsRepository, TicketEmailSettingsRepository
+  [service\contract] ContractService, ContractServiceImpl
+  [service\contractor] ContractorService, ContractorServiceImpl
+  [service\customer] BridgeMigrationResult, CustomerEntityBridgeService, CustomerLoginInfoService, CustomerLoginInfoServiceImpl, CustomerService, CustomerServiceImpl
+  [service\drive] GoogleDriveFileService, GoogleDriveFileServiceImpl
+  [service\email] EmailService, EmailServiceImpl, EmailTemplateService, EmailTemplateServiceImpl
+  [service\file] FileService, FileServiceImpl
+  [service\lead] LeadActionService, LeadActionServiceImpl, LeadService, LeadServiceImpl
+  [service\payprop] PayPropAddressDTO, PayPropBeneficiaryDTO, PayPropChangeDetection, PayPropConflictResolver, PayPropOAuth2Service, PayPropPortfolioSyncService, PayPropPropertyDTO, PayPropSettingsDTO, PayPropSyncException, PayPropSyncLogger, PayPropSyncOrchestrator, PayPropSyncScheduler, PayPropSyncService, PayPropTagDTO, PayPropTenantDTO, PayPropValidationHelper, SyncResult, SyncResultType
+  [service\portfolio] PortfolioService, PortfolioServiceImpl
+  [service\property] PropertyOwnerService, PropertyOwnerServiceImpl, PropertyService, PropertyServiceImpl, TenantService, TenantServiceImpl
+  [service\role] RoleService, RoleServiceImpl
+  [service\settings] ContractEmailSettingsService, LeadEmailSettingsService, TicketEmailSettingsService
+  [service\ticket] TicketService, TicketServiceImpl
+  [service\ticket\user] OAuthUserService, OAuthUserServiceImpl, UserProfileService, UserProfileServiceImpl, UserService, UserServiceImpl
+  [service\weather] WeatherService
+  [src\test\java\site\easy\to\build\crm] CrmApplicationTests
+  [util] AuthenticationUtils, AuthorizationUtil, DatabaseUtil, DateUtil, EmailTokenUtils, FileUtil, LogEntityChanges, SessionUtils, StringUtils, TomcatWebAppValidator
+
+--- HTML TEMPLATES ---
+  [] change-password, coming-soon, connect-accounts, customer-dashboard, customer-login, customer-profile, customer-register, google-error, google-settings, index, login, logout, profile, register, set-employee-password, set-password
+  [admin] payprop-dashboard
+  [calendar] calendar, event-form
+  [contract] contracts, create, show-details, update
+  [contractor] dashboard
+  [customer] all-customers, create-customer, customer-details, customer-list, email-form, manager-all-customers, register-customer, update-customer
+  [customer-info] contract-detail, lead-detail, my-contracts, my-leads, my-tickets, ticket-detail
+  [email-template] create-template, email-tags, show-all, show-tags, show-template, update-template
+  [employee\customer] contractors, create-contractor, email-property-owners, email-tenants, property-owners, tenants
+  [employee\ticket] contractor-bids, pending-bids
+  [employee\ticket\manager] all-tickets
+  [error] 400, 500, 503, access-denied, account-inactive, account-suspended, error, not-found
+  [general] footer, head, header, left-sidebar, page-titles, right-sidebar
+  [gmail] email-details, email-form-draft, email-form, emails-label, emails, error
+  [gmail\template] filter-menu, side-bar-labels
+  [google-drive] create-file, create-folder, list-files-in-folder, list-files
+  [lead] create-lead, show-details, show-my-leads, update-lead
+  [manager] all-users, register-user, show-user, update-user
+  [payprop] oauth-status, sync-dashboard
+  [portfolio] all-portfolios, assign-properties, create-portfolio, employee-dashboard, portfolio-details, property-owner-dashboard
+  [property] all-properties, create-property, portfolio-overview, property-details, sync-status, sync-status1, update-property, update-property1, vacant-properties
+  [property-owner] dashboard, financials, properties, tenants, test
+  [settings] customer-email, email
+  [tenant] dashboard
+  [ticket] create-ticket, my-tickets, show-ticket, update-ticket
+  [url] all
+
+--- CONFIG ---
+  pom.xml, application.properties
+
+--- SQL ---
+  dynamic_schema_analysis.sql
+  schema_export.sql
+  specific_schema.sql
+  schema.sql
+  V3__Add_Customer_Classification_PayProp.sql
+  V2__Add_Property_Tenant_Contractor_Tables.sql
+PS C:\Users\sajid\crecrm>

@@ -23,63 +23,112 @@ public class PayPropTenantDTO {
     private PayPropBankAccountDTO bank_account;
     private Boolean has_bank_account;
     
-    // Getters and setters
+    // Getters and setters with null protection
     public String getAccount_type() { return account_type; }
-    public void setAccount_type(String account_type) { this.account_type = account_type; }
+    public void setAccount_type(String account_type) { 
+        this.account_type = (account_type != null) ? account_type : "individual"; 
+    }
     
     public String getFirst_name() { return first_name; }
-    public void setFirst_name(String first_name) { this.first_name = first_name; }
+    public void setFirst_name(String first_name) { 
+        this.first_name = (first_name != null) ? first_name : ""; 
+    }
     
     public String getLast_name() { return last_name; }
-    public void setLast_name(String last_name) { this.last_name = last_name; }
+    public void setLast_name(String last_name) { 
+        this.last_name = (last_name != null) ? last_name : ""; 
+    }
     
     public String getBusiness_name() { return business_name; }
-    public void setBusiness_name(String business_name) { this.business_name = business_name; }
+    public void setBusiness_name(String business_name) { 
+        this.business_name = (business_name != null) ? business_name : ""; 
+    }
     
     public String getEmail_address() { return email_address; }
-    public void setEmail_address(String email_address) { this.email_address = email_address; }
+    public void setEmail_address(String email_address) { 
+        this.email_address = (email_address != null) ? email_address : ""; 
+    }
     
     public String getMobile_number() { return mobile_number; }
-    public void setMobile_number(String mobile_number) { this.mobile_number = mobile_number; }
+    public void setMobile_number(String mobile_number) { 
+        this.mobile_number = (mobile_number != null) ? mobile_number : ""; 
+    }
     
     public String getPhone() { return phone; }
-    public void setPhone(String phone) { this.phone = phone; }
+    public void setPhone(String phone) { 
+        this.phone = (phone != null) ? phone : ""; 
+    }
     
     public String getFax() { return fax; }
-    public void setFax(String fax) { this.fax = fax; }
+    public void setFax(String fax) { 
+        this.fax = (fax != null) ? fax : ""; 
+    }
     
     public String getCustomer_id() { return customer_id; }
-    public void setCustomer_id(String customer_id) { this.customer_id = customer_id; }
+    public void setCustomer_id(String customer_id) { 
+        this.customer_id = (customer_id != null) ? customer_id : ""; 
+    }
     
     public String getCustomer_reference() { return customer_reference; }
-    public void setCustomer_reference(String customer_reference) { this.customer_reference = customer_reference; }
+    public void setCustomer_reference(String customer_reference) { 
+        this.customer_reference = (customer_reference != null) ? customer_reference : ""; 
+    }
     
     public String getComment() { return comment; }
-    public void setComment(String comment) { this.comment = comment; }
+    public void setComment(String comment) { 
+        this.comment = (comment != null) ? comment : ""; 
+    }
     
     public LocalDate getDate_of_birth() { return date_of_birth; }
-    public void setDate_of_birth(LocalDate date_of_birth) { this.date_of_birth = date_of_birth; }
+    public void setDate_of_birth(LocalDate date_of_birth) { 
+        this.date_of_birth = date_of_birth; // Can be null for business accounts
+    }
     
     public String getId_number() { return id_number; }
-    public void setId_number(String id_number) { this.id_number = id_number; }
+    public void setId_number(String id_number) { 
+        this.id_number = (id_number != null) ? id_number : ""; 
+    }
     
     public String getVat_number() { return vat_number; }
-    public void setVat_number(String vat_number) { this.vat_number = vat_number; }
+    public void setVat_number(String vat_number) { 
+        this.vat_number = (vat_number != null) ? vat_number : ""; 
+    }
     
     public Boolean getNotify_email() { return notify_email; }
-    public void setNotify_email(Boolean notify_email) { this.notify_email = notify_email; }
+    public void setNotify_email(Boolean notify_email) { 
+        this.notify_email = (notify_email != null) ? notify_email : true; // Default to enabled
+    }
     
     public Boolean getNotify_sms() { return notify_sms; }
-    public void setNotify_sms(Boolean notify_sms) { this.notify_sms = notify_sms; }
+    public void setNotify_sms(Boolean notify_sms) { 
+        this.notify_sms = (notify_sms != null) ? notify_sms : false; // Default to disabled
+    }
     
     public PayPropAddressDTO getAddress() { return address; }
-    public void setAddress(PayPropAddressDTO address) { this.address = address; }
+    public void setAddress(PayPropAddressDTO address) { 
+        // Initialize with empty address if null
+        if (address == null) {
+            address = new PayPropAddressDTO();
+            address.setAddress_line_1("");
+            address.setAddress_line_2("");
+            address.setAddress_line_3("");
+            address.setCity("");
+            address.setState("");
+            address.setPostal_code("");
+            address.setCountry_code("GB");
+        }
+        this.address = address; 
+    }
     
     public PayPropBankAccountDTO getBank_account() { return bank_account; }
-    public void setBank_account(PayPropBankAccountDTO bank_account) { this.bank_account = bank_account; }
+    public void setBank_account(PayPropBankAccountDTO bank_account) { 
+        this.bank_account = bank_account; // Can be null
+    }
     
     public Boolean getHas_bank_account() { return has_bank_account; }
-    public void setHas_bank_account(Boolean has_bank_account) { this.has_bank_account = has_bank_account; }
+    public void setHas_bank_account(Boolean has_bank_account) { 
+        this.has_bank_account = (has_bank_account != null) ? has_bank_account : false; 
+    }
 }
 
 class PayPropBankAccountDTO {
@@ -92,28 +141,44 @@ class PayPropBankAccountDTO {
     private String swift_code;
     private String country_code;
     
-    // Getters and setters
+    // Getters and setters with null protection
     public String getAccount_name() { return account_name; }
-    public void setAccount_name(String account_name) { this.account_name = account_name; }
+    public void setAccount_name(String account_name) { 
+        this.account_name = (account_name != null) ? account_name : ""; 
+    }
     
     public String getAccount_number() { return account_number; }
-    public void setAccount_number(String account_number) { this.account_number = account_number; }
+    public void setAccount_number(String account_number) { 
+        this.account_number = (account_number != null) ? account_number : ""; 
+    }
     
     public String getBranch_code() { return branch_code; }
-    public void setBranch_code(String branch_code) { this.branch_code = branch_code; }
+    public void setBranch_code(String branch_code) { 
+        this.branch_code = (branch_code != null) ? branch_code : ""; 
+    }
     
     public String getBank_name() { return bank_name; }
-    public void setBank_name(String bank_name) { this.bank_name = bank_name; }
+    public void setBank_name(String bank_name) { 
+        this.bank_name = (bank_name != null) ? bank_name : ""; 
+    }
     
     public String getBranch_name() { return branch_name; }
-    public void setBranch_name(String branch_name) { this.branch_name = branch_name; }
+    public void setBranch_name(String branch_name) { 
+        this.branch_name = (branch_name != null) ? branch_name : ""; 
+    }
     
     public String getIban() { return iban; }
-    public void setIban(String iban) { this.iban = iban; }
+    public void setIban(String iban) { 
+        this.iban = (iban != null) ? iban : ""; 
+    }
     
     public String getSwift_code() { return swift_code; }
-    public void setSwift_code(String swift_code) { this.swift_code = swift_code; }
+    public void setSwift_code(String swift_code) { 
+        this.swift_code = (swift_code != null) ? swift_code : ""; 
+    }
     
     public String getCountry_code() { return country_code; }
-    public void setCountry_code(String country_code) { this.country_code = country_code; }
+    public void setCountry_code(String country_code) { 
+        this.country_code = (country_code != null) ? country_code : "GB"; 
+    }
 }

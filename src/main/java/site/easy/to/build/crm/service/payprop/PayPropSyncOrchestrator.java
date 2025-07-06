@@ -1,11 +1,14 @@
-// PayPropSyncOrchestrator.java - Database Compatible Version
+// PayPropSyncOrchestrator.java - Database Compatible Version with Duplicate Key Handling
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
@@ -24,6 +27,8 @@ import java.util.concurrent.Executors;
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Service
 public class PayPropSyncOrchestrator {
+
+    private static final Logger log = LoggerFactory.getLogger(PayPropSyncOrchestrator.class);
 
     private final PayPropSyncService payPropSyncService;
     private final PayPropPortfolioSyncService portfolioSyncService;
@@ -553,11 +558,17 @@ public class PayPropSyncOrchestrator {
                                         tenant.setComment(tenant.getComment() + "; " + rentInfo);
                                     }
                                     
-                                    tenantService.save(tenant);
-                                    relationshipsCreated++;
-                                    
-                                    syncLogger.logRelationshipCreated("TENANT_PROPERTY", 
-                                        tenantPayPropId, propertyPayPropId, "Property link via comment");
+                                    // FIXED: Add duplicate key handling for relationship saves
+                                    try {
+                                        tenantService.save(tenant);
+                                        relationshipsCreated++;
+                                        syncLogger.logRelationshipCreated("TENANT_PROPERTY", 
+                                            tenantPayPropId, propertyPayPropId, "Property link via comment");
+                                    } catch (DataIntegrityViolationException e) {
+                                        log.warn("Duplicate key error when saving tenant {} relationship to property {}, skipping", 
+                                            tenantPayPropId, propertyPayPropId);
+                                        errors.add("Duplicate tenant relationship: " + tenantPayPropId + " -> " + propertyPayPropId);
+                                    }
                                 }
                             }
                         }
@@ -658,11 +669,17 @@ public class PayPropSyncOrchestrator {
                                     beneficiary.setCreatedAt(LocalDateTime.now());
                                     beneficiary.setCreatedBy(initiatedBy);
                                     
-                                    propertyOwnerService.save(beneficiary);
-                                    relationshipsCreated++;
-                                    
-                                    syncLogger.logRelationshipCreated("BENEFICIARY_PROPERTY", 
-                                        beneficiaryPayPropId, propertyPayPropId, "Property ownership via comment");
+                                    // FIXED: Add duplicate key handling for relationship saves
+                                    try {
+                                        propertyOwnerService.save(beneficiary);
+                                        relationshipsCreated++;
+                                        syncLogger.logRelationshipCreated("BENEFICIARY_PROPERTY", 
+                                            beneficiaryPayPropId, propertyPayPropId, "Property ownership via comment");
+                                    } catch (DataIntegrityViolationException e) {
+                                        log.warn("Duplicate key error when saving beneficiary {} relationship to property {}, skipping", 
+                                            beneficiaryPayPropId, propertyPayPropId);
+                                        errors.add("Duplicate beneficiary relationship: " + beneficiaryPayPropId + " -> " + propertyPayPropId);
+                                    }
                                 }
                             }
                         }
@@ -757,11 +774,16 @@ public class PayPropSyncOrchestrator {
                                         tenant.setComment(tenant.getComment() + "; " + rentInfo);
                                     }
                                     
-                                    tenantService.save(tenant);
-                                    missingRelationships++;
-                                    
-                                    syncLogger.logRelationshipFixed("INVOICE_VALIDATION", 
-                                        tenantPayPropId, propertyPayPropId, "Created missing tenant-property relationship from invoice data");
+                                    // FIXED: Add duplicate key handling for invoice relationship fixes
+                                    try {
+                                        tenantService.save(tenant);
+                                        missingRelationships++;
+                                        syncLogger.logRelationshipFixed("INVOICE_VALIDATION", 
+                                            tenantPayPropId, propertyPayPropId, "Created missing tenant-property relationship from invoice data");
+                                    } catch (DataIntegrityViolationException e) {
+                                        log.warn("Duplicate key error when fixing tenant {} relationship from invoice, skipping", tenantPayPropId);
+                                        issues.add("Duplicate tenant fix: " + tenantPayPropId + " from invoice " + invoiceData.get("id"));
+                                    }
                                 }
                             } else {
                                 issues.add("Invoice " + invoiceData.get("id") + ": Missing property or tenant in system");
@@ -1042,8 +1064,11 @@ public class PayPropSyncOrchestrator {
             SyncResult.partial(message, details);
     }
 
-    // ===== ENTITY UPDATE METHODS (FIXED FOR YOUR DATABASE) =====
+    // ===== ENTITY UPDATE METHODS (FIXED FOR YOUR DATABASE WITH DUPLICATE KEY HANDLING) =====
 
+    /**
+     * FIXED: Handle duplicate PayProp IDs when creating/updating properties
+     */
     private boolean updateOrCreatePropertyFromPayProp(Map<String, Object> propertyData, Long initiatedBy) {
         String payPropId = (String) propertyData.get("id");
         Property existingProperty = findPropertyByPayPropId(payPropId);
@@ -1051,16 +1076,46 @@ public class PayPropSyncOrchestrator {
         if (existingProperty != null) {
             updatePropertyFromPayPropData(existingProperty, propertyData);
             existingProperty.setUpdatedBy(initiatedBy);
-            propertyService.save(existingProperty);
-            return false; // Not new
+            
+            try {
+                propertyService.save(existingProperty);
+                return false; // Not new
+            } catch (DataIntegrityViolationException e) {
+                log.warn("Property with PayProp ID {} already exists during update, skipping", payPropId);
+                return false;
+            }
         } else {
             Property property = createPropertyFromPayPropData(propertyData);
             property.setCreatedBy(initiatedBy);
-            propertyService.save(property);
-            return true; // New
+            
+            try {
+                propertyService.save(property);
+                return true; // New
+            } catch (DataIntegrityViolationException e) {
+                log.warn("Property with PayProp ID {} already exists during creation, attempting to find and update existing", payPropId);
+                // Try to find the existing property and update it instead
+                Property existing = findPropertyByPayPropId(payPropId);
+                if (existing != null) {
+                    updatePropertyFromPayPropData(existing, propertyData);
+                    existing.setUpdatedBy(initiatedBy);
+                    try {
+                        propertyService.save(existing);
+                        return false; // Updated existing
+                    } catch (DataIntegrityViolationException e2) {
+                        log.error("Failed to update existing property with PayProp ID {} after duplicate key error", payPropId, e2);
+                        throw new RuntimeException("Unable to save property with PayProp ID: " + payPropId, e2);
+                    }
+                } else {
+                    log.error("Duplicate key error but could not find existing property with PayProp ID {}", payPropId);
+                    throw new RuntimeException("Duplicate key error for unknown property with PayProp ID: " + payPropId, e);
+                }
+            }
         }
     }
 
+    /**
+     * FIXED: Handle duplicate PayProp IDs when creating/updating tenants
+     */
     private boolean updateOrCreateTenantFromPayProp(Map<String, Object> tenantData, Long initiatedBy) {
         String payPropId = (String) tenantData.get("id");
         Tenant existingTenant = findTenantByPayPropId(payPropId);
@@ -1068,17 +1123,47 @@ public class PayPropSyncOrchestrator {
         if (existingTenant != null) {
             updateTenantFromPayPropData(existingTenant, tenantData);
             existingTenant.setUpdatedAt(LocalDateTime.now());
-            tenantService.save(existingTenant);
-            return false; // Not new
+            
+            try {
+                tenantService.save(existingTenant);
+                return false; // Not new
+            } catch (DataIntegrityViolationException e) {
+                log.warn("Tenant with PayProp ID {} already exists during update, skipping", payPropId);
+                return false;
+            }
         } else {
             Tenant tenant = createTenantFromPayPropData(tenantData);
             tenant.setCreatedAt(LocalDateTime.now());
             tenant.setCreatedBy(initiatedBy);
-            tenantService.save(tenant);
-            return true; // New
+            
+            try {
+                tenantService.save(tenant);
+                return true; // New
+            } catch (DataIntegrityViolationException e) {
+                log.warn("Tenant with PayProp ID {} already exists during creation, attempting to find and update existing", payPropId);
+                // Try to find the existing tenant and update it instead
+                Tenant existing = findTenantByPayPropId(payPropId);
+                if (existing != null) {
+                    updateTenantFromPayPropData(existing, tenantData);
+                    existing.setUpdatedAt(LocalDateTime.now());
+                    try {
+                        tenantService.save(existing);
+                        return false; // Updated existing
+                    } catch (DataIntegrityViolationException e2) {
+                        log.error("Failed to update existing tenant with PayProp ID {} after duplicate key error", payPropId, e2);
+                        throw new RuntimeException("Unable to save tenant with PayProp ID: " + payPropId, e2);
+                    }
+                } else {
+                    log.error("Duplicate key error but could not find existing tenant with PayProp ID {}", payPropId);
+                    throw new RuntimeException("Duplicate key error for unknown tenant with PayProp ID: " + payPropId, e);
+                }
+            }
         }
     }
 
+    /**
+     * FIXED: Handle duplicate PayProp IDs when creating/updating property owners
+     */
     private boolean updateOrCreateBeneficiaryFromPayProp(Map<String, Object> beneficiaryData, Long initiatedBy) {
         String payPropId = (String) beneficiaryData.get("id");
         PropertyOwner existingOwner = findPropertyOwnerByPayPropId(payPropId);
@@ -1086,14 +1171,41 @@ public class PayPropSyncOrchestrator {
         if (existingOwner != null) {
             updatePropertyOwnerFromPayPropData(existingOwner, beneficiaryData);
             existingOwner.setUpdatedAt(LocalDateTime.now());
-            propertyOwnerService.save(existingOwner);
-            return false; // Not new
+            
+            try {
+                propertyOwnerService.save(existingOwner);
+                return false; // Not new
+            } catch (DataIntegrityViolationException e) {
+                log.warn("PropertyOwner with PayProp ID {} already exists during update, skipping", payPropId);
+                return false;
+            }
         } else {
             PropertyOwner owner = createPropertyOwnerFromPayPropData(beneficiaryData);
             owner.setCreatedAt(LocalDateTime.now());
             owner.setCreatedBy(initiatedBy);
-            propertyOwnerService.save(owner);
-            return true; // New
+            
+            try {
+                propertyOwnerService.save(owner);
+                return true; // New
+            } catch (DataIntegrityViolationException e) {
+                log.warn("PropertyOwner with PayProp ID {} already exists during creation, attempting to find and update existing", payPropId);
+                // Try to find the existing owner and update it instead
+                PropertyOwner existing = findPropertyOwnerByPayPropId(payPropId);
+                if (existing != null) {
+                    updatePropertyOwnerFromPayPropData(existing, beneficiaryData);
+                    existing.setUpdatedAt(LocalDateTime.now());
+                    try {
+                        propertyOwnerService.save(existing);
+                        return false; // Updated existing
+                    } catch (DataIntegrityViolationException e2) {
+                        log.error("Failed to update existing PropertyOwner with PayProp ID {} after duplicate key error", payPropId, e2);
+                        throw new RuntimeException("Unable to save PropertyOwner with PayProp ID: " + payPropId, e2);
+                    }
+                } else {
+                    log.error("Duplicate key error but could not find existing PropertyOwner with PayProp ID {}", payPropId);
+                    throw new RuntimeException("Duplicate key error for unknown PropertyOwner with PayProp ID: " + payPropId, e);
+                }
+            }
         }
     }
 

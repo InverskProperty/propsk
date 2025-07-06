@@ -1,13 +1,16 @@
-// PayPropSyncService.java - Database Compatible Version
+// PayPropSyncService.java - Database Compatible Version with Duplicate Key Handling
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.HttpClientErrorException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
@@ -22,6 +25,8 @@ import java.util.Map;
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Service
 public class PayPropSyncService {
+
+    private static final Logger log = LoggerFactory.getLogger(PayPropSyncService.class);
 
     private final PropertyService propertyService;
     private final TenantService tenantService;
@@ -72,11 +77,16 @@ public class PayPropSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String payPropId = (String) response.getBody().get("id");
                 
-                // FIXED: Update property with PayProp ID using your actual method
+                // FIXED: Update property with PayProp ID using duplicate key handling
                 property.setPayPropId(payPropId);
-                propertyService.save(property);
+                try {
+                    propertyService.save(property);
+                    System.out.println("✅ Property synced successfully! PayProp ID: " + payPropId);
+                } catch (DataIntegrityViolationException e) {
+                    log.warn("Property with PayProp ID {} already exists when saving sync result, skipping save", payPropId);
+                    System.out.println("⚠️ Property synced to PayProp but already exists locally with PayProp ID: " + payPropId);
+                }
                 
-                System.out.println("✅ Property synced successfully! PayProp ID: " + payPropId);
                 return payPropId;
             }
             
@@ -108,7 +118,14 @@ public class PayPropSyncService {
                 request
             );
             
-            System.out.println("✅ Property updated in PayProp: " + property.getPayPropId());
+            // FIXED: Add duplicate key handling for update save
+            try {
+                propertyService.save(property);
+                System.out.println("✅ Property updated in PayProp: " + property.getPayPropId());
+            } catch (DataIntegrityViolationException e) {
+                log.warn("Property with PayProp ID {} already exists when saving update, skipping save", property.getPayPropId());
+                System.out.println("✅ Property updated in PayProp (local save skipped due to duplicate): " + property.getPayPropId());
+            }
             
         } catch (HttpClientErrorException e) {
             System.err.println("❌ Failed to update property in PayProp: " + e.getResponseBodyAsString());
@@ -148,11 +165,16 @@ public class PayPropSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String payPropId = (String) response.getBody().get("id");
                 
-                // FIXED: Update tenant with PayProp ID
+                // FIXED: Update tenant with PayProp ID using duplicate key handling
                 tenant.setPayPropId(payPropId);
-                tenantService.save(tenant);
+                try {
+                    tenantService.save(tenant);
+                    System.out.println("✅ Tenant synced successfully! PayProp ID: " + payPropId);
+                } catch (DataIntegrityViolationException e) {
+                    log.warn("Tenant with PayProp ID {} already exists when saving sync result, skipping save", payPropId);
+                    System.out.println("⚠️ Tenant synced to PayProp but already exists locally with PayProp ID: " + payPropId);
+                }
                 
-                System.out.println("✅ Tenant synced successfully! PayProp ID: " + payPropId);
                 return payPropId;
             }
             
@@ -184,7 +206,14 @@ public class PayPropSyncService {
                 request
             );
             
-            System.out.println("✅ Tenant updated in PayProp: " + tenant.getPayPropId());
+            // FIXED: Add duplicate key handling for update save
+            try {
+                tenantService.save(tenant);
+                System.out.println("✅ Tenant updated in PayProp: " + tenant.getPayPropId());
+            } catch (DataIntegrityViolationException e) {
+                log.warn("Tenant with PayProp ID {} already exists when saving update, skipping save", tenant.getPayPropId());
+                System.out.println("✅ Tenant updated in PayProp (local save skipped due to duplicate): " + tenant.getPayPropId());
+            }
             
         } catch (HttpClientErrorException e) {
             System.err.println("❌ Failed to update tenant in PayProp: " + e.getResponseBodyAsString());
@@ -224,11 +253,16 @@ public class PayPropSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String payPropId = (String) response.getBody().get("id");
                 
-                // FIXED: Update property owner with PayProp ID
+                // FIXED: Update property owner with PayProp ID using duplicate key handling
                 owner.setPayPropId(payPropId);
-                propertyOwnerService.save(owner);
+                try {
+                    propertyOwnerService.save(owner);
+                    System.out.println("✅ Beneficiary synced successfully! PayProp ID: " + payPropId);
+                } catch (DataIntegrityViolationException e) {
+                    log.warn("PropertyOwner with PayProp ID {} already exists when saving sync result, skipping save", payPropId);
+                    System.out.println("⚠️ Beneficiary synced to PayProp but already exists locally with PayProp ID: " + payPropId);
+                }
                 
-                System.out.println("✅ Beneficiary synced successfully! PayProp ID: " + payPropId);
                 return payPropId;
             }
             
@@ -727,7 +761,7 @@ public class PayPropSyncService {
         return mobile;
     }
     
-    // ===== BULK SYNC METHODS =====
+    // ===== BULK SYNC METHODS WITH DUPLICATE KEY HANDLING =====
     
     public void syncAllReadyProperties() {
         if (!oAuth2Service.hasValidTokens()) {
@@ -743,19 +777,24 @@ public class PayPropSyncService {
         
         int successCount = 0;
         int errorCount = 0;
+        int duplicateCount = 0;
         
         for (Property property : readyProperties) {
             try {
                 String payPropId = syncPropertyToPayProp(property.getId());
                 System.out.println("✅ Successfully synced property " + property.getId() + " -> " + payPropId);
                 successCount++;
+            } catch (DataIntegrityViolationException e) {
+                log.warn("Property {} already has PayProp ID during bulk sync, skipping", property.getId());
+                duplicateCount++;
             } catch (Exception e) {
                 System.err.println("❌ Failed to sync property " + property.getId() + ": " + e.getMessage());
                 errorCount++;
             }
         }
         
-        System.out.println("🏁 Property sync completed. Success: " + successCount + ", Errors: " + errorCount);
+        System.out.println("🏁 Property sync completed. Success: " + successCount + 
+                          ", Errors: " + errorCount + ", Duplicates: " + duplicateCount);
     }
     
     public void syncAllReadyTenants() {
@@ -772,19 +811,24 @@ public class PayPropSyncService {
         
         int successCount = 0;
         int errorCount = 0;
+        int duplicateCount = 0;
         
         for (Tenant tenant : readyTenants) {
             try {
                 String payPropId = syncTenantToPayProp(tenant.getId());
                 System.out.println("✅ Successfully synced tenant " + tenant.getId() + " -> " + payPropId);
                 successCount++;
+            } catch (DataIntegrityViolationException e) {
+                log.warn("Tenant {} already has PayProp ID during bulk sync, skipping", tenant.getId());
+                duplicateCount++;
             } catch (Exception e) {
                 System.err.println("❌ Failed to sync tenant " + tenant.getId() + ": " + e.getMessage());
                 errorCount++;
             }
         }
         
-        System.out.println("🏁 Tenant sync completed. Success: " + successCount + ", Errors: " + errorCount);
+        System.out.println("🏁 Tenant sync completed. Success: " + successCount + 
+                          ", Errors: " + errorCount + ", Duplicates: " + duplicateCount);
     }
     
     public void syncAllReadyBeneficiaries() {
@@ -801,19 +845,24 @@ public class PayPropSyncService {
         
         int successCount = 0;
         int errorCount = 0;
+        int duplicateCount = 0;
         
         for (PropertyOwner owner : readyOwners) {
             try {
                 String payPropId = syncBeneficiaryToPayProp(owner.getId());
                 System.out.println("✅ Successfully synced beneficiary " + owner.getId() + " -> " + payPropId);
                 successCount++;
+            } catch (DataIntegrityViolationException e) {
+                log.warn("PropertyOwner {} already has PayProp ID during bulk sync, skipping", owner.getId());
+                duplicateCount++;
             } catch (Exception e) {
                 System.err.println("❌ Failed to sync beneficiary " + owner.getId() + ": " + e.getMessage());
                 errorCount++;
             }
         }
         
-        System.out.println("🏁 Beneficiary sync completed. Success: " + successCount + ", Errors: " + errorCount);
+        System.out.println("🏁 Beneficiary sync completed. Success: " + successCount + 
+                          ", Errors: " + errorCount + ", Duplicates: " + duplicateCount);
     }
     
     public void checkSyncStatus() {
