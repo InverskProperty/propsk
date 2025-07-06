@@ -175,13 +175,14 @@ public class SecurityConfig {
 
                         // Customer routes (handled by main chain for consistency)
                         .requestMatchers("/customer/**").hasRole("CUSTOMER")
-                        
+
                         // CRITICAL FIX: PayProp routes - MUST come BEFORE /portfolio/**
+                        .requestMatchers("/api/payprop/sync/**").permitAll() // Allow sync endpoints without auth
                         .requestMatchers("/admin/payprop/**").hasAnyRole("MANAGER", "OIDC_USER")
                         .requestMatchers("/api/payprop/oauth/**").hasAnyRole("MANAGER", "OIDC_USER")
                         .requestMatchers("/api/payprop/webhook/**").permitAll() // Webhooks need public access
                         .requestMatchers("/api/payprop/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
-                        
+
                         // CRITICAL FIX: Portfolio specific routes - MUST come BEFORE general /portfolio/**
                         .requestMatchers("/portfolio/actions/pull-payprop-tags").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         .requestMatchers("/portfolio/payprop-tags").hasAnyRole("MANAGER", "PROPERTY_OWNER", "OIDC_USER")
