@@ -1,3 +1,4 @@
+
 // Property.java - Migration Safe Version with Portfolio/Block Support
 package site.easy.to.build.crm.entity;
 
@@ -35,15 +36,6 @@ public class Property {
     @Pattern(regexp = "^.*\\S.*$", message = "Property name must contain non-whitespace characters")
     private String propertyName;
 
-    // Add this setter to handle PayProp data with blank names
-    public void setPropertyName(String propertyName) {
-        if (propertyName == null || propertyName.trim().isEmpty()) {
-            this.propertyName = "Unnamed Property";
-        } else {
-            this.propertyName = propertyName.trim();
-        }
-    }
-
     // Address fields - PayProp expects separate fields
     @Column(name = "address_line_1", length = 50)
     @Size(max = 50)
@@ -71,6 +63,10 @@ public class Property {
     @Column(name = "postcode", length = 10)
     @Size(max = 10)
     private String postcode;
+    
+    @Column(name = "state", length = 50)
+    @Size(max = 50)
+    private String state;
     
     // Property Details
     @Column(name = "property_type")
@@ -126,6 +122,9 @@ public class Property {
     
     @Column(name = "hold_owner_funds", length = 1) // Changed back to String  
     private String holdOwnerFunds = "N";
+    
+    @Column(name = "verify_payments", length = 1) // PayProp verify_payments field
+    private String verifyPayments = "N";
     
     @Column(name = "is_archived", length = 1) // Changed back to String
     private String isArchived = "N";
@@ -189,8 +188,18 @@ public class Property {
         this.updatedAt = LocalDateTime.now();
         this.enablePayments = "Y";
         this.holdOwnerFunds = "N";
+        this.verifyPayments = "N";
         this.isArchived = "N";
         this.countryCode = "UK";
+    }
+
+    // Add this setter to handle PayProp data with blank names
+    public void setPropertyName(String propertyName) {
+        if (propertyName == null || propertyName.trim().isEmpty()) {
+            this.propertyName = "Unnamed Property";
+        } else {
+            this.propertyName = propertyName.trim();
+        }
     }
     
     // 🔧 FIXED: PayProp-compatible getters that convert String to Boolean
@@ -208,6 +217,14 @@ public class Property {
     
     public void setHoldOwnerFundsFromBoolean(Boolean value) {
         this.holdOwnerFunds = (value != null && value) ? "Y" : "N";
+    }
+    
+    public Boolean getVerifyPaymentsAsBoolean() {
+        return "Y".equalsIgnoreCase(verifyPayments);
+    }
+    
+    public void setVerifyPaymentsFromBoolean(Boolean value) {
+        this.verifyPayments = (value != null && value) ? "Y" : "N";
     }
     
     public Boolean getIsArchivedAsBoolean() {
@@ -251,6 +268,9 @@ public class Property {
     
     public String getPostcode() { return postcode; }
     public void setPostcode(String postcode) { this.postcode = postcode; }
+    
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
     
     public String getPropertyType() { return propertyType; }
     public void setPropertyType(String propertyType) { this.propertyType = propertyType; }
@@ -305,6 +325,9 @@ public class Property {
     
     public String getHoldOwnerFunds() { return holdOwnerFunds; }
     public void setHoldOwnerFunds(String holdOwnerFunds) { this.holdOwnerFunds = holdOwnerFunds; }
+    
+    public String getVerifyPayments() { return verifyPayments; }
+    public void setVerifyPayments(String verifyPayments) { this.verifyPayments = verifyPayments; }
     
     public String getIsArchived() { return isArchived; }
     public void setIsArchived(String isArchived) { this.isArchived = isArchived; }
@@ -411,6 +434,9 @@ public class Property {
         }
         if (holdOwnerFunds == null) {
             holdOwnerFunds = "N";
+        }
+        if (verifyPayments == null) {
+            verifyPayments = "N";
         }
         if (isArchived == null) {
             isArchived = "N";
