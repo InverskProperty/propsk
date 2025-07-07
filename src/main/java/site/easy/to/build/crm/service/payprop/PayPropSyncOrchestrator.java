@@ -1,4 +1,4 @@
-// PayPropSyncOrchestrator.java - Database Compatible Version with Duplicate Key Handling
+// PayPropSyncOrchestrator.java - API-Compliant Phone Number Handling
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -138,7 +138,7 @@ public class PayPropSyncOrchestrator {
     }
 
     /**
-     * Intelligent sync based on change detection (ADDED - was missing)
+     * Intelligent sync based on change detection
      */
     public ComprehensiveSyncResult performIntelligentSync(Long initiatedBy) {
         ComprehensiveSyncResult result = new ComprehensiveSyncResult();
@@ -177,7 +177,7 @@ public class PayPropSyncOrchestrator {
     }
 
     /**
-     * NEW: Complete synchronization with relationship import
+     * Complete synchronization with relationship import
      */
     public ComprehensiveSyncResult performFullSyncWithRelationships(Long initiatedBy) {
         ComprehensiveSyncResult result = new ComprehensiveSyncResult();
@@ -191,7 +191,7 @@ public class PayPropSyncOrchestrator {
             // Phase 2: Entity import from PayProp (separate transaction)
             result.setPayPropToCrmResult(syncPayPropToCrmInSeparateTransaction(initiatedBy));
             
-            // Phase 3: NEW - Relationship import (separate transaction)
+            // Phase 3: Relationship import (separate transaction)
             result.setRelationshipImportResult(syncRelationshipsInSeparateTransaction(initiatedBy));
             
             // Phase 4: Conflict resolution (separate transaction)
@@ -213,11 +213,10 @@ public class PayPropSyncOrchestrator {
     // ===== USER HELPER METHOD =====
     
     @Autowired
-    private AuthenticationUtils authenticationUtils; // Add this field at the top
+    private AuthenticationUtils authenticationUtils;
 
     private User getCurrentUser(Long userId) {
         try {
-            // FIXED: Get user by email from OAuth authentication
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.isAuthenticated()) {
                 
@@ -227,10 +226,10 @@ public class PayPropSyncOrchestrator {
                     String email = oauth2Token.getPrincipal().getAttribute("email");
                     
                     if (email != null) {
-                        User currentUser = userService.findByEmail(email); // Find by email, not ID
+                        User currentUser = userService.findByEmail(email);
                         if (currentUser != null) {
                             log.info("✅ Found user by email {}: ID={}, username={}", email, currentUser.getId(), currentUser.getUsername());
-                            return currentUser; // This should return user ID 54 for management@propsk.com
+                            return currentUser;
                         }
                     }
                 }
@@ -254,33 +253,21 @@ public class PayPropSyncOrchestrator {
 
     // ===== SEPARATE TRANSACTION METHODS =====
     
-    /**
-     * CRM to PayProp sync in separate transaction
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult syncCrmToPayPropInSeparateTransaction(Long initiatedBy) {
         return syncCrmToPayProp(initiatedBy);
     }
     
-    /**
-     * PayProp to CRM sync in separate transaction
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult syncPayPropToCrmInSeparateTransaction(Long initiatedBy) {
         return syncPayPropToCrm(initiatedBy);
     }
     
-    /**
-     * Properties to PayProp sync in separate transaction
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult syncPropertiesToPayPropInSeparateTransaction(Long initiatedBy) {
         return syncPropertiesToPayProp(initiatedBy);
     }
     
-    /**
-     * Tenants to PayProp sync in separate transaction - TEMPORARILY DISABLED
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult syncTenantsToPayPropInSeparateTransaction(Long initiatedBy) {
         log.info("Tenant sync to PayProp is temporarily disabled (read-only mode due to insufficient permissions)");
@@ -288,17 +275,11 @@ public class PayPropSyncOrchestrator {
             Map.of("reason", "Insufficient PayProp permissions", "mode", "read-only"));
     }
     
-    /**
-     * Beneficiaries to PayProp sync in separate transaction
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult syncBeneficiariesToPayPropInSeparateTransaction(Long initiatedBy) {
         return syncBeneficiariesToPayProp(initiatedBy);
     }
     
-    /**
-     * Relationship import in separate transaction
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult syncRelationshipsInSeparateTransaction(Long initiatedBy) {
         try {
@@ -318,17 +299,11 @@ public class PayPropSyncOrchestrator {
         }
     }
     
-    /**
-     * Conflict resolution in separate transaction
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult resolveConflictsInSeparateTransaction(Long initiatedBy) {
         return resolveConflicts(initiatedBy);
     }
     
-    /**
-     * Portfolio sync in separate transaction
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult syncPortfoliosInSeparateTransaction(Long initiatedBy) {
         return syncPortfolios(initiatedBy);
@@ -371,7 +346,6 @@ public class PayPropSyncOrchestrator {
     }
 
     private SyncResult syncPropertiesToPayProp(Long initiatedBy) {
-        // FIXED: Use your actual repository methods
         List<Property> properties = propertyService.findAll().stream()
             .filter(p -> p.getPayPropId() == null) // Not yet synced
             .toList();
@@ -384,7 +358,6 @@ public class PayPropSyncOrchestrator {
         // TEMPORARILY DISABLED: Due to PayProp permission restrictions
         log.info("Tenant sync to PayProp is temporarily disabled (read-only mode)");
         
-        // Get count of tenants that would need sync for reporting
         List<Tenant> tenantsNeedingSync = tenantService.findAll().stream()
             .filter(t -> t.getPayPropId() == null) // Not yet synced
             .toList();
@@ -399,7 +372,6 @@ public class PayPropSyncOrchestrator {
     }
 
     private SyncResult syncBeneficiariesToPayProp(Long initiatedBy) {
-        // FIXED: Use actual repository methods
         List<PropertyOwner> owners = propertyOwnerService.findAll().stream()
             .filter(o -> o.getPayPropId() == null) // Not yet synced
             .toList();
@@ -476,7 +448,6 @@ public class PayPropSyncOrchestrator {
                         log.error("Failed to sync property {}: {}", propertyId, e.getMessage());
                         errors.add("Property " + propertyId + ": " + e.getMessage());
                         syncLogger.logEntityError("PROPERTY_PULL", propertyData.get("id"), e);
-                        // Continue with next property
                     }
                 }
 
@@ -544,7 +515,6 @@ public class PayPropSyncOrchestrator {
                         log.error("Failed to sync tenant {}: {}", tenantId, e.getMessage());
                         errors.add("Tenant " + tenantId + ": " + e.getMessage());
                         syncLogger.logEntityError("TENANT_PULL", tenantData.get("id"), e);
-                        // Continue with next tenant
                     }
                 }
 
@@ -612,7 +582,6 @@ public class PayPropSyncOrchestrator {
                         log.error("Failed to sync beneficiary {}: {}", beneficiaryId, e.getMessage());
                         errors.add("Beneficiary " + beneficiaryId + ": " + e.getMessage());
                         syncLogger.logEntityError("BENEFICIARY_PULL", beneficiaryData.get("id"), e);
-                        // Continue with next beneficiary
                     }
                 }
 
@@ -647,11 +616,8 @@ public class PayPropSyncOrchestrator {
         }
     }
 
-    // ===== NEW: RELATIONSHIP IMPORT METHODS =====
+    // ===== RELATIONSHIP IMPORT METHODS =====
 
-    /**
-     * Import tenants with property relationships from PayProp
-     */
     private SyncResult pullTenantsWithPropertiesFromPayProp(Long initiatedBy) {
         try {
             int page = 1;
@@ -670,11 +636,9 @@ public class PayPropSyncOrchestrator {
 
                 for (Map<String, Object> tenantData : exportResult.getItems()) {
                     try {
-                        // Create/update tenant first
                         boolean isNew = updateOrCreateTenantFromPayProp(tenantData, initiatedBy);
                         processedCount++;
                         
-                        // RELATIONSHIP IMPORT: Process tenant property assignments
                         Object propertiesObj = tenantData.get("properties");
                         if (propertiesObj instanceof List) {
                             List<Map<String, Object>> properties = (List<Map<String, Object>>) propertiesObj;
@@ -704,7 +668,6 @@ public class PayPropSyncOrchestrator {
                                             tenant.setComment(tenant.getComment() + "; " + rentInfo);
                                         }
                                         
-                                        // FIXED: Add duplicate key handling for relationship saves
                                         try {
                                             tenantService.save(tenant);
                                             relationshipsCreated++;
@@ -721,7 +684,6 @@ public class PayPropSyncOrchestrator {
                                     log.error("Failed to create relationship for tenant {} to property {}: {}", 
                                         tenantData.get("id"), propertyId, e.getMessage());
                                     errors.add("Relationship error - tenant " + tenantData.get("id") + " to property " + propertyId + ": " + e.getMessage());
-                                    // Continue with next property relationship
                                 }
                             }
                         }
@@ -732,7 +694,6 @@ public class PayPropSyncOrchestrator {
                         log.error("Failed to process tenant {} with relationships: {}", tenantId, e.getMessage());
                         errors.add("Tenant " + tenantId + ": " + e.getMessage());
                         syncLogger.logEntityError("TENANT_RELATIONSHIP_PULL", tenantData.get("id"), e);
-                        // Continue with next tenant
                     }
                 }
 
@@ -758,9 +719,6 @@ public class PayPropSyncOrchestrator {
         }
     }
 
-    /**
-     * Import property owners with property relationships from PayProp
-     */
     private SyncResult pullBeneficiariesWithPropertiesFromPayProp(Long initiatedBy) {
         try {
             int page = 1;
@@ -778,11 +736,9 @@ public class PayPropSyncOrchestrator {
 
                 for (Map<String, Object> beneficiaryData : exportResult.getItems()) {
                     try {
-                        // Create/update beneficiary first
                         boolean isNew = updateOrCreateBeneficiaryFromPayProp(beneficiaryData, initiatedBy);
                         processedCount++;
                         
-                        // RELATIONSHIP IMPORT: Process beneficiary property ownership
                         Object propertiesObj = beneficiaryData.get("properties");
                         if (propertiesObj instanceof List) {
                             List<Map<String, Object>> properties = (List<Map<String, Object>>) propertiesObj;
@@ -791,12 +747,10 @@ public class PayPropSyncOrchestrator {
                                 String propertyPayPropId = (String) propertyData.get("id");
                                 String beneficiaryPayPropId = (String) beneficiaryData.get("id");
                                 
-                                // FIXED: Find entities using PayProp IDs
                                 Property property = findPropertyByPayPropId(propertyPayPropId);
                                 PropertyOwner beneficiary = findPropertyOwnerByPayPropId(beneficiaryPayPropId);
                                 
                                 if (property != null && beneficiary != null) {
-                                    // FIXED: Use comment field for relationship info since setPropertyId may not exist
                                     String relationshipInfo = "Owns property: " + propertyPayPropId;
                                     if (beneficiary.getComment() != null && !beneficiary.getComment().isEmpty()) {
                                         beneficiary.setComment(beneficiary.getComment() + "; " + relationshipInfo);
@@ -804,14 +758,12 @@ public class PayPropSyncOrchestrator {
                                         beneficiary.setComment(relationshipInfo);
                                     }
                                     
-                                    // Set ownership details from beneficiary data
                                     Boolean isActiveOwner = (Boolean) beneficiaryData.get("is_active_owner");
                                     if (Boolean.TRUE.equals(isActiveOwner)) {
                                         beneficiary.setIsPrimaryOwner("Y");
                                         beneficiary.setStatus("Active");
                                     }
                                     
-                                    // Set financial details from property data
                                     Object monthlyPayment = propertyData.get("monthly_payment_required");
                                     if (monthlyPayment == null) {
                                         monthlyPayment = propertyData.get("monthly_payment");
@@ -831,7 +783,6 @@ public class PayPropSyncOrchestrator {
                                     beneficiary.setCreatedAt(LocalDateTime.now());
                                     beneficiary.setCreatedBy(initiatedBy);
                                     
-                                    // FIXED: Add duplicate key handling for relationship saves
                                     try {
                                         propertyOwnerService.save(beneficiary);
                                         relationshipsCreated++;
@@ -869,9 +820,6 @@ public class PayPropSyncOrchestrator {
         }
     }
 
-    /**
-     * Import and validate relationships using invoice data
-     */
     private SyncResult validateRelationshipsFromInvoices(Long initiatedBy) {
         try {
             int page = 1;
@@ -889,7 +837,6 @@ public class PayPropSyncOrchestrator {
 
                 for (Map<String, Object> invoiceData : exportResult.getItems()) {
                     try {
-                        // Extract relationship data from invoice
                         Map<String, Object> propertyInfo = (Map<String, Object>) invoiceData.get("property");
                         Map<String, Object> tenantInfo = (Map<String, Object>) invoiceData.get("tenant");
                         
@@ -897,23 +844,19 @@ public class PayPropSyncOrchestrator {
                             String propertyPayPropId = (String) propertyInfo.get("id");
                             String tenantPayPropId = (String) tenantInfo.get("id");
                             
-                            // Handle both 'email' and 'email_address' fields from invoice
                             String tenantEmail = (String) tenantInfo.get("email");
                             if (tenantEmail == null) {
                                 tenantEmail = (String) tenantInfo.get("email_address");
                             }
                             
-                            // FIXED: Find entities using your database structure
                             Property property = findPropertyByPayPropId(propertyPayPropId);
                             Tenant tenant = findTenantByPayPropId(tenantPayPropId);
                             
-                            // If not found by PayProp ID, try by email
                             if (tenant == null && tenantEmail != null) {
                                 tenant = findTenantByEmail(tenantEmail);
                             }
                             
                             if (property != null && tenant != null) {
-                                // FIXED: Check comment field for relationship instead of missing getPropertyId
                                 String currentComment = tenant.getComment();
                                 boolean hasRelationship = currentComment != null && 
                                     currentComment.contains("Linked to property: " + propertyPayPropId);
@@ -921,7 +864,6 @@ public class PayPropSyncOrchestrator {
                                 if (hasRelationship) {
                                     validatedRelationships++;
                                 } else {
-                                    // Relationship missing - create it
                                     String relationshipInfo = "Linked to property: " + propertyPayPropId;
                                     if (currentComment != null && !currentComment.isEmpty()) {
                                         tenant.setComment(currentComment + "; " + relationshipInfo);
@@ -929,14 +871,12 @@ public class PayPropSyncOrchestrator {
                                         tenant.setComment(relationshipInfo);
                                     }
                                     
-                                    // Set rent amount from invoice
                                     Object grossAmount = invoiceData.get("gross_amount");
                                     if (grossAmount instanceof Number) {
                                         String rentInfo = "Monthly rent: £" + ((Number) grossAmount).doubleValue();
                                         tenant.setComment(tenant.getComment() + "; " + rentInfo);
                                     }
                                     
-                                    // FIXED: Add duplicate key handling for invoice relationship fixes
                                     try {
                                         tenantService.save(tenant);
                                         missingRelationships++;
@@ -974,20 +914,17 @@ public class PayPropSyncOrchestrator {
         }
     }
 
-    
-
-    // ===== ENTITY LOOKUP METHODS (FIXED FOR YOUR DATABASE) =====
+    // ===== ENTITY LOOKUP METHODS =====
 
     private Property findPropertyByPayPropId(String payPropId) {
         if (payPropId == null) return null;
         try {
-            // FIXED: Use your actual repository method
             return propertyService.findAll().stream()
                 .filter(p -> payPropId.equals(p.getPayPropId()))
                 .findFirst()
                 .orElse(null);
         } catch (Exception e) {
-            System.err.println("Error finding property by PayProp ID " + payPropId + ": " + e.getMessage());
+            log.error("Error finding property by PayProp ID {}: {}", payPropId, e.getMessage());
             return null;
         }
     }
@@ -995,13 +932,12 @@ public class PayPropSyncOrchestrator {
     private Tenant findTenantByPayPropId(String payPropId) {
         if (payPropId == null) return null;
         try {
-            // FIXED: Use your actual repository method
             return tenantService.findAll().stream()
                 .filter(t -> payPropId.equals(t.getPayPropId()))
                 .findFirst()
                 .orElse(null);
         } catch (Exception e) {
-            System.err.println("Error finding tenant by PayProp ID " + payPropId + ": " + e.getMessage());
+            log.error("Error finding tenant by PayProp ID {}: {}", payPropId, e.getMessage());
             return null;
         }
     }
@@ -1009,13 +945,12 @@ public class PayPropSyncOrchestrator {
     private Tenant findTenantByEmail(String email) {
         if (email == null) return null;
         try {
-            // FIXED: Use your actual repository method
             return tenantService.findAll().stream()
                 .filter(t -> email.equals(t.getEmailAddress()))
                 .findFirst()
                 .orElse(null);
         } catch (Exception e) {
-            System.err.println("Error finding tenant by email " + email + ": " + e.getMessage());
+            log.error("Error finding tenant by email {}: {}", email, e.getMessage());
             return null;
         }
     }
@@ -1023,13 +958,12 @@ public class PayPropSyncOrchestrator {
     private PropertyOwner findPropertyOwnerByPayPropId(String payPropId) {
         if (payPropId == null) return null;
         try {
-            // FIXED: Use your actual repository method
             return propertyOwnerService.findAll().stream()
                 .filter(o -> payPropId.equals(o.getPayPropId()))
                 .findFirst()
                 .orElse(null);
         } catch (Exception e) {
-            System.err.println("Error finding property owner by PayProp ID " + payPropId + ": " + e.getMessage());
+            log.error("Error finding property owner by PayProp ID {}: {}", payPropId, e.getMessage());
             return null;
         }
     }
@@ -1040,7 +974,6 @@ public class PayPropSyncOrchestrator {
         Map<String, Object> sample = new HashMap<>();
         sample.put("id", fullData.get("id"));
         
-        // Handle both 'property_name' and 'name' fields
         String propertyName = (String) fullData.get("property_name");
         if (propertyName == null) {
             propertyName = (String) fullData.get("name");
@@ -1049,7 +982,6 @@ public class PayPropSyncOrchestrator {
         sample.put("customer_reference", fullData.get("customer_reference"));
         sample.put("action", isNew ? "created" : "updated");
         
-        // Include simplified address
         Map<String, Object> address = (Map<String, Object>) fullData.get("address");
         if (address != null) {
             Map<String, Object> sampleAddress = new HashMap<>();
@@ -1176,7 +1108,6 @@ public class PayPropSyncOrchestrator {
             List<T> batch = entities.subList(i, endIndex);
             
             if (parallelSyncEnabled) {
-                // Parallel processing with individual exception handling
                 List<CompletableFuture<SyncResult>> futures = batch.stream()
                     .map(entity -> CompletableFuture.supplyAsync(() -> {
                         try {
@@ -1204,11 +1135,9 @@ public class PayPropSyncOrchestrator {
                         errorCount++;
                         log.error("Future join failed for {} entity: {}", entityType.toLowerCase(), e.getMessage());
                         errors.add("Future execution failed: " + e.getMessage());
-                        // Continue with next future
                     }
                 }
             } else {
-                // Sequential processing with individual exception handling
                 for (T entity : batch) {
                     try {
                         syncFunction.sync(entity);
@@ -1217,7 +1146,6 @@ public class PayPropSyncOrchestrator {
                         errorCount++;
                         log.error("Failed to sync {} entity: {}", entityType.toLowerCase(), e.getMessage());
                         errors.add(e.getMessage());
-                        // Continue with next entity
                     }
                 }
             }
@@ -1238,11 +1166,8 @@ public class PayPropSyncOrchestrator {
             SyncResult.partial(message, details);
     }
 
-    // ===== ENTITY UPDATE METHODS (FIXED FOR YOUR DATABASE WITH DUPLICATE KEY HANDLING) =====
+    // ===== ENTITY UPDATE METHODS =====
 
-    /**
-     * FIXED: Handle duplicate PayProp IDs when creating/updating properties
-     */
     private boolean updateOrCreatePropertyFromPayProp(Map<String, Object> propertyData, Long initiatedBy) {
         String payPropId = (String) propertyData.get("id");
         Property existingProperty = findPropertyByPayPropId(payPropId);
@@ -1267,7 +1192,6 @@ public class PayPropSyncOrchestrator {
                 return true; // New
             } catch (DataIntegrityViolationException e) {
                 log.warn("Property with PayProp ID {} already exists during creation, attempting to find and update existing", payPropId);
-                // Try to find the existing property and update it instead
                 Property existing = findPropertyByPayPropId(payPropId);
                 if (existing != null) {
                     updatePropertyFromPayPropData(existing, propertyData);
@@ -1287,9 +1211,6 @@ public class PayPropSyncOrchestrator {
         }
     }
 
-    /**
-     * FIXED: Handle duplicate PayProp IDs when creating/updating tenants
-     */
     private boolean updateOrCreateTenantFromPayProp(Map<String, Object> tenantData, Long initiatedBy) {
         String payPropId = (String) tenantData.get("id");
         Tenant existingTenant = findTenantByPayPropId(payPropId);
@@ -1315,7 +1236,6 @@ public class PayPropSyncOrchestrator {
                 return true; // New
             } catch (DataIntegrityViolationException e) {
                 log.warn("Tenant with PayProp ID {} already exists during creation, attempting to find and update existing", payPropId);
-                // Try to find the existing tenant and update it instead
                 Tenant existing = findTenantByPayPropId(payPropId);
                 if (existing != null) {
                     updateTenantFromPayPropData(existing, tenantData);
@@ -1335,9 +1255,6 @@ public class PayPropSyncOrchestrator {
         }
     }
 
-    /**
-     * FIXED: Handle duplicate PayProp IDs when creating/updating property owners
-     */
     private boolean updateOrCreateBeneficiaryFromPayProp(Map<String, Object> beneficiaryData, Long initiatedBy) {
         String payPropId = (String) beneficiaryData.get("id");
         PropertyOwner existingOwner = findPropertyOwnerByPayPropId(payPropId);
@@ -1363,7 +1280,6 @@ public class PayPropSyncOrchestrator {
                 return true; // New
             } catch (DataIntegrityViolationException e) {
                 log.warn("PropertyOwner with PayProp ID {} already exists during creation, attempting to find and update existing", payPropId);
-                // Try to find the existing owner and update it instead
                 PropertyOwner existing = findPropertyOwnerByPayPropId(payPropId);
                 if (existing != null) {
                     updatePropertyOwnerFromPayPropData(existing, beneficiaryData);
@@ -1383,10 +1299,9 @@ public class PayPropSyncOrchestrator {
         }
     }
 
-    // ===== UTILITY METHODS (FIXED FOR YOUR DATABASE) =====
+    // ===== UTILITY METHODS =====
 
     private void updatePropertyFromPayPropData(Property property, Map<String, Object> data) {
-        // Handle both 'property_name' and 'name' fields
         String propertyName = (String) data.get("property_name");
         if (propertyName == null) {
             propertyName = (String) data.get("name");
@@ -1396,7 +1311,6 @@ public class PayPropSyncOrchestrator {
         property.setAgentName((String) data.get("agent_name"));
         property.setComment((String) data.get("notes"));
         
-        // Update address with PayProp structure handling
         Map<String, Object> address = (Map<String, Object>) data.get("address");
         if (address != null) {
             String addressLine1 = (String) address.get("first_line");
@@ -1426,7 +1340,6 @@ public class PayPropSyncOrchestrator {
             property.setPostcode(postalCode);
             property.setCountryCode((String) address.get("country_code"));
             
-            // FIXED: Handle state field properly - provide default if null
             String state = (String) address.get("state");
             if (state == null || state.trim().isEmpty()) {
                 state = "N/A"; // Default value to avoid PayProp validation error
@@ -1434,70 +1347,63 @@ public class PayPropSyncOrchestrator {
             property.setState(state);
         }
         
-            // Update settings if present
-            Map<String, Object> settings = (Map<String, Object>) data.get("settings");
-            if (settings != null) {
-                // FIXED: Convert boolean to Y/N for your database
-                Boolean enablePayments = (Boolean) settings.get("enable_payments");
-                if (enablePayments != null) {
-                    property.setEnablePayments(enablePayments ? "Y" : "N");
-                }
-                
-                Boolean holdOwnerFunds = (Boolean) settings.get("hold_owner_funds");
-                if (holdOwnerFunds != null) {
-                    property.setHoldOwnerFunds(holdOwnerFunds ? "Y" : "N");
-                }
-                
-                // FIXED: Handle verify_payments field properly 
-                Boolean verifyPayments = (Boolean) settings.get("verify_payments");
-                if (verifyPayments != null) {
-                    property.setVerifyPayments(verifyPayments ? "Y" : "N");
-                }
-                
-                // Handle BigDecimal fields safely
-                Object monthlyPaymentObj = settings.get("monthly_payment");
-                if (monthlyPaymentObj instanceof Number) {
-                    property.setMonthlyPayment(BigDecimal.valueOf(((Number) monthlyPaymentObj).doubleValue()));
-                }
-                
-                Object minBalanceObj = settings.get("minimum_balance");
-                if (minBalanceObj instanceof Number) {
-                    property.setPropertyAccountMinimumBalance(BigDecimal.valueOf(((Number) minBalanceObj).doubleValue()));
-                }
-                
-                // FIXED: Handle LocalDate fields safely - avoid array conversion issues
-                Object listingFromObj = settings.get("listing_from");
-                if (listingFromObj instanceof LocalDate) {
-                    property.setListedFrom((LocalDate) listingFromObj);
-                } else if (listingFromObj instanceof String) {
-                    try {
-                        property.setListedFrom(LocalDate.parse((String) listingFromObj));
-                    } catch (Exception e) {
-                        log.warn("Could not parse listing_from date: {}", listingFromObj);
-                        property.setListedFrom(null); // Set to null instead of invalid data
-                    }
-                } else if (listingFromObj instanceof List) {
-                    // Handle array case - log warning and skip
-                    log.warn("listing_from received as array, skipping: {}", listingFromObj);
+        Map<String, Object> settings = (Map<String, Object>) data.get("settings");
+        if (settings != null) {
+            Boolean enablePayments = (Boolean) settings.get("enable_payments");
+            if (enablePayments != null) {
+                property.setEnablePayments(enablePayments ? "Y" : "N");
+            }
+            
+            Boolean holdOwnerFunds = (Boolean) settings.get("hold_owner_funds");
+            if (holdOwnerFunds != null) {
+                property.setHoldOwnerFunds(holdOwnerFunds ? "Y" : "N");
+            }
+            
+            Boolean verifyPayments = (Boolean) settings.get("verify_payments");
+            if (verifyPayments != null) {
+                property.setVerifyPayments(verifyPayments ? "Y" : "N");
+            }
+            
+            Object monthlyPaymentObj = settings.get("monthly_payment");
+            if (monthlyPaymentObj instanceof Number) {
+                property.setMonthlyPayment(BigDecimal.valueOf(((Number) monthlyPaymentObj).doubleValue()));
+            }
+            
+            Object minBalanceObj = settings.get("minimum_balance");
+            if (minBalanceObj instanceof Number) {
+                property.setPropertyAccountMinimumBalance(BigDecimal.valueOf(((Number) minBalanceObj).doubleValue()));
+            }
+            
+            Object listingFromObj = settings.get("listing_from");
+            if (listingFromObj instanceof LocalDate) {
+                property.setListedFrom((LocalDate) listingFromObj);
+            } else if (listingFromObj instanceof String) {
+                try {
+                    property.setListedFrom(LocalDate.parse((String) listingFromObj));
+                } catch (Exception e) {
+                    log.warn("Could not parse listing_from date: {}", listingFromObj);
                     property.setListedFrom(null);
                 }
-                
-                Object listingToObj = settings.get("listing_to");
-                if (listingToObj instanceof LocalDate) {
-                    property.setListedUntil((LocalDate) listingToObj);
-                } else if (listingToObj instanceof String) {
-                    try {
-                        property.setListedUntil(LocalDate.parse((String) listingToObj));
-                    } catch (Exception e) {
-                        log.warn("Could not parse listing_to date: {}", listingToObj);
-                        property.setListedUntil(null); // Set to null instead of invalid data
-                    }
-                } else if (listingToObj instanceof List) {
-                    // Handle array case - log warning and skip
-                    log.warn("listing_to received as array, skipping: {}", listingToObj);
+            } else if (listingFromObj instanceof List) {
+                log.warn("listing_from received as array, skipping: {}", listingFromObj);
+                property.setListedFrom(null);
+            }
+            
+            Object listingToObj = settings.get("listing_to");
+            if (listingToObj instanceof LocalDate) {
+                property.setListedUntil((LocalDate) listingToObj);
+            } else if (listingToObj instanceof String) {
+                try {
+                    property.setListedUntil(LocalDate.parse((String) listingToObj));
+                } catch (Exception e) {
+                    log.warn("Could not parse listing_to date: {}", listingToObj);
                     property.setListedUntil(null);
                 }
+            } else if (listingToObj instanceof List) {
+                log.warn("listing_to received as array, skipping: {}", listingToObj);
+                property.setListedUntil(null);
             }
+        }
     }
 
     private Property createPropertyFromPayPropData(Map<String, Object> data) {
@@ -1511,8 +1417,47 @@ public class PayPropSyncOrchestrator {
         tenant.setPayPropId((String) data.get("id"));
         tenant.setPayPropCustomerId((String) data.get("customer_id"));
         tenant.setEmailAddress((String) data.get("email_address"));
-        tenant.setMobileNumber(formatMobileForPayProp((String) data.get("mobile_number")));
-        tenant.setPhoneNumber((String) data.get("phone"));
+        
+        // FIXED: Mobile number with tenant-specific validation (15 char limit)
+        String rawMobile = (String) data.get("mobile_number");
+        if (rawMobile != null && !rawMobile.trim().isEmpty()) {
+            String formattedMobile = formatMobileForPayProp(rawMobile, "tenant");
+            if (formattedMobile != null) {
+                tenant.setMobileNumber(formattedMobile);
+                log.debug("Tenant mobile formatted: '{}' -> '{}'", rawMobile, formattedMobile);
+            } else {
+                log.warn("Invalid mobile number for tenant {}: '{}' - setting to null", 
+                    data.get("id"), rawMobile);
+                tenant.setMobileNumber(null);
+            }
+        } else {
+            tenant.setMobileNumber(null);
+        }
+        
+        // FIXED: Phone number with 15-char limit validation
+        String rawPhone = (String) data.get("phone");
+        tenant.setPhoneNumber(formatPhoneForPayProp(rawPhone));
+        
+        // FIXED: Fax number handling (if your Tenant entity supports it)
+        String rawFax = (String) data.get("fax");
+        if (rawFax != null) {
+            try {
+                java.lang.reflect.Method setFaxMethod = tenant.getClass().getMethod("setFax", String.class);
+                setFaxMethod.invoke(tenant, formatPhoneForPayProp(rawFax));
+            } catch (NoSuchMethodException e) {
+                // Fax field doesn't exist, add to comment
+                String faxInfo = "Fax: " + formatPhoneForPayProp(rawFax);
+                String currentComment = tenant.getComment();
+                if (currentComment != null && !currentComment.isEmpty()) {
+                    tenant.setComment(currentComment + "; " + faxInfo);
+                } else {
+                    tenant.setComment(faxInfo);
+                }
+            } catch (Exception e) {
+                log.warn("Could not set fax for tenant: {}", e.getMessage());
+            }
+        }
+        
         tenant.setComment((String) data.get("comment"));
         
         String firstName = (String) data.get("first_name");
@@ -1523,7 +1468,6 @@ public class PayPropSyncOrchestrator {
         tenant.setLastName(lastName);
         tenant.setBusinessName(businessName);
         
-        // FIXED: Set account type based on available data with your enum handling
         if (firstName != null && !firstName.trim().isEmpty() && 
             lastName != null && !lastName.trim().isEmpty()) {
             tenant.setAccountType(AccountType.individual);
@@ -1533,7 +1477,6 @@ public class PayPropSyncOrchestrator {
             tenant.setAccountType(AccountType.individual);
         }
         
-        // Update address with PayProp structure handling
         Map<String, Object> address = (Map<String, Object>) data.get("address");
         if (address != null) {
             String addressLine1 = (String) address.get("first_line");
@@ -1575,10 +1518,65 @@ public class PayPropSyncOrchestrator {
         owner.setPayPropId((String) data.get("id"));
         owner.setPayPropCustomerId((String) data.get("customer_id"));
         owner.setEmailAddress((String) data.get("email_address"));
-        owner.setMobile(formatMobileForPayProp((String) data.get("mobile_number")));
+        
+        // FIXED: Mobile number with beneficiary-specific validation (25 char limit)
+        String rawMobile = (String) data.get("mobile_number");
+        if (rawMobile != null && !rawMobile.trim().isEmpty()) {
+            String formattedMobile = formatMobileForPayProp(rawMobile, "beneficiary");
+            if (formattedMobile != null) {
+                owner.setMobile(formattedMobile);
+                log.debug("PropertyOwner mobile formatted: '{}' -> '{}'", rawMobile, formattedMobile);
+            } else {
+                log.warn("Invalid mobile number for property owner {}: '{}' - setting to null", 
+                    data.get("id"), rawMobile);
+                owner.setMobile(null);
+            }
+        } else {
+            owner.setMobile(null);
+        }
+        
+        // FIXED: Phone number with 15-char limit validation  
+        String rawPhone = (String) data.get("phone");
+        if (rawPhone != null) {
+            try {
+                java.lang.reflect.Method setPhoneMethod = owner.getClass().getMethod("setPhone", String.class);
+                setPhoneMethod.invoke(owner, formatPhoneForPayProp(rawPhone));
+            } catch (NoSuchMethodException e) {
+                // Phone field doesn't exist, add to comment
+                String phoneInfo = "Phone: " + formatPhoneForPayProp(rawPhone);
+                String currentComment = owner.getComment();
+                if (currentComment != null && !currentComment.isEmpty()) {
+                    owner.setComment(currentComment + "; " + phoneInfo);
+                } else {
+                    owner.setComment(phoneInfo);
+                }
+            } catch (Exception e) {
+                log.warn("Could not set phone for property owner: {}", e.getMessage());
+            }
+        }
+        
+        // FIXED: Fax number handling
+        String rawFax = (String) data.get("fax");
+        if (rawFax != null) {
+            try {
+                java.lang.reflect.Method setFaxMethod = owner.getClass().getMethod("setFax", String.class);
+                setFaxMethod.invoke(owner, formatPhoneForPayProp(rawFax));
+            } catch (NoSuchMethodException e) {
+                // Fax field doesn't exist, add to comment
+                String faxInfo = "Fax: " + formatPhoneForPayProp(rawFax);
+                String currentComment = owner.getComment();
+                if (currentComment != null && !currentComment.isEmpty()) {
+                    owner.setComment(currentComment + "; " + faxInfo);
+                } else {
+                    owner.setComment(faxInfo);
+                }
+            } catch (Exception e) {
+                log.warn("Could not set fax for property owner: {}", e.getMessage());
+            }
+        }
+        
         owner.setComment((String) data.get("comment"));
 
-        // FIXED: Handle payment_method requirement
         String paymentMethodStr = (String) data.get("payment_method");
         if (paymentMethodStr != null && !paymentMethodStr.trim().isEmpty()) {
             try {
@@ -1598,7 +1596,6 @@ public class PayPropSyncOrchestrator {
         owner.setLastName(lastName);
         owner.setBusinessName(businessName);
         
-        // FIXED: Handle missing business name issue from your API inspection
         if (firstName != null && !firstName.trim().isEmpty() && 
             lastName != null && !lastName.trim().isEmpty()) {
             owner.setAccountType(AccountType.individual);
@@ -1618,7 +1615,6 @@ public class PayPropSyncOrchestrator {
             }
         }
         
-        // Update address from billing_address
         Map<String, Object> billingAddress = (Map<String, Object>) data.get("billing_address");
         if (billingAddress != null) {
             owner.setAddressLine1((String) billingAddress.get("first_line"));
@@ -1630,42 +1626,29 @@ public class PayPropSyncOrchestrator {
             owner.setState((String) billingAddress.get("state"));
         }
         
-        // Set other PayProp fields
         owner.setVatNumber((String) data.get("vat_number"));
         owner.setIdNumber((String) data.get("id_reg_number"));
         
-        // FIXED: Handle Y/N enum conversion properly
         Boolean notifyEmail = (Boolean) data.get("notify_email");
         if (notifyEmail != null) {
             owner.setEmailEnabled(notifyEmail);
         }
         
-        // FIXED: Handle notify_sms field with proper type handling
         Boolean notifySms = (Boolean) data.get("notify_sms");
         if (notifySms != null) {
             try {
-                // Try to set if method exists using reflection
-                java.lang.reflect.Method setNotifySmsMethod = null;
-                try {
-                    setNotifySmsMethod = owner.getClass().getMethod("setNotifySms", String.class);
-                } catch (NoSuchMethodException e) {
-                    // Method doesn't exist, will handle below
-                }
-                
-                if (setNotifySmsMethod != null) {
-                    setNotifySmsMethod.invoke(owner, notifySms ? "Y" : "N");
+                java.lang.reflect.Method setNotifySmsMethod = owner.getClass().getMethod("setNotifySms", String.class);
+                setNotifySmsMethod.invoke(owner, notifySms ? "Y" : "N");
+            } catch (NoSuchMethodException e) {
+                String smsInfo = "SMS notifications: " + (notifySms ? "Y" : "N");
+                String currentComment = owner.getComment();
+                if (currentComment != null && !currentComment.isEmpty()) {
+                    owner.setComment(currentComment + "; " + smsInfo);
                 } else {
-                    // Method doesn't exist, add to comment instead
-                    String smsInfo = "SMS notifications: " + (notifySms ? "Y" : "N");
-                    String currentComment = owner.getComment();
-                    if (currentComment != null && !currentComment.isEmpty()) {
-                        owner.setComment(currentComment + "; " + smsInfo);
-                    } else {
-                        owner.setComment(smsInfo);
-                    }
+                    owner.setComment(smsInfo);
                 }
             } catch (Exception e) {
-                System.err.println("Could not set notify_sms: " + e.getMessage());
+                log.warn("Could not set notify_sms: {}", e.getMessage());
             }
         }
     }
@@ -1674,6 +1657,113 @@ public class PayPropSyncOrchestrator {
         PropertyOwner owner = new PropertyOwner();
         updatePropertyOwnerFromPayPropData(owner, data);
         return owner;
+    }
+
+    // ===== PHONE NUMBER FORMATTING METHODS (API COMPLIANT) =====
+
+    /**
+     * Format mobile number for PayProp API with entity-specific validation
+     * @param mobile Raw mobile number
+     * @param entityType "tenant" or "beneficiary" 
+     * @return Formatted mobile number or null if invalid
+     */
+    private String formatMobileForPayProp(String mobile, String entityType) {
+        if (mobile == null || mobile.trim().isEmpty()) {
+            return null; // Allow null for optional field
+        }
+        
+        log.debug("Formatting mobile number for {}: '{}'", entityType, mobile);
+        
+        // Clean: remove everything except digits and + sign
+        String cleaned = mobile.replaceAll("[^\\d+]", "");
+        
+        // Skip if empty after cleaning
+        if (cleaned.isEmpty()) {
+            log.warn("Mobile number is empty after cleaning: {}", mobile);
+            return null;
+        }
+        
+        // Handle different input formats
+        String formatted = cleaned;
+        
+        // Case 1: Already has country code (starts with +)
+        if (formatted.startsWith("+")) {
+            formatted = formatted.substring(1); // Remove + sign
+            log.debug("Removed + sign: '{}'", formatted);
+        }
+        
+        // Case 2: UK mobile starting with 0
+        if (formatted.startsWith("0") && formatted.length() >= 10) {
+            // Convert 07xxxxxxxxx to 447xxxxxxxxx
+            formatted = "44" + formatted.substring(1);
+            log.debug("Converted UK domestic format: '{}' -> '{}'", mobile, formatted);
+        }
+        
+        // Case 3: UK mobile without leading 0 or country code
+        else if (formatted.startsWith("7") && formatted.length() >= 9 && formatted.length() <= 10) {
+            // Convert 7xxxxxxxxx to 447xxxxxxxxx
+            formatted = "44" + formatted;
+            log.debug("Added UK country code: '{}' -> '{}'", mobile, formatted);
+        }
+        
+        // Case 4: Already has 44 prefix - validate
+        else if (formatted.startsWith("44") && formatted.length() >= 12) {
+            log.debug("Already in UK international format: '{}'", formatted);
+        }
+        
+        // Case 5: Other international numbers - validate length
+        else if (!formatted.startsWith("44")) {
+            log.debug("International number: '{}'", formatted);
+        }
+        
+        // FIXED: Entity-specific length validation per API spec
+        int maxLength;
+        if ("tenant".equals(entityType)) {
+            maxLength = 15; // Tenant mobile_number max: 15
+        } else if ("beneficiary".equals(entityType)) {
+            maxLength = 25; // Beneficiary mobile max: 25
+        } else {
+            maxLength = 15; // Default fallback
+        }
+        
+        // Length validation with entity-specific limits
+        if (formatted.length() < 1 || formatted.length() > maxLength) {
+            log.warn("{} mobile number length invalid: {} (length: {}, max: {})", 
+                entityType, formatted, formatted.length(), maxLength);
+            return null;
+        }
+        
+        // Pattern validation: ^[1-9]\d*$ (must start with 1-9, followed by digits)
+        if (!formatted.matches("^[1-9]\\d*$")) {
+            log.warn("{} mobile number doesn't match PayProp pattern ^[1-9]\\d*$: {}", 
+                entityType, formatted);
+            return null;
+        }
+        
+        log.debug("{} mobile number successfully formatted: '{}' -> '{}'", 
+            entityType, mobile, formatted);
+        return formatted;
+    }
+
+    /**
+     * Format phone number for record-keeping fields (phone, fax)
+     * Max 15 characters, no pattern restrictions
+     */
+    private String formatPhoneForPayProp(String phone) {
+        if (phone == null || phone.trim().isEmpty()) {
+            return null;
+        }
+        
+        String trimmed = phone.trim();
+        
+        // API limit: 15 characters for phone/fax fields
+        if (trimmed.length() > 15) {
+            log.warn("Phone number too long ({}), truncating to 15 chars: {}", 
+                trimmed.length(), trimmed);
+            return trimmed.substring(0, 15);
+        }
+        
+        return trimmed;
     }
 
     // ===== INTERFACE DEFINITIONS =====
@@ -1732,39 +1822,180 @@ public class PayPropSyncOrchestrator {
         public void setMessage(String message) { this.message = message; }
     }
 
+    // ===== PHONE NUMBER TESTING AND ANALYSIS METHODS =====
+
     /**
-     * Format mobile number for PayProp compatibility
+     * Test mobile number formatting with API-compliant test cases
      */
-    private String formatMobileForPayProp(String mobile) {
+    public void testMobileNumberFormattingWithApiSpec() {
+        log.info("=== TESTING MOBILE NUMBER FORMATTING (API SPEC COMPLIANCE) ===");
+        
+        String[] testNumbers = {
+            "07712345678",        // UK format with 0 -> 447712345678 (12 chars) ✓
+            "447712345678",       // UK format with country code (12 chars) ✓
+            "+447712345678",      // UK format with + (12 chars) ✓
+            "4477123456789012345", // 20 chars - OK for beneficiary, too long for tenant
+            "44771234567890123456789012345", // 29 chars - too long for both
+            "07",                 // Too short ✗
+            "447",                // Too short ✗ 
+            "0771234567",         // 11 chars -> 4477123456 (10 chars) ✓
+            "+33123456789",       // French number (12 chars) ✓
+        };
+        
+        for (String testNumber : testNumbers) {
+            String tenantResult = formatMobileForPayProp(testNumber, "tenant");
+            String beneficiaryResult = formatMobileForPayProp(testNumber, "beneficiary");
+            
+            log.info("Input: '{}' -> Tenant: {} | Beneficiary: {}", 
+                testNumber != null ? testNumber : "null", 
+                tenantResult != null ? tenantResult : "INVALID",
+                beneficiaryResult != null ? beneficiaryResult : "INVALID");
+        }
+    }
+
+    /**
+     * Pre-sync cleanup method to fix mobile numbers before validation
+     */
+    public void cleanupTenantMobileNumbers() {
+        log.info("Starting tenant mobile number cleanup for PayProp sync...");
+        
+        List<Tenant> tenants = tenantService.findAll();
+        int updatedCount = 0;
+        int errorCount = 0;
+        
+        for (Tenant tenant : tenants) {
+            try {
+                if (tenant.getMobileNumber() != null && !tenant.getMobileNumber().trim().isEmpty()) {
+                    String originalMobile = tenant.getMobileNumber();
+                    String formattedMobile = formatMobileForPayProp(originalMobile, "tenant");
+                    
+                    if (formattedMobile == null) {
+                        log.warn("Tenant {} has invalid mobile number that cannot be formatted: {}", 
+                            tenant.getId(), originalMobile);
+                        
+                        tenant.setMobileNumber(null);
+                        
+                        String note = "Invalid mobile cleared: " + originalMobile;
+                        try {
+                            java.lang.reflect.Method getNotesMethod = tenant.getClass().getMethod("getNotes");
+                            java.lang.reflect.Method setNotesMethod = tenant.getClass().getMethod("setNotes", String.class);
+                            String currentNotes = (String) getNotesMethod.invoke(tenant);
+                            
+                            if (currentNotes != null && !currentNotes.isEmpty()) {
+                                setNotesMethod.invoke(tenant, currentNotes + "; " + note);
+                            } else {
+                                setNotesMethod.invoke(tenant, note);
+                            }
+                        } catch (NoSuchMethodException e) {
+                            // Notes field doesn't exist, add to comment instead
+                            String currentComment = tenant.getComment();
+                            if (currentComment != null && !currentComment.isEmpty()) {
+                                tenant.setComment(currentComment + "; " + note);
+                            } else {
+                                tenant.setComment(note);
+                            }
+                        } catch (Exception e) {
+                            log.warn("Could not set notes for tenant: {}", e.getMessage());
+                        }
+                        
+                        tenantService.save(tenant);
+                        errorCount++;
+                        
+                    } else if (!formattedMobile.equals(originalMobile)) {
+                        tenant.setMobileNumber(formattedMobile);
+                        tenantService.save(tenant);
+                        updatedCount++;
+                        log.info("Updated tenant {} mobile: {} -> {}", 
+                            tenant.getId(), originalMobile, formattedMobile);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Error processing tenant {} mobile number: {}", tenant.getId(), e.getMessage());
+                errorCount++;
+            }
+        }
+        
+        log.info("Mobile number cleanup completed. Updated: {}, Errors: {}", updatedCount, errorCount);
+    }
+
+    /**
+     * Analyze current tenant mobile numbers for debugging
+     */
+    public void analyzeTenantMobileNumbers() {
+        log.info("=== ANALYZING TENANT MOBILE NUMBERS ===");
+        
+        List<Tenant> tenants = tenantService.findAll();
+        
+        Map<String, Integer> formatCounts = new HashMap<>();
+        List<String> problematicNumbers = new ArrayList<>();
+        List<String> validNumbers = new ArrayList<>();
+        
+        for (Tenant tenant : tenants) {
+            String mobile = tenant.getMobileNumber();
+            if (mobile != null && !mobile.trim().isEmpty()) {
+                String category = categorizeMobileNumber(mobile);
+                formatCounts.merge(category, 1, Integer::sum);
+                
+                String formatted = formatMobileForPayProp(mobile, "tenant");
+                if (formatted == null) {
+                    problematicNumbers.add(String.format("Tenant ID %d: '%s' -> INVALID", 
+                        tenant.getId(), mobile));
+                } else {
+                    validNumbers.add(String.format("Tenant ID %d: '%s' -> '%s'", 
+                        tenant.getId(), mobile, formatted));
+                }
+            }
+        }
+        
+        log.info("Mobile Number Format Analysis:");
+        formatCounts.forEach((format, count) -> 
+            log.info("  {}: {} numbers", format, count));
+        
+        log.info("\nValid Mobile Numbers (showing first 10):");
+        validNumbers.stream().limit(10).forEach(log::info);
+        
+        log.info("\nProblematic Mobile Numbers:");
+        problematicNumbers.forEach(log::warn);
+        
+        log.info("\nSummary: {} valid, {} problematic out of {} total", 
+            validNumbers.size(), problematicNumbers.size(), validNumbers.size() + problematicNumbers.size());
+    }
+
+    /**
+     * Categorize mobile number formats for analysis
+     */
+    private String categorizeMobileNumber(String mobile) {
         if (mobile == null || mobile.trim().isEmpty()) {
-            return null; // Allow null for optional field
+            return "EMPTY";
         }
         
-        // Clean: remove everything except digits
-        String cleaned = mobile.replaceAll("[^\\d]", "");
+        String cleaned = mobile.replaceAll("[^\\d+]", "");
         
-        // Skip validation if empty after cleaning
-        if (cleaned.isEmpty()) {
-            return null;
+        if (cleaned.startsWith("+44")) {
+            return "UK_PLUS_FORMAT";
+        } else if (cleaned.startsWith("44")) {
+            return "UK_NO_PLUS";
+        } else if (cleaned.startsWith("07")) {
+            return "UK_DOMESTIC";
+        } else if (cleaned.startsWith("7") && cleaned.length() >= 9) {
+            return "UK_NO_ZERO";
+        } else if (cleaned.startsWith("+")) {
+            return "INTERNATIONAL_PLUS";
+        } else if (cleaned.startsWith("0") && !cleaned.startsWith("07")) {
+            return "UK_LANDLINE";
+        } else if (cleaned.length() < 7) {
+            return "TOO_SHORT";
+        } else if (cleaned.length() > 15) {
+            return "TOO_LONG";
+        } else {
+            return "OTHER_FORMAT";
         }
-        
-        // Basic length validation (more lenient)
-        if (cleaned.length() < 7 || cleaned.length() > 15) {
-            log.warn("Mobile number length invalid ({}): {}", cleaned.length(), mobile);
-            return null; // Return null instead of invalid format
-        }
-        
-        // Convert UK 0 prefix to 44
-        if (cleaned.startsWith("0") && cleaned.length() >= 10) {
-            cleaned = "44" + cleaned.substring(1);
-        }
-        
-        // Final pattern check - if invalid, return null
-        if (!cleaned.matches("^[1-9]\\d+$")) {
-            log.warn("Mobile number doesn't match pattern: {}", cleaned);
-            return null; // Return null instead of invalid format
-        }
-        
-        return cleaned;
+    }
+
+    /**
+     * Validation method for mobile numbers before PayProp sync
+     */
+    public boolean isValidMobileNumber(String mobile, String entityType) {
+        return formatMobileForPayProp(mobile, entityType) != null;
     }
 }
