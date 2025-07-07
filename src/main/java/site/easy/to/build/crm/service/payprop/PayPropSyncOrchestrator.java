@@ -20,6 +20,7 @@ import site.easy.to.build.crm.entity.PaymentMethod;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import site.easy.to.build.crm.util.AuthenticationUtils;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
