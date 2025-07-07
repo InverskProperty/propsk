@@ -423,6 +423,9 @@ public class PayPropSyncOrchestrator {
         customer.setMobileNumber((String) data.get("mobile"));
         customer.setPhone((String) data.get("phone"));
         
+        // FIXED: Set required country field
+        customer.setCountry("UK"); // Default required value
+        
         // Address
         Map<String, Object> address = (Map<String, Object>) data.get("billing_address");
         if (address != null) {
