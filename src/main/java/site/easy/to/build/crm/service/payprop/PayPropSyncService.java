@@ -381,6 +381,40 @@ public class PayPropSyncService {
             throw new RuntimeException("Payment export failed", e);
         }
     }
+
+    /**
+     * Export tenants for a specific property from PayProp
+     */
+    public PayPropExportResult exportTenantsByProperty(String propertyId) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/export/tenants?property_id=" + propertyId;
+            
+            System.out.println("📥 Exporting tenants for property: " + propertyId);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                
+                PayPropExportResult result = new PayPropExportResult();
+                result.setItems((List<Map<String, Object>>) responseBody.get("items"));
+                result.setPagination((Map<String, Object>) responseBody.get("pagination"));
+                
+                System.out.println("✅ Found " + result.getItems().size() + " tenants for property " + propertyId);
+                
+                return result;
+            }
+            
+            throw new RuntimeException("Failed to export tenants for property");
+            
+        } catch (Exception e) {
+            System.err.println("❌ Tenant export for property failed: " + e.getMessage());
+            throw new RuntimeException("Tenant export failed", e);
+        }
+    }
     
     // ===== CONVERSION METHODS =====
     
