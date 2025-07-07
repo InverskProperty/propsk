@@ -61,7 +61,7 @@ public class PayPropPropertyDTO {
         if (settings == null) {
             settings = new PayPropSettingsDTO();
             // Set required defaults
-            settings.setListing_from(LocalDate.now());
+            settings.setListing_from(LocalDate.now().toString());  // ✅ LocalDate to String
             settings.setVerify_payments(false);
             settings.setEnable_payments(false);
             settings.setHold_owner_funds(false);
