@@ -1580,10 +1580,10 @@ public class PayPropSyncOrchestrator {
             try {
                 owner.setPaymentMethod(PaymentMethod.valueOf(paymentMethodStr.toUpperCase()));
             } catch (IllegalArgumentException e) {
-                owner.setPaymentMethod(PaymentMethod.LOCAL); // Default fallback
+                owner.setPaymentMethod("local"); // Default fallback
             }
         } else {
-            owner.setPaymentMethod(PaymentMethod.LOCAL); // Required field default
+            owner.setPaymentMethod("local"); // Required field default
         }
         
         String firstName = (String) data.get("first_name");
