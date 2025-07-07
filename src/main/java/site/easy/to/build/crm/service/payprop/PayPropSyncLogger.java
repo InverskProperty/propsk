@@ -428,7 +428,7 @@ public class PayPropSyncLogger {
         if (!isDebugMode()) return;
         
         System.out.println("\n📊 COMPREHENSIVE DEBUG SUMMARY:");
-        System.out.println("="*60);
+        System.out.println("============================================================");
         
         Map<String, AtomicInteger> counters = operationCounters.get();
         Map<String, List<String>> samples = operationSamples.get();
@@ -469,7 +469,7 @@ public class PayPropSyncLogger {
         // Summary statistics
         printSummaryStatistics(counters);
         
-        System.out.println("="*60);
+        System.out.println("============================================================");
         System.out.println();
     }
 
