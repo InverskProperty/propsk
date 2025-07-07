@@ -19,6 +19,7 @@ import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 
 import java.math.BigDecimal;
+import java.net.http.HttpHeaders;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -456,10 +457,10 @@ public class PayPropSyncService {
         
         // FIXED: Convert LocalDate to String to avoid array serialization issues
         if (property.getListedFrom() != null) {
-            settings.setListing_from(property.getListedFrom().toString()); // LocalDate → String
+            settings.setListing_from(property.getListedFrom()); // ✅ LocalDate to LocalDate
         }
         if (property.getListedUntil() != null) {
-            settings.setListing_to(property.getListedUntil().toString()); // LocalDate → String
+            settings.setListing_to(property.getListedUntil()); // ✅ LocalDate to LocalDate
         }
         
         dto.setSettings(settings);
