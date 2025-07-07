@@ -108,4 +108,8 @@ public interface CustomerService {
     List<Customer> findCustomersNeedingPayPropSync();
     
     void updatePayPropCustomerId(Long customerId, String payPropId);
+
+    List<Customer> findByPayPropSynced(Boolean synced);
+    
+    long countByCustomerType(CustomerType customerType);
 }

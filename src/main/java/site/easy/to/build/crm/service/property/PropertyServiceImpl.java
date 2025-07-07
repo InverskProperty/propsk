@@ -322,4 +322,9 @@ public class PropertyServiceImpl implements PropertyService {
     public List<Property> findPropertiesWithMissingPayPropFields() {
         return propertyRepository.findPropertiesWithMissingPayPropFields();
     }
+
+    @Override
+    public List<Property> findByPayPropIdIsNull() {
+        return propertyRepository.findByPayPropIdIsNull();
+    }
 }

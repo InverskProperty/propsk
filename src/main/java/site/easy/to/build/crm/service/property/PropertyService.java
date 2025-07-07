@@ -89,4 +89,6 @@ public interface PropertyService {
     List<Property> findPropertiesReadyForSync();
     boolean isPropertyReadyForPayPropSync(Long propertyId);
     List<Property> findPropertiesWithMissingPayPropFields();
+
+    List<Property> findByPayPropIdIsNull();
 }

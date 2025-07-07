@@ -337,4 +337,15 @@ public class CustomerServiceImpl implements CustomerService {
             customerRepository.save(customer);
         }
     }
+
+    @Override
+    public List<Customer> findByPayPropSynced(Boolean synced) {
+        return customerRepository.findByPayPropSynced(synced);
+    }
+
+    @Override
+    public long countByCustomerType(CustomerType customerType) {
+        return customerRepository.countByCustomerType(customerType);
+    }
+
 }
