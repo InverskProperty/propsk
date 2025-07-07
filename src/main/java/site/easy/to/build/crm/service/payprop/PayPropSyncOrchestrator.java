@@ -135,36 +135,58 @@ public class PayPropSyncOrchestrator {
         Map<String, PropertyRelationship> relationships = new HashMap<>();
         
         try {
+            log.info("🔗 Starting payment relationship extraction...");
             int page = 1;
+            int totalPayments = 0;
+            int beneficiaryPayments = 0;
+            int ownerPayments = 0;
+            
             while (true) {
                 PayPropSyncService.PayPropExportResult exportResult = 
                     payPropSyncService.exportPaymentsFromPayProp(page, batchSize);
                 
                 if (exportResult.getItems().isEmpty()) {
+                    log.info("📄 No more payments on page {}", page);
                     break;
                 }
                 
+                log.info("📄 Processing {} payments on page {}", exportResult.getItems().size(), page);
+                totalPayments += exportResult.getItems().size();
+                
                 for (Map<String, Object> payment : exportResult.getItems()) {
                     Map<String, Object> beneficiaryInfo = (Map<String, Object>) payment.get("beneficiary_info");
-                    if (beneficiaryInfo != null && "beneficiary".equals(beneficiaryInfo.get("beneficiary_type"))) {
-                        String category = (String) payment.get("category");
-                        if ("Owner".equals(category)) {
-                            String ownerId = (String) beneficiaryInfo.get("id");
-                            Map<String, Object> property = (Map<String, Object>) payment.get("property");
-                            if (property != null) {
-                                String propertyId = (String) property.get("id");
-                                
-                                PropertyRelationship rel = new PropertyRelationship();
-                                rel.setOwnerPayPropId(ownerId);
-                                rel.setPropertyPayPropId(propertyId);
-                                rel.setOwnershipType("OWNER");
-                                
-                                Object percentage = payment.get("gross_percentage");
-                                if (percentage instanceof Number) {
-                                    rel.setOwnershipPercentage(((Number) percentage).doubleValue());
+                    if (beneficiaryInfo != null) {
+                        beneficiaryPayments++;
+                        String beneficiaryType = (String) beneficiaryInfo.get("beneficiary_type");
+                        log.debug("Found beneficiary_info: type={}", beneficiaryType);
+                        
+                        if ("beneficiary".equals(beneficiaryType)) {
+                            String category = (String) payment.get("category");
+                            log.debug("Beneficiary payment category: {}", category);
+                            
+                            if ("Owner".equals(category)) {
+                                ownerPayments++;
+                                String ownerId = (String) beneficiaryInfo.get("id");
+                                Map<String, Object> property = (Map<String, Object>) payment.get("property");
+                                if (property != null) {
+                                    String propertyId = (String) property.get("id");
+                                    
+                                    PropertyRelationship rel = new PropertyRelationship();
+                                    rel.setOwnerPayPropId(ownerId);
+                                    rel.setPropertyPayPropId(propertyId);
+                                    rel.setOwnershipType("OWNER");
+                                    
+                                    Object percentage = payment.get("gross_percentage");
+                                    if (percentage instanceof Number) {
+                                        rel.setOwnershipPercentage(((Number) percentage).doubleValue());
+                                    }
+                                    
+                                    relationships.put(ownerId, rel);
+                                    log.info("✅ Found relationship: Owner {} owns Property {} ({}%)", 
+                                        ownerId, propertyId, rel.getOwnershipPercentage());
+                                } else {
+                                    log.warn("⚠️ Owner payment missing property info: {}", ownerId);
                                 }
-                                
-                                relationships.put(ownerId, rel);
                             }
                         }
                     }
@@ -172,11 +194,12 @@ public class PayPropSyncOrchestrator {
                 page++;
             }
             
-            log.info("Extracted {} property relationships from payments", relationships.size());
+            log.info("🔗 Payment extraction completed: {} total payments, {} with beneficiary_info, {} owner payments, {} relationships found", 
+                totalPayments, beneficiaryPayments, ownerPayments, relationships.size());
             return relationships;
             
         } catch (Exception e) {
-            log.error("Failed to extract relationships: {}", e.getMessage());
+            log.error("❌ Failed to extract relationships: {}", e.getMessage(), e);
             return new HashMap<>();
         }
     }
@@ -504,6 +527,9 @@ public class PayPropSyncOrchestrator {
         customer.setEmail((String) data.get("email_address"));
         customer.setMobileNumber((String) data.get("mobile_number"));
         customer.setPhone((String) data.get("phone"));
+        
+        // FIXED: Set required country field
+        customer.setCountry("UK"); // Default required value
         
         // Address
         Map<String, Object> address = (Map<String, Object>) data.get("address");
