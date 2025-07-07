@@ -13,10 +13,38 @@ import site.easy.to.build.crm.customValidations.customer.UniqueEmail;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Entity
 @Table(name = "customer")
 public class Customer {
+
+    public interface CustomerUpdateValidationGroupInclusion {}
+    
+    // Country code mapping for PayProp integration - ADD HERE
+    private static final Map<String, String> COUNTRY_CODE_TO_NAME = Map.of(
+        "GB", "United Kingdom",
+        "UK", "United Kingdom", // PayProp uses UK
+        "US", "United States",
+        "CA", "Canada",
+        "AU", "Australia",
+        "IE", "Ireland",
+        "FR", "France",
+        "DE", "Germany",
+        "ES", "Spain",
+        "IT", "Italy",
+        "NL", "Netherlands",
+        "BE", "Belgium",
+        "PT", "Portugal",
+        "SE", "Sweden",
+        "NO", "Norway",
+        "DK", "Denmark",
+        "FI", "Finland",
+        "CH", "Switzerland",
+        "AT", "Austria",
+        "NZ", "New Zealand",
+        "ZA", "South Africa"
+    );
 
     public interface CustomerUpdateValidationGroupInclusion {}
     
@@ -427,7 +455,28 @@ public class Customer {
     public void setPostcode(String postcode) { this.postcode = postcode; }
 
     public String getCountryCode() { return countryCode; }
-    public void setCountryCode(String countryCode) { this.countryCode = countryCode; }
+    public void setCountryCode(String countryCode) {
+        this.countryCode = countryCode;
+        
+        // Auto-populate the country field when country code is set
+        if (countryCode != null) {
+            String fullCountryName = COUNTRY_CODE_TO_NAME.get(countryCode.toUpperCase());
+            if (fullCountryName != null) {
+                this.country = fullCountryName;
+            } else {
+                // Fallback: use the country code if mapping not found
+                this.country = countryCode;
+            }
+        }
+    }
+
+    public void setCountryFromCode(String countryCode) {
+        this.countryCode = countryCode;
+        if (countryCode != null) {
+            String fullCountryName = COUNTRY_CODE_TO_NAME.get(countryCode.toUpperCase());
+            this.country = fullCountryName != null ? fullCountryName : countryCode;
+        }
+    }
 
     // Account Type
     public AccountType getAccountType() { return accountType; }
@@ -720,11 +769,16 @@ public class Customer {
 
 
     // LIFECYCLE CALLBACKS
-
+    
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
+        }
+        
+        // Ensure country is set when countryCode is provided (FIX FOR PAYPROP SYNC)
+        if (country == null && countryCode != null) {
+            setCountryFromCode(countryCode);
         }
         
         // Set default PayProp values
@@ -733,6 +787,10 @@ public class Customer {
         }
         if (countryCode == null) {
             countryCode = "GB";
+            // Also set country if it's null
+            if (country == null) {
+                country = "United Kingdom";
+            }
         }
         if (invoiceLeadDays == null) {
             invoiceLeadDays = 0;
