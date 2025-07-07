@@ -1,4 +1,4 @@
-// PayPropSyncLogger.java - Database Compatible Version
+// PayPropSyncLogger.java - ENHANCED DEBUG VERSION with Comprehensive Entity Tracking
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +23,7 @@ public class PayPropSyncLogger {
     @Value("${payprop.sync.debug-mode:false}")
     private boolean globalDebugMode;
     
-    @Value("${payprop.sync.debug-sample-size:2}")
+    @Value("${payprop.sync.debug-sample-size:5}")
     private int debugSampleSize;
     
     // Thread-local debug mode (for per-operation control)
@@ -32,6 +32,7 @@ public class PayPropSyncLogger {
     // Counters and samples for debug mode
     private final ThreadLocal<Map<String, AtomicInteger>> operationCounters = ThreadLocal.withInitial(ConcurrentHashMap::new);
     private final ThreadLocal<Map<String, List<String>>> operationSamples = ThreadLocal.withInitial(ConcurrentHashMap::new);
+    private final ThreadLocal<Map<String, Long>> operationTimers = ThreadLocal.withInitial(ConcurrentHashMap::new);
 
     @Autowired
     public PayPropSyncLogger(PortfolioSyncLogRepository syncLogRepository) {
@@ -45,6 +46,8 @@ public class PayPropSyncLogger {
         if (enabled) {
             operationCounters.get().clear();
             operationSamples.get().clear();
+            operationTimers.get().clear();
+            System.out.println("🔍 DEBUG MODE ENABLED - Detailed tracking active");
         }
     }
     
@@ -52,6 +55,8 @@ public class PayPropSyncLogger {
         debugModeOverride.remove();
         operationCounters.remove();
         operationSamples.remove();
+        operationTimers.remove();
+        System.out.println("🔍 DEBUG MODE DISABLED");
     }
     
     private boolean isDebugMode() {
@@ -59,30 +64,38 @@ public class PayPropSyncLogger {
         return override != null ? override : globalDebugMode;
     }
 
-    // ===== BASIC SYNC LOGGING =====
+    // ===== ENHANCED BASIC SYNC LOGGING =====
 
     public void logSyncStart(String syncType, Long initiatedBy) {
+        if (isDebugMode()) {
+            operationTimers.get().put("SYNC_" + syncType, System.currentTimeMillis());
+            System.out.println("🚀 SYNC STARTED: " + syncType + " (DEBUG MODE) at " + LocalDateTime.now());
+            System.out.println("   Initiated by user ID: " + initiatedBy);
+        } else {
+            System.out.println("🚀 SYNC STARTED: " + syncType + " at " + LocalDateTime.now());
+        }
+        
         PortfolioSyncLog log = new PortfolioSyncLog();
         log.setSyncType(syncType);
         log.setOperation("START");
         log.setStatus("PENDING");
         log.setSyncStartedAt(LocalDateTime.now());
         log.setInitiatedBy(initiatedBy);
-        
         syncLogRepository.save(log);
-        
-        if (isDebugMode()) {
-            System.out.println("🚀 SYNC STARTED: " + syncType + " (DEBUG MODE)");
-        } else {
-            System.out.println("🚀 SYNC STARTED: " + syncType + " at " + LocalDateTime.now());
-        }
     }
 
     public void logSyncComplete(String syncType, boolean success, String summary) {
+        long duration = 0;
         if (isDebugMode()) {
+            Long startTime = operationTimers.get().get("SYNC_" + syncType);
+            if (startTime != null) {
+                duration = System.currentTimeMillis() - startTime;
+            }
+            
             System.out.println((success ? "✅ SYNC COMPLETED: " : "❌ SYNC FAILED: ") + syncType + " (DEBUG MODE)");
-            System.out.println("Summary: " + summary);
-            printDebugSummary();
+            System.out.println("   Duration: " + duration + "ms");
+            System.out.println("   Summary: " + summary);
+            printComprehensiveDebugSummary();
         } else {
             System.out.println(success ? "✅ SYNC COMPLETED: " : "❌ SYNC FAILED: " + syncType);
             System.out.println("Summary: " + summary);
@@ -91,6 +104,11 @@ public class PayPropSyncLogger {
     }
 
     public void logSyncError(String syncType, Exception error) {
+        if (isDebugMode()) {
+            incrementCounter("SYNC_ERRORS");
+            addSample("SYNC_ERRORS", syncType + ": " + error.getMessage());
+        }
+        
         PortfolioSyncLog log = new PortfolioSyncLog();
         log.setSyncType(syncType);
         log.setOperation("ERROR");
@@ -98,31 +116,418 @@ public class PayPropSyncLogger {
         log.setErrorMessage(error.getMessage());
         log.setSyncStartedAt(LocalDateTime.now());
         log.setSyncCompletedAt(LocalDateTime.now());
-        
         syncLogRepository.save(log);
         
+        System.err.println("❌ SYNC ERROR: " + syncType + " - " + error.getMessage());
         if (isDebugMode()) {
-            System.err.println("❌ SYNC ERROR: " + syncType + " - " + error.getMessage());
-        } else {
-            System.err.println("❌ SYNC ERROR: " + syncType);
-            System.err.println("Error: " + error.getMessage());
             error.printStackTrace();
         }
     }
 
+    // ===== ENHANCED PROPERTY LOGGING =====
+
+    public void logPropertyProcessingStart(String payPropId, int currentPage, int totalOnPage) {
+        if (isDebugMode()) {
+            System.out.println("🏠 PROCESSING PROPERTY: " + payPropId + " (Page " + currentPage + ", Item on page)");
+        }
+    }
+
+    public void logPropertySaveSuccess(String payPropId, Long propertyId, boolean isNew) {
+        if (isDebugMode()) {
+            String key = isNew ? "PROPERTY_CREATED" : "PROPERTY_UPDATED";
+            incrementCounter(key);
+            addSample(key, "PayProp ID " + payPropId + " -> DB ID " + propertyId);
+            
+            String action = isNew ? "CREATED" : "UPDATED";
+            System.out.println("✅ PROPERTY " + action + ": PayProp ID " + payPropId + " -> DB ID " + propertyId);
+        }
+    }
+
+    public void logPropertySaveError(String payPropId, Exception error) {
+        if (isDebugMode()) {
+            incrementCounter("PROPERTY_SAVE_ERRORS");
+            addSample("PROPERTY_SAVE_ERRORS", "PayProp ID " + payPropId + ": " + error.getMessage());
+            System.err.println("❌ PROPERTY SAVE FAILED: PayProp ID " + payPropId + " - " + error.getMessage());
+        }
+        logEntityError("PROPERTY_SAVE", payPropId, error);
+    }
+
+    public void logPropertyValidationError(String payPropId, String validationError) {
+        if (isDebugMode()) {
+            incrementCounter("PROPERTY_VALIDATION_ERRORS");
+            addSample("PROPERTY_VALIDATION_ERRORS", "PayProp ID " + payPropId + ": " + validationError);
+            System.err.println("⚠️ PROPERTY VALIDATION FAILED: PayProp ID " + payPropId + " - " + validationError);
+        }
+    }
+
+    public void logPropertySkipped(String payPropId, String reason) {
+        if (isDebugMode()) {
+            incrementCounter("PROPERTY_SKIPPED");
+            addSample("PROPERTY_SKIPPED", "PayProp ID " + payPropId + ": " + reason);
+            System.out.println("⏭️ PROPERTY SKIPPED: PayProp ID " + payPropId + " - " + reason);
+        }
+    }
+
+    public void logPropertyDuplicateHandling(String payPropId, String action) {
+        if (isDebugMode()) {
+            incrementCounter("PROPERTY_DUPLICATE_HANDLING");
+            addSample("PROPERTY_DUPLICATE_HANDLING", "PayProp ID " + payPropId + ": " + action);
+            System.out.println("🔄 PROPERTY DUPLICATE: PayProp ID " + payPropId + " - " + action);
+        }
+    }
+
+    // ===== ENHANCED TENANT LOGGING =====
+
+    public void logTenantProcessingStart(String payPropId, int currentPage, int totalOnPage) {
+        if (isDebugMode()) {
+            System.out.println("👤 PROCESSING TENANT: " + payPropId + " (Page " + currentPage + ", Item on page)");
+        }
+    }
+
+    public void logTenantSaveSuccess(String payPropId, Long tenantId, boolean isNew) {
+        if (isDebugMode()) {
+            String key = isNew ? "TENANT_CREATED" : "TENANT_UPDATED";
+            incrementCounter(key);
+            addSample(key, "PayProp ID " + payPropId + " -> DB ID " + tenantId);
+            
+            String action = isNew ? "CREATED" : "UPDATED";
+            System.out.println("✅ TENANT " + action + ": PayProp ID " + payPropId + " -> DB ID " + tenantId);
+        }
+    }
+
+    public void logTenantSaveError(String payPropId, Exception error) {
+        if (isDebugMode()) {
+            incrementCounter("TENANT_SAVE_ERRORS");
+            addSample("TENANT_SAVE_ERRORS", "PayProp ID " + payPropId + ": " + error.getMessage());
+            System.err.println("❌ TENANT SAVE FAILED: PayProp ID " + payPropId + " - " + error.getMessage());
+        }
+        logEntityError("TENANT_SAVE", payPropId, error);
+    }
+
+    public void logTenantValidationError(String payPropId, String validationError) {
+        if (isDebugMode()) {
+            incrementCounter("TENANT_VALIDATION_ERRORS");
+            addSample("TENANT_VALIDATION_ERRORS", "PayProp ID " + payPropId + ": " + validationError);
+            System.err.println("⚠️ TENANT VALIDATION FAILED: PayProp ID " + payPropId + " - " + validationError);
+        }
+    }
+
+    public void logTenantSkipped(String payPropId, String reason) {
+        if (isDebugMode()) {
+            incrementCounter("TENANT_SKIPPED");
+            addSample("TENANT_SKIPPED", "PayProp ID " + payPropId + ": " + reason);
+            System.out.println("⏭️ TENANT SKIPPED: PayProp ID " + payPropId + " - " + reason);
+        }
+    }
+
+    public void logTenantDuplicateHandling(String payPropId, String action) {
+        if (isDebugMode()) {
+            incrementCounter("TENANT_DUPLICATE_HANDLING");
+            addSample("TENANT_DUPLICATE_HANDLING", "PayProp ID " + payPropId + ": " + action);
+            System.out.println("🔄 TENANT DUPLICATE: PayProp ID " + payPropId + " - " + action);
+        }
+    }
+
+    public void logTenantMobileFormatting(String payPropId, String originalMobile, String formattedMobile, boolean success) {
+        if (isDebugMode()) {
+            if (success) {
+                incrementCounter("TENANT_MOBILE_FORMATTED");
+                if (!originalMobile.equals(formattedMobile)) {
+                    addSample("TENANT_MOBILE_FORMATTED", "PayProp ID " + payPropId + ": '" + originalMobile + "' -> '" + formattedMobile + "'");
+                }
+            } else {
+                incrementCounter("TENANT_MOBILE_FORMAT_ERRORS");
+                addSample("TENANT_MOBILE_FORMAT_ERRORS", "PayProp ID " + payPropId + ": Invalid mobile '" + originalMobile + "'");
+            }
+        }
+    }
+
+    // ===== ENHANCED BENEFICIARY/PROPERTY OWNER LOGGING =====
+
+    public void logBeneficiaryProcessingStart(String payPropId, int currentPage, int totalOnPage) {
+        if (isDebugMode()) {
+            System.out.println("🏦 PROCESSING BENEFICIARY: " + payPropId + " (Page " + currentPage + ", Item on page)");
+        }
+    }
+
+    public void logBeneficiarySaveSuccess(String payPropId, Long propertyOwnerId, boolean isNew) {
+        if (isDebugMode()) {
+            String key = isNew ? "BENEFICIARY_CREATED" : "BENEFICIARY_UPDATED";
+            incrementCounter(key);
+            addSample(key, "PayProp ID " + payPropId + " -> DB ID " + propertyOwnerId);
+            
+            String action = isNew ? "CREATED" : "UPDATED";
+            System.out.println("✅ BENEFICIARY " + action + ": PayProp ID " + payPropId + " -> DB ID " + propertyOwnerId);
+        }
+    }
+
+    public void logBeneficiarySaveError(String payPropId, Exception error) {
+        if (isDebugMode()) {
+            incrementCounter("BENEFICIARY_SAVE_ERRORS");
+            addSample("BENEFICIARY_SAVE_ERRORS", "PayProp ID " + payPropId + ": " + error.getMessage());
+            System.err.println("❌ BENEFICIARY SAVE FAILED: PayProp ID " + payPropId + " - " + error.getMessage());
+        }
+        logEntityError("BENEFICIARY_SAVE", payPropId, error);
+    }
+
+    public void logBeneficiaryValidationError(String payPropId, String validationError) {
+        if (isDebugMode()) {
+            incrementCounter("BENEFICIARY_VALIDATION_ERRORS");
+            addSample("BENEFICIARY_VALIDATION_ERRORS", "PayProp ID " + payPropId + ": " + validationError);
+            System.err.println("⚠️ BENEFICIARY VALIDATION FAILED: PayProp ID " + payPropId + " - " + validationError);
+        }
+    }
+
+    public void logBeneficiarySkipped(String payPropId, String reason) {
+        if (isDebugMode()) {
+            incrementCounter("BENEFICIARY_SKIPPED");
+            addSample("BENEFICIARY_SKIPPED", "PayProp ID " + payPropId + ": " + reason);
+            System.out.println("⏭️ BENEFICIARY SKIPPED: PayProp ID " + payPropId + " - " + reason);
+        }
+    }
+
+    public void logBeneficiaryPropertyIdMissing(String payPropId, String details) {
+        if (isDebugMode()) {
+            incrementCounter("BENEFICIARY_PROPERTY_ID_MISSING");
+            addSample("BENEFICIARY_PROPERTY_ID_MISSING", "PayProp ID " + payPropId + ": " + details);
+            System.err.println("💥 BENEFICIARY PROPERTY_ID MISSING: PayProp ID " + payPropId + " - " + details);
+        }
+    }
+
+    public void logBeneficiaryDuplicateHandling(String payPropId, String action) {
+        if (isDebugMode()) {
+            incrementCounter("BENEFICIARY_DUPLICATE_HANDLING");
+            addSample("BENEFICIARY_DUPLICATE_HANDLING", "PayProp ID " + payPropId + ": " + action);
+            System.out.println("🔄 BENEFICIARY DUPLICATE: PayProp ID " + payPropId + " - " + action);
+        }
+    }
+
+    public void logBeneficiaryMobileFormatting(String payPropId, String originalMobile, String formattedMobile, boolean success) {
+        if (isDebugMode()) {
+            if (success) {
+                incrementCounter("BENEFICIARY_MOBILE_FORMATTED");
+                if (!originalMobile.equals(formattedMobile)) {
+                    addSample("BENEFICIARY_MOBILE_FORMATTED", "PayProp ID " + payPropId + ": '" + originalMobile + "' -> '" + formattedMobile + "'");
+                }
+            } else {
+                incrementCounter("BENEFICIARY_MOBILE_FORMAT_ERRORS");
+                addSample("BENEFICIARY_MOBILE_FORMAT_ERRORS", "PayProp ID " + payPropId + ": Invalid mobile '" + originalMobile + "'");
+            }
+        }
+    }
+
+    // ===== API CALL LOGGING =====
+
+    public void logApiCallStart(String endpoint, String method, int page) {
+        if (isDebugMode()) {
+            String key = "API_CALLS_" + endpoint.toUpperCase().replace("/", "_");
+            incrementCounter(key);
+            System.out.println("📡 API CALL START: " + method + " " + endpoint + " (Page " + page + ")");
+        }
+    }
+
+    public void logApiCallSuccess(String endpoint, String method, int itemsReturned, long durationMs) {
+        if (isDebugMode()) {
+            String key = "API_CALL_SUCCESS";
+            incrementCounter(key);
+            addSample(key, method + " " + endpoint + ": " + itemsReturned + " items in " + durationMs + "ms");
+            System.out.println("✅ API CALL SUCCESS: " + method + " " + endpoint + " - " + itemsReturned + " items in " + durationMs + "ms");
+        }
+    }
+
+    public void logApiCallError(String endpoint, String method, Exception error, long durationMs) {
+        if (isDebugMode()) {
+            incrementCounter("API_CALL_ERRORS");
+            addSample("API_CALL_ERRORS", method + " " + endpoint + ": " + error.getMessage() + " (after " + durationMs + "ms)");
+            System.err.println("❌ API CALL ERROR: " + method + " " + endpoint + " - " + error.getMessage() + " (after " + durationMs + "ms)");
+        }
+    }
+
+    // ===== BATCH PROCESSING LOGGING =====
+
+    public void logBatchStart(String entityType, int page, int pageSize) {
+        if (isDebugMode()) {
+            System.out.println("📦 BATCH START: " + entityType + " Page " + page + " (Size: " + pageSize + ")");
+        }
+    }
+
+    public void logBatchComplete(String entityType, int page, int processed, int created, int updated, int errors, int skipped) {
+        if (isDebugMode()) {
+            String key = entityType.toUpperCase() + "_BATCH_SUMMARY";
+            incrementCounter(key);
+            addSample(key, "Page " + page + ": " + processed + " processed, " + created + " created, " + updated + " updated, " + errors + " errors, " + skipped + " skipped");
+            
+            System.out.println("📦 BATCH COMPLETE: " + entityType + " Page " + page);
+            System.out.println("   Processed: " + processed + ", Created: " + created + ", Updated: " + updated + ", Errors: " + errors + ", Skipped: " + skipped);
+        }
+    }
+
+    // ===== DATABASE CONSTRAINT LOGGING =====
+
+    public void logConstraintViolation(String entityType, String payPropId, String constraintName, String details) {
+        if (isDebugMode()) {
+            String key = entityType.toUpperCase() + "_CONSTRAINT_VIOLATIONS";
+            incrementCounter(key);
+            addSample(key, "PayProp ID " + payPropId + " - " + constraintName + ": " + details);
+            System.err.println("💥 CONSTRAINT VIOLATION: " + entityType + " PayProp ID " + payPropId + " - " + constraintName + ": " + details);
+        }
+    }
+
+    public void logForeignKeyError(String entityType, String payPropId, String foreignKeyField, String missingValue) {
+        if (isDebugMode()) {
+            String key = entityType.toUpperCase() + "_FOREIGN_KEY_ERRORS";
+            incrementCounter(key);
+            addSample(key, "PayProp ID " + payPropId + " - Missing " + foreignKeyField + ": " + missingValue);
+            System.err.println("🔗 FOREIGN KEY ERROR: " + entityType + " PayProp ID " + payPropId + " - Missing " + foreignKeyField + ": " + missingValue);
+        }
+    }
+
+    // ===== TRANSACTION LOGGING =====
+
+    public void logTransactionStart(String operation) {
+        if (isDebugMode()) {
+            operationTimers.get().put("TRANSACTION_" + operation, System.currentTimeMillis());
+            System.out.println("🔄 TRANSACTION START: " + operation);
+        }
+    }
+
+    public void logTransactionComplete(String operation, boolean success) {
+        if (isDebugMode()) {
+            Long startTime = operationTimers.get().get("TRANSACTION_" + operation);
+            long duration = startTime != null ? System.currentTimeMillis() - startTime : 0;
+            
+            String key = success ? "TRANSACTION_SUCCESS" : "TRANSACTION_ROLLBACK";
+            incrementCounter(key);
+            addSample(key, operation + " (" + duration + "ms)");
+            
+            String status = success ? "✅ COMMITTED" : "🔄 ROLLBACK";
+            System.out.println(status + " TRANSACTION: " + operation + " (" + duration + "ms)");
+        }
+    }
+
+    // ===== UTILITY METHODS =====
+
+    private void incrementCounter(String key) {
+        if (isDebugMode()) {
+            operationCounters.get().computeIfAbsent(key, k -> new AtomicInteger(0)).incrementAndGet();
+        }
+    }
+
+    private void addSample(String key, String sample) {
+        if (isDebugMode()) {
+            List<String> samples = operationSamples.get().computeIfAbsent(key, k -> new ArrayList<>());
+            if (samples.size() < debugSampleSize) {
+                samples.add(sample);
+            }
+        }
+    }
+
+    // ===== ENHANCED DEBUG SUMMARY =====
+
+    private void printComprehensiveDebugSummary() {
+        if (!isDebugMode()) return;
+        
+        System.out.println("\n📊 COMPREHENSIVE DEBUG SUMMARY:");
+        System.out.println("="*60);
+        
+        Map<String, AtomicInteger> counters = operationCounters.get();
+        Map<String, List<String>> samples = operationSamples.get();
+        
+        // Group by entity type
+        Map<String, Map<String, Object>> groupedResults = new HashMap<>();
+        
+        for (Map.Entry<String, AtomicInteger> entry : counters.entrySet()) {
+            String operation = entry.getKey();
+            int count = entry.getValue().get();
+            
+            String entityType = extractEntityType(operation);
+            groupedResults.computeIfAbsent(entityType, k -> new HashMap<>()).put(operation, count);
+        }
+        
+        // Print grouped results
+        for (Map.Entry<String, Map<String, Object>> group : groupedResults.entrySet()) {
+            String entityType = group.getKey();
+            Map<String, Object> operations = group.getValue();
+            
+            System.out.println("\n🔍 " + entityType + ":");
+            for (Map.Entry<String, Object> op : operations.entrySet()) {
+                String operation = op.getKey();
+                Object count = op.getValue();
+                
+                System.out.println("  " + operation + ": " + count + " total");
+                
+                List<String> operationSamples = samples.get(operation);
+                if (operationSamples != null && !operationSamples.isEmpty()) {
+                    System.out.println("    Sample entries:");
+                    for (String sample : operationSamples) {
+                        System.out.println("      - " + sample);
+                    }
+                }
+            }
+        }
+        
+        // Summary statistics
+        printSummaryStatistics(counters);
+        
+        System.out.println("="*60);
+        System.out.println();
+    }
+
+    private String extractEntityType(String operation) {
+        if (operation.startsWith("PROPERTY_")) return "PROPERTIES";
+        if (operation.startsWith("TENANT_")) return "TENANTS";
+        if (operation.startsWith("BENEFICIARY_")) return "BENEFICIARIES";
+        if (operation.startsWith("API_")) return "API_CALLS";
+        if (operation.startsWith("TRANSACTION_")) return "TRANSACTIONS";
+        if (operation.startsWith("RELATIONSHIP_")) return "RELATIONSHIPS";
+        if (operation.startsWith("CONFLICT_")) return "CONFLICTS";
+        return "OTHER";
+    }
+
+    private void printSummaryStatistics(Map<String, AtomicInteger> counters) {
+        System.out.println("\n📈 SUMMARY STATISTICS:");
+        
+        // Calculate totals
+        int totalCreated = getCounterValue(counters, "PROPERTY_CREATED") + 
+                          getCounterValue(counters, "TENANT_CREATED") + 
+                          getCounterValue(counters, "BENEFICIARY_CREATED");
+        
+        int totalUpdated = getCounterValue(counters, "PROPERTY_UPDATED") + 
+                          getCounterValue(counters, "TENANT_UPDATED") + 
+                          getCounterValue(counters, "BENEFICIARY_UPDATED");
+        
+        int totalErrors = getCounterValue(counters, "PROPERTY_SAVE_ERRORS") + 
+                         getCounterValue(counters, "TENANT_SAVE_ERRORS") + 
+                         getCounterValue(counters, "BENEFICIARY_SAVE_ERRORS");
+        
+        int totalSkipped = getCounterValue(counters, "PROPERTY_SKIPPED") + 
+                          getCounterValue(counters, "TENANT_SKIPPED") + 
+                          getCounterValue(counters, "BENEFICIARY_SKIPPED");
+        
+        System.out.println("  Total Created: " + totalCreated);
+        System.out.println("  Total Updated: " + totalUpdated);
+        System.out.println("  Total Errors: " + totalErrors);
+        System.out.println("  Total Skipped: " + totalSkipped);
+        System.out.println("  Success Rate: " + calculateSuccessRate(totalCreated + totalUpdated, totalErrors) + "%");
+    }
+
+    private int getCounterValue(Map<String, AtomicInteger> counters, String key) {
+        AtomicInteger counter = counters.get(key);
+        return counter != null ? counter.get() : 0;
+    }
+
+    private double calculateSuccessRate(int successful, int errors) {
+        int total = successful + errors;
+        return total > 0 ? (successful * 100.0 / total) : 0.0;
+    }
+
+    // ===== EXISTING METHODS (keeping compatibility) =====
+
     public void logEntityError(String operation, Object entityId, Exception error) {
         if (isDebugMode()) {
             String key = operation + "_ERRORS";
-            AtomicInteger counter = operationCounters.get().computeIfAbsent(key, k -> new AtomicInteger(0));
-            counter.incrementAndGet();
-            
-            List<String> samples = operationSamples.get().computeIfAbsent(key, k -> new ArrayList<>());
-            if (samples.size() < debugSampleSize) {
-                samples.add("Entity " + entityId + ": " + error.getMessage());
-            }
-        } else {
-            System.err.println("❌ ENTITY ERROR: " + operation + " - Entity ID: " + entityId);
-            System.err.println("Error: " + error.getMessage());
+            incrementCounter(key);
+            addSample(key, "Entity " + entityId + ": " + error.getMessage());
         }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
@@ -132,27 +537,16 @@ public class PayPropSyncLogger {
         log.setErrorMessage("Entity " + entityId + ": " + error.getMessage());
         log.setSyncStartedAt(LocalDateTime.now());
         log.setSyncCompletedAt(LocalDateTime.now());
-        
         syncLogRepository.save(log);
     }
 
-    // ===== RELATIONSHIP LOGGING METHODS =====
+    // ===== RELATIONSHIP LOGGING METHODS (existing) =====
 
     public void logRelationshipCreated(String relationshipType, String sourceEntityId, String targetEntityId, String details) {
         if (isDebugMode()) {
-            String key = "RELATIONSHIPS_CREATED";
-            AtomicInteger counter = operationCounters.get().computeIfAbsent(key, k -> new AtomicInteger(0));
-            counter.incrementAndGet();
-            
-            List<String> samples = operationSamples.get().computeIfAbsent(key, k -> new ArrayList<>());
-            if (samples.size() < debugSampleSize) {
-                samples.add(relationshipType + ": " + sourceEntityId + " -> " + targetEntityId + " (" + details + ")");
-            }
-        } else {
-            System.out.println("🔗 RELATIONSHIP CREATED: " + relationshipType);
-            System.out.println("  Source: " + sourceEntityId);
-            System.out.println("  Target: " + targetEntityId);
-            System.out.println("  Details: " + details);
+            incrementCounter("RELATIONSHIPS_CREATED");
+            addSample("RELATIONSHIPS_CREATED", relationshipType + ": " + sourceEntityId + " -> " + targetEntityId + " (" + details + ")");
+            System.out.println("🔗 RELATIONSHIP CREATED: " + relationshipType + " " + sourceEntityId + " -> " + targetEntityId);
         }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
@@ -161,41 +555,14 @@ public class PayPropSyncLogger {
         log.setStatus("SUCCESS");
         log.setSyncStartedAt(LocalDateTime.now());
         log.setSyncCompletedAt(LocalDateTime.now());
-        
-        // Create payload map for relationship data
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("relationshipType", relationshipType);
-        payload.put("sourceEntityId", sourceEntityId);
-        payload.put("targetEntityId", targetEntityId);
-        payload.put("details", details);
-        payload.put("createdAt", LocalDateTime.now());
-        
-        // FIXED: Use correct method name from your PortfolioSyncLog entity
-        try {
-            // Try the correct method name from your entity
-            log.setPayloadReceived(payload);
-        } catch (Exception e) {
-            System.err.println("Warning: Could not set relationship payload: " + e.getMessage());
-        }
-        
         syncLogRepository.save(log);
     }
 
     public void logRelationshipFixed(String validationType, String sourceEntityId, String targetEntityId, String fixDescription) {
         if (isDebugMode()) {
-            String key = "RELATIONSHIPS_FIXED";
-            AtomicInteger counter = operationCounters.get().computeIfAbsent(key, k -> new AtomicInteger(0));
-            counter.incrementAndGet();
-            
-            List<String> samples = operationSamples.get().computeIfAbsent(key, k -> new ArrayList<>());
-            if (samples.size() < debugSampleSize) {
-                samples.add(validationType + ": " + sourceEntityId + " -> " + targetEntityId + " (Fixed: " + fixDescription + ")");
-            }
-        } else {
-            System.out.println("🔧 RELATIONSHIP FIXED: " + validationType);
-            System.out.println("  Source: " + sourceEntityId);
-            System.out.println("  Target: " + targetEntityId);
-            System.out.println("  Fix: " + fixDescription);
+            incrementCounter("RELATIONSHIPS_FIXED");
+            addSample("RELATIONSHIPS_FIXED", validationType + ": " + sourceEntityId + " -> " + targetEntityId + " (Fixed: " + fixDescription + ")");
+            System.out.println("🔧 RELATIONSHIP FIXED: " + validationType + " " + sourceEntityId + " -> " + targetEntityId);
         }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
@@ -204,108 +571,15 @@ public class PayPropSyncLogger {
         log.setStatus("SUCCESS");
         log.setSyncStartedAt(LocalDateTime.now());
         log.setSyncCompletedAt(LocalDateTime.now());
-        
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("validationType", validationType);
-        payload.put("sourceEntityId", sourceEntityId);
-        payload.put("targetEntityId", targetEntityId);
-        payload.put("fixDescription", fixDescription);
-        payload.put("fixedAt", LocalDateTime.now());
-        
-        try {
-            log.setPayloadReceived(payload);
-        } catch (Exception e) {
-            System.err.println("Warning: Could not serialize relationship fix payload: " + e.getMessage());
-        }
-        
         syncLogRepository.save(log);
     }
 
-    public void logRelationshipIssue(String validationType, String sourceEntityId, String targetEntityId, String issueDescription) {
-        if (isDebugMode()) {
-            String key = "RELATIONSHIP_ISSUES";
-            AtomicInteger counter = operationCounters.get().computeIfAbsent(key, k -> new AtomicInteger(0));
-            counter.incrementAndGet();
-            
-            List<String> samples = operationSamples.get().computeIfAbsent(key, k -> new ArrayList<>());
-            if (samples.size() < debugSampleSize) {
-                samples.add(validationType + ": " + sourceEntityId + " -> " + targetEntityId + " (Issue: " + issueDescription + ")");
-            }
-        } else {
-            System.err.println("⚠️ RELATIONSHIP ISSUE: " + validationType);
-            System.err.println("  Source: " + sourceEntityId);
-            System.err.println("  Target: " + targetEntityId);
-            System.err.println("  Issue: " + issueDescription);
-        }
-        
-        PortfolioSyncLog log = new PortfolioSyncLog();
-        log.setSyncType("RELATIONSHIP_VALIDATION");
-        log.setOperation("VALIDATION_ISSUE");
-        log.setStatus("WARNING");
-        log.setErrorMessage(issueDescription);
-        log.setSyncStartedAt(LocalDateTime.now());
-        log.setSyncCompletedAt(LocalDateTime.now());
-        
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("validationType", validationType);
-        payload.put("sourceEntityId", sourceEntityId);
-        payload.put("targetEntityId", targetEntityId);
-        payload.put("issueDescription", issueDescription);
-        payload.put("detectedAt", LocalDateTime.now());
-        
-        try {
-            log.setPayloadReceived(payload);
-        } catch (Exception e) {
-            System.err.println("Warning: Could not serialize relationship issue payload: " + e.getMessage());
-        }
-        
-        syncLogRepository.save(log);
-    }
-
-    public void logRelationshipStatistics(String operationType, int totalProcessed, int relationshipsCreated, int relationshipsFixed, int issues) {
-        if (isDebugMode()) {
-            System.out.println("📊 RELATIONSHIP STATS: " + operationType + " - Processed: " + totalProcessed + 
-                             ", Created: " + relationshipsCreated + ", Fixed: " + relationshipsFixed + ", Issues: " + issues);
-        } else {
-            System.out.println("📊 RELATIONSHIP STATISTICS: " + operationType);
-            System.out.println("  Total Processed: " + totalProcessed);
-            System.out.println("  Relationships Created: " + relationshipsCreated);
-            System.out.println("  Relationships Fixed: " + relationshipsFixed);
-            System.out.println("  Issues Found: " + issues);
-            System.out.println("  Success Rate: " + (totalProcessed > 0 ? ((relationshipsCreated + relationshipsFixed) * 100.0 / totalProcessed) : 0) + "%");
-        }
-        
-        PortfolioSyncLog log = new PortfolioSyncLog();
-        log.setSyncType("RELATIONSHIP_STATISTICS");
-        log.setOperation("STATISTICS");
-        log.setStatus("COMPLETED");
-        log.setSyncStartedAt(LocalDateTime.now());
-        log.setSyncCompletedAt(LocalDateTime.now());
-        
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("operationType", operationType);
-        payload.put("totalProcessed", totalProcessed);
-        payload.put("relationshipsCreated", relationshipsCreated);
-        payload.put("relationshipsFixed", relationshipsFixed);
-        payload.put("issues", issues);
-        payload.put("successRate", totalProcessed > 0 ? ((relationshipsCreated + relationshipsFixed) * 100.0 / totalProcessed) : 0);
-        payload.put("generatedAt", LocalDateTime.now());
-        
-        try {
-            log.setPayloadReceived(payload);
-        } catch (Exception e) {
-            System.err.println("Warning: Could not serialize relationship statistics payload: " + e.getMessage());
-        }
-        
-        syncLogRepository.save(log);
-    }
-
-    // ===== CONFLICT LOGGING =====
+    // ===== CONFLICT LOGGING (existing methods) =====
 
     public void logConflictDetection(int conflictCount) {
         if (isDebugMode()) {
-            System.out.println("🔍 CONFLICT DETECTION: Found " + conflictCount + " conflicts (DEBUG MODE)");
-        } else {
+            incrementCounter("CONFLICTS_DETECTED");
+            addSample("CONFLICTS_DETECTED", "Found " + conflictCount + " conflicts");
             System.out.println("🔍 CONFLICT DETECTION: Found " + conflictCount + " conflicts");
         }
         
@@ -315,36 +589,14 @@ public class PayPropSyncLogger {
         log.setStatus("COMPLETED");
         log.setSyncStartedAt(LocalDateTime.now());
         log.setSyncCompletedAt(LocalDateTime.now());
-        
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("conflictCount", conflictCount);
-        payload.put("detectedAt", LocalDateTime.now());
-        
-        try {
-            log.setPayloadReceived(payload);
-        } catch (Exception e) {
-            System.err.println("Warning: Could not serialize conflict detection payload: " + e.getMessage());
-        }
-        
         syncLogRepository.save(log);
     }
 
     public void logConflictResolution(SyncConflict conflict, ConflictResolution resolution) {
         if (isDebugMode()) {
-            String key = "CONFLICT_RESOLUTIONS";
-            AtomicInteger counter = operationCounters.get().computeIfAbsent(key, k -> new AtomicInteger(0));
-            counter.incrementAndGet();
-            
-            List<String> samples = operationSamples.get().computeIfAbsent(key, k -> new ArrayList<>());
-            if (samples.size() < debugSampleSize) {
-                String status = resolution.isResolved() ? "RESOLVED" : "UNRESOLVED";
-                samples.add(conflict.getEntityType() + " " + conflict.getEntityId() + ": " + status + " (" + resolution.getStrategy() + ")");
-            }
-        } else {
-            String status = resolution.isResolved() ? "✅ RESOLVED" : "⚠️ UNRESOLVED";
-            System.out.println(status + " CONFLICT: " + conflict.getEntityType() + " " + conflict.getEntityId());
-            System.out.println("Strategy: " + resolution.getStrategy());
-            System.out.println("Reason: " + resolution.getReason());
+            String key = resolution.isResolved() ? "CONFLICTS_RESOLVED" : "CONFLICTS_UNRESOLVED";
+            incrementCounter(key);
+            addSample(key, conflict.getEntityType() + " " + conflict.getEntityId() + ": " + resolution.getStrategy());
         }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
@@ -353,37 +605,13 @@ public class PayPropSyncLogger {
         log.setStatus(resolution.isResolved() ? "COMPLETED" : "FAILED");
         log.setSyncStartedAt(LocalDateTime.now());
         log.setSyncCompletedAt(LocalDateTime.now());
-        
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("entityType", conflict.getEntityType());
-        payload.put("entityId", conflict.getEntityId());
-        payload.put("conflictType", conflict.getConflictType());
-        payload.put("strategy", resolution.getStrategy());
-        payload.put("resolved", resolution.isResolved());
-        payload.put("reason", resolution.getReason());
-        
-        try {
-            log.setPayloadReceived(payload);
-        } catch (Exception e) {
-            System.err.println("Warning: Could not serialize conflict resolution payload: " + e.getMessage());
-        }
-        
         syncLogRepository.save(log);
     }
 
     public void logConflictError(SyncConflict conflict, Exception error) {
         if (isDebugMode()) {
-            String key = "CONFLICT_ERRORS";
-            AtomicInteger counter = operationCounters.get().computeIfAbsent(key, k -> new AtomicInteger(0));
-            counter.incrementAndGet();
-            
-            List<String> samples = operationSamples.get().computeIfAbsent(key, k -> new ArrayList<>());
-            if (samples.size() < debugSampleSize) {
-                samples.add(conflict.getEntityType() + " " + conflict.getEntityId() + ": " + error.getMessage());
-            }
-        } else {
-            System.err.println("❌ CONFLICT RESOLUTION ERROR: " + conflict.getEntityType() + " " + conflict.getEntityId());
-            System.err.println("Error: " + error.getMessage());
+            incrementCounter("CONFLICT_ERRORS");
+            addSample("CONFLICT_ERRORS", conflict.getEntityType() + " " + conflict.getEntityId() + ": " + error.getMessage());
         }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
@@ -393,21 +621,16 @@ public class PayPropSyncLogger {
         log.setErrorMessage("Conflict " + conflict.getEntityId() + ": " + error.getMessage());
         log.setSyncStartedAt(LocalDateTime.now());
         log.setSyncCompletedAt(LocalDateTime.now());
-        
         syncLogRepository.save(log);
     }
 
-    // ===== OTHER EXISTING METHODS =====
+    // ===== OTHER UTILITY METHODS (existing) =====
 
     public void logBatchOperation(String operation, int totalCount, int successCount, int errorCount) {
         if (isDebugMode()) {
+            incrementCounter("BATCH_OPERATIONS");
+            addSample("BATCH_OPERATIONS", operation + ": " + totalCount + " total, " + successCount + " success, " + errorCount + " errors");
             System.out.println("📊 BATCH " + operation + ": " + totalCount + " total, " + successCount + " success, " + errorCount + " errors");
-        } else {
-            System.out.println("📊 BATCH " + operation + ":");
-            System.out.println("  Total: " + totalCount);
-            System.out.println("  Success: " + successCount);
-            System.out.println("  Errors: " + errorCount);
-            System.out.println("  Success Rate: " + (totalCount > 0 ? (successCount * 100 / totalCount) : 0) + "%");
         }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
@@ -416,36 +639,22 @@ public class PayPropSyncLogger {
         log.setStatus(errorCount == 0 ? "COMPLETED" : "PARTIAL");
         log.setSyncStartedAt(LocalDateTime.now());
         log.setSyncCompletedAt(LocalDateTime.now());
-        
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("totalCount", totalCount);
-        payload.put("successCount", successCount);
-        payload.put("errorCount", errorCount);
-        payload.put("successRate", totalCount > 0 ? (successCount * 100.0 / totalCount) : 0);
-        
-        try {
-            log.setPayloadReceived(payload);
-        } catch (Exception e) {
-            System.err.println("Warning: Could not serialize batch operation payload: " + e.getMessage());
-        }
-        
         syncLogRepository.save(log);
     }
 
     public void logApiCall(String endpoint, String method, boolean success, long duration) {
         if (isDebugMode()) {
-            String status = success ? "✅" : "❌";
-            System.out.println(status + " API: " + method + " " + endpoint + " (" + duration + "ms)");
-        } else {
-            String status = success ? "✅" : "❌";
-            System.out.println(status + " API CALL: " + method + " " + endpoint + " (" + duration + "ms)");
+            String key = success ? "API_CALL_SUCCESS" : "API_CALL_ERRORS";
+            incrementCounter(key);
+            addSample(key, method + " " + endpoint + " (" + duration + "ms)");
         }
     }
 
     public void logWebhookReceived(String webhookType, String payload) {
-        System.out.println("🔔 WEBHOOK RECEIVED: " + webhookType);
-        if (!isDebugMode()) {
-            System.out.println("Payload size: " + (payload != null ? payload.length() : 0) + " characters");
+        if (isDebugMode()) {
+            incrementCounter("WEBHOOKS_RECEIVED");
+            addSample("WEBHOOKS_RECEIVED", webhookType + " (Size: " + (payload != null ? payload.length() : 0) + " chars)");
+            System.out.println("🔔 WEBHOOK RECEIVED: " + webhookType);
         }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
@@ -454,34 +663,14 @@ public class PayPropSyncLogger {
         log.setStatus("COMPLETED");
         log.setSyncStartedAt(LocalDateTime.now());
         log.setSyncCompletedAt(LocalDateTime.now());
-        
-        Map<String, Object> payloadMap = new HashMap<>();
-        payloadMap.put("webhookType", webhookType);
-        payloadMap.put("payloadSize", payload != null ? payload.length() : 0);
-        payloadMap.put("receivedAt", LocalDateTime.now());
-        
-        try {
-            log.setPayloadReceived(payloadMap);
-        } catch (Exception e) {
-            System.err.println("Warning: Could not serialize webhook payload: " + e.getMessage());
-        }
-        
         syncLogRepository.save(log);
     }
 
     public void logValidationError(String entityType, Object entityId, String validationError) {
         if (isDebugMode()) {
-            String key = "VALIDATION_ERRORS";
-            AtomicInteger counter = operationCounters.get().computeIfAbsent(key, k -> new AtomicInteger(0));
-            counter.incrementAndGet();
-            
-            List<String> samples = operationSamples.get().computeIfAbsent(key, k -> new ArrayList<>());
-            if (samples.size() < debugSampleSize) {
-                samples.add(entityType + " " + entityId + ": " + validationError);
-            }
-        } else {
-            System.err.println("⚠️ VALIDATION ERROR: " + entityType + " " + entityId);
-            System.err.println("Error: " + validationError);
+            String key = entityType.toUpperCase() + "_VALIDATION_ERRORS";
+            incrementCounter(key);
+            addSample(key, "ID " + entityId + ": " + validationError);
         }
         
         PortfolioSyncLog log = new PortfolioSyncLog();
@@ -491,58 +680,17 @@ public class PayPropSyncLogger {
         log.setErrorMessage(validationError);
         log.setSyncStartedAt(LocalDateTime.now());
         log.setSyncCompletedAt(LocalDateTime.now());
-        
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("entityType", entityType);
-        payload.put("entityId", entityId);
-        payload.put("validationError", validationError);
-        
-        try {
-            log.setPayloadReceived(payload);
-        } catch (Exception e) {
-            System.err.println("Warning: Could not serialize validation error payload: " + e.getMessage());
-        }
-        
         syncLogRepository.save(log);
     }
 
-    // ===== UTILITY METHODS =====
+    // ===== SYNC STATISTICS (existing) =====
 
-    private void printDebugSummary() {
-        if (!isDebugMode()) return;
-        
-        System.out.println("\n📊 DEBUG SUMMARY:");
-        
-        Map<String, AtomicInteger> counters = operationCounters.get();
-        Map<String, List<String>> samples = operationSamples.get();
-        
-        for (Map.Entry<String, AtomicInteger> entry : counters.entrySet()) {
-            String operation = entry.getKey();
-            int count = entry.getValue().get();
-            List<String> operationSamples = samples.get(operation);
-            
-            System.out.println("  " + operation + ": " + count + " total");
-            
-            if (operationSamples != null && !operationSamples.isEmpty()) {
-                System.out.println("    Sample entries:");
-                for (String sample : operationSamples) {
-                    System.out.println("      - " + sample);
-                }
-            }
-        }
-        System.out.println();
-    }
-
-    /**
-     * Get sync statistics from the database
-     */
     public SyncStatistics getSyncStatistics(LocalDateTime since) {
         SyncStatistics stats = new SyncStatistics();
         stats.setSince(since);
         stats.setGeneratedAt(LocalDateTime.now());
         
         try {
-            // Get basic counts from sync log repository
             List<PortfolioSyncLog> allLogs = syncLogRepository.findAll();
             List<PortfolioSyncLog> logsInPeriod = allLogs.stream()
                 .filter(log -> log.getSyncStartedAt() != null && log.getSyncStartedAt().isAfter(since))
@@ -560,7 +708,6 @@ public class PayPropSyncLogger {
                 .count();
             stats.setFailedSyncs((int) failedSyncs);
             
-            // Count conflicts
             long conflictsDetected = logsInPeriod.stream()
                 .filter(log -> "CONFLICT_DETECTION".equals(log.getSyncType()) || "CONFLICT_RESOLUTION".equals(log.getSyncType()))
                 .count();
@@ -571,7 +718,6 @@ public class PayPropSyncLogger {
                 .count();
             stats.setConflictsResolved((int) conflictsResolved);
             
-            // Calculate average duration
             double avgDuration = logsInPeriod.stream()
                 .filter(log -> log.getSyncStartedAt() != null && log.getSyncCompletedAt() != null)
                 .mapToLong(log -> java.time.Duration.between(log.getSyncStartedAt(), log.getSyncCompletedAt()).toMillis())
@@ -579,7 +725,6 @@ public class PayPropSyncLogger {
                 .orElse(0.0);
             stats.setAverageSyncDuration(avgDuration);
             
-            // Create sync type breakdown
             Map<String, Integer> breakdown = new HashMap<>();
             logsInPeriod.stream()
                 .collect(java.util.stream.Collectors.groupingBy(
@@ -594,7 +739,6 @@ public class PayPropSyncLogger {
             
         } catch (Exception e) {
             System.err.println("Error calculating sync statistics: " + e.getMessage());
-            // Return empty stats if calculation fails
             stats.setTotalSyncs(0);
             stats.setSuccessfulSyncs(0);
             stats.setFailedSyncs(0);
@@ -607,43 +751,7 @@ public class PayPropSyncLogger {
         return stats;
     }
 
-    /**
-     * Simple JSON conversion for payload storage
-     * Note: Your database uses TEXT fields, not native JSON
-     */
-    private String convertMapToJson(Map<String, Object> map) {
-        if (map == null || map.isEmpty()) {
-            return "{}";
-        }
-        
-        StringBuilder json = new StringBuilder("{");
-        boolean first = true;
-        
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            if (!first) {
-                json.append(",");
-            }
-            json.append("\"").append(entry.getKey()).append("\":");
-            
-            Object value = entry.getValue();
-            if (value == null) {
-                json.append("null");
-            } else if (value instanceof String) {
-                json.append("\"").append(value.toString().replace("\"", "\\\"")).append("\"");
-            } else if (value instanceof LocalDateTime) {
-                json.append("\"").append(value.toString()).append("\"");
-            } else {
-                json.append(value.toString());
-            }
-            
-            first = false;
-        }
-        json.append("}");
-        
-        return json.toString();
-    }
-
-    // ===== SYNC STATISTICS CLASS =====
+    // ===== SYNC STATISTICS CLASS (existing) =====
     public static class SyncStatistics {
         private LocalDateTime since;
         private LocalDateTime generatedAt;
