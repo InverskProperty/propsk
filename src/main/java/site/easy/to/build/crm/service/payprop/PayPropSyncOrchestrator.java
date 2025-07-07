@@ -16,6 +16,10 @@ import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 import site.easy.to.build.crm.service.user.UserService;
+import site.easy.to.build.crm.entity.PaymentMethod; 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -207,28 +211,41 @@ public class PayPropSyncOrchestrator {
 
     // ===== USER HELPER METHOD =====
     
+    @Autowired
+    private AuthenticationUtils authenticationUtils; // Add this field at the top
+
     private User getCurrentUser(Long userId) {
-        if (userId != null) {
-            try {
-                // FIXED: Handle your actual user ID type conversion
-                User user = userService.findById(userId.intValue());
-                if (user != null) return user;
-            } catch (Exception e) {
-                System.err.println("Could not find user by ID " + userId + ": " + e.getMessage());
-            }
-        }
-        
-        // FIXED: Use your actual method to find users
         try {
-            List<User> allUsers = userService.findAll();
-            if (!allUsers.isEmpty()) {
-                return allUsers.get(0); // Return first available user
+            // FIXED: Use AuthenticationUtils to get current authenticated user
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated()) {
+                int currentUserId = authenticationUtils.getLoggedInUserId(auth);
+                if (currentUserId > 0) {
+                    User currentUser = userService.findById(currentUserId);
+                    if (currentUser != null) {
+                        log.info("✅ Found authenticated user: ID={}, username={}", currentUser.getId(), currentUser.getUsername());
+                        return currentUser;
+                    }
+                }
             }
         } catch (Exception e) {
-            System.err.println("Could not find any users: " + e.getMessage());
+            log.warn("Could not get authenticated user: {}", e.getMessage());
         }
         
-        throw new RuntimeException("No users found in system - cannot create Customer without User");
+        // Fallback to passed userId if provided
+        if (userId != null) {
+            try {
+                User user = userService.findById(userId.intValue());
+                if (user != null) {
+                    log.info("Using passed user ID: {}", userId);
+                    return user;
+                }
+            } catch (Exception e) {
+                log.warn("Could not find user by passed ID {}: {}", userId, e.getMessage());
+            }
+        }
+        
+        throw new RuntimeException("No valid user found for portfolio creation");
     }
 
     // ===== SEPARATE TRANSACTION METHODS =====
@@ -953,6 +970,8 @@ public class PayPropSyncOrchestrator {
         }
     }
 
+    
+
     // ===== ENTITY LOOKUP METHODS (FIXED FOR YOUR DATABASE) =====
 
     private Property findPropertyByPayPropId(String payPropId) {
@@ -1554,6 +1573,18 @@ public class PayPropSyncOrchestrator {
         owner.setEmailAddress((String) data.get("email_address"));
         owner.setMobile(formatMobileForPayProp((String) data.get("mobile_number")));
         owner.setComment((String) data.get("comment"));
+
+        // FIXED: Handle payment_method requirement
+        String paymentMethodStr = (String) data.get("payment_method");
+        if (paymentMethodStr != null && !paymentMethodStr.trim().isEmpty()) {
+            try {
+                owner.setPaymentMethod(PaymentMethod.valueOf(paymentMethodStr.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                owner.setPaymentMethod(PaymentMethod.LOCAL); // Default fallback
+            }
+        } else {
+            owner.setPaymentMethod(PaymentMethod.LOCAL); // Required field default
+        }
         
         String firstName = (String) data.get("first_name");
         String lastName = (String) data.get("last_name");
@@ -1701,21 +1732,35 @@ public class PayPropSyncOrchestrator {
      * Format mobile number for PayProp compatibility
      */
     private String formatMobileForPayProp(String mobile) {
-        // Remove any non-digit characters
-        mobile = mobile.replaceAll("[^\\d]", "");
-        
-        // Skip if too short or too long
-        if (mobile.length() < 10 || mobile.length() > 15) {
-            return null; // ❌ This will drop valid international numbers
+        if (mobile == null || mobile.trim().isEmpty()) {
+            return null; // Allow null for optional field
         }
         
-        // Add UK country code if not present - ❌ FORCES UK CODE
-        if (!mobile.startsWith("44") && mobile.startsWith("0")) {
-            mobile = "44" + mobile.substring(1);
-        } else if (!mobile.startsWith("44") && !mobile.startsWith("0")) {
-            mobile = "44" + mobile; // ❌ Forces +44 on ALL numbers
+        // Clean: remove everything except digits
+        String cleaned = mobile.replaceAll("[^\\d]", "");
+        
+        // Skip validation if empty after cleaning
+        if (cleaned.isEmpty()) {
+            return null;
         }
         
-        return mobile;
+        // Basic length validation (more lenient)
+        if (cleaned.length() < 7 || cleaned.length() > 15) {
+            log.warn("Mobile number length invalid ({}): {}", cleaned.length(), mobile);
+            return null; // Return null instead of invalid format
+        }
+        
+        // Convert UK 0 prefix to 44
+        if (cleaned.startsWith("0") && cleaned.length() >= 10) {
+            cleaned = "44" + cleaned.substring(1);
+        }
+        
+        // Final pattern check - if invalid, return null
+        if (!cleaned.matches("^[1-9]\\d+$")) {
+            log.warn("Mobile number doesn't match pattern: {}", cleaned);
+            return null; // Return null instead of invalid format
+        }
+        
+        return cleaned;
     }
 }
