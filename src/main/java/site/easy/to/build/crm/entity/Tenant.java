@@ -60,9 +60,10 @@ public class Tenant {
     
     // FIXED: Mobile number pattern for UK numbers, made optional
     @Pattern(
-        regexp = "^(\\+[1-9]\\d{1,14}|0[1-9]\\d{8,10})$", 
+        regexp = "^(\\+[1-9]\\d{1,14}|0[1-9]\\d{8,10}|[1-9]\\d+)$", 
         message = "Invalid mobile number format"
     )
+    @Size(max = 15, message = "Mobile number cannot exceed 15 characters")
     private String mobileNumber;
     
     @Column(name = "fax_number", length = 15)
