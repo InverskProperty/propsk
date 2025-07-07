@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.HashMap;
 
 @Entity
 @Table(name = "customer")
@@ -21,30 +22,33 @@ public class Customer {
 
     public interface CustomerUpdateValidationGroupInclusion {}
     
-    // Country code mapping for PayProp integration - ADD HERE
-    private static final Map<String, String> COUNTRY_CODE_TO_NAME = Map.of(
-        "GB", "United Kingdom",
-        "UK", "United Kingdom", // PayProp uses UK
-        "US", "United States",
-        "CA", "Canada",
-        "AU", "Australia",
-        "IE", "Ireland",
-        "FR", "France",
-        "DE", "Germany",
-        "ES", "Spain",
-        "IT", "Italy",
-        "NL", "Netherlands",
-        "BE", "Belgium",
-        "PT", "Portugal",
-        "SE", "Sweden",
-        "NO", "Norway",
-        "DK", "Denmark",
-        "FI", "Finland",
-        "CH", "Switzerland",
-        "AT", "Austria",
-        "NZ", "New Zealand",
-        "ZA", "South Africa"
-    );
+    private static final Map<String, String> COUNTRY_CODE_TO_NAME;
+    static {
+        Map<String, String> map = new HashMap<>();
+        map.put("GB", "United Kingdom");
+        map.put("UK", "United Kingdom"); // PayProp uses UK
+        map.put("US", "United States");
+        map.put("CA", "Canada");
+        map.put("AU", "Australia");
+        map.put("IE", "Ireland");
+        map.put("FR", "France");
+        map.put("DE", "Germany");
+        map.put("ES", "Spain");
+        map.put("IT", "Italy");
+        map.put("NL", "Netherlands");
+        map.put("BE", "Belgium");
+        map.put("PT", "Portugal");
+        map.put("SE", "Sweden");
+        map.put("NO", "Norway");
+        map.put("DK", "Denmark");
+        map.put("FI", "Finland");
+        map.put("CH", "Switzerland");
+        map.put("AT", "Austria");
+        map.put("NZ", "New Zealand");
+        map.put("ZA", "South Africa");
+        COUNTRY_CODE_TO_NAME = Map.copyOf(map);
+    }
+
 
     public interface CustomerUpdateValidationGroupInclusion {}
     
