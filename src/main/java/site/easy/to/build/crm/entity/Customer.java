@@ -48,9 +48,6 @@ public class Customer {
         map.put("ZA", "South Africa");
         COUNTRY_CODE_TO_NAME = Map.copyOf(map);
     }
-
-
-    public interface CustomerUpdateValidationGroupInclusion {}
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
