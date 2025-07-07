@@ -19,6 +19,7 @@ import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 
 import java.math.BigDecimal;
+import java.net.http.HttpHeaders;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -356,7 +357,7 @@ public class PayPropSyncService {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
             
-            String url = payPropApiBase + "/export/payments?page=" + page + "&rows=" + Math.min(rows, 25);
+            String url = payPropApiBase + "/export/payments?include_beneficiary_info=true&page=" + page + "&rows=" + Math.min(rows, 25);
             
             System.out.println("📥 Exporting payments from PayProp - Page " + page);
             
