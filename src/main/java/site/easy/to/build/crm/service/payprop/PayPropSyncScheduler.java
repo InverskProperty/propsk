@@ -33,7 +33,7 @@ public class PayPropSyncScheduler {
 
         System.out.println("⏰ Starting scheduled full sync...");
         try {
-            syncOrchestrator.performFullSync(1L); // System user
+            syncOrchestrator.performUnifiedSync(1L);
             System.out.println("✅ Scheduled full sync completed successfully");
         } catch (Exception e) {
             System.err.println("❌ Scheduled full sync failed: " + e.getMessage());
@@ -50,7 +50,7 @@ public class PayPropSyncScheduler {
         }
 
         try {
-            syncOrchestrator.performIntelligentSync(1L); // System user
+            syncOrchestrator.performUnifiedSync(1L);
         } catch (Exception e) {
             System.err.println("❌ Scheduled intelligent sync failed: " + e.getMessage());
         }

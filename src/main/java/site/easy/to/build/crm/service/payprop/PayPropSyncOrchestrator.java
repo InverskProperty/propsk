@@ -299,12 +299,13 @@ public class PayPropSyncOrchestrator {
                     }
                     
                     // Find the property
-                    Property property = propertyService.findByPayPropId(rel.getPropertyPayPropId());
-                    if (property == null) {
+                    Optional<Property> propertyOpt = propertyService.findByPayPropId(rel.getPropertyPayPropId());
+                    if (propertyOpt.isEmpty()) {
                         log.warn("Property not found for PayProp ID: {}", rel.getPropertyPayPropId());
                         assignmentErrors++;
                         continue;
                     }
+                    Property property = propertyOpt.get();
                     
                     // Establish assignment
                     ownerCustomer.setAssignedPropertyId(property.getId());
@@ -340,9 +341,10 @@ public class PayPropSyncOrchestrator {
 
     private boolean createOrUpdateProperty(Map<String, Object> propertyData, Long initiatedBy) {
         String payPropId = (String) propertyData.get("id");
-        Property existing = propertyService.findByPayPropId(payPropId);
+        Optional<Property> existingOpt = propertyService.findByPayPropId(payPropId);
         
-        if (existing != null) {
+        if (existingOpt.isPresent()) {
+            Property existing = existingOpt.get();
             updatePropertyFromPayPropData(existing, propertyData);
             existing.setUpdatedBy(initiatedBy);
             propertyService.save(existing);
@@ -457,8 +459,9 @@ public class PayPropSyncOrchestrator {
         
         // Property Relationship (if available)
         if (relationship != null) {
-            Property property = propertyService.findByPayPropId(relationship.getPropertyPayPropId());
-            if (property != null) {
+            Optional<Property> propertyOpt = propertyService.findByPayPropId(relationship.getPropertyPayPropId());
+            if (propertyOpt.isPresent()) {
+                Property property = propertyOpt.get();
                 customer.setAssignedPropertyId(property.getId());
                 customer.setEntityType("Property");
                 customer.setEntityId(property.getId());
@@ -561,11 +564,14 @@ public class PayPropSyncOrchestrator {
         
         // Update property relationship if changed
         if (relationship != null) {
-            Property property = propertyService.findByPayPropId(relationship.getPropertyPayPropId());
-            if (property != null && !property.getId().equals(customer.getAssignedPropertyId())) {
-                customer.setAssignedPropertyId(property.getId());
-                customer.setEntityId(property.getId());
-                customer.setPrimaryEntity(relationship.getOwnershipPercentage() >= 50.0);
+            Optional<Property> propertyOpt = propertyService.findByPayPropId(relationship.getPropertyPayPropId());
+            if (propertyOpt.isPresent()) {
+                Property property = propertyOpt.get();
+                if (!property.getId().equals(customer.getAssignedPropertyId())) {
+                    customer.setAssignedPropertyId(property.getId());
+                    customer.setEntityId(property.getId());
+                    customer.setPrimaryEntity(relationship.getOwnershipPercentage() >= 50.0);
+                }
             }
         }
     }
