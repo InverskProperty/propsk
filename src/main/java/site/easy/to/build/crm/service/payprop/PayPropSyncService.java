@@ -19,6 +19,7 @@ import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 
 import java.math.BigDecimal;
+import java.net.http.HttpHeaders;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -455,11 +456,12 @@ public class PayPropSyncService {
         settings.setMinimum_balance(property.getPropertyAccountMinimumBalance());
         
         // FIXED: Convert LocalDate to String to avoid array serialization issues
+        // Convert LocalDate to String to avoid array serialization issues
         if (property.getListedFrom() != null) {
-            settings.setListing_from(property.getListedFrom()); // ✅ LocalDate to LocalDate
+            settings.setListing_from(property.getListedFrom().toString()); // Convert to ISO string
         }
         if (property.getListedUntil() != null) {
-            settings.setListing_to(property.getListedUntil()); // ✅ LocalDate to LocalDate
+            settings.setListing_to(property.getListedUntil().toString()); // Convert to ISO string
         }
         
         dto.setSettings(settings);

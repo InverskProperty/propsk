@@ -9,8 +9,8 @@ public class PayPropSettingsDTO {
     private Boolean hold_owner_funds;
     private BigDecimal monthly_payment;
     private BigDecimal minimum_balance;
-    private LocalDate listing_from;
-    private LocalDate listing_to;
+    private String listing_from;  // ✅ This serializes as string
+    private String listing_to;    // ✅ This serializes as string
     private Boolean verify_payments;
     
     // Getters and setters with null protection
@@ -34,15 +34,14 @@ public class PayPropSettingsDTO {
         this.minimum_balance = (minimum_balance != null) ? minimum_balance : BigDecimal.ZERO; 
     }
     
-    public LocalDate getListing_from() { return listing_from; }
-    public void setListing_from(LocalDate listing_from) { 
-        // CRITICAL FIX: Ensure listing_from is never null
-        this.listing_from = (listing_from != null) ? listing_from : LocalDate.now(); 
+    public String getListing_from() { return listing_from; }
+    public void setListing_from(String listing_from) { 
+        this.listing_from = listing_from; 
     }
-    
-    public LocalDate getListing_to() { return listing_to; }
-    public void setListing_to(LocalDate listing_to) { 
-        this.listing_to = listing_to; // Can be null for ongoing listings
+
+    public String getListing_to() { return listing_to; }
+    public void setListing_to(String listing_to) { 
+        this.listing_to = listing_to;
     }
     
     public Boolean getVerify_payments() { return verify_payments; }

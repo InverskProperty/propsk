@@ -216,33 +216,36 @@ public class PayPropSyncOrchestrator {
 
     private User getCurrentUser(Long userId) {
         try {
-            // FIXED: Use AuthenticationUtils to get current authenticated user
+            // FIXED: Get user by email from OAuth authentication
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.isAuthenticated()) {
+                
+                // For OAuth2 authentication, get email and find user by email
+                if (auth instanceof OAuth2AuthenticationToken) {
+                    OAuth2AuthenticationToken oauth2Token = (OAuth2AuthenticationToken) auth;
+                    String email = oauth2Token.getPrincipal().getAttribute("email");
+                    
+                    if (email != null) {
+                        User currentUser = userService.findByEmail(email); // Find by email, not ID
+                        if (currentUser != null) {
+                            log.info("✅ Found user by email {}: ID={}, username={}", email, currentUser.getId(), currentUser.getUsername());
+                            return currentUser; // This should return user ID 54 for management@propsk.com
+                        }
+                    }
+                }
+                
+                // Fallback: try AuthenticationUtils method
                 int currentUserId = authenticationUtils.getLoggedInUserId(auth);
                 if (currentUserId > 0) {
                     User currentUser = userService.findById(currentUserId);
                     if (currentUser != null) {
-                        log.info("✅ Found authenticated user: ID={}, username={}", currentUser.getId(), currentUser.getUsername());
+                        log.info("✅ Found user by AuthenticationUtils: ID={}", currentUser.getId());
                         return currentUser;
                     }
                 }
             }
         } catch (Exception e) {
             log.warn("Could not get authenticated user: {}", e.getMessage());
-        }
-        
-        // Fallback to passed userId if provided
-        if (userId != null) {
-            try {
-                User user = userService.findById(userId.intValue());
-                if (user != null) {
-                    log.info("Using passed user ID: {}", userId);
-                    return user;
-                }
-            } catch (Exception e) {
-                log.warn("Could not find user by passed ID {}: {}", userId, e.getMessage());
-            }
         }
         
         throw new RuntimeException("No valid user found for portfolio creation");
