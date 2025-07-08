@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.customer.CustomerService;
+import site.easy.to.build.crm.service.payprop.PayPropSyncService.PayPropExportResult;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
@@ -303,34 +304,76 @@ public class PayPropSyncOrchestrator {
         }
     }
 
+    // Add to your orchestrator after syncTenantsAsCustomers():
+    private SyncResult establishTenantPropertyRelationships() {
+        int relationships = 0;
+        List<Property> allProperties = propertyService.findAll();
+        
+        for (Property property : allProperties) {
+            if (property.getPayPropId() != null) {
+                try {
+                    PayPropExportResult tenants = payPropSyncService.exportTenantsByProperty(property.getPayPropId());
+                    for (Map<String, Object> tenantData : tenants.getItems()) {
+                        String tenantPayPropId = (String) tenantData.get("id");
+                        Customer tenant = customerService.findByPayPropEntityId(tenantPayPropId);
+                        
+                        if (tenant != null && !property.getId().equals(tenant.getAssignedPropertyId())) {
+                            tenant.setAssignedPropertyId(property.getId());
+                            customerService.save(tenant);
+                            relationships++;
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to get tenants for property {}: {}", property.getPayPropId(), e.getMessage());
+                }
+            }
+        }
+        
+        return SyncResult.success("Tenant relationships established", Map.of("relationships", relationships));
+    }
+
     // ===== STEP 5: ESTABLISH PROPERTY ASSIGNMENTS =====
     
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult establishPropertyAssignments(Map<String, PropertyRelationship> relationships) {
         try {
+            log.info("🏠 Starting property assignment establishment for {} relationships", relationships.size());
             int assignmentsCreated = 0;
             int assignmentErrors = 0;
             
             for (PropertyRelationship rel : relationships.values()) {
                 try {
+                    log.info("🔗 Processing relationship: Owner {} → Property {}", 
+                        rel.getOwnerPayPropId(), rel.getPropertyPayPropId());
+                    
                     // Find the property owner customer
                     Customer ownerCustomer = customerService.findByPayPropEntityId(rel.getOwnerPayPropId());
                     if (ownerCustomer == null) {
-                        log.warn("Property owner customer not found for PayProp ID: {}", rel.getOwnerPayPropId());
+                        log.warn("❌ Property owner customer not found for PayProp ID: {}", rel.getOwnerPayPropId());
                         assignmentErrors++;
                         continue;
                     }
+                    log.info("✅ Found owner customer: {} (ID: {})", ownerCustomer.getName(), ownerCustomer.getCustomerId());
                     
                     // Find the property
                     Optional<Property> propertyOpt = propertyService.findByPayPropId(rel.getPropertyPayPropId());
                     if (propertyOpt.isEmpty()) {
-                        log.warn("Property not found for PayProp ID: {}", rel.getPropertyPayPropId());
+                        log.warn("❌ Property not found for PayProp ID: {}", rel.getPropertyPayPropId());
                         assignmentErrors++;
                         continue;
                     }
-                    Property property = propertyOpt.get();
+                    Property property = propertyOpt.orElseThrow(() -> new RuntimeException("Property not found"));
+                    log.info("✅ Found property: {} (ID: {})", property.getPropertyName(), property.getId());
+                    
+                    // Check if already assigned
+                    if (property.getId().equals(ownerCustomer.getAssignedPropertyId())) {
+                        log.info("ℹ️ Owner {} already assigned to property {}, skipping", 
+                            ownerCustomer.getName(), property.getPropertyName());
+                        continue;
+                    }
                     
                     // Establish assignment
+                    log.info("💾 Assigning property {} to owner {}", property.getPropertyName(), ownerCustomer.getName());
                     ownerCustomer.setAssignedPropertyId(property.getId());
                     ownerCustomer.setAssignmentDate(LocalDateTime.now());
                     ownerCustomer.setEntityType("Property");
@@ -339,23 +382,31 @@ public class PayPropSyncOrchestrator {
                     
                     customerService.save(ownerCustomer);
                     assignmentsCreated++;
+                    log.info("✅ Successfully assigned property {} to owner {} ({}% ownership)", 
+                        property.getPropertyName(), ownerCustomer.getName(), rel.getOwnershipPercentage());
                     
                 } catch (Exception e) {
                     assignmentErrors++;
-                    log.error("Failed to establish property assignment: {}", e.getMessage());
+                    log.error("❌ Failed to establish property assignment for owner {} → property {}: {}", 
+                        rel.getOwnerPayPropId(), rel.getPropertyPayPropId(), e.getMessage(), e);
                 }
             }
             
             Map<String, Object> details = Map.of(
                 "assignmentsCreated", assignmentsCreated,
-                "assignmentErrors", assignmentErrors
+                "assignmentErrors", assignmentErrors,
+                "totalRelationships", relationships.size()
             );
+            
+            log.info("🏠 Property assignment completed: {} created, {} errors out of {} relationships", 
+                assignmentsCreated, assignmentErrors, relationships.size());
             
             return assignmentErrors == 0 ? 
                 SyncResult.success("Property assignments established", details) :
                 SyncResult.partial("Property assignments completed with some errors", details);
                 
         } catch (Exception e) {
+            log.error("❌ Property assignment process failed: {}", e.getMessage(), e);
             return SyncResult.failure("Property assignments failed: " + e.getMessage());
         }
     }
