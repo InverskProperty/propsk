@@ -26,7 +26,7 @@ public class CustomerPropertyAssignmentService {
     
     public CustomerPropertyAssignment createAssignment(Customer customer, Property property, 
                                                      AssignmentType type, BigDecimal percentage, Boolean isPrimary) {
-        if (assignmentRepository.existsByCustomerIdAndPropertyIdAndAssignmentType(
+        if (assignmentRepository.existsByCustomerCustomerIdAndPropertyIdAndAssignmentType(
                 customer.getCustomerId(), property.getId(), type)) {
             throw new IllegalStateException("Assignment already exists");
         }
@@ -41,7 +41,7 @@ public class CustomerPropertyAssignmentService {
     }
     
     public List<Property> getPropertiesForCustomer(Integer customerId, AssignmentType type) {
-        return assignmentRepository.findByCustomerId(customerId).stream()
+        return assignmentRepository.findByCustomerCustomerId(customerId).stream()
             .filter(assignment -> type == null || assignment.getAssignmentType() == type)
             .map(CustomerPropertyAssignment::getProperty)
             .collect(Collectors.toList());
@@ -55,6 +55,42 @@ public class CustomerPropertyAssignmentService {
     }
     
     public void removeAssignment(Integer customerId, Long propertyId, AssignmentType type) {
-        assignmentRepository.deleteByCustomerIdAndPropertyIdAndAssignmentType(customerId, propertyId, type);
+        assignmentRepository.deleteByCustomerCustomerIdAndPropertyIdAndAssignmentType(customerId, propertyId, type);
+    }
+    
+    public CustomerPropertyAssignment updateAssignment(Integer customerId, Long propertyId, 
+                                                     AssignmentType type, BigDecimal percentage) {
+        CustomerPropertyAssignment assignment = assignmentRepository
+            .findByCustomerCustomerIdAndPropertyIdAndAssignmentType(customerId, propertyId, type)
+            .orElseThrow(() -> new RuntimeException("Assignment not found"));
+        
+        assignment.setOwnershipPercentage(percentage);
+        assignment.setUpdatedAt(LocalDateTime.now());
+        
+        return assignmentRepository.save(assignment);
+    }
+    
+    public List<CustomerPropertyAssignment> getAllAssignments() {
+        return assignmentRepository.findAll();
+    }
+    
+    public List<CustomerPropertyAssignment> getAssignmentsByType(AssignmentType type) {
+        return assignmentRepository.findByAssignmentType(type);
+    }
+    
+    public long countPropertiesForCustomer(Integer customerId) {
+        return assignmentRepository.findByCustomerCustomerId(customerId).size();
+    }
+    
+    public long countCustomersForProperty(Long propertyId) {
+        return assignmentRepository.findByPropertyId(propertyId).size();
+    }
+    
+    public boolean hasAssignment(Integer customerId, Long propertyId, AssignmentType type) {
+        return assignmentRepository.existsByCustomerCustomerIdAndPropertyIdAndAssignmentType(customerId, propertyId, type);
+    }
+    
+    public void clearAllAssignments() {
+        assignmentRepository.deleteAll();
     }
 }

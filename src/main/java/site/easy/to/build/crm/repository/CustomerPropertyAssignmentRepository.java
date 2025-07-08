@@ -13,16 +13,17 @@ import java.util.Optional;
 @Repository
 public interface CustomerPropertyAssignmentRepository extends JpaRepository<CustomerPropertyAssignment, Long> {
     
-    List<CustomerPropertyAssignment> findByCustomerId(Integer customerId);
+    // Use customer.customerId instead of customer.id
+    List<CustomerPropertyAssignment> findByCustomerCustomerId(Integer customerId);
     List<CustomerPropertyAssignment> findByPropertyId(Long propertyId);
     List<CustomerPropertyAssignment> findByAssignmentType(AssignmentType assignmentType);
     
-    Optional<CustomerPropertyAssignment> findByCustomerIdAndPropertyIdAndAssignmentType(
+    Optional<CustomerPropertyAssignment> findByCustomerCustomerIdAndPropertyIdAndAssignmentType(
         Integer customerId, Long propertyId, AssignmentType assignmentType);
     
-    boolean existsByCustomerIdAndPropertyIdAndAssignmentType(
+    boolean existsByCustomerCustomerIdAndPropertyIdAndAssignmentType(
         Integer customerId, Long propertyId, AssignmentType assignmentType);
     
-    void deleteByCustomerIdAndPropertyIdAndAssignmentType(
+    void deleteByCustomerCustomerIdAndPropertyIdAndAssignmentType(
         Integer customerId, Long propertyId, AssignmentType assignmentType);
 }
