@@ -106,6 +106,40 @@ public class PayPropSyncService {
             throw new RuntimeException("Property sync failed", e);
         }
     }
+
+    /**
+    * NEW: Export payments for a specific property to find owners
+    */
+    public PayPropExportResult exportPaymentsByProperty(String propertyId) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/export/payments?property_id=" + propertyId + 
+                        "&include_beneficiary_info=true&page=1&rows=100";
+            
+            log.info("📥 Exporting payments for property: {}", propertyId);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                
+                PayPropExportResult result = new PayPropExportResult();
+                result.setItems((List<Map<String, Object>>) responseBody.get("items"));
+                result.setPagination((Map<String, Object>) responseBody.get("pagination"));
+                
+                log.info("✅ Found {} payments for property {}", result.getItems().size(), propertyId);
+                return result;
+            }
+            
+            throw new RuntimeException("Failed to export payments for property");
+            
+        } catch (Exception e) {
+            log.error("❌ Property payment export failed: {}", e.getMessage());
+            throw new RuntimeException("Property payment export failed", e);
+        }
+    }
     
     public void updatePropertyInPayProp(Long propertyId) {
         Property property = propertyService.findById(propertyId);

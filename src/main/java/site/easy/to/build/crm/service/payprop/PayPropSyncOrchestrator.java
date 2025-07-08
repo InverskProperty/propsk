@@ -20,6 +20,7 @@ import site.easy.to.build.crm.util.AuthenticationUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Service
@@ -317,10 +318,13 @@ public class PayPropSyncOrchestrator {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult establishPropertyAssignments(Map<String, PropertyRelationship> relationships) {
         try {
-            log.info("🏠 Starting property assignment establishment for {} relationships", relationships.size());
-            int assignmentsCreated = 0;
+            log.info("🏠 Starting enhanced property assignment establishment...");
+            int globalAssignments = 0;
+            int propertySpecificAssignments = 0;
             int assignmentErrors = 0;
             
+            // Step 1: Establish relationships from global payments (existing logic)
+            log.info("📋 Step 1: Processing global payment relationships ({} found)", relationships.size());
             for (PropertyRelationship rel : relationships.values()) {
                 try {
                     Customer ownerCustomer = customerService.findByPayPropEntityId(rel.getOwnerPayPropId());
@@ -338,41 +342,92 @@ public class PayPropSyncOrchestrator {
                     }
                     Property property = propertyOpt.get();
                     
-                    // Use junction table instead of assigned_property_id
                     BigDecimal percentage = rel.getOwnershipPercentage() != null ? 
                         new BigDecimal(rel.getOwnershipPercentage().toString()) : new BigDecimal("100.00");
                     
                     try {
                         assignmentService.createAssignment(ownerCustomer, property, AssignmentType.OWNER, percentage, true);
-                        assignmentsCreated++;
-                        log.info("✅ Successfully assigned property {} to owner {} via junction table ({}% ownership)", 
-                            property.getPropertyName(), ownerCustomer.getName(), percentage);
+                        globalAssignments++;
+                        log.info("✅ Global payment assignment: {} owns {} ({}%)", 
+                            ownerCustomer.getName(), property.getPropertyName(), percentage);
                     } catch (IllegalStateException e) {
                         log.info("ℹ️ Assignment already exists: {} owns {}", ownerCustomer.getName(), property.getPropertyName());
                     }
                     
                 } catch (Exception e) {
                     assignmentErrors++;
-                    log.error("❌ Failed to establish property assignment: {}", e.getMessage(), e);
+                    log.error("❌ Failed to establish global assignment: {}", e.getMessage(), e);
+                }
+            }
+            
+            // Step 2: Find missing owners via property-specific payments (NEW ENHANCED LOGIC)
+            log.info("🔍 Step 2: Finding missing owners via property-specific payments...");
+            List<Property> propertiesWithoutOwners = propertyService.findAll().stream()
+                .filter(p -> {
+                    List<Customer> owners = assignmentService.getCustomersForProperty(p.getId(), AssignmentType.OWNER);
+                    return owners.isEmpty();
+                })
+                .collect(Collectors.toList());
+            
+            log.info("Found {} properties without owners, checking each individually...", propertiesWithoutOwners.size());
+            
+            for (Property property : propertiesWithoutOwners) {
+                if (property.getPayPropId() != null) {
+                    try {
+                        PayPropSyncService.PayPropExportResult propertyPayments = 
+                            payPropSyncService.exportPaymentsByProperty(property.getPayPropId());
+                        
+                        for (Map<String, Object> payment : propertyPayments.getItems()) {
+                            if ("Owner".equals(payment.get("category")) && payment.get("beneficiary_info") != null) {
+                                Map<String, Object> beneficiaryInfo = (Map<String, Object>) payment.get("beneficiary_info");
+                                String ownerId = (String) beneficiaryInfo.get("id");
+                                
+                                Customer owner = customerService.findByPayPropEntityId(ownerId);
+                                if (owner != null) {
+                                    try {
+                                        assignmentService.createAssignment(owner, property, AssignmentType.OWNER, 
+                                            new BigDecimal("100.00"), true);
+                                        propertySpecificAssignments++;
+                                        log.info("🎯 Found missing owner via property-specific API: {} owns {}", 
+                                            owner.getName(), property.getPropertyName());
+                                    } catch (IllegalStateException e) {
+                                        log.info("ℹ️ Property-specific assignment already exists: {} owns {}", 
+                                            owner.getName(), property.getPropertyName());
+                                    }
+                                } else {
+                                    log.warn("❌ Owner customer not found for beneficiary ID: {}", ownerId);
+                                    assignmentErrors++;
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        assignmentErrors++;
+                        log.error("Failed to get property-specific payments for {}: {}", 
+                            property.getPayPropId(), e.getMessage());
+                    }
                 }
             }
             
             Map<String, Object> details = Map.of(
-                "assignmentsCreated", assignmentsCreated,
+                "globalAssignments", globalAssignments,
+                "propertySpecificAssignments", propertySpecificAssignments,
+                "totalAssignments", globalAssignments + propertySpecificAssignments,
                 "assignmentErrors", assignmentErrors,
                 "totalRelationships", relationships.size()
             );
             
+            log.info("🏠 Enhanced assignment completed: {} global + {} property-specific = {} total assignments, {} errors", 
+                globalAssignments, propertySpecificAssignments, globalAssignments + propertySpecificAssignments, assignmentErrors);
+            
             return assignmentErrors == 0 ? 
-                SyncResult.success("Property assignments established", details) :
-                SyncResult.partial("Property assignments completed with some errors", details);
+                SyncResult.success("Enhanced property assignments established", details) :
+                SyncResult.partial("Enhanced property assignments completed with some errors", details);
                 
         } catch (Exception e) {
-            log.error("❌ Property assignment process failed: {}", e.getMessage(), e);
-            return SyncResult.failure("Property assignments failed: " + e.getMessage());
+            log.error("❌ Enhanced property assignment process failed: {}", e.getMessage(), e);
+            return SyncResult.failure("Enhanced property assignments failed: " + e.getMessage());
         }
     }
-
     // ===== STEP 6: ESTABLISH TENANT RELATIONSHIPS =====
     
     private SyncResult establishTenantPropertyRelationships() {
