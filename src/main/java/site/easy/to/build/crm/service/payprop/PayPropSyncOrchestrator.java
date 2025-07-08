@@ -74,11 +74,14 @@ public class PayPropSyncOrchestrator {
             
             // Step 4: Sync Tenants as Customers  
             result.setTenantsResult(syncTenantsAsCustomers(initiatedBy));
-            
-            // Step 5: Establish property assignments via junction table
+
+            // Step 5: Sync Contractors as Customers (standalone entities)
+            result.setContractorsResult(syncContractorsAsCustomers(initiatedBy));
+
+            // Step 6: Establish property assignments via junction table
             result.setRelationshipsResult(establishPropertyAssignments(relationships));
-            
-            // Step 6: Establish tenant relationships via junction table
+
+            // Step 7: Establish tenant relationships via junction table
             result.setTenantRelationshipsResult(establishTenantPropertyRelationships());
             
             syncLogger.logSyncComplete("UNIFIED_SYNC", result.isOverallSuccess(), result.getSummary());
@@ -311,6 +314,278 @@ public class PayPropSyncOrchestrator {
         } catch (Exception e) {
             return SyncResult.failure("Tenants sync failed: " + e.getMessage());
         }
+    }
+
+    // ===== STEP 5: SYNC CONTRACTORS AS CUSTOMERS =====
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncContractorsAsCustomers(Long initiatedBy) {
+        try {
+            log.info("🔧 Starting contractor discovery via maintenance payments...");
+            
+            Set<String> contractorBeneficiaryIds = discoverContractorsFromPayments();
+            int totalProcessed = 0;
+            int totalCreated = 0;
+            int totalUpdated = 0;
+            int totalErrors = 0;
+            
+            log.info("🔧 Found {} unique contractor beneficiary IDs", contractorBeneficiaryIds.size());
+            
+            if (!contractorBeneficiaryIds.isEmpty()) {
+                int page = 1;
+                
+                while (true) {
+                    PayPropSyncService.PayPropExportResult exportResult = 
+                        payPropSyncService.exportBeneficiariesFromPayProp(page, batchSize);
+                    
+                    if (exportResult.getItems().isEmpty()) {
+                        break;
+                    }
+
+                    for (Map<String, Object> beneficiaryData : exportResult.getItems()) {
+                        String beneficiaryId = (String) beneficiaryData.get("id");
+                        
+                        // Only process if this beneficiary is a contractor
+                        if (contractorBeneficiaryIds.contains(beneficiaryId)) {
+                            try {
+                                boolean isNew = createOrUpdateContractorCustomer(beneficiaryData, initiatedBy);
+                                if (isNew) totalCreated++; else totalUpdated++;
+                                totalProcessed++;
+                                
+                                String name = getNameFromBeneficiaryData(beneficiaryData);
+                                log.info("✅ Processed contractor: {} ({})", name, isNew ? "created" : "updated");
+                            } catch (Exception e) {
+                                totalErrors++;
+                                log.error("Failed to sync contractor {}: {}", beneficiaryId, e.getMessage());
+                            }
+                        }
+                    }
+                    page++;
+                }
+            }
+
+            Map<String, Object> details = Map.of(
+                "contractorsDiscovered", contractorBeneficiaryIds.size(),
+                "processed", totalProcessed,
+                "created", totalCreated,
+                "updated", totalUpdated,
+                "errors", totalErrors
+            );
+
+            log.info("🔧 Contractor sync completed: {} discovered, {} processed, {} created, {} updated, {} errors", 
+                contractorBeneficiaryIds.size(), totalProcessed, totalCreated, totalUpdated, totalErrors);
+
+            return totalErrors == 0 ? 
+                SyncResult.success("Contractors synced successfully", details) : 
+                SyncResult.partial("Contractors synced with some errors", details);
+                
+        } catch (Exception e) {
+            log.error("❌ Contractor sync failed: {}", e.getMessage(), e);
+            return SyncResult.failure("Contractor sync failed: " + e.getMessage());
+        }
+    }
+
+    // ===== CONTRACTOR DISCOVERY METHOD =====
+
+    private Set<String> discoverContractorsFromPayments() {
+        Set<String> contractorIds = new HashSet<>();
+        
+        try {
+            log.info("🔍 Discovering contractors from payment instructions...");
+            int page = 1;
+            int totalPayments = 0;
+            int contractorPayments = 0;
+            
+            while (true) {
+                PayPropSyncService.PayPropExportResult exportResult = 
+                    payPropSyncService.exportPaymentsFromPayProp(page, batchSize);
+                
+                if (exportResult.getItems().isEmpty()) {
+                    break;
+                }
+                
+                totalPayments += exportResult.getItems().size();
+                
+                for (Map<String, Object> payment : exportResult.getItems()) {
+                    Map<String, Object> beneficiaryInfo = (Map<String, Object>) payment.get("beneficiary_info");
+                    if (beneficiaryInfo != null && "beneficiary".equals(beneficiaryInfo.get("beneficiary_type"))) {
+                        String category = (String) payment.get("category");
+                        
+                        // Look for contractor-related payment categories or maintenance tickets
+                        if (isContractorPayment(payment, category)) {
+                            String contractorId = (String) beneficiaryInfo.get("id");
+                            contractorIds.add(contractorId);
+                            contractorPayments++;
+                            
+                            log.debug("🔧 Found contractor payment: {} (category: {}, maintenance_ticket: {})", 
+                                contractorId, category, payment.get("maintenance_ticket_id"));
+                        }
+                    }
+                }
+                page++;
+            }
+            
+            log.info("🔧 Contractor discovery completed: {} contractors found from {} payments ({} contractor payments)", 
+                contractorIds.size(), totalPayments, contractorPayments);
+            return contractorIds;
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to discover contractors from payments: {}", e.getMessage());
+            return new HashSet<>();
+        }
+    }
+
+    private boolean isContractorPayment(Map<String, Object> payment, String category) {
+        // Method 1: Payment linked to maintenance ticket
+        if (payment.get("maintenance_ticket_id") != null) {
+            return true;
+        }
+        
+        // Method 2: Contractor-related payment categories
+        if (category != null) {
+            String lowerCategory = category.toLowerCase();
+            return lowerCategory.contains("maintenance") ||
+                lowerCategory.contains("contractor") ||
+                lowerCategory.contains("repair") ||
+                lowerCategory.contains("plumber") ||
+                lowerCategory.contains("electrician") ||
+                lowerCategory.contains("gardening") ||
+                lowerCategory.contains("cleaning") ||
+                lowerCategory.contains("handyman") ||
+                lowerCategory.contains("painting") ||
+                lowerCategory.contains("roofing") ||
+                lowerCategory.contains("heating") ||
+                lowerCategory.contains("building");
+        }
+        
+        return false;
+    }
+
+    // ===== CONTRACTOR CUSTOMER CREATION/UPDATE =====
+
+    private boolean createOrUpdateContractorCustomer(Map<String, Object> beneficiaryData, Long initiatedBy) {
+        String payPropId = (String) beneficiaryData.get("id");
+        Customer existing = customerService.findByPayPropEntityId(payPropId);
+        
+        if (existing != null) {
+            // Update existing customer to be a contractor if not already marked
+            if (!existing.getIsContractor()) {
+                existing.setIsContractor(true);
+                existing.setCustomerType(CustomerType.CONTRACTOR);
+                log.info("🔧 Updated existing customer {} to contractor", existing.getName());
+            }
+            updateCustomerFromContractorData(existing, beneficiaryData);
+            customerService.save(existing);
+            return false;
+        } else {
+            Customer customer = createCustomerFromContractorData(beneficiaryData);
+            customer.setCreatedAt(LocalDateTime.now());
+            customerService.save(customer);
+            return true;
+        }
+    }
+
+    private Customer createCustomerFromContractorData(Map<String, Object> data) {
+        Customer customer = new Customer();
+        
+        // PayProp Integration Fields
+        customer.setPayPropEntityId((String) data.get("id"));
+        customer.setPayPropCustomerId((String) data.get("customer_id"));
+        customer.setPayPropEntityType("beneficiary");
+        customer.setCustomerType(CustomerType.CONTRACTOR);
+        customer.setIsContractor(true);
+        customer.setPayPropSynced(true);
+        customer.setPayPropLastSync(LocalDateTime.now());
+        
+        // Account Type and Name
+        String accountTypeStr = (String) data.get("account_type");
+        if ("business".equals(accountTypeStr)) {
+            customer.setAccountType(AccountType.business);
+            customer.setBusinessName((String) data.get("business_name"));
+            customer.setName(customer.getBusinessName());
+        } else {
+            customer.setAccountType(AccountType.individual);
+            customer.setFirstName((String) data.get("first_name"));
+            customer.setLastName((String) data.get("last_name"));
+            customer.setName(customer.getFirstName() + " " + customer.getLastName());
+        }
+        
+        // Contact Details
+        customer.setEmail((String) data.get("email_address"));
+        customer.setMobileNumber((String) data.get("mobile"));
+        customer.setPhone((String) data.get("phone"));
+        customer.setCountry("UK");
+        
+        // Address (same pattern as existing beneficiary mapping)
+        Map<String, Object> address = (Map<String, Object>) data.get("billing_address");
+        if (address != null) {
+            customer.setAddressLine1((String) address.get("first_line"));
+            customer.setAddressLine2((String) address.get("second_line"));
+            customer.setAddressLine3((String) address.get("third_line"));
+            customer.setCity((String) address.get("city"));
+            customer.setState((String) address.get("state"));
+            customer.setPostcode((String) address.get("postal_code"));
+            customer.setCountryCode((String) address.get("country_code"));
+        }
+        
+        // Bank Details (same pattern as property owners)
+        Map<String, Object> bankAccount = (Map<String, Object>) data.get("bank_account");
+        if (bankAccount != null) {
+            customer.setBankAccountName((String) bankAccount.get("account_name"));
+            customer.setBankAccountNumber((String) bankAccount.get("account_number"));
+            customer.setBankSortCode((String) bankAccount.get("branch_code"));
+            customer.setBankName((String) bankAccount.get("bank_name"));
+            customer.setBankBranchName((String) bankAccount.get("branch_name"));
+            customer.setBankIban((String) bankAccount.get("iban"));
+            customer.setBankSwiftCode((String) bankAccount.get("swift_code"));
+        }
+        
+        return customer;
+    }
+
+    private void updateCustomerFromContractorData(Customer customer, Map<String, Object> data) {
+        // Update PayProp sync fields
+        customer.setPayPropLastSync(LocalDateTime.now());
+        customer.setPayPropSynced(true);
+        
+        // Update contact details
+        customer.setEmail((String) data.get("email_address"));
+        customer.setMobileNumber((String) data.get("mobile"));
+        customer.setPhone((String) data.get("phone"));
+        
+        // Update names if needed
+        if (customer.getAccountType() == AccountType.business) {
+            String businessName = (String) data.get("business_name");
+            if (businessName != null) {
+                customer.setBusinessName(businessName);
+                customer.setName(businessName);
+            }
+        } else {
+            String firstName = (String) data.get("first_name");
+            String lastName = (String) data.get("last_name");
+            if (firstName != null && lastName != null) {
+                customer.setFirstName(firstName);
+                customer.setLastName(lastName);
+                customer.setName(firstName + " " + lastName);
+            }
+        }
+    }
+
+    // ===== UTILITY METHOD =====
+
+    private String getNameFromBeneficiaryData(Map<String, Object> data) {
+        String businessName = (String) data.get("business_name");
+        if (businessName != null) {
+            return businessName;
+        }
+        
+        String firstName = (String) data.get("first_name");
+        String lastName = (String) data.get("last_name");
+        if (firstName != null && lastName != null) {
+            return firstName + " " + lastName;
+        }
+        
+        return "Unknown Contractor";
     }
 
     // ===== STEP 5: ESTABLISH PROPERTY ASSIGNMENTS =====
@@ -775,22 +1050,32 @@ public class PayPropSyncOrchestrator {
         private SyncResult propertiesResult;
         private SyncResult propertyOwnersResult;
         private SyncResult tenantsResult;
+        private SyncResult contractorsResult;
         private SyncResult relationshipsResult;
         private SyncResult tenantRelationshipsResult;
         private String overallError;
 
         public boolean isOverallSuccess() {
             return overallError == null && 
-                   (propertiesResult == null || propertiesResult.isSuccess()) &&
-                   (propertyOwnersResult == null || propertyOwnersResult.isSuccess()) &&
-                   (tenantsResult == null || tenantsResult.isSuccess()) &&
-                   (relationshipsResult == null || relationshipsResult.isSuccess()) &&
-                   (tenantRelationshipsResult == null || tenantRelationshipsResult.isSuccess());
+                (propertiesResult == null || propertiesResult.isSuccess()) &&
+                (propertyOwnersResult == null || propertyOwnersResult.isSuccess()) &&
+                (tenantsResult == null || tenantsResult.isSuccess()) &&
+                (contractorsResult == null || contractorsResult.isSuccess()) &&
+                (relationshipsResult == null || relationshipsResult.isSuccess()) &&
+                (tenantRelationshipsResult == null || tenantRelationshipsResult.isSuccess());
         }
 
         public String getSummary() {
             if (overallError != null) return overallError;
-            return "Unified sync completed successfully";
+            
+            StringBuilder summary = new StringBuilder();
+            summary.append("Properties: ").append(propertiesResult != null ? propertiesResult.getMessage() : "skipped").append("; ");
+            summary.append("Owners: ").append(propertyOwnersResult != null ? propertyOwnersResult.getMessage() : "skipped").append("; ");
+            summary.append("Tenants: ").append(tenantsResult != null ? tenantsResult.getMessage() : "skipped").append("; ");
+            summary.append("Contractors: ").append(contractorsResult != null ? contractorsResult.getMessage() : "skipped").append("; ");
+            summary.append("Owner Relationships: ").append(relationshipsResult != null ? relationshipsResult.getMessage() : "skipped").append("; ");
+            summary.append("Tenant Relationships: ").append(tenantRelationshipsResult != null ? tenantRelationshipsResult.getMessage() : "skipped");
+            return summary.toString();
         }
 
         // Getters and setters
@@ -833,5 +1118,8 @@ public class PayPropSyncOrchestrator {
         
         public Double getOwnershipPercentage() { return ownershipPercentage; }
         public void setOwnershipPercentage(Double ownershipPercentage) { this.ownershipPercentage = ownershipPercentage; }
+
+        public SyncResult getContractorsResult() { return contractorsResult; }
+        public void setContractorsResult(SyncResult contractorsResult) { this.contractorsResult = contractorsResult; }
     }
 }
