@@ -14,8 +14,10 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService.PayPropExportResult;
 import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -30,6 +32,7 @@ public class PayPropSyncOrchestrator {
     private final CustomerService customerService;
     private final PropertyService propertyService;
     private final AuthenticationUtils authenticationUtils;
+    private final CustomerPropertyAssignmentService assignmentService;
 
     @Value("${payprop.sync.batch-size:25}")
     private int batchSize;
@@ -39,12 +42,14 @@ public class PayPropSyncOrchestrator {
                                   PayPropSyncLogger syncLogger,
                                   CustomerService customerService,
                                   PropertyService propertyService,
-                                  AuthenticationUtils authenticationUtils) {
+                                  AuthenticationUtils authenticationUtils,
+                                  CustomerPropertyAssignmentService assignmentService) {
         this.payPropSyncService = payPropSyncService;
         this.syncLogger = syncLogger;
         this.customerService = customerService;
         this.propertyService = propertyService;
         this.authenticationUtils = authenticationUtils;
+        this.assignmentService = assignmentService;
     }
 
     // ===== MAIN SYNC ORCHESTRATION =====
@@ -69,8 +74,11 @@ public class PayPropSyncOrchestrator {
             // Step 4: Sync Tenants as Customers  
             result.setTenantsResult(syncTenantsAsCustomers(initiatedBy));
             
-            // Step 5: Establish property assignments
+            // Step 5: Establish property assignments via junction table
             result.setRelationshipsResult(establishPropertyAssignments(relationships));
+            
+            // Step 6: Establish tenant relationships via junction table
+            result.setTenantRelationshipsResult(establishTenantPropertyRelationships());
             
             syncLogger.logSyncComplete("UNIFIED_SYNC", result.isOverallSuccess(), result.getSummary());
             
@@ -304,34 +312,6 @@ public class PayPropSyncOrchestrator {
         }
     }
 
-    // Add to your orchestrator after syncTenantsAsCustomers():
-    private SyncResult establishTenantPropertyRelationships() {
-        int relationships = 0;
-        List<Property> allProperties = propertyService.findAll();
-        
-        for (Property property : allProperties) {
-            if (property.getPayPropId() != null) {
-                try {
-                    PayPropExportResult tenants = payPropSyncService.exportTenantsByProperty(property.getPayPropId());
-                    for (Map<String, Object> tenantData : tenants.getItems()) {
-                        String tenantPayPropId = (String) tenantData.get("id");
-                        Customer tenant = customerService.findByPayPropEntityId(tenantPayPropId);
-                        
-                        if (tenant != null && !property.getId().equals(tenant.getAssignedPropertyId())) {
-                            tenant.setAssignedPropertyId(property.getId());
-                            customerService.save(tenant);
-                            relationships++;
-                        }
-                    }
-                } catch (Exception e) {
-                    log.error("Failed to get tenants for property {}: {}", property.getPayPropId(), e.getMessage());
-                }
-            }
-        }
-        
-        return SyncResult.success("Tenant relationships established", Map.of("relationships", relationships));
-    }
-
     // ===== STEP 5: ESTABLISH PROPERTY ASSIGNMENTS =====
     
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -343,52 +323,37 @@ public class PayPropSyncOrchestrator {
             
             for (PropertyRelationship rel : relationships.values()) {
                 try {
-                    log.info("🔗 Processing relationship: Owner {} → Property {}", 
-                        rel.getOwnerPayPropId(), rel.getPropertyPayPropId());
-                    
-                    // Find the property owner customer
                     Customer ownerCustomer = customerService.findByPayPropEntityId(rel.getOwnerPayPropId());
                     if (ownerCustomer == null) {
                         log.warn("❌ Property owner customer not found for PayProp ID: {}", rel.getOwnerPayPropId());
                         assignmentErrors++;
                         continue;
                     }
-                    log.info("✅ Found owner customer: {} (ID: {})", ownerCustomer.getName(), ownerCustomer.getCustomerId());
                     
-                    // Find the property
                     Optional<Property> propertyOpt = propertyService.findByPayPropId(rel.getPropertyPayPropId());
                     if (propertyOpt.isEmpty()) {
                         log.warn("❌ Property not found for PayProp ID: {}", rel.getPropertyPayPropId());
                         assignmentErrors++;
                         continue;
                     }
-                    Property property = propertyOpt.orElseThrow(() -> new RuntimeException("Property not found"));
-                    log.info("✅ Found property: {} (ID: {})", property.getPropertyName(), property.getId());
+                    Property property = propertyOpt.get();
                     
-                    // Check if already assigned
-                    if (property.getId().equals(ownerCustomer.getAssignedPropertyId())) {
-                        log.info("ℹ️ Owner {} already assigned to property {}, skipping", 
-                            ownerCustomer.getName(), property.getPropertyName());
-                        continue;
+                    // Use junction table instead of assigned_property_id
+                    BigDecimal percentage = rel.getOwnershipPercentage() != null ? 
+                        new BigDecimal(rel.getOwnershipPercentage().toString()) : new BigDecimal("100.00");
+                    
+                    try {
+                        assignmentService.createAssignment(ownerCustomer, property, AssignmentType.OWNER, percentage, true);
+                        assignmentsCreated++;
+                        log.info("✅ Successfully assigned property {} to owner {} via junction table ({}% ownership)", 
+                            property.getPropertyName(), ownerCustomer.getName(), percentage);
+                    } catch (IllegalStateException e) {
+                        log.info("ℹ️ Assignment already exists: {} owns {}", ownerCustomer.getName(), property.getPropertyName());
                     }
-                    
-                    // Establish assignment
-                    log.info("💾 Assigning property {} to owner {}", property.getPropertyName(), ownerCustomer.getName());
-                    ownerCustomer.setAssignedPropertyId(property.getId());
-                    ownerCustomer.setAssignmentDate(LocalDateTime.now());
-                    ownerCustomer.setEntityType("Property");
-                    ownerCustomer.setEntityId(property.getId());
-                    ownerCustomer.setPrimaryEntity(rel.getOwnershipPercentage() >= 50.0);
-                    
-                    customerService.save(ownerCustomer);
-                    assignmentsCreated++;
-                    log.info("✅ Successfully assigned property {} to owner {} ({}% ownership)", 
-                        property.getPropertyName(), ownerCustomer.getName(), rel.getOwnershipPercentage());
                     
                 } catch (Exception e) {
                     assignmentErrors++;
-                    log.error("❌ Failed to establish property assignment for owner {} → property {}: {}", 
-                        rel.getOwnerPayPropId(), rel.getPropertyPayPropId(), e.getMessage(), e);
+                    log.error("❌ Failed to establish property assignment: {}", e.getMessage(), e);
                 }
             }
             
@@ -398,9 +363,6 @@ public class PayPropSyncOrchestrator {
                 "totalRelationships", relationships.size()
             );
             
-            log.info("🏠 Property assignment completed: {} created, {} errors out of {} relationships", 
-                assignmentsCreated, assignmentErrors, relationships.size());
-            
             return assignmentErrors == 0 ? 
                 SyncResult.success("Property assignments established", details) :
                 SyncResult.partial("Property assignments completed with some errors", details);
@@ -409,6 +371,52 @@ public class PayPropSyncOrchestrator {
             log.error("❌ Property assignment process failed: {}", e.getMessage(), e);
             return SyncResult.failure("Property assignments failed: " + e.getMessage());
         }
+    }
+
+    // ===== STEP 6: ESTABLISH TENANT RELATIONSHIPS =====
+    
+    private SyncResult establishTenantPropertyRelationships() {
+        int relationships = 0;
+        int errors = 0;
+        
+        List<Property> allProperties = propertyService.findAll();
+        
+        for (Property property : allProperties) {
+            if (property.getPayPropId() != null) {
+                try {
+                    PayPropSyncService.PayPropExportResult tenants = payPropSyncService.exportTenantsByProperty(property.getPayPropId());
+                    
+                    for (Map<String, Object> tenantData : tenants.getItems()) {
+                        String tenantPayPropId = (String) tenantData.get("id");
+                        Customer tenant = customerService.findByPayPropEntityId(tenantPayPropId);
+                        
+                        if (tenant != null) {
+                            try {
+                                assignmentService.createAssignment(tenant, property, AssignmentType.TENANT);
+                                relationships++;
+                                log.info("✅ Established tenant relationship: {} rents {}", 
+                                    tenant.getName(), property.getPropertyName());
+                            } catch (IllegalStateException e) {
+                                log.info("ℹ️ Tenant assignment already exists: {} rents {}", 
+                                    tenant.getName(), property.getPropertyName());
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    errors++;
+                    log.error("Failed to get tenants for property {}: {}", property.getPayPropId(), e.getMessage());
+                }
+            }
+        }
+        
+        Map<String, Object> details = Map.of(
+            "tenantRelationships", relationships,
+            "errors", errors
+        );
+        
+        return errors == 0 ? 
+            SyncResult.success("Tenant relationships established", details) :
+            SyncResult.partial("Tenant relationships completed with some errors", details);
     }
 
     // ===== ENTITY CREATION/UPDATE METHODS =====
@@ -534,17 +542,8 @@ public class PayPropSyncOrchestrator {
             customer.setBankSwiftCode((String) bankAccount.get("swift_code"));
         }
         
-        // Property Relationship (if available)
-        if (relationship != null) {
-            Optional<Property> propertyOpt = propertyService.findByPayPropId(relationship.getPropertyPayPropId());
-            if (propertyOpt.isPresent()) {
-                Property property = propertyOpt.get();
-                customer.setAssignedPropertyId(property.getId());
-                customer.setEntityType("Property");
-                customer.setEntityId(property.getId());
-                customer.setPrimaryEntity(relationship.getOwnershipPercentage() >= 50.0);
-            }
-        }
+        // Property Relationship will be handled separately via junction table
+        // No direct assignment to customer entity anymore
         
         return customer;
     }
@@ -642,18 +641,8 @@ public class PayPropSyncOrchestrator {
             }
         }
         
-        // Update property relationship if changed
-        if (relationship != null) {
-            Optional<Property> propertyOpt = propertyService.findByPayPropId(relationship.getPropertyPayPropId());
-            if (propertyOpt.isPresent()) {
-                Property property = propertyOpt.get();
-                if (!property.getId().equals(customer.getAssignedPropertyId())) {
-                    customer.setAssignedPropertyId(property.getId());
-                    customer.setEntityId(property.getId());
-                    customer.setPrimaryEntity(relationship.getOwnershipPercentage() >= 50.0);
-                }
-            }
-        }
+        // Property relationships now handled via junction table
+        // Customer updates don't modify property assignments directly
     }
 
     private void updateCustomerFromTenantData(Customer customer, Map<String, Object> data) {
@@ -732,6 +721,7 @@ public class PayPropSyncOrchestrator {
         private SyncResult propertyOwnersResult;
         private SyncResult tenantsResult;
         private SyncResult relationshipsResult;
+        private SyncResult tenantRelationshipsResult;
         private String overallError;
 
         public boolean isOverallSuccess() {
@@ -739,7 +729,8 @@ public class PayPropSyncOrchestrator {
                    (propertiesResult == null || propertiesResult.isSuccess()) &&
                    (propertyOwnersResult == null || propertyOwnersResult.isSuccess()) &&
                    (tenantsResult == null || tenantsResult.isSuccess()) &&
-                   (relationshipsResult == null || relationshipsResult.isSuccess());
+                   (relationshipsResult == null || relationshipsResult.isSuccess()) &&
+                   (tenantRelationshipsResult == null || tenantRelationshipsResult.isSuccess());
         }
 
         public String getSummary() {
@@ -759,6 +750,11 @@ public class PayPropSyncOrchestrator {
         
         public SyncResult getRelationshipsResult() { return relationshipsResult; }
         public void setRelationshipsResult(SyncResult relationshipsResult) { this.relationshipsResult = relationshipsResult; }
+        
+        public SyncResult getTenantRelationshipsResult() { return tenantRelationshipsResult; }
+        public void setTenantRelationshipsResult(SyncResult tenantRelationshipsResult) { 
+            this.tenantRelationshipsResult = tenantRelationshipsResult; 
+        }
         
         public String getOverallError() { return overallError; }
         public void setOverallError(String overallError) { this.overallError = overallError; }
