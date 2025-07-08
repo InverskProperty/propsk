@@ -1098,6 +1098,9 @@ public class PayPropSyncOrchestrator {
         
         public String getOverallError() { return overallError; }
         public void setOverallError(String overallError) { this.overallError = overallError; }
+
+        public SyncResult getContractorsResult() { return contractorsResult; }
+        public void setContractorsResult(SyncResult contractorsResult) { this.contractorsResult = contractorsResult; }
     }
 
     public static class PropertyRelationship {
@@ -1119,7 +1122,5 @@ public class PayPropSyncOrchestrator {
         public Double getOwnershipPercentage() { return ownershipPercentage; }
         public void setOwnershipPercentage(Double ownershipPercentage) { this.ownershipPercentage = ownershipPercentage; }
 
-        public SyncResult getContractorsResult() { return contractorsResult; }
-        public void setContractorsResult(SyncResult contractorsResult) { this.contractorsResult = contractorsResult; }
     }
 }
