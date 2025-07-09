@@ -103,12 +103,42 @@ public class CustomerController {
     
     @GetMapping("/property-owners")
     public String listPropertyOwners(@RequestParam(value = "search", required = false) String search,
-                                   Model model, Authentication authentication) {
+                                @RequestParam(value = "propertyId", required = false) Long propertyId,
+                                Model model, Authentication authentication) {
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             User user = userService.findById(userId);
             
             List<Customer> propertyOwners = customerService.findPropertyOwners();
+
+                    // Filter by property ID if provided
+                    if (propertyId != null) {
+                        // Get customer IDs assigned as OWNER to this property from junction table
+                        List<CustomerPropertyAssignment> propertyAssignments = 
+                            customerPropertyAssignmentRepository.findByPropertyId(propertyId);
+                        
+                        List<Integer> ownerCustomerIds = propertyAssignments.stream()
+                            .filter(assignment -> assignment.getAssignmentType() == AssignmentType.OWNER)
+                            .map(assignment -> assignment.getCustomer().getCustomerId())
+                            .collect(Collectors.toList());
+                        
+                        // Filter property owners based on junction table assignments
+                        propertyOwners = propertyOwners.stream()
+                            .filter(owner -> ownerCustomerIds.contains(owner.getCustomerId()))
+                            .collect(Collectors.toList());
+                            
+                        // Add property info to model for display
+                        try {
+                            Property property = propertyService.findById(propertyId);
+                            if (property != null) {
+                                model.addAttribute("filterProperty", property);
+                                model.addAttribute("pageTitle", "Property Owners for " + property.getPropertyName());
+                                model.addAttribute("backUrl", "/employee/property/" + propertyId);
+                            }
+                        } catch (Exception e) {
+                            // Property not found, continue with general listing
+                        }
+                    }
             
             // Apply search filter if provided
             if (search != null && !search.trim().isEmpty()) {
@@ -118,12 +148,13 @@ public class CustomerController {
                                 (c.getCity() != null && c.getCity().toLowerCase().contains(search.toLowerCase())))
                     .collect(Collectors.toList());
             }
-            
+
             model.addAttribute("customers", propertyOwners);
             model.addAttribute("customerType", "Property Owner");
             model.addAttribute("pageTitle", "Property Owners");
             model.addAttribute("filterType", "property-owners");
             model.addAttribute("searchTerm", search);
+            model.addAttribute("propertyIdFilter", propertyId);
             model.addAttribute("user", user);
             model.addAttribute("createUrl", "/employee/customer/create-property-owner");
             return "customer/customer-list";
