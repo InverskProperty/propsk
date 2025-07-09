@@ -273,6 +273,50 @@
                                 </div>
                             </div>
 
+                            <!-- Assigned Properties (for Tenants) -->
+                            <div class="row" th:if="${customerTypeDisplay == 'Tenant'}">
+                                <div class="col-lg-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5><i class="fa fa-home"></i> Assigned Properties</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <div th:if="${allAssignedProperties != null and !#lists.isEmpty(allAssignedProperties)}">
+                                                <div class="table-responsive">
+                                                    <table class="table table-striped">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Property Name</th>
+                                                                <th>Address</th>
+                                                                <th>Monthly Rent</th>
+                                                                <th>Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <tr th:each="property : ${allAssignedProperties}">
+                                                                <td th:text="${property.propertyName}">Property Name</td>
+                                                                <td th:text="${property.fullAddress ?: property.addressLine1}">Property Address</td>
+                                                                <td th:text="'£' + ${#numbers.formatDecimal(property.monthlyPayment ?: 0, 0, 'COMMA', 0, 'POINT')}">£1200</td>
+                                                                <td>
+                                                                    <a th:href="@{'/employee/property/' + ${property.id}}" class="btn btn-sm btn-info">
+                                                                        <i class="fa fa-eye"></i> View Property
+                                                                    </a>
+                                                                </td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                            <div th:if="${allAssignedProperties == null or #lists.isEmpty(allAssignedProperties)}" class="text-center">
+                                                <i class="fa fa-home" style="font-size: 3em; color: #ccc;"></i>
+                                                <h6 class="text-muted m-t-20">No properties assigned</h6>
+                                                <p class="text-muted">This tenant doesn't have any properties assigned yet.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Login Information -->
                             <div class="row" th:if="${customer.customerLoginInfo != null}">
                                 <div class="col-lg-12">
