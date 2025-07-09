@@ -21,7 +21,6 @@ import java.util.List;
  * Provides tenant authentication, tenancy portal, and admin tenant creation/editing
  */
 @Controller
-@RequestMapping("/tenant")
 public class TenantController {
 
     private final TenantService tenantService;
@@ -386,31 +385,6 @@ public class TenantController {
             redirectAttributes.addFlashAttribute("errorMessage", 
                 "Error updating tenant: " + e.getMessage());
             return "redirect:/employee/tenant/" + id + "/edit";
-        }
-    }
-
-    /**
-     * View Tenant Details - GET /employee/tenant/{id}
-     * Display detailed tenant information
-     */
-    @GetMapping("/employee/tenant/{id}")
-    public String viewTenantDetails(@PathVariable Long id, Model model, Authentication authentication) {
-        try {
-            Tenant tenant = tenantService.findById(id);
-            if (tenant == null) {
-                return "error/not-found";
-            }
-            
-            model.addAttribute("tenant", tenant);
-            model.addAttribute("property", tenant.getProperty());
-            model.addAttribute("pageTitle", "Tenant Details");
-            model.addAttribute("backUrl", "/employee/customer/tenants");
-            
-            return "employee/tenant/tenant-details";
-            
-        } catch (Exception e) {
-            model.addAttribute("error", "Error loading tenant details: " + e.getMessage());
-            return "error/500";
         }
     }
 
