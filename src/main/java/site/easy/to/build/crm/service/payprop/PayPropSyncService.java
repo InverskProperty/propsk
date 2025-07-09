@@ -1,4 +1,4 @@
-// PayPropSyncService.java - Database Compatible Version with Duplicate Key Handling
+// PayPropSyncService.java - Complete Database Compatible Version with File Support
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -451,6 +451,165 @@ public class PayPropSyncService {
         } catch (Exception e) {
             System.err.println("❌ Tenant export for property failed: " + e.getMessage());
             throw new RuntimeException("Tenant export failed", e);
+        }
+    }
+
+    // ===== FILE AND DOCUMENT METHODS =====
+
+    /**
+     * Get PayProp attachments for a customer entity
+     */
+    public List<PayPropAttachment> getPayPropAttachments(String entityType, String entityId) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/attachments/" + entityType + "/" + entityId;
+            
+            log.info("📎 Getting PayProp attachments for {} entity: {}", entityType, entityId);
+            
+            ResponseEntity<PayPropAttachmentResponse> response = restTemplate.exchange(
+                url, HttpMethod.GET, request, PayPropAttachmentResponse.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                List<PayPropAttachment> attachments = response.getBody().getData();
+                log.info("✅ Found {} attachments for {} {}", attachments.size(), entityType, entityId);
+                return attachments;
+            }
+            
+            return new ArrayList<>();
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to get PayProp attachments: {}", e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Get PayProp attachments for a customer entity with pagination
+     */
+    public PayPropAttachmentResponse getPayPropAttachmentsWithPagination(String entityType, String entityId, int page, int rows) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/attachments/" + entityType + "/" + entityId + 
+                        "?page=" + page + "&rows=" + rows;
+            
+            log.info("📎 Getting PayProp attachments for {} entity: {} (page {}, rows {})", 
+                entityType, entityId, page, rows);
+            
+            ResponseEntity<PayPropAttachmentResponse> response = restTemplate.exchange(
+                url, HttpMethod.GET, request, PayPropAttachmentResponse.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                PayPropAttachmentResponse result = response.getBody();
+                log.info("✅ Found {} attachments for {} {} (page {} of {})", 
+                    result.getData().size(), entityType, entityId, page, 
+                    result.getTotal() > 0 ? (result.getTotal() / rows) + 1 : 1);
+                return result;
+            }
+            
+            return new PayPropAttachmentResponse();
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to get PayProp attachments: {}", e.getMessage());
+            return new PayPropAttachmentResponse();
+        }
+    }
+
+    /**
+     * Download PayProp attachment by external ID
+     */
+    public byte[] downloadPayPropAttachment(String externalId) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/attachments/" + externalId;
+            
+            log.info("📥 Downloading PayProp attachment: {}", externalId);
+            
+            ResponseEntity<byte[]> response = restTemplate.exchange(
+                url, HttpMethod.GET, request, byte[].class);
+            
+            if (response.getStatusCode() == HttpStatus.OK) {
+                log.info("✅ Downloaded PayProp attachment: {} ({} bytes)", externalId, 
+                    response.getBody() != null ? response.getBody().length : 0);
+                return response.getBody();
+            }
+            
+            return null;
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to download PayProp attachment {}: {}", externalId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Generate PayProp owner statement PDF
+     */
+    public byte[] generateOwnerStatementPDF(String propertyId, String beneficiaryId, 
+                                           String fromDate, String toDate) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/documents/pdf/owner-statement?" +
+                        "property_id=" + propertyId + 
+                        "&beneficiary_id=" + beneficiaryId;
+            
+            if (fromDate != null) url += "&from_date=" + fromDate;
+            if (toDate != null) url += "&to_date=" + toDate;
+            
+            log.info("📊 Generating PayProp owner statement for property {} beneficiary {}", 
+                propertyId, beneficiaryId);
+            
+            ResponseEntity<byte[]> response = restTemplate.exchange(
+                url, HttpMethod.GET, request, byte[].class);
+            
+            if (response.getStatusCode() == HttpStatus.OK) {
+                log.info("✅ Generated owner statement PDF ({} bytes)", 
+                    response.getBody() != null ? response.getBody().length : 0);
+                return response.getBody();
+            }
+            
+            return null;
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to generate owner statement: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Generate PayProp agency invoice PDF
+     */
+    public byte[] generateAgencyInvoicePDF(int year, int month) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/documents/pdf/agency-invoice?" +
+                        "year=" + year + "&month=" + month;
+            
+            log.info("📊 Generating PayProp agency invoice for {}/{}", year, month);
+            
+            ResponseEntity<byte[]> response = restTemplate.exchange(
+                url, HttpMethod.GET, request, byte[].class);
+            
+            if (response.getStatusCode() == HttpStatus.OK) {
+                log.info("✅ Generated agency invoice PDF ({} bytes)", 
+                    response.getBody() != null ? response.getBody().length : 0);
+                return response.getBody();
+            }
+            
+            return null;
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to generate agency invoice: {}", e.getMessage());
+            return null;
         }
     }
     
@@ -1129,6 +1288,8 @@ public class PayPropSyncService {
         }
     }
 
+    // ===== RESULT AND DATA CLASSES =====
+
     public static class PayPropExportResult {
         private List<Map<String, Object>> items;
         private Map<String, Object> pagination;
@@ -1152,5 +1313,49 @@ public class PayPropSyncService {
         public void setPagination(Map<String, Object> pagination) { 
             this.pagination = pagination; 
         }
+    }
+
+    public static class PayPropAttachmentResponse {
+        private List<PayPropAttachment> data;
+        private int total;
+        private int page;
+        private int rows;
+        
+        public PayPropAttachmentResponse() {
+            this.data = new ArrayList<>();
+        }
+        
+        // Getters and setters
+        public List<PayPropAttachment> getData() { return data != null ? data : new ArrayList<>(); }
+        public void setData(List<PayPropAttachment> data) { this.data = data; }
+        public int getTotal() { return total; }
+        public void setTotal(int total) { this.total = total; }
+        public int getPage() { return page; }
+        public void setPage(int page) { this.page = page; }
+        public int getRows() { return rows; }
+        public void setRows(int rows) { this.rows = rows; }
+    }
+
+    public static class PayPropAttachment {
+        private String externalId;
+        private String fileName;
+        private String fileType;
+        private String entityType;
+        private String entityId;
+        private String uploadedAt;
+        
+        // Getters and setters
+        public String getExternalId() { return externalId; }
+        public void setExternalId(String externalId) { this.externalId = externalId; }
+        public String getFileName() { return fileName; }
+        public void setFileName(String fileName) { this.fileName = fileName; }
+        public String getFileType() { return fileType; }
+        public void setFileType(String fileType) { this.fileType = fileType; }
+        public String getEntityType() { return entityType; }
+        public void setEntityType(String entityType) { this.entityType = entityType; }
+        public String getEntityId() { return entityId; }
+        public void setEntityId(String entityId) { this.entityId = entityId; }
+        public String getUploadedAt() { return uploadedAt; }
+        public void setUploadedAt(String uploadedAt) { this.uploadedAt = uploadedAt; }
     }
 }

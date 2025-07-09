@@ -1,4 +1,4 @@
-// PayPropSyncOrchestrator.java - SIMPLIFIED: Unified Customer Approach
+// PayPropSyncOrchestrator.java - COMPLETE VERSION with File Sync Integration
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +15,8 @@ import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService.PayPropExportResult;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentService;
+import site.easy.to.build.crm.service.drive.CustomerDriveOrganizationService;
+import site.easy.to.build.crm.service.drive.GoogleDriveFileService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.math.BigDecimal;
@@ -35,6 +37,8 @@ public class PayPropSyncOrchestrator {
     private final PropertyService propertyService;
     private final AuthenticationUtils authenticationUtils;
     private final CustomerPropertyAssignmentService assignmentService;
+    private final CustomerDriveOrganizationService customerDriveOrganizationService;
+    private final GoogleDriveFileService googleDriveFileService;
 
     @Value("${payprop.sync.batch-size:25}")
     private int batchSize;
@@ -45,13 +49,17 @@ public class PayPropSyncOrchestrator {
                                   CustomerService customerService,
                                   PropertyService propertyService,
                                   AuthenticationUtils authenticationUtils,
-                                  CustomerPropertyAssignmentService assignmentService) {
+                                  CustomerPropertyAssignmentService assignmentService,
+                                  CustomerDriveOrganizationService customerDriveOrganizationService,
+                                  GoogleDriveFileService googleDriveFileService) {
         this.payPropSyncService = payPropSyncService;
         this.syncLogger = syncLogger;
         this.customerService = customerService;
         this.propertyService = propertyService;
         this.authenticationUtils = authenticationUtils;
         this.assignmentService = assignmentService;
+        this.customerDriveOrganizationService = customerDriveOrganizationService;
+        this.googleDriveFileService = googleDriveFileService;
     }
 
     // ===== MAIN SYNC ORCHESTRATION =====
@@ -59,7 +67,7 @@ public class PayPropSyncOrchestrator {
     /**
      * Complete two-way synchronization using unified Customer entity
      */
-    public UnifiedSyncResult performUnifiedSync(Long initiatedBy) {
+    public UnifiedSyncResult performUnifiedSync(OAuthUser oAuthUser, Long initiatedBy) {
         UnifiedSyncResult result = new UnifiedSyncResult();
         syncLogger.logSyncStart("UNIFIED_SYNC", initiatedBy);
         
@@ -84,6 +92,14 @@ public class PayPropSyncOrchestrator {
 
             // Step 7: Establish tenant relationships via junction table
             result.setTenantRelationshipsResult(establishTenantPropertyRelationships());
+
+            // Step 8: Sync PayProp files to Google Drive
+            if (oAuthUser != null) {
+                result.setFilesResult(syncPayPropFiles(oAuthUser, initiatedBy));
+            } else {
+                log.warn("⚠️ No OAuthUser provided - skipping file sync");
+                result.setFilesResult(SyncResult.partial("File sync skipped - no OAuth user", Map.of()));
+            }
             
             syncLogger.logSyncComplete("UNIFIED_SYNC", result.isOverallSuccess(), result.getSummary());
             
@@ -589,7 +605,7 @@ public class PayPropSyncOrchestrator {
         return "Unknown Contractor";
     }
 
-    // ===== STEP 5: ESTABLISH PROPERTY ASSIGNMENTS =====
+    // ===== STEP 6: ESTABLISH PROPERTY ASSIGNMENTS =====
     
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult establishPropertyAssignments(Map<String, PropertyRelationship> relationships) {
@@ -704,7 +720,8 @@ public class PayPropSyncOrchestrator {
             return SyncResult.failure("Enhanced property assignments failed: " + e.getMessage());
         }
     }
-    // ===== STEP 6: ESTABLISH TENANT RELATIONSHIPS =====
+
+    // ===== STEP 7: ESTABLISH TENANT RELATIONSHIPS =====
     
     private SyncResult establishTenantPropertyRelationships() {
         int relationships = 0;
@@ -748,6 +765,112 @@ public class PayPropSyncOrchestrator {
         return errors == 0 ? 
             SyncResult.success("Tenant relationships established", details) :
             SyncResult.partial("Tenant relationships completed with some errors", details);
+    }
+
+    // ===== STEP 8: FILE SYNC METHODS =====
+
+    /**
+     * Sync PayProp files for all customers after entity sync
+     */
+    public SyncResult syncPayPropFiles(OAuthUser oAuthUser, Long initiatedBy) {
+        try {
+            int totalFiles = 0;
+            int successFiles = 0;
+            int errorFiles = 0;
+            
+            log.info("📁 Starting PayProp file sync for all customers...");
+            
+            // Get all synced customers
+            List<Customer> syncedCustomers = customerService.findByPayPropSynced(true);
+            log.info("📋 Found {} PayProp-synced customers", syncedCustomers.size());
+            
+            for (Customer customer : syncedCustomers) {
+                try {
+                    String entityType = determinePayPropEntityType(customer);
+                    if (entityType != null && customer.getPayPropEntityId() != null) {
+                        List<PayPropSyncService.PayPropAttachment> attachments = 
+                            payPropSyncService.getPayPropAttachments(entityType, customer.getPayPropEntityId());
+                        
+                        log.info("📎 Found {} attachments for {} customer: {}", 
+                            attachments.size(), entityType, customer.getName());
+                        
+                        for (PayPropSyncService.PayPropAttachment attachment : attachments) {
+                            totalFiles++;
+                            try {
+                                syncCustomerFile(oAuthUser, customer, attachment, entityType);
+                                successFiles++;
+                                log.info("✅ Synced file: {} for customer: {}", 
+                                    attachment.getFileName(), customer.getName());
+                            } catch (Exception e) {
+                                errorFiles++;
+                                log.error("❌ Failed to sync file {} for customer {}: {}", 
+                                    attachment.getFileName(), customer.getName(), e.getMessage());
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("❌ Failed to sync files for customer {}: {}", 
+                        customer.getName(), e.getMessage());
+                }
+            }
+            
+            Map<String, Object> details = Map.of(
+                "totalFiles", totalFiles,
+                "successFiles", successFiles,
+                "errorFiles", errorFiles,
+                "customersProcessed", syncedCustomers.size()
+            );
+            
+            log.info("📁 File sync completed: {} total files, {} successful, {} errors", 
+                totalFiles, successFiles, errorFiles);
+            
+            return errorFiles == 0 ? 
+                SyncResult.success("PayProp files synced successfully", details) :
+                SyncResult.partial("PayProp files synced with some errors", details);
+                
+        } catch (Exception e) {
+            log.error("❌ PayProp file sync failed: {}", e.getMessage(), e);
+            return SyncResult.failure("PayProp file sync failed: " + e.getMessage());
+        }
+    }
+
+    private void syncCustomerFile(OAuthUser oAuthUser, Customer customer, 
+                                 PayPropSyncService.PayPropAttachment attachment, 
+                                 String entityType) throws Exception {
+        
+        // Check if file already exists
+        if (fileAlreadyExists(customer, attachment.getExternalId())) {
+            log.info("📄 File {} already exists for customer {}, skipping", 
+                attachment.getFileName(), customer.getName());
+            return;
+        }
+        
+        // Download file
+        byte[] fileData = payPropSyncService.downloadPayPropAttachment(attachment.getExternalId());
+        if (fileData == null) {
+            throw new RuntimeException("Failed to download file: " + attachment.getFileName());
+        }
+        
+        // Use your existing CustomerDriveOrganizationService to organize the file
+        customerDriveOrganizationService.syncPayPropFile(
+            oAuthUser, customer, fileData, attachment.getFileName(), entityType);
+    }
+
+    private boolean fileAlreadyExists(Customer customer, String externalId) {
+        try {
+            return !googleDriveFileService.findByCustomerIdAndPayPropExternalId(
+                customer.getCustomerId(), externalId).isEmpty();
+        } catch (Exception e) {
+            log.warn("Error checking if file exists: {}", e.getMessage());
+            return false; // Assume it doesn't exist if we can't check
+        }
+    }
+
+    private String determinePayPropEntityType(Customer customer) {
+        if (customer.getIsTenant()) return "tenant";
+        if (customer.getIsPropertyOwner()) return "beneficiary"; 
+        if (customer.getIsContractor()) return "beneficiary"; // Contractors are also beneficiaries in PayProp
+        return null;
     }
 
     // ===== ENTITY CREATION/UPDATE METHODS =====
@@ -1160,6 +1283,7 @@ public class PayPropSyncOrchestrator {
         private SyncResult contractorsResult;
         private SyncResult relationshipsResult;
         private SyncResult tenantRelationshipsResult;
+        private SyncResult filesResult;
         private String overallError;
 
         public boolean isOverallSuccess() {
@@ -1169,7 +1293,8 @@ public class PayPropSyncOrchestrator {
                 (tenantsResult == null || tenantsResult.isSuccess()) &&
                 (contractorsResult == null || contractorsResult.isSuccess()) &&
                 (relationshipsResult == null || relationshipsResult.isSuccess()) &&
-                (tenantRelationshipsResult == null || tenantRelationshipsResult.isSuccess());
+                (tenantRelationshipsResult == null || tenantRelationshipsResult.isSuccess()) &&
+                (filesResult == null || filesResult.isSuccess());
         }
 
         public String getSummary() {
@@ -1181,7 +1306,8 @@ public class PayPropSyncOrchestrator {
             summary.append("Tenants: ").append(tenantsResult != null ? tenantsResult.getMessage() : "skipped").append("; ");
             summary.append("Contractors: ").append(contractorsResult != null ? contractorsResult.getMessage() : "skipped").append("; ");
             summary.append("Owner Relationships: ").append(relationshipsResult != null ? relationshipsResult.getMessage() : "skipped").append("; ");
-            summary.append("Tenant Relationships: ").append(tenantRelationshipsResult != null ? tenantRelationshipsResult.getMessage() : "skipped");
+            summary.append("Tenant Relationships: ").append(tenantRelationshipsResult != null ? tenantRelationshipsResult.getMessage() : "skipped").append("; ");
+            summary.append("Files: ").append(filesResult != null ? filesResult.getMessage() : "skipped");
             return summary.toString();
         }
 
@@ -1208,6 +1334,9 @@ public class PayPropSyncOrchestrator {
 
         public SyncResult getContractorsResult() { return contractorsResult; }
         public void setContractorsResult(SyncResult contractorsResult) { this.contractorsResult = contractorsResult; }
+
+        public SyncResult getFilesResult() { return filesResult; }
+        public void setFilesResult(SyncResult filesResult) { this.filesResult = filesResult; }
     }
 
     public static class PropertyRelationship {
@@ -1228,6 +1357,5 @@ public class PayPropSyncOrchestrator {
         
         public Double getOwnershipPercentage() { return ownershipPercentage; }
         public void setOwnershipPercentage(Double ownershipPercentage) { this.ownershipPercentage = ownershipPercentage; }
-
     }
 }

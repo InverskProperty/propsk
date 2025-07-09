@@ -98,7 +98,6 @@
 			<version>2.15.2</version>
 		</dependency>
 
-
 		<!-- https://mvnrepository.com/artifact/com.google.http-client/google-http-client-gson -->
 		<dependency>
 			<groupId>com.google.http-client</groupId>
@@ -138,6 +137,114 @@
 			<artifactId>tika-core</artifactId>
 			<version>2.7.0</version>
 		</dependency>
+
+		<!-- =====================================
+		     GOOGLE DRIVE & SHEETS INTEGRATION
+		     ===================================== -->
+
+		<!-- Google Drive API -->
+		<dependency>
+			<groupId>com.google.apis</groupId>
+			<artifactId>google-api-services-drive</artifactId>
+			<version>v3-rev20220815-2.0.0</version>
+		</dependency>
+
+		<!-- Google Sheets API -->
+		<dependency>
+			<groupId>com.google.apis</groupId>
+			<artifactId>google-api-services-sheets</artifactId>
+			<version>v4-rev20220927-2.0.0</version>
+		</dependency>
+
+		<!-- Updated Google API Client (compatible with Drive & Sheets) -->
+		<dependency>
+			<groupId>com.google.api-client</groupId>
+			<artifactId>google-api-client</artifactId>
+			<version>2.0.0</version>
+		</dependency>
+
+		<!-- Google OAuth2 Client for Service Account Authentication -->
+		<dependency>
+			<groupId>com.google.auth</groupId>
+			<artifactId>google-auth-library-oauth2-http</artifactId>
+			<version>1.19.0</version>
+		</dependency>
+
+		<!-- Google HTTP Client for API calls -->
+		<dependency>
+			<groupId>com.google.http-client</groupId>
+			<artifactId>google-http-client-jackson2</artifactId>
+			<version>1.43.3</version>
+		</dependency>
+
+		<!-- Apache Commons IO for file operations -->
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+			<version>2.11.0</version>
+		</dependency>
+
+		<!-- Apache Commons FileUpload for multipart file handling -->
+		<dependency>
+			<groupId>commons-fileupload</groupId>
+			<artifactId>commons-fileupload</artifactId>
+			<version>1.5</version>
+		</dependency>
+
+		<!-- iText for PDF generation (for statements) -->
+		<dependency>
+			<groupId>com.itextpdf</groupId>
+			<artifactId>itext7-core</artifactId>
+			<version>7.2.5</version>
+			<type>pom</type>
+		</dependency>
+
+		<!-- iText HTML to PDF -->
+		<dependency>
+			<groupId>com.itextpdf</groupId>
+			<artifactId>html2pdf</artifactId>
+			<version>4.0.5</version>
+		</dependency>
+
+		<!-- Apache POI for Excel file processing -->
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi</artifactId>
+			<version>5.2.4</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>5.2.4</version>
+		</dependency>
+
+		<!-- Apache PDFBox for PDF processing -->
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>2.0.29</version>
+		</dependency>
+
+		<!-- Thumbnailator for image processing -->
+		<dependency>
+			<groupId>net.coobird</groupId>
+			<artifactId>thumbnailator</artifactId>
+			<version>0.4.19</version>
+		</dependency>
+
+		<!-- Spring Boot Actuator for monitoring file operations -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<!-- Micrometer for metrics -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-core</artifactId>
+		</dependency>
+
     </dependencies>
 	<build>
 		<plugins>
