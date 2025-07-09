@@ -46,7 +46,7 @@ public class TenantController {
      * Handle the missing /employee/tenant/all-tenants route
      * Redirect to the working CustomerController route
      */
-    
+
     @GetMapping("/employee/tenant/all-tenants")
     public String allTenants(@RequestParam(value = "propertyId", required = false) Long propertyId,
                             @RequestParam(value = "search", required = false) String search,
@@ -70,6 +70,16 @@ public class TenantController {
         }
         
         return redirectUrl.toString();
+    }
+
+    /**
+    /**
+     * Handle individual tenant detail view route
+     * Redirect to the working CustomerController route  
+     */
+    @GetMapping("/employee/tenant/{id}")
+    public String viewTenant(@PathVariable("id") int id) {
+        return "redirect:/employee/customer/" + id;
     }
 
     // ===== CUSTOMER-FACING TENANT PORTAL =====
