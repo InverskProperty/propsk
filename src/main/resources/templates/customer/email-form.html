@@ -44,8 +44,8 @@
                         </div>
 
                         <!-- Email Form - FIXED: Proper form structure -->
-                        <form method="post" action="/employee/customer/email-property-owners" th:if="${gmailError == null or gmailError == ''}">
-                            
+                        <form method="post" th:action="@{/employee/customer/email-property-owners}" th:if="${gmailError == null or gmailError == ''}">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                             <!-- Subject Field -->
                             <div class="mb-3">
                                 <label for="subject" class="form-label">Email Subject *</label>
