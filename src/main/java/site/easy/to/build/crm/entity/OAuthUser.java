@@ -68,6 +68,11 @@ public class OAuthUser {
         this.id = id;
     }
 
+    // FIXED: Added missing getUserId() method
+    public Integer getUserId() {
+        return user != null ? user.getId() : null;
+    }
+
     public Set<String> getGrantedScopes() {
         return grantedScopes;
     }

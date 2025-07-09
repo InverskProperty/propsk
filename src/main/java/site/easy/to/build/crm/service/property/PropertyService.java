@@ -15,10 +15,15 @@ public interface PropertyService {
     void delete(Property property);
     void deleteById(Long id);
 
+
     // PayProp integration methods
     Optional<Property> findByPayPropId(String payPropId);
     Optional<Property> findByCustomerId(String customerId);
     List<Property> findByPropertyOwnerId(Integer propertyOwnerId);
+
+    // FIXED: Added missing methods that were causing compilation errors
+    List<Property> getPropertiesByOwner(Integer ownerId);
+    Property getPropertyByTenant(Integer tenantId);
     
     // Property characteristics (PayProp compatible)
     List<Property> findByPropertyType(String propertyType);

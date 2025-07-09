@@ -6,6 +6,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.repository.PropertyRepository;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
+import site.easy.to.build.crm.entity.AssignmentType;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,10 +18,13 @@ import java.util.Optional;
 public class PropertyServiceImpl implements PropertyService {
 
     private final PropertyRepository propertyRepository;
+    private final CustomerPropertyAssignmentRepository assignmentRepository;
 
     @Autowired
-    public PropertyServiceImpl(PropertyRepository propertyRepository) {
+    public PropertyServiceImpl(PropertyRepository propertyRepository,
+                            CustomerPropertyAssignmentRepository assignmentRepository) {
         this.propertyRepository = propertyRepository;
+        this.assignmentRepository = assignmentRepository;
     }
 
     // Core CRUD operations
@@ -62,6 +67,41 @@ public class PropertyServiceImpl implements PropertyService {
     @Override
     public List<Property> findByPropertyOwnerId(Integer propertyOwnerId) {
         return propertyRepository.findByPropertyOwnerId(propertyOwnerId);
+    }
+
+    // FIXED: Added missing methods that were causing compilation errors
+    @Override
+    public List<Property> getPropertiesByOwner(Integer ownerId) {
+        // Use junction table to find properties owned by this owner
+        try {
+            var assignments = assignmentRepository.findByCustomerCustomerIdAndAssignmentType(
+                ownerId, AssignmentType.OWNER);
+            
+            return assignments.stream()
+                .map(assignment -> assignment.getProperty())
+                .distinct()
+                .toList();
+        } catch (Exception e) {
+            // Fallback to legacy method if junction table not available
+            return propertyRepository.findByPropertyOwnerId(ownerId);
+        }
+    }
+
+    @Override
+    public Property getPropertyByTenant(Integer tenantId) {
+        // Use junction table to find property rented by this tenant
+        try {
+            var assignments = assignmentRepository.findByCustomerCustomerIdAndAssignmentType(
+                tenantId, AssignmentType.TENANT);
+            
+            return assignments.stream()
+                .map(assignment -> assignment.getProperty())
+                .findFirst()
+                .orElse(null);
+        } catch (Exception e) {
+            // Fallback: return null if junction table not available
+            return null;
+        }
     }
 
     @Override

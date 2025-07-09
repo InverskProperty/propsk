@@ -35,4 +35,8 @@ public interface GoogleGmailApiService {
     public void removeDraft(OAuthUser oAuthUser, String draftId) throws IOException, GeneralSecurityException;
 
     public void updateEmail(OAuthUser oAuthUser, String emailId) throws GeneralSecurityException, IOException;
+
+    // FIXED: Added missing getEmailsPage method that controllers are calling
+    public EmailPage getEmailsPage(OAuthUser oAuthUser, String labelName, int page, int pageSize) throws IOException, GeneralSecurityException;
+
 }

@@ -9,6 +9,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import site.easy.to.build.crm.service.payprop.*;
+import site.easy.to.build.crm.entity.OAuthUser;
+import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator.UnifiedSyncResult;
 import site.easy.to.build.crm.service.payprop.PayPropSyncLogger.SyncStatistics;
 
@@ -25,14 +27,17 @@ public class PayPropSyncController {
     private final PayPropSyncOrchestrator syncOrchestrator;
     private final PayPropOAuth2Service oAuth2Service;
     private final PayPropSyncLogger syncLogger;
+    private final AuthenticationUtils authenticationUtils;
 
     @Autowired
     public PayPropSyncController(PayPropSyncOrchestrator syncOrchestrator,
                                 PayPropOAuth2Service oAuth2Service,
-                                PayPropSyncLogger syncLogger) {
+                                PayPropSyncLogger syncLogger,
+                                AuthenticationUtils authenticationUtils) {
         this.syncOrchestrator = syncOrchestrator;
         this.oAuth2Service = oAuth2Service;
         this.syncLogger = syncLogger;
+        this.authenticationUtils = authenticationUtils;
     }
 
     // ===== DASHBOARD AND STATUS =====
@@ -83,7 +88,8 @@ public class PayPropSyncController {
         System.out.println("🔍 Using user ID: " + userId);
         
         try {
-            UnifiedSyncResult result = syncOrchestrator.performUnifiedSync(userId);
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+            UnifiedSyncResult result = syncOrchestrator.performUnifiedSync(oAuthUser, userId);
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", result.isOverallSuccess());
@@ -126,7 +132,8 @@ public class PayPropSyncController {
         
         CompletableFuture<UnifiedSyncResult> futureResult = CompletableFuture.supplyAsync(() -> {
             try {
-                return syncOrchestrator.performUnifiedSync(userId);
+                // FIXED: Call with correct signature (OAuthUser, Long)
+                return syncOrchestrator.performUnifiedSync(oAuthUser, userId);
             } catch (Exception e) {
                 UnifiedSyncResult errorResult = new UnifiedSyncResult();
                 errorResult.setOverallError("Async sync failed: " + e.getMessage());

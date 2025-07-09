@@ -18,6 +18,7 @@ import site.easy.to.build.crm.service.user.OAuthUserService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ValueRange;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +56,7 @@ public class GoogleApiTestController {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             
             // Test 1: Check if user has Google Drive scope
-            String grantedScopes = oAuthUser.getGrantedScopes();
+            String grantedScopes = convertScopesToString(oAuthUser.getGrantedScopes());
             boolean hasDriveScope = grantedScopes != null && 
                 (grantedScopes.contains("https://www.googleapis.com/auth/drive") ||
                  grantedScopes.contains("https://www.googleapis.com/auth/drive.file"));
@@ -142,7 +143,7 @@ public class GoogleApiTestController {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             
             // Test 1: Check if user has Google Sheets scope
-            String grantedScopes = oAuthUser.getGrantedScopes();
+            String grantedScopes = convertScopesToString(oAuthUser.getGrantedScopes());
             boolean hasSheetsScope = grantedScopes != null && 
                 (grantedScopes.contains("https://www.googleapis.com/auth/spreadsheets") ||
                  grantedScopes.contains("https://www.googleapis.com/auth/drive"));
@@ -274,7 +275,7 @@ public class GoogleApiTestController {
             result.put("allScopes", oAuthUser.getGrantedScopes());
             
             // Test 2: Required scopes check
-            String grantedScopes = oAuthUser.getGrantedScopes();
+            String grantedScopes = convertScopesToString(oAuthUser.getGrantedScopes());
             boolean hasDriveScope = grantedScopes != null && 
                 (grantedScopes.contains("https://www.googleapis.com/auth/drive") ||
                  grantedScopes.contains("https://www.googleapis.com/auth/drive.file"));
@@ -387,7 +388,7 @@ public class GoogleApiTestController {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             
             // Check Gmail scope
-            String grantedScopes = oAuthUser.getGrantedScopes();
+            String grantedScopes = convertScopesToString(oAuthUser.getGrantedScopes());
             boolean hasGmailScope = grantedScopes != null && 
                 grantedScopes.contains("https://www.googleapis.com/auth/gmail.send");
             
@@ -403,7 +404,7 @@ public class GoogleApiTestController {
             // Test using existing Gmail service if available
             try {
                 // This would test your existing Gmail integration
-                var emailsPage = googleGmailApiService.getEmailsPage(oAuthUser, "INBOX", 1, 5, null);
+                var emailsPage = googleGmailApiService.getEmailsPage(oAuthUser, "INBOX", 1, 5);
                 result.put("canAccessInbox", true);
                 result.put("emailCount", emailsPage.getEmails().size());
                 result.put("gmailApiStatus", "✅ WORKING");
@@ -434,5 +435,15 @@ public class GoogleApiTestController {
             com.google.api.client.json.gson.GsonFactory.getDefaultInstance(),
             request -> request.getHeaders().setAuthorization("Bearer " + accessToken)
         ).setApplicationName("CRM Property Management").build();
+    }
+
+    /**
+     * FIXED: Helper method to safely convert Set<String> to String
+     */
+    private String convertScopesToString(java.util.Set<String> scopes) {
+        if (scopes == null) {
+            return null;
+        }
+        return String.join(" ", scopes);
     }
 }
