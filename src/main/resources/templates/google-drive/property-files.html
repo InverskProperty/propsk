@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
+
+<style>
+.file-category-section {
+    margin-bottom: 30px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.category-header {
+    background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: between;
+    align-items: center;
+}
+
+.category-content {
+    padding: 20px;
+    background: #f8f9fa;
+}
+
+.file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.file-card {
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+.file-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.empty-category {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.property-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px;
+    margin-bottom: 30px;
+    border-radius: 10px;
+}
+
+.sync-button {
+    background: linear-gradient(45deg, #28a745, #20c997);
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.sync-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.stakeholder-info {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-left: 4px solid #007bff;
+}
+</style>
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            
+            <!-- Property Header -->
+            <div class="property-header">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h2 class="mb-2" th:text="${property.propertyName}">Property Name</h2>
+                        <p class="mb-0 opacity-75" th:text="${property.fullAddress}">Property Address</p>
+                    </div>
+                    <div class="col-md-4 text-right">
+                        <button class="sync-button" onclick="syncPayPropFiles()">
+                            <i class="fas fa-sync"></i> Sync PayProp Files
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stakeholder Information -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="stakeholder-info">
+                        <h5><i class="fas fa-user-tie text-primary"></i> Property Owners</h5>
+                        <div th:if="${propertyOwners.size() > 0}">
+                            <div th:each="owner : ${propertyOwners}" class="mb-2">
+                                <strong th:text="${owner.name}">Owner Name</strong>
+                                <br>
+                                <small class="text-muted" th:text="${owner.email}">owner@email.com</small>
+                            </div>
+                        </div>
+                        <div th:if="${propertyOwners.size() == 0}" class="text-muted">
+                            No property owners assigned
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="stakeholder-info">
+                        <h5><i class="fas fa-users text-success"></i> Tenants</h5>
+                        <div th:if="${tenants.size() > 0}">
+                            <div th:each="tenant : ${tenants}" class="mb-2">
+                                <strong th:text="${tenant.name}">Tenant Name</strong>
+                                <br>
+                                <small class="text-muted" th:text="${tenant.email}">tenant@email.com</small>
+                            </div>
+                        </div>
+                        <div th:if="${tenants.size() == 0}" class="text-muted">
+                            No tenants assigned
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Organized File Categories -->
+            <div th:each="category : ${filesByCategory.keySet()}" class="file-category-section">
+                <div class="category-header">
+                    <h4 class="mb-0">
+                        <i th:class="${category == 'EPC' ? 'fas fa-certificate' : 
+                                     category == 'Insurance' ? 'fas fa-shield-alt' : 
+                                     category == 'EICR' ? 'fas fa-bolt' : 
+                                     category == 'Statements' ? 'fas fa-file-invoice' : 
+                                     category == 'Invoices' ? 'fas fa-receipt' : 
+                                     category == 'Letters' ? 'fas fa-envelope' : 'fas fa-folder'}"></i>
+                        <span th:text="${category}">Category Name</span>
+                    </h4>
+                    <span class="badge badge-light" th:text="${filesByCategory.get(category).size()} + ' files'">0 files</span>
+                </div>
+                
+                <div class="category-content">
+                    <div th:if="${filesByCategory.get(category).size() > 0}" class="file-grid">
+                        <div th:each="file : ${filesByCategory.get(category)}" class="file-card">
+                            <div class="file-icon mb-2">
+                                <img th:if="${file.mimeType.contains('document')}" th:src="@{/images/google-docs.png}" alt="Document" style="width: 48px;">
+                                <img th:if="${file.mimeType.contains('presentation')}" th:src="@{/images/slides.png}" alt="Presentation" style="width: 48px;">
+                                <img th:if="${file.mimeType.contains('spreadsheet')}" th:src="@{/images/sheets.png}" alt="Spreadsheet" style="width: 48px;">
+                                <i th:unless="${file.mimeType.contains('document') or file.mimeType.contains('presentation') or file.mimeType.contains('spreadsheet')}" 
+                                   class="fas fa-file fa-3x text-muted"></i>
+                            </div>
+                            <h6 class="file-name">
+                                <a th:href="${file.webViewLink}" th:text="${file.name}" target="_blank">File Name</a>
+                            </h6>
+                            <small class="text-muted" th:text="${file.createdTime}">Created Date</small>
+                            <div class="file-actions mt-2">
+                                <button class="btn btn-sm btn-outline-primary" onclick="shareFile('${file.id}')">
+                                    <i class="fas fa-share"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteFile('${file.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div th:if="${filesByCategory.get(category).size() == 0}" class="empty-category">
+                        <i class="fas fa-folder-open fa-3x mb-3"></i>
+                        <p>No files in this category yet</p>
+                        <button class="btn btn-primary btn-sm" onclick="uploadToCategory('${category}')">
+                            <i class="fas fa-upload"></i> Upload File
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Quick Actions</h5>
+                        </div>
+                        <div class="card-body">
+                            <button class="btn btn-success mr-2" onclick="createFolder()">
+                                <i class="fas fa-folder-plus"></i> Create Folder
+                            </button>
+                            <button class="btn btn-info mr-2" onclick="uploadFile()">
+                                <i class="fas fa-upload"></i> Upload File
+                            </button>
+                            <button class="btn btn-warning mr-2" onclick="generateStatement()">
+                                <i class="fas fa-file-invoice"></i> Generate Statement
+                            </button>
+                            <a th:href="@{'/employee/property/' + ${property.id}}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Property
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    
+    <div th:replace="~{general/footer.html}"></div>
+</div>
+
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script>
+function syncPayPropFiles() {
+    const propertyId = /*[[${property.id}]]*/ 0;
+    
+    $.post(`/employee/drive/sync-payprop-files/${propertyId}`)
+        .done(function(data) {
+            if (data.success) {
+                alert(`Success! Synced ${data.syncedFiles} files for ${data.propertyOwners} owners and ${data.tenants} tenants`);
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .fail(function() {
+            alert('Error syncing files');
+        });
+}
+
+function shareFile(fileId) {
+    // Implement file sharing
+    alert('Share file: ' + fileId);
+}
+
+function deleteFile(fileId) {
+    if (confirm('Are you sure you want to delete this file?')) {
+        // Implement file deletion
+        alert('Delete file: ' + fileId);
+    }
+}
+
+function uploadToCategory(category) {
+    alert('Upload to category: ' + category);
+}
+
+function createFolder() {
+    const folderName = prompt('Enter folder name:');
+    if (folderName) {
+        // Implement folder creation
+    }
+}
+
+function uploadFile() {
+    // Implement file upload
+    alert('Upload file feature');
+}
+
+function generateStatement() {
+    // Implement statement generation
+    alert('Generate statement feature');
+}
+</script>
+
+</body>
+</html>
