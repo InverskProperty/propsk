@@ -363,8 +363,8 @@
                         </div>
                         <div class="card-body">
                             <div class="list-group list-group-flush">
-                                <a th:href="${home + 'employee/tenant/all-tenants?propertyId=' + property.id}" 
-                                   class="list-group-item list-group-item-action">
+                                <a th:href="@{'/employee/customer/tenants?propertyId=' + ${property.id}}" 
+                                class="list-group-item list-group-item-action">
                                     <i class="fas fa-users text-primary"></i> View Tenants
                                 </a>
                                 <a th:href="${home + 'employee/maintenance/all-tickets?propertyId=' + property.id}" 

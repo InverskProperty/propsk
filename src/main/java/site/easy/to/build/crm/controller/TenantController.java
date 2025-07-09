@@ -13,6 +13,7 @@ import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -37,6 +38,38 @@ public class TenantController {
         this.propertyService = propertyService;
         this.customerService = customerService;
         this.customerLoginInfoService = customerLoginInfoService;
+    }
+
+    // ===== MISSING ROUTE FIX =====
+
+    /**
+     * Handle the missing /employee/tenant/all-tenants route
+     * Redirect to the working CustomerController route
+     */
+    
+    @GetMapping("/employee/tenant/all-tenants")
+    public String allTenants(@RequestParam(value = "propertyId", required = false) Long propertyId,
+                            @RequestParam(value = "search", required = false) String search,
+                            @RequestParam(value = "status", required = false) String status) {
+        
+        StringBuilder redirectUrl = new StringBuilder("redirect:/employee/customer/tenants");
+        List<String> params = new ArrayList<>();
+        
+        if (propertyId != null) {
+            params.add("propertyId=" + propertyId);
+        }
+        if (search != null && !search.trim().isEmpty()) {
+            params.add("search=" + search);
+        }
+        if (status != null && !status.trim().isEmpty()) {
+            params.add("status=" + status);
+        }
+        
+        if (!params.isEmpty()) {
+            redirectUrl.append("?").append(String.join("&", params));
+        }
+        
+        return redirectUrl.toString();
     }
 
     // ===== CUSTOMER-FACING TENANT PORTAL =====

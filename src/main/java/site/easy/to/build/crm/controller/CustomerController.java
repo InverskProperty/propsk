@@ -258,12 +258,32 @@ public class CustomerController {
     @GetMapping("/tenants")
     public String listTenants(@RequestParam(value = "search", required = false) String search,
                             @RequestParam(value = "status", required = false) String status,
+                            @RequestParam(value = "propertyId", required = false) Long propertyId,
                             Model model, Authentication authentication) {
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             User user = userService.findById(userId);
             
             List<Customer> tenants = customerService.findTenants();
+
+            // Filter by property ID if provided
+            if (propertyId != null) {
+                tenants = tenants.stream()
+                    .filter(tenant -> tenant.getEntityId() != null && tenant.getEntityId().equals(propertyId))
+                    .collect(Collectors.toList());
+                    
+                // Add property info to model for display
+                try {
+                    Property property = propertyService.findById(propertyId);
+                    if (property != null) {
+                        model.addAttribute("filterProperty", property);
+                        model.addAttribute("pageTitle", "Tenants for " + property.getPropertyName());
+                        model.addAttribute("backUrl", "/employee/property/" + propertyId);
+                    }
+                } catch (Exception e) {
+                    // Property not found, continue with general listing
+                }
+            }
             
             // Apply search filter if provided
             if (search != null && !search.trim().isEmpty()) {
@@ -289,6 +309,7 @@ public class CustomerController {
             model.addAttribute("filterType", "tenants");
             model.addAttribute("searchTerm", search);
             model.addAttribute("statusFilter", status);
+            model.addAttribute("propertyIdFilter", propertyId);
             model.addAttribute("user", user);
             model.addAttribute("createUrl", "/employee/customer/create-tenant");
             
