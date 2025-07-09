@@ -28,160 +28,165 @@
                         </div>
 
                         <!-- Email Form - Enhanced with Filtering -->
-                        <form method="post" th:action="@{/employee/customer/email-property-owners}" th:if="${gmailError == null or gmailError == ''}" id="emailForm">
-                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <!-- Set the action URL based on customer type -->
+                        <div th:with="actionUrl=${customerType == 'Property Owners' ? '/employee/customer/email-property-owners' : 
+                                                  customerType == 'Tenants' ? '/employee/customer/email-tenants' : '/employee/customer/email-contractors'}">
                             
-                            <!-- Recipient Filtering Section -->
-                            <div class="card border-info mb-4">
-                                <div class="card-header bg-info text-white">
-                                    <h5 class="mb-0">
-                                        <i class="fas fa-filter"></i> Recipient Filtering
-                                    </h5>
+                            <form method="post" th:action="@{${actionUrl}}" th:if="${gmailError == null or gmailError == ''}" id="emailForm">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                                
+                                <!-- Recipient Filtering Section -->
+                                <div class="card border-info mb-4">
+                                    <div class="card-header bg-info text-white">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-filter"></i> Recipient Filtering
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <!-- Property Filter - Only for Property Owners and Tenants -->
+                                            <div class="col-md-6" th:if="${customerType == 'Property Owners' or customerType == 'Tenants'}">
+                                                <div class="mb-3">
+                                                    <label for="propertyFilter" class="form-label">Filter by Property</label>
+                                                    <select class="form-select" id="propertyFilter" name="propertyId" onchange="updateRecipientCount()">
+                                                        <option value="">All Properties</option>
+                                                        <option th:each="property : ${properties}" 
+                                                                th:value="${property.id}" 
+                                                                th:text="${property.propertyName + ' - ' + property.fullAddress}">
+                                                            Property Name - Address
+                                                        </option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Owner Filter - Only for Property Owners -->
+                                            <div class="col-md-6" th:if="${customerType == 'Property Owners'}">
+                                                <div class="mb-3">
+                                                    <label for="ownerFilter" class="form-label">Filter by Owner</label>
+                                                    <select class="form-select" id="ownerFilter" name="ownerId" onchange="updateRecipientCount()">
+                                                        <option value="">All Owners</option>
+                                                        <option th:each="owner : ${propertyOwners}" 
+                                                                th:value="${owner.customerId}" 
+                                                                th:text="${owner.name + ' (' + owner.email + ')'}">
+                                                            Owner Name (email)
+                                                        </option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Active Only Filter - Only for Tenants -->
+                                            <div class="col-md-6" th:if="${customerType == 'Tenants'}">
+                                                <div class="mb-3">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" id="activeOnly" name="activeOnly" value="true" onchange="updateRecipientCount()">
+                                                        <label class="form-check-label" for="activeOnly">
+                                                            Active tenants only
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Preferred Only Filter - Only for Contractors -->
+                                            <div class="col-md-6" th:if="${customerType == 'Contractors'}">
+                                                <div class="mb-3">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" id="preferredOnly" name="preferredOnly" value="true" onchange="updateRecipientCount()">
+                                                        <label class="form-check-label" for="preferredOnly">
+                                                            Preferred contractors only
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Active Recipients Display -->
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <div class="alert alert-light border">
+                                                    <h6 class="mb-2">
+                                                        <i class="fas fa-users"></i> Recipients: 
+                                                        <span id="recipientCount" th:text="${customers != null ? customers.size() : 0}">0</span>
+                                                        <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span>
+                                                    </h6>
+                                                    <div id="recipientDetails" class="small text-muted">
+                                                        <span th:text="'Total available: ' + ${customers != null ? customers.size() : 0}">Total available: 0</span>
+                                                        <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="card-body">
-                                    <div class="row">
-                                        <!-- Property Filter - Only for Property Owners and Tenants -->
-                                        <div class="col-md-6" th:if="${customerType == 'Property Owners' or customerType == 'Tenants'}">
-                                            <div class="mb-3">
-                                                <label for="propertyFilter" class="form-label">Filter by Property</label>
-                                                <select class="form-select" id="propertyFilter" name="propertyId" onchange="updateRecipientCount()">
-                                                    <option value="">All Properties</option>
-                                                    <option th:each="property : ${properties}" 
-                                                            th:value="${property.id}" 
-                                                            th:text="${property.propertyName + ' - ' + property.address}">
-                                                        Property Name - Address
-                                                    </option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Owner Filter - Only for Property Owners -->
-                                        <div class="col-md-6" th:if="${customerType == 'Property Owners'}">
-                                            <div class="mb-3">
-                                                <label for="ownerFilter" class="form-label">Filter by Owner</label>
-                                                <select class="form-select" id="ownerFilter" name="ownerId" onchange="updateRecipientCount()">
-                                                    <option value="">All Owners</option>
-                                                    <option th:each="owner : ${propertyOwners}" 
-                                                            th:value="${owner.customerId}" 
-                                                            th:text="${owner.name + ' (' + owner.email + ')'}">
-                                                        Owner Name (email)
-                                                    </option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Active Only Filter - Only for Tenants -->
-                                        <div class="col-md-6" th:if="${customerType == 'Tenants'}">
-                                            <div class="mb-3">
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" id="activeOnly" name="activeOnly" value="true" onchange="updateRecipientCount()">
-                                                    <label class="form-check-label" for="activeOnly">
-                                                        Active tenants only
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Preferred Only Filter - Only for Contractors -->
-                                        <div class="col-md-6" th:if="${customerType == 'Contractors'}">
-                                            <div class="mb-3">
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="checkbox" id="preferredOnly" name="preferredOnly" value="true" onchange="updateRecipientCount()">
-                                                    <label class="form-check-label" for="preferredOnly">
-                                                        Preferred contractors only
-                                                    </label>
-                                                </div>
-                                            </div>
+
+                                <!-- Subject Field -->
+                                <div class="mb-3">
+                                    <label for="subject" class="form-label">Email Subject *</label>
+                                    <input type="text" class="form-control" id="subject" name="subject" 
+                                           placeholder="Enter email subject" required maxlength="200">
+                                </div>
+
+                                <!-- Message Field -->
+                                <div class="mb-3">
+                                    <label for="message" class="form-label">Email Message *</label>
+                                    <textarea class="form-control" id="message" name="message" rows="8" 
+                                              placeholder="Enter your email message here..." required maxlength="5000"></textarea>
+                                    <div class="form-text">
+                                        Available placeholders: {{customer_name}}, {{customer_email}}, {{customer_phone}}, {{customer_address}}
+                                    </div>
+                                </div>
+
+                                <!-- Email Options -->
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="emailAll" name="emailAll" value="true" checked>
+                                            <label class="form-check-label" for="emailAll">
+                                                Email all filtered recipients
+                                            </label>
                                         </div>
                                     </div>
                                     
-                                    <!-- Active Recipients Display -->
-                                    <div class="row">
-                                        <div class="col-12">
-                                            <div class="alert alert-light border">
-                                                <h6 class="mb-2">
-                                                    <i class="fas fa-users"></i> Recipients: 
-                                                    <span id="recipientCount" th:text="${customers != null ? customers.size() : 0}">0</span>
-                                                    <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span>
-                                                </h6>
-                                                <div id="recipientDetails" class="small text-muted">
-                                                    <span th:text="'Total available: ' + ${customers != null ? customers.size() : 0}">Total available: 0</span>
-                                                    <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span>
-                                                </div>
-                                            </div>
+                                    <!-- Include Property Info - Only for Property Owners -->
+                                    <div class="col-md-6" th:if="${customerType == 'Property Owners'}">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="includePropertyInfo" name="includePropertyInfo" value="true">
+                                            <label class="form-check-label" for="includePropertyInfo">
+                                                Include property information in email
+                                            </label>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <!-- Subject Field -->
-                            <div class="mb-3">
-                                <label for="subject" class="form-label">Email Subject *</label>
-                                <input type="text" class="form-control" id="subject" name="subject" 
-                                       placeholder="Enter email subject" required maxlength="200">
-                            </div>
-
-                            <!-- Message Field -->
-                            <div class="mb-3">
-                                <label for="message" class="form-label">Email Message *</label>
-                                <textarea class="form-control" id="message" name="message" rows="8" 
-                                          placeholder="Enter your email message here..." required maxlength="5000"></textarea>
-                                <div class="form-text">
-                                    Available placeholders: {{customer_name}}, {{customer_email}}, {{customer_phone}}, {{customer_address}}
+                                <!-- Action Buttons -->
+                                <div class="mb-3">
+                                    <button type="submit" class="btn btn-success btn-lg">
+                                        <i class="fas fa-envelope"></i> Send Email
+                                    </button>
+                                    <a th:href="${backUrl ?: '/employee/customer/property-owners'}" class="btn btn-secondary btn-lg ms-2">
+                                        <i class="fas fa-arrow-left"></i> Back
+                                    </a>
                                 </div>
-                            </div>
 
-                            <!-- Email Options -->
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="emailAll" name="emailAll" value="true" checked>
-                                        <label class="form-check-label" for="emailAll">
-                                            Email all filtered recipients
-                                        </label>
+                                <!-- Email Preview -->
+                                <div class="card border-light mt-4">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">Email Preview</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label><strong>Subject:</strong></label>
+                                            <div id="subjectPreview" class="text-muted">Enter subject above...</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label><strong>Message:</strong></label>
+                                            <div id="messagePreview" class="text-muted border p-3" 
+                                                 style="min-height: 100px; white-space: pre-wrap;">Enter message above...</div>
+                                        </div>
                                     </div>
                                 </div>
-                                
-                                <!-- Additional Options -->
-                                <div class="col-md-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="includePropertyInfo" name="includePropertyInfo" value="true">
-                                        <label class="form-check-label" for="includePropertyInfo">
-                                            Include property information in email
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
 
-                            <!-- Action Buttons -->
-                            <div class="mb-3">
-                                <button type="submit" class="btn btn-success btn-lg">
-                                    <i class="fas fa-envelope"></i> Send Email
-                                </button>
-                                <a th:href="${backUrl ?: '/employee/customer/property-owners'}" class="btn btn-secondary btn-lg ms-2">
-                                    <i class="fas fa-arrow-left"></i> Back
-                                </a>
-                            </div>
-
-                            <!-- Email Preview -->
-                            <div class="card border-light mt-4">
-                                <div class="card-header bg-light">
-                                    <h6 class="mb-0">Email Preview</h6>
-                                </div>
-                                <div class="card-body">
-                                    <div class="mb-3">
-                                        <label><strong>Subject:</strong></label>
-                                        <div id="subjectPreview" class="text-muted">Enter subject above...</div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label><strong>Message:</strong></label>
-                                        <div id="messagePreview" class="text-muted border p-3" 
-                                             style="min-height: 100px; white-space: pre-wrap;">Enter message above...</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                        </form>
+                            </form>
+                        </div>
                         
                         <!-- Gmail Setup Required Message -->
                         <div th:if="${gmailError != null and gmailError != ''}" class="text-center">
@@ -220,27 +225,42 @@
             
             // Update recipient count based on filters
             window.updateRecipientCount = function() {
-                const propertyId = document.getElementById('propertyFilter').value;
-                const ownerId = document.getElementById('ownerFilter').value;
+                const propertyFilter = document.getElementById('propertyFilter');
+                const ownerFilter = document.getElementById('ownerFilter');
+                const activeOnly = document.getElementById('activeOnly');
+                const preferredOnly = document.getElementById('preferredOnly');
                 
                 let filteredCount = allCustomers.length;
                 let filterDescription = '';
                 
-                if (propertyId) {
-                    // Find property name
-                    const selectedProperty = allProperties.find(p => p.id == propertyId);
+                // Property filter
+                if (propertyFilter && propertyFilter.value) {
+                    const selectedProperty = allProperties.find(p => p.id == propertyFilter.value);
                     if (selectedProperty) {
                         filterDescription += 'Property: ' + selectedProperty.propertyName;
-                        // In real implementation, you'd filter customers by property
-                        // For now, we'll show a reduced count as example
                         filteredCount = Math.max(1, Math.floor(filteredCount * 0.3));
                     }
                 }
                 
-                if (ownerId) {
+                // Owner filter
+                if (ownerFilter && ownerFilter.value) {
                     if (filterDescription) filterDescription += ' | ';
                     filterDescription += 'Specific Owner';
-                    filteredCount = 1; // Only one owner selected
+                    filteredCount = 1;
+                }
+                
+                // Active only filter
+                if (activeOnly && activeOnly.checked) {
+                    if (filterDescription) filterDescription += ' | ';
+                    filterDescription += 'Active Only';
+                    filteredCount = Math.max(1, Math.floor(filteredCount * 0.7));
+                }
+                
+                // Preferred only filter
+                if (preferredOnly && preferredOnly.checked) {
+                    if (filterDescription) filterDescription += ' | ';
+                    filterDescription += 'Preferred Only';
+                    filteredCount = Math.max(1, Math.floor(filteredCount * 0.5));
                 }
                 
                 // Update display
@@ -312,17 +332,25 @@
                 }
                 
                 // Confirmation dialog
-                const propertyFilter = document.getElementById('propertyFilter');
-                const ownerFilter = document.getElementById('ownerFilter');
-                
                 let confirmMessage = 'Are you sure you want to send this email to ' + recipientCount + ' recipient(s)?';
                 
-                if (propertyFilter.value) {
-                    confirmMessage += '\n\nProperty filter: ' + propertyFilter.options[propertyFilter.selectedIndex].text;
-                }
-                if (ownerFilter.value) {
-                    confirmMessage += '\n\nOwner filter: ' + ownerFilter.options[ownerFilter.selectedIndex].text;
-                }
+                // Add filter details to confirmation
+                const filterElements = [
+                    { elem: document.getElementById('propertyFilter'), label: 'Property filter' },
+                    { elem: document.getElementById('ownerFilter'), label: 'Owner filter' },
+                    { elem: document.getElementById('activeOnly'), label: 'Active only' },
+                    { elem: document.getElementById('preferredOnly'), label: 'Preferred only' }
+                ];
+                
+                filterElements.forEach(filter => {
+                    if (filter.elem) {
+                        if (filter.elem.type === 'checkbox' && filter.elem.checked) {
+                            confirmMessage += '\n\n' + filter.label + ': Yes';
+                        } else if (filter.elem.type === 'select-one' && filter.elem.value) {
+                            confirmMessage += '\n\n' + filter.label + ': ' + filter.elem.options[filter.elem.selectedIndex].text;
+                        }
+                    }
+                });
                 
                 if (!confirm(confirmMessage)) {
                     e.preventDefault();

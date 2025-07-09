@@ -267,7 +267,6 @@ public class CustomerController {
     }
 
     // ===== EMAIL PROPERTY OWNERS =====
-    
     @GetMapping("/email-property-owners")
     public String emailPropertyOwnersForm(Model model, Authentication authentication) {
         try {
@@ -383,6 +382,7 @@ public class CustomerController {
             }
             
             // Enhance message with property info if requested
+            // Enhance message with property info if requested
             String finalMessage = message;
             if (includePropertyInfo && propertyId != null) {
                 try {
@@ -390,7 +390,7 @@ public class CustomerController {
                     if (property != null) {
                         finalMessage += "\n\n--- Property Information ---\n";
                         finalMessage += "Property: " + property.getPropertyName() + "\n";
-                        finalMessage += "Address: " + property.getAddress() + "\n";
+                        finalMessage += "Address: " + property.getFullAddress() + "\n";
                         if (property.getCity() != null) {
                             finalMessage += "City: " + property.getCity() + "\n";
                         }
@@ -545,8 +545,12 @@ public class CustomerController {
             
             List<Customer> tenants = customerService.findTenants();
             
+            // Get all properties for the dropdown
+            List<Property> properties = propertyService.findAll();
+            
             model.addAttribute("customers", tenants);
-            model.addAttribute("customerType", "Tenants");
+            model.addAttribute("properties", properties);
+            model.addAttribute("customerType", "Tenants"); // Changed to plural
             model.addAttribute("user", user);
             model.addAttribute("pageTitle", "Email Tenants");
             model.addAttribute("backUrl", "/employee/customer/tenants");
