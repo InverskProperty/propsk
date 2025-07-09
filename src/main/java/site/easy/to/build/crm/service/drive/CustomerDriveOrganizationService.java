@@ -108,7 +108,7 @@ public class CustomerDriveOrganizationService {
         // Update database record
         GoogleDriveFile googleDriveFile = new GoogleDriveFile();
         googleDriveFile.setDriveFileId(driveFileId);
-        googleDriveFile.setDriveFolderId(targetFolderId);
+        googleDriveFile.setGoogleDriveFolderId(targetFolderId);
         googleDriveFile.setCustomerId(customer.getCustomerId());
         googleDriveFile.setFileCategory(category);
         googleDriveFile.setFileDescription(description);
@@ -132,7 +132,7 @@ public class CustomerDriveOrganizationService {
         // Save to database with PayProp flag
         GoogleDriveFile googleDriveFile = new GoogleDriveFile();
         googleDriveFile.setDriveFileId(driveFileId);
-        googleDriveFile.setDriveFolderId(targetFolderId);
+        googleDriveFile.setGoogleDriveFolderId(targetFolderId);
         googleDriveFile.setCustomerId(customer.getCustomerId());
         googleDriveFile.setFileName(fileName);
         googleDriveFile.setFileCategory("payprop");
