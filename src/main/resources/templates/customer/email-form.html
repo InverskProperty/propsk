@@ -43,8 +43,8 @@
                             </div>
                         </div>
 
-                        <!-- Email Form - Fixed action URL -->
-                        <form method="post" action="/employee/customer/email-property-owners" th:if="${gmailError == null or gmailError == ''}"></form>
+                        <!-- Email Form - FIXED: Proper form structure -->
+                        <form method="post" action="/employee/customer/email-property-owners" th:if="${gmailError == null or gmailError == ''}">
                             
                             <!-- Subject Field -->
                             <div class="mb-3">
@@ -67,7 +67,7 @@
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="emailAll" name="emailAll" checked>
+                                        <input class="form-check-input" type="checkbox" id="emailAll" name="emailAll" value="true" checked>
                                         <label class="form-check-label" for="emailAll">
                                             Email all <span th:text="${customers != null ? customers.size() : 0}">0</span> 
                                             <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span>
@@ -78,7 +78,7 @@
                                 <!-- Active tenants filter -->
                                 <div class="col-md-6" th:if="${customerType == 'Tenants'}">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="activeOnly" name="activeOnly">
+                                        <input class="form-check-input" type="checkbox" id="activeOnly" name="activeOnly" value="true">
                                         <label class="form-check-label" for="activeOnly">
                                             Active tenants only
                                         </label>
@@ -141,6 +141,15 @@
             var customerCount = /*[[${customers != null ? customers.size() : 0}]]*/ 0;
             var customerType = /*[[${customerType != null ? customerType.toLowerCase() : 'customers'}]]*/ 'customers';
             
+            // Debug: Check if form exists
+            const form = document.querySelector('form');
+            if (form) {
+                console.log('✅ Form found with action:', form.action);
+                console.log('✅ Form method:', form.method);
+            } else {
+                console.log('❌ No form found!');
+            }
+            
             // Real-time email preview
             function updatePreview() {
                 const subject = document.getElementById('subject').value;
@@ -176,40 +185,55 @@
                 }
             });
             
-            // Form validation
-            document.querySelector('form').addEventListener('submit', function(e) {
-                const subject = document.getElementById('subject').value.trim();
-                const message = document.getElementById('message').value.trim();
-                
-                if (!subject || !message) {
-                    e.preventDefault();
-                    alert('Please fill in both subject and message fields.');
-                    return false;
-                }
-                
-                if (subject.length < 3) {
-                    e.preventDefault();
-                    alert('Subject must be at least 3 characters long.');
-                    return false;
-                }
-                
-                if (message.length < 10) {
-                    e.preventDefault();
-                    alert('Message must be at least 10 characters long.');
-                    return false;
-                }
-                
-                // Confirmation dialog using server-side variables
-                if (!confirm('Are you sure you want to send this email to ' + customerCount + ' ' + customerType + '?')) {
-                    e.preventDefault();
-                    return false;
-                }
-                
-                // Disable submit button to prevent double submission
-                const submitBtn = this.querySelector('button[type="submit"]');
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-            });
+            // Form validation and submission debugging
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    console.log('🚀 Form submission triggered!');
+                    console.log('Form action:', form.action);
+                    console.log('Form method:', form.method);
+                    
+                    // Log form data
+                    const formData = new FormData(form);
+                    console.log('Form data:');
+                    for (let [key, value] of formData.entries()) {
+                        console.log(`  ${key}: ${value}`);
+                    }
+                    
+                    const subject = document.getElementById('subject').value.trim();
+                    const message = document.getElementById('message').value.trim();
+                    
+                    if (!subject || !message) {
+                        e.preventDefault();
+                        alert('Please fill in both subject and message fields.');
+                        return false;
+                    }
+                    
+                    if (subject.length < 3) {
+                        e.preventDefault();
+                        alert('Subject must be at least 3 characters long.');
+                        return false;
+                    }
+                    
+                    if (message.length < 10) {
+                        e.preventDefault();
+                        alert('Message must be at least 10 characters long.');
+                        return false;
+                    }
+                    
+                    // Confirmation dialog using server-side variables
+                    if (!confirm('Are you sure you want to send this email to ' + customerCount + ' ' + customerType + '?')) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    
+                    // Disable submit button to prevent double submission
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+                    
+                    console.log('✅ Form validation passed, submitting...');
+                });
+            }
         });
     </script>
 </body>
