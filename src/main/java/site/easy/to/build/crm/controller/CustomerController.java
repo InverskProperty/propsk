@@ -535,6 +535,24 @@ public class CustomerController {
                 backUrl = "/employee/customer/contractors";
             }
 
+            // Add property information for property owners using junction table
+            if (Boolean.TRUE.equals(customer.getIsPropertyOwner())) {
+                try {
+                    List<CustomerPropertyAssignment> assignments = 
+                        customerPropertyAssignmentRepository.findByCustomerCustomerId(customer.getCustomerId());
+                    
+                    List<Property> ownedProperties = assignments.stream()
+                        .filter(assignment -> assignment.getAssignmentType() == AssignmentType.OWNER)
+                        .map(assignment -> assignment.getProperty())
+                        .collect(Collectors.toList());
+                        
+                    model.addAttribute("allAssignedProperties", ownedProperties);
+                    model.addAttribute("propertyCount", ownedProperties.size());
+                } catch (Exception e) {
+                    System.err.println("Error loading properties for owner " + id + ": " + e.getMessage());
+                }
+            }
+
             model.addAttribute("customer", customer);
             model.addAttribute("customerTypeDisplay", customerTypeDisplay);
             model.addAttribute("backUrl", backUrl);
