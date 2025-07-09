@@ -268,9 +268,22 @@ public class CustomerController {
 
             // Filter by property ID if provided
             if (propertyId != null) {
+                System.out.println("🔍 DEBUG: Filtering tenants for propertyId: " + propertyId);
+                System.out.println("🔍 DEBUG: Total tenants before filtering: " + tenants.size());
+                
+                for (Customer tenant : tenants) {
+                    System.out.println("🔍 DEBUG: Tenant " + tenant.getCustomerId() + " (" + tenant.getName() + ") - entityId: " + tenant.getEntityId());
+                }
+                
                 tenants = tenants.stream()
-                    .filter(tenant -> tenant.getEntityId() != null && tenant.getEntityId().equals(propertyId))
+                    .filter(tenant -> {
+                        boolean matches = tenant.getEntityId() != null && tenant.getEntityId().equals(propertyId);
+                        System.out.println("🔍 DEBUG: Tenant " + tenant.getName() + " matches property " + propertyId + ": " + matches);
+                        return matches;
+                    })
                     .collect(Collectors.toList());
+                    
+                System.out.println("🔍 DEBUG: Tenants after filtering: " + tenants.size());
                     
                 // Add property info to model for display
                 try {
