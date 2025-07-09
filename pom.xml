@@ -18,6 +18,10 @@
 		<java.version>17</java.version>
 		<sql.name>${SQL_NAME}</sql.name>
 		<sql.password>${SQL_PASSWORD}</sql.password>
+		<!-- FIXED: Centralized Google API versions to avoid conflicts -->
+		<google-api-client.version>2.2.0</google-api-client.version>
+		<google-http-client.version>1.43.3</google-http-client.version>
+		<google-auth.version>1.19.0</google-auth.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -78,69 +82,17 @@
 			<artifactId>spring-security-oauth2-jose</artifactId>
 			<version>6.1.0</version>
 		</dependency>
-		<!-- https://mvnrepository.com/artifact/com.google.api-client/google-api-client -->
+
+		<!-- =====================================
+		     GOOGLE API DEPENDENCIES - FIXED CONFLICTS
+		     ===================================== -->
+
+		<!-- FIXED: Single Google API Client version -->
 		<dependency>
 			<groupId>com.google.api-client</groupId>
 			<artifactId>google-api-client</artifactId>
-			<version>2.2.0</version>
+			<version>${google-api-client.version}</version>
 		</dependency>
-		<!-- https://mvnrepository.com/artifact/com.google.auth/google-auth-library-oauth2-http -->
-		<dependency>
-			<groupId>com.google.auth</groupId>
-			<artifactId>google-auth-library-oauth2-http</artifactId>
-			<version>1.18.0</version>
-		</dependency>
-
-		<!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-			<version>2.15.2</version>
-		</dependency>
-
-		<!-- https://mvnrepository.com/artifact/com.google.http-client/google-http-client-gson -->
-		<dependency>
-			<groupId>com.google.http-client</groupId>
-			<artifactId>google-http-client-gson</artifactId>
-			<version>1.43.2</version>
-		</dependency>
-		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-		</dependency>
-		<!-- https://mvnrepository.com/artifact/jakarta.mail/jakarta.mail-api -->
-		<dependency>
-			<groupId>jakarta.mail</groupId>
-			<artifactId>jakarta.mail-api</artifactId>
-			<version>2.1.2</version>
-		</dependency>
-		<!-- https://mvnrepository.com/artifact/javax.validation/validation-api -->
-		<dependency>
-			<groupId>javax.validation</groupId>
-			<artifactId>validation-api</artifactId>
-			<version>2.0.1.Final</version>
-		</dependency>
-		<!-- https://mvnrepository.com/artifact/jakarta.activation/jakarta.activation-api -->
-		<dependency>
-			<groupId>jakarta.activation</groupId>
-			<artifactId>jakarta.activation-api</artifactId>
-			<version>2.1.2</version>
-		</dependency>
-		<!-- https://mvnrepository.com/artifact/org.eclipse.angus/jakarta.mail -->
-		<dependency>
-			<groupId>org.eclipse.angus</groupId>
-			<artifactId>jakarta.mail</artifactId>
-			<version>2.0.1</version>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.tika</groupId>
-			<artifactId>tika-core</artifactId>
-			<version>2.7.0</version>
-		</dependency>
-
-		<!-- =====================================
-		     GOOGLE DRIVE & SHEETS INTEGRATION
-		     ===================================== -->
 
 		<!-- Google Drive API -->
 		<dependency>
@@ -156,26 +108,77 @@
 			<version>v4-rev20220927-2.0.0</version>
 		</dependency>
 
-		<!-- Updated Google API Client (compatible with Drive & Sheets) -->
-		<dependency>
-			<groupId>com.google.api-client</groupId>
-			<artifactId>google-api-client</artifactId>
-			<version>2.0.0</version>
-		</dependency>
-
-		<!-- Google OAuth2 Client for Service Account Authentication -->
+		<!-- FIXED: Single Google Auth Library version -->
 		<dependency>
 			<groupId>com.google.auth</groupId>
 			<artifactId>google-auth-library-oauth2-http</artifactId>
-			<version>1.19.0</version>
+			<version>${google-auth.version}</version>
 		</dependency>
 
-		<!-- Google HTTP Client for API calls -->
+		<!-- FIXED: Single Google HTTP Client version -->
 		<dependency>
 			<groupId>com.google.http-client</groupId>
 			<artifactId>google-http-client-jackson2</artifactId>
-			<version>1.43.3</version>
+			<version>${google-http-client.version}</version>
 		</dependency>
+
+		<!-- FIXED: Consolidated to single HTTP client implementation -->
+		<dependency>
+			<groupId>com.google.http-client</groupId>
+			<artifactId>google-http-client-gson</artifactId>
+			<version>${google-http-client.version}</version>
+		</dependency>
+
+		<!-- =====================================
+		     OTHER DEPENDENCIES
+		     ===================================== -->
+
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+		</dependency>
+		
+		<!-- Jakarta Mail -->
+		<dependency>
+			<groupId>jakarta.mail</groupId>
+			<artifactId>jakarta.mail-api</artifactId>
+			<version>2.1.2</version>
+		</dependency>
+		<dependency>
+			<groupId>org.eclipse.angus</groupId>
+			<artifactId>jakarta.mail</artifactId>
+			<version>2.0.1</version>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.activation</groupId>
+			<artifactId>jakarta.activation-api</artifactId>
+			<version>2.1.2</version>
+		</dependency>
+
+		<!-- Validation -->
+		<dependency>
+			<groupId>javax.validation</groupId>
+			<artifactId>validation-api</artifactId>
+			<version>2.0.1.Final</version>
+		</dependency>
+
+		<!-- File Processing -->
+		<dependency>
+			<groupId>org.apache.tika</groupId>
+			<artifactId>tika-core</artifactId>
+			<version>2.7.0</version>
+		</dependency>
+
+		<!-- Jackson for JSON processing -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>2.15.2</version>
+		</dependency>
+
+		<!-- =====================================
+		     FILE PROCESSING & UTILITIES
+		     ===================================== -->
 
 		<!-- Apache Commons IO for file operations -->
 		<dependency>
@@ -232,6 +235,10 @@
 			<artifactId>thumbnailator</artifactId>
 			<version>0.4.19</version>
 		</dependency>
+
+		<!-- =====================================
+		     MONITORING & METRICS
+		     ===================================== -->
 
 		<!-- Spring Boot Actuator for monitoring file operations -->
 		<dependency>

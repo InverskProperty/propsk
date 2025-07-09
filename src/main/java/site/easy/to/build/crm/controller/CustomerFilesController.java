@@ -15,7 +15,7 @@ import site.easy.to.build.crm.entity.GoogleDriveFile;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.drive.CustomerDriveOrganizationService;
-import site.easy.to.build.crm.service.payprop.PayPropFileSyncService;
+import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator;
 import site.easy.to.build.crm.service.sheets.GoogleSheetsStatementService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
@@ -29,19 +29,19 @@ public class CustomerFilesController {
 
     private final CustomerService customerService;
     private final CustomerDriveOrganizationService customerDriveOrganizationService;
-    private final PayPropFileSyncService payPropFileSyncService;
+    private final PayPropSyncOrchestrator payPropSyncOrchestrator;
     private final GoogleSheetsStatementService googleSheetsStatementService;
     private final AuthenticationUtils authenticationUtils;
 
     @Autowired
     public CustomerFilesController(CustomerService customerService,
                                  CustomerDriveOrganizationService customerDriveOrganizationService,
-                                 PayPropFileSyncService payPropFileSyncService,
+                                 PayPropSyncOrchestrator payPropSyncOrchestrator,
                                  GoogleSheetsStatementService googleSheetsStatementService,
                                  AuthenticationUtils authenticationUtils) {
         this.customerService = customerService;
         this.customerDriveOrganizationService = customerDriveOrganizationService;
-        this.payPropFileSyncService = payPropFileSyncService;
+        this.payPropSyncOrchestrator = payPropSyncOrchestrator;
         this.googleSheetsStatementService = googleSheetsStatementService;
         this.authenticationUtils = authenticationUtils;
     }
@@ -212,7 +212,7 @@ public class CustomerFilesController {
     }
 
     /**
-     * Sync PayProp files for customer
+     * Sync PayProp files for customer - UPDATED to use PayPropSyncOrchestrator
      */
     @PostMapping("/{customerId}/sync-payprop")
     public ResponseEntity<Map<String, String>> syncPayPropFiles(@PathVariable int customerId,
@@ -225,9 +225,15 @@ public class CustomerFilesController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Customer not found"));
             }
             
-            payPropFileSyncService.syncCustomerFiles(oAuthUser, customer);
+            // Use the integrated PayPropSyncOrchestrator approach
+            var result = payPropSyncOrchestrator.syncPayPropFiles(oAuthUser, oAuthUser.getUserId());
             
-            return ResponseEntity.ok(Map.of("success", "PayProp files synced successfully"));
+            if (result.isSuccess()) {
+                return ResponseEntity.ok(Map.of("success", "PayProp files synced successfully"));
+            } else {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "File sync completed with errors: " + result.getMessage()));
+            }
             
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -236,24 +242,24 @@ public class CustomerFilesController {
     }
 
     /**
-     * Sync all PayProp files (admin function)
+     * Sync all PayProp files (admin function) - UPDATED to use PayPropSyncOrchestrator
      */
     @PostMapping("/admin/sync-all-payprop")
     public ResponseEntity<Map<String, String>> syncAllPayPropFiles(Authentication authentication) {
         try {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             
-            // Run sync in background thread to avoid timeout
+            // Run comprehensive sync including files in background thread
             new Thread(() -> {
                 try {
-                    payPropFileSyncService.syncAllPayPropFiles(oAuthUser);
+                    payPropSyncOrchestrator.performUnifiedSync(oAuthUser, oAuthUser.getUserId());
                 } catch (Exception e) {
                     // Log error
-                    System.err.println("Error in PayProp sync: " + e.getMessage());
+                    System.err.println("Error in comprehensive PayProp sync: " + e.getMessage());
                 }
             }).start();
             
-            return ResponseEntity.ok(Map.of("success", "PayProp sync started in background"));
+            return ResponseEntity.ok(Map.of("success", "Comprehensive PayProp sync started in background"));
             
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
