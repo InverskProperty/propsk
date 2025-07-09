@@ -242,38 +242,6 @@ public class TenantController {
     // ===== EMPLOYEE TENANT MANAGEMENT =====
 
     /**
-     * Create Tenant Form - GET /employee/tenant/create-tenant
-     * This method provides the proper Tenant entity and properties list for the template
-     */
-    @GetMapping("/employee/tenant/create-tenant")
-    public String showCreateTenantForm(Model model, Authentication authentication) {
-        try {
-            // Create new Tenant entity (not Customer)
-            Tenant tenant = new Tenant();
-            tenant.setAccountType(AccountType.individual); // Default
-            tenant.setCountry("UK"); // Default
-            tenant.setNotifyEmail("Y"); // Default
-            tenant.setNotifyText("Y"); // Default
-            
-            // Get all properties for the dropdown - this was missing!
-            List<Property> properties = propertyService.findAll();
-            
-            // Add all required model attributes that the template expects
-            model.addAttribute("tenant", tenant);
-            model.addAttribute("properties", properties);
-            model.addAttribute("selectedProperty", null);
-            model.addAttribute("pageTitle", "Create New Tenant");
-            model.addAttribute("isEdit", false);
-            
-            return "employee/tenant/create-tenant"; // Correct template path
-            
-        } catch (Exception e) {
-            model.addAttribute("error", "Error loading create tenant form: " + e.getMessage());
-            return "error/500";
-        }
-    }
-
-    /**
      * Create Tenant - POST /employee/tenant/create-tenant
      * This method handles the form submission with proper Tenant entity
      */

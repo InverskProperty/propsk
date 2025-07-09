@@ -91,30 +91,6 @@ public class EmployeeController {
         return "employee/dashboard";
     }
 
-    // ===== TENANT MANAGEMENT (ENTITIES) =====
-    // NOTE: These handle Tenant entities, not Customer entities
-    
-    /**
-     * Show tenant creation form (Tenant entity, not Customer)
-     */
-    @GetMapping("/tenant/create-tenant")
-    public String showCreateTenantForm(@RequestParam(required = false) Long propertyId, 
-                                      Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-
-        model.addAttribute("tenant", new Tenant());
-        model.addAttribute("properties", propertyService.findAll());
-        
-        if (propertyId != null) {
-            Property property = propertyService.findById(propertyId);
-            model.addAttribute("selectedProperty", property);
-        }
-
-        return "employee/tenant/create-tenant";
-    }
-
     /**
      * Process tenant creation (Tenant entity, not Customer)
      */
