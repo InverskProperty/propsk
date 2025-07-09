@@ -18,6 +18,7 @@ import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentServi
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -1024,6 +1025,59 @@ public class PayPropSyncOrchestrator {
             property.setCountryCode((String) address.get("country_code"));
         }
         
+        // ✅ NEW: Settings mapping including monthly_payment
+        Map<String, Object> settings = (Map<String, Object>) data.get("settings");
+        if (settings != null) {
+            // Monthly payment - this is the critical field you're missing!
+            Object monthlyPayment = settings.get("monthly_payment");
+            if (monthlyPayment instanceof Number) {
+                property.setMonthlyPayment(new BigDecimal(monthlyPayment.toString()));
+                log.info("✅ Mapped monthly_payment: {} for property {}", monthlyPayment, property.getPayPropId());
+            }
+            
+            // Other settings fields
+            Object enablePayments = settings.get("enable_payments");
+            if (enablePayments instanceof Boolean) {
+                property.setEnablePaymentsFromBoolean((Boolean) enablePayments);
+            }
+            
+            Object holdOwnerFunds = settings.get("hold_owner_funds");
+            if (holdOwnerFunds instanceof Boolean) {
+                property.setHoldOwnerFundsFromBoolean((Boolean) holdOwnerFunds);
+            }
+            
+            Object verifyPayments = settings.get("verify_payments");
+            if (verifyPayments instanceof Boolean) {
+                property.setVerifyPaymentsFromBoolean((Boolean) verifyPayments);
+            }
+            
+            Object minimumBalance = settings.get("minimum_balance");
+            if (minimumBalance instanceof Number) {
+                property.setPropertyAccountMinimumBalance(new BigDecimal(minimumBalance.toString()));
+            }
+            
+            // Date fields
+            String listingFrom = (String) settings.get("listing_from");
+            if (listingFrom != null) {
+                try {
+                    property.setListedFrom(LocalDate.parse(listingFrom));
+                } catch (Exception e) {
+                    log.warn("Could not parse listing_from date: {}", listingFrom);
+                }
+            }
+            
+            String listingTo = (String) settings.get("listing_to");
+            if (listingTo != null) {
+                try {
+                    property.setListedUntil(LocalDate.parse(listingTo));
+                } catch (Exception e) {
+                    log.warn("Could not parse listing_to date: {}", listingTo);
+                }
+            }
+        } else {
+            log.warn("⚠️ No settings object found in PayProp data for property {}", data.get("id"));
+        }
+        
         return property;
     }
 
@@ -1041,6 +1095,59 @@ public class PayPropSyncOrchestrator {
             property.setState((String) address.get("state"));
             property.setPostcode((String) address.get("postal_code"));
             property.setCountryCode((String) address.get("country_code"));
+        }
+        
+        // ✅ NEW: Update settings including monthly_payment
+        Map<String, Object> settings = (Map<String, Object>) data.get("settings");
+        if (settings != null) {
+            // Monthly payment - this is the critical field you're missing!
+            Object monthlyPayment = settings.get("monthly_payment");
+            if (monthlyPayment instanceof Number) {
+                property.setMonthlyPayment(new BigDecimal(monthlyPayment.toString()));
+                log.info("✅ Updated monthly_payment: {} for property {}", monthlyPayment, property.getPayPropId());
+            }
+            
+            // Other settings updates
+            Object enablePayments = settings.get("enable_payments");
+            if (enablePayments instanceof Boolean) {
+                property.setEnablePaymentsFromBoolean((Boolean) enablePayments);
+            }
+            
+            Object holdOwnerFunds = settings.get("hold_owner_funds");
+            if (holdOwnerFunds instanceof Boolean) {
+                property.setHoldOwnerFundsFromBoolean((Boolean) holdOwnerFunds);
+            }
+            
+            Object verifyPayments = settings.get("verify_payments");
+            if (verifyPayments instanceof Boolean) {
+                property.setVerifyPaymentsFromBoolean((Boolean) verifyPayments);
+            }
+            
+            Object minimumBalance = settings.get("minimum_balance");
+            if (minimumBalance instanceof Number) {
+                property.setPropertyAccountMinimumBalance(new BigDecimal(minimumBalance.toString()));
+            }
+            
+            // Date fields
+            String listingFrom = (String) settings.get("listing_from");
+            if (listingFrom != null) {
+                try {
+                    property.setListedFrom(LocalDate.parse(listingFrom));
+                } catch (Exception e) {
+                    log.warn("Could not parse listing_from date: {}", listingFrom);
+                }
+            }
+            
+            String listingTo = (String) settings.get("listing_to");
+            if (listingTo != null) {
+                try {
+                    property.setListedUntil(LocalDate.parse(listingTo));
+                } catch (Exception e) {
+                    log.warn("Could not parse listing_to date: {}", listingTo);
+                }
+            }
+        } else {
+            log.warn("⚠️ No settings object found in PayProp data during update for property {}", property.getPayPropId());
         }
     }
 
