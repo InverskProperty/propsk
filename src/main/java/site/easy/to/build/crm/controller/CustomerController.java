@@ -273,9 +273,6 @@ public class CustomerController {
 
             // Filter by property ID if provided
             if (propertyId != null) {
-                System.out.println("🔍 DEBUG: Filtering tenants for propertyId: " + propertyId);
-                System.out.println("🔍 DEBUG: Total tenants before filtering: " + tenants.size());
-                
                 // Get customer IDs assigned as TENANT to this property from junction table
                 List<CustomerPropertyAssignment> propertyAssignments = 
                     customerPropertyAssignmentRepository.findByPropertyId(propertyId);
@@ -285,14 +282,10 @@ public class CustomerController {
                     .map(assignment -> assignment.getCustomer().getCustomerId())
                     .collect(Collectors.toList());
                 
-                System.out.println("🔍 DEBUG: Tenant customer IDs for property " + propertyId + ": " + tenantCustomerIds);
-                
                 // Filter tenants based on junction table assignments
                 tenants = tenants.stream()
                     .filter(tenant -> tenantCustomerIds.contains(tenant.getCustomerId()))
                     .collect(Collectors.toList());
-                    
-                System.out.println("🔍 DEBUG: Tenants after filtering: " + tenants.size());
                     
                 // Add property info to model for display
                 try {
@@ -494,9 +487,15 @@ public class CustomerController {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             User loggedInUser = userService.findById(userId);
             
-            // Check if user can access this customer
-            if (!customer.getUser().getId().equals(loggedInUser.getId()) && 
+            // Check if user can access this customer (handle NULL user relationship)
+            if (customer.getUser() != null && 
+                !customer.getUser().getId().equals(loggedInUser.getId()) && 
                 !loggedInUser.getRoles().stream().anyMatch(r -> r.getName().contains("MANAGER"))) {
+                return "redirect:/access-denied";
+            }
+            // If customer.getUser() is NULL, allow managers/employees to view (PayProp imported customers)
+            else if (customer.getUser() == null && 
+                    !loggedInUser.getRoles().stream().anyMatch(r -> r.getName().contains("MANAGER") || r.getName().contains("EMPLOYEE"))) {
                 return "redirect:/access-denied";
             }
 
@@ -511,10 +510,25 @@ public class CustomerController {
                 customerTypeDisplay = "Tenant";
                 backUrl = "/employee/customer/tenants";
                 
-                // Add property information for tenants
-                if (customer.getEntityId() != null) {
-                    Property property = propertyService.findById(customer.getEntityId());
-                    model.addAttribute("assignedProperty", property);
+                // Add property information for tenants using junction table
+                if (Boolean.TRUE.equals(customer.getIsTenant())) {
+                    try {
+                        List<CustomerPropertyAssignment> assignments = 
+                            customerPropertyAssignmentRepository.findByCustomerCustomerId(customer.getCustomerId());
+                        
+                        List<Property> assignedProperties = assignments.stream()
+                            .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
+                            .map(assignment -> assignment.getProperty())
+                            .collect(Collectors.toList());
+                            
+                        if (!assignedProperties.isEmpty()) {
+                            model.addAttribute("assignedProperty", assignedProperties.get(0)); // Primary property
+                            model.addAttribute("allAssignedProperties", assignedProperties); // All properties if multiple
+                        }
+                    } catch (Exception e) {
+                        // Handle property loading error gracefully
+                        System.err.println("Error loading properties for customer " + id + ": " + e.getMessage());
+                    }
                 }
             } else if (Boolean.TRUE.equals(customer.getIsContractor())) {
                 customerTypeDisplay = "Contractor";
