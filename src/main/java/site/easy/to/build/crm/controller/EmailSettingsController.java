@@ -70,7 +70,7 @@ public class EmailSettingsController {
         boolean isGoogleUser = !(authentication instanceof UsernamePasswordAuthenticationToken);
         if (isGoogleUser) {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-            gmailAccess = authenticationUtils.checkIfAppHasAccess("https://www.googleapis.com/auth/gmail.modify", oAuthUser);
+            gmailAccess = authenticationUtils.checkIfAppHasAccess("https://www.googleapis.com/auth/gmail.send", oAuthUser);
         }
 
         List<String> notifications = DatabaseUtil.getColumnNames(entityManager, foundClass.get());

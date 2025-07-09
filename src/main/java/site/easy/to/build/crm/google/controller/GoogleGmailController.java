@@ -59,7 +59,7 @@ public class GoogleGmailController {
             return "/google-error";
         }
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-        if(!oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.modify")){
+        if(!oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.send")){
             String link = "employee/settings/google-services";
             String code = "403";
             String buttonText = "Grant Access";

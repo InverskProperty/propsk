@@ -101,6 +101,7 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
             oAuthUser.getGrantedScopes().add("openid");
             oAuthUser.getGrantedScopes().add("email");
             oAuthUser.getGrantedScopes().add("profile");
+            oAuthUser.getGrantedScopes().add("https://www.googleapis.com/auth/gmail.send");  
             String email = ((DefaultOidcUser) authentication.getPrincipal()).getEmail();
             oAuthUser.setEmail(email);
             oAuthUserService.updateOAuthUserTokens(oAuthUser, oAuth2AccessToken, oAuth2RefreshToken);
