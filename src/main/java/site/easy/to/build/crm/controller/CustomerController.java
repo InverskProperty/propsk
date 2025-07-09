@@ -7,6 +7,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import site.easy.to.build.crm.entity.*;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.email.EmailService;
@@ -31,19 +32,23 @@ public class CustomerController {
     private final CustomerLoginInfoService customerLoginInfoService;
     private final AuthenticationUtils authenticationUtils;
     private final EmailService emailService;
+    private final CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
+
 
     @Autowired
     public CustomerController(CustomerService customerService, UserService userService, 
-                              PropertyService propertyService,
-                              CustomerLoginInfoService customerLoginInfoService,
-                              AuthenticationUtils authenticationUtils, 
-                              EmailService emailService) {
+                            PropertyService propertyService,
+                            CustomerLoginInfoService customerLoginInfoService,
+                            AuthenticationUtils authenticationUtils, 
+                            EmailService emailService,
+                            CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository) {
         this.customerService = customerService;
         this.userService = userService;
         this.propertyService = propertyService;
         this.customerLoginInfoService = customerLoginInfoService;
         this.authenticationUtils = authenticationUtils;
         this.emailService = emailService;
+        this.customerPropertyAssignmentRepository = customerPropertyAssignmentRepository;
     }
 
     // ===== MAIN CUSTOMER DASHBOARD =====
@@ -271,16 +276,20 @@ public class CustomerController {
                 System.out.println("🔍 DEBUG: Filtering tenants for propertyId: " + propertyId);
                 System.out.println("🔍 DEBUG: Total tenants before filtering: " + tenants.size());
                 
-                for (Customer tenant : tenants) {
-                    System.out.println("🔍 DEBUG: Tenant " + tenant.getCustomerId() + " (" + tenant.getName() + ") - entityId: " + tenant.getEntityId());
-                }
+                // Get customer IDs assigned as TENANT to this property from junction table
+                List<CustomerPropertyAssignment> propertyAssignments = 
+                    customerPropertyAssignmentRepository.findByPropertyId(propertyId);
                 
+                List<Integer> tenantCustomerIds = propertyAssignments.stream()
+                    .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
+                    .map(assignment -> assignment.getCustomer().getCustomerId())
+                    .collect(Collectors.toList());
+                
+                System.out.println("🔍 DEBUG: Tenant customer IDs for property " + propertyId + ": " + tenantCustomerIds);
+                
+                // Filter tenants based on junction table assignments
                 tenants = tenants.stream()
-                    .filter(tenant -> {
-                        boolean matches = tenant.getEntityId() != null && tenant.getEntityId().equals(propertyId);
-                        System.out.println("🔍 DEBUG: Tenant " + tenant.getName() + " matches property " + propertyId + ": " + matches);
-                        return matches;
-                    })
+                    .filter(tenant -> tenantCustomerIds.contains(tenant.getCustomerId()))
                     .collect(Collectors.toList());
                     
                 System.out.println("🔍 DEBUG: Tenants after filtering: " + tenants.size());
