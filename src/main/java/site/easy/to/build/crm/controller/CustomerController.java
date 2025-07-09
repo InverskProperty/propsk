@@ -19,6 +19,7 @@ import site.easy.to.build.crm.util.EmailTokenUtils;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -289,6 +290,67 @@ public class CustomerController {
         }
     }
 
+    /**
+     * Process email form for property owners
+     */
+    @PostMapping("/email-property-owners")
+    public String sendEmailToPropertyOwners(@RequestParam("subject") String subject,
+                                           @RequestParam("message") String message,
+                                           @RequestParam(value = "selectedIds", required = false) List<Integer> selectedIds,
+                                           @RequestParam(value = "emailAll", defaultValue = "false") boolean emailAll,
+                                           Authentication authentication,
+                                           RedirectAttributes redirectAttributes) {
+        
+        if (!emailService.isGmailApiAvailable(authentication)) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Gmail API access required. Please ensure you're logged in with Google and have granted Gmail permissions.");
+            return "redirect:/employee/customer/email-property-owners";
+        }
+        
+        try {
+            List<Customer> propertyOwners;
+            
+            if (emailAll || selectedIds == null || selectedIds.isEmpty()) {
+                // Email all property owners
+                propertyOwners = customerService.findPropertyOwners();
+            } else {
+                // Email only selected property owners
+                propertyOwners = selectedIds.stream()
+                    .map(customerService::findByCustomerId)
+                    .filter(customer -> customer != null && Boolean.TRUE.equals(customer.getIsPropertyOwner()))
+                    .collect(Collectors.toList());
+            }
+            
+            // Filter out customers with invalid email addresses
+            List<Customer> validCustomers = propertyOwners.stream()
+                .filter(customer -> emailService.isValidEmail(customer.getEmail()))
+                .collect(Collectors.toList());
+                
+            if (validCustomers.isEmpty()) {
+                redirectAttributes.addFlashAttribute("warningMessage", 
+                    "No property owners with valid email addresses found.");
+                return "redirect:/employee/customer/property-owners";
+            }
+            
+            int emailsSent = emailService.sendBulkEmail(validCustomers, subject, message, authentication);
+            
+            if (emailsSent > 0) {
+                redirectAttributes.addFlashAttribute("successMessage", 
+                    String.format("Successfully sent email to %d out of %d property owners.", 
+                        emailsSent, validCustomers.size()));
+            } else {
+                redirectAttributes.addFlashAttribute("errorMessage", 
+                    "Failed to send emails. Please check your Gmail API access and try again.");
+            }
+            
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Error sending bulk email: " + e.getMessage());
+        }
+        
+        return "redirect:/employee/customer/property-owners";
+    }
+
     // ===== TENANTS SECTION =====
 
     @GetMapping("/tenants")
@@ -424,6 +486,107 @@ public class CustomerController {
             model.addAttribute("error", "Error loading email form: " + e.getMessage());
             return "error/500";
         }
+    }
+
+    /**
+     * Process email form for tenants
+     */
+    @PostMapping("/email-tenants")
+    public String sendEmailToTenants(@RequestParam("subject") String subject,
+                                    @RequestParam("message") String message,
+                                    @RequestParam(value = "selectedIds", required = false) List<Integer> selectedIds,
+                                    @RequestParam(value = "emailAll", defaultValue = "false") boolean emailAll,
+                                    @RequestParam(value = "activeOnly", defaultValue = "false") boolean activeOnly,
+                                    @RequestParam(value = "propertyId", required = false) Long propertyId,
+                                    Authentication authentication,
+                                    RedirectAttributes redirectAttributes) {
+        
+        if (!emailService.isGmailApiAvailable(authentication)) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Gmail API access required. Please ensure you're logged in with Google and have granted Gmail permissions.");
+            return "redirect:/employee/customer/email-tenants";
+        }
+        
+        try {
+            List<Customer> tenants;
+            
+            if (emailAll || selectedIds == null || selectedIds.isEmpty()) {
+                // Get tenants based on filters
+                if (propertyId != null) {
+                    // Email tenants for specific property using junction table
+                    List<CustomerPropertyAssignment> propertyAssignments = 
+                        customerPropertyAssignmentRepository.findByPropertyId(propertyId);
+                    
+                    List<Integer> tenantCustomerIds = propertyAssignments.stream()
+                        .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
+                        .map(assignment -> assignment.getCustomer().getCustomerId())
+                        .collect(Collectors.toList());
+                    
+                    tenants = customerService.findTenants().stream()
+                        .filter(tenant -> tenantCustomerIds.contains(tenant.getCustomerId()))
+                        .collect(Collectors.toList());
+                        
+                } else if (activeOnly) {
+                    // Email only active tenants (those with property assignments)
+                    List<CustomerPropertyAssignment> activeAssignments = customerPropertyAssignmentRepository
+                        .findByAssignmentType(AssignmentType.TENANT);
+                    
+                    List<Integer> activeTenantIds = activeAssignments.stream()
+                        .map(assignment -> assignment.getCustomer().getCustomerId())
+                        .distinct()
+                        .collect(Collectors.toList());
+                        
+                    tenants = customerService.findTenants().stream()
+                        .filter(tenant -> activeTenantIds.contains(tenant.getCustomerId()))
+                        .collect(Collectors.toList());
+                } else {
+                    // Email all tenants
+                    tenants = customerService.findTenants();
+                }
+            } else {
+                // Email only selected tenants
+                tenants = selectedIds.stream()
+                    .map(customerService::findByCustomerId)
+                    .filter(customer -> customer != null && Boolean.TRUE.equals(customer.getIsTenant()))
+                    .collect(Collectors.toList());
+            }
+            
+            // Filter out customers with invalid email addresses
+            List<Customer> validCustomers = tenants.stream()
+                .filter(customer -> emailService.isValidEmail(customer.getEmail()))
+                .collect(Collectors.toList());
+                
+            if (validCustomers.isEmpty()) {
+                String filterDesc = propertyId != null ? "for this property" : 
+                                   activeOnly ? "with active tenancies" : "";
+                redirectAttributes.addFlashAttribute("warningMessage", 
+                    "No tenants " + filterDesc + " with valid email addresses found.");
+                return "redirect:/employee/customer/tenants" + (propertyId != null ? "?propertyId=" + propertyId : "");
+            }
+            
+            int emailsSent = emailService.sendBulkEmail(validCustomers, subject, message, authentication);
+            
+            if (emailsSent > 0) {
+                String filterDesc = propertyId != null ? " for property ID " + propertyId : 
+                                   activeOnly ? " with active tenancies" : "";
+                redirectAttributes.addFlashAttribute("successMessage", 
+                    String.format("Successfully sent email to %d out of %d tenants%s.", 
+                        emailsSent, validCustomers.size(), filterDesc));
+            } else {
+                redirectAttributes.addFlashAttribute("errorMessage", 
+                    "Failed to send emails. Please check your Gmail API access and try again.");
+            }
+            
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Error sending bulk email: " + e.getMessage());
+        }
+        
+        String returnUrl = "redirect:/employee/customer/tenants";
+        if (propertyId != null) {
+            returnUrl += "?propertyId=" + propertyId;
+        }
+        return returnUrl;
     }
 
     // ===== CONTRACTORS SECTION =====
@@ -1261,6 +1424,193 @@ public class CustomerController {
         }
         
         return "redirect:/employee/customer/dashboard";
+    }
+
+    /**
+     * Enhanced bulk email with advanced filtering
+     */
+    @PostMapping("/send-bulk-email")
+    public String sendAdvancedBulkEmail(@RequestParam("customerType") String customerType,
+                                       @RequestParam("subject") String subject,
+                                       @RequestParam("message") String message,
+                                       @RequestParam(value = "propertyId", required = false) Long propertyId,
+                                       @RequestParam(value = "activeOnly", defaultValue = "false") boolean activeOnly,
+                                       @RequestParam(value = "city", required = false) String city,
+                                       Authentication authentication,
+                                       RedirectAttributes redirectAttributes) {
+        
+        if (!emailService.isGmailApiAvailable(authentication)) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Gmail API access required for bulk email functionality");
+            return "redirect:/employee/customer/dashboard";
+        }
+        
+        try {
+            List<Customer> customers = new ArrayList<>();
+            String filterDescription = "";
+            
+            // Get customers based on type and filters
+            switch (customerType.toLowerCase()) {
+                case "property-owners":
+                    customers = customerService.findPropertyOwners();
+                    filterDescription = "property owners";
+                    
+                    // Filter by property if specified
+                    if (propertyId != null) {
+                        List<CustomerPropertyAssignment> propertyAssignments = 
+                            customerPropertyAssignmentRepository.findByPropertyId(propertyId);
+                        
+                        List<Integer> ownerCustomerIds = propertyAssignments.stream()
+                            .filter(assignment -> assignment.getAssignmentType() == AssignmentType.OWNER)
+                            .map(assignment -> assignment.getCustomer().getCustomerId())
+                            .collect(Collectors.toList());
+                        
+                        customers = customers.stream()
+                            .filter(owner -> ownerCustomerIds.contains(owner.getCustomerId()))
+                            .collect(Collectors.toList());
+                            
+                        filterDescription += " for property ID " + propertyId;
+                    }
+                    break;
+                    
+                case "tenants":
+                    if (activeOnly) {
+                        // Get only tenants with active property assignments
+                        List<CustomerPropertyAssignment> activeAssignments = customerPropertyAssignmentRepository
+                            .findByAssignmentType(AssignmentType.TENANT);
+                        
+                        List<Integer> activeTenantIds = activeAssignments.stream()
+                            .map(assignment -> assignment.getCustomer().getCustomerId())
+                            .distinct()
+                            .collect(Collectors.toList());
+                            
+                        customers = customerService.findTenants().stream()
+                            .filter(tenant -> activeTenantIds.contains(tenant.getCustomerId()))
+                            .collect(Collectors.toList());
+                            
+                        filterDescription = "active tenants";
+                    } else {
+                        customers = customerService.findTenants();
+                        filterDescription = "tenants";
+                    }
+                    
+                    // Filter by property if specified
+                    if (propertyId != null) {
+                        List<CustomerPropertyAssignment> propertyAssignments = 
+                            customerPropertyAssignmentRepository.findByPropertyId(propertyId);
+                        
+                        List<Integer> tenantCustomerIds = propertyAssignments.stream()
+                            .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
+                            .map(assignment -> assignment.getCustomer().getCustomerId())
+                            .collect(Collectors.toList());
+                        
+                        customers = customers.stream()
+                            .filter(tenant -> tenantCustomerIds.contains(tenant.getCustomerId()))
+                            .collect(Collectors.toList());
+                            
+                        if (!filterDescription.contains("property")) {
+                            filterDescription += " for property ID " + propertyId;
+                        }
+                    }
+                    break;
+                    
+                case "contractors":
+                    customers = customerService.findContractors();
+                    filterDescription = "contractors";
+                    break;
+                    
+                default:
+                    customers = customerService.findAll();
+                    filterDescription = "all customers";
+                    break;
+            }
+            
+            // Apply city filter if specified
+            if (city != null && !city.trim().isEmpty()) {
+                customers = customers.stream()
+                    .filter(c -> c.getCity() != null && c.getCity().toLowerCase().contains(city.toLowerCase()))
+                    .collect(Collectors.toList());
+                filterDescription += " in " + city;
+            }
+            
+            // Filter out customers with invalid email addresses
+            List<Customer> validCustomers = customers.stream()
+                .filter(customer -> emailService.isValidEmail(customer.getEmail()))
+                .collect(Collectors.toList());
+                
+            if (validCustomers.isEmpty()) {
+                redirectAttributes.addFlashAttribute("warningMessage", 
+                    "No " + filterDescription + " with valid email addresses found.");
+                return "redirect:/employee/customer/dashboard";
+            }
+            
+            int emailsSent = emailService.sendBulkEmail(validCustomers, subject, message, authentication);
+            
+            if (emailsSent > 0) {
+                redirectAttributes.addFlashAttribute("successMessage", 
+                    String.format("Successfully sent bulk email to %d out of %d %s.", 
+                        emailsSent, validCustomers.size(), filterDescription));
+            } else {
+                redirectAttributes.addFlashAttribute("errorMessage", 
+                    "Failed to send emails. Please check your Gmail API access and try again.");
+            }
+            
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Error sending bulk email: " + e.getMessage());
+        }
+        
+        return "redirect:/employee/customer/dashboard";
+    }
+
+    /**
+     * Advanced email form with filtering options
+     */
+    @GetMapping("/bulk-email-form")
+    public String showBulkEmailForm(@RequestParam(value = "type", required = false) String customerType,
+                                   @RequestParam(value = "propertyId", required = false) Long propertyId,
+                                   Model model, Authentication authentication) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User user = userService.findById(userId);
+            
+            if (!emailService.isGmailApiAvailable(authentication)) {
+                model.addAttribute("gmailError", "Gmail API access required. Please log in with Google and grant Gmail permissions.");
+            }
+            
+            // Get all properties for property filtering dropdown
+            List<Property> properties = propertyService.findAll();
+            
+            // Get customer counts for display
+            int propertyOwnersCount = customerService.findPropertyOwners().size();
+            int tenantsCount = customerService.findTenants().size();
+            int contractorsCount = customerService.findContractors().size();
+            
+            // Get active tenant count (tenants with property assignments)
+            List<CustomerPropertyAssignment> activeAssignments = customerPropertyAssignmentRepository
+                .findByAssignmentType(AssignmentType.TENANT);
+            int activeTenantsCount = (int) activeAssignments.stream()
+                .map(assignment -> assignment.getCustomer().getCustomerId())
+                .distinct()
+                .count();
+            
+            model.addAttribute("properties", properties);
+            model.addAttribute("propertyOwnersCount", propertyOwnersCount);
+            model.addAttribute("tenantsCount", tenantsCount);
+            model.addAttribute("activeTenantsCount", activeTenantsCount);
+            model.addAttribute("contractorsCount", contractorsCount);
+            model.addAttribute("selectedCustomerType", customerType);
+            model.addAttribute("selectedPropertyId", propertyId);
+            model.addAttribute("user", user);
+            model.addAttribute("pageTitle", "Send Bulk Email");
+            model.addAttribute("backUrl", "/employee/customer/dashboard");
+            
+            return "customer/bulk-email-form";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading bulk email form: " + e.getMessage());
+            return "error/500";
+        }
     }
     
     @PostMapping("/{id:[0-9]+}/send-email")

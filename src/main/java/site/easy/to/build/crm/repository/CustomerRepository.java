@@ -33,6 +33,9 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
 
     List<Customer> findByEmailContainingIgnoreCase(String email);
     List<Customer> findByNameContainingIgnoreCase(String name);
+    
+    // ✅ ADDED: Missing search method for email functionality
+    List<Customer> findByNameContainingIgnoreCaseOrEmailContainingIgnoreCase(String name, String email);
 
     // ===== CUSTOMER TYPE METHODS =====
     @Query("SELECT c FROM Customer c WHERE c.customerType = :customerType")
@@ -89,7 +92,7 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
            "(c.description IS NULL OR c.description NOT LIKE '%Inactive%')")
     List<Customer> findAvailableContractors();
 
-    // ===== REPORTING QUERIES (FIXED - NO DUPLICATES) =====
+    // ===== REPORTING QUERIES =====
     @Query("SELECT COUNT(c) FROM Customer c WHERE c.customerType = :customerType")
     long countByCustomerType(@Param("customerType") CustomerType customerType);
 
@@ -101,4 +104,14 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
 
     @Query("SELECT COUNT(c) FROM Customer c WHERE c.isContractor = true OR c.customerType = 'CONTRACTOR'")
     long countContractors();
+
+    // ✅ ADDED: Additional compatibility methods from paste.txt
+    @Query("SELECT c FROM Customer c WHERE c.customerType = 'PROPERTY_OWNER' OR c.isPropertyOwner = true")
+    List<Customer> findAllPropertyOwners();
+    
+    @Query("SELECT c FROM Customer c WHERE c.customerType = 'TENANT' OR c.isTenant = true")
+    List<Customer> findAllTenants();
+    
+    @Query("SELECT c FROM Customer c WHERE c.customerType = 'CONTRACTOR' OR c.isContractor = true")
+    List<Customer> findAllContractors();
 }

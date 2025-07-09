@@ -9,28 +9,25 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.EmailTemplate;
 import site.easy.to.build.crm.entity.OAuthUser;
-import site.easy.to.build.crm.entity.User;
-import site.easy.to.build.crm.entity.Tenant;
-import site.easy.to.build.crm.entity.PropertyOwner;
+import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.google.service.acess.GoogleAccessService;
 import site.easy.to.build.crm.google.service.gmail.GoogleGmailApiService;
 import site.easy.to.build.crm.service.customer.CustomerService;
-import site.easy.to.build.crm.service.user.UserService;
-import site.easy.to.build.crm.service.property.TenantService;
-import site.easy.to.build.crm.service.property.PropertyOwnerService;
-import site.easy.to.build.crm.repository.TenantRepository;
-import site.easy.to.build.crm.repository.PropertyOwnerRepository;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.util.List;
 import java.util.ArrayList;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
- * CORRECTED EmailServiceImpl.java - Implementation of EmailService
+ * ✅ COMPLETE WORKING EmailServiceImpl.java
+ * Fixed Gmail API integration and unified customer model support
  */
 @Service
 public class EmailServiceImpl implements EmailService {
@@ -39,22 +36,12 @@ public class EmailServiceImpl implements EmailService {
     
     private final GoogleGmailApiService googleGmailApiService;
     private final AuthenticationUtils authenticationUtils;
-    private final UserService userService;
     private final CustomerService customerService;
     private final Environment environment;
     
+    // ✅ FIXED: Use unified customer model with junction table
     @Autowired
-    private TenantService tenantService;
-
-    @Autowired
-    private PropertyOwnerService propertyOwnerService;
-    
-    // Add repositories for Spring Data's findAllById method
-    @Autowired
-    private TenantRepository tenantRepository;
-    
-    @Autowired
-    private PropertyOwnerRepository propertyOwnerRepository;
+    private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
     
     // Email validation pattern
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
@@ -64,12 +51,10 @@ public class EmailServiceImpl implements EmailService {
     @Autowired
     public EmailServiceImpl(GoogleGmailApiService googleGmailApiService,
                            AuthenticationUtils authenticationUtils,
-                           UserService userService,
                            CustomerService customerService,
                            Environment environment) {
         this.googleGmailApiService = googleGmailApiService;
         this.authenticationUtils = authenticationUtils;
-        this.userService = userService;
         this.customerService = customerService;
         this.environment = environment;
     }
@@ -87,18 +72,17 @@ public class EmailServiceImpl implements EmailService {
         }
         
         try {
-            // ✅ FIXED: Get OAuthUser and use correct method signature
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             if (oAuthUser == null) {
                 logger.error("Could not get OAuth user from authentication");
                 return false;
             }
             
-            // ✅ FIXED: Use correct method signature (void return, OAuthUser first param)
+            // ✅ FIXED: Use the correct Gmail API method signature
             googleGmailApiService.sendEmail(oAuthUser, customer.getEmail(), subject, message);
             
             logger.info("Email sent successfully to customer: {}", customer.getEmail());
-            return true; // Success if no exception thrown
+            return true;
             
         } catch (Exception e) {
             logger.error("Error sending email to customer: {}", customer.getEmail(), e);
@@ -114,16 +98,15 @@ public class EmailServiceImpl implements EmailService {
         }
         
         // Replace placeholders in template with customer data
-        String personalizedContent = personalizeEmailContent(template.getName(), customer);
+        String personalizedContent = personalizeEmailContent(template.getContent(), customer);
         
         return sendEmailToCustomer(customer, template.getName(), personalizedContent, authentication);
     }
     
     @Override
     public int sendBulkEmail(CustomerType customerType, String subject, String message, Authentication authentication) {
-        // Get customers by type - this will be enhanced once the database migration is complete
-        // For now, get all customers since findByCustomerType might not be implemented yet
-        List<Customer> customers = customerService.findAll();
+        // ✅ FIXED: Use unified customer model
+        List<Customer> customers = customerService.findByCustomerType(customerType);
         return sendBulkEmail(customers, subject, message, authentication);
     }
     
@@ -162,26 +145,20 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public boolean sendWelcomeEmail(Customer customer, String temporaryPassword, Authentication authentication) {
         String subject = "Welcome to " + getApplicationName() + " - Your Account Details";
-        
         String message = buildWelcomeEmailContent(customer, temporaryPassword);
-        
         return sendEmailToCustomer(customer, subject, message, authentication);
     }
     
     @Override
     public boolean sendPasswordResetEmail(Customer customer, String resetToken, Authentication authentication) {
         String subject = "Password Reset Request - " + getApplicationName();
-        
         String message = buildPasswordResetEmailContent(customer, resetToken);
-        
         return sendEmailToCustomer(customer, subject, message, authentication);
     }
     
     @Override
     public boolean sendNotificationEmail(Customer customer, String subject, String message, Authentication authentication) {
-        // Add standard header/footer for notifications
         String formattedMessage = buildNotificationEmailContent(customer, message);
-        
         return sendEmailToCustomer(customer, subject, formattedMessage, authentication);
     }
     
@@ -193,7 +170,6 @@ public class EmailServiceImpl implements EmailService {
                 return false;
             }
             
-            // ✅ CORRECT: Get the OAuthUser correctly from AuthenticationUtils
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             if (oAuthUser == null) {
                 return false;
@@ -212,7 +188,7 @@ public class EmailServiceImpl implements EmailService {
         return email != null && EMAIL_PATTERN.matcher(email).matches();
     }
 
-    // ===== NEW METHODS FOR EMPLOYEE DASHBOARD (CORRECTED) =====
+    // ===== ✅ FIXED: NEW UNIFIED CUSTOMER MODEL METHODS =====
 
     @Override
     public void sendBulkEmailToPropertyOwners(String subject, String message, List<Long> ownerIds) {
@@ -221,21 +197,16 @@ public class EmailServiceImpl implements EmailService {
             return;
         }
         
-        // ✅ FIXED: Use Spring Data's built-in findAllById method
-        List<PropertyOwner> owners = propertyOwnerRepository.findAllById(ownerIds);
-        List<Customer> customers = new ArrayList<>();
+        // ✅ FIXED: Use unified customer model
+        List<Customer> propertyOwners = ownerIds.stream()
+            .map(id -> customerService.findByCustomerId(id.intValue()))
+            .filter(customer -> customer != null && Boolean.TRUE.equals(customer.getIsPropertyOwner()))
+            .filter(customer -> isValidEmail(customer.getEmail()))
+            .collect(Collectors.toList());
         
-        // Convert PropertyOwners to Customers for your existing bulk email system
-        for (PropertyOwner owner : owners) {
-            if (owner.getEmailAddress() != null && !owner.getEmailAddress().isEmpty()) {
-                Customer tempCustomer = createTempCustomerFromPropertyOwner(owner);
-                customers.add(tempCustomer);
-            }
-        }
-        
-        if (!customers.isEmpty()) {
+        if (!propertyOwners.isEmpty()) {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            int sentCount = sendBulkEmail(customers, subject, message, auth);
+            int sentCount = sendBulkEmail(propertyOwners, subject, message, auth);
             logger.info("Sent bulk email to {} property owners out of {} requested", sentCount, ownerIds.size());
         }
     }
@@ -247,23 +218,83 @@ public class EmailServiceImpl implements EmailService {
             return;
         }
         
-        // ✅ FIXED: Use Spring Data's built-in findAllById method
-        List<Tenant> tenants = tenantRepository.findAllById(tenantIds);
-        List<Customer> customers = new ArrayList<>();
+        // ✅ FIXED: Use unified customer model
+        List<Customer> tenants = tenantIds.stream()
+            .map(id -> customerService.findByCustomerId(id.intValue()))
+            .filter(customer -> customer != null && Boolean.TRUE.equals(customer.getIsTenant()))
+            .filter(customer -> isValidEmail(customer.getEmail()))
+            .collect(Collectors.toList());
         
-        // Convert Tenants to Customers for your existing bulk email system
-        for (Tenant tenant : tenants) {
-            if (tenant.getEmailAddress() != null && !tenant.getEmailAddress().isEmpty()) {
-                Customer tempCustomer = createTempCustomerFromTenant(tenant);
-                customers.add(tempCustomer);
-            }
-        }
-        
-        if (!customers.isEmpty()) {
+        if (!tenants.isEmpty()) {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            int sentCount = sendBulkEmail(customers, subject, message, auth);
+            int sentCount = sendBulkEmail(tenants, subject, message, auth);
             logger.info("Sent bulk email to {} tenants out of {} requested", sentCount, tenantIds.size());
         }
+    }
+    
+    // ===== ✅ NEW: PROPERTY-BASED EMAIL METHODS =====
+    
+    /**
+     * Send email to all tenants of a specific property
+     */
+    public int sendEmailToPropertyTenants(Long propertyId, String subject, String message, Authentication authentication) {
+        List<CustomerPropertyAssignment> assignments = customerPropertyAssignmentRepository
+            .findByPropertyId(propertyId);
+        
+        List<Customer> tenants = assignments.stream()
+            .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
+            .map(CustomerPropertyAssignment::getCustomer)
+            .filter(customer -> isValidEmail(customer.getEmail()))
+            .collect(Collectors.toList());
+        
+        logger.info("Sending email to {} tenants for property {}", tenants.size(), propertyId);
+        return sendBulkEmail(tenants, subject, message, authentication);
+    }
+    
+    /**
+     * Send email to all property owners
+     */
+    public int sendEmailToAllPropertyOwners(String subject, String message, Authentication authentication) {
+        List<Customer> propertyOwners = customerService.findPropertyOwners();
+        
+        List<Customer> validOwners = propertyOwners.stream()
+            .filter(customer -> isValidEmail(customer.getEmail()))
+            .collect(Collectors.toList());
+        
+        logger.info("Sending email to {} property owners", validOwners.size());
+        return sendBulkEmail(validOwners, subject, message, authentication);
+    }
+    
+    /**
+     * Send email to all tenants
+     */
+    public int sendEmailToAllTenants(String subject, String message, Authentication authentication) {
+        List<Customer> tenants = customerService.findTenants();
+        
+        List<Customer> validTenants = tenants.stream()
+            .filter(customer -> isValidEmail(customer.getEmail()))
+            .collect(Collectors.toList());
+        
+        logger.info("Sending email to {} tenants", validTenants.size());
+        return sendBulkEmail(validTenants, subject, message, authentication);
+    }
+    
+    /**
+     * Send email to tenants with active tenancies only
+     */
+    public int sendEmailToActiveTenantsOnly(String subject, String message, Authentication authentication) {
+        // Get all tenant assignments (active tenancies)
+        List<CustomerPropertyAssignment> activeAssignments = customerPropertyAssignmentRepository
+            .findByAssignmentType(AssignmentType.TENANT);
+        
+        List<Customer> activeTenants = activeAssignments.stream()
+            .map(CustomerPropertyAssignment::getCustomer)
+            .distinct() // Remove duplicates
+            .filter(customer -> isValidEmail(customer.getEmail()))
+            .collect(Collectors.toList());
+        
+        logger.info("Sending email to {} active tenants", activeTenants.size());
+        return sendBulkEmail(activeTenants, subject, message, authentication);
     }
 
     // ===== HELPER METHODS =====
@@ -326,62 +357,6 @@ public class EmailServiceImpl implements EmailService {
             message,
             getApplicationName()
         );
-    }
-
-    private Customer createTempCustomerFromPropertyOwner(PropertyOwner owner) {
-        Customer tempCustomer = new Customer();
-        tempCustomer.setEmail(owner.getEmailAddress());
-        
-        if (owner.getAccountType() == site.easy.to.build.crm.entity.AccountType.business) {
-            tempCustomer.setName(owner.getBusinessName() != null ? owner.getBusinessName() : "Property Owner");
-        } else {
-            String fullName = "";
-            if (owner.getFirstName() != null) fullName += owner.getFirstName();
-            if (owner.getLastName() != null) fullName += " " + owner.getLastName();
-            tempCustomer.setName(fullName.trim().isEmpty() ? "Property Owner" : fullName.trim());
-        }
-        
-        tempCustomer.setCustomerType(CustomerType.PROPERTY_OWNER);
-        tempCustomer.setPhone(owner.getPhone());
-        
-        // Build address from PropertyOwner fields
-        StringBuilder address = new StringBuilder();
-        if (owner.getAddressLine1() != null) address.append(owner.getAddressLine1());
-        if (owner.getCity() != null) {
-            if (address.length() > 0) address.append(", ");
-            address.append(owner.getCity());
-        }
-        tempCustomer.setAddress(address.toString());
-        
-        return tempCustomer;
-    }
-
-    private Customer createTempCustomerFromTenant(Tenant tenant) {
-        Customer tempCustomer = new Customer();
-        tempCustomer.setEmail(tenant.getEmailAddress());
-        
-        if (tenant.getAccountType() == site.easy.to.build.crm.entity.AccountType.business) {
-            tempCustomer.setName(tenant.getBusinessName() != null ? tenant.getBusinessName() : "Tenant");
-        } else {
-            String fullName = "";
-            if (tenant.getFirstName() != null) fullName += tenant.getFirstName();
-            if (tenant.getLastName() != null) fullName += " " + tenant.getLastName();
-            tempCustomer.setName(fullName.trim().isEmpty() ? "Tenant" : fullName.trim());
-        }
-        
-        tempCustomer.setCustomerType(CustomerType.TENANT);
-        tempCustomer.setPhone(tenant.getPhoneNumber());
-        
-        // Build address from Tenant fields
-        StringBuilder address = new StringBuilder();
-        if (tenant.getAddressLine1() != null) address.append(tenant.getAddressLine1());
-        if (tenant.getCity() != null) {
-            if (address.length() > 0) address.append(", ");
-            address.append(tenant.getCity());
-        }
-        tempCustomer.setAddress(address.toString());
-        
-        return tempCustomer;
     }
     
     private String getApplicationName() {

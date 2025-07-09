@@ -347,5 +347,4 @@ public class CustomerServiceImpl implements CustomerService {
     public long countByCustomerType(CustomerType customerType) {
         return customerRepository.countByCustomerType(customerType);
     }
-
 }
