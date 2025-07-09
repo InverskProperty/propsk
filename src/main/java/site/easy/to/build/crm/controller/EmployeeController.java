@@ -91,32 +91,6 @@ public class EmployeeController {
         return "employee/dashboard";
     }
 
-    /**
-     * Process tenant creation (Tenant entity, not Customer)
-     */
-    @PostMapping("/tenant/create-tenant")
-    public String createTenant(@Valid @ModelAttribute Tenant tenant,
-                              BindingResult result,
-                              RedirectAttributes redirectAttributes,
-                              Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-
-        if (result.hasErrors()) {
-            return "employee/tenant/create-tenant";
-        }
-
-        try {
-            tenantService.save(tenant);
-            redirectAttributes.addFlashAttribute("successMessage", "Tenant created successfully");
-            return "redirect:/employee/customer/tenants"; // Redirect to CustomerController
-        } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("errorMessage", "Error creating tenant: " + e.getMessage());
-            return "redirect:/employee/tenant/create-tenant";
-        }
-    }
-
     // ===== AJAX/API ENDPOINTS =====
 
     /**

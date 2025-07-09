@@ -242,50 +242,6 @@ public class TenantController {
     // ===== EMPLOYEE TENANT MANAGEMENT =====
 
     /**
-     * Create Tenant - POST /employee/tenant/create-tenant
-     * This method handles the form submission with proper Tenant entity
-     */
-    @PostMapping("/employee/tenant/create-tenant")
-    public String createTenant(@ModelAttribute Tenant tenant, 
-                              Authentication authentication,
-                              RedirectAttributes redirectAttributes) {
-        try {
-            // Set audit fields
-            tenant.setCreatedAt(LocalDateTime.now());
-            tenant.setUpdatedAt(LocalDateTime.now());
-            
-            // Generate PayProp customer ID if not set
-            if (tenant.getPayPropCustomerId() == null || tenant.getPayPropCustomerId().isEmpty()) {
-                tenant.setPayPropCustomerId("TENANT_" + System.currentTimeMillis());
-            }
-            
-            // Set default status
-            if (tenant.getStatus() == null || tenant.getStatus().isEmpty()) {
-                tenant.setStatus("Active");
-            }
-            
-            // Set default tenancy status
-            if (tenant.getTenancyStatus() == null || tenant.getTenancyStatus().isEmpty()) {
-                tenant.setTenancyStatus("active");
-            }
-            
-            // Save the tenant using TenantService (not CustomerService)
-            Tenant savedTenant = tenantService.save(tenant);
-            
-            redirectAttributes.addFlashAttribute("successMessage", 
-                "Tenant " + savedTenant.getFullName() + " created successfully!");
-            
-            // Redirect to tenant list (in CustomerController)
-            return "redirect:/employee/customer/tenants";
-            
-        } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("errorMessage", 
-                "Error creating tenant: " + e.getMessage());
-            return "redirect:/employee/tenant/create-tenant";
-        }
-    }
-
-    /**
      * Edit Tenant Form - GET /employee/tenant/{id}/edit
      * Allow editing existing tenants
      */
