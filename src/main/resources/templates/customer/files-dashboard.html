@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Files - <span th:text="${customer.name}"></span></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center py-3">
+                    <h2><i class="fas fa-folder-open"></i> Files for <span th:text="${customer.name}"></span></h2>
+                    <div>
+                        <span class="badge bg-primary" th:text="${customer.customerType}"></span>
+                        <span class="badge bg-info" th:text="${customer.email}"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions Row -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- File Upload -->
+                            <div class="col-md-4">
+                                <h5><i class="fas fa-upload"></i> Upload File</h5>
+                                <form th:action="@{/customer/files/{customerId}/upload(customerId=${customer.customerId})}" 
+                                      method="post" enctype="multipart/form-data">
+                                    <div class="mb-2">
+                                        <input type="file" class="form-control" name="file" required>
+                                    </div>
+                                    <div class="mb-2">
+                                        <select class="form-select" name="category" required>
+                                            <option value="">Select Category</option>
+                                            <option value="Tenancy" th:if="${customer.customerType == 'TENANT'}">Tenancy</option>
+                                            <option value="Right to Rent" th:if="${customer.customerType == 'TENANT'}">Right to Rent</option>
+                                            <option value="ID" th:if="${customer.customerType == 'TENANT'}">ID</option>
+                                            <option value="Deposit Details" th:if="${customer.customerType == 'TENANT'}">Deposit Details</option>
+                                            <option value="Management Agreement" th:if="${customer.customerType == 'PROPERTY_OWNER'}">Management Agreement</option>
+                                            <option value="EPC" th:if="${customer.customerType == 'PROPERTY_OWNER'}">EPC</option>
+                                            <option value="Insurance" th:if="${customer.customerType == 'PROPERTY_OWNER'}">Insurance</option>
+                                            <option value="EICR" th:if="${customer.customerType == 'PROPERTY_OWNER'}">EICR</option>
+                                            <option value="Statements">Statements</option>
+                                            <option value="Invoices">Invoices</option>
+                                            <option value="Letters">Letters</option>
+                                            <option value="Misc">Misc</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <input type="text" class="form-control" name="description" placeholder="Description (optional)">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-upload"></i> Upload
+                                    </button>
+                                </form>
+                            </div>
+
+                            <!-- Statement Generation -->
+                            <div class="col-md-4" th:if="${canGenerateStatements}">
+                                <h5><i class="fas fa-file-alt"></i> Generate Statements</h5>
+                                <div class="mb-2">
+                                    <label class="form-label">Period:</label>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <input type="date" class="form-control" id="fromDate" name="fromDate">
+                                        </div>
+                                        <div class="col-6">
+                                            <input type="date" class="form-control" id="toDate" name="toDate">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="btn-group-vertical w-100" role="group">
+                                    <button class="btn btn-success btn-sm" onclick="generateStatement('owner')" 
+                                            th:if="${customer.customerType == 'PROPERTY_OWNER'}">
+                                        <i class="fas fa-chart-line"></i> Owner Statement
+                                    </button>
+                                    <button class="btn btn-success btn-sm" onclick="generateStatement('tenant')" 
+                                            th:if="${customer.customerType == 'TENANT'}">
+                                        <i class="fas fa-receipt"></i> Tenant Statement
+                                    </button>
+                                    <button class="btn btn-success btn-sm" onclick="generateStatement('portfolio')" 
+                                            th:if="${customer.customerType == 'PROPERTY_OWNER'}">
+                                        <i class="fas fa-building"></i> Portfolio Statement
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- PayProp Sync -->
+                            <div class="col-md-4">
+                                <h5><i class="fas fa-sync"></i> PayProp Sync</h5>
+                                <div class="mb-2">
+                                    <small class="text-muted">
+                                        Last sync: <span th:text="${customer.payPropLastSync ?: 'Never'}"></span>
+                                    </small>
+                                </div>
+                                <div class="mb-2">
+                                    <span class="badge" th:classappend="${customer.payPropSynced ? 'bg-success' : 'bg-warning'}">
+                                        <span th:text="${customer.payPropSynced ? 'Synced' : 'Pending'}"></span>
+                                    </span>
+                                </div>
+                                <button class="btn btn-info btn-sm" onclick="syncPayPropFiles()">
+                                    <i class="fas fa-sync"></i> Sync PayProp Files
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Files Display -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-files"></i> Customer Files</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- File Categories Tabs -->
+                        <ul class="nav nav-tabs" id="fileCategoryTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#all-files" type="button" role="tab">
+                                    <i class="fas fa-folder"></i> All Files
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation" th:if="${customer.customerType == 'TENANT'}">
+                                <button class="nav-link" id="tenancy-tab" data-bs-toggle="tab" data-bs-target="#tenancy-files" type="button" role="tab">
+                                    <i class="fas fa-home"></i> Tenancy
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation" th:if="${customer.customerType == 'TENANT'}">
+                                <button class="nav-link" id="right-to-rent-tab" data-bs-toggle="tab" data-bs-target="#right-to-rent-files" type="button" role="tab">
+                                    <i class="fas fa-id-card"></i> Right to Rent
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation" th:if="${customer.customerType == 'PROPERTY_OWNER'}">
+                                <button class="nav-link" id="statements-tab" data-bs-toggle="tab" data-bs-target="#statements-files" type="button" role="tab">
+                                    <i class="fas fa-file-alt"></i> Statements
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="payprop-tab" data-bs-toggle="tab" data-bs-target="#payprop-files" type="button" role="tab">
+                                    <i class="fas fa-cloud"></i> PayProp Files
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Tab Content -->
+                        <div class="tab-content mt-3" id="fileCategoryTabsContent">
+                            <div class="tab-pane fade show active" id="all-files" role="tabpanel">
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>File Name</th>
+                                                <th>Category</th>
+                                                <th>Description</th>
+                                                <th>Source</th>
+                                                <th>Created</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr th:each="file : ${allFiles}">
+                                                <td>
+                                                    <i class="fas fa-file" th:classappend="${file.isPayPropFile ? ' text-info' : ' text-primary'}"></i>
+                                                    <span th:text="${file.fileName}"></span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-secondary" th:text="${file.fileCategory}"></span>
+                                                </td>
+                                                <td th:text="${file.fileDescription}"></td>
+                                                <td>
+                                                    <span class="badge" th:classappend="${file.isPayPropFile ? 'bg-info' : 'bg-primary'}">
+                                                        <span th:text="${file.isPayPropFile ? 'PayProp' : 'Manual'}"></span>
+                                                    </span>
+                                                </td>
+                                                <td th:text="${#temporals.format(file.createdAt, 'dd/MM/yyyy HH:mm')}"></td>
+                                                <td>
+                                                    <div class="btn-group" role="group">
+                                                        <button class="btn btn-sm btn-outline-primary" onclick="viewFile(this)" 
+                                                                th:attr="data-file-id=${file.driveFileId}">
+                                                            <i class="fas fa-eye"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteFile(this)" 
+                                                                th:attr="data-file-id=${file.id}">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <!-- Add more tab panes for other categories as needed -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        function generateStatement(type) {
+            const fromDate = document.getElementById('fromDate').value;
+            const toDate = document.getElementById('toDate').value;
+            
+            if (!fromDate || !toDate) {
+                alert('Please select both from and to dates');
+                return;
+            }
+            
+            const customerId = /*[[${customer.customerId}]]*/ 0;
+            const endpoint = `/customer/files/${customerId}/generate-${type}-statement`;
+            
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `fromDate=${fromDate}&toDate=${toDate}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Statement generated successfully!');
+                    window.open(data.spreadsheetUrl, '_blank');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error generating statement');
+            });
+        }
+        
+        function syncPayPropFiles() {
+            const customerId = /*[[${customer.customerId}]]*/ 0;
+            
+            fetch(`/customer/files/${customerId}/sync-payprop`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('PayProp files synced successfully!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error syncing PayProp files');
+            });
+        }
+        
+        function viewFile(button) {
+            const fileId = button.getAttribute('data-file-id');
+            // Open Google Drive file in new tab
+            window.open(`https://drive.google.com/file/d/${fileId}/view`, '_blank');
+        }
+        
+        function deleteFile(button) {
+            if (confirm('Are you sure you want to delete this file?')) {
+                const fileId = button.getAttribute('data-file-id');
+                const customerId = /*[[${customer.customerId}]]*/ 0;
+                
+                fetch(`/customer/files/${customerId}/file/${fileId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('File deleted successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error deleting file');
+                });
+            }
+        }
+    </script>
+</body>
+</html>
