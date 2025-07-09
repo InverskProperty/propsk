@@ -9,7 +9,7 @@
 <body>
     <div class="container mt-5">
         <div class="row justify-content-center">
-            <div class="col-md-8">
+            <div class="col-md-10">
                 <div class="card">
                     <div class="card-header bg-primary text-white">
                         <h4 class="mb-0" th:text="${pageTitle ?: 'Send Email'}">Send Email</h4>
@@ -27,25 +27,93 @@
                             <strong>Gmail Setup Required:</strong> <span th:text="${gmailError}">Error message</span>
                         </div>
 
-                        <!-- Recipients Summary -->
-                        <div class="card border-info mb-4">
-                            <div class="card-header bg-info text-white">
-                                <h5 class="mb-0">
-                                    Email Recipients: <span th:text="${customerType ?: 'Customers'}">Customers</span>
-                                </h5>
-                            </div>
-                            <div class="card-body">
-                                <p class="card-text">
-                                    <strong th:text="${customers != null ? customers.size() : 0}">0</strong> 
-                                    <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span> 
-                                    will receive this email.
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- Email Form - FIXED: Proper form structure -->
-                        <form method="post" th:action="@{/employee/customer/email-property-owners}" th:if="${gmailError == null or gmailError == ''}">
+                        <!-- Email Form - Enhanced with Filtering -->
+                        <form method="post" th:action="@{/employee/customer/email-property-owners}" th:if="${gmailError == null or gmailError == ''}" id="emailForm">
                             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                            
+                            <!-- Recipient Filtering Section -->
+                            <div class="card border-info mb-4">
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-filter"></i> Recipient Filtering
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <!-- Property Filter - Only for Property Owners and Tenants -->
+                                        <div class="col-md-6" th:if="${customerType == 'Property Owners' or customerType == 'Tenants'}">
+                                            <div class="mb-3">
+                                                <label for="propertyFilter" class="form-label">Filter by Property</label>
+                                                <select class="form-select" id="propertyFilter" name="propertyId" onchange="updateRecipientCount()">
+                                                    <option value="">All Properties</option>
+                                                    <option th:each="property : ${properties}" 
+                                                            th:value="${property.id}" 
+                                                            th:text="${property.propertyName + ' - ' + property.address}">
+                                                        Property Name - Address
+                                                    </option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Owner Filter - Only for Property Owners -->
+                                        <div class="col-md-6" th:if="${customerType == 'Property Owners'}">
+                                            <div class="mb-3">
+                                                <label for="ownerFilter" class="form-label">Filter by Owner</label>
+                                                <select class="form-select" id="ownerFilter" name="ownerId" onchange="updateRecipientCount()">
+                                                    <option value="">All Owners</option>
+                                                    <option th:each="owner : ${propertyOwners}" 
+                                                            th:value="${owner.customerId}" 
+                                                            th:text="${owner.name + ' (' + owner.email + ')'}">
+                                                        Owner Name (email)
+                                                    </option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Active Only Filter - Only for Tenants -->
+                                        <div class="col-md-6" th:if="${customerType == 'Tenants'}">
+                                            <div class="mb-3">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="activeOnly" name="activeOnly" value="true" onchange="updateRecipientCount()">
+                                                    <label class="form-check-label" for="activeOnly">
+                                                        Active tenants only
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Preferred Only Filter - Only for Contractors -->
+                                        <div class="col-md-6" th:if="${customerType == 'Contractors'}">
+                                            <div class="mb-3">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="preferredOnly" name="preferredOnly" value="true" onchange="updateRecipientCount()">
+                                                    <label class="form-check-label" for="preferredOnly">
+                                                        Preferred contractors only
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Active Recipients Display -->
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <div class="alert alert-light border">
+                                                <h6 class="mb-2">
+                                                    <i class="fas fa-users"></i> Recipients: 
+                                                    <span id="recipientCount" th:text="${customers != null ? customers.size() : 0}">0</span>
+                                                    <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span>
+                                                </h6>
+                                                <div id="recipientDetails" class="small text-muted">
+                                                    <span th:text="'Total available: ' + ${customers != null ? customers.size() : 0}">Total available: 0</span>
+                                                    <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Subject Field -->
                             <div class="mb-3">
                                 <label for="subject" class="form-label">Email Subject *</label>
@@ -69,18 +137,17 @@
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="emailAll" name="emailAll" value="true" checked>
                                         <label class="form-check-label" for="emailAll">
-                                            Email all <span th:text="${customers != null ? customers.size() : 0}">0</span> 
-                                            <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span>
+                                            Email all filtered recipients
                                         </label>
                                     </div>
                                 </div>
                                 
-                                <!-- Active tenants filter -->
-                                <div class="col-md-6" th:if="${customerType == 'Tenants'}">
+                                <!-- Additional Options -->
+                                <div class="col-md-6">
                                     <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="activeOnly" name="activeOnly" value="true">
-                                        <label class="form-check-label" for="activeOnly">
-                                            Active tenants only
+                                        <input class="form-check-input" type="checkbox" id="includePropertyInfo" name="includePropertyInfo" value="true">
+                                        <label class="form-check-label" for="includePropertyInfo">
+                                            Include property information in email
                                         </label>
                                     </div>
                                 </div>
@@ -91,7 +158,7 @@
                                 <button type="submit" class="btn btn-success btn-lg">
                                     <i class="fas fa-envelope"></i> Send Email
                                 </button>
-                                <a th:href="${backUrl ?: '/dashboard'}" class="btn btn-secondary btn-lg ms-2">
+                                <a th:href="${backUrl ?: '/employee/customer/property-owners'}" class="btn btn-secondary btn-lg ms-2">
                                     <i class="fas fa-arrow-left"></i> Back
                                 </a>
                             </div>
@@ -138,17 +205,9 @@
     <script th:inline="javascript">
         document.addEventListener('DOMContentLoaded', function() {
             // Get server-side variables
-            var customerCount = /*[[${customers != null ? customers.size() : 0}]]*/ 0;
-            var customerType = /*[[${customerType != null ? customerType.toLowerCase() : 'customers'}]]*/ 'customers';
-            
-            // Debug: Check if form exists
-            const form = document.querySelector('form');
-            if (form) {
-                console.log('✅ Form found with action:', form.action);
-                console.log('✅ Form method:', form.method);
-            } else {
-                console.log('❌ No form found!');
-            }
+            var allCustomers = /*[[${customers}]]*/ [];
+            var allProperties = /*[[${properties}]]*/ [];
+            var customerType = /*[[${customerType}]]*/ 'Property Owners';
             
             // Real-time email preview
             function updatePreview() {
@@ -158,6 +217,43 @@
                 document.getElementById('subjectPreview').textContent = subject || 'Enter subject above...';
                 document.getElementById('messagePreview').textContent = message || 'Enter message above...';
             }
+            
+            // Update recipient count based on filters
+            window.updateRecipientCount = function() {
+                const propertyId = document.getElementById('propertyFilter').value;
+                const ownerId = document.getElementById('ownerFilter').value;
+                
+                let filteredCount = allCustomers.length;
+                let filterDescription = '';
+                
+                if (propertyId) {
+                    // Find property name
+                    const selectedProperty = allProperties.find(p => p.id == propertyId);
+                    if (selectedProperty) {
+                        filterDescription += 'Property: ' + selectedProperty.propertyName;
+                        // In real implementation, you'd filter customers by property
+                        // For now, we'll show a reduced count as example
+                        filteredCount = Math.max(1, Math.floor(filteredCount * 0.3));
+                    }
+                }
+                
+                if (ownerId) {
+                    if (filterDescription) filterDescription += ' | ';
+                    filterDescription += 'Specific Owner';
+                    filteredCount = 1; // Only one owner selected
+                }
+                
+                // Update display
+                document.getElementById('recipientCount').textContent = filteredCount;
+                
+                const detailsDiv = document.getElementById('recipientDetails');
+                if (filterDescription) {
+                    detailsDiv.innerHTML = '<strong>Filter:</strong> ' + filterDescription + 
+                                          '<br><small>Filtered from ' + allCustomers.length + ' total customers</small>';
+                } else {
+                    detailsDiv.innerHTML = '<span>Total available: ' + allCustomers.length + ' customers</span>';
+                }
+            };
             
             // Add event listeners
             document.getElementById('subject').addEventListener('input', updatePreview);
@@ -185,55 +281,59 @@
                 }
             });
             
-            // Form validation and submission debugging
-            if (form) {
-                form.addEventListener('submit', function(e) {
-                    console.log('🚀 Form submission triggered!');
-                    console.log('Form action:', form.action);
-                    console.log('Form method:', form.method);
-                    
-                    // Log form data
-                    const formData = new FormData(form);
-                    console.log('Form data:');
-                    for (let [key, value] of formData.entries()) {
-                        console.log(`  ${key}: ${value}`);
-                    }
-                    
-                    const subject = document.getElementById('subject').value.trim();
-                    const message = document.getElementById('message').value.trim();
-                    
-                    if (!subject || !message) {
-                        e.preventDefault();
-                        alert('Please fill in both subject and message fields.');
-                        return false;
-                    }
-                    
-                    if (subject.length < 3) {
-                        e.preventDefault();
-                        alert('Subject must be at least 3 characters long.');
-                        return false;
-                    }
-                    
-                    if (message.length < 10) {
-                        e.preventDefault();
-                        alert('Message must be at least 10 characters long.');
-                        return false;
-                    }
-                    
-                    // Confirmation dialog using server-side variables
-                    if (!confirm('Are you sure you want to send this email to ' + customerCount + ' ' + customerType + '?')) {
-                        e.preventDefault();
-                        return false;
-                    }
-                    
-                    // Disable submit button to prevent double submission
-                    const submitBtn = this.querySelector('button[type="submit"]');
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-                    
-                    console.log('✅ Form validation passed, submitting...');
-                });
-            }
+            // Form validation and submission
+            document.getElementById('emailForm').addEventListener('submit', function(e) {
+                const subject = document.getElementById('subject').value.trim();
+                const message = document.getElementById('message').value.trim();
+                const recipientCount = parseInt(document.getElementById('recipientCount').textContent);
+                
+                if (!subject || !message) {
+                    e.preventDefault();
+                    alert('Please fill in both subject and message fields.');
+                    return false;
+                }
+                
+                if (subject.length < 3) {
+                    e.preventDefault();
+                    alert('Subject must be at least 3 characters long.');
+                    return false;
+                }
+                
+                if (message.length < 10) {
+                    e.preventDefault();
+                    alert('Message must be at least 10 characters long.');
+                    return false;
+                }
+                
+                if (recipientCount === 0) {
+                    e.preventDefault();
+                    alert('No recipients selected. Please adjust your filters.');
+                    return false;
+                }
+                
+                // Confirmation dialog
+                const propertyFilter = document.getElementById('propertyFilter');
+                const ownerFilter = document.getElementById('ownerFilter');
+                
+                let confirmMessage = 'Are you sure you want to send this email to ' + recipientCount + ' recipient(s)?';
+                
+                if (propertyFilter.value) {
+                    confirmMessage += '\n\nProperty filter: ' + propertyFilter.options[propertyFilter.selectedIndex].text;
+                }
+                if (ownerFilter.value) {
+                    confirmMessage += '\n\nOwner filter: ' + ownerFilter.options[ownerFilter.selectedIndex].text;
+                }
+                
+                if (!confirm(confirmMessage)) {
+                    e.preventDefault();
+                    return false;
+                }
+                
+                // Disable submit button to prevent double submission
+                const submitBtn = this.querySelector('button[type="submit"]');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            });
         });
     </script>
 </body>

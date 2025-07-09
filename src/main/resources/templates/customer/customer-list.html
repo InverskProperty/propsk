@@ -132,9 +132,8 @@
                                         <i class="fa fa-plus"></i> <span th:text="'Add New ' + ${customerType}">Add New Customer</span>
                                     </a>
                                     <a th:href="${'/employee/customer/email-' + (customerType == 'Property Owner' ? 'property-owners' : 
-                                                  customerType == 'Tenant' ? 'tenants' : 'contractors')}" 
-                                       class="btn btn-info" 
-                                       th:if="${customerType == 'Property Owner' or customerType == 'Tenant'}">
+                                                customerType == 'Tenant' ? 'tenants' : 'contractors')}" 
+                                    class="btn btn-info">
                                         <i class="fa fa-envelope"></i> Email All
                                     </a>
                                 </div>

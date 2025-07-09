@@ -276,7 +276,15 @@ public class CustomerController {
             
             List<Customer> propertyOwners = customerService.findPropertyOwners();
             
+            // Get all properties for the dropdown
+            List<Property> properties = propertyService.findAll();
+            
+            // Get all property owners for the owner filter dropdown
+            List<Customer> allPropertyOwners = customerService.findPropertyOwners();
+            
             model.addAttribute("customers", propertyOwners);
+            model.addAttribute("properties", properties);
+            model.addAttribute("propertyOwners", allPropertyOwners);
             model.addAttribute("customerType", "Property Owners");
             model.addAttribute("user", user);
             model.addAttribute("pageTitle", "Email Property Owners");
@@ -295,11 +303,14 @@ public class CustomerController {
      */
     @PostMapping("/email-property-owners")
     public String sendEmailToPropertyOwners(@RequestParam("subject") String subject,
-                                           @RequestParam("message") String message,
-                                           @RequestParam(value = "selectedIds", required = false) List<Integer> selectedIds,
-                                           @RequestParam(value = "emailAll", defaultValue = "false") boolean emailAll,
-                                           Authentication authentication,
-                                           RedirectAttributes redirectAttributes) {
+                                        @RequestParam("message") String message,
+                                        @RequestParam(value = "selectedIds", required = false) List<Integer> selectedIds,
+                                        @RequestParam(value = "emailAll", defaultValue = "false") boolean emailAll,
+                                        @RequestParam(value = "propertyId", required = false) Long propertyId,
+                                        @RequestParam(value = "ownerId", required = false) Integer ownerId,
+                                        @RequestParam(value = "includePropertyInfo", defaultValue = "false") boolean includePropertyInfo,
+                                        Authentication authentication,
+                                        RedirectAttributes redirectAttributes) {
         
         if (!emailService.isGmailApiAvailable(authentication)) {
             redirectAttributes.addFlashAttribute("errorMessage", 
@@ -309,16 +320,55 @@ public class CustomerController {
         
         try {
             List<Customer> propertyOwners;
+            String filterDescription = "";
             
             if (emailAll || selectedIds == null || selectedIds.isEmpty()) {
-                // Email all property owners
+                // Start with all property owners
                 propertyOwners = customerService.findPropertyOwners();
+                
+                // Apply property filter if specified
+                if (propertyId != null) {
+                    List<CustomerPropertyAssignment> propertyAssignments = 
+                        customerPropertyAssignmentRepository.findByPropertyId(propertyId);
+                    
+                    List<Integer> ownerCustomerIds = propertyAssignments.stream()
+                        .filter(assignment -> assignment.getAssignmentType() == AssignmentType.OWNER)
+                        .map(assignment -> assignment.getCustomer().getCustomerId())
+                        .collect(Collectors.toList());
+                    
+                    propertyOwners = propertyOwners.stream()
+                        .filter(owner -> ownerCustomerIds.contains(owner.getCustomerId()))
+                        .collect(Collectors.toList());
+                    
+                    try {
+                        Property property = propertyService.findById(propertyId);
+                        if (property != null) {
+                            filterDescription += "for property: " + property.getPropertyName();
+                        }
+                    } catch (Exception e) {
+                        filterDescription += "for property ID: " + propertyId;
+                    }
+                }
+                
+                // Apply owner filter if specified
+                if (ownerId != null) {
+                    propertyOwners = propertyOwners.stream()
+                        .filter(owner -> owner.getCustomerId().equals(ownerId))
+                        .collect(Collectors.toList());
+                    
+                    if (!filterDescription.isEmpty()) {
+                        filterDescription += " and ";
+                    }
+                    filterDescription += "specific owner";
+                }
+                
             } else {
                 // Email only selected property owners
                 propertyOwners = selectedIds.stream()
                     .map(customerService::findByCustomerId)
                     .filter(customer -> customer != null && Boolean.TRUE.equals(customer.getIsPropertyOwner()))
                     .collect(Collectors.toList());
+                filterDescription = "selected owners";
             }
             
             // Filter out customers with invalid email addresses
@@ -328,16 +378,37 @@ public class CustomerController {
                 
             if (validCustomers.isEmpty()) {
                 redirectAttributes.addFlashAttribute("warningMessage", 
-                    "No property owners with valid email addresses found.");
+                    "No property owners " + filterDescription + " with valid email addresses found.");
                 return "redirect:/employee/customer/property-owners";
             }
             
-            int emailsSent = emailService.sendBulkEmail(validCustomers, subject, message, authentication);
+            // Enhance message with property info if requested
+            String finalMessage = message;
+            if (includePropertyInfo && propertyId != null) {
+                try {
+                    Property property = propertyService.findById(propertyId);
+                    if (property != null) {
+                        finalMessage += "\n\n--- Property Information ---\n";
+                        finalMessage += "Property: " + property.getPropertyName() + "\n";
+                        finalMessage += "Address: " + property.getAddress() + "\n";
+                        if (property.getCity() != null) {
+                            finalMessage += "City: " + property.getCity() + "\n";
+                        }
+                    }
+                } catch (Exception e) {
+                    // Continue without property info if error
+                }
+            }
+            
+            int emailsSent = emailService.sendBulkEmail(validCustomers, subject, finalMessage, authentication);
             
             if (emailsSent > 0) {
-                redirectAttributes.addFlashAttribute("successMessage", 
-                    String.format("Successfully sent email to %d out of %d property owners.", 
-                        emailsSent, validCustomers.size()));
+                String successMessage = String.format("Successfully sent email to %d out of %d property owners", 
+                    emailsSent, validCustomers.size());
+                if (!filterDescription.isEmpty()) {
+                    successMessage += " " + filterDescription;
+                }
+                redirectAttributes.addFlashAttribute("successMessage", successMessage + ".");
             } else {
                 redirectAttributes.addFlashAttribute("errorMessage", 
                     "Failed to send emails. Please check your Gmail API access and try again.");
@@ -666,6 +737,101 @@ public class CustomerController {
                 "Error creating contractor: " + e.getMessage());
             return "redirect:/employee/customer/create-contractor";
         }
+    }
+
+    // ===== EMAIL CONTRACTORS =====
+
+    @GetMapping("/email-contractors")
+    public String emailContractorsForm(Model model, Authentication authentication) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User user = userService.findById(userId);
+            
+            List<Customer> contractors = customerService.findContractors();
+            
+            model.addAttribute("customers", contractors);
+            model.addAttribute("customerType", "Contractors");
+            model.addAttribute("user", user);
+            model.addAttribute("pageTitle", "Email Contractors");
+            model.addAttribute("backUrl", "/employee/customer/contractors");
+            
+            return "customer/email-form";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading email form: " + e.getMessage());
+            return "error/500";
+        }
+    }
+
+    @PostMapping("/email-contractors")
+    public String sendEmailToContractors(@RequestParam("subject") String subject,
+                                    @RequestParam("message") String message,
+                                    @RequestParam(value = "selectedIds", required = false) List<Integer> selectedIds,
+                                    @RequestParam(value = "emailAll", defaultValue = "false") boolean emailAll,
+                                    @RequestParam(value = "preferredOnly", defaultValue = "false") boolean preferredOnly,
+                                    Authentication authentication,
+                                    RedirectAttributes redirectAttributes) {
+        
+        if (!emailService.isGmailApiAvailable(authentication)) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Gmail API access required. Please ensure you're logged in with Google and have granted Gmail permissions.");
+            return "redirect:/employee/customer/email-contractors";
+        }
+        
+        try {
+            List<Customer> contractors;
+            String filterDescription = "";
+            
+            if (emailAll || selectedIds == null || selectedIds.isEmpty()) {
+                contractors = customerService.findContractors();
+                
+                // Apply preferred filter if specified
+                if (preferredOnly) {
+                    contractors = contractors.stream()
+                        .filter(contractor -> contractor.getDescription() != null && 
+                            contractor.getDescription().toLowerCase().contains("preferred"))
+                        .collect(Collectors.toList());
+                    filterDescription = "preferred contractors";
+                } else {
+                    filterDescription = "all contractors";
+                }
+            } else {
+                // Email only selected contractors
+                contractors = selectedIds.stream()
+                    .map(customerService::findByCustomerId)
+                    .filter(customer -> customer != null && Boolean.TRUE.equals(customer.getIsContractor()))
+                    .collect(Collectors.toList());
+                filterDescription = "selected contractors";
+            }
+            
+            // Filter out customers with invalid email addresses
+            List<Customer> validCustomers = contractors.stream()
+                .filter(customer -> emailService.isValidEmail(customer.getEmail()))
+                .collect(Collectors.toList());
+                
+            if (validCustomers.isEmpty()) {
+                redirectAttributes.addFlashAttribute("warningMessage", 
+                    "No " + filterDescription + " with valid email addresses found.");
+                return "redirect:/employee/customer/contractors";
+            }
+            
+            int emailsSent = emailService.sendBulkEmail(validCustomers, subject, message, authentication);
+            
+            if (emailsSent > 0) {
+                redirectAttributes.addFlashAttribute("successMessage", 
+                    String.format("Successfully sent email to %d out of %d %s.", 
+                        emailsSent, validCustomers.size(), filterDescription));
+            } else {
+                redirectAttributes.addFlashAttribute("errorMessage", 
+                    "Failed to send emails. Please check your Gmail API access and try again.");
+            }
+            
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", 
+                "Error sending bulk email: " + e.getMessage());
+        }
+        
+        return "redirect:/employee/customer/contractors";
     }
 
     // ===== CUSTOMER DETAILS & MANAGEMENT =====
