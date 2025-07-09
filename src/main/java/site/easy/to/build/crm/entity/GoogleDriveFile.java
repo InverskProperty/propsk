@@ -16,7 +16,7 @@ public class GoogleDriveFile {
     private String driveFileId;
 
     @Column(name = "drive_folder_id")
-    private String driveFolderId;
+    private String googleDriveFolderId;
 
     // EXISTING RELATIONSHIPS (keep these)
     @ManyToOne
@@ -87,18 +87,18 @@ public class GoogleDriveFile {
     // EXISTING CONSTRUCTORS (keep these)
     public GoogleDriveFile() {}
 
-    public GoogleDriveFile(String driveFileId, String driveFolderId, Lead lead) {
+    public GoogleDriveFile(String driveFileId, String googleDriveFolderId, Lead lead) {
         this.driveFileId = driveFileId;
-        this.driveFolderId = driveFolderId;
+        this.googleDriveFolderId = googleDriveFolderId;
         this.lead = lead;
         this.createdAt = LocalDateTime.now();
         this.isActive = true;
         this.isPayPropFile = false;
     }
 
-    public GoogleDriveFile(String driveFileId, String driveFolderId, Contract contract) {
+    public GoogleDriveFile(String driveFileId, String googleDriveFolderId, Contract contract) {
         this.driveFileId = driveFileId;
-        this.driveFolderId = driveFolderId;
+        this.googleDriveFolderId = googleDriveFolderId;
         this.contract = contract;
         this.createdAt = LocalDateTime.now();
         this.isActive = true;
@@ -106,9 +106,9 @@ public class GoogleDriveFile {
     }
 
     // NEW CONSTRUCTOR FOR CUSTOMER FILES
-    public GoogleDriveFile(String driveFileId, String driveFolderId, Integer customerId, String fileName) {
+    public GoogleDriveFile(String driveFileId, String googleDriveFolderId, Integer customerId, String fileName) {
         this.driveFileId = driveFileId;
-        this.driveFolderId = driveFolderId;
+        this.googleDriveFolderId = googleDriveFolderId;
         this.customerId = customerId;
         this.fileName = fileName;
         this.createdAt = LocalDateTime.now();
@@ -117,10 +117,10 @@ public class GoogleDriveFile {
     }
 
     // NEW CONSTRUCTOR FOR PAYPROP FILES
-    public GoogleDriveFile(String driveFileId, String driveFolderId, Integer customerId, 
+    public GoogleDriveFile(String driveFileId, String googleDriveFolderId, Integer customerId, 
                           String fileName, String payPropExternalId, String entityType) {
         this.driveFileId = driveFileId;
-        this.driveFolderId = driveFolderId;
+        this.googleDriveFolderId = googleDriveFolderId;
         this.customerId = customerId;
         this.fileName = fileName;
         this.payPropExternalId = payPropExternalId;
@@ -137,8 +137,8 @@ public class GoogleDriveFile {
     public String getDriveFileId() { return driveFileId; }
     public void setDriveFileId(String driveFileId) { this.driveFileId = driveFileId; }
 
-    public String getDriveFolderId() { return driveFolderId; }
-    public void setDriveFolderId(String driveFolderId) { this.driveFolderId = driveFolderId; }
+    public String getGoogleDriveFolderId() { return googleDriveFolderId; }
+    public void setGoogleDriveFolderId(String googleDriveFolderId) { this.googleDriveFolderId = googleDriveFolderId; }
 
     public Lead getLead() { return lead; }
     public void setLead(Lead lead) { this.lead = lead; }
@@ -257,6 +257,7 @@ public class GoogleDriveFile {
         return "GoogleDriveFile{" +
                 "id=" + id +
                 ", driveFileId='" + driveFileId + '\'' +
+                ", googleDriveFolderId='" + googleDriveFolderId + '\'' +
                 ", fileName='" + fileName + '\'' +
                 ", customerId=" + customerId +
                 ", propertyId=" + propertyId +
