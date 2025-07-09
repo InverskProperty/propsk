@@ -15,6 +15,8 @@ import site.easy.to.build.crm.service.user.OAuthUserService;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.security.GeneralSecurityException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -43,9 +45,22 @@ public class GoogleGmailApiServiceImpl implements GoogleGmailApiService {
         HttpContent httpContent = ByteArrayContent.fromString("application/json", email.toString());
 
         GenericUrl sendUrl = new GenericUrl(GMAIL_API_BASE_URL + "/messages/send");
-        HttpRequest request = httpRequestFactory.buildPostRequest(sendUrl, httpContent);
-        request.execute();
+        
+        try {
+            HttpRequest request = httpRequestFactory.buildPostRequest(sendUrl, httpContent);
+            HttpResponse response = request.execute();
+            System.out.println("✅ Email sent successfully");
+        } catch (HttpResponseException e) {
+            System.err.println("❌ Gmail API Error: " + e.getStatusCode() + " - " + e.getStatusMessage());
+            System.err.println("❌ Error content: " + e.getContent());
+            throw e;
+        } catch (Exception e) {
+            System.err.println("❌ General error sending email: " + e.getMessage());
+            throw e;
+        }
     }
+
+
     public void sendEmail(OAuthUser oAuthUser, String to, String subject, String body, List<File> attachments, List<Attachment> initAttachment) throws IOException, GeneralSecurityException, MessagingException {
         String rawEmail = GoogleApiHelper.createRawEmailWithAttachments(to, subject, body, attachments, initAttachment);
         JsonObject email = new JsonObject();
