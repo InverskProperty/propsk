@@ -130,6 +130,8 @@ public class PayPropSyncController {
 
         Long userId = getCurrentUserId(authentication);
         
+        OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+
         CompletableFuture<UnifiedSyncResult> futureResult = CompletableFuture.supplyAsync(() -> {
             try {
                 // FIXED: Call with correct signature (OAuthUser, Long)

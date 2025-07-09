@@ -226,7 +226,8 @@ public class CustomerFilesController {
             }
             
             // Use the integrated PayPropSyncOrchestrator approach
-            var result = payPropSyncOrchestrator.syncPayPropFiles(oAuthUser, oAuthUser.getUserId());
+            var result = payPropSyncOrchestrator.syncPayPropFiles(oAuthUser, oAuthUser.getUserId().longValue());
+
             
             if (result.isSuccess()) {
                 return ResponseEntity.ok(Map.of("success", "PayProp files synced successfully"));
@@ -252,7 +253,7 @@ public class CustomerFilesController {
             // Run comprehensive sync including files in background thread
             new Thread(() -> {
                 try {
-                    payPropSyncOrchestrator.performUnifiedSync(oAuthUser, oAuthUser.getUserId());
+                    payPropSyncOrchestrator.performUnifiedSync(oAuthUser, oAuthUser.getUserId().longValue());
                 } catch (Exception e) {
                     // Log error
                     System.err.println("Error in comprehensive PayProp sync: " + e.getMessage());

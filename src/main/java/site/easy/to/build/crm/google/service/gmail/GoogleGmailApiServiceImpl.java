@@ -73,10 +73,21 @@ public class GoogleGmailApiServiceImpl implements GoogleGmailApiService {
         HttpRequest request = httpRequestFactory.buildPostRequest(sendUrl, httpContent);
         request.execute();
     }
+    
     @Override
     public EmailPage listAndReadEmails(OAuthUser oAuthUser, int maxResults, String pageToken, String label) throws IOException, GeneralSecurityException {
         Map<String, String> queryParameters = buildEmailListQueryParameters(maxResults, pageToken, label, null);
         return getEmailsByQueryParameters(oAuthUser, maxResults, pageToken, queryParameters);
+    }
+
+    // FIXED: Added missing getEmailsPage method implementation
+    @Override
+    public EmailPage getEmailsPage(OAuthUser oAuthUser, String labelName, int page, int pageSize) throws IOException, GeneralSecurityException {
+        // Calculate pageToken based on page number (simplified approach)
+        String pageToken = (page > 1) ? "page_" + page : null;
+        
+        // Delegate to existing listAndReadEmails method
+        return listAndReadEmails(oAuthUser, pageSize, pageToken, labelName);
     }
 
     public EmailPage listAndReadEmailsByLabelId(OAuthUser oAuthUser, int maxResults, String pageToken, String labelId) throws IOException, GeneralSecurityException {

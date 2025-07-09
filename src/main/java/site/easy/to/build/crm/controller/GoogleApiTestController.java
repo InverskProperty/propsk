@@ -4,6 +4,7 @@ import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.File;
 import com.google.api.services.sheets.v4.Sheets;
 import com.google.api.services.sheets.v4.model.*;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -192,7 +193,7 @@ public class GoogleApiTestController {
                 Arrays.asList("Error Handling", "✅ Comprehensive")
             );
             
-            ValueRange body = new ValueRange().setValues(testData);
+            com.google.api.services.sheets.v4.model.ValueRange body = new com.google.api.services.sheets.v4.model.ValueRange().setValues(testData);
             sheetsService.spreadsheets().values()
                 .update(spreadsheetId, "A1", body)
                 .setValueInputOption("RAW")
@@ -222,7 +223,7 @@ public class GoogleApiTestController {
             result.put("canApplyFormatting", true);
             
             // Test 6: Read data back
-            ValueRange readResult = sheetsService.spreadsheets().values()
+            com.google.api.services.sheets.v4.model.ValueRange readResult = sheetsService.spreadsheets().values()
                 .get(spreadsheetId, "A1:B11")
                 .execute();
             
