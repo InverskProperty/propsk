@@ -135,8 +135,12 @@
     <!-- Font Awesome -->
     <script src="https://kit.fontawesome.com/a076d05399.js"></script>
     
-    <script>
+    <script th:inline="javascript">
         document.addEventListener('DOMContentLoaded', function() {
+            // Get server-side variables
+            var customerCount = /*[[${customers != null ? customers.size() : 0}]]*/ 0;
+            var customerType = /*[[${customerType != null ? customerType.toLowerCase() : 'customers'}]]*/ 'customers';
+            
             // Real-time email preview
             function updatePreview() {
                 const subject = document.getElementById('subject').value;
@@ -195,10 +199,7 @@
                     return false;
                 }
                 
-                // Confirmation dialog
-                const customerCount = parseInt(document.querySelector('[th\\:text*="customers.size"]')?.textContent || '0');
-                const customerType = document.querySelector('[th\\:text*="customerType"]')?.textContent || 'customers';
-                
+                // Confirmation dialog using server-side variables
                 if (!confirm('Are you sure you want to send this email to ' + customerCount + ' ' + customerType + '?')) {
                     e.preventDefault();
                     return false;

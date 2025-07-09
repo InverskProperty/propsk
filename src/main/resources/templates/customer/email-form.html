@@ -1,346 +1,216 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-
-<div th:insert="~{general/head.html}"></div>
-<meta name="_csrf" content="${_csrf.token}"/>
-<meta name="_csrf_header" content="${_csrf.headerName}"/>
-
-<!-- Custom CSS -->
-<link th:href="@{/css/style.min.css}" rel="stylesheet">
-<!-- page css -->
-<link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
-
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Send Email</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-
-<body class="skin-blue fixed-layout">
-<!-- ============================================================== -->
-<!-- Preloader - style you can find in spinners.css -->
-<!-- ============================================================== -->
-<div class="preloader">
-    <div class="loader">
-        <div class="loader__figure"></div>
-        <p class="loader__label">CRM</p>
-    </div>
-</div>
-<!-- ============================================================== -->
-<!-- Main wrapper - style you can find in pages.scss -->
-<!-- ============================================================== -->
-<div id="main-wrapper">
-    <!-- ============================================================== -->
-    <!-- Topbar header - style you can find in pages.scss -->
-    <!-- ============================================================== -->
-    <div th:replace="~{general/header.html}"></div>
-    <!-- ============================================================== -->
-    <!-- End Topbar header -->
-    <!-- ============================================================== -->
-    <!-- ============================================================== -->
-    <!-- Left Sidebar - style you can find in sidebar.scss  -->
-    <!-- ============================================================== -->
-    <div th:replace="~{general/left-sidebar.html}"></div>
-    <!-- ============================================================== -->
-    <!-- End Left Sidebar - style you can find in sidebar.scss  -->
-    <!-- ============================================================== -->
-    <!-- ============================================================== -->
-    <!-- Page wrapper  -->
-    <!-- ============================================================== -->
-    <div class="page-wrapper">
-        <!-- ============================================================== -->
-        <!-- Container fluid  -->
-        <!-- ============================================================== -->
-        <div class="container-fluid">
-            <!-- ============================================================== -->
-            <!-- Bread crumb and right sidebar toggle -->
-            <!-- ============================================================== -->
-            <div th:insert="~{general/page-titles.html}"></div>
-            <!-- ============================================================== -->
-            <!-- End Bread crumb and right sidebar toggle -->
-            <!-- ============================================================== -->
-            <!-- ============================================================== -->
-            <!-- Start Page Content -->
-            <!-- ============================================================== -->
-            <div class="row">
-                <div class="col-lg-12">
-                    <div class="card">
-                        <div class="card-header bg-primary">
-                            <h4 class="m-b-0 text-white" th:text="${pageTitle}">Email Customers</h4>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0" th:text="${pageTitle ?: 'Send Email'}">Send Email</h4>
+                    </div>
+                    <div class="card-body">
+                        
+                        <!-- Gmail Status Check -->
+                        <div th:if="${gmailError == null or gmailError == ''}" class="alert alert-success">
+                            <i class="fas fa-check-circle"></i>
+                            <strong>Ready to send!</strong> Gmail API is connected.
                         </div>
-                        <div class="card-body">
-                            
-                            <!-- Gmail API Status Check -->
-                            <div th:if="${!T(org.springframework.util.StringUtils).hasText(gmailError)}" class="alert alert-info">
-                                <i class="fa fa-info-circle"></i>
-                                <strong>Ready to send emails!</strong> Gmail API access is available.
+                        
+                        <div th:if="${gmailError != null and gmailError != ''}" class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>Gmail Setup Required:</strong> <span th:text="${gmailError}">Error message</span>
+                        </div>
+
+                        <!-- Recipients Summary -->
+                        <div class="card border-info mb-4">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0">
+                                    Email Recipients: <span th:text="${customerType ?: 'Customers'}">Customers</span>
+                                </h5>
                             </div>
+                            <div class="card-body">
+                                <p class="card-text">
+                                    <strong th:text="${customers != null ? customers.size() : 0}">0</strong> 
+                                    <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span> 
+                                    will receive this email.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Email Form - Fixed action URL -->
+                        <form method="post" th:if="${gmailError == null or gmailError == ''}">
                             
-                            <div th:if="${T(org.springframework.util.StringUtils).hasText(gmailError)}" class="alert alert-danger">
-                                <i class="fa fa-exclamation-triangle"></i>
-                                <strong>Gmail Access Required:</strong> <span th:text="${gmailError}"></span>
-                                <br><br>
-                                <a th:href="@{/oauth2/authorization/google}" class="btn btn-danger btn-sm">
-                                    <i class="fa fa-google"></i> Login with Google
-                                </a>
-                                <a th:href="@{/employee/settings/google-services}" class="btn btn-info btn-sm">
-                                    <i class="fa fa-cog"></i> Grant Gmail Access
-                                </a>
+                            <!-- Subject Field -->
+                            <div class="mb-3">
+                                <label for="subject" class="form-label">Email Subject *</label>
+                                <input type="text" class="form-control" id="subject" name="subject" 
+                                       placeholder="Enter email subject" required maxlength="200">
                             </div>
 
-                            <!-- Customer Summary -->
-                            <div class="row m-b-20">
-                                <div class="col-md-12">
-                                    <div class="card border-info">
-                                        <div class="card-header bg-info text-white">
-                                            <h5 class="m-b-0" th:text="'Email Recipients: ' + ${customerType}">Recipients</h5>
-                                        </div>
-                                        <div class="card-body">
-                                            <p class="card-text">
-                                                <strong th:text="${customers.size()}">0</strong> 
-                                                <span th:text="${customerType.toLowerCase()}">customers</span> 
-                                                will receive this email.
-                                            </p>
-                                            
-                                            <!-- Show property filter if applicable -->
-                                            <div th:if="${filterProperty != null}" class="alert alert-info">
-                                                <i class="fa fa-filter"></i>
-                                                <strong>Filtered by Property:</strong> 
-                                                <span th:text="${filterProperty.propertyName}">Property Name</span>
-                                                <span th:text="'(ID: ' + ${filterProperty.id} + ')'"></span>
-                                            </div>
-                                            
-                                            <!-- Customer list preview (first 10) -->
-                                            <div class="collapse" id="customerPreview">
-                                                <div class="card mt-3">
-                                                    <div class="card-body">
-                                                        <h6>Recipients Preview:</h6>
-                                                        <ul class="list-unstyled">
-                                                            <li th:each="customer, iterStat : ${customers}" 
-                                                                th:if="${iterStat.index < 10}">
-                                                                <i class="fa fa-user"></i>
-                                                                <span th:text="${customer.name}">Customer Name</span>
-                                                                (<span th:text="${customer.email}">email</span>)
-                                                            </li>
-                                                            <li th:if="${customers.size() > 10}">
-                                                                <em th:text="'... and ' + (${customers.size()} - 10) + ' more'">... and more</em>
-                                                            </li>
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            
-                                            <button class="btn btn-sm btn-outline-info" type="button" 
-                                                    data-toggle="collapse" data-target="#customerPreview">
-                                                <i class="fa fa-eye"></i> Preview Recipients
-                                            </button>
-                                        </div>
-                                    </div>
+                            <!-- Message Field -->
+                            <div class="mb-3">
+                                <label for="message" class="form-label">Email Message *</label>
+                                <textarea class="form-control" id="message" name="message" rows="8" 
+                                          placeholder="Enter your email message here..." required maxlength="5000"></textarea>
+                                <div class="form-text">
+                                    Available placeholders: {{customer_name}}, {{customer_email}}, {{customer_phone}}, {{customer_address}}
                                 </div>
                             </div>
 
-                            <!-- Email Form -->
-                            <form method="post" th:action="@{${#httpServletRequest.requestURI}}" 
-                                  th:if="${!T(org.springframework.util.StringUtils).hasText(gmailError)}">
+                            <!-- Email Options -->
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="emailAll" name="emailAll" checked>
+                                        <label class="form-check-label" for="emailAll">
+                                            Email all <span th:text="${customers != null ? customers.size() : 0}">0</span> 
+                                            <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span>
+                                        </label>
+                                    </div>
+                                </div>
                                 
-                                <!-- Subject -->
-                                <div class="form-group">
-                                    <label for="subject" class="control-label">Email Subject *</label>
-                                    <input type="text" class="form-control" id="subject" name="subject" 
-                                           placeholder="Enter email subject" required maxlength="200">
-                                </div>
-
-                                <!-- Message -->
-                                <div class="form-group">
-                                    <label for="message" class="control-label">Email Message *</label>
-                                    <textarea class="form-control" id="message" name="message" rows="8" 
-                                              placeholder="Enter your email message here..." required maxlength="5000"></textarea>
-                                    <small class="form-text text-muted">
-                                        Available placeholders: {{customer_name}}, {{customer_email}}, {{customer_phone}}, {{customer_address}}
-                                    </small>
-                                </div>
-
-                                <!-- Email Options -->
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <div class="custom-control custom-checkbox">
-                                                <input type="checkbox" class="custom-control-input" 
-                                                       id="emailAll" name="emailAll" checked>
-                                                <label class="custom-control-label" for="emailAll">
-                                                    <span th:text="'Email all ' + ${customers.size()} + ' ' + ${customerType.toLowerCase()}">Email all customers</span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Active tenants filter for tenants -->
-                                    <div class="col-md-6" th:if="${customerType == 'Tenants'}">
-                                        <div class="form-group">
-                                            <div class="custom-control custom-checkbox">
-                                                <input type="checkbox" class="custom-control-input" 
-                                                       id="activeOnly" name="activeOnly">
-                                                <label class="custom-control-label" for="activeOnly">
-                                                    Active tenants only (with current tenancies)
-                                                </label>
-                                            </div>
-                                        </div>
+                                <!-- Active tenants filter -->
+                                <div class="col-md-6" th:if="${customerType == 'Tenants'}">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="activeOnly" name="activeOnly">
+                                        <label class="form-check-label" for="activeOnly">
+                                            Active tenants only
+                                        </label>
                                     </div>
                                 </div>
-
-                                <!-- Action Buttons -->
-                                <div class="form-group m-t-20">
-                                    <button type="submit" class="btn btn-success btn-lg">
-                                        <i class="fa fa-envelope"></i> Send Email
-                                    </button>
-                                    <a th:href="${backUrl}" class="btn btn-secondary btn-lg ml-2">
-                                        <i class="fa fa-arrow-left"></i> Back
-                                    </a>
-                                </div>
-
-                                <!-- Email Preview -->
-                                <div class="card mt-4 border-light">
-                                    <div class="card-header bg-light">
-                                        <h6 class="m-b-0">Email Preview</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="preview-content">
-                                            <div class="form-group">
-                                                <label><strong>Subject:</strong></label>
-                                                <div id="subjectPreview" class="text-muted">Enter subject above...</div>
-                                            </div>
-                                            <div class="form-group">
-                                                <label><strong>Message:</strong></label>
-                                                <div id="messagePreview" class="text-muted border p-3" 
-                                                     style="min-height: 100px; white-space: pre-wrap;">Enter message above...</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                            </form>
-                            
-                            <!-- Gmail Access Required Message -->
-                            <div th:if="${T(org.springframework.util.StringUtils).hasText(gmailError)}" class="text-center">
-                                <p class="text-muted">Please set up Gmail API access to send emails.</p>
                             </div>
-                            
+
+                            <!-- Action Buttons -->
+                            <div class="mb-3">
+                                <button type="submit" class="btn btn-success btn-lg">
+                                    <i class="fas fa-envelope"></i> Send Email
+                                </button>
+                                <a th:href="${backUrl ?: '/dashboard'}" class="btn btn-secondary btn-lg ms-2">
+                                    <i class="fas fa-arrow-left"></i> Back
+                                </a>
+                            </div>
+
+                            <!-- Email Preview -->
+                            <div class="card border-light mt-4">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0">Email Preview</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label><strong>Subject:</strong></label>
+                                        <div id="subjectPreview" class="text-muted">Enter subject above...</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label><strong>Message:</strong></label>
+                                        <div id="messagePreview" class="text-muted border p-3" 
+                                             style="min-height: 100px; white-space: pre-wrap;">Enter message above...</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </form>
+                        
+                        <!-- Gmail Setup Required Message -->
+                        <div th:if="${gmailError != null and gmailError != ''}" class="text-center">
+                            <p class="text-muted">Please set up Gmail API access to send emails.</p>
+                            <a href="/oauth2/authorization/google" class="btn btn-danger">
+                                <i class="fab fa-google"></i> Login with Google
+                            </a>
                         </div>
+                        
                     </div>
                 </div>
             </div>
-            
-            <!-- ============================================================== -->
-            <!-- End Page Content -->
-            <!-- ============================================================== -->
-            <!-- ============================================================== -->
-            <!-- Right sidebar -->
-            <!-- ============================================================== -->
-            <!-- .right-sidebar -->
-            <div th:insert="~{general/right-sidebar.html}"></div>
-            <!-- ============================================================== -->
-            <!-- End Right sidebar -->
-            <!-- ============================================================== -->
         </div>
-        <!-- ============================================================== -->
-        <!-- End Container fluid  -->
-        <!-- ============================================================== -->
     </div>
-    <!-- ============================================================== -->
-    <!-- End Page wrapper  -->
-    <!-- ============================================================== -->
-    <!-- ============================================================== -->
-    <!-- footer -->
-    <!-- ============================================================== -->
-    <div th:replace="~{general/footer.html}"></div>
-    <!-- ============================================================== -->
-    <!-- End footer -->
-    <!-- ============================================================== -->
-</div>
-<!-- ============================================================== -->
-<!-- End Wrapper -->
-<!-- ============================================================== -->
-<!-- ============================================================== -->
-<!-- All Jquery -->
-<!-- ============================================================== -->
-<script th:inline="javascript">
-    var home = /*[[${home}]]*/ null;
-</script>
-<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/sticky-kit.min.js}"></script>
-<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
-<script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
 
-<script>
-$(document).ready(function() {
-    // Real-time email preview
-    function updatePreview() {
-        var subject = $('#subject').val();
-        var message = $('#message').val();
-        
-        $('#subjectPreview').text(subject || 'Enter subject above...');
-        $('#messagePreview').text(message || 'Enter message above...');
-    }
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Font Awesome -->
+    <script src="https://kit.fontawesome.com/a076d05399.js"></script>
     
-    $('#subject, #message').on('keyup change', updatePreview);
-    
-    // Character count for message
-    $('#message').on('keyup', function() {
-        var count = $(this).val().length;
-        var maxLength = 5000;
-        var remaining = maxLength - count;
-        
-        if (!$('#charCount').length) {
-            $(this).after('<small class="form-text text-muted" id="charCount"></small>');
-        }
-        
-        $('#charCount').text(count + ' / ' + maxLength + ' characters');
-        
-        if (remaining < 100) {
-            $('#charCount').removeClass('text-muted').addClass('text-warning');
-        } else {
-            $('#charCount').removeClass('text-warning').addClass('text-muted');
-        }
-    });
-    
-    // Form validation
-    $('form').on('submit', function(e) {
-        var subject = $('#subject').val().trim();
-        var message = $('#message').val().trim();
-        
-        if (!subject || !message) {
-            e.preventDefault();
-            alert('Please fill in both subject and message fields.');
-            return false;
-        }
-        
-        if (subject.length < 3) {
-            e.preventDefault();
-            alert('Subject must be at least 3 characters long.');
-            return false;
-        }
-        
-        if (message.length < 10) {
-            e.preventDefault();
-            alert('Message must be at least 10 characters long.');
-            return false;
-        }
-        
-        // Confirmation dialog
-        var customerType = /*[[${customerType}]]*/ 'customers';
-        var customerCount = /*[[${customers.size()}]]*/ 0;
-        
-        if (!confirm('Are you sure you want to send this email to ' + customerCount + ' ' + customerType.toLowerCase() + '?')) {
-            e.preventDefault();
-            return false;
-        }
-        
-        // Disable submit button to prevent double submission
-        $(this).find('button[type="submit"]').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Sending...');
-    });
-});
-</script>
-
+    <script th:inline="javascript">
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get server-side variables
+            var customerCount = /*[[${customers != null ? customers.size() : 0}]]*/ 0;
+            var customerType = /*[[${customerType != null ? customerType.toLowerCase() : 'customers'}]]*/ 'customers';
+            
+            // Real-time email preview
+            function updatePreview() {
+                const subject = document.getElementById('subject').value;
+                const message = document.getElementById('message').value;
+                
+                document.getElementById('subjectPreview').textContent = subject || 'Enter subject above...';
+                document.getElementById('messagePreview').textContent = message || 'Enter message above...';
+            }
+            
+            // Add event listeners
+            document.getElementById('subject').addEventListener('input', updatePreview);
+            document.getElementById('message').addEventListener('input', updatePreview);
+            
+            // Character count for message
+            document.getElementById('message').addEventListener('input', function() {
+                const count = this.value.length;
+                const maxLength = 5000;
+                
+                let charCount = document.getElementById('charCount');
+                if (!charCount) {
+                    charCount = document.createElement('small');
+                    charCount.id = 'charCount';
+                    charCount.className = 'form-text text-muted';
+                    this.parentNode.appendChild(charCount);
+                }
+                
+                charCount.textContent = count + ' / ' + maxLength + ' characters';
+                
+                if (maxLength - count < 100) {
+                    charCount.className = 'form-text text-warning';
+                } else {
+                    charCount.className = 'form-text text-muted';
+                }
+            });
+            
+            // Form validation
+            document.querySelector('form').addEventListener('submit', function(e) {
+                const subject = document.getElementById('subject').value.trim();
+                const message = document.getElementById('message').value.trim();
+                
+                if (!subject || !message) {
+                    e.preventDefault();
+                    alert('Please fill in both subject and message fields.');
+                    return false;
+                }
+                
+                if (subject.length < 3) {
+                    e.preventDefault();
+                    alert('Subject must be at least 3 characters long.');
+                    return false;
+                }
+                
+                if (message.length < 10) {
+                    e.preventDefault();
+                    alert('Message must be at least 10 characters long.');
+                    return false;
+                }
+                
+                // Confirmation dialog using server-side variables
+                if (!confirm('Are you sure you want to send this email to ' + customerCount + ' ' + customerType + '?')) {
+                    e.preventDefault();
+                    return false;
+                }
+                
+                // Disable submit button to prevent double submission
+                const submitBtn = this.querySelector('button[type="submit"]');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            });
+        });
+    </script>
 </body>
 </html>
