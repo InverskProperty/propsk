@@ -155,7 +155,7 @@ public class GoogleDriveController {
         model.addAttribute("isPropertyView", true);
         model.addAttribute("propertyFolderId", propertyFolderId);
         
-        return "google-drive/property-files";
+        return "google-drive/list-files";
     }
 
     /**
