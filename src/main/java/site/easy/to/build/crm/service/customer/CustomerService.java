@@ -16,6 +16,9 @@ public interface CustomerService {
     // EXISTING METHODS - Keep unchanged
     public Customer findByCustomerId(int customerId);
 
+    // Add this method to your CustomerService interface
+    public boolean existsById(Integer customerId);
+
     public List<Customer> findByUserId(int userId);
 
     public Customer findByEmail(String email);

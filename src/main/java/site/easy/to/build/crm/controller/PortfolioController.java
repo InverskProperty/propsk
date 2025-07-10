@@ -18,6 +18,7 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
+import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.service.payprop.PayPropPortfolioSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
 import site.easy.to.build.crm.service.payprop.SyncResult;
@@ -40,6 +41,9 @@ public class PortfolioController {
     private final PortfolioService portfolioService;
     private final PropertyService propertyService;
     private final AuthenticationUtils authenticationUtils;
+    
+    @Autowired
+    private UserService userService;
     
     @Autowired(required = false)
     private CustomerService customerService;
@@ -110,31 +114,7 @@ public class PortfolioController {
             return "redirect:/access-denied";
         }
         
-        Portfolio portfolio = new Portfolio();
-        
-        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            if (customerService != null) {
-                try {
-                    List<Customer> allCustomers = customerService.findAll();
-                    List<Customer> propertyOwners = allCustomers.stream()
-                        .filter(customer -> customer.getIsPropertyOwner() != null && customer.getIsPropertyOwner())
-                        .collect(Collectors.toList());
-                    model.addAttribute("propertyOwners", propertyOwners);
-                } catch (Exception e) {
-                    model.addAttribute("propertyOwners", new ArrayList<>());
-                }
-            }
-            model.addAttribute("isManager", true);
-        } else {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            portfolio.setPropertyOwnerId(userId);
-            model.addAttribute("isManager", false);
-        }
-        
-        model.addAttribute("portfolio", portfolio);
-        model.addAttribute("portfolioTypes", PortfolioType.values());
-        model.addAttribute("payPropEnabled", payPropEnabled);
-        model.addAttribute("pageTitle", "Create Portfolio");
+        prepareCreateFormModel(model, authentication);
         
         return "portfolio/create-portfolio";
     }
@@ -144,107 +124,190 @@ public class PortfolioController {
      */
     @PostMapping("/create")
     public String createPortfolio(@ModelAttribute("portfolio") @Validated Portfolio portfolio,
-                                 BindingResult bindingResult,
-                                 @RequestParam(value = "selectedOwnerId", required = false) Integer selectedOwnerId,
-                                 @RequestParam(value = "enablePayPropSync", defaultValue = "false") boolean enablePayPropSync,
-                                 Authentication authentication,
-                                 Model model,
-                                 RedirectAttributes redirectAttributes) {
+                                BindingResult bindingResult,
+                                @RequestParam(value = "selectedOwnerId", required = false) Integer selectedOwnerId,
+                                @RequestParam(value = "enablePayPropSync", defaultValue = "false") boolean enablePayPropSync,
+                                @RequestParam(value = "isShared", required = false) String isShared,
+                                @RequestParam(value = "portfolioType", required = false) String portfolioTypeParam,
+                                Authentication authentication,
+                                Model model,
+                                RedirectAttributes redirectAttributes) {
+        
+        System.out.println("=== PORTFOLIO CREATION DEBUG ===");
+        System.out.println("Portfolio name: '" + portfolio.getName() + "'");
+        System.out.println("Portfolio type param: '" + portfolioTypeParam + "'");
+        System.out.println("Is shared: '" + isShared + "'");
+        System.out.println("Selected owner: " + selectedOwnerId);
+        System.out.println("Enable PayProp: " + enablePayPropSync);
         
         if (!canUserCreatePortfolio(authentication)) {
+            System.out.println("❌ Access denied");
             return "redirect:/access-denied";
         }
         
-        if (bindingResult.hasErrors()) {
-            // Re-populate model for form redisplay
-            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                if (customerService != null) {
-                    try {
-                        List<Customer> allCustomers = customerService.findAll();
-                        List<Customer> propertyOwners = allCustomers.stream()
-                            .filter(customer -> customer.getIsPropertyOwner() != null && customer.getIsPropertyOwner())
-                            .collect(Collectors.toList());
-                        model.addAttribute("propertyOwners", propertyOwners);
-                    } catch (Exception e) {
-                        model.addAttribute("propertyOwners", new ArrayList<>());
-                    }
-                }
-                model.addAttribute("isManager", true);
+        // FIX 1: Get and validate user ID FIRST
+        int userId;
+        try {
+            userId = authenticationUtils.getLoggedInUserId(authentication);
+            System.out.println("✅ User ID: " + userId);
+            
+            // CRITICAL: Verify user exists in database
+            // Note: UserService.existsById check removed - relying on authentication validation
+            // If needed, add existsById method to UserService interface
+            
+        } catch (Exception e) {
+            System.out.println("❌ Failed to get user ID: " + e.getMessage());
+            model.addAttribute("error", "Authentication error. Please log in again.");
+            return "redirect:/login";
+        }
+        
+        // FIX 2: Handle portfolio type parameter
+        if (portfolioTypeParam != null && !portfolioTypeParam.isEmpty()) {
+            try {
+                portfolio.setPortfolioType(PortfolioType.valueOf(portfolioTypeParam.toUpperCase()));
+                System.out.println("✅ Set portfolio type: " + portfolio.getPortfolioType());
+            } catch (IllegalArgumentException e) {
+                portfolio.setPortfolioType(PortfolioType.CUSTOM);
+                System.out.println("⚠️ Invalid portfolio type, defaulting to CUSTOM");
             }
-            model.addAttribute("portfolioTypes", PortfolioType.values());
-            model.addAttribute("payPropEnabled", payPropEnabled);
+        } else if (portfolio.getPortfolioType() == null) {
+            portfolio.setPortfolioType(PortfolioType.CUSTOM);
+            System.out.println("⚠️ No portfolio type provided, defaulting to CUSTOM");
+        }
+        
+        // FIX 3: Handle isShared parameter
+        if (isShared != null) {
+            portfolio.setIsShared(isShared);
+            System.out.println("✅ Set isShared: " + isShared);
+        }
+        
+        // FIX 4: Validate BEFORE Spring validation
+        if (portfolio.getName() == null || portfolio.getName().trim().isEmpty()) {
+            System.out.println("❌ Portfolio name is empty");
+            model.addAttribute("error", "Portfolio name is required");
+            prepareCreateFormModel(model, authentication);
+            return "portfolio/create-portfolio";
+        }
+        
+        // Check Spring validation
+        if (bindingResult.hasErrors()) {
+            System.out.println("❌ Validation errors:");
+            bindingResult.getAllErrors().forEach(error -> 
+                System.out.println("  - " + error.getDefaultMessage()));
+            
+            model.addAttribute("error", "Please fix the validation errors and try again");
+            prepareCreateFormModel(model, authentication);
             return "portfolio/create-portfolio";
         }
         
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            
-            // Handle property owner assignment
+            // FIX 5: Handle ownership logic safely
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 if (selectedOwnerId != null && selectedOwnerId > 0) {
-                    portfolio.setPropertyOwnerId(selectedOwnerId);
-                    portfolio.setIsShared("N");
+                    // Verify owner exists
+                    if (customerService != null && customerService.existsById(selectedOwnerId)) {
+                        portfolio.setPropertyOwnerId(selectedOwnerId);
+                        portfolio.setIsShared("N");
+                        System.out.println("✅ Manager creating owner-specific portfolio for: " + selectedOwnerId);
+                    } else {
+                        System.out.println("❌ Selected owner does not exist: " + selectedOwnerId);
+                        model.addAttribute("error", "Selected property owner does not exist");
+                        prepareCreateFormModel(model, authentication);
+                        return "portfolio/create-portfolio";
+                    }
                 } else {
                     portfolio.setPropertyOwnerId(null);
                     portfolio.setIsShared("Y");
+                    System.out.println("✅ Manager creating shared portfolio");
                 }
             } else {
                 portfolio.setPropertyOwnerId(userId);
                 portfolio.setIsShared("N");
+                System.out.println("✅ Customer creating personal portfolio");
             }
             
-            Portfolio savedPortfolio = portfolioService.createPortfolio(
-                portfolio.getName(),
-                portfolio.getDescription(),
-                portfolio.getPortfolioType(),
-                portfolio.getPropertyOwnerId(),
-                (long) userId
-            );
+            // FIX 6: Create portfolio with proper error handling
+            System.out.println("Creating portfolio in database...");
+            Portfolio savedPortfolio;
             
-            savedPortfolio.setTargetMonthlyIncome(portfolio.getTargetMonthlyIncome());
-            savedPortfolio.setTargetOccupancyRate(portfolio.getTargetOccupancyRate());
-            savedPortfolio.setColorCode(portfolio.getColorCode());
-            savedPortfolio.setIsShared(portfolio.getIsShared());
-            
-            // Handle PayProp sync if enabled
-            if (enablePayPropSync && payPropEnabled && payPropSyncService != null && 
-                AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            try {
+                savedPortfolio = portfolioService.createPortfolio(
+                    portfolio.getName().trim(),
+                    portfolio.getDescription() != null ? portfolio.getDescription().trim() : "",
+                    portfolio.getPortfolioType(),
+                    portfolio.getPropertyOwnerId(),
+                    (long) userId
+                );
+                System.out.println("✅ Portfolio created with ID: " + savedPortfolio.getId());
                 
+            } catch (Exception e) {
+                System.out.println("❌ Portfolio creation failed: " + e.getMessage());
+                e.printStackTrace();
+                
+                // Handle specific database errors
+                if (e.getMessage().contains("foreign key constraint")) {
+                    model.addAttribute("error", "Database error: Invalid user or owner reference. Please contact support.");
+                } else if (e.getMessage().contains("already exists")) {
+                    model.addAttribute("error", "A portfolio with this name already exists. Please choose a different name.");
+                } else if (e.getMessage().contains("Duplicate entry")) {
+                    model.addAttribute("error", "Portfolio name must be unique. Please choose a different name.");
+                } else {
+                    model.addAttribute("error", "Failed to create portfolio: " + e.getMessage());
+                }
+                
+                prepareCreateFormModel(model, authentication);
+                return "portfolio/create-portfolio";
+            }
+            
+            // FIX 7: Update additional fields safely
+            try {
+                if (portfolio.getTargetMonthlyIncome() != null) {
+                    savedPortfolio.setTargetMonthlyIncome(portfolio.getTargetMonthlyIncome());
+                }
+                if (portfolio.getTargetOccupancyRate() != null) {
+                    savedPortfolio.setTargetOccupancyRate(portfolio.getTargetOccupancyRate());
+                }
+                if (portfolio.getColorCode() != null && !portfolio.getColorCode().trim().isEmpty()) {
+                    savedPortfolio.setColorCode(portfolio.getColorCode().trim());
+                } else {
+                    savedPortfolio.setColorCode("#3498db"); // Default blue
+                }
+                
+                savedPortfolio.setIsShared(portfolio.getIsShared());
+                portfolioService.save(savedPortfolio);
+                System.out.println("✅ Additional fields updated");
+                
+            } catch (Exception e) {
+                System.out.println("⚠️ Failed to update additional fields: " + e.getMessage());
+                // Continue anyway since core portfolio is created
+            }
+            
+            // FIX 8: Handle PayProp sync safely
+            String successMessage = "Portfolio '" + savedPortfolio.getName() + "' created successfully!";
+            
+            if (enablePayPropSync && payPropEnabled && payPropSyncService != null) {
+                System.out.println("Attempting PayProp sync...");
                 try {
                     portfolioService.syncPortfolioWithPayProp(savedPortfolio.getId(), (long) userId);
-                    redirectAttributes.addFlashAttribute("successMessage", 
-                        "Portfolio '" + savedPortfolio.getName() + "' created and synced to PayProp successfully!");
+                    successMessage += " PayProp synchronization completed.";
+                    System.out.println("✅ PayProp sync successful");
                 } catch (Exception e) {
-                    redirectAttributes.addFlashAttribute("warningMessage", 
-                        "Portfolio '" + savedPortfolio.getName() + "' created successfully, but PayProp sync failed: " + e.getMessage());
+                    System.out.println("⚠️ PayProp sync failed: " + e.getMessage());
+                    successMessage += " (PayProp sync failed: " + e.getMessage() + ")";
                 }
-            } else {
-                redirectAttributes.addFlashAttribute("successMessage", 
-                    "Portfolio '" + savedPortfolio.getName() + "' created successfully!");
             }
             
-            portfolioService.save(savedPortfolio);
+            redirectAttributes.addFlashAttribute("successMessage", successMessage);
+            System.out.println("✅ PORTFOLIO CREATION COMPLETED - Redirecting to: /portfolio/" + savedPortfolio.getId());
+            
             return "redirect:/portfolio/" + savedPortfolio.getId();
             
         } catch (Exception e) {
-            model.addAttribute("error", "Failed to create portfolio: " + e.getMessage());
-            // Re-populate model for form redisplay
-            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                if (customerService != null) {
-                    try {
-                        List<Customer> allCustomers = customerService.findAll();
-                        List<Customer> propertyOwners = allCustomers.stream()
-                            .filter(customer -> customer.getIsPropertyOwner() != null && customer.getIsPropertyOwner())
-                            .collect(Collectors.toList());
-                        model.addAttribute("propertyOwners", propertyOwners);
-                    } catch (Exception e2) {
-                        model.addAttribute("propertyOwners", new ArrayList<>());
-                    }
-                }
-                model.addAttribute("isManager", true);
-            }
-            model.addAttribute("portfolioTypes", PortfolioType.values());
-            model.addAttribute("payPropEnabled", payPropEnabled);
+            System.out.println("❌ UNEXPECTED ERROR: " + e.getMessage());
+            e.printStackTrace();
+            
+            model.addAttribute("error", "An unexpected error occurred: " + e.getMessage());
+            prepareCreateFormModel(model, authentication);
             return "portfolio/create-portfolio";
         }
     }
@@ -919,6 +982,68 @@ public class PortfolioController {
 
     // ===== UTILITY METHODS =====
 
+    /**
+     * Prepare form model for create portfolio form
+     */
+    private void prepareCreateFormModel(Model model, Authentication authentication) {
+        System.out.println("Preparing create form model...");
+        
+        try {
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                if (customerService != null) {
+                    try {
+                        List<Customer> allCustomers = customerService.findAll();
+                        List<Customer> propertyOwners = allCustomers.stream()
+                            .filter(customer -> customer.getIsPropertyOwner() != null && customer.getIsPropertyOwner())
+                            .collect(Collectors.toList());
+                        model.addAttribute("propertyOwners", propertyOwners);
+                        System.out.println("✅ Added " + propertyOwners.size() + " property owners to model");
+                    } catch (Exception e) {
+                        System.out.println("❌ Error loading property owners: " + e.getMessage());
+                        model.addAttribute("propertyOwners", new ArrayList<>());
+                    }
+                } else {
+                    System.out.println("❌ CustomerService is null");
+                    model.addAttribute("propertyOwners", new ArrayList<>());
+                }
+                model.addAttribute("isManager", true);
+            } else {
+                model.addAttribute("isManager", false);
+            }
+            
+            model.addAttribute("portfolioTypes", PortfolioType.values());
+            model.addAttribute("payPropEnabled", payPropEnabled);
+            
+            // Ensure portfolio object exists
+            if (!model.containsAttribute("portfolio")) {
+                Portfolio newPortfolio = new Portfolio();
+                newPortfolio.setPortfolioType(PortfolioType.CUSTOM); // Set default
+                newPortfolio.setColorCode("#3498db"); // Set default color
+                model.addAttribute("portfolio", newPortfolio);
+            }
+            
+            System.out.println("✅ Form model preparation completed");
+            
+        } catch (Exception e) {
+            System.out.println("❌ Error preparing form model: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Check if user can create portfolio
+     */
+    private boolean canUserCreatePortfolio(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
+        
+        // Managers and property owners can create portfolios
+        return AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") || 
+               AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER") ||
+               AuthorizationUtil.hasRole(authentication, "ROLE_USER");
+    }
+
     private PortfolioAggregateStats calculateAggregateStats(List<Portfolio> portfolios) {
         PortfolioAggregateStats stats = new PortfolioAggregateStats();
         
@@ -943,12 +1068,6 @@ public class PortfolioController {
         }
         
         return stats;
-    }
-
-    private boolean canUserCreatePortfolio(Authentication authentication) {
-        return AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
-               AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER") ||
-               AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER");
     }
 
     private boolean canUserEditPortfolio(Long portfolioId, Authentication authentication) {

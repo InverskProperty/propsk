@@ -31,6 +31,11 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    public boolean existsById(Integer customerId) {
+        return customerRepository.existsById(customerId);
+    }
+
+    @Override
     public Customer findByPayPropEntityId(String payPropEntityId) {
         return customerRepository.findByPayPropEntityId(payPropEntityId);
     }
