@@ -14,7 +14,7 @@ import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator.UnifiedSyncResult;
 import site.easy.to.build.crm.service.payprop.PayPropSyncLogger.SyncStatistics;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService.PayPropExportResult;
-import site.easy.to.build.crm.service.payprop.SyncResult;
+import site.easy.to.build.crm.service.payprop.PayPropSyncService.SyncResult;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -152,7 +152,6 @@ public class PayPropSyncController {
             enhancedDetails.put("propertyOwners", result.getPropertyOwnersResult());
             enhancedDetails.put("tenants", result.getTenantsResult());
             enhancedDetails.put("relationships", result.getRelationshipsResult());
-            enhancedDetails.put("occupancy", result.getOccupancyResult());
             
             // Add data quality metrics
             SyncResult propertiesResult = result.getPropertiesResult();

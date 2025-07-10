@@ -1,4 +1,4 @@
-// PayPropOAuth2Controller.java - OAuth2 Authorization Flow
+// PayPropOAuth2Controller.java - OAuth2 Authorization Flow with Test Endpoints
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +13,7 @@ import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service.PayPropTokens;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -246,5 +247,109 @@ public class PayPropOAuth2Controller {
         }
         
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Simple OAuth test endpoint for JavaScript testing
+     */
+    @GetMapping("/test-oauth")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testOAuth(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Check authorization
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                response.put("success", false);
+                response.put("message", "Access denied - MANAGER role required");
+                response.put("tokenValid", false);
+                return ResponseEntity.status(403).body(response);
+            }
+
+            // Check if we have tokens
+            PayPropTokens tokens = oAuth2Service.getCurrentTokens();
+            boolean hasTokens = tokens != null;
+            boolean isValid = oAuth2Service.hasValidTokens();
+            
+            response.put("success", true);
+            response.put("hasTokens", hasTokens);
+            response.put("tokenValid", isValid);
+            
+            if (hasTokens) {
+                response.put("tokenType", tokens.getTokenType());
+                response.put("scopes", tokens.getScopes());
+                response.put("expiresAt", tokens.getExpiresAt());
+                response.put("isExpired", tokens.isExpired());
+                response.put("isExpiringSoon", tokens.isExpiringSoon());
+                
+                if (isValid) {
+                    response.put("message", "OAuth2 tokens are valid and ready for use");
+                    
+                    // Test a simple API call
+                    try {
+                        String accessToken = oAuth2Service.getValidAccessToken();
+                        response.put("accessTokenLength", accessToken.length());
+                        response.put("apiCallTest", "Token retrieved successfully");
+                    } catch (Exception e) {
+                        response.put("apiCallTest", "Failed to get access token: " + e.getMessage());
+                    }
+                } else {
+                    response.put("message", "OAuth2 tokens exist but are invalid/expired");
+                }
+            } else {
+                response.put("message", "No OAuth2 tokens found - authorization required");
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "OAuth test failed: " + e.getMessage());
+            response.put("tokenValid", false);
+            return ResponseEntity.ok(response);
+        }
+    }
+
+    /**
+     * Test endpoint for tags functionality
+     */
+    @GetMapping("/test-tags")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testTags(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied");
+            return ResponseEntity.status(403).body(response);
+        }
+
+        try {
+            if (!oAuth2Service.hasValidTokens()) {
+                response.put("success", false);
+                response.put("message", "No valid OAuth2 tokens. Please authorize first.");
+                return ResponseEntity.ok(response);
+            }
+
+            // Note: Your system uses PayPropPortfolioSyncService for tag operations
+            // This is just a test endpoint to verify the OAuth connection for tags
+            
+            response.put("success", true);
+            response.put("message", "OAuth ready for tag operations");
+            response.put("note", "Tag operations are handled via PayPropPortfolioSyncService");
+            response.put("availableOperations", Arrays.asList(
+                "getAllPayPropTags()",
+                "createPayPropTag()",
+                "syncPortfolioToPayProp()",
+                "handlePayPropTagChange()"
+            ));
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Tag test failed: " + e.getMessage());
+            return ResponseEntity.ok(response);
+        }
     }
 }
