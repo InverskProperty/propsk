@@ -152,6 +152,7 @@ public class PayPropSyncController {
             enhancedDetails.put("propertyOwners", result.getPropertyOwnersResult());
             enhancedDetails.put("tenants", result.getTenantsResult());
             enhancedDetails.put("relationships", result.getRelationshipsResult());
+            enhancedDetails.put("occupancy", result.getOccupancyResult());
             
             // Add data quality metrics
             SyncResult propertiesResult = result.getPropertiesResult();
