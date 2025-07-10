@@ -1,4 +1,4 @@
-// PayPropSyncController.java - Simplified for Unified Sync
+// PayPropSyncController.java - Enhanced with Complete Sync Functionality
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,9 +13,12 @@ import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator.UnifiedSyncResult;
 import site.easy.to.build.crm.service.payprop.PayPropSyncLogger.SyncStatistics;
+import site.easy.to.build.crm.service.payprop.PayPropSyncService.PayPropExportResult;
+import site.easy.to.build.crm.service.payprop.PayPropSyncService.SyncResult;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -27,16 +30,19 @@ public class PayPropSyncController {
     private final PayPropSyncOrchestrator syncOrchestrator;
     private final PayPropOAuth2Service oAuth2Service;
     private final PayPropSyncLogger syncLogger;
+    private final PayPropSyncService payPropSyncService;
     private final AuthenticationUtils authenticationUtils;
 
     @Autowired
     public PayPropSyncController(PayPropSyncOrchestrator syncOrchestrator,
                                 PayPropOAuth2Service oAuth2Service,
                                 PayPropSyncLogger syncLogger,
+                                PayPropSyncService payPropSyncService,
                                 AuthenticationUtils authenticationUtils) {
         this.syncOrchestrator = syncOrchestrator;
         this.oAuth2Service = oAuth2Service;
         this.syncLogger = syncLogger;
+        this.payPropSyncService = payPropSyncService;
         this.authenticationUtils = authenticationUtils;
     }
 
@@ -70,7 +76,7 @@ public class PayPropSyncController {
         return ResponseEntity.ok(status);
     }
 
-    // ===== UNIFIED SYNC OPERATION =====
+    // ===== UNIFIED SYNC OPERATIONS =====
 
     @PostMapping("/unified")
     @ResponseBody
@@ -112,6 +118,66 @@ public class PayPropSyncController {
         }
     }
 
+    /**
+     * ✅ NEW: Enhanced unified sync with complete rent and occupancy data
+     */
+    @PostMapping("/unified-enhanced")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> performEnhancedUnifiedSync(Authentication authentication) {
+        
+        System.out.println("🚀 ENHANCED UNIFIED SYNC ENDPOINT REACHED");
+        
+        if (!oAuth2Service.hasValidTokens()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "PayProp not authorized. Please complete OAuth2 setup first."
+            ));
+        }
+
+        Long userId = getCurrentUserId(authentication);
+        System.out.println("🔍 Using user ID: " + userId);
+        
+        try {
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+            
+            // ✅ USE ENHANCED SYNC METHOD
+            UnifiedSyncResult result = syncOrchestrator.performEnhancedUnifiedSync(oAuthUser, userId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", result.isOverallSuccess());
+            response.put("message", result.getSummary());
+            
+            // ✅ ENHANCED: Include detailed rent and occupancy statistics
+            Map<String, Object> enhancedDetails = new HashMap<>();
+            enhancedDetails.put("properties", result.getPropertiesResult());
+            enhancedDetails.put("propertyOwners", result.getPropertyOwnersResult());
+            enhancedDetails.put("tenants", result.getTenantsResult());
+            enhancedDetails.put("relationships", result.getRelationshipsResult());
+            
+            // Add data quality metrics
+            SyncResult propertiesResult = result.getPropertiesResult();
+            if (propertiesResult != null && propertiesResult.getDetails() != null) {
+                Map<String, Object> propertyDetails = propertiesResult.getDetails();
+                enhancedDetails.put("dataQuality", Map.of(
+                    "rentDataQuality", propertyDetails.get("rentDataQuality"),
+                    "occupancyDataQuality", propertyDetails.get("occupancyDataQuality"),
+                    "rentAmountsFound", propertyDetails.get("rentAmountsFound"),
+                    "occupancyDetected", propertyDetails.get("occupancyDetected")
+                ));
+            }
+            
+            response.put("details", enhancedDetails);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Enhanced unified sync failed: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(Map.of(
+                "error", "Enhanced unified sync failed: " + e.getMessage()
+            ));
+        }
+    }
+
     // Keep legacy endpoint for compatibility
     @PostMapping("/full")
     @ResponseBody
@@ -148,6 +214,156 @@ public class PayPropSyncController {
             "message", "Unified sync started asynchronously",
             "syncId", "sync_" + System.currentTimeMillis()
         ));
+    }
+
+    // ===== NEW ENHANCED ENDPOINTS =====
+
+    /**
+     * ✅ NEW: Get comprehensive property statistics with rent and occupancy data
+     */
+    @GetMapping("/property-statistics")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getPropertyStatistics(Authentication authentication) {
+        if (!oAuth2Service.hasValidTokens()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "PayProp not authorized"
+            ));
+        }
+        
+        try {
+            // Get property statistics from PayProp with enhanced data
+            Map<String, Object> stats = payPropSyncService.getPropertyStatistics();
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "statistics", stats
+            ));
+            
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                "error", "Failed to get property statistics: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * ✅ NEW: Test individual property data retrieval with complete information
+     */
+    @GetMapping("/test-property/{propertyId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testPropertyDataRetrieval(
+            @PathVariable String propertyId, 
+            Authentication authentication) {
+        
+        if (!oAuth2Service.hasValidTokens()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "PayProp not authorized"
+            ));
+        }
+        
+        try {
+            Map<String, Object> propertyData = payPropSyncService.getCompletePropertyData(propertyId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("propertyId", propertyId);
+            response.put("data", propertyData);
+            
+            // Extract key information for easy viewing
+            Map<String, Object> settings = (Map<String, Object>) propertyData.get("settings");
+            List<Map<String, Object>> activeTenants = (List<Map<String, Object>>) propertyData.get("active_tenants");
+            
+            response.put("summary", Map.of(
+                "propertyName", propertyData.get("property_name"),
+                "monthlyRent", settings != null ? settings.get("monthly_payment") : "Not found",
+                "isOccupied", propertyData.get("is_occupied"),
+                "activeTenants", activeTenants != null ? activeTenants.size() : 0,
+                "hasSettings", settings != null,
+                "settingsKeys", settings != null ? settings.keySet() : "No settings"
+            ));
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                "error", "Failed to retrieve property data: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * ✅ NEW: Debug endpoint to check what data PayProp is actually returning
+     */
+    @GetMapping("/debug-export/{page}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> debugPayPropExport(
+            @PathVariable int page,
+            @RequestParam(defaultValue = "5") int rows,
+            Authentication authentication) {
+        
+        if (!oAuth2Service.hasValidTokens()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "PayProp not authorized"
+            ));
+        }
+        
+        try {
+            // Test both regular and enhanced export
+            PayPropExportResult regularResult = 
+                payPropSyncService.exportPropertiesFromPayProp(page, rows);
+            
+            PayPropExportResult enhancedResult = 
+                payPropSyncService.exportPropertiesFromPayPropEnhanced(page, rows);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            
+            // Compare what we get from each method
+            Map<String, Object> comparison = new HashMap<>();
+            comparison.put("regularCount", regularResult.getItems().size());
+            comparison.put("enhancedCount", enhancedResult.getItems().size());
+            
+            if (!regularResult.getItems().isEmpty()) {
+                Map<String, Object> regularSample = regularResult.getItems().get(0);
+                comparison.put("regularKeys", regularSample.keySet());
+                comparison.put("regularHasSettings", regularSample.containsKey("settings"));
+                
+                if (regularSample.containsKey("settings")) {
+                    Map<String, Object> settings = (Map<String, Object>) regularSample.get("settings");
+                    comparison.put("regularSettingsKeys", settings != null ? settings.keySet() : "null");
+                    comparison.put("regularMonthlyPayment", settings != null ? settings.get("monthly_payment") : "null");
+                }
+            }
+            
+            if (!enhancedResult.getItems().isEmpty()) {
+                Map<String, Object> enhancedSample = enhancedResult.getItems().get(0);
+                comparison.put("enhancedKeys", enhancedSample.keySet());
+                comparison.put("enhancedHasSettings", enhancedSample.containsKey("settings"));
+                comparison.put("enhancedHasActiveTenancies", enhancedSample.containsKey("active_tenancies"));
+                
+                if (enhancedSample.containsKey("settings")) {
+                    Map<String, Object> settings = (Map<String, Object>) enhancedSample.get("settings");
+                    comparison.put("enhancedSettingsKeys", settings != null ? settings.keySet() : "null");
+                    comparison.put("enhancedMonthlyPayment", settings != null ? settings.get("monthly_payment") : "null");
+                }
+                
+                if (enhancedSample.containsKey("active_tenancies")) {
+                    List<Map<String, Object>> tenancies = (List<Map<String, Object>>) enhancedSample.get("active_tenancies");
+                    comparison.put("enhancedActiveTenancies", tenancies != null ? tenancies.size() : 0);
+                }
+            }
+            
+            response.put("comparison", comparison);
+            response.put("regularData", regularResult.getItems());
+            response.put("enhancedData", enhancedResult.getItems());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                "error", "Debug export failed: " + e.getMessage()
+            ));
+        }
     }
 
     // ===== SYNC STATISTICS =====

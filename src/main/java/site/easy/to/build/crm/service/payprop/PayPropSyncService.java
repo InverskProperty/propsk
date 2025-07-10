@@ -25,6 +25,7 @@ import site.easy.to.build.crm.service.property.PropertyOwnerService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -172,6 +173,127 @@ public class PayPropSyncService {
             throw new RuntimeException("Failed to update property in PayProp: " + e.getResponseBodyAsString(), e);
         } catch (Exception e) {
             throw new RuntimeException("Property update failed", e);
+        }
+    }
+
+    /**
+     * ✅ NEW: Enhanced export with complete rent and occupancy data
+     */
+    public PayPropExportResult exportPropertiesFromPayPropEnhanced(int page, int rows) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            // Enhanced export includes settings (monthly_payment) and active_tenancies
+            String url = payPropApiBase + "/export/properties?include_settings=true&include_active_tenancies=true&page=" + page + "&rows=" + Math.min(rows, 25);
+            
+            System.out.println("📥 Enhanced export from PayProp - Page " + page);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                
+                PayPropExportResult result = new PayPropExportResult();
+                result.setItems((List<Map<String, Object>>) responseBody.get("items"));
+                result.setPagination((Map<String, Object>) responseBody.get("pagination"));
+                
+                System.out.println("✅ Enhanced export: " + result.getItems().size() + " properties with settings");
+                
+                return result;
+            }
+            
+            throw new RuntimeException("Failed to export enhanced properties from PayProp");
+            
+        } catch (Exception e) {
+            System.err.println("❌ Enhanced property export failed: " + e.getMessage());
+            // Fallback to regular export
+            return exportPropertiesFromPayProp(page, rows);
+        }
+    }
+
+    /**
+     * ✅ NEW: Get comprehensive property statistics with rent and occupancy data
+     */
+    public Map<String, Object> getPropertyStatistics() {
+        try {
+            Map<String, Object> stats = new HashMap<>();
+            
+            // Get all properties with enhanced data
+            int totalProperties = 0;
+            int propertiesWithRent = 0;
+            int occupiedProperties = 0;
+            BigDecimal totalMonthlyRent = BigDecimal.ZERO;
+            
+            int page = 1;
+            while (true) {
+                PayPropExportResult result = exportPropertiesFromPayPropEnhanced(page, 25);
+                if (result.getItems().isEmpty()) break;
+                
+                for (Map<String, Object> property : result.getItems()) {
+                    totalProperties++;
+                    
+                    // Check for rent data
+                    Map<String, Object> settings = (Map<String, Object>) property.get("settings");
+                    if (settings != null && settings.get("monthly_payment") != null) {
+                        propertiesWithRent++;
+                        Object monthlyPayment = settings.get("monthly_payment");
+                        if (monthlyPayment instanceof Number) {
+                            totalMonthlyRent = totalMonthlyRent.add(new BigDecimal(monthlyPayment.toString()));
+                        }
+                    }
+                    
+                    // Check occupancy
+                    List<Map<String, Object>> activeTenancies = (List<Map<String, Object>>) property.get("active_tenancies");
+                    if (activeTenancies != null && !activeTenancies.isEmpty()) {
+                        occupiedProperties++;
+                    }
+                }
+                page++;
+            }
+            
+            stats.put("totalProperties", totalProperties);
+            stats.put("propertiesWithRent", propertiesWithRent);
+            stats.put("occupiedProperties", occupiedProperties);
+            stats.put("vacantProperties", totalProperties - occupiedProperties);
+            stats.put("totalMonthlyRent", totalMonthlyRent);
+            stats.put("averageRent", propertiesWithRent > 0 ? totalMonthlyRent.divide(new BigDecimal(propertiesWithRent), 2, BigDecimal.ROUND_HALF_UP) : BigDecimal.ZERO);
+            stats.put("occupancyRate", totalProperties > 0 ? (occupiedProperties * 100.0 / totalProperties) : 0);
+            stats.put("rentDataQuality", propertiesWithRent * 100.0 / totalProperties);
+            
+            return stats;
+            
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to get property statistics: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * ✅ NEW: Get complete property data with all settings and tenancy info
+     */
+    public Map<String, Object> getCompletePropertyData(String propertyId) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/entity/property/" + propertyId + "?include_settings=true&include_active_tenants=true";
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> propertyData = response.getBody();
+                
+                // Add occupancy detection
+                List<Map<String, Object>> activeTenants = (List<Map<String, Object>>) propertyData.get("active_tenants");
+                propertyData.put("is_occupied", activeTenants != null && !activeTenants.isEmpty());
+                
+                return propertyData;
+            }
+            
+            throw new RuntimeException("Failed to get complete property data");
+            
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to get complete property data: " + e.getMessage(), e);
         }
     }
     

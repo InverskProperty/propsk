@@ -111,6 +111,163 @@ public class PayPropSyncOrchestrator {
         return result;
     }
 
+    public UnifiedSyncResult performEnhancedUnifiedSync(OAuthUser oAuthUser, Long initiatedBy) {
+        UnifiedSyncResult result = new UnifiedSyncResult();
+        syncLogger.logSyncStart("ENHANCED_UNIFIED_SYNC", initiatedBy);
+        
+        try {
+            // Step 1: Enhanced Properties sync with rent data
+            result.setPropertiesResult(syncPropertiesFromPayPropEnhanced(initiatedBy));
+            
+            // Step 2: Get payment relationships 
+            Map<String, PropertyRelationship> relationships = extractRelationshipsFromPayments();
+            
+            // Step 3: Sync Property Owners as Customers
+            result.setPropertyOwnersResult(syncPropertyOwnersAsCustomers(initiatedBy, relationships));
+            
+            // Step 4: Sync Tenants as Customers  
+            result.setTenantsResult(syncTenantsAsCustomers(initiatedBy));
+
+            // Step 5: Sync Contractors as Customers
+            result.setContractorsResult(syncContractorsAsCustomers(initiatedBy));
+
+            // Step 6: Establish property assignments
+            result.setRelationshipsResult(establishPropertyAssignments(relationships));
+
+            // Step 7: Establish tenant relationships
+            result.setTenantRelationshipsResult(establishTenantPropertyRelationships());
+
+            // Step 8: Enhanced occupancy detection
+            result.setOccupancyResult(detectOccupancyFromTenancies(initiatedBy));
+
+            // Step 9: Sync PayProp files
+            if (oAuthUser != null) {
+                result.setFilesResult(syncPayPropFiles(oAuthUser, initiatedBy));
+            } else {
+                log.warn("⚠️ No OAuthUser provided - skipping file sync");
+                result.setFilesResult(SyncResult.partial("File sync skipped - no OAuth user", Map.of()));
+            }
+            
+            syncLogger.logSyncComplete("ENHANCED_UNIFIED_SYNC", result.isOverallSuccess(), result.getSummary());
+            
+        } catch (Exception e) {
+            syncLogger.logSyncError("ENHANCED_UNIFIED_SYNC", e);
+            result.setOverallError(e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
+     * Enhanced property sync with complete rent and occupancy data
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncPropertiesFromPayPropEnhanced(Long initiatedBy) {
+        try {
+            int page = 1;
+            int totalProcessed = 0;
+            int totalCreated = 0;
+            int totalUpdated = 0;
+            int totalErrors = 0;
+            int rentAmountsFound = 0;
+            int occupancyDetected = 0;
+            
+            while (true) {
+                PayPropSyncService.PayPropExportResult exportResult = 
+                    payPropSyncService.exportPropertiesFromPayPropEnhanced(page, batchSize);
+                
+                if (exportResult.getItems().isEmpty()) {
+                    break;
+                }
+
+                for (Map<String, Object> propertyData : exportResult.getItems()) {
+                    try {
+                        // Track rent and occupancy data quality
+                        Map<String, Object> settings = (Map<String, Object>) propertyData.get("settings");
+                        if (settings != null && settings.get("monthly_payment") != null) {
+                            rentAmountsFound++;
+                        }
+                        
+                        List<Map<String, Object>> activeTenancies = (List<Map<String, Object>>) propertyData.get("active_tenancies");
+                        if (activeTenancies != null && !activeTenancies.isEmpty()) {
+                            occupancyDetected++;
+                        }
+                        
+                        boolean isNew = createOrUpdateProperty(propertyData, initiatedBy);
+                        if (isNew) totalCreated++; else totalUpdated++;
+                        totalProcessed++;
+                    } catch (Exception e) {
+                        totalErrors++;
+                        log.error("Failed to sync property {}: {}", propertyData.get("id"), e.getMessage());
+                    }
+                }
+                page++;
+            }
+
+            // Enhanced details with data quality metrics
+            Map<String, Object> details = Map.of(
+                "processed", totalProcessed,
+                "created", totalCreated, 
+                "updated", totalUpdated,
+                "errors", totalErrors,
+                "rentAmountsFound", rentAmountsFound,
+                "occupancyDetected", occupancyDetected,
+                "rentDataQuality", totalProcessed > 0 ? (rentAmountsFound * 100.0 / totalProcessed) : 0,
+                "occupancyDataQuality", totalProcessed > 0 ? (occupancyDetected * 100.0 / totalProcessed) : 0
+            );
+
+            return totalErrors == 0 ? 
+                SyncResult.success("Enhanced properties synced successfully", details) : 
+                SyncResult.partial("Enhanced properties synced with some errors", details);
+                
+        } catch (Exception e) {
+            return SyncResult.failure("Enhanced properties sync failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Detect occupancy from active tenancies
+     */
+    private SyncResult detectOccupancyFromTenancies(Long initiatedBy) {
+        try {
+            int totalProperties = 0;
+            int occupiedProperties = 0;
+            
+            List<Property> allProperties = propertyService.findAll();
+            
+            for (Property property : allProperties) {
+                if (property.getPayPropId() != null) {
+                    totalProperties++;
+                    try {
+                        PayPropSyncService.PayPropExportResult tenants = 
+                            payPropSyncService.exportTenantsByProperty(property.getPayPropId());
+                        
+                        if (!tenants.getItems().isEmpty()) {
+                            occupiedProperties++;
+                            // You could update a property occupancy field here if needed
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to check occupancy for property {}: {}", property.getPayPropId(), e.getMessage());
+                    }
+                }
+            }
+            
+            Map<String, Object> details = Map.of(
+                "totalProperties", totalProperties,
+                "occupiedProperties", occupiedProperties,
+                "vacantProperties", totalProperties - occupiedProperties,
+                "occupancyRate", totalProperties > 0 ? (occupiedProperties * 100.0 / totalProperties) : 0
+            );
+            
+            return SyncResult.success("Occupancy detection completed", details);
+            
+        } catch (Exception e) {
+            return SyncResult.failure("Occupancy detection failed: " + e.getMessage());
+        }
+    }
+
+
+
     // ===== STEP 1: SYNC PROPERTIES =====
     
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -1286,16 +1443,21 @@ public class PayPropSyncOrchestrator {
         private SyncResult filesResult;
         private String overallError;
 
-        public boolean isOverallSuccess() {
-            return overallError == null && 
-                (propertiesResult == null || propertiesResult.isSuccess()) &&
-                (propertyOwnersResult == null || propertyOwnersResult.isSuccess()) &&
-                (tenantsResult == null || tenantsResult.isSuccess()) &&
-                (contractorsResult == null || contractorsResult.isSuccess()) &&
-                (relationshipsResult == null || relationshipsResult.isSuccess()) &&
-                (tenantRelationshipsResult == null || tenantRelationshipsResult.isSuccess()) &&
-                (filesResult == null || filesResult.isSuccess());
-        }
+        private SyncResult occupancyResult;
+
+    public SyncResult getOccupancyResult() { return occupancyResult; }
+    public void setOccupancyResult(SyncResult occupancyResult) { this.occupancyResult = occupancyResult; }
+
+            public boolean isOverallSuccess() {
+                return overallError == null && 
+                    (propertiesResult == null || propertiesResult.isSuccess()) &&
+                    (propertyOwnersResult == null || propertyOwnersResult.isSuccess()) &&
+                    (tenantsResult == null || tenantsResult.isSuccess()) &&
+                    (contractorsResult == null || contractorsResult.isSuccess()) &&
+                    (relationshipsResult == null || relationshipsResult.isSuccess()) &&
+                    (tenantRelationshipsResult == null || tenantRelationshipsResult.isSuccess()) &&
+                    (filesResult == null || filesResult.isSuccess());
+            }
 
         public String getSummary() {
             if (overallError != null) return overallError;
