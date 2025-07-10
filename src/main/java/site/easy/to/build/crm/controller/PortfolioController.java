@@ -298,9 +298,11 @@ public class PortfolioController {
             }
             
             redirectAttributes.addFlashAttribute("successMessage", successMessage);
-            System.out.println("✅ PORTFOLIO CREATION COMPLETED - Redirecting to: /portfolio/" + savedPortfolio.getId());
-            
-            return "redirect:/portfolio/" + savedPortfolio.getId();
+            redirectAttributes.addFlashAttribute("newPortfolioId", savedPortfolio.getId());
+            redirectAttributes.addFlashAttribute("newPortfolioName", savedPortfolio.getName());
+            System.out.println("✅ PORTFOLIO CREATION COMPLETED - Redirecting to success page");
+
+            return "redirect:/portfolio/" + savedPortfolio.getId() + "?justCreated=true";
             
         } catch (Exception e) {
             System.out.println("❌ UNEXPECTED ERROR: " + e.getMessage());
@@ -415,6 +417,50 @@ public class PortfolioController {
             model.addAttribute("unassignedProperties", unassignedProperties);
             model.addAttribute("allProperties", allProperties);
             model.addAttribute("pageTitle", "Assign Properties to Portfolios");
+            
+            return "portfolio/assign-properties";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading assignment page: " + e.getMessage());
+            return "error/500";
+        }
+    }
+
+    /**
+     * Portfolio-Specific Property Assignment Interface - NEW METHOD
+     */
+    @GetMapping("/{id}/assign")
+    public String showPortfolioSpecificAssignmentPage(@PathVariable("id") Long portfolioId, 
+                                                     Model model, 
+                                                     Authentication authentication) {
+        try {
+            // Check access permissions
+            if (!portfolioService.canUserAccessPortfolio(portfolioId, authentication)) {
+                return "redirect:/access-denied";
+            }
+            
+            // Get the specific portfolio
+            Portfolio targetPortfolio = portfolioService.findById(portfolioId);
+            if (targetPortfolio == null) {
+                return "error/not-found";
+            }
+            
+            // Get all portfolios for the general assignment interface
+            List<Portfolio> allPortfolios = portfolioService.findPortfoliosForUser(authentication);
+            
+            // Get all properties and unassigned properties
+            List<Property> allProperties = propertyService.findAll();
+            List<Property> unassignedProperties = allProperties.stream()
+                .filter(property -> property.getPortfolio() == null)
+                .collect(Collectors.toList());
+            
+            // Add attributes for the assignment page
+            model.addAttribute("targetPortfolio", targetPortfolio);
+            model.addAttribute("portfolios", allPortfolios);
+            model.addAttribute("unassignedProperties", unassignedProperties);
+            model.addAttribute("allProperties", allProperties);
+            model.addAttribute("pageTitle", "Assign Properties to " + targetPortfolio.getName());
+            model.addAttribute("isPortfolioSpecific", true);
             
             return "portfolio/assign-properties";
             

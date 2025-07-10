@@ -33,9 +33,21 @@
     border-color: #007bff;
     background-color: #f8f9fa;
 }
+.portfolio-target.target-portfolio {
+    border: 3px solid #28a745;
+    background-color: #f8fff9;
+}
 .drag-source {
     max-height: 400px;
     overflow-y: auto;
+}
+.highlight-target {
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0% { border-color: #28a745; }
+    50% { border-color: #20c997; }
+    100% { border-color: #28a745; }
 }
 </style>
 
@@ -60,18 +72,44 @@
                 <div class="col-md-8 align-self-center">
                     <h3 class="text-themecolor">
                         <i class="fas fa-tasks text-success"></i> 
-                        Property Assignment Center
+                        <span th:if="${isPortfolioSpecific}">
+                            Add Properties to "<span th:text="${targetPortfolio.name}">Target Portfolio</span>"
+                        </span>
+                        <span th:unless="${isPortfolioSpecific}">
+                            Property Assignment Center
+                        </span>
                     </h3>
-                    <p class="text-muted">Assign properties to portfolios with drag & drop</p>
+                    <p class="text-muted" th:if="${isPortfolioSpecific}">
+                        Assign properties to your portfolio with drag & drop or bulk selection
+                    </p>
+                    <p class="text-muted" th:unless="${isPortfolioSpecific}">
+                        Assign properties to portfolios with drag & drop
+                    </p>
                 </div>
                 <div class="col-md-4 align-self-center text-right">
                     <div class="btn-group">
-                        <button class="btn btn-info" onclick="toggleAssignmentMode()">
+                        <button class="btn btn-info" onclick="toggleAssignmentMode()" th:unless="${isPortfolioSpecific}">
                             <i class="fas fa-exchange-alt"></i> Toggle Mode
                         </button>
-                        <a href="/portfolio/all" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left"></i> Back to Portfolios
+                        <button class="btn btn-info" onclick="toggleAssignmentMode()" th:if="${isPortfolioSpecific}">
+                            <i class="fas fa-exchange-alt"></i> Change Mode
+                        </button>
+                        <a th:href="${isPortfolioSpecific ? '/portfolio/' + targetPortfolio.id : '/portfolio/all'}" 
+                           class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> 
+                            <span th:text="${isPortfolioSpecific ? 'Back to Portfolio' : 'Back to Portfolios'}">Back</span>
                         </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Portfolio-Specific Success Message -->
+            <div th:if="${isPortfolioSpecific}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <h4><i class="icon fa fa-info-circle"></i> Portfolio-Specific Assignment</h4>
+                        You're assigning properties specifically to "<strong th:text="${targetPortfolio.name}">Target Portfolio</strong>". 
+                        The target portfolio is highlighted in green below.
                     </div>
                 </div>
             </div>
@@ -178,7 +216,43 @@
                             </div>
                             <div class="card-body">
                                 <div style="max-height: 500px; overflow-y: auto;">
-                                    <div th:each="portfolio : ${portfolios}" class="mb-3">
+                                    <!-- Target Portfolio (if portfolio-specific) -->
+                                    <div th:if="${isPortfolioSpecific}" class="mb-3">
+                                        <div th:class="'card portfolio-target target-portfolio highlight-target'"
+                                             th:data-portfolio-id="${targetPortfolio.id}"
+                                             ondrop="drop(event)" 
+                                             ondragover="allowDrop(event)"
+                                             ondragenter="dragEnter(event)"
+                                             ondragleave="dragLeave(event)">
+                                            <div class="card-header d-flex justify-content-between align-items-center bg-success text-white">
+                                                <h6 class="mb-0 text-white">
+                                                    <i class="fas fa-bullseye"></i> 
+                                                    <span th:text="${targetPortfolio.name}">Target Portfolio</span>
+                                                </h6>
+                                                <div>
+                                                    <span class="badge badge-light text-success">TARGET PORTFOLIO</span>
+                                                </div>
+                                            </div>
+                                            <div class="card-body">
+                                                <p class="text-muted small mb-2" th:text="${targetPortfolio.description}">Description</p>
+                                                <div class="d-flex justify-content-between">
+                                                    <small class="text-muted">
+                                                        Owner: 
+                                                        <span th:if="${targetPortfolio.propertyOwnerId}" 
+                                                              th:text="'ID ' + ${targetPortfolio.propertyOwnerId}">Owner ID</span>
+                                                        <span th:unless="${targetPortfolio.propertyOwnerId}">Shared</span>
+                                                    </small>
+                                                    <small class="text-success">
+                                                        <i class="fas fa-home"></i> <strong>Drop properties here!</strong>
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Other Portfolios -->
+                                    <div th:each="portfolio : ${portfolios}" class="mb-3"
+                                         th:if="${!isPortfolioSpecific || portfolio.id != targetPortfolio.id}">
                                         <div class="card portfolio-target"
                                              th:data-portfolio-id="${portfolio.id}"
                                              ondrop="drop(event)" 
@@ -234,8 +308,13 @@
                                             <div class="form-group">
                                                 <label>Select Target Portfolio</label>
                                                 <select class="form-control" id="targetPortfolio" required>
-                                                    <option value="">Choose portfolio...</option>
+                                                    <option value="" th:unless="${isPortfolioSpecific}">Choose portfolio...</option>
+                                                    <option th:if="${isPortfolioSpecific}" 
+                                                            th:value="${targetPortfolio.id}" 
+                                                            th:text="${targetPortfolio.name + ' (TARGET PORTFOLIO)'}"
+                                                            selected>Target Portfolio</option>
                                                     <option th:each="portfolio : ${portfolios}" 
+                                                            th:if="${!isPortfolioSpecific || portfolio.id != targetPortfolio.id}"
                                                             th:value="${portfolio.id}" 
                                                             th:text="${portfolio.name + ' (' + (portfolio.isShared == 'Y' ? 'Shared' : 'Owner-Specific') + ')'}">Portfolio</option>
                                                 </select>
@@ -326,6 +405,8 @@
 
 <script>
 let currentMode = 'dragdrop';
+const isPortfolioSpecific = /*[[${isPortfolioSpecific ?: false}]]*/ false;
+const targetPortfolioId = /*[[${targetPortfolio?.id ?: null}]]*/ null;
 
 function setMode(mode) {
     currentMode = mode;
@@ -414,6 +495,13 @@ function assignPropertyToPortfolio(propertyId, portfolioId) {
             }
             
             showSuccess('Property assigned successfully!');
+            
+            // If portfolio-specific and assigned to target portfolio, show celebration
+            if (isPortfolioSpecific && portfolioId == targetPortfolioId) {
+                setTimeout(() => {
+                    showSuccess('🎉 Property added to your target portfolio!');
+                }, 500);
+            }
         } else {
             showError('Error: ' + data.message);
         }
@@ -493,6 +581,16 @@ function showError(message) {
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
     setMode('dragdrop');
+    
+    // If portfolio-specific, pre-select the target portfolio in bulk mode
+    if (isPortfolioSpecific && targetPortfolioId) {
+        setTimeout(() => {
+            const targetSelect = document.getElementById('targetPortfolio');
+            if (targetSelect) {
+                targetSelect.value = targetPortfolioId;
+            }
+        }, 100);
+    }
 });
 </script>
 
