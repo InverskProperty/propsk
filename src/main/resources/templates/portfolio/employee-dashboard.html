@@ -1,78 +1,352 @@
-<!-- 1. employee-dashboard.html -->
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{general/head.html}"></head>
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- DataTables CSS -->
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/responsive.dataTables.min.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<link th:href="@{/css/all.css}" rel="stylesheet">
+
+<style>
+    .stats-card {
+        transition: all 0.3s ease;
+        border-left: 4px solid #dee2e6;
+    }
+    .stats-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .stats-card.primary { border-left-color: #007bff; }
+    .stats-card.success { border-left-color: #28a745; }
+    .stats-card.warning { border-left-color: #ffc107; }
+    .stats-card.info { border-left-color: #17a2b8; }
+    
+    .portfolio-item {
+        transition: all 0.3s ease;
+        border-left: 4px solid #dee2e6;
+    }
+    .portfolio-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .portfolio-item.synced { border-left-color: #28a745; }
+    .portfolio-item.pending { border-left-color: #ffc107; }
+    .portfolio-item.shared { border-left-color: #007bff; }
+</style>
+
+</head>
+
 <body class="skin-blue fixed-layout">
-    <div id="main-wrapper">
-        <div th:replace="~{general/header.html}"></div>
-        <div th:replace="~{general/left-sidebar.html}"></div>
-        
-        <div class="page-wrapper">
-            <div class="container-fluid">
-                <div class="row page-titles">
-                    <div class="col-md-8 align-self-center">
-                        <h3 class="text-themecolor">
-                            <i class="fas fa-chart-line text-primary"></i> 
-                            Portfolio Management Dashboard
-                        </h3>
-                        <p class="text-muted">Manage portfolios across all property owners</p>
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">
+                        <i class="fas fa-chart-line text-primary"></i> 
+                        Portfolio Management Dashboard
+                    </h3>
+                    <p class="text-muted">Manage portfolios across all property owners</p>
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/dashboard">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Portfolio Management</li>
+                    </ol>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <div class="btn-group">
+                        <a href="/portfolio/create" class="btn btn-success">
+                            <i class="fas fa-plus"></i> New Portfolio
+                        </a>
+                        <a href="/portfolio/all" class="btn btn-info">
+                            <i class="fas fa-list"></i> All Portfolios
+                        </a>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">
+                                <i class="fas fa-cog"></i> Actions
+                            </button>
+                            <div class="dropdown-menu">
+                                <a class="dropdown-item" href="#" onclick="syncAllPortfolios()">
+                                    <i class="fas fa-sync"></i> Sync All with PayProp
+                                </a>
+                                <a class="dropdown-item" href="/portfolio/assign-properties">
+                                    <i class="fas fa-tasks"></i> Property Assignment Center
+                                </a>
+                                <div class="dropdown-divider"></div>
+                                <a class="dropdown-item" href="#" onclick="exportDashboardData()">
+                                    <i class="fas fa-download"></i> Export Dashboard Data
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Quick Stats -->
-                <div class="row">
-                    <div class="col-md-3">
-                        <div class="card bg-primary text-white">
-                            <div class="card-body">
-                                <h3 th:text="${aggregateStats?.totalProperties ?: 0}">0</h3>
-                                <p class="mb-0">Total Properties</p>
-                            </div>
-                        </div>
+            <!-- Success/Error Messages -->
+            <div th:if="${successMessage}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-success alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <h4><i class="icon fa fa-check"></i> Success!</h4>
+                        <span th:text="${successMessage}">Success message</span>
                     </div>
-                    <div class="col-md-3">
-                        <div class="card bg-success text-white">
-                            <div class="card-body">
-                                <h3 th:text="${#lists.size(portfolios ?: {})}">0</h3>
-                                <p class="mb-0">Active Portfolios</p>
-                            </div>
-                        </div>
+                </div>
+            </div>
+            
+            <div th:if="${error}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <h4><i class="icon fa fa-ban"></i> Error!</h4>
+                        <span th:text="${error}">Error message</span>
                     </div>
-                    <div class="col-md-3">
-                        <div class="card bg-warning text-white">
-                            <div class="card-body">
-                                <h3 th:text="${aggregateStats?.totalVacant ?: 0}">0</h3>
-                                <p class="mb-0">Vacant Properties</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-info text-white">
-                            <div class="card-body">
-                                <h3 th:text="${aggregateStats?.totalSynced ?: 0}">0</h3>
-                                <p class="mb-0">PayProp Synced</p>
-                            </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats Cards -->
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card stats-card primary bg-primary text-white">
+                        <div class="card-body text-center">
+                            <i class="fas fa-building fa-2x mb-3 opacity-75"></i>
+                            <h3 th:text="${aggregateStats?.totalProperties ?: 0}">0</h3>
+                            <p class="mb-0">Total Properties</p>
+                            <small class="opacity-75">across all portfolios</small>
                         </div>
                     </div>
                 </div>
+                <div class="col-md-3">
+                    <div class="card stats-card success bg-success text-white">
+                        <div class="card-body text-center">
+                            <i class="fas fa-folder fa-2x mb-3 opacity-75"></i>
+                            <h3 th:text="${#lists.size(portfolios ?: {})}">0</h3>
+                            <p class="mb-0">Active Portfolios</p>
+                            <small class="opacity-75">under management</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stats-card warning bg-warning text-white">
+                        <div class="card-body text-center">
+                            <i class="fas fa-home fa-2x mb-3 opacity-75"></i>
+                            <h3 th:text="${aggregateStats?.totalVacant ?: 0}">0</h3>
+                            <p class="mb-0">Vacant Properties</p>
+                            <small class="opacity-75">available to let</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stats-card info bg-info text-white">
+                        <div class="card-body text-center">
+                            <i class="fas fa-sync fa-2x mb-3 opacity-75"></i>
+                            <h3 th:text="${aggregateStats?.totalSynced ?: 0}">0</h3>
+                            <p class="mb-0">PayProp Synced</p>
+                            <small class="opacity-75">properties integrated</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                <!-- Portfolios List -->
-                <div class="row">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between">
-                                <h4>All Portfolios</h4>
-                                <div>
-                                    <a href="/portfolio/create" class="btn btn-success">
-                                        <i class="fas fa-plus"></i> New Portfolio
-                                    </a>
-                                    <button class="btn btn-primary" onclick="syncAllPortfolios()">
-                                        <i class="fas fa-sync"></i> Sync All with PayProp
-                                    </button>
+            <!-- Performance Overview -->
+            <div class="row" th:if="${aggregateStats}">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-chart-bar text-success"></i> Financial Overview
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-6">
+                                    <h6>Total Monthly Rent</h6>
+                                    <h4 class="text-success" th:text="'£' + ${#numbers.formatDecimal(aggregateStats.totalMonthlyRent ?: 0, 0, 'COMMA', 0, 'POINT')}">£0</h4>
+                                    <small class="text-muted">potential income</small>
+                                </div>
+                                <div class="col-6">
+                                    <h6>Actual Monthly Income</h6>
+                                    <h4 class="text-info" th:text="'£' + ${#numbers.formatDecimal(aggregateStats.totalActualIncome ?: 0, 0, 'COMMA', 0, 'POINT')}">£0</h4>
+                                    <small class="text-muted">from occupied properties</small>
                                 </div>
                             </div>
-                            <div class="card-body">
+                            
+                            <div class="mt-3">
+                                <h6>Overall Occupancy Rate</h6>
+                                <div class="progress mb-2">
+                                    <div class="progress-bar bg-success" 
+                                         th:style="'width: ' + ${aggregateStats.overallOccupancyRate} + '%'"
+                                         th:text="${#numbers.formatDecimal(aggregateStats.overallOccupancyRate, 0, 'COMMA', 1, 'POINT')} + '%'">0%</div>
+                                </div>
+                                <small class="text-muted">
+                                    <span th:text="${aggregateStats.totalOccupied}">0</span> occupied of 
+                                    <span th:text="${aggregateStats.totalProperties}">0</span> total properties
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-chart-pie text-primary"></i> Portfolio Distribution
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <h5 th:text="${aggregateStats.totalOccupied}">0</h5>
+                                    <small class="text-success d-block">Occupied</small>
+                                </div>
+                                <div class="col-4">
+                                    <h5 th:text="${aggregateStats.totalVacant}">0</h5>
+                                    <small class="text-warning d-block">Vacant</small>
+                                </div>
+                                <div class="col-4">
+                                    <h5 th:text="${aggregateStats.totalSynced}">0</h5>
+                                    <small class="text-info d-block">Synced</small>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3" th:if="${payPropEnabled}">
+                                <h6>PayProp Integration Status</h6>
+                                <div class="progress">
+                                    <div class="progress-bar bg-success" 
+                                         th:style="'width: ' + ${aggregateStats.totalProperties > 0 ? (aggregateStats.totalSynced * 100.0 / aggregateStats.totalProperties) : 0} + '%'">
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    <span th:text="${aggregateStats.totalSynced}">0</span> of 
+                                    <span th:text="${aggregateStats.totalProperties}">0</span> properties synced
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Portfolios -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-folder-open text-primary"></i> Portfolio Overview
+                            </h4>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-secondary" onclick="togglePortfolioView('card')" id="cardViewBtn">
+                                    <i class="fas fa-th-large"></i> Cards
+                                </button>
+                                <button class="btn btn-sm btn-secondary" onclick="togglePortfolioView('table')" id="tableViewBtn">
+                                    <i class="fas fa-table"></i> Table
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- Empty State -->
+                            <div th:if="${#lists.isEmpty(portfolios ?: {})}" class="text-center py-5">
+                                <i class="fas fa-folder-plus fa-4x text-muted mb-3"></i>
+                                <h5>No Portfolios Found</h5>
+                                <p class="text-muted">Start by creating your first portfolio to organize properties.</p>
+                                <a href="/portfolio/create" class="btn btn-success btn-lg">
+                                    <i class="fas fa-plus"></i> Create First Portfolio
+                                </a>
+                            </div>
+
+                            <!-- Card View -->
+                            <div id="portfolioCardView" th:unless="${#lists.isEmpty(portfolios ?: {})}" class="row">
+                                <div th:each="portfolioData : ${portfolios}" class="col-lg-6 col-xl-4 mb-4">
+                                    <!-- Fixed CSS class assignment -->
+                                    <div th:class="'card portfolio-item h-100 ' + ${portfolioData.portfolio.isShared == 'Y' ? 'shared' : (portfolioData.portfolio.isSyncedWithPayProp() ? 'synced' : 'pending')}">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <h6 class="mb-0" th:text="${portfolioData.portfolio.name}">Portfolio Name</h6>
+                                            <div>
+                                                <span th:if="${portfolioData.portfolio.isShared == 'Y'}" 
+                                                      class="badge badge-primary">Shared</span>
+                                                <span th:unless="${portfolioData.portfolio.isShared == 'Y'}" 
+                                                      class="badge badge-info">Owner-Specific</span>
+                                            </div>
+                                        </div>
+                                        <div class="card-body">
+                                            <p class="card-text text-muted small" th:text="${portfolioData.portfolio.description ?: 'No description'}">Description</p>
+                                            
+                                            <!-- Owner Info -->
+                                            <div class="mb-3">
+                                                <strong>Owner:</strong>
+                                                <span th:if="${portfolioData.portfolio.propertyOwnerId}" 
+                                                      th:text="'ID: ' + ${portfolioData.portfolio.propertyOwnerId}">Owner ID</span>
+                                                <span th:unless="${portfolioData.portfolio.propertyOwnerId}" 
+                                                      class="text-info">All Owners</span>
+                                            </div>
+                                            
+                                            <!-- Analytics -->
+                                            <div class="row text-center mb-3" th:if="${portfolioData.analytics}">
+                                                <div class="col-4">
+                                                    <strong th:text="${portfolioData.analytics.totalProperties ?: 0}">0</strong>
+                                                    <small class="d-block text-muted">Properties</small>
+                                                </div>
+                                                <div class="col-4">
+                                                    <strong th:text="${portfolioData.analytics.occupiedProperties ?: 0}">0</strong>
+                                                    <small class="d-block text-muted">Occupied</small>
+                                                </div>
+                                                <div class="col-4">
+                                                    <strong th:text="${#numbers.formatDecimal(portfolioData.analytics.occupancyRate ?: 0, 0, 'COMMA', 1, 'POINT')} + '%'">0%</strong>
+                                                    <small class="d-block text-muted">Occupancy</small>
+                                                </div>
+                                            </div>
+
+                                            <!-- PayProp Status -->
+                                            <div class="mb-3">
+                                                <strong>PayProp:</strong>
+                                                <span th:if="${portfolioData.portfolio.isSyncedWithPayProp()}" 
+                                                      class="badge badge-success">
+                                                    <i class="fas fa-sync"></i> Synced
+                                                </span>
+                                                <span th:unless="${portfolioData.portfolio.isSyncedWithPayProp()}" 
+                                                      class="badge badge-warning">
+                                                    <i class="fas fa-clock"></i> Pending
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="card-footer">
+                                            <div class="btn-group btn-group-sm w-100">
+                                                <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id}}" 
+                                                   class="btn btn-info">
+                                                    <i class="fas fa-eye"></i> View
+                                                </a>
+                                                <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id} + '/edit'}" 
+                                                   class="btn btn-warning">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </a>
+                                                <button class="btn btn-primary" 
+                                                        th:onclick="'syncPortfolio(' + ${portfolioData.portfolio.id} + ')'">
+                                                    <i class="fas fa-sync"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Table View -->
+                            <div id="portfolioTableView" style="display: none;" th:unless="${#lists.isEmpty(portfolios ?: {})}">
                                 <div class="table-responsive">
-                                    <table class="table table-striped">
+                                    <table id="portfolioTable" class="table table-striped table-bordered">
                                         <thead>
                                             <tr>
                                                 <th>Portfolio Name</th>
@@ -80,6 +354,7 @@
                                                 <th>Properties</th>
                                                 <th>Type</th>
                                                 <th>PayProp Status</th>
+                                                <th>Occupancy</th>
                                                 <th>Actions</th>
                                             </tr>
                                         </thead>
@@ -88,22 +363,22 @@
                                                 <td>
                                                     <strong th:text="${portfolioData.portfolio.name}">Portfolio Name</strong>
                                                     <br>
-                                                    <small class="text-muted" th:text="${portfolioData.portfolio.description}">Description</small>
+                                                    <small class="text-muted" th:text="${portfolioData.portfolio.description ?: 'No description'}">Description</small>
                                                 </td>
                                                 <td>
                                                     <span th:if="${portfolioData.portfolio.propertyOwnerId}" 
-                                                          th:text="'Owner ' + ${portfolioData.portfolio.propertyOwnerId}">Owner</span>
+                                                          th:text="'Owner ' + ${portfolioData.portfolio.propertyOwnerId}">Owner ID</span>
                                                     <span th:unless="${portfolioData.portfolio.propertyOwnerId}" 
-                                                          class="badge badge-info">Shared</span>
+                                                          class="badge badge-primary">Shared</span>
                                                 </td>
                                                 <td>
-                                                    <span class="badge badge-primary" 
+                                                    <span class="badge badge-info" 
                                                           th:text="${portfolioData.analytics?.totalProperties ?: 0}">0</span>
-                                                    properties
+                                                    (<span th:text="${portfolioData.analytics?.occupiedProperties ?: 0}">0</span> occupied)
                                                 </td>
                                                 <td>
                                                     <span class="badge badge-secondary" 
-                                                          th:text="${portfolioData.portfolio.portfolioType}">Type</span>
+                                                          th:text="${portfolioData.portfolio.portfolioType ?: 'N/A'}">Type</span>
                                                 </td>
                                                 <td>
                                                     <span th:if="${portfolioData.portfolio.isSyncedWithPayProp()}" 
@@ -116,15 +391,23 @@
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <div class="btn-group">
+                                                    <span th:text="${#numbers.formatDecimal(portfolioData.analytics?.occupancyRate ?: 0, 0, 'COMMA', 1, 'POINT')} + '%'">0%</span>
+                                                </td>
+                                                <td>
+                                                    <div class="btn-group btn-group-sm">
                                                         <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id}}" 
-                                                           class="btn btn-sm btn-info">
+                                                           class="btn btn-info" title="View">
                                                             <i class="fas fa-eye"></i>
                                                         </a>
                                                         <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id} + '/edit'}" 
-                                                           class="btn btn-sm btn-warning">
+                                                           class="btn btn-warning" title="Edit">
                                                             <i class="fas fa-edit"></i>
                                                         </a>
+                                                        <button class="btn btn-primary" 
+                                                                th:onclick="'syncPortfolio(' + ${portfolioData.portfolio.id} + ')'" 
+                                                                title="Sync">
+                                                            <i class="fas fa-sync"></i>
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -137,34 +420,114 @@
                 </div>
             </div>
         </div>
+        
+        <div th:replace="~{general/footer.html}"></div>
     </div>
+</div>
 
-    <script>
-    function syncAllPortfolios() {
-        if (confirm('Sync all portfolios with PayProp? This may take a few minutes.')) {
-            fetch('/portfolio/sync-all', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Portfolio sync initiated successfully!');
-                    location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Failed to initiate sync');
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+<!-- DataTables -->
+<script th:src="@{/js/library/jquery.dataTables.min.js}"></script>
+<script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
+
+<script>
+function togglePortfolioView(viewType) {
+    if (viewType === 'table') {
+        document.getElementById('portfolioCardView').style.display = 'none';
+        document.getElementById('portfolioTableView').style.display = 'block';
+        document.getElementById('cardViewBtn').classList.remove('btn-secondary');
+        document.getElementById('cardViewBtn').classList.add('btn-outline-secondary');
+        document.getElementById('tableViewBtn').classList.remove('btn-outline-secondary');
+        document.getElementById('tableViewBtn').classList.add('btn-secondary');
+        
+        // Initialize DataTable if not already done
+        if (!$.fn.DataTable.isDataTable('#portfolioTable')) {
+            $('#portfolioTable').DataTable({
+                responsive: true,
+                order: [0, 'asc'],
+                columnDefs: [
+                    { targets: [6], orderable: false }
+                ]
             });
         }
+    } else {
+        document.getElementById('portfolioTableView').style.display = 'none';
+        document.getElementById('portfolioCardView').style.display = 'block';
+        document.getElementById('tableViewBtn').classList.remove('btn-secondary');
+        document.getElementById('tableViewBtn').classList.add('btn-outline-secondary');
+        document.getElementById('cardViewBtn').classList.remove('btn-outline-secondary');
+        document.getElementById('cardViewBtn').classList.add('btn-secondary');
     }
-    </script>
+}
+
+function syncPortfolio(portfolioId) {
+    if (confirm('Sync this portfolio with PayProp?')) {
+        fetch('/portfolio/' + portfolioId + '/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Portfolio sync initiated successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to sync portfolio');
+        });
+    }
+}
+
+function syncAllPortfolios() {
+    if (confirm('Sync all portfolios with PayProp? This may take several minutes.')) {
+        fetch('/portfolio/sync-all', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Portfolio sync initiated successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to initiate sync');
+        });
+    }
+}
+
+function exportDashboardData() {
+    // Placeholder for export functionality
+    alert('Dashboard data export feature coming soon!');
+}
+
+// Initialize default view
+$(document).ready(function() {
+    togglePortfolioView('card');
+});
+</script>
+
 </body>
 </html>
-
