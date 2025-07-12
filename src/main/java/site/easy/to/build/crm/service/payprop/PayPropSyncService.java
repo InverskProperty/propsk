@@ -1,4 +1,4 @@
-// PayPropSyncService.java - Complete Database Compatible Version with File Support
+// PayPropSyncService.java - Enhanced with Payment Sync Capabilities
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,16 +18,21 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
+import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
+import site.easy.to.build.crm.service.customer.CustomerService;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Service
@@ -35,11 +40,19 @@ public class PayPropSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(PayPropSyncService.class);
 
+    // ===== EXISTING SERVICES =====
     private final PropertyService propertyService;
     private final TenantService tenantService;
     private final PropertyOwnerService propertyOwnerService;
+    private final CustomerService customerService;
     private final RestTemplate restTemplate;
     private final PayPropOAuth2Service oAuth2Service;
+    
+    // ===== NEW PAYMENT REPOSITORIES =====
+    private final PaymentRepository paymentRepository;
+    private final PaymentCategoryRepository paymentCategoryRepository;
+    private final BeneficiaryRepository beneficiaryRepository;
+    private final BeneficiaryBalanceRepository beneficiaryBalanceRepository;
     
     @Value("${payprop.api.base-url:https://ukapi.staging.payprop.com/api/agency/v1.1}")
     private String payPropApiBase;
@@ -48,16 +61,360 @@ public class PayPropSyncService {
     public PayPropSyncService(PropertyService propertyService, 
                              TenantService tenantService,
                              PropertyOwnerService propertyOwnerService,
+                             CustomerService customerService,
                              RestTemplate restTemplate,
-                             PayPropOAuth2Service oAuth2Service) {
+                             PayPropOAuth2Service oAuth2Service,
+                             PaymentRepository paymentRepository,
+                             PaymentCategoryRepository paymentCategoryRepository,
+                             BeneficiaryRepository beneficiaryRepository,
+                             BeneficiaryBalanceRepository beneficiaryBalanceRepository) {
         this.propertyService = propertyService;
         this.tenantService = tenantService;
         this.propertyOwnerService = propertyOwnerService;
+        this.customerService = customerService;
         this.restTemplate = restTemplate;
         this.oAuth2Service = oAuth2Service;
+        this.paymentRepository = paymentRepository;
+        this.paymentCategoryRepository = paymentCategoryRepository;
+        this.beneficiaryRepository = beneficiaryRepository;
+        this.beneficiaryBalanceRepository = beneficiaryBalanceRepository;
     }
     
-    // ===== PROPERTY SYNC METHODS =====
+    // ===== NEW PAYMENT SYNC METHODS =====
+    
+    /**
+     * ✅ ENHANCEMENT 1: Sync payment categories to your database
+     * Ensures you have all category mappings for payment classification
+     */
+    public SyncResult syncPaymentCategoriesFromPayProp() {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
+                payPropApiBase + "/payments/categories", 
+                HttpMethod.GET, 
+                request, 
+                Map.class
+            );
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                List<Map<String, Object>> categories = (List<Map<String, Object>>) response.getBody().get("data");
+                
+                int created = 0;
+                int updated = 0;
+                
+                for (Map<String, Object> categoryData : categories) {
+                    String payPropCategoryId = (String) categoryData.get("id");
+                    
+                    // Check if category exists in your payment_categories table
+                    PaymentCategory existing = paymentCategoryRepository.findByPayPropCategoryId(payPropCategoryId);
+                    
+                    if (existing != null) {
+                        // Update existing
+                        existing.setCategoryName((String) categoryData.get("name"));
+                        existing.setCategoryType((String) categoryData.get("type"));
+                        existing.setDescription((String) categoryData.get("description"));
+                        paymentCategoryRepository.save(existing);
+                        updated++;
+                    } else {
+                        // Create new
+                        PaymentCategory newCategory = new PaymentCategory();
+                        newCategory.setPayPropCategoryId(payPropCategoryId);
+                        newCategory.setCategoryName((String) categoryData.get("name"));
+                        newCategory.setCategoryType((String) categoryData.get("type"));
+                        newCategory.setDescription((String) categoryData.get("description"));
+                        paymentCategoryRepository.save(newCategory);
+                        created++;
+                    }
+                }
+                
+                return SyncResult.success("Payment categories synced", 
+                    Map.of("created", created, "updated", updated));
+            }
+            
+            return SyncResult.failure("Failed to get payment categories from PayProp");
+            
+        } catch (Exception e) {
+            return SyncResult.failure("Payment categories sync failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ✅ ENHANCEMENT 2: Sync payments with complete data to your database
+     * Extends your existing exportPaymentsFromPayProp with database storage
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncPaymentsToDatabase(Long initiatedBy) {
+        try {
+            int page = 1;
+            int totalProcessed = 0;
+            int totalCreated = 0;
+            int totalUpdated = 0;
+            int totalErrors = 0;
+            
+            while (true) {
+                PayPropExportResult exportResult = exportPaymentsFromPayProp(page, 25);
+                
+                if (exportResult.getItems().isEmpty()) {
+                    break;
+                }
+
+                for (Map<String, Object> paymentData : exportResult.getItems()) {
+                    try {
+                        boolean isNew = createOrUpdatePayment(paymentData, initiatedBy);
+                        if (isNew) totalCreated++; else totalUpdated++;
+                        totalProcessed++;
+                    } catch (Exception e) {
+                        totalErrors++;
+                        log.error("Failed to sync payment {}: {}", paymentData.get("id"), e.getMessage());
+                    }
+                }
+                page++;
+            }
+
+            Map<String, Object> details = Map.of(
+                "processed", totalProcessed,
+                "created", totalCreated, 
+                "updated", totalUpdated,
+                "errors", totalErrors
+            );
+
+            return totalErrors == 0 ? 
+                SyncResult.success("Payments synced successfully", details) : 
+                SyncResult.partial("Payments synced with some errors", details);
+                
+        } catch (Exception e) {
+            return SyncResult.failure("Payments sync failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ✅ ENHANCEMENT 3: Create or update payment in your database
+     */
+    private boolean createOrUpdatePayment(Map<String, Object> paymentData, Long initiatedBy) {
+        String payPropPaymentId = (String) paymentData.get("id");
+        
+        // Check if payment exists in your payments table
+        Payment existingPayment = paymentRepository.findByPayPropPaymentId(payPropPaymentId);
+        
+        if (existingPayment != null) {
+            updatePaymentFromPayPropData(existingPayment, paymentData);
+            paymentRepository.save(existingPayment);
+            return false; // Updated
+        } else {
+            Payment newPayment = createPaymentFromPayPropData(paymentData);
+            paymentRepository.save(newPayment);
+            return true; // Created
+        }
+    }
+
+    /**
+     * ✅ ENHANCEMENT 4: Map PayProp payment data to your Payment entity
+     */
+    private Payment createPaymentFromPayPropData(Map<String, Object> data) {
+        Payment payment = new Payment();
+        
+        payment.setPayPropPaymentId((String) data.get("id"));
+        
+        // Amount and dates
+        Object amount = data.get("amount");
+        if (amount instanceof Number) {
+            payment.setAmount(new BigDecimal(amount.toString()));
+        }
+        
+        payment.setPaymentDate(parsePayPropDate((String) data.get("payment_date")));
+        payment.setReconciliationDate(parsePayPropDate((String) data.get("reconciliation_date")));
+        payment.setRemittanceDate(parsePayPropDate((String) data.get("remittance_date")));
+        
+        // Categories and references
+        payment.setCategoryId((String) data.get("category_id"));
+        payment.setDescription((String) data.get("description"));
+        payment.setReference((String) data.get("reference"));
+        payment.setStatus((String) data.get("status"));
+        
+        // Relationships
+        payment.setParentPaymentId((String) data.get("parent_payment_id"));
+        payment.setBatchId((String) data.get("batch_id"));
+        
+        // Financial details
+        Object taxAmount = data.get("tax_amount");
+        if (taxAmount instanceof Number) {
+            payment.setTaxAmount(new BigDecimal(taxAmount.toString()));
+        }
+        
+        Object commissionAmount = data.get("commission_amount");
+        if (commissionAmount instanceof Number) {
+            payment.setCommissionAmount(new BigDecimal(commissionAmount.toString()));
+        }
+        
+        // Property and beneficiary relationships
+        Map<String, Object> property = (Map<String, Object>) data.get("property");
+        if (property != null) {
+            String propertyPayPropId = (String) property.get("id");
+            // Find your property by PayProp ID and set the relationship
+            Optional<Property> propertyOpt = propertyService.findByPayPropId(propertyPayPropId);
+            if (propertyOpt.isPresent()) {
+                payment.setPropertyId(propertyOpt.get().getId());
+            }
+        }
+        
+        Map<String, Object> beneficiaryInfo = (Map<String, Object>) data.get("beneficiary_info");
+        if (beneficiaryInfo != null) {
+            String beneficiaryPayPropId = (String) beneficiaryInfo.get("id");
+            // Find your beneficiary by PayProp ID and set the relationship
+            Beneficiary beneficiary = beneficiaryRepository.findByPayPropBeneficiaryId(beneficiaryPayPropId);
+            if (beneficiary != null) {
+                payment.setBeneficiaryId(beneficiary.getId());
+            }
+        }
+        
+        // Tenant relationship (for rent payments)
+        if (payment.getCategoryId() != null && payment.getCategoryId().toLowerCase().contains("rent")) {
+            // Try to find tenant by property
+            if (payment.getPropertyId() != null) {
+                // Look for tenant assigned to this property
+                Customer tenant = customerService.findTenantByPropertyId(payment.getPropertyId());
+                if (tenant != null) {
+                    payment.setTenantId(tenant.getCustomerId().longValue());
+                }
+            }
+        }
+        
+        payment.setCreatedAt(LocalDateTime.now());
+        payment.setUpdatedAt(LocalDateTime.now());
+        
+        return payment;
+    }
+
+    /**
+     * ✅ ENHANCEMENT 5: Update existing payment with PayProp data
+     */
+    private void updatePaymentFromPayPropData(Payment payment, Map<String, Object> data) {
+        // Update amount and dates
+        Object amount = data.get("amount");
+        if (amount instanceof Number) {
+            payment.setAmount(new BigDecimal(amount.toString()));
+        }
+        
+        payment.setPaymentDate(parsePayPropDate((String) data.get("payment_date")));
+        payment.setReconciliationDate(parsePayPropDate((String) data.get("reconciliation_date")));
+        payment.setRemittanceDate(parsePayPropDate((String) data.get("remittance_date")));
+        
+        // Update status and references
+        payment.setStatus((String) data.get("status"));
+        payment.setDescription((String) data.get("description"));
+        payment.setReference((String) data.get("reference"));
+        
+        // Update financial details
+        Object taxAmount = data.get("tax_amount");
+        if (taxAmount instanceof Number) {
+            payment.setTaxAmount(new BigDecimal(taxAmount.toString()));
+        }
+        
+        Object commissionAmount = data.get("commission_amount");
+        if (commissionAmount instanceof Number) {
+            payment.setCommissionAmount(new BigDecimal(commissionAmount.toString()));
+        }
+        
+        payment.setUpdatedAt(LocalDateTime.now());
+    }
+
+    /**
+     * ✅ ENHANCEMENT 6: Sync beneficiary balances to your database
+     */
+    public SyncResult syncBeneficiaryBalancesToDatabase(Long initiatedBy) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
+                payPropApiBase + "/report/beneficiary/balances", 
+                HttpMethod.GET, 
+                request, 
+                Map.class
+            );
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                List<Map<String, Object>> balances = (List<Map<String, Object>>) response.getBody().get("data");
+                
+                int processed = 0;
+                
+                for (Map<String, Object> balanceData : balances) {
+                    try {
+                        createOrUpdateBeneficiaryBalance(balanceData);
+                        processed++;
+                    } catch (Exception e) {
+                        log.error("Failed to sync beneficiary balance: {}", e.getMessage());
+                    }
+                }
+                
+                return SyncResult.success("Beneficiary balances synced", 
+                    Map.of("processed", processed));
+            }
+            
+            return SyncResult.failure("Failed to get beneficiary balances from PayProp");
+            
+        } catch (Exception e) {
+            return SyncResult.failure("Beneficiary balances sync failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ✅ ENHANCEMENT 7: Create or update beneficiary balance
+     */
+    private void createOrUpdateBeneficiaryBalance(Map<String, Object> balanceData) {
+        String beneficiaryPayPropId = (String) balanceData.get("beneficiary_id");
+        String propertyPayPropId = (String) balanceData.get("property_id");
+        
+        // Find your beneficiary and property
+        Beneficiary beneficiary = beneficiaryRepository.findByPayPropBeneficiaryId(beneficiaryPayPropId);
+        Optional<Property> propertyOpt = propertyService.findByPayPropId(propertyPayPropId);
+        
+        if (beneficiary != null && propertyOpt.isPresent()) {
+            Property property = propertyOpt.get();
+            
+            // Check if balance record exists
+            BeneficiaryBalance existingBalance = beneficiaryBalanceRepository
+                .findByBeneficiaryIdAndPropertyId(beneficiary.getId(), property.getId());
+            
+            Object balanceAmount = balanceData.get("balance");
+            BigDecimal balance = balanceAmount instanceof Number ? 
+                new BigDecimal(balanceAmount.toString()) : BigDecimal.ZERO;
+            
+            if (existingBalance != null) {
+                existingBalance.setBalanceAmount(balance);
+                existingBalance.setBalanceDate(LocalDate.now());
+                existingBalance.setLastUpdated(LocalDateTime.now());
+                beneficiaryBalanceRepository.save(existingBalance);
+            } else {
+                BeneficiaryBalance newBalance = new BeneficiaryBalance();
+                newBalance.setBeneficiaryId(beneficiary.getId());
+                newBalance.setPropertyId(property.getId());
+                newBalance.setBalanceAmount(balance);
+                newBalance.setBalanceDate(LocalDate.now());
+                newBalance.setLastUpdated(LocalDateTime.now());
+                beneficiaryBalanceRepository.save(newBalance);
+            }
+        }
+    }
+
+    /**
+     * ✅ UTILITY: Parse PayProp date strings
+     */
+    private LocalDate parsePayPropDate(String dateString) {
+        if (dateString == null || dateString.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(dateString);
+        } catch (Exception e) {
+            log.warn("Could not parse PayProp date: {}", dateString);
+            return null;
+        }
+    }
+    
+    // ===== EXISTING PROPERTY SYNC METHODS (UNCHANGED) =====
     
     public String syncPropertyToPayProp(Long propertyId) {
         Property property = propertyService.findById(propertyId);
@@ -576,7 +933,7 @@ public class PayPropSyncService {
         }
     }
 
-    // ===== FILE AND DOCUMENT METHODS =====
+    // ===== FILE AND DOCUMENT METHODS (UNCHANGED) =====
 
     /**
      * Get PayProp attachments for a customer entity
@@ -735,7 +1092,7 @@ public class PayPropSyncService {
         }
     }
     
-    // ===== CONVERSION METHODS =====
+    // ===== CONVERSION METHODS (UNCHANGED BUT NEEDED FOR COMPILATION) =====
     
     private PayPropPropertyDTO convertPropertyToPayPropFormat(Property property) {
         PayPropPropertyDTO dto = new PayPropPropertyDTO();
@@ -964,7 +1321,7 @@ public class PayPropSyncService {
         return dto;
     }
     
-    // ===== VALIDATION METHODS (FIXED FOR YOUR DATABASE) =====
+    // ===== VALIDATION METHODS (UNCHANGED) =====
     
     private boolean isValidForPayPropSync(Tenant tenant) {
         // Check account type specific requirements
@@ -1121,7 +1478,7 @@ public class PayPropSyncService {
                !email.endsWith("@");
     }
     
-    // ===== UTILITY METHODS (FIXED FOR YOUR DATABASE) =====
+    // ===== UTILITY METHODS (UPDATED FOR YOUR DATABASE) =====
     
     /**
      * Convert Y/N/1/0 values to boolean - OPTIMIZED for your specific data patterns
@@ -1217,6 +1574,7 @@ public class PayPropSyncService {
         throw new UnsupportedOperationException("Customer-based property owner sync not yet implemented. " +
             "Your database uses unified customer table - this needs Customer entity integration.");
     }
+    
     // ===== BULK SYNC METHODS WITH DUPLICATE KEY HANDLING AND SEPARATE TRANSACTIONS =====
     
     /**
@@ -1481,8 +1839,7 @@ public class PayPropSyncService {
         public void setUploadedAt(String uploadedAt) { this.uploadedAt = uploadedAt; }
     }
 
-    
-    // Add to PayPropSyncService.java
+    // ===== SYNC RESULT CLASS =====
     public static class SyncResult {
         private boolean success;
         private String message;

@@ -1,4 +1,4 @@
-// PayPropSyncOrchestrator.java - COMPLETE VERSION with File Sync Integration
+// PayPropSyncOrchestrator.java - Updated with Payment Sync Integration
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,7 +65,7 @@ public class PayPropSyncOrchestrator {
    // ===== MAIN SYNC ORCHESTRATION =====
 
    /**
-    * Complete two-way synchronization using unified Customer entity
+    * Complete two-way synchronization using unified Customer entity with PAYMENT SYNC
     */
    public UnifiedSyncResult performUnifiedSync(OAuthUser oAuthUser, Long initiatedBy) {
        UnifiedSyncResult result = new UnifiedSyncResult();
@@ -92,6 +92,11 @@ public class PayPropSyncOrchestrator {
 
            // Step 7: Establish tenant relationships via junction table
            result.setTenantRelationshipsResult(establishTenantPropertyRelationships());
+
+           // Step 7.5: Sync Payment Data (NEW)
+           result.setPaymentCategoriesResult(syncPaymentCategories(initiatedBy));
+           result.setPaymentsResult(syncPayments(initiatedBy));  
+           result.setBeneficiaryBalancesResult(syncBeneficiaryBalances(initiatedBy));
 
            // Step 8: Sync PayProp files to Google Drive
            if (oAuthUser != null) {
@@ -137,6 +142,11 @@ public class PayPropSyncOrchestrator {
            // Step 7: Establish tenant relationships
            result.setTenantRelationshipsResult(establishTenantPropertyRelationships());
 
+           // Step 7.5: Sync Payment Data (NEW)
+           result.setPaymentCategoriesResult(syncPaymentCategories(initiatedBy));
+           result.setPaymentsResult(syncPayments(initiatedBy));  
+           result.setBeneficiaryBalancesResult(syncBeneficiaryBalances(initiatedBy));
+
            // Step 8: Enhanced occupancy detection
            result.setOccupancyResult(detectOccupancyFromTenancies(initiatedBy));
 
@@ -157,6 +167,49 @@ public class PayPropSyncOrchestrator {
        
        return result;
    }
+
+   // ===== NEW PAYMENT SYNC METHODS =====
+
+   /**
+    * Step 7.5a: Sync payment categories
+    */
+   private SyncResult syncPaymentCategories(Long initiatedBy) {
+       try {
+           log.info("💳 Starting payment categories sync...");
+           return payPropSyncService.syncPaymentCategoriesFromPayProp();
+       } catch (Exception e) {
+           log.error("❌ Payment categories sync failed: {}", e.getMessage());
+           return SyncResult.failure("Payment categories sync failed: " + e.getMessage());
+       }
+   }
+
+   /**
+    * Step 7.5b: Sync all payments
+    */
+   private SyncResult syncPayments(Long initiatedBy) {
+       try {
+           log.info("💰 Starting payments sync...");
+           return payPropSyncService.syncPaymentsToDatabase(initiatedBy);
+       } catch (Exception e) {
+           log.error("❌ Payments sync failed: {}", e.getMessage());
+           return SyncResult.failure("Payments sync failed: " + e.getMessage());
+       }
+   }
+
+   /**
+    * Step 7.5c: Sync beneficiary balances  
+    */
+   private SyncResult syncBeneficiaryBalances(Long initiatedBy) {
+       try {
+           log.info("💸 Starting beneficiary balances sync...");
+           return payPropSyncService.syncBeneficiaryBalancesToDatabase(initiatedBy);
+       } catch (Exception e) {
+           log.error("❌ Beneficiary balances sync failed: {}", e.getMessage());
+           return SyncResult.failure("Beneficiary balances sync failed: " + e.getMessage());
+       }
+   }
+
+   // ===== EXISTING SYNC METHODS (UNCHANGED) =====
 
    /**
     * Enhanced property sync with complete rent and occupancy data
@@ -1507,10 +1560,32 @@ public class PayPropSyncOrchestrator {
        private SyncResult filesResult;
        private String overallError;
        private SyncResult occupancyResult;
+       
+       // ✅ NEW PAYMENT SYNC RESULT FIELDS
+       private SyncResult paymentCategoriesResult;
+       private SyncResult paymentsResult;
+       private SyncResult beneficiaryBalancesResult;
 
        public SyncResult getOccupancyResult() { return occupancyResult; }
        public void setOccupancyResult(SyncResult occupancyResult) { this.occupancyResult = occupancyResult; }
 
+       // ✅ NEW PAYMENT SYNC GETTERS/SETTERS
+       public SyncResult getPaymentCategoriesResult() { return paymentCategoriesResult; }
+       public void setPaymentCategoriesResult(SyncResult paymentCategoriesResult) { 
+           this.paymentCategoriesResult = paymentCategoriesResult; 
+       }
+       
+       public SyncResult getPaymentsResult() { return paymentsResult; }
+       public void setPaymentsResult(SyncResult paymentsResult) { 
+           this.paymentsResult = paymentsResult; 
+       }
+       
+       public SyncResult getBeneficiaryBalancesResult() { return beneficiaryBalancesResult; }
+       public void setBeneficiaryBalancesResult(SyncResult beneficiaryBalancesResult) { 
+           this.beneficiaryBalancesResult = beneficiaryBalancesResult; 
+       }
+
+       // ✅ UPDATED: Include payment sync results in overall success
        public boolean isOverallSuccess() {
            return overallError == null && 
                (propertiesResult == null || propertiesResult.isSuccess()) &&
@@ -1519,9 +1594,13 @@ public class PayPropSyncOrchestrator {
                (contractorsResult == null || contractorsResult.isSuccess()) &&
                (relationshipsResult == null || relationshipsResult.isSuccess()) &&
                (tenantRelationshipsResult == null || tenantRelationshipsResult.isSuccess()) &&
-               (filesResult == null || filesResult.isSuccess());
+               (filesResult == null || filesResult.isSuccess()) &&
+               (paymentCategoriesResult == null || paymentCategoriesResult.isSuccess()) &&
+               (paymentsResult == null || paymentsResult.isSuccess()) &&
+               (beneficiaryBalancesResult == null || beneficiaryBalancesResult.isSuccess());
        }
 
+       // ✅ UPDATED: Include payment sync status in summary
        public String getSummary() {
            if (overallError != null) return overallError;
            
@@ -1532,11 +1611,14 @@ public class PayPropSyncOrchestrator {
            summary.append("Contractors: ").append(contractorsResult != null ? contractorsResult.getMessage() : "skipped").append("; ");
            summary.append("Owner Relationships: ").append(relationshipsResult != null ? relationshipsResult.getMessage() : "skipped").append("; ");
            summary.append("Tenant Relationships: ").append(tenantRelationshipsResult != null ? tenantRelationshipsResult.getMessage() : "skipped").append("; ");
+           summary.append("Payment Categories: ").append(paymentCategoriesResult != null ? paymentCategoriesResult.getMessage() : "skipped").append("; ");
+           summary.append("Payments: ").append(paymentsResult != null ? paymentsResult.getMessage() : "skipped").append("; ");
+           summary.append("Beneficiary Balances: ").append(beneficiaryBalancesResult != null ? beneficiaryBalancesResult.getMessage() : "skipped").append("; ");
            summary.append("Files: ").append(filesResult != null ? filesResult.getMessage() : "skipped");
            return summary.toString();
        }
 
-       // Getters and setters
+       // Getters and setters for existing fields
        public SyncResult getPropertiesResult() { return propertiesResult; }
        public void setPropertiesResult(SyncResult propertiesResult) { this.propertiesResult = propertiesResult; }
        
@@ -1582,5 +1664,35 @@ public class PayPropSyncOrchestrator {
        
        public Double getOwnershipPercentage() { return ownershipPercentage; }
        public void setOwnershipPercentage(Double ownershipPercentage) { this.ownershipPercentage = ownershipPercentage; }
+   }
+
+   // ===== SYNC RESULT CLASS =====
+   public static class SyncResult {
+       private boolean success;
+       private String message;
+       private Map<String, Object> details;
+       
+       public SyncResult(boolean success, String message, Map<String, Object> details) {
+           this.success = success;
+           this.message = message;
+           this.details = details != null ? details : new HashMap<>();
+       }
+       
+       public static SyncResult success(String message, Map<String, Object> details) {
+           return new SyncResult(true, message, details);
+       }
+       
+       public static SyncResult failure(String message) {
+           return new SyncResult(false, message, new HashMap<>());
+       }
+       
+       public static SyncResult partial(String message, Map<String, Object> details) {
+           return new SyncResult(false, message, details);
+       }
+       
+       // Getters
+       public boolean isSuccess() { return success; }
+       public String getMessage() { return message; }
+       public Map<String, Object> getDetails() { return details; }
    }
 }

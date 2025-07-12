@@ -2,8 +2,8 @@
 <html xmlns:th="http://www.thymeleaf.org">
 
 <div th:insert="~{general/head.html}"></div>
-<meta name="_csrf" content="${_csrf.token}"/>
-<meta name="_csrf_header" content="${_csrf.headerName}"/>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
 
 <!-- DataTables CSS -->
 <link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
@@ -155,13 +155,62 @@
                 </div>
             </div>
 
+            <!-- ENHANCED: Unified Sync Operations -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h4 class="card-title text-white">
+                                <i class="fas fa-sync-alt"></i> Unified Sync Operations
+                            </h4>
+                            <small class="text-white-50">Complete synchronization with enhanced data</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-magic"></i> Full Unified Sync</h6>
+                                    <p class="text-muted">Sync all properties, tenants, owners, and relationships in one operation</p>
+                                    <button class="btn btn-success btn-block btn-lg" onclick="performUnifiedSync()">
+                                        <i class="fas fa-sync-alt"></i> Start Unified Sync
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-chart-line"></i> Enhanced Unified Sync</h6>
+                                    <p class="text-muted">Includes complete rent data, occupancy information, and data quality metrics</p>
+                                    <button class="btn btn-primary btn-block btn-lg" onclick="performEnhancedUnifiedSync()">
+                                        <i class="fas fa-chart-line"></i> Start Enhanced Sync
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-md-4">
+                                    <button class="btn btn-outline-info btn-block" onclick="checkSyncReadiness()">
+                                        <i class="fas fa-stethoscope"></i> Check Sync Readiness
+                                    </button>
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-outline-secondary btn-block" onclick="getSyncStatistics()">
+                                        <i class="fas fa-chart-bar"></i> Get Sync Statistics
+                                    </button>
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-outline-warning btn-block" onclick="testBasicAPI()">
+                                        <i class="fas fa-vial"></i> Test Basic API
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Quick Actions -->
             <div class="row">
                 <div class="col-12">
                     <div class="card">
                         <div class="card-header">
                             <h4 class="card-title">
-                                <i class="fas fa-sync"></i> Sync Operations
+                                <i class="fas fa-sync"></i> Individual Sync Operations
                             </h4>
                         </div>
                         <div class="card-body">
@@ -248,9 +297,14 @@
                             <h4 class="card-title">
                                 <i class="fas fa-terminal"></i> Sync Results
                             </h4>
+                            <div class="card-actions">
+                                <button class="btn btn-sm btn-outline-secondary" onclick="clearResults()">
+                                    <i class="fas fa-trash"></i> Clear
+                                </button>
+                            </div>
                         </div>
                         <div class="card-body">
-                            <div id="syncResults" class="bg-light p-3" style="min-height: 100px; font-family: monospace;">
+                            <div id="syncResults" class="bg-light p-3" style="min-height: 200px; max-height: 500px; overflow-y: auto; font-family: monospace; font-size: 12px; border-radius: 5px;">
                                 <em>Sync results will appear here...</em>
                             </div>
                         </div>
@@ -274,12 +328,14 @@
 <script th:src="@{/js/library/custom.min.js}"></script>
 
 <script th:inline="javascript">
-// PayProp Admin Dashboard JavaScript - FIXED URLS
+// Enhanced PayProp Admin Dashboard JavaScript
 
 function addResult(message, type = 'info') {
     const resultsDiv = document.getElementById('syncResults');
     const timestamp = new Date().toLocaleTimeString();
-    const colorClass = type === 'success' ? 'text-success' : type === 'error' ? 'text-danger' : 'text-info';
+    const colorClass = type === 'success' ? 'text-success' : 
+                      type === 'error' ? 'text-danger' : 
+                      type === 'warning' ? 'text-warning' : 'text-info';
     
     if (resultsDiv.innerHTML.includes('Sync results will appear here')) {
         resultsDiv.innerHTML = '';
@@ -289,9 +345,162 @@ function addResult(message, type = 'info') {
     resultsDiv.scrollTop = resultsDiv.scrollHeight;
 }
 
+function clearResults() {
+    document.getElementById('syncResults').innerHTML = '<em>Sync results will appear here...</em>';
+}
+
 function getCsrfToken() {
     return document.querySelector('meta[name="_csrf"]').getAttribute('content');
 }
+
+// ===== NEW UNIFIED SYNC FUNCTIONS =====
+
+function performUnifiedSync() {
+    addResult('🚀 Starting Unified Sync...', 'info');
+    
+    fetch('/api/payprop/sync/unified', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken()
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ ${data.message}`, 'success');
+            if (data.details) {
+                addResult(`📊 Properties: ${data.details.properties?.successCount || 0} synced`, 'info');
+                addResult(`👥 Property Owners: ${data.details.propertyOwners?.successCount || 0} synced`, 'info');
+                addResult(`🏠 Tenants: ${data.details.tenants?.successCount || 0} synced`, 'info');
+                addResult(`🔗 Relationships: ${data.details.relationships?.successCount || 0} established`, 'info');
+            }
+        } else {
+            addResult(`❌ Unified sync failed: ${data.error || data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Unified sync error: ${error.message}`, 'error');
+    });
+}
+
+function performEnhancedUnifiedSync() {
+    addResult('🚀 Starting Enhanced Unified Sync...', 'info');
+    
+    fetch('/api/payprop/sync/unified-enhanced', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken()
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ ${data.message}`, 'success');
+            if (data.details) {
+                addResult(`📊 Properties: ${data.details.properties?.successCount || 0} synced`, 'info');
+                addResult(`👥 Property Owners: ${data.details.propertyOwners?.successCount || 0} synced`, 'info');
+                addResult(`🏠 Tenants: ${data.details.tenants?.successCount || 0} synced`, 'info');
+                addResult(`🔗 Relationships: ${data.details.relationships?.successCount || 0} established`, 'info');
+                
+                // Enhanced data quality info
+                if (data.details.dataQuality) {
+                    addResult(`💰 Rent amounts found: ${data.details.dataQuality.rentAmountsFound || 0}`, 'info');
+                    addResult(`🏘️ Occupancy detected: ${data.details.dataQuality.occupancyDetected || 0}`, 'info');
+                }
+            }
+        } else {
+            addResult(`❌ Enhanced unified sync failed: ${data.error || data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Enhanced unified sync error: ${error.message}`, 'error');
+    });
+}
+
+function checkSyncReadiness() {
+    addResult('🔍 Checking sync readiness...', 'info');
+    
+    fetch('/api/payprop/sync/readiness', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.ready) {
+            addResult(`✅ System ready for sync`, 'success');
+            addResult(`🔑 OAuth: ${data.oauthReady ? 'Ready' : 'Not Ready'}`, data.oauthReady ? 'success' : 'error');
+            addResult(`💻 System: ${data.systemHealthy ? 'Healthy' : 'Unhealthy'}`, data.systemHealthy ? 'success' : 'error');
+        } else {
+            addResult(`❌ System not ready for sync`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Readiness check error: ${error.message}`, 'error');
+    });
+}
+
+function getSyncStatistics() {
+    addResult('📊 Getting sync statistics...', 'info');
+    
+    fetch('/api/payprop/sync/statistics', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        addResult(`📈 Total syncs (24h): ${data.totalSyncs || 0}`, 'info');
+        addResult(`✅ Success rate: ${((data.successRate || 0) * 100).toFixed(1)}%`, 'success');
+        addResult(`⚠️ Conflicts detected: ${data.conflictsDetected || 0}`, 'warning');
+        addResult(`🔧 Conflicts resolved: ${data.conflictsResolved || 0}`, 'info');
+    })
+    .catch(error => {
+        addResult(`❌ Statistics error: ${error.message}`, 'error');
+    });
+}
+
+function testBasicAPI() {
+    addResult('🧪 Testing basic API connection...', 'info');
+    
+    fetch('/admin/payprop/test-basic-api', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.text())
+    .then(data => {
+        // Split the response into lines and add each line
+        const lines = data.split('\n');
+        lines.forEach(line => {
+            if (line.trim()) {
+                const type = line.includes('✅') ? 'success' : 
+                           line.includes('❌') ? 'error' : 'info';
+                addResult(line, type);
+            }
+        });
+    })
+    .catch(error => {
+        addResult(`❌ API test error: ${error.message}`, 'error');
+    });
+}
+
+// ===== EXISTING INDIVIDUAL SYNC FUNCTIONS =====
 
 function syncProperty() {
     const propertyId = document.getElementById('propertyId').value;
@@ -370,7 +579,6 @@ function syncOwner() {
     
     addResult(`Starting sync for Owner ID: ${ownerId}...`);
     
-    // FIXED: Changed from /sync/owner/ to /sync/beneficiary/
     fetch(`/admin/payprop/sync/beneficiary/${ownerId}`, {
         method: 'POST',
         headers: {
@@ -455,7 +663,6 @@ function syncAllTenants() {
 function syncAllOwners() {
     addResult('Starting bulk owner sync...');
     
-    // FIXED: Changed from /sync/owners/bulk to /sync/beneficiaries/bulk
     fetch('/admin/payprop/sync/beneficiaries/bulk', {
         method: 'POST',
         headers: {
@@ -480,6 +687,15 @@ function syncAllOwners() {
         addResult(`❌ Bulk owner sync error: ${error.message}`, 'error');
     });
 }
+
+// Auto-refresh statistics every 30 seconds
+setInterval(() => {
+    if (document.getElementById('syncResults').innerHTML.length > 100) {
+        // Only refresh if we have some activity
+        getSyncStatistics();
+    }
+}, 30000);
+
 </script>
 
 </body>
