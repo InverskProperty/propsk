@@ -1,4 +1,4 @@
-// PaymentCategory.java - Payment categories from PayProp
+// PaymentCategory.java - Properly designed entity with full functionality
 package site.easy.to.build.crm.entity;
 
 import jakarta.persistence.*;
@@ -76,6 +76,19 @@ public class PaymentCategory {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
+    // ===== LIFECYCLE METHODS =====
+    
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+    
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
     // ===== UTILITY METHODS =====
     
     /**
@@ -96,6 +109,29 @@ public class PaymentCategory {
             categoryName.toLowerCase().contains("repair")
         );
     }
+    
+    /**
+     * Check if category is active
+     */
+    public boolean isActiveCategory() {
+        return "Y".equals(isActive);
+    }
+    
+    /**
+     * Activate this category
+     */
+    public void activate() {
+        this.isActive = "Y";
+        this.updatedAt = LocalDateTime.now();
+    }
+    
+    /**
+     * Deactivate this category
+     */
+    public void deactivate() {
+        this.isActive = "N";
+        this.updatedAt = LocalDateTime.now();
+    }
 
     @Override
     public String toString() {
@@ -104,6 +140,7 @@ public class PaymentCategory {
                 ", payPropCategoryId='" + payPropCategoryId + '\'' +
                 ", categoryName='" + categoryName + '\'' +
                 ", categoryType='" + categoryType + '\'' +
+                ", isActive='" + isActive + '\'' +
                 '}';
     }
 }

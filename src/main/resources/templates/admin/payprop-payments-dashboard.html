@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<!-- DataTables CSS -->
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/responsive.dataTables.min.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-credit-card text-primary"></i> PayProp Payments Sync
+                    </h4>
+                    <p class="text-muted">Dedicated payments synchronization tools</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <a href="/admin/payprop/dashboard" class="btn btn-info mr-2">
+                            <i class="fas fa-arrow-left"></i> Main Dashboard
+                        </a>
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="/">Home</a></li>
+                            <li class="breadcrumb-item"><a href="/admin/payprop/dashboard">PayProp Admin</a></li>
+                            <li class="breadcrumb-item active">Payments Sync</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Success/Error Messages -->
+            <div th:if="${successMessage}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-success alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <h4><i class="icon fa fa-check"></i> Success!</h4>
+                        <span th:text="${successMessage}">Success message</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div th:if="${error}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <h4><i class="icon fa fa-ban"></i> Error!</h4>
+                        <span th:text="${error}">Error message</span>
+                    </div>
+            </div>
+            </div>
+
+            <!-- OAuth Status -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="card-title text-white">
+                                <i class="fas fa-shield-alt"></i> PayProp Connection Status
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${hasTokens}" class="alert alert-success">
+                                <h5><i class="fas fa-check-circle"></i> Connected to PayProp</h5>
+                                <p class="mb-0">Ready for payments synchronization operations.</p>
+                            </div>
+                            <div th:unless="${hasTokens}" class="alert alert-warning">
+                                <h5><i class="fas fa-exclamation-triangle"></i> Not Connected</h5>
+                                <p class="mb-2">PayProp authorization required before payments sync operations.</p>
+                                <a href="/api/payprop/oauth/authorize" class="btn btn-warning">
+                                    <i class="fas fa-key"></i> Authorize PayProp Access
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment Data Statistics -->
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round align-self-center round-info">
+                                    <i class="fas fa-tags"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0" th:text="${totalCategories ?: 0}">0</h3>
+                                    <h5 class="text-muted m-b-0">Payment Categories</h5>
+                                    <small class="text-muted">
+                                        Synced: <span th:text="${syncedCategories ?: 0}">0</span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round align-self-center round-success">
+                                    <i class="fas fa-credit-card"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0" th:text="${totalPayments ?: 0}">0</h3>
+                                    <h5 class="text-muted m-b-0">Total Payments</h5>
+                                    <small class="text-muted">In database</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round align-self-center round-warning">
+                                    <i class="fas fa-balance-scale"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0" th:text="${totalBalances ?: 0}">0</h3>
+                                    <h5 class="text-muted m-b-0">Beneficiary Balances</h5>
+                                    <small class="text-muted">Current balances</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round align-self-center round-danger">
+                                    <i class="fas fa-sync-alt"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0">Live</h3>
+                                    <h5 class="text-muted m-b-0">Sync Status</h5>
+                                    <small class="text-muted">Real-time updates</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Individual Payment Sync Operations -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h4 class="card-title text-white">
+                                <i class="fas fa-cogs"></i> Individual Sync Operations
+                            </h4>
+                            <small class="text-white-50">Sync specific payment data components</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <h6><i class="fas fa-tags"></i> Payment Categories</h6>
+                                    <p class="text-muted">Sync payment category definitions from PayProp</p>
+                                    <button class="btn btn-info btn-block" onclick="syncPaymentCategories()">
+                                        <i class="fas fa-download"></i> Sync Categories
+                                    </button>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6><i class="fas fa-credit-card"></i> Payment Transactions</h6>
+                                    <p class="text-muted">Sync all payment transactions and data</p>
+                                    <button class="btn btn-primary btn-block" onclick="syncPayments()">
+                                        <i class="fas fa-download"></i> Sync Payments
+                                    </button>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6><i class="fas fa-balance-scale"></i> Beneficiary Balances</h6>
+                                    <p class="text-muted">Sync current account balances</p>
+                                    <button class="btn btn-warning btn-block" onclick="syncBeneficiaryBalances()">
+                                        <i class="fas fa-download"></i> Sync Balances
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Complete Payment Sync -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="card-title text-white">
+                                <i class="fas fa-rocket"></i> Complete Payment Sync
+                            </h4>
+                            <small class="text-white-50">Sync all payment data in sequence</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <h6><i class="fas fa-magic"></i> All Payment Data</h6>
+                                    <p class="text-muted">Sync categories, payments, and balances in the correct order</p>
+                                    <ol class="text-muted">
+                                        <li>Payment categories (definitions)</li>
+                                        <li>Payment transactions (historical data)</li>
+                                        <li>Beneficiary balances (current amounts)</li>
+                                    </ol>
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-success btn-block btn-lg" onclick="syncAllPaymentData()">
+                                        <i class="fas fa-rocket"></i> Sync All Payment Data
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Testing and Troubleshooting -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-bug"></i> Testing & Troubleshooting
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <button class="btn btn-outline-info btn-block" onclick="testPaymentCategoriesApi()">
+                                        <i class="fas fa-vial"></i> Test Categories API
+                                    </button>
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-outline-secondary btn-block" onclick="getPaymentStats()">
+                                        <i class="fas fa-chart-bar"></i> Get Statistics
+                                    </button>
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-outline-warning btn-block" onclick="clearResults()">
+                                        <i class="fas fa-trash"></i> Clear Results
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Area -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-terminal"></i> Sync Results
+                            </h4>
+                            <div class="card-actions">
+                                <button class="btn btn-sm btn-outline-secondary" onclick="clearResults()">
+                                    <i class="fas fa-trash"></i> Clear
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="syncResults" class="bg-light p-3" style="min-height: 200px; max-height: 500px; overflow-y: auto; font-family: monospace; font-size: 12px; border-radius: 5px;">
+                                <em>Payment sync results will appear here...</em>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script th:inline="javascript">
+// PayProp Payments Sync Dashboard JavaScript
+
+function addResult(message, type = 'info') {
+    const resultsDiv = document.getElementById('syncResults');
+    const timestamp = new Date().toLocaleTimeString();
+    const colorClass = type === 'success' ? 'text-success' : 
+                      type === 'error' ? 'text-danger' : 
+                      type === 'warning' ? 'text-warning' : 'text-info';
+    
+    if (resultsDiv.innerHTML.includes('Payment sync results will appear here')) {
+        resultsDiv.innerHTML = '';
+    }
+    
+    resultsDiv.innerHTML += `<div class="${colorClass}">[${timestamp}] ${message}</div>`;
+    resultsDiv.scrollTop = resultsDiv.scrollHeight;
+}
+
+function clearResults() {
+    document.getElementById('syncResults').innerHTML = '<em>Payment sync results will appear here...</em>';
+}
+
+function getCsrfToken() {
+    return document.querySelector('meta[name="_csrf"]').getAttribute('content');
+}
+
+// ===== INDIVIDUAL SYNC FUNCTIONS =====
+
+function syncPaymentCategories() {
+    addResult('🏷️ Starting payment categories sync...', 'info');
+    
+    fetch('/admin/payprop/payments/sync/categories', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ ${data.message}`, 'success');
+            if (data.details) {
+                addResult(`📊 Created: ${data.details.created || 0}, Updated: ${data.details.updated || 0}, Total: ${data.details.total || 0}`, 'info');
+            }
+        } else {
+            addResult(`❌ Payment categories sync failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Payment categories sync error: ${error.message}`, 'error');
+    });
+}
+
+function syncPayments() {
+    addResult('💳 Starting payments sync...', 'info');
+    
+    fetch('/admin/payprop/payments/sync/payments', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ ${data.message}`, 'success');
+            if (data.details) {
+                addResult(`💰 Processed: ${data.details.processed || 0}, Created: ${data.details.created || 0}, Updated: ${data.details.updated || 0}`, 'info');
+            }
+        } else {
+            addResult(`❌ Payments sync failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Payments sync error: ${error.message}`, 'error');
+    });
+}
+
+function syncBeneficiaryBalances() {
+    addResult('⚖️ Starting beneficiary balances sync...', 'info');
+    
+    fetch('/admin/payprop/payments/sync/balances', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ ${data.message}`, 'success');
+            if (data.details) {
+                addResult(`💸 Processed: ${data.details.processed || 0} balances`, 'info');
+            }
+        } else {
+            addResult(`❌ Beneficiary balances sync failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Beneficiary balances sync error: ${error.message}`, 'error');
+    });
+}
+
+function syncAllPaymentData() {
+    addResult('🚀 Starting complete payment data sync...', 'info');
+    
+    fetch('/admin/payprop/payments/sync/all', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken()
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ ${data.message}`, 'success');
+            addResult(`📋 Categories: ${data.categoriesResult}`, 'info');
+            addResult(`💳 Payments: ${data.paymentsResult}`, 'info');
+            addResult(`⚖️ Balances: ${data.balancesResult}`, 'info');
+        } else {
+            addResult(`❌ Complete payment sync failed: ${data.message}`, 'error');
+            if (data.categoriesResult) addResult(`📋 Categories: ${data.categoriesResult}`, 'warning');
+            if (data.paymentsResult) addResult(`💳 Payments: ${data.paymentsResult}`, 'warning');
+            if (data.balancesResult) addResult(`⚖️ Balances: ${data.balancesResult}`, 'warning');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Complete payment sync error: ${error.message}`, 'error');
+    });
+}
+
+// ===== TESTING FUNCTIONS =====
+
+function testPaymentCategoriesApi() {
+    addResult('🧪 Testing payment categories API...', 'info');
+    
+    fetch('/admin/payprop/payments/test/categories', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ API test successful`, 'success');
+            addResult(`📊 Found ${data.totalItems} items`, 'info');
+            if (data.sampleData) {
+                addResult(`🔍 Sample: ${JSON.stringify(data.sampleData).substring(0, 100)}...`, 'info');
+            }
+        } else {
+            addResult(`❌ API test failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ API test error: ${error.message}`, 'error');
+    });
+}
+
+function getPaymentStats() {
+    addResult('📊 Getting payment statistics...', 'info');
+    
+    fetch('/admin/payprop/payments/stats', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const stats = data.stats;
+            addResult(`📈 Statistics loaded:`, 'success');
+            addResult(`🏷️ Categories: ${stats.totalCategories} total, ${stats.syncedCategories} synced, ${stats.activeCategories} active`, 'info');
+            addResult(`💳 Payments: ${stats.totalPayments} in database`, 'info');
+            addResult(`⚖️ Balances: ${stats.totalBalances} beneficiary balances`, 'info');
+        } else {
+            addResult(`❌ Statistics error: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Statistics error: ${error.message}`, 'error');
+    });
+}
+
+// Auto-refresh statistics every 30 seconds
+setInterval(() => {
+    if (document.getElementById('syncResults').innerHTML.length > 100) {
+        // Only refresh if we have some activity
+        getPaymentStats();
+    }
+}, 30000);
+
+</script>
+
+</body>
+</html>

@@ -103,7 +103,7 @@ public class PayPropSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
                 
-                // FIX: Handle different possible response structures
+                // Handle different possible response structures
                 List<Map<String, Object>> categories = null;
                 
                 // Try 'data' field first (most common in PayProp API)
@@ -158,6 +158,7 @@ public class PayPropSyncService {
                         existing.setUpdatedAt(LocalDateTime.now());
                         paymentCategoryRepository.save(existing);
                         updated++;
+                        log.info("✅ Updated payment category: {} ({})", existing.getCategoryName(), payPropCategoryId);
                     } else {
                         // Create new
                         PaymentCategory newCategory = new PaymentCategory();
@@ -169,6 +170,7 @@ public class PayPropSyncService {
                         newCategory.setUpdatedAt(LocalDateTime.now());
                         paymentCategoryRepository.save(newCategory);
                         created++;
+                        log.info("✅ Created payment category: {} ({})", newCategory.getCategoryName(), payPropCategoryId);
                     }
                 }
                 

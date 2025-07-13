@@ -1,4 +1,4 @@
-// PaymentCategoryRepository.java - Repository for payment categories
+// PaymentCategoryRepository.java - Full functionality restored
 package site.easy.to.build.crm.repository;
 
 import org.springframework.data.domain.Pageable;
