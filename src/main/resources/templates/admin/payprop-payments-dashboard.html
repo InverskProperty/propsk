@@ -444,7 +444,7 @@ function syncAllPaymentData() {
 // ===== TESTING FUNCTIONS =====
 
 function testPaymentCategoriesApi() {
-    addResult('🧪 Testing payment categories API...', 'info');
+    addResult('🧪 Testing payment data API...', 'info');
     
     fetch('/admin/payprop/payments/test/categories', {
         method: 'GET',
@@ -456,9 +456,20 @@ function testPaymentCategoriesApi() {
     .then(data => {
         if (data.success) {
             addResult(`✅ API test successful`, 'success');
-            addResult(`📊 Found ${data.totalItems} items`, 'info');
-            if (data.sampleData) {
-                addResult(`🔍 Sample: ${JSON.stringify(data.sampleData).substring(0, 100)}...`, 'info');
+            addResult(`📊 Found ${data.totalItems} payment items`, 'info');
+            
+            if (data.allFieldNames) {
+                addResult(`🔍 PayProp Payment Fields: ${Array.from(data.allFieldNames).join(', ')}`, 'info');
+            }
+            
+            if (data.fullPaymentSample) {
+                addResult(`📋 FULL PAYMENT SAMPLE:`, 'info');
+                addResult(`${JSON.stringify(data.fullPaymentSample, null, 2)}`, 'info');
+            }
+            
+            if (data.secondPaymentSample) {
+                addResult(`📋 SECOND PAYMENT SAMPLE:`, 'info');
+                addResult(`${JSON.stringify(data.secondPaymentSample, null, 2)}`, 'info');
             }
         } else {
             addResult(`❌ API test failed: ${data.message}`, 'error');

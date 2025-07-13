@@ -326,7 +326,7 @@ public class PayPropPaymentsSyncController {
     }
 
     /**
-     * Test payment categories API endpoint
+     * Test payment categories API endpoint - Enhanced to show full data
      */
     @GetMapping("/test/categories")
     @ResponseBody
@@ -346,18 +346,31 @@ public class PayPropPaymentsSyncController {
         }
 
         try {
-            // Just test the API call without saving to database
-            PayPropSyncService.PayPropExportResult result = syncService.exportPaymentsFromPayProp(1, 5);
+            // Get actual payment data to see the structure
+            PayPropSyncService.PayPropExportResult result = syncService.exportPaymentsFromPayProp(1, 3);
             
             response.put("success", true);
-            response.put("message", "Payment categories API test successful");
-            response.put("sampleData", result.getItems().size() > 0 ? result.getItems().get(0) : "No data");
+            response.put("message", "Payment data API test successful");
             response.put("totalItems", result.getItems().size());
+            
+            // Show FULL payment data structure for debugging
+            if (!result.getItems().isEmpty()) {
+                response.put("fullPaymentSample", result.getItems().get(0)); // Complete first payment
+                response.put("allFieldNames", result.getItems().get(0).keySet()); // All field names
+                
+                // Show multiple samples if available
+                if (result.getItems().size() > 1) {
+                    response.put("secondPaymentSample", result.getItems().get(1));
+                }
+                if (result.getItems().size() > 2) {
+                    response.put("thirdPaymentSample", result.getItems().get(2));
+                }
+            }
             
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("Error testing payment categories API: {}", e.getMessage());
+            log.error("Error testing payment API: {}", e.getMessage());
             response.put("success", false);
             response.put("message", "API test failed: " + e.getMessage());
             return ResponseEntity.ok(response);
