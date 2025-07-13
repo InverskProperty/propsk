@@ -23,6 +23,8 @@ import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 import site.easy.to.build.crm.service.customer.CustomerService;
+import site.easy.to.build.crm.service.payprop.SyncResult;
+import site.easy.to.build.crm.service.payprop.SyncResultType;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -1839,33 +1841,4 @@ public class PayPropSyncService {
         public void setUploadedAt(String uploadedAt) { this.uploadedAt = uploadedAt; }
     }
 
-    // ===== SYNC RESULT CLASS =====
-    public static class SyncResult {
-        private boolean success;
-        private String message;
-        private Map<String, Object> details;
-        
-        public SyncResult(boolean success, String message, Map<String, Object> details) {
-            this.success = success;
-            this.message = message;
-            this.details = details != null ? details : new HashMap<>();
-        }
-        
-        public static SyncResult success(String message, Map<String, Object> details) {
-            return new SyncResult(true, message, details);
-        }
-        
-        public static SyncResult failure(String message) {
-            return new SyncResult(false, message, new HashMap<>());
-        }
-        
-        public static SyncResult partial(String message, Map<String, Object> details) {
-            return new SyncResult(false, message, details);
-        }
-        
-        // Getters
-        public boolean isSuccess() { return success; }
-        public String getMessage() { return message; }
-        public Map<String, Object> getDetails() { return details; }
-    }
 }

@@ -33,7 +33,7 @@ public class SyncResult {
     }
     
     public static SyncResult partial(String message, Map<String, Object> details) {
-        return new SyncResult(true, message, details, SyncResultType.PARTIAL);
+        return new SyncResult(true, message, details, SyncResultType.PARTIAL); // Note: success=true for partial
     }
     
     // Getters
@@ -41,4 +41,8 @@ public class SyncResult {
     public String getMessage() { return message; }
     public Map<String, Object> getDetails() { return details; }
     public SyncResultType getType() { return type; }
+    
+    // Helper methods for backwards compatibility
+    public boolean isFailure() { return !success; }
+    public boolean isPartial() { return type == SyncResultType.PARTIAL; }
 }

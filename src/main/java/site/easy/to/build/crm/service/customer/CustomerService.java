@@ -84,7 +84,12 @@ public interface CustomerService {
     void assignTenantToProperty(Long customerId, Long propertyId, BigDecimal monthlyRent, LocalDate startDate);
     
     void endTenancy(Long customerId, LocalDate endDate);
-    
+
+    /**
+     * Find tenant customer assigned to a specific property
+     */
+    Customer findTenantByPropertyId(Long propertyId);
+        
     /**
      * Communication methods (leverage existing email system)
      */

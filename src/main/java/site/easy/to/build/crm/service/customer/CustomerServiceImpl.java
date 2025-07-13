@@ -299,6 +299,16 @@ public class CustomerServiceImpl implements CustomerService {
         return List.of();
     }
 
+    @Override
+    public Customer findTenantByPropertyId(Long propertyId) {
+        // Find tenant assigned to this property via assignment service
+        List<Customer> tenants = findTenantsByProperty(propertyId);
+        return tenants.stream()
+            .filter(tenant -> tenant.getIsTenant())
+            .findFirst()
+            .orElse(null);
+    }
+
     // ===== PAYPROP INTEGRATION METHODS =====
     
     @Override
