@@ -1,14 +1,17 @@
-import java.time.LocalDate;
-import java.util.stream.Collectors;// PayPropPaymentsSyncController.java - Dedicated controller for payments sync
+// PayPropPaymentsSyncController.java - Complete corrected version
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
@@ -19,13 +22,14 @@ import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.repository.PaymentCategoryRepository;
 import site.easy.to.build.crm.repository.PaymentRepository;
 import site.easy.to.build.crm.repository.BeneficiaryBalanceRepository;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
+import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.service.property.PropertyService;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Controller
@@ -41,6 +45,7 @@ public class PayPropPaymentsSyncController {
     private final PaymentRepository paymentRepository;
     private final BeneficiaryBalanceRepository beneficiaryBalanceRepository;
     private final RestTemplate restTemplate;
+    private final PropertyService propertyService;
 
     @Autowired
     public PayPropPaymentsSyncController(PayPropOAuth2Service oAuth2Service,
@@ -49,7 +54,8 @@ public class PayPropPaymentsSyncController {
                                         PaymentCategoryRepository paymentCategoryRepository,
                                         PaymentRepository paymentRepository,
                                         BeneficiaryBalanceRepository beneficiaryBalanceRepository,
-                                        RestTemplate restTemplate) {
+                                        RestTemplate restTemplate,
+                                        PropertyService propertyService) {
         this.oAuth2Service = oAuth2Service;
         this.syncService = syncService;
         this.syncOrchestrator = syncOrchestrator;
@@ -57,17 +63,15 @@ public class PayPropPaymentsSyncController {
         this.paymentRepository = paymentRepository;
         this.beneficiaryBalanceRepository = beneficiaryBalanceRepository;
         this.restTemplate = restTemplate;
+        this.propertyService = propertyService;
     }
 
     /**
      * Helper method to get current user ID from authentication
      */
     private Long getCurrentUserId(Authentication authentication) {
-        // Simple fallback - you can enhance this based on your user system
         if (authentication != null && authentication.getName() != null) {
-            // If you have a way to get user ID from authentication, use it here
-            // For now, return a default value - adjust based on your system
-            return 1L; // Replace with actual user ID extraction logic
+            return 1L; // Default fallback - adjust based on your system
         }
         return 1L; // Default fallback
     }
@@ -130,7 +134,6 @@ public class PayPropPaymentsSyncController {
         }
 
         try {
-            // Get current user ID - adjust this based on your AuthenticationUtils implementation
             Long initiatedBy = getCurrentUserId(authentication);
             SyncResult result = syncService.syncPaymentCategoriesFromPayProp();
             
@@ -334,6 +337,54 @@ public class PayPropPaymentsSyncController {
     }
 
     /**
+     * Test payment instructions API endpoint
+     */
+    @GetMapping("/test/categories")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testPaymentCategoriesApi(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied");
+            return ResponseEntity.status(403).body(response);
+        }
+
+        if (!oAuth2Service.hasValidTokens()) {
+            response.put("success", false);
+            response.put("message", "PayProp not authorized. Please authorize first.");
+            return ResponseEntity.ok(response);
+        }
+
+        try {
+            // Get payment instructions data to see the structure
+            PayPropSyncService.PayPropExportResult result = syncService.exportPaymentsFromPayProp(1, 3);
+            
+            response.put("success", true);
+            response.put("message", "Payment instructions API test successful");
+            response.put("totalItems", result.getItems().size());
+            
+            // Show FULL payment instruction data structure
+            if (!result.getItems().isEmpty()) {
+                response.put("fullPaymentSample", result.getItems().get(0));
+                response.put("allFieldNames", result.getItems().get(0).keySet());
+                
+                if (result.getItems().size() > 1) {
+                    response.put("secondPaymentSample", result.getItems().get(1));
+                }
+            }
+            
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Error testing payment instructions API: {}", e.getMessage());
+            response.put("success", false);
+            response.put("message", "API test failed: " + e.getMessage());
+            return ResponseEntity.ok(response);
+        }
+    }
+
+    /**
      * Test ACTUAL payment transactions API endpoint
      */
     @GetMapping("/test/actual-payments")
@@ -369,8 +420,9 @@ public class PayPropPaymentsSyncController {
             
             ResponseEntity<Map> apiResponse = restTemplate.exchange(actualPaymentsUrl, HttpMethod.GET, request, Map.class);
             
-            if (apiResponse.getStatusCode() == HttpStatus.OK && apiResponse.getBody() != null) {
+            if (apiResponse.getStatusCode().is2xxSuccessful() && apiResponse.getBody() != null) {
                 Map<String, Object> responseBody = apiResponse.getBody();
+                @SuppressWarnings("unchecked")
                 List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
                 
                 response.put("success", true);
@@ -404,7 +456,7 @@ public class PayPropPaymentsSyncController {
     }
 
     /**
-     * Test ALL-PAYMENTS report API endpoint (the "goldmine")
+     * Test ALL-PAYMENTS report API endpoint
      */
     @GetMapping("/test/all-payments-report")
     @ResponseBody
@@ -458,8 +510,9 @@ public class PayPropPaymentsSyncController {
             
             ResponseEntity<Map> apiResponse = restTemplate.exchange(allPaymentsUrl, HttpMethod.GET, request, Map.class);
             
-            if (apiResponse.getStatusCode() == HttpStatus.OK && apiResponse.getBody() != null) {
+            if (apiResponse.getStatusCode().is2xxSuccessful() && apiResponse.getBody() != null) {
                 Map<String, Object> responseBody = apiResponse.getBody();
+                @SuppressWarnings("unchecked")
                 List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
                 
                 response.put("success", true);
