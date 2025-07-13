@@ -1,6 +1,7 @@
 // PaymentCategoryRepository.java - Repository for payment categories
 package site.easy.to.build.crm.repository;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -156,11 +157,11 @@ public interface PaymentCategoryRepository extends JpaRepository<PaymentCategory
      * Find recently created categories
      */
     @Query("SELECT pc FROM PaymentCategory pc ORDER BY pc.createdAt DESC")
-    List<PaymentCategory> findRecentlyCreated(@org.springframework.data.domain.Pageable pageable);
+    List<PaymentCategory> findRecentlyCreated(Pageable pageable);
     
     /**
      * Find recently updated categories
      */
     @Query("SELECT pc FROM PaymentCategory pc ORDER BY pc.updatedAt DESC")
-    List<PaymentCategory> findRecentlyUpdated(@org.springframework.data.domain.Pageable pageable);
+    List<PaymentCategory> findRecentlyUpdated(Pageable pageable);
 }
