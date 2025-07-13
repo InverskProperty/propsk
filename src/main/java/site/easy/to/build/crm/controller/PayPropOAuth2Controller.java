@@ -464,6 +464,65 @@ public class PayPropOAuth2Controller {
         return ResponseEntity.ok(results);
     }
 
+    @PostMapping("/test-icdn-financial-types")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testICDNFinancialTypes(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> results = new HashMap<>();
+        
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/icdn";
+            
+            // Test different transaction types
+            String[] types = {"invoice", "credit_note", "debit_note"};
+            
+            for (String type : types) {
+                String url = baseUrl + "?type=" + type + "&rows=10&from_date=2024-01-01";
+                
+                try {
+                    ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                    List<?> items = (List<?>) response.getBody().get("items");
+                    
+                    results.put(type, Map.of(
+                        "count", items.size(),
+                        "sample_data", items.stream().limit(3).collect(Collectors.toList())
+                    ));
+                } catch (Exception e) {
+                    results.put(type, Map.of("error", e.getMessage()));
+                }
+            }
+            
+            // Test date range summary
+            String summaryUrl = baseUrl + "?from_date=2024-01-01&to_date=2024-12-31&rows=100";
+            ResponseEntity<Map> summaryResponse = restTemplate.exchange(summaryUrl, HttpMethod.GET, request, Map.class);
+            List<?> allItems = (List<?>) summaryResponse.getBody().get("items");
+            
+            // Calculate totals by type
+            Map<String, Double> totals = new HashMap<>();
+            for (Object item : allItems) {
+                Map<String, Object> transaction = (Map<String, Object>) item;
+                String transactionType = (String) transaction.get("type");
+                Double amount = Double.parseDouble((String) transaction.get("amount"));
+                totals.put(transactionType, totals.getOrDefault(transactionType, 0.0) + amount);
+            }
+            
+            results.put("summary_2024", Map.of(
+                "total_transactions", allItems.size(),
+                "totals_by_type", totals
+            ));
+            
+        } catch (Exception e) {
+            results.put("error", e.getMessage());
+        }
+        
+        return ResponseEntity.ok(results);
+    }
+
     private Object getSampleData(Map<String, Object> response, int maxItems) {
         if (response != null && response.containsKey("items")) {
             List<?> items = (List<?>) response.get("items");
