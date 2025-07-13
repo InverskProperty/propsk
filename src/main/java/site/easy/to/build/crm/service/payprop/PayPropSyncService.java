@@ -101,13 +101,51 @@ public class PayPropSyncService {
             );
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                List<Map<String, Object>> categories = (List<Map<String, Object>>) response.getBody().get("data");
+                Map<String, Object> responseBody = response.getBody();
+                
+                // FIX: Handle different possible response structures
+                List<Map<String, Object>> categories = null;
+                
+                // Try 'data' field first (most common in PayProp API)
+                if (responseBody.containsKey("data")) {
+                    Object dataObj = responseBody.get("data");
+                    if (dataObj instanceof List) {
+                        categories = (List<Map<String, Object>>) dataObj;
+                    }
+                }
+                
+                // Try 'categories' field as backup
+                if (categories == null && responseBody.containsKey("categories")) {
+                    Object categoriesObj = responseBody.get("categories");
+                    if (categoriesObj instanceof List) {
+                        categories = (List<Map<String, Object>>) categoriesObj;
+                    }
+                }
+                
+                // Try 'items' field as another backup
+                if (categories == null && responseBody.containsKey("items")) {
+                    Object itemsObj = responseBody.get("items");
+                    if (itemsObj instanceof List) {
+                        categories = (List<Map<String, Object>>) itemsObj;
+                    }
+                }
+                
+                // If still null, log the actual response structure
+                if (categories == null) {
+                    log.error("❌ Unexpected payment categories response structure: {}", responseBody);
+                    return SyncResult.failure("Payment categories response structure not recognized. Expected 'data', 'categories', or 'items' field with list of categories.");
+                }
                 
                 int created = 0;
                 int updated = 0;
                 
                 for (Map<String, Object> categoryData : categories) {
                     String payPropCategoryId = (String) categoryData.get("id");
+                    
+                    if (payPropCategoryId == null) {
+                        log.warn("⚠️ Category missing ID field: {}", categoryData);
+                        continue;
+                    }
                     
                     // Check if category exists in your payment_categories table
                     PaymentCategory existing = paymentCategoryRepository.findByPayPropCategoryId(payPropCategoryId);
@@ -117,6 +155,7 @@ public class PayPropSyncService {
                         existing.setCategoryName((String) categoryData.get("name"));
                         existing.setCategoryType((String) categoryData.get("type"));
                         existing.setDescription((String) categoryData.get("description"));
+                        existing.setUpdatedAt(LocalDateTime.now());
                         paymentCategoryRepository.save(existing);
                         updated++;
                     } else {
@@ -126,18 +165,26 @@ public class PayPropSyncService {
                         newCategory.setCategoryName((String) categoryData.get("name"));
                         newCategory.setCategoryType((String) categoryData.get("type"));
                         newCategory.setDescription((String) categoryData.get("description"));
+                        newCategory.setCreatedAt(LocalDateTime.now());
+                        newCategory.setUpdatedAt(LocalDateTime.now());
                         paymentCategoryRepository.save(newCategory);
                         created++;
                     }
                 }
                 
+                log.info("✅ Payment categories sync completed: {} created, {} updated", created, updated);
                 return SyncResult.success("Payment categories synced", 
-                    Map.of("created", created, "updated", updated));
+                    Map.of("created", created, "updated", updated, "total", categories.size()));
             }
             
-            return SyncResult.failure("Failed to get payment categories from PayProp");
+            log.error("❌ Failed to get payment categories from PayProp: {}", response.getStatusCode());
+            return SyncResult.failure("Failed to get payment categories from PayProp: " + response.getStatusCode());
             
+        } catch (HttpClientErrorException e) {
+            log.error("❌ PayProp API error for payment categories: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            return SyncResult.failure("PayProp API error: " + e.getResponseBodyAsString());
         } catch (Exception e) {
+            log.error("❌ Payment categories sync failed: {}", e.getMessage(), e);
             return SyncResult.failure("Payment categories sync failed: " + e.getMessage());
         }
     }

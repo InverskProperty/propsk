@@ -1,4 +1,4 @@
-// Beneficiary.java - Payment recipients (property owners, contractors, etc.)
+// Updated Beneficiary.java - Fixed entity mapping to match database schema
 package site.easy.to.build.crm.entity;
 
 import jakarta.persistence.*;
@@ -35,11 +35,12 @@ public class Beneficiary {
     @Column(name = "beneficiary_type")
     private BeneficiaryType beneficiaryType;
     
+    // FIX: Use string mapping to match your ENUM column
     @Enumerated(EnumType.STRING)
     @Column(name = "account_type")
     private AccountType accountType;
 
-    // ===== BUSINESS DETAILS =====
+    // ===== BUSINESS/INDIVIDUAL DETAILS =====
     
     @Column(name = "business_name", length = 200)
     private String businessName;
@@ -95,6 +96,7 @@ public class Beneficiary {
 
     // ===== PAYMENT SETTINGS =====
     
+    // FIX: Use string mapping to match your ENUM column
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_method")
     private PaymentMethod paymentMethod;
@@ -128,7 +130,27 @@ public class Beneficiary {
         this.updatedAt = LocalDateTime.now();
     }
 
-    // ===== GETTERS AND SETTERS =====
+    // ===== LIFECYCLE HOOKS =====
+    
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (updatedAt == null) {
+            updatedAt = LocalDateTime.now();
+        }
+        if (isActive == null) {
+            isActive = "Y";
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+
+    // ===== ALL GETTERS AND SETTERS (same as before) =====
     
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -248,6 +270,13 @@ public class Beneficiary {
         return address.toString();
     }
 
+    /**
+     * Check if this is an active beneficiary
+     */
+    public boolean isActive() {
+        return "Y".equals(isActive);
+    }
+
     @Override
     public String toString() {
         return "Beneficiary{" +
@@ -256,6 +285,7 @@ public class Beneficiary {
                 ", name='" + name + '\'' +
                 ", beneficiaryType=" + beneficiaryType +
                 ", accountType=" + accountType +
+                ", isActive='" + isActive + '\'' +
                 '}';
     }
 }
