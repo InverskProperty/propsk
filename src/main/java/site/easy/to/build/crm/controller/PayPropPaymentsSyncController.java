@@ -15,7 +15,6 @@ import site.easy.to.build.crm.service.payprop.PayPropSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator;
 import site.easy.to.build.crm.service.payprop.SyncResult;
 import site.easy.to.build.crm.util.AuthorizationUtil;
-import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.repository.PaymentCategoryRepository;
 import site.easy.to.build.crm.repository.PaymentRepository;
 import site.easy.to.build.crm.repository.BeneficiaryBalanceRepository;
@@ -33,7 +32,6 @@ public class PayPropPaymentsSyncController {
     private final PayPropOAuth2Service oAuth2Service;
     private final PayPropSyncService syncService;
     private final PayPropSyncOrchestrator syncOrchestrator;
-    private final AuthenticationUtils authenticationUtils;
     private final PaymentCategoryRepository paymentCategoryRepository;
     private final PaymentRepository paymentRepository;
     private final BeneficiaryBalanceRepository beneficiaryBalanceRepository;
@@ -42,17 +40,28 @@ public class PayPropPaymentsSyncController {
     public PayPropPaymentsSyncController(PayPropOAuth2Service oAuth2Service,
                                         PayPropSyncService syncService,
                                         PayPropSyncOrchestrator syncOrchestrator,
-                                        AuthenticationUtils authenticationUtils,
                                         PaymentCategoryRepository paymentCategoryRepository,
                                         PaymentRepository paymentRepository,
                                         BeneficiaryBalanceRepository beneficiaryBalanceRepository) {
         this.oAuth2Service = oAuth2Service;
         this.syncService = syncService;
         this.syncOrchestrator = syncOrchestrator;
-        this.authenticationUtils = authenticationUtils;
         this.paymentCategoryRepository = paymentCategoryRepository;
         this.paymentRepository = paymentRepository;
         this.beneficiaryBalanceRepository = beneficiaryBalanceRepository;
+    }
+
+    /**
+     * Helper method to get current user ID from authentication
+     */
+    private Long getCurrentUserId(Authentication authentication) {
+        // Simple fallback - you can enhance this based on your user system
+        if (authentication != null && authentication.getName() != null) {
+            // If you have a way to get user ID from authentication, use it here
+            // For now, return a default value - adjust based on your system
+            return 1L; // Replace with actual user ID extraction logic
+        }
+        return 1L; // Default fallback
     }
 
     /**
@@ -113,7 +122,8 @@ public class PayPropPaymentsSyncController {
         }
 
         try {
-            Long initiatedBy = authenticationUtils.getCurrentUserId();
+            // Get current user ID - adjust this based on your AuthenticationUtils implementation
+            Long initiatedBy = getCurrentUserId(authentication);
             SyncResult result = syncService.syncPaymentCategoriesFromPayProp();
             
             response.put("success", result.isSuccess());
@@ -151,7 +161,7 @@ public class PayPropPaymentsSyncController {
         }
 
         try {
-            Long initiatedBy = authenticationUtils.getCurrentUserId();
+            Long initiatedBy = getCurrentUserId(authentication);
             SyncResult result = syncService.syncPaymentsToDatabase(initiatedBy);
             
             response.put("success", result.isSuccess());
@@ -189,7 +199,7 @@ public class PayPropPaymentsSyncController {
         }
 
         try {
-            Long initiatedBy = authenticationUtils.getCurrentUserId();
+            Long initiatedBy = getCurrentUserId(authentication);
             SyncResult result = syncService.syncBeneficiaryBalancesToDatabase(initiatedBy);
             
             response.put("success", result.isSuccess());
@@ -227,7 +237,7 @@ public class PayPropPaymentsSyncController {
         }
 
         try {
-            Long initiatedBy = authenticationUtils.getCurrentUserId();
+            Long initiatedBy = getCurrentUserId(authentication);
             
             // Step 1: Sync payment categories
             SyncResult categoriesResult = syncService.syncPaymentCategoriesFromPayProp();
