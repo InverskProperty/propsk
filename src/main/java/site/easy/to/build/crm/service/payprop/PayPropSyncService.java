@@ -412,6 +412,261 @@ public class PayPropSyncService {
     }
 
     /**
+     * ✅ CORRECT: Export actual payment transactions from PayProp
+     * This gets real payments with amounts and dates
+     */
+    public PayPropExportResult exportActualPaymentsFromPayProp(int page, int rows) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            // Use the correct endpoint for actual payment transactions
+            // Add date range to get recent payments
+            LocalDate fromDate = LocalDate.now().minusMonths(3); // Last 3 months
+            String url = payPropApiBase + "/export/payments" +
+                        "?include_beneficiary_info=true" +
+                        "&from_date=" + fromDate.toString() +
+                        "&filter_by=reconciliation_date" +
+                        "&page=" + page + 
+                        "&rows=" + Math.min(rows, 25);
+            
+            log.info("📥 Exporting ACTUAL PAYMENTS from PayProp - Page {} (from {})", page, fromDate);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                
+                PayPropExportResult result = new PayPropExportResult();
+                result.setItems((List<Map<String, Object>>) responseBody.get("items"));
+                result.setPagination((Map<String, Object>) responseBody.get("pagination"));
+                
+                log.info("✅ Exported {} ACTUAL PAYMENTS from PayProp", result.getItems().size());
+                
+                return result;
+            }
+            
+            throw new RuntimeException("Failed to export actual payments from PayProp");
+            
+        } catch (Exception e) {
+            log.error("❌ Actual payments export failed: {}", e.getMessage());
+            throw new RuntimeException("Actual payments export failed", e);
+        }
+    }
+
+    /**
+     * ✅ COMPREHENSIVE: Get all payments report for a property (your "goldmine" endpoint)
+     */
+    public PayPropExportResult exportAllPaymentsReportFromPayProp(String propertyId, LocalDate fromDate, LocalDate toDate) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + "/report/all-payments" +
+                        "?property_id=" + propertyId +
+                        "&from_date=" + fromDate.toString() +
+                        "&to_date=" + toDate.toString() +
+                        "&filter_by=reconciliation_date" +
+                        "&include_beneficiary_info=true";
+            
+            log.info("📊 Getting comprehensive payment report for property {} ({} to {})", 
+                    propertyId, fromDate, toDate);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                
+                PayPropExportResult result = new PayPropExportResult();
+                result.setItems((List<Map<String, Object>>) responseBody.get("items"));
+                result.setPagination((Map<String, Object>) responseBody.get("pagination"));
+                
+                log.info("✅ Got {} payments from comprehensive report for property {}", 
+                        result.getItems().size(), propertyId);
+                
+                return result;
+            }
+            
+            throw new RuntimeException("Failed to get all-payments report from PayProp");
+            
+        } catch (Exception e) {
+            log.error("❌ All-payments report failed for property {}: {}", propertyId, e.getMessage());
+            throw new RuntimeException("All-payments report failed", e);
+        }
+    }
+
+    /**
+     * ✅ UPDATED: Create payment from actual PayProp payment transaction data
+     */
+    private Payment createPaymentFromActualPayPropData(Map<String, Object> data) {
+        Payment payment = new Payment();
+        
+        payment.setPayPropPaymentId((String) data.get("payment_id")); // Note: might be "id" or "payment_id"
+        
+        // ✅ CORRECT: Actual payment amounts and dates
+        Object amount = data.get("amount");
+        if (amount instanceof Number) {
+            payment.setAmount(new BigDecimal(amount.toString()));
+        }
+        
+        // Try different date field names from actual PayProp responses
+        payment.setPaymentDate(parsePayPropDate((String) data.get("payment_date")));
+        payment.setReconciliationDate(parsePayPropDate((String) data.get("reconciliation_date")));
+        payment.setRemittanceDate(parsePayPropDate((String) data.get("remittance_date")));
+        
+        // Payment details
+        payment.setDescription((String) data.get("description"));
+        payment.setReference((String) data.get("reference"));
+        payment.setStatus((String) data.get("status"));
+        payment.setCategoryId((String) data.get("category_id"));
+        
+        // Additional fields that might be in actual payment data
+        Object taxAmount = data.get("tax_amount");
+        if (taxAmount instanceof Number) {
+            payment.setTaxAmount(new BigDecimal(taxAmount.toString()));
+        }
+        
+        Object commissionAmount = data.get("commission_amount");
+        if (commissionAmount instanceof Number) {
+            payment.setCommissionAmount(new BigDecimal(commissionAmount.toString()));
+        }
+        
+        // ✅ CORRECT: Property relationship
+        String propertyId = (String) data.get("property_id");
+        if (propertyId != null) {
+            Optional<Property> propertyOpt = propertyService.findByPayPropId(propertyId);
+            if (propertyOpt.isPresent()) {
+                payment.setPropertyId(propertyOpt.get().getId());
+            }
+        }
+        
+        // ✅ CORRECT: Beneficiary relationship
+        Object beneficiaryInfo = data.get("beneficiary_info");
+        if (beneficiaryInfo instanceof Map) {
+            Map<String, Object> beneficiary = (Map<String, Object>) beneficiaryInfo;
+            String beneficiaryPayPropId = (String) beneficiary.get("id");
+            if (beneficiaryPayPropId != null) {
+                Beneficiary beneficiaryEntity = beneficiaryRepository.findByPayPropBeneficiaryId(beneficiaryPayPropId);
+                if (beneficiaryEntity != null) {
+                    payment.setBeneficiaryId(beneficiaryEntity.getId());
+                }
+            }
+        }
+        
+        // ✅ CORRECT: Tenant relationship (if this is a rent payment)
+        String tenantId = (String) data.get("tenant_id");
+        if (tenantId != null && payment.getPropertyId() != null) {
+            // Find tenant by PayProp ID and link to payment
+            Customer tenant = customerService.findByPayPropEntityId(tenantId);
+            if (tenant != null) {
+                payment.setTenantId(tenant.getCustomerId().longValue());
+            }
+        }
+        
+        payment.setCreatedAt(LocalDateTime.now());
+        payment.setUpdatedAt(LocalDateTime.now());
+        
+        return payment;
+    }
+
+    /**
+     * ✅ UPDATED: Sync actual payments to database
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncActualPaymentsToDatabase(Long initiatedBy) {
+        try {
+            int page = 1;
+            int totalProcessed = 0;
+            int totalCreated = 0;
+            int totalUpdated = 0;
+            int totalErrors = 0;
+            
+            while (true) {
+                PayPropExportResult exportResult = exportActualPaymentsFromPayProp(page, 25);
+                
+                if (exportResult.getItems().isEmpty()) {
+                    break;
+                }
+
+                for (Map<String, Object> paymentData : exportResult.getItems()) {
+                    try {
+                        boolean isNew = createOrUpdateActualPayment(paymentData, initiatedBy);
+                        if (isNew) totalCreated++; else totalUpdated++;
+                        totalProcessed++;
+                    } catch (Exception e) {
+                        totalErrors++;
+                        log.error("Failed to sync actual payment {}: {}", paymentData.get("id"), e.getMessage());
+                    }
+                }
+                page++;
+            }
+
+            Map<String, Object> details = Map.of(
+                "processed", totalProcessed,
+                "created", totalCreated, 
+                "updated", totalUpdated,
+                "errors", totalErrors
+            );
+
+            return totalErrors == 0 ? 
+                SyncResult.success("Actual payments synced successfully", details) : 
+                SyncResult.partial("Actual payments synced with some errors", details);
+                
+        } catch (Exception e) {
+            return SyncResult.failure("Actual payments sync failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ✅ HELPER: Create or update actual payment
+     */
+    private boolean createOrUpdateActualPayment(Map<String, Object> paymentData, Long initiatedBy) {
+        String payPropPaymentId = (String) paymentData.get("payment_id");
+        if (payPropPaymentId == null) {
+            payPropPaymentId = (String) paymentData.get("id"); // Fallback
+        }
+        
+        if (payPropPaymentId == null) {
+            throw new RuntimeException("Payment missing ID field");
+        }
+        
+        // Check if payment exists
+        Payment existingPayment = paymentRepository.findByPayPropPaymentId(payPropPaymentId);
+        
+        if (existingPayment != null) {
+            updatePaymentFromActualPayPropData(existingPayment, paymentData);
+            paymentRepository.save(existingPayment);
+            return false; // Updated
+        } else {
+            Payment newPayment = createPaymentFromActualPayPropData(paymentData);
+            paymentRepository.save(newPayment);
+            return true; // Created
+        }
+    }
+
+    /**
+     * ✅ HELPER: Update existing payment with actual PayProp data
+     */
+    private void updatePaymentFromActualPayPropData(Payment payment, Map<String, Object> data) {
+        // Update amount and dates
+        Object amount = data.get("amount");
+        if (amount instanceof Number) {
+            payment.setAmount(new BigDecimal(amount.toString()));
+        }
+        
+        payment.setPaymentDate(parsePayPropDate((String) data.get("payment_date")));
+        payment.setReconciliationDate(parsePayPropDate((String) data.get("reconciliation_date")));
+        payment.setRemittanceDate(parsePayPropDate((String) data.get("remittance_date")));
+        
+        // Update status and references
+        payment.setStatus((String) data.get("status"));
+        payment.setDescription((String) data.get("description"));
+        payment.setReference((String) data.get("reference"));
+        
+        payment.setUpdatedAt(LocalDateTime.now());
+    }
+
+    /**
      * ✅ ENHANCEMENT 7: Create or update beneficiary balance
      */
     private void createOrUpdateBeneficiaryBalance(Map<String, Object> balanceData) {

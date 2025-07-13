@@ -247,17 +247,22 @@
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-4">
-                                    <button class="btn btn-outline-info btn-block" onclick="testPaymentCategoriesApi()">
-                                        <i class="fas fa-vial"></i> Test Categories API
+                                <div class="col-md-3">
+                                    <button class="btn btn-outline-info btn-block" onclick="testPaymentInstructionsApi()">
+                                        <i class="fas fa-cog"></i> Test Instructions API
                                     </button>
                                 </div>
-                                <div class="col-md-4">
-                                    <button class="btn btn-outline-secondary btn-block" onclick="getPaymentStats()">
-                                        <i class="fas fa-chart-bar"></i> Get Statistics
+                                <div class="col-md-3">
+                                    <button class="btn btn-outline-success btn-block" onclick="testActualPaymentsApi()">
+                                        <i class="fas fa-money-bill"></i> Test Actual Payments
                                     </button>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
+                                    <button class="btn btn-outline-primary btn-block" onclick="testAllPaymentsReportApi()">
+                                        <i class="fas fa-chart-pie"></i> Test All-Payments Report
+                                    </button>
+                                </div>
+                                <div class="col-md-3">
                                     <button class="btn btn-outline-warning btn-block" onclick="clearResults()">
                                         <i class="fas fa-trash"></i> Clear Results
                                     </button>
@@ -443,8 +448,8 @@ function syncAllPaymentData() {
 
 // ===== TESTING FUNCTIONS =====
 
-function testPaymentCategoriesApi() {
-    addResult('🧪 Testing payment data API...', 'info');
+function testPaymentInstructionsApi() {
+    addResult('🧪 Testing payment instructions API...', 'info');
     
     fetch('/admin/payprop/payments/test/categories', {
         method: 'GET',
@@ -455,28 +460,85 @@ function testPaymentCategoriesApi() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            addResult(`✅ API test successful`, 'success');
-            addResult(`📊 Found ${data.totalItems} payment items`, 'info');
+            addResult(`✅ Payment instructions API test successful`, 'success');
+            addResult(`📊 Found ${data.totalItems} payment instruction items`, 'info');
             
             if (data.allFieldNames) {
-                addResult(`🔍 PayProp Payment Fields: ${Array.from(data.allFieldNames).join(', ')}`, 'info');
-            }
-            
-            if (data.fullPaymentSample) {
-                addResult(`📋 FULL PAYMENT SAMPLE:`, 'info');
-                addResult(`${JSON.stringify(data.fullPaymentSample, null, 2)}`, 'info');
-            }
-            
-            if (data.secondPaymentSample) {
-                addResult(`📋 SECOND PAYMENT SAMPLE:`, 'info');
-                addResult(`${JSON.stringify(data.secondPaymentSample, null, 2)}`, 'info');
+                addResult(`🔍 PayProp Payment Instruction Fields: ${Array.from(data.allFieldNames).join(', ')}`, 'info');
             }
         } else {
-            addResult(`❌ API test failed: ${data.message}`, 'error');
+            addResult(`❌ Payment instructions API test failed: ${data.message}`, 'error');
         }
     })
     .catch(error => {
-        addResult(`❌ API test error: ${error.message}`, 'error');
+        addResult(`❌ Payment instructions API test error: ${error.message}`, 'error');
+    });
+}
+
+function testActualPaymentsApi() {
+    addResult('💰 Testing ACTUAL payments API...', 'info');
+    
+    fetch('/admin/payprop/payments/test/actual-payments', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ Actual payments API test successful`, 'success');
+            addResult(`📊 Found ${data.totalItems} actual payment transactions`, 'info');
+            addResult(`📅 Date range: ${data.fromDate} to now`, 'info');
+            
+            if (data.allPaymentFields) {
+                addResult(`🔍 Actual Payment Fields: ${Array.from(data.allPaymentFields).join(', ')}`, 'info');
+            }
+            
+            if (data.fullPaymentSample) {
+                addResult(`📋 ACTUAL PAYMENT SAMPLE:`, 'info');
+                addResult(`${JSON.stringify(data.fullPaymentSample, null, 2)}`, 'info');
+            }
+        } else {
+            addResult(`❌ Actual payments API test failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ Actual payments API test error: ${error.message}`, 'error');
+    });
+}
+
+function testAllPaymentsReportApi() {
+    addResult('📊 Testing ALL-PAYMENTS report API...', 'info');
+    
+    fetch('/admin/payprop/payments/test/all-payments-report', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            addResult(`✅ All-payments report API test successful`, 'success');
+            addResult(`📊 Found ${data.totalItems} comprehensive payment records`, 'info');
+            addResult(`🏠 Property: ${data.propertyId}`, 'info');
+            addResult(`📅 Date range: ${data.dateRange}`, 'info');
+            
+            if (data.allPaymentFields) {
+                addResult(`🔍 Report Payment Fields: ${Array.from(data.allPaymentFields).join(', ')}`, 'info');
+            }
+            
+            if (data.fullPaymentSample) {
+                addResult(`📋 COMPREHENSIVE PAYMENT SAMPLE:`, 'info');
+                addResult(`${JSON.stringify(data.fullPaymentSample, null, 2)}`, 'info');
+            }
+        } else {
+            addResult(`❌ All-payments report API test failed: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        addResult(`❌ All-payments report API test error: ${error.message}`, 'error');
     });
 }
 

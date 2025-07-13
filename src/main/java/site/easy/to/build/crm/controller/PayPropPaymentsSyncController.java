@@ -1,4 +1,5 @@
-// PayPropPaymentsSyncController.java - Dedicated controller for payments sync
+import java.time.LocalDate;
+import java.util.stream.Collectors;// PayPropPaymentsSyncController.java - Dedicated controller for payments sync
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,10 @@ import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.repository.PaymentCategoryRepository;
 import site.easy.to.build.crm.repository.PaymentRepository;
 import site.easy.to.build.crm.repository.BeneficiaryBalanceRepository;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -35,6 +40,7 @@ public class PayPropPaymentsSyncController {
     private final PaymentCategoryRepository paymentCategoryRepository;
     private final PaymentRepository paymentRepository;
     private final BeneficiaryBalanceRepository beneficiaryBalanceRepository;
+    private final RestTemplate restTemplate;
 
     @Autowired
     public PayPropPaymentsSyncController(PayPropOAuth2Service oAuth2Service,
@@ -42,13 +48,15 @@ public class PayPropPaymentsSyncController {
                                         PayPropSyncOrchestrator syncOrchestrator,
                                         PaymentCategoryRepository paymentCategoryRepository,
                                         PaymentRepository paymentRepository,
-                                        BeneficiaryBalanceRepository beneficiaryBalanceRepository) {
+                                        BeneficiaryBalanceRepository beneficiaryBalanceRepository,
+                                        RestTemplate restTemplate) {
         this.oAuth2Service = oAuth2Service;
         this.syncService = syncService;
         this.syncOrchestrator = syncOrchestrator;
         this.paymentCategoryRepository = paymentCategoryRepository;
         this.paymentRepository = paymentRepository;
         this.beneficiaryBalanceRepository = beneficiaryBalanceRepository;
+        this.restTemplate = restTemplate;
     }
 
     /**
@@ -326,11 +334,11 @@ public class PayPropPaymentsSyncController {
     }
 
     /**
-     * Test payment categories API endpoint - Enhanced to show full data
+     * Test ACTUAL payment transactions API endpoint
      */
-    @GetMapping("/test/categories")
+    @GetMapping("/test/actual-payments")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> testPaymentCategoriesApi(Authentication authentication) {
+    public ResponseEntity<Map<String, Object>> testActualPaymentsApi(Authentication authentication) {
         Map<String, Object> response = new HashMap<>();
 
         if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
@@ -346,33 +354,141 @@ public class PayPropPaymentsSyncController {
         }
 
         try {
-            // Get actual payment data to see the structure
-            PayPropSyncService.PayPropExportResult result = syncService.exportPaymentsFromPayProp(1, 3);
+            // Test the ACTUAL payments endpoint with recent date range
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
             
-            response.put("success", true);
-            response.put("message", "Payment data API test successful");
-            response.put("totalItems", result.getItems().size());
+            LocalDate fromDate = LocalDate.now().minusMonths(3); // Last 3 months
+            String actualPaymentsUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/payments" +
+                    "?include_beneficiary_info=true" +
+                    "&from_date=" + fromDate.toString() +
+                    "&filter_by=reconciliation_date" +
+                    "&page=1&rows=3";
             
-            // Show FULL payment data structure for debugging
-            if (!result.getItems().isEmpty()) {
-                response.put("fullPaymentSample", result.getItems().get(0)); // Complete first payment
-                response.put("allFieldNames", result.getItems().get(0).keySet()); // All field names
+            log.info("Testing actual payments endpoint: {}", actualPaymentsUrl);
+            
+            ResponseEntity<Map> apiResponse = restTemplate.exchange(actualPaymentsUrl, HttpMethod.GET, request, Map.class);
+            
+            if (apiResponse.getStatusCode() == HttpStatus.OK && apiResponse.getBody() != null) {
+                Map<String, Object> responseBody = apiResponse.getBody();
+                List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
                 
-                // Show multiple samples if available
-                if (result.getItems().size() > 1) {
-                    response.put("secondPaymentSample", result.getItems().get(1));
+                response.put("success", true);
+                response.put("message", "Actual payments API test successful");
+                response.put("totalItems", payments != null ? payments.size() : 0);
+                response.put("fromDate", fromDate.toString());
+                
+                if (payments != null && !payments.isEmpty()) {
+                    response.put("fullPaymentSample", payments.get(0));
+                    response.put("allPaymentFields", payments.get(0).keySet());
+                    
+                    if (payments.size() > 1) {
+                        response.put("secondPaymentSample", payments.get(1));
+                    }
+                } else {
+                    response.put("message", "No actual payment transactions found for date range " + fromDate + " to now. Try extending the date range.");
                 }
-                if (result.getItems().size() > 2) {
-                    response.put("thirdPaymentSample", result.getItems().get(2));
-                }
+            } else {
+                response.put("success", false);
+                response.put("message", "Actual payments API returned: " + apiResponse.getStatusCode());
             }
             
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("Error testing payment API: {}", e.getMessage());
+            log.error("Error testing actual payments API: {}", e.getMessage());
             response.put("success", false);
-            response.put("message", "API test failed: " + e.getMessage());
+            response.put("message", "Actual payments API test failed: " + e.getMessage());
+            return ResponseEntity.ok(response);
+        }
+    }
+
+    /**
+     * Test ALL-PAYMENTS report API endpoint (the "goldmine")
+     */
+    @GetMapping("/test/all-payments-report")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testAllPaymentsReportApi(@RequestParam(required = false) String propertyId, 
+                                                                        Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied");
+            return ResponseEntity.status(403).body(response);
+        }
+
+        if (!oAuth2Service.hasValidTokens()) {
+            response.put("success", false);
+            response.put("message", "PayProp not authorized. Please authorize first.");
+            return ResponseEntity.ok(response);
+        }
+
+        try {
+            // If no property ID provided, get one from our database
+            if (propertyId == null || propertyId.isEmpty()) {
+                List<Property> properties = propertyService.findAll().stream()
+                    .filter(p -> p.getPayPropId() != null)
+                    .limit(1)
+                    .collect(Collectors.toList());
+                
+                if (!properties.isEmpty()) {
+                    propertyId = properties.get(0).getPayPropId();
+                } else {
+                    response.put("success", false);
+                    response.put("message", "No properties with PayProp IDs found for testing");
+                    return ResponseEntity.ok(response);
+                }
+            }
+            
+            // Test the ALL-PAYMENTS report endpoint
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            LocalDate fromDate = LocalDate.now().minusMonths(6); // Last 6 months
+            LocalDate toDate = LocalDate.now();
+            String allPaymentsUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
+                    "?property_id=" + propertyId +
+                    "&from_date=" + fromDate.toString() +
+                    "&to_date=" + toDate.toString() +
+                    "&filter_by=reconciliation_date" +
+                    "&include_beneficiary_info=true";
+            
+            log.info("Testing all-payments report endpoint: {}", allPaymentsUrl);
+            
+            ResponseEntity<Map> apiResponse = restTemplate.exchange(allPaymentsUrl, HttpMethod.GET, request, Map.class);
+            
+            if (apiResponse.getStatusCode() == HttpStatus.OK && apiResponse.getBody() != null) {
+                Map<String, Object> responseBody = apiResponse.getBody();
+                List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
+                
+                response.put("success", true);
+                response.put("message", "All-payments report API test successful");
+                response.put("totalItems", payments != null ? payments.size() : 0);
+                response.put("propertyId", propertyId);
+                response.put("dateRange", fromDate + " to " + toDate);
+                
+                if (payments != null && !payments.isEmpty()) {
+                    response.put("fullPaymentSample", payments.get(0));
+                    response.put("allPaymentFields", payments.get(0).keySet());
+                    
+                    if (payments.size() > 1) {
+                        response.put("secondPaymentSample", payments.get(1));
+                    }
+                } else {
+                    response.put("message", "No payment data found for property " + propertyId + " in date range " + fromDate + " to " + toDate);
+                }
+            } else {
+                response.put("success", false);
+                response.put("message", "All-payments report API returned: " + apiResponse.getStatusCode());
+            }
+            
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Error testing all-payments report API: {}", e.getMessage());
+            response.put("success", false);
+            response.put("message", "All-payments report API test failed: " + e.getMessage());
             return ResponseEntity.ok(response);
         }
     }
