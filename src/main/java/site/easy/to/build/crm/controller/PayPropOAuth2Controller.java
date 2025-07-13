@@ -3,11 +3,16 @@ package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service.PayPropTokens;
@@ -24,10 +29,12 @@ import java.util.UUID;
 public class PayPropOAuth2Controller {
 
     private final PayPropOAuth2Service oAuth2Service;
+    private final RestTemplate restTemplate;
 
     @Autowired
-    public PayPropOAuth2Controller(PayPropOAuth2Service oAuth2Service) {
+    public PayPropOAuth2Controller(PayPropOAuth2Service oAuth2Service, RestTemplate restTemplate) {
         this.oAuth2Service = oAuth2Service;
+        this.restTemplate = restTemplate;
     }
 
     /**
@@ -117,6 +124,93 @@ public class PayPropOAuth2Controller {
                 "Failed to complete PayProp authorization: " + e.getMessage());
             return "redirect:/api/payprop/oauth/status";
         }
+    }
+
+    /**
+     * Test available payment endpoints with current scopes
+     */
+    @PostMapping("/test-available-payment-endpoints")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testAvailablePaymentEndpoints(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied");
+            return ResponseEntity.status(403).body(response);
+        }
+
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
+            Map<String, Object> results = new HashMap<>();
+            
+            // Test different payment-related endpoints
+            String[] endpoints = {
+                "/export/payments",
+                "/export/invoices", 
+                "/report/icdn",
+                "/report/tenant/balances",
+                "/report/processing-summary",
+                "/export/invoice-instructions"
+            };
+            
+            for (String endpoint : endpoints) {
+                try {
+                    ResponseEntity<Map> apiResponse = restTemplate.exchange(
+                        baseUrl + endpoint + "?page=1&rows=5", 
+                        HttpMethod.GET, request, Map.class);
+                    
+                    results.put(endpoint, Map.of(
+                        "status", "✅ WORKS",
+                        "statusCode", apiResponse.getStatusCode().value(),
+                        "hasData", apiResponse.getBody() != null,
+                        "itemCount", getItemCount(apiResponse.getBody())
+                    ));
+                } catch (HttpClientErrorException e) {
+                    results.put(endpoint, Map.of(
+                        "status", "❌ " + e.getStatusCode(),
+                        "error", e.getResponseBodyAsString()
+                    ));
+                } catch (Exception e) {
+                    results.put(endpoint, Map.of(
+                        "status", "❌ ERROR", 
+                        "error", e.getMessage()
+                    ));
+                }
+            }
+            
+            response.put("success", true);
+            response.put("endpointTests", results);
+            response.put("message", "Endpoint availability test completed");
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+        }
+        
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Helper method to count items in API response
+     */
+    private int getItemCount(Map<String, Object> responseBody) {
+        if (responseBody == null) return 0;
+        
+        Object items = responseBody.get("items");
+        if (items instanceof java.util.List) {
+            return ((java.util.List<?>) items).size();
+        }
+        
+        Object data = responseBody.get("data");
+        if (data instanceof java.util.List) {
+            return ((java.util.List<?>) data).size();
+        }
+        
+        return 0;
     }
 
     /**
