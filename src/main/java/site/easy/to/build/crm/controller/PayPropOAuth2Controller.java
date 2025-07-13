@@ -523,6 +523,59 @@ public class PayPropOAuth2Controller {
         return ResponseEntity.ok(results);
     }
 
+    @PostMapping("/test-enhanced-payment-data")
+    @ResponseBody  
+    public ResponseEntity<Map<String, Object>> testEnhancedPaymentData(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> results = new HashMap<>();
+        
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
+            
+            // Test 1: Enhanced payments export with more parameters
+            String enhancedPaymentsUrl = baseUrl + "/export/payments?include_beneficiary_info=true&rows=10&modified_from_time=2024-01-01T00:00:00";
+            ResponseEntity<Map> enhancedPayments = restTemplate.exchange(enhancedPaymentsUrl, HttpMethod.GET, request, Map.class);
+            results.put("enhanced_payments", Map.of(
+                "count", getItemCount(enhancedPayments.getBody()),
+                "sample_data", getSampleData(enhancedPayments.getBody(), 3)
+            ));
+            
+            // Test 2: Properties with commission data
+            String propertiesCommissionUrl = baseUrl + "/export/properties?include_commission=true&rows=5";
+            ResponseEntity<Map> propertiesCommission = restTemplate.exchange(propertiesCommissionUrl, HttpMethod.GET, request, Map.class);
+            results.put("properties_commission", Map.of(
+                "count", getItemCount(propertiesCommission.getBody()),
+                "sample_data", getSampleData(propertiesCommission.getBody(), 2)
+            ));
+            
+            // Test 3: Beneficiaries export (owners who receive payments)
+            String beneficiariesUrl = baseUrl + "/export/beneficiaries?owners=true&rows=5";
+            ResponseEntity<Map> beneficiaries = restTemplate.exchange(beneficiariesUrl, HttpMethod.GET, request, Map.class);
+            results.put("owner_beneficiaries", Map.of(
+                "count", getItemCount(beneficiaries.getBody()),
+                "sample_data", getSampleData(beneficiaries.getBody(), 2)
+            ));
+            
+            // Test 4: ICDN with more recent data and larger range (within 93 days)
+            String recentICDNUrl = baseUrl + "/report/icdn?from_date=2024-06-01&to_date=2024-08-31&rows=20";
+            ResponseEntity<Map> recentICDN = restTemplate.exchange(recentICDNUrl, HttpMethod.GET, request, Map.class);
+            results.put("recent_icdn", Map.of(
+                "count", getItemCount(recentICDN.getBody()),
+                "sample_data", getSampleData(recentICDN.getBody(), 3)
+            ));
+            
+        } catch (Exception e) {
+            results.put("error", e.getMessage());
+        }
+        
+        return ResponseEntity.ok(results);
+    }
+
     @PostMapping("/test-agency-income")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> testAgencyIncome(Authentication authentication) {
