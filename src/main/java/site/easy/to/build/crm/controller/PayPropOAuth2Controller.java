@@ -22,6 +22,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.List;
 
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Controller
@@ -402,6 +404,72 @@ public class PayPropOAuth2Controller {
             response.put("tokenValid", false);
             return ResponseEntity.ok(response);
         }
+    }
+
+    @PostMapping("/test-financial-data")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testFinancialData(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> results = new HashMap<>();
+        
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
+            
+            // Test 1: Export Payments (actual transactions?)
+            String paymentsUrl = baseUrl + "/export/payments?rows=5&include_beneficiary_info=true";
+            ResponseEntity<Map> paymentsResponse = restTemplate.exchange(paymentsUrl, HttpMethod.GET, request, Map.class);
+            results.put("export_payments", Map.of(
+                "status", "SUCCESS",
+                "count", getItemCount(paymentsResponse.getBody()),
+                "sample_data", getSampleData(paymentsResponse.getBody(), 2)
+            ));
+            
+            // Test 2: Export Invoices
+            String invoicesUrl = baseUrl + "/export/invoices?rows=5";
+            ResponseEntity<Map> invoicesResponse = restTemplate.exchange(invoicesUrl, HttpMethod.GET, request, Map.class);
+            results.put("export_invoices", Map.of(
+                "status", "SUCCESS", 
+                "count", getItemCount(invoicesResponse.getBody()),
+                "sample_data", getSampleData(invoicesResponse.getBody(), 2)
+            ));
+            
+            // Test 3: ICDN Report (financial transactions)
+            String icdnUrl = baseUrl + "/report/icdn?rows=5&from_date=2024-01-01";
+            ResponseEntity<Map> icdnResponse = restTemplate.exchange(icdnUrl, HttpMethod.GET, request, Map.class);
+            results.put("report_icdn", Map.of(
+                "status", "SUCCESS",
+                "count", getItemCount(icdnResponse.getBody()),
+                "sample_data", getSampleData(icdnResponse.getBody(), 2)
+            ));
+            
+            // Test 4: Specific property payments (using your most active property)
+            String propPaymentsUrl = baseUrl + "/export/payments?property_id=116&rows=5&include_beneficiary_info=true";
+            ResponseEntity<Map> propResponse = restTemplate.exchange(propPaymentsUrl, HttpMethod.GET, request, Map.class);
+            results.put("property_116_payments", Map.of(
+                "status", "SUCCESS",
+                "property_name", "Havelock Place 87, Hartley",
+                "count", getItemCount(propResponse.getBody()),
+                "sample_data", getSampleData(propResponse.getBody(), 2)
+            ));
+            
+        } catch (Exception e) {
+            results.put("error", e.getMessage());
+        }
+        
+        return ResponseEntity.ok(results);
+    }
+
+    private Object getSampleData(Map<String, Object> response, int maxItems) {
+        if (response != null && response.containsKey("items")) {
+            List<?> items = (List<?>) response.get("items");
+            return items.stream().limit(maxItems).collect(Collectors.toList());
+        }
+        return "No data";
     }
 
     /**
