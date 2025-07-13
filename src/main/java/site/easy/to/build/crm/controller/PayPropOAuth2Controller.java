@@ -523,6 +523,37 @@ public class PayPropOAuth2Controller {
         return ResponseEntity.ok(results);
     }
 
+    @PostMapping("/test-agency-income")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testAgencyIncome(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> results = new HashMap<>();
+        
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
+            
+            // Test agency income report (commission/fees)
+            String agencyIncomeUrl = baseUrl + "/report/agency/income?year=2024&month=01";
+            ResponseEntity<Map> agencyResponse = restTemplate.exchange(agencyIncomeUrl, HttpMethod.GET, request, Map.class);
+            results.put("agency_income", agencyResponse.getBody());
+            
+            // Test enhanced properties export with commission
+            String propertiesUrl = baseUrl + "/export/properties?include_commission=true&rows=3";
+            ResponseEntity<Map> propertiesResponse = restTemplate.exchange(propertiesUrl, HttpMethod.GET, request, Map.class);
+            results.put("properties_with_commission", propertiesResponse.getBody());
+            
+        } catch (Exception e) {
+            results.put("error", e.getMessage());
+        }
+        
+        return ResponseEntity.ok(results);
+    }
+
     private Object getSampleData(Map<String, Object> response, int maxItems) {
         if (response != null && response.containsKey("items")) {
             List<?> items = (List<?>) response.get("items");
