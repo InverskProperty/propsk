@@ -1,4 +1,4 @@
-// PayPropSyncOrchestrator.java - Updated with Payment Sync Integration
+// PayPropSyncOrchestrator.java - Updated with Complete Financial Sync Integration
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,7 +67,7 @@ public class PayPropSyncOrchestrator {
    // ===== MAIN SYNC ORCHESTRATION =====
 
    /**
-    * Complete two-way synchronization using unified Customer entity with PAYMENT SYNC
+    * Complete two-way synchronization using unified Customer entity with COMPLETE FINANCIAL SYNC
     */
    public UnifiedSyncResult performUnifiedSync(OAuthUser oAuthUser, Long initiatedBy) {
        UnifiedSyncResult result = new UnifiedSyncResult();
@@ -95,10 +95,13 @@ public class PayPropSyncOrchestrator {
            // Step 7: Establish tenant relationships via junction table
            result.setTenantRelationshipsResult(establishTenantPropertyRelationships());
 
-           // Step 7.5: Sync Payment Data (NEW)
+           // Step 7.5: Sync COMPLETE Payment Data (ENHANCED)
            result.setPaymentCategoriesResult(syncPaymentCategories(initiatedBy));
            result.setPaymentsResult(syncPayments(initiatedBy));  
            result.setBeneficiaryBalancesResult(syncBeneficiaryBalances(initiatedBy));
+           
+           // Step 7.5d: Sync Financial Transactions (ACTUAL rent payments - NEW)
+           result.setFinancialTransactionsResult(syncFinancialTransactions(initiatedBy));
 
            // Step 8: Sync PayProp files to Google Drive
            if (oAuthUser != null) {
@@ -144,10 +147,13 @@ public class PayPropSyncOrchestrator {
            // Step 7: Establish tenant relationships
            result.setTenantRelationshipsResult(establishTenantPropertyRelationships());
 
-           // Step 7.5: Sync Payment Data (NEW)
+           // Step 7.5: Sync COMPLETE Payment Data (ENHANCED)
            result.setPaymentCategoriesResult(syncPaymentCategories(initiatedBy));
            result.setPaymentsResult(syncPayments(initiatedBy));  
            result.setBeneficiaryBalancesResult(syncBeneficiaryBalances(initiatedBy));
+           
+           // Step 7.5d: Sync Financial Transactions (ACTUAL rent payments - NEW)
+           result.setFinancialTransactionsResult(syncFinancialTransactions(initiatedBy));
 
            // Step 8: Enhanced occupancy detection
            result.setOccupancyResult(detectOccupancyFromTenancies(initiatedBy));
@@ -170,7 +176,7 @@ public class PayPropSyncOrchestrator {
        return result;
    }
 
-   // ===== NEW PAYMENT SYNC METHODS =====
+   // ===== ENHANCED PAYMENT SYNC METHODS =====
 
    /**
     * Step 7.5a: Sync payment categories
@@ -186,7 +192,7 @@ public class PayPropSyncOrchestrator {
    }
 
    /**
-    * Step 7.5b: Sync all payments
+    * Step 7.5b: Sync all payments (instructions)
     */
    private SyncResult syncPayments(Long initiatedBy) {
        try {
@@ -208,6 +214,21 @@ public class PayPropSyncOrchestrator {
        } catch (Exception e) {
            log.error("❌ Beneficiary balances sync failed: {}", e.getMessage());
            return SyncResult.failure("Beneficiary balances sync failed: " + e.getMessage());
+       }
+   }
+
+   /**
+    * Step 7.5d: Sync actual financial transactions (ICDN data) - NEW
+    * This syncs the actual £840, £1400, £720 rent payments with commission calculations
+    */
+   private SyncResult syncFinancialTransactions(Long initiatedBy) {
+       try {
+           log.info("💰 Starting financial transactions (ICDN) sync...");
+           // Use existing service method to sync actual financial transactions
+           return payPropSyncService.syncActualPaymentsToDatabase(initiatedBy);
+       } catch (Exception e) {
+           log.error("❌ Financial transactions sync failed: {}", e.getMessage());
+           return SyncResult.failure("Financial transactions sync failed: " + e.getMessage());
        }
    }
 
@@ -1550,7 +1571,7 @@ public class PayPropSyncOrchestrator {
        }
    }
 
-   // ===== RESULT CLASSES =====
+   // ===== ENHANCED RESULT CLASSES =====
 
    public static class UnifiedSyncResult {
        private SyncResult propertiesResult;
@@ -1563,15 +1584,16 @@ public class PayPropSyncOrchestrator {
        private String overallError;
        private SyncResult occupancyResult;
        
-       // ✅ NEW PAYMENT SYNC RESULT FIELDS
+       // ✅ COMPLETE PAYMENT SYNC RESULT FIELDS
        private SyncResult paymentCategoriesResult;
        private SyncResult paymentsResult;
        private SyncResult beneficiaryBalancesResult;
+       private SyncResult financialTransactionsResult; // NEW - ICDN financial transactions
 
        public SyncResult getOccupancyResult() { return occupancyResult; }
        public void setOccupancyResult(SyncResult occupancyResult) { this.occupancyResult = occupancyResult; }
 
-       // ✅ NEW PAYMENT SYNC GETTERS/SETTERS
+       // ✅ COMPLETE PAYMENT SYNC GETTERS/SETTERS
        public SyncResult getPaymentCategoriesResult() { return paymentCategoriesResult; }
        public void setPaymentCategoriesResult(SyncResult paymentCategoriesResult) { 
            this.paymentCategoriesResult = paymentCategoriesResult; 
@@ -1586,8 +1608,14 @@ public class PayPropSyncOrchestrator {
        public void setBeneficiaryBalancesResult(SyncResult beneficiaryBalancesResult) { 
            this.beneficiaryBalancesResult = beneficiaryBalancesResult; 
        }
+       
+       // ✅ NEW - Financial Transactions (ICDN) getter/setter
+       public SyncResult getFinancialTransactionsResult() { return financialTransactionsResult; }
+       public void setFinancialTransactionsResult(SyncResult financialTransactionsResult) { 
+           this.financialTransactionsResult = financialTransactionsResult; 
+       }
 
-       // ✅ UPDATED: Include payment sync results in overall success
+       // ✅ UPDATED: Include ALL payment sync results in overall success
        public boolean isOverallSuccess() {
            return overallError == null && 
                (propertiesResult == null || propertiesResult.isSuccess()) &&
@@ -1599,10 +1627,11 @@ public class PayPropSyncOrchestrator {
                (filesResult == null || filesResult.isSuccess()) &&
                (paymentCategoriesResult == null || paymentCategoriesResult.isSuccess()) &&
                (paymentsResult == null || paymentsResult.isSuccess()) &&
-               (beneficiaryBalancesResult == null || beneficiaryBalancesResult.isSuccess());
+               (beneficiaryBalancesResult == null || beneficiaryBalancesResult.isSuccess()) &&
+               (financialTransactionsResult == null || financialTransactionsResult.isSuccess()); // NEW
        }
 
-       // ✅ UPDATED: Include payment sync status in summary
+       // ✅ UPDATED: Include ALL payment sync status in summary
        public String getSummary() {
            if (overallError != null) return overallError;
            
@@ -1616,6 +1645,7 @@ public class PayPropSyncOrchestrator {
            summary.append("Payment Categories: ").append(paymentCategoriesResult != null ? paymentCategoriesResult.getMessage() : "skipped").append("; ");
            summary.append("Payments: ").append(paymentsResult != null ? paymentsResult.getMessage() : "skipped").append("; ");
            summary.append("Beneficiary Balances: ").append(beneficiaryBalancesResult != null ? beneficiaryBalancesResult.getMessage() : "skipped").append("; ");
+           summary.append("Financial Transactions: ").append(financialTransactionsResult != null ? financialTransactionsResult.getMessage() : "skipped").append("; "); // NEW
            summary.append("Files: ").append(filesResult != null ? filesResult.getMessage() : "skipped");
            return summary.toString();
        }
