@@ -1,4 +1,4 @@
-// Updated Beneficiary.java - Fixed entity mapping to match database schema
+// FIXED: Beneficiary.java - Corrected column mapping for enhanced_account_balance
 package site.easy.to.build.crm.entity;
 
 import jakarta.persistence.*;
@@ -36,7 +36,6 @@ public class Beneficiary {
     @Column(name = "beneficiary_type")
     private BeneficiaryType beneficiaryType;
     
-    // FIX: Use string mapping to match your ENUM column
     @Enumerated(EnumType.STRING)
     @Column(name = "account_type")
     private AccountType accountType;
@@ -52,7 +51,7 @@ public class Beneficiary {
     @Column(name = "last_name", length = 100)
     private String lastName;
 
-    // ===== ENHANCED OWNER INFORMATION - NEW FIELDS =====
+    // ===== ENHANCED OWNER INFORMATION =====
     
     @Column(name = "is_active_owner")
     private Boolean isActiveOwner = false;
@@ -69,7 +68,8 @@ public class Beneficiary {
     @Column(name = "vat_number", length = 50)
     private String vatNumber;
 
-    @Column(name = "account_balance", precision = 10, scale = 2)
+    // 🔧 FIXED: Correct column name mapping
+    @Column(name = "enhanced_account_balance", precision = 10, scale = 2)
     private BigDecimal enhancedAccountBalance;
 
     // ===== ADDRESS =====
@@ -117,7 +117,6 @@ public class Beneficiary {
 
     // ===== PAYMENT SETTINGS =====
     
-    // FIX: Use string mapping to match your ENUM column
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_method")
     private PaymentMethod paymentMethod;
@@ -209,7 +208,6 @@ public class Beneficiary {
     public String getLastName() { return lastName; }
     public void setLastName(String lastName) { this.lastName = lastName; }
 
-    // NEW: Enhanced Owner Information getters/setters
     public Boolean getIsActiveOwner() { 
         return isActiveOwner; 
     }
