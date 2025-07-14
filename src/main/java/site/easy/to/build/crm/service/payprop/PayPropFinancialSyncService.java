@@ -221,7 +221,7 @@ public class PayPropFinancialSyncService {
             "updated", updated
         );
     }
-    
+
     // FIXED: PayPropFinancialSyncService.java - Handle missing enum values
     // Only showing the fixed syncOwnerBeneficiaries method - replace this method in your service
 
@@ -291,8 +291,11 @@ public class PayPropFinancialSyncService {
                     }
                 }
                 
-                // 🔧 FIX: Always set BeneficiaryType (this was missing!)
+                // 🔧 FIX: Set BeneficiaryType using the correct enum values
+                // These are property owners, so they should be BENEFICIARY
+                // Java enum: AGENCY, BENEFICIARY, GLOBAL_BENEFICIARY, PROPERTY_ACCOUNT, DEPOSIT_ACCOUNT
                 beneficiary.setBeneficiaryType(BeneficiaryType.BENEFICIARY);
+                logger.debug("🔧 Set beneficiary_type to 'BENEFICIARY' for beneficiary {}", payPropId);
                 
                 // 🔧 FIX: Set name field safely (required field)
                 String firstName = (String) ppBeneficiary.get("first_name");
