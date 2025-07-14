@@ -22,6 +22,9 @@ import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.BeneficiaryRepository;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.util.AuthorizationUtil;
+import site.easy.to.build.crm.repository.PaymentRepository;
+import site.easy.to.build.crm.repository.PaymentCategoryRepository;
+import site.easy.to.build.crm.service.property.PropertyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
