@@ -1,4 +1,3 @@
-
 // Property.java - Migration Safe Version with Portfolio/Block Support
 package site.easy.to.build.crm.entity;
 
@@ -97,6 +96,19 @@ public class Property {
     @DecimalMin("0")
     @Digits(integer = 8, fraction = 2)
     private BigDecimal propertyAccountMinimumBalance = BigDecimal.ZERO;
+
+    // NEW: Additional PayProp Financial Fields
+    @Column(name = "commission_percentage", precision = 5, scale = 2)
+    private BigDecimal commissionPercentage;
+
+    @Column(name = "commission_amount", precision = 10, scale = 2)
+    private BigDecimal commissionAmount;
+
+    @Column(name = "account_balance", precision = 10, scale = 2)
+    private BigDecimal accountBalance;
+
+    @Column(name = "payprop_property_id", length = 100)
+    private String payPropPropertyId;
 
     // Portfolio and Block Relationships - NEW FIELDS
     @ManyToOne(fetch = FetchType.LAZY)
@@ -299,6 +311,19 @@ public class Property {
     public BigDecimal getPropertyAccountMinimumBalance() { return propertyAccountMinimumBalance; }
     public void setPropertyAccountMinimumBalance(BigDecimal propertyAccountMinimumBalance) { this.propertyAccountMinimumBalance = propertyAccountMinimumBalance; }
     
+    // NEW: Commission and PayProp getters/setters
+    public BigDecimal getCommissionPercentage() { return commissionPercentage; }
+    public void setCommissionPercentage(BigDecimal commissionPercentage) { this.commissionPercentage = commissionPercentage; }
+
+    public BigDecimal getCommissionAmount() { return commissionAmount; }
+    public void setCommissionAmount(BigDecimal commissionAmount) { this.commissionAmount = commissionAmount; }
+
+    public BigDecimal getAccountBalance() { return accountBalance; }
+    public void setAccountBalance(BigDecimal accountBalance) { this.accountBalance = accountBalance; }
+
+    public String getPayPropPropertyId() { return payPropPropertyId; }
+    public void setPayPropPropertyId(String payPropPropertyId) { this.payPropPropertyId = payPropPropertyId; }
+    
     // Portfolio and Block getters/setters - NEW
     public Portfolio getPortfolio() { return portfolio; }
     public void setPortfolio(Portfolio portfolio) { this.portfolio = portfolio; }
@@ -417,6 +442,39 @@ public class Property {
         return propertyName != null && !propertyName.trim().isEmpty() &&
                customerId != null && !customerId.trim().isEmpty() &&
                monthlyPayment != null && monthlyPayment.compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    // NEW: Commission utility methods
+    /**
+     * Check if property has commission rate configured
+     */
+    public boolean hasCommissionRate() {
+        return commissionPercentage != null && commissionPercentage.compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    /**
+     * Get commission rate as percentage (e.g., 10.5 for 10.5%)
+     */
+    public double getCommissionRateAsPercent() {
+        return hasCommissionRate() ? commissionPercentage.doubleValue() : 0.0;
+    }
+
+    /**
+     * Calculate commission amount for a given rent amount
+     */
+    public BigDecimal calculateCommission(BigDecimal rentAmount) {
+        if (!hasCommissionRate() || rentAmount == null) {
+            return BigDecimal.ZERO;
+        }
+        return rentAmount.multiply(commissionPercentage)
+                .divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+    }
+
+    /**
+     * Check if property is set up for PayProp sync
+     */
+    public boolean isPayPropConfigured() {
+        return payPropPropertyId != null && !payPropPropertyId.trim().isEmpty();
     }
     
     @PrePersist

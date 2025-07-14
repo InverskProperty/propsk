@@ -3,6 +3,7 @@ package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -16,8 +17,17 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service.PayPropTokens;
+import site.easy.to.build.crm.service.payprop.PayPropFinancialSyncService;
+import site.easy.to.build.crm.repository.PropertyRepository;
+import site.easy.to.build.crm.repository.BeneficiaryRepository;
+import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.util.AuthorizationUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,8 +40,29 @@ import java.util.List;
 @RequestMapping("/api/payprop/oauth")
 public class PayPropOAuth2Controller {
 
+    private static final Logger logger = LoggerFactory.getLogger(PayPropOAuth2Controller.class);
+
     private final PayPropOAuth2Service oAuth2Service;
     private final RestTemplate restTemplate;
+    
+    // NEW: Financial sync service injection
+    @Autowired
+    private PayPropFinancialSyncService payPropFinancialSyncService;
+    
+    @Autowired
+    private PropertyRepository propertyRepository;
+    
+    @Autowired
+    private BeneficiaryRepository beneficiaryRepository;
+    
+    @Autowired
+    private PaymentRepository paymentRepository;
+    
+    @Autowired
+    private PaymentCategoryRepository paymentCategoryRepository;
+    
+    @Autowired
+    private PropertyService propertyService;
 
     @Autowired
     public PayPropOAuth2Controller(PayPropOAuth2Service oAuth2Service, RestTemplate restTemplate) {
@@ -655,6 +686,267 @@ public class PayPropOAuth2Controller {
             response.put("success", false);
             response.put("message", "Tag test failed: " + e.getMessage());
             return ResponseEntity.ok(response);
+        }
+    }
+
+    // ===== NEW FINANCIAL SYNC ENDPOINTS =====
+
+    /**
+     * Comprehensive financial data sync - syncs all financial data from PayProp
+     */
+    @PostMapping("/sync-comprehensive-financial-data")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> syncComprehensiveFinancialData(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        try {
+            Map<String, Object> syncResults = payPropFinancialSyncService.syncComprehensiveFinancialData();
+            return ResponseEntity.ok(syncResults);
+            
+        } catch (Exception e) {
+            logger.error("❌ Comprehensive financial sync failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "FAILED",
+                "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Get financial summary from stored local data
+     */
+    @GetMapping("/financial-summary")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getFinancialSummary(
+        @RequestParam(required = false) String propertyId,
+        @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fromDate,
+        @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate toDate,
+        Authentication authentication
+    ) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        try {
+            Map<String, Object> summary = payPropFinancialSyncService.getStoredFinancialSummary(
+                propertyId, fromDate, toDate);
+            return ResponseEntity.ok(summary);
+            
+        } catch (Exception e) {
+            logger.error("❌ Financial summary failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "ERROR",
+                "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Test financial sync on a small dataset
+     */
+    @PostMapping("/test-financial-sync")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testFinancialSync(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        try {
+            Map<String, Object> testResults = new HashMap<>();
+            
+            // Test 1: Check OAuth connection
+            testResults.put("oauth_status", oAuth2Service.hasValidTokens() ? "VALID" : "INVALID");
+            
+            // Test 2: Check existing database counts
+            long totalProperties = propertyService.findAll().size();
+            long totalBeneficiaries = beneficiaryRepository.count();
+            long totalPayments = paymentRepository.count();
+            long totalCategories = paymentCategoryRepository.count();
+            
+            testResults.put("database_status", Map.of(
+                "total_properties", totalProperties,
+                "total_beneficiaries", totalBeneficiaries,
+                "total_payments", totalPayments,
+                "total_categories", totalCategories
+            ));
+            
+            // Test 3: Test PayProp API access with small data
+            if (oAuth2Service.hasValidTokens()) {
+                HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+                HttpEntity<String> request = new HttpEntity<>(headers);
+                
+                // Test properties endpoint
+                String propertiesUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&rows=2";
+                ResponseEntity<Map> propertiesResponse = restTemplate.exchange(propertiesUrl, HttpMethod.GET, request, Map.class);
+                
+                List<Map<String, Object>> properties = (List<Map<String, Object>>) propertiesResponse.getBody().get("items");
+                testResults.put("payprop_properties_test", Map.of(
+                    "count", properties.size(),
+                    "status", "SUCCESS"
+                ));
+                
+                // Test ICDN endpoint
+                LocalDate testDate = LocalDate.now().minusDays(30);
+                String icdnUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/icdn?from_date=" + testDate + "&rows=2";
+                ResponseEntity<Map> icdnResponse = restTemplate.exchange(icdnUrl, HttpMethod.GET, request, Map.class);
+                
+                List<Map<String, Object>> transactions = (List<Map<String, Object>>) icdnResponse.getBody().get("items");
+                testResults.put("payprop_transactions_test", Map.of(
+                    "count", transactions.size(),
+                    "status", "SUCCESS"
+                ));
+            } else {
+                testResults.put("payprop_api_test", "SKIPPED - No valid OAuth tokens");
+            }
+            
+            testResults.put("status", "SUCCESS");
+            testResults.put("test_time", LocalDateTime.now());
+            
+            return ResponseEntity.ok(testResults);
+            
+        } catch (Exception e) {
+            logger.error("❌ Financial sync test failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "FAILED",
+                "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Get financial sync status and statistics
+     */
+    @GetMapping("/financial-sync-status")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getFinancialSyncStatus(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        try {
+            Map<String, Object> status = new HashMap<>();
+            
+            // Check database counts using existing repositories
+            long totalProperties = propertyService.findAll().size();
+            long totalBeneficiaries = beneficiaryRepository.count();
+            long totalPayments = paymentRepository.count();
+            long totalCategories = paymentCategoryRepository.count();
+            
+            // Count PayProp synced entities
+            long payPropProperties = propertyRepository.findByPayPropIdIsNotNull().size();
+            long payPropBeneficiaries = beneficiaryRepository.findByPayPropBeneficiaryIdIsNotNull().size();
+            long payPropPayments = paymentRepository.findByPayPropPaymentIdIsNotNull().size();
+            long payPropCategories = paymentCategoryRepository.findByPayPropCategoryIdIsNotNull().size();
+            
+            status.put("database_status", Map.of(
+                "total_properties", totalProperties,
+                "payprop_synced_properties", payPropProperties,
+                "property_sync_coverage", totalProperties > 0 ? (payPropProperties * 100.0 / totalProperties) : 0,
+                "total_beneficiaries", totalBeneficiaries,
+                "payprop_synced_beneficiaries", payPropBeneficiaries,
+                "total_payments", totalPayments,
+                "payprop_synced_payments", payPropPayments,
+                "total_categories", totalCategories,
+                "payprop_synced_categories", payPropCategories
+            ));
+            
+            // Check recent payment activity (last 30 days)
+            LocalDate thirtyDaysAgo = LocalDate.now().minusDays(30);
+            List<Payment> recentPayments = paymentRepository.findByPaymentDateBetween(thirtyDaysAgo, LocalDate.now());
+            
+            status.put("recent_activity", Map.of(
+                "payments_last_30_days", recentPayments.size(),
+                "date_range", thirtyDaysAgo + " to " + LocalDate.now()
+            ));
+            
+            // Check OAuth status
+            status.put("oauth_status", Map.of(
+                "has_valid_tokens", oAuth2Service.hasValidTokens(),
+                "ready_for_sync", oAuth2Service.hasValidTokens()
+            ));
+            
+            status.put("status", "SUCCESS");
+            status.put("checked_at", LocalDateTime.now());
+            
+            return ResponseEntity.ok(status);
+            
+        } catch (Exception e) {
+            logger.error("❌ Financial sync status check failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "ERROR",
+                "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Quick test of PayProp financial data access
+     */
+    @PostMapping("/test-payprop-financial-access")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testPayPropFinancialAccess(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        try {
+            Map<String, Object> testResults = new HashMap<>();
+            
+            if (!oAuth2Service.hasValidTokens()) {
+                return ResponseEntity.ok(Map.of(
+                    "status", "NO_TOKENS",
+                    "message", "Please authorize PayProp first"
+                ));
+            }
+            
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
+            
+            // Test 1: Properties with commission
+            String propertiesUrl = baseUrl + "/export/properties?include_commission=true&rows=3";
+            ResponseEntity<Map> propertiesResponse = restTemplate.exchange(propertiesUrl, HttpMethod.GET, request, Map.class);
+            List<Map<String, Object>> properties = (List<Map<String, Object>>) propertiesResponse.getBody().get("items");
+            
+            testResults.put("properties_with_commission", Map.of(
+                "count", properties.size(),
+                "sample", properties.stream().limit(1).collect(Collectors.toList())
+            ));
+            
+            // Test 2: Owner beneficiaries
+            String beneficiariesUrl = baseUrl + "/export/beneficiaries?owners=true&rows=3";
+            ResponseEntity<Map> beneficiariesResponse = restTemplate.exchange(beneficiariesUrl, HttpMethod.GET, request, Map.class);
+            List<Map<String, Object>> beneficiaries = (List<Map<String, Object>>) beneficiariesResponse.getBody().get("items");
+            
+            testResults.put("owner_beneficiaries", Map.of(
+                "count", beneficiaries.size(),
+                "sample", beneficiaries.stream().limit(1).collect(Collectors.toList())
+            ));
+            
+            // Test 3: Financial transactions (ICDN)
+            LocalDate fromDate = LocalDate.now().minusDays(30);
+            String icdnUrl = baseUrl + "/report/icdn?from_date=" + fromDate + "&rows=5";
+            ResponseEntity<Map> icdnResponse = restTemplate.exchange(icdnUrl, HttpMethod.GET, request, Map.class);
+            List<Map<String, Object>> transactions = (List<Map<String, Object>>) icdnResponse.getBody().get("items");
+            
+            testResults.put("financial_transactions", Map.of(
+                "count", transactions.size(),
+                "sample", transactions.stream().limit(1).collect(Collectors.toList())
+            ));
+            
+            testResults.put("status", "SUCCESS");
+            testResults.put("message", "PayProp financial data access working correctly");
+            
+            return ResponseEntity.ok(testResults);
+            
+        } catch (Exception e) {
+            logger.error("❌ PayProp financial access test failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "FAILED",
+                "error", e.getMessage()
+            ));
         }
     }
 }

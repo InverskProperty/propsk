@@ -1,0 +1,593 @@
+// PayPropFinancialSyncService.java - Comprehensive financial data sync service
+package site.easy.to.build.crm.service.payprop;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
+import site.easy.to.build.crm.entity.*;
+import site.easy.to.build.crm.repository.*;
+import site.easy.to.build.crm.service.property.PropertyService;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.*;
+
+@ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
+@Service
+public class PayPropFinancialSyncService {
+    
+    private static final Logger logger = LoggerFactory.getLogger(PayPropFinancialSyncService.class);
+    
+    private final PayPropOAuth2Service oAuth2Service;
+    private final RestTemplate restTemplate;
+    
+    // Database repositories
+    private final PropertyRepository propertyRepository;
+    private final BeneficiaryRepository beneficiaryRepository;
+    private final PaymentCategoryRepository paymentCategoryRepository;
+    private final FinancialTransactionRepository financialTransactionRepository;
+    private final PropertyService propertyService;
+    
+    // PayProp API base URL
+    private final String payPropApiBase = "https://ukapi.staging.payprop.com/api/agency/v1.1";
+    
+    @Autowired
+    public PayPropFinancialSyncService(
+        PayPropOAuth2Service oAuth2Service,
+        RestTemplate restTemplate,
+        PropertyRepository propertyRepository,
+        BeneficiaryRepository beneficiaryRepository,
+        PaymentCategoryRepository paymentCategoryRepository,
+        FinancialTransactionRepository financialTransactionRepository,
+        PropertyService propertyService
+    ) {
+        this.oAuth2Service = oAuth2Service;
+        this.restTemplate = restTemplate;
+        this.propertyRepository = propertyRepository;
+        this.beneficiaryRepository = beneficiaryRepository;
+        this.paymentCategoryRepository = paymentCategoryRepository;
+        this.financialTransactionRepository = financialTransactionRepository;
+        this.propertyService = propertyService;
+    }
+    
+    /**
+     * Main method to sync all comprehensive financial data from PayProp
+     */
+    @Transactional
+    public Map<String, Object> syncComprehensiveFinancialData() {
+        Map<String, Object> syncResults = new HashMap<>();
+        
+        try {
+            logger.info("🚀 Starting comprehensive financial data sync...");
+            
+            // 1. Sync Properties with Commission Data
+            Map<String, Object> propertiesResult = syncPropertiesWithCommission();
+            syncResults.put("properties", propertiesResult);
+            
+            // 2. Sync Owner Beneficiaries  
+            Map<String, Object> beneficiariesResult = syncOwnerBeneficiaries();
+            syncResults.put("beneficiaries", beneficiariesResult);
+            
+            // 3. Sync Payment Categories
+            Map<String, Object> categoriesResult = syncPaymentCategories();
+            syncResults.put("categories", categoriesResult);
+            
+            // 4. Sync Financial Transactions (ICDN)
+            Map<String, Object> transactionsResult = syncFinancialTransactions();
+            syncResults.put("transactions", transactionsResult);
+            
+            // 5. Calculate and store commission data
+            Map<String, Object> commissionsResult = calculateAndStoreCommissions();
+            syncResults.put("commissions", commissionsResult);
+            
+            syncResults.put("status", "SUCCESS");
+            syncResults.put("sync_time", LocalDateTime.now());
+            
+            logger.info("✅ Comprehensive financial sync completed successfully");
+            
+        } catch (Exception e) {
+            logger.error("❌ Comprehensive financial sync failed", e);
+            syncResults.put("status", "FAILED");
+            syncResults.put("error", e.getMessage());
+        }
+        
+        return syncResults;
+    }
+    
+    /**
+     * Sync properties with commission data from PayProp
+     */
+    private Map<String, Object> syncPropertiesWithCommission() throws Exception {
+        logger.info("📊 Syncing properties with commission data...");
+        
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        String url = payPropApiBase + "/export/properties?include_commission=true&rows=1000";
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+        
+        List<Map<String, Object>> payPropProperties = (List<Map<String, Object>>) response.getBody().get("items");
+        
+        int updated = 0, created = 0;
+        
+        for (Map<String, Object> ppProperty : payPropProperties) {
+            String payPropId = (String) ppProperty.get("id");
+            String propertyName = (String) ppProperty.get("property_name");
+            
+            // Find existing property by PayProp ID or create new
+            Optional<Property> existingOpt = propertyService.findByPayPropId(payPropId);
+            Property property;
+            boolean isNew = false;
+            
+            if (existingOpt.isPresent()) {
+                property = existingOpt.get();
+            } else {
+                property = new Property();
+                property.setPayPropId(payPropId);
+                isNew = true;
+            }
+            
+            // Update property data
+            property.setPayPropPropertyId(payPropId);
+            property.setPropertyName(propertyName != null ? propertyName : "Unnamed Property");
+            
+            // Account balance
+            Object accountBalance = ppProperty.get("account_balance");
+            if (accountBalance instanceof Number) {
+                property.setAccountBalance(new BigDecimal(accountBalance.toString()));
+            }
+            
+            // Monthly payment required
+            Object monthlyPayment = ppProperty.get("monthly_payment_required");
+            if (monthlyPayment instanceof Number) {
+                property.setMonthlyPayment(new BigDecimal(monthlyPayment.toString()));
+            }
+            
+            // Property account minimum balance
+            Object minBalance = ppProperty.get("property_account_minimum_balance");
+            if (minBalance instanceof String && !((String) minBalance).isEmpty()) {
+                try {
+                    property.setPropertyAccountMinimumBalance(new BigDecimal((String) minBalance));
+                } catch (NumberFormatException e) {
+                    property.setPropertyAccountMinimumBalance(BigDecimal.ZERO);
+                }
+            }
+            
+            // Payment settings
+            Object allowPayments = ppProperty.get("allow_payments");
+            if (allowPayments instanceof Boolean) {
+                property.setEnablePaymentsFromBoolean((Boolean) allowPayments);
+            }
+            
+            Object holdFunds = ppProperty.get("hold_all_owner_funds");
+            if (holdFunds instanceof Boolean) {
+                property.setHoldOwnerFundsFromBoolean((Boolean) holdFunds);
+            }
+            
+            // Commission data
+            Map<String, Object> commission = (Map<String, Object>) ppProperty.get("commission");
+            if (commission != null) {
+                Object percentage = commission.get("percentage");
+                if (percentage instanceof String && !((String) percentage).isEmpty()) {
+                    try {
+                        property.setCommissionPercentage(new BigDecimal((String) percentage));
+                    } catch (NumberFormatException e) {
+                        property.setCommissionPercentage(BigDecimal.ZERO);
+                    }
+                }
+                
+                Object amount = commission.get("amount");
+                if (amount instanceof String && !((String) amount).isEmpty()) {
+                    try {
+                        property.setCommissionAmount(new BigDecimal((String) amount));
+                    } catch (NumberFormatException e) {
+                        property.setCommissionAmount(BigDecimal.ZERO);
+                    }
+                }
+            }
+            
+            // Address data
+            Map<String, Object> address = (Map<String, Object>) ppProperty.get("address");
+            if (address != null) {
+                property.setAddressLine1((String) address.get("first_line"));
+                property.setAddressLine2((String) address.get("second_line"));
+                property.setAddressLine3((String) address.get("third_line"));
+                property.setCity((String) address.get("city"));
+                property.setState((String) address.get("state"));
+                property.setPostcode((String) address.get("postal_code"));
+                property.setCountryCode((String) address.get("country_code"));
+            }
+            
+            property.setUpdatedAt(LocalDateTime.now());
+            if (isNew) {
+                property.setCreatedAt(LocalDateTime.now());
+            }
+            
+            propertyService.save(property);
+            
+            if (isNew) created++; else updated++;
+        }
+        
+        return Map.of(
+            "total_processed", payPropProperties.size(),
+            "created", created,
+            "updated", updated
+        );
+    }
+    
+    /**
+     * Sync owner beneficiaries from PayProp
+     */
+    private Map<String, Object> syncOwnerBeneficiaries() throws Exception {
+        logger.info("👥 Syncing owner beneficiaries...");
+        
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        String url = payPropApiBase + "/export/beneficiaries?owners=true&rows=1000";
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+        
+        List<Map<String, Object>> payPropBeneficiaries = (List<Map<String, Object>>) response.getBody().get("items");
+        
+        int updated = 0, created = 0;
+        
+        for (Map<String, Object> ppBeneficiary : payPropBeneficiaries) {
+            String payPropId = (String) ppBeneficiary.get("id");
+            
+            // Find or create beneficiary
+            Beneficiary beneficiary = beneficiaryRepository.findByPayPropBeneficiaryId(payPropId);
+            boolean isNew = beneficiary == null;
+            
+            if (isNew) {
+                beneficiary = new Beneficiary();
+                beneficiary.setPayPropBeneficiaryId(payPropId);
+                beneficiary.setBeneficiaryType(BeneficiaryType.BENEFICIARY);
+                beneficiary.setCreatedAt(LocalDateTime.now());
+            }
+            
+            // Update beneficiary data
+            beneficiary.setFirstName((String) ppBeneficiary.get("first_name"));
+            beneficiary.setLastName((String) ppBeneficiary.get("last_name"));
+            beneficiary.setBusinessName((String) ppBeneficiary.get("business_name"));
+            beneficiary.setEmail((String) ppBeneficiary.get("email_address"));
+            beneficiary.setMobileNumber((String) ppBeneficiary.get("mobile_number"));
+            beneficiary.setPhone((String) ppBeneficiary.get("phone"));
+            beneficiary.setIsActiveOwner((Boolean) ppBeneficiary.getOrDefault("is_active_owner", false));
+            beneficiary.setVatNumber((String) ppBeneficiary.get("vat_number"));
+            beneficiary.setCustomerReference((String) ppBeneficiary.get("customer_reference"));
+            
+            // Set account type
+            String accountTypeStr = (String) ppBeneficiary.get("account_type");
+            if ("business".equals(accountTypeStr)) {
+                beneficiary.setAccountType(AccountType.business);
+                beneficiary.setName(beneficiary.getBusinessName());
+            } else {
+                beneficiary.setAccountType(AccountType.individual);
+                String firstName = beneficiary.getFirstName();
+                String lastName = beneficiary.getLastName();
+                if (firstName != null && lastName != null) {
+                    beneficiary.setName(firstName + " " + lastName);
+                }
+            }
+            
+            // Properties this beneficiary owns
+            List<Map<String, Object>> properties = (List<Map<String, Object>>) ppBeneficiary.get("properties");
+            if (properties != null && !properties.isEmpty()) {
+                Map<String, Object> property = properties.get(0);
+                String propertyName = (String) property.get("property_name");
+                beneficiary.setPrimaryPropertyName(propertyName);
+                
+                Object accountBalance = property.get("account_balance");
+                if (accountBalance instanceof Number) {
+                    beneficiary.setEnhancedAccountBalance(new BigDecimal(accountBalance.toString()));
+                }
+            }
+            
+            beneficiary.setUpdatedAt(LocalDateTime.now());
+            beneficiaryRepository.save(beneficiary);
+            
+            if (isNew) created++; else updated++;
+        }
+        
+        return Map.of(
+            "total_processed", payPropBeneficiaries.size(),
+            "created", created,
+            "updated", updated
+        );
+    }
+    
+    /**
+     * Sync payment categories from PayProp
+     */
+    private Map<String, Object> syncPaymentCategories() throws Exception {
+        logger.info("🏷️ Syncing payment categories...");
+        
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        // Note: The exact endpoint for categories may vary
+        // Using export/payments to get category information
+        String url = payPropApiBase + "/export/payments?rows=100";
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+        
+        List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
+        Set<String> categoryIds = new HashSet<>();
+        Map<String, String> categoryNames = new HashMap<>();
+        
+        // Extract category information from payments
+        for (Map<String, Object> payment : payments) {
+            String categoryId = (String) payment.get("category_id");
+            String categoryName = (String) payment.get("category");
+            
+            if (categoryId != null && categoryName != null) {
+                categoryIds.add(categoryId);
+                categoryNames.put(categoryId, categoryName);
+            }
+        }
+        
+        int processed = 0;
+        
+        for (String categoryId : categoryIds) {
+            String categoryName = categoryNames.get(categoryId);
+            
+            PaymentCategory category = paymentCategoryRepository.findByPayPropCategoryId(categoryId);
+            if (category == null) {
+                category = new PaymentCategory();
+                category.setPayPropCategoryId(categoryId);
+                category.setCreatedAt(LocalDateTime.now());
+            }
+            
+            category.setCategoryName(categoryName);
+            category.setCategoryType("PAYMENT");
+            category.setIsActive("Y");
+            category.setUpdatedAt(LocalDateTime.now());
+            
+            paymentCategoryRepository.save(category);
+            processed++;
+        }
+        
+        return Map.of("categories_processed", processed);
+    }
+    
+    /**
+     * Sync financial transactions from PayProp ICDN report
+     */
+    private Map<String, Object> syncFinancialTransactions() throws Exception {
+        logger.info("💰 Syncing financial transactions (ICDN)...");
+        
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        // Get transactions for last 90 days (within API limit)
+        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = endDate.minusDays(90);
+        
+        String url = payPropApiBase + "/report/icdn" +
+            "?from_date=" + startDate +
+            "&to_date=" + endDate +
+            "&rows=1000";
+            
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+        List<Map<String, Object>> transactions = (List<Map<String, Object>>) response.getBody().get("items");
+        
+        int created = 0, skipped = 0;
+        
+        for (Map<String, Object> ppTransaction : transactions) {
+            String payPropId = (String) ppTransaction.get("id");
+            
+            // Check if transaction already exists
+            if (financialTransactionRepository.existsByPayPropTransactionId(payPropId)) {
+                skipped++;
+                continue;
+            }
+            
+            // Create new transaction
+            FinancialTransaction transaction = new FinancialTransaction();
+            transaction.setPayPropTransactionId(payPropId);
+            
+            // Amount details
+            Object amount = ppTransaction.get("amount");
+            if (amount instanceof String) {
+                transaction.setAmount(new BigDecimal((String) amount));
+            }
+            
+            Object matchedAmount = ppTransaction.get("matched_amount");
+            if (matchedAmount instanceof String) {
+                transaction.setMatchedAmount(new BigDecimal((String) matchedAmount));
+            }
+            
+            // Date and type
+            String dateStr = (String) ppTransaction.get("date");
+            if (dateStr != null) {
+                transaction.setTransactionDate(LocalDate.parse(dateStr));
+            }
+            
+            transaction.setTransactionType((String) ppTransaction.get("type"));
+            transaction.setDescription((String) ppTransaction.get("description"));
+            transaction.setHasTax((Boolean) ppTransaction.getOrDefault("has_tax", false));
+            transaction.setDepositId((String) ppTransaction.get("deposit_id"));
+            
+            // Tax amount
+            Object taxAmount = ppTransaction.get("tax_amount");
+            if (taxAmount instanceof String && !((String) taxAmount).isEmpty()) {
+                try {
+                    transaction.setTaxAmount(new BigDecimal((String) taxAmount));
+                } catch (NumberFormatException e) {
+                    transaction.setTaxAmount(BigDecimal.ZERO);
+                }
+            }
+            
+            // Property info
+            Map<String, Object> property = (Map<String, Object>) ppTransaction.get("property");
+            if (property != null) {
+                transaction.setPropertyId((String) property.get("id"));
+                transaction.setPropertyName((String) property.get("name"));
+            }
+            
+            // Tenant info
+            Map<String, Object> tenant = (Map<String, Object>) ppTransaction.get("tenant");
+            if (tenant != null) {
+                transaction.setTenantId((String) tenant.get("id"));
+                transaction.setTenantName((String) tenant.get("name"));
+            }
+            
+            // Category info
+            Map<String, Object> category = (Map<String, Object>) ppTransaction.get("category");
+            if (category != null) {
+                transaction.setCategoryId((String) category.get("id"));
+                transaction.setCategoryName((String) category.get("name"));
+            }
+            
+            transaction.setCreatedAt(LocalDateTime.now());
+            transaction.setUpdatedAt(LocalDateTime.now());
+            
+            financialTransactionRepository.save(transaction);
+            created++;
+        }
+        
+        return Map.of(
+            "total_processed", transactions.size(),
+            "created", created,
+            "skipped_existing", skipped,
+            "date_range", startDate + " to " + endDate
+        );
+    }
+    
+    /**
+     * Calculate and store commission data for financial transactions
+     */
+    private Map<String, Object> calculateAndStoreCommissions() throws Exception {
+        logger.info("🧮 Calculating and storing commission data...");
+        
+        // Get all recent transactions without commission calculations
+        List<FinancialTransaction> transactions = financialTransactionRepository
+            .findByCommissionAmountIsNull();
+        
+        int commissionsCalculated = 0;
+        
+        for (FinancialTransaction transaction : transactions) {
+            if (!"invoice".equals(transaction.getTransactionType())) {
+                continue; // Only calculate commissions for invoices (rent payments)
+            }
+            
+            // Find property to get commission rate
+            if (transaction.getPropertyId() != null) {
+                Optional<Property> propertyOpt = propertyService.findByPayPropId(transaction.getPropertyId());
+                
+                if (propertyOpt.isPresent()) {
+                    Property property = propertyOpt.get();
+                    
+                    if (property.getCommissionPercentage() != null && transaction.getAmount() != null) {
+                        BigDecimal commissionRate = property.getCommissionPercentage();
+                        BigDecimal rentAmount = transaction.getAmount();
+                        
+                        // Calculate commission
+                        BigDecimal commissionAmount = rentAmount
+                            .multiply(commissionRate)
+                            .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                        
+                        // Calculate service fee (5%)
+                        BigDecimal serviceFee = rentAmount
+                            .multiply(BigDecimal.valueOf(5))
+                            .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                        
+                        // Calculate net to owner
+                        BigDecimal netToOwner = rentAmount
+                            .subtract(commissionAmount)
+                            .subtract(serviceFee);
+                        
+                        // Update transaction
+                        transaction.setCommissionAmount(commissionAmount);
+                        transaction.setServiceFeeAmount(serviceFee);
+                        transaction.setNetToOwnerAmount(netToOwner);
+                        transaction.setCommissionRate(commissionRate);
+                        transaction.setUpdatedAt(LocalDateTime.now());
+                        
+                        financialTransactionRepository.save(transaction);
+                        commissionsCalculated++;
+                    }
+                }
+            }
+        }
+        
+        return Map.of(
+            "transactions_processed", transactions.size(),
+            "commissions_calculated", commissionsCalculated
+        );
+    }
+    
+    /**
+     * Get financial summary from stored data
+     */
+    public Map<String, Object> getStoredFinancialSummary(String propertyId, LocalDate fromDate, LocalDate toDate) {
+        try {
+            // Default to last 30 days if no dates provided
+            if (fromDate == null) fromDate = LocalDate.now().minusDays(30);
+            if (toDate == null) toDate = LocalDate.now();
+            
+            // Query stored transactions
+            List<FinancialTransaction> transactions;
+            if (propertyId != null) {
+                transactions = financialTransactionRepository
+                    .findByPropertyIdAndTransactionDateBetween(propertyId, fromDate, toDate);
+            } else {
+                transactions = financialTransactionRepository
+                    .findByTransactionDateBetween(fromDate, toDate);
+            }
+            
+            // Calculate totals
+            BigDecimal totalRent = BigDecimal.ZERO;
+            BigDecimal totalCommissions = BigDecimal.ZERO;
+            BigDecimal totalServiceFees = BigDecimal.ZERO;
+            BigDecimal totalNetToOwners = BigDecimal.ZERO;
+            
+            List<Map<String, Object>> transactionSummary = new ArrayList<>();
+            
+            for (FinancialTransaction transaction : transactions) {
+                Map<String, Object> summary = new HashMap<>();
+                summary.put("property_name", transaction.getPropertyName());
+                summary.put("tenant_name", transaction.getTenantName());
+                summary.put("transaction_date", transaction.getTransactionDate());
+                summary.put("rent_amount", transaction.getAmount());
+                summary.put("commission_amount", transaction.getCommissionAmount());
+                summary.put("service_fee", transaction.getServiceFeeAmount());
+                summary.put("net_to_owner", transaction.getNetToOwnerAmount());
+                summary.put("commission_rate", transaction.getCommissionRate());
+                
+                transactionSummary.add(summary);
+                
+                if (transaction.getAmount() != null) totalRent = totalRent.add(transaction.getAmount());
+                if (transaction.getCommissionAmount() != null) totalCommissions = totalCommissions.add(transaction.getCommissionAmount());
+                if (transaction.getServiceFeeAmount() != null) totalServiceFees = totalServiceFees.add(transaction.getServiceFeeAmount());
+                if (transaction.getNetToOwnerAmount() != null) totalNetToOwners = totalNetToOwners.add(transaction.getNetToOwnerAmount());
+            }
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("transactions", transactionSummary);
+            result.put("totals", Map.of(
+                "total_rent", totalRent,
+                "total_commissions", totalCommissions,
+                "total_service_fees", totalServiceFees,
+                "total_net_to_owners", totalNetToOwners,
+                "transaction_count", transactions.size()
+            ));
+            result.put("period", fromDate + " to " + toDate);
+            result.put("status", "SUCCESS");
+            
+            return result;
+            
+        } catch (Exception e) {
+            return Map.of(
+                "status", "ERROR",
+                "error", e.getMessage()
+            );
+        }
+    }
+}

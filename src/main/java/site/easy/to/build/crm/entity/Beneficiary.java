@@ -2,6 +2,7 @@
 package site.easy.to.build.crm.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -50,6 +51,26 @@ public class Beneficiary {
     
     @Column(name = "last_name", length = 100)
     private String lastName;
+
+    // ===== ENHANCED OWNER INFORMATION - NEW FIELDS =====
+    
+    @Column(name = "is_active_owner")
+    private Boolean isActiveOwner = false;
+
+    @Column(name = "primary_property_name", length = 255)
+    private String primaryPropertyName;
+
+    @Column(name = "customer_reference", length = 100)
+    private String customerReference;
+
+    @Column(name = "mobile_number", length = 25)
+    private String mobileNumber;
+
+    @Column(name = "vat_number", length = 50)
+    private String vatNumber;
+
+    @Column(name = "account_balance", precision = 10, scale = 2)
+    private BigDecimal enhancedAccountBalance;
 
     // ===== ADDRESS =====
     
@@ -143,6 +164,9 @@ public class Beneficiary {
         if (isActive == null) {
             isActive = "Y";
         }
+        if (isActiveOwner == null) {
+            isActiveOwner = false;
+        }
     }
 
     @PreUpdate
@@ -150,7 +174,7 @@ public class Beneficiary {
         updatedAt = LocalDateTime.now();
     }
 
-    // ===== ALL GETTERS AND SETTERS (same as before) =====
+    // ===== ALL GETTERS AND SETTERS =====
     
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -184,6 +208,55 @@ public class Beneficiary {
 
     public String getLastName() { return lastName; }
     public void setLastName(String lastName) { this.lastName = lastName; }
+
+    // NEW: Enhanced Owner Information getters/setters
+    public Boolean getIsActiveOwner() { 
+        return isActiveOwner; 
+    }
+
+    public void setIsActiveOwner(Boolean isActiveOwner) { 
+        this.isActiveOwner = isActiveOwner; 
+    }
+
+    public String getPrimaryPropertyName() { 
+        return primaryPropertyName; 
+    }
+
+    public void setPrimaryPropertyName(String primaryPropertyName) { 
+        this.primaryPropertyName = primaryPropertyName; 
+    }
+
+    public String getCustomerReference() { 
+        return customerReference; 
+    }
+
+    public void setCustomerReference(String customerReference) { 
+        this.customerReference = customerReference; 
+    }
+
+    public String getMobileNumber() { 
+        return mobileNumber; 
+    }
+
+    public void setMobileNumber(String mobileNumber) { 
+        this.mobileNumber = mobileNumber; 
+    }
+
+    public String getVatNumber() { 
+        return vatNumber; 
+    }
+
+    public void setVatNumber(String vatNumber) { 
+        this.vatNumber = vatNumber; 
+    }
+
+    public BigDecimal getEnhancedAccountBalance() { 
+        return enhancedAccountBalance; 
+    }
+
+    public void setEnhancedAccountBalance(BigDecimal enhancedAccountBalance) { 
+        this.enhancedAccountBalance = enhancedAccountBalance; 
+    }
 
     public String getAddressLine1() { return addressLine1; }
     public void setAddressLine1(String addressLine1) { this.addressLine1 = addressLine1; }
@@ -245,16 +318,56 @@ public class Beneficiary {
     // ===== UTILITY METHODS =====
     
     /**
-     * Get full name for display
+     * Check if this is an active property owner
+     */
+    public boolean isActivePropertyOwner() {
+        return Boolean.TRUE.equals(isActiveOwner);
+    }
+
+    /**
+     * Get display name for this beneficiary
      */
     public String getDisplayName() {
         if (accountType == AccountType.business && businessName != null) {
             return businessName;
-        } else if (firstName != null && lastName != null) {
-            return firstName + " " + lastName;
-        } else {
-            return name;
         }
+        if (firstName != null && lastName != null) {
+            return firstName + " " + lastName;
+        }
+        return name != null ? name : "Unknown Beneficiary";
+    }
+
+    /**
+     * Check if beneficiary has valid contact information
+     */
+    public boolean hasValidContactInfo() {
+        return (email != null && !email.trim().isEmpty()) ||
+               (phone != null && !phone.trim().isEmpty()) ||
+               (mobileNumber != null && !mobileNumber.trim().isEmpty());
+    }
+
+    /**
+     * Get primary contact method
+     */
+    public String getPrimaryContact() {
+        if (email != null && !email.trim().isEmpty()) {
+            return email;
+        }
+        if (mobileNumber != null && !mobileNumber.trim().isEmpty()) {
+            return mobileNumber;
+        }
+        if (phone != null && !phone.trim().isEmpty()) {
+            return phone;
+        }
+        return "No contact info";
+    }
+
+    /**
+     * Check if beneficiary has business details
+     */
+    public boolean isBusinessBeneficiary() {
+        return accountType == AccountType.business && 
+               businessName != null && !businessName.trim().isEmpty();
     }
     
     /**
@@ -282,10 +395,10 @@ public class Beneficiary {
         return "Beneficiary{" +
                 "id=" + id +
                 ", payPropBeneficiaryId='" + payPropBeneficiaryId + '\'' +
-                ", name='" + name + '\'' +
+                ", name='" + getDisplayName() + '\'' +
                 ", beneficiaryType=" + beneficiaryType +
-                ", accountType=" + accountType +
-                ", isActive='" + isActive + '\'' +
+                ", isActiveOwner=" + isActiveOwner +
+                ", primaryPropertyName='" + primaryPropertyName + '\'' +
                 '}';
     }
 }
