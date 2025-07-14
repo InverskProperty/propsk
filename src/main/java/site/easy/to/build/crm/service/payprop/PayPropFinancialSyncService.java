@@ -446,178 +446,181 @@ public class PayPropFinancialSyncService {
     }
     
     private Map<String, Object> syncFinancialTransactions() throws Exception {
-        logger.info("💰 Syncing financial transactions (ICDN)...");
+        logger.info("💰 Syncing financial transactions (ICDN) with multiple date ranges...");
         
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
-        // Get transactions for last 90 days (within API limit)
-        LocalDate endDate = LocalDate.now();
-        LocalDate startDate = endDate.minusDays(90);
-        
-        String url = payPropApiBase + "/report/icdn" +
-            "?from_date=" + startDate +
-            "&to_date=" + endDate +
-            "&rows=1000";
-            
-        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-        List<Map<String, Object>> transactions = (List<Map<String, Object>>) response.getBody().get("items");
-        
         int created = 0, skipped = 0;
+        LocalDate endDate = LocalDate.now();
+        LocalDate absoluteStartDate = LocalDate.of(2024, 1, 1); // Go back to 2024
         
-        for (Map<String, Object> ppTransaction : transactions) {
+        // Sync in 90-day chunks (3 days buffer for API limit)
+        while (endDate.isAfter(absoluteStartDate)) {
+            LocalDate startDate = endDate.minusDays(90);
+            if (startDate.isBefore(absoluteStartDate)) {
+                startDate = absoluteStartDate;
+            }
+            
+            logger.info("📅 Syncing ICDN transactions from {} to {}", startDate, endDate);
+            
+            String url = payPropApiBase + "/report/icdn" +
+                "?from_date=" + startDate +
+                "&to_date=" + endDate +
+                "&rows=1000";
+                
             try {
-                String payPropId = (String) ppTransaction.get("id");
+                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                List<Map<String, Object>> transactions = (List<Map<String, Object>>) response.getBody().get("items");
                 
-                // Skip if missing essential data
-                if (payPropId == null || payPropId.trim().isEmpty()) {
-                    logger.warn("⚠️ Skipping transaction with missing PayProp ID");
-                    skipped++;
-                    continue;
-                }
+                logger.info("📊 Found {} transactions in period {} to {}", transactions.size(), startDate, endDate);
                 
-                // Check if transaction already exists
-                if (financialTransactionRepository.existsByPayPropTransactionId(payPropId)) {
-                    skipped++;
-                    continue;
-                }
-                
-                // Create new transaction
-                FinancialTransaction transaction = new FinancialTransaction();
-                transaction.setPayPropTransactionId(payPropId);
-                
-                // 🔧 FIX: Handle amount with proper validation (REQUIRED FIELD)
-                Object amount = ppTransaction.get("amount");
-                if (amount != null) {
+                for (Map<String, Object> ppTransaction : transactions) {
                     try {
-                        if (amount instanceof String) {
-                            BigDecimal amountValue = new BigDecimal((String) amount);
-                            if (amountValue.compareTo(BigDecimal.ZERO) >= 0) {
-                                transaction.setAmount(amountValue);
-                            } else {
-                                logger.warn("⚠️ Negative amount {} for transaction {}, skipping", amount, payPropId);
-                                skipped++;
-                                continue;
-                            }
-                        } else if (amount instanceof Number) {
-                            BigDecimal amountValue = new BigDecimal(amount.toString());
-                            if (amountValue.compareTo(BigDecimal.ZERO) >= 0) {
-                                transaction.setAmount(amountValue);
-                            } else {
-                                logger.warn("⚠️ Negative amount {} for transaction {}, skipping", amount, payPropId);
+                        String payPropId = (String) ppTransaction.get("id");
+                        
+                        // Skip if missing essential data
+                        if (payPropId == null || payPropId.trim().isEmpty()) {
+                            logger.warn("⚠️ Skipping transaction with missing PayProp ID");
+                            skipped++;
+                            continue;
+                        }
+                        
+                        // Check if transaction already exists
+                        if (financialTransactionRepository.existsByPayPropTransactionId(payPropId)) {
+                            skipped++;
+                            continue;
+                        }
+                        
+                        // Create new transaction
+                        FinancialTransaction transaction = new FinancialTransaction();
+                        transaction.setPayPropTransactionId(payPropId);
+                        
+                        // Handle amount (REQUIRED FIELD)
+                        Object amount = ppTransaction.get("amount");
+                        if (amount != null) {
+                            try {
+                                BigDecimal amountValue = new BigDecimal(amount.toString());
+                                if (amountValue.compareTo(BigDecimal.ZERO) >= 0) {
+                                    transaction.setAmount(amountValue);
+                                } else {
+                                    logger.warn("⚠️ Negative amount {} for transaction {}, skipping", amount, payPropId);
+                                    skipped++;
+                                    continue;
+                                }
+                            } catch (NumberFormatException e) {
+                                logger.warn("⚠️ Invalid amount format '{}' for transaction {}, skipping", amount, payPropId);
                                 skipped++;
                                 continue;
                             }
                         } else {
-                            logger.warn("⚠️ Invalid amount type {} for transaction {}, skipping", amount.getClass(), payPropId);
+                            logger.warn("⚠️ Missing amount for transaction {}, skipping", payPropId);
                             skipped++;
                             continue;
                         }
-                    } catch (NumberFormatException e) {
-                        logger.warn("⚠️ Invalid amount format '{}' for transaction {}, skipping", amount, payPropId);
-                        skipped++;
-                        continue;
-                    }
-                } else {
-                    logger.warn("⚠️ Missing amount for transaction {}, skipping", payPropId);
-                    skipped++;
-                    continue;
-                }
-                
-                // Handle matched amount (optional field)
-                Object matchedAmount = ppTransaction.get("matched_amount");
-                if (matchedAmount instanceof String && !((String) matchedAmount).isEmpty()) {
-                    try {
-                        transaction.setMatchedAmount(new BigDecimal((String) matchedAmount));
-                    } catch (NumberFormatException e) {
-                        logger.warn("⚠️ Invalid matched_amount format '{}' for transaction {}", matchedAmount, payPropId);
-                    }
-                }
-                
-                // 🔧 FIX: Handle date with proper validation (REQUIRED FIELD)
-                String dateStr = (String) ppTransaction.get("date");
-                if (dateStr != null && !dateStr.trim().isEmpty()) {
-                    try {
-                        transaction.setTransactionDate(LocalDate.parse(dateStr));
+                        
+                        // Handle matched amount (optional)
+                        Object matchedAmount = ppTransaction.get("matched_amount");
+                        if (matchedAmount instanceof String && !((String) matchedAmount).isEmpty()) {
+                            try {
+                                transaction.setMatchedAmount(new BigDecimal((String) matchedAmount));
+                            } catch (NumberFormatException e) {
+                                logger.warn("⚠️ Invalid matched_amount format '{}' for transaction {}", matchedAmount, payPropId);
+                            }
+                        }
+                        
+                        // Handle date (REQUIRED FIELD)
+                        String dateStr = (String) ppTransaction.get("date");
+                        if (dateStr != null && !dateStr.trim().isEmpty()) {
+                            try {
+                                transaction.setTransactionDate(LocalDate.parse(dateStr));
+                            } catch (Exception e) {
+                                logger.warn("⚠️ Invalid date format '{}' for transaction {}, skipping", dateStr, payPropId);
+                                skipped++;
+                                continue;
+                            }
+                        } else {
+                            logger.warn("⚠️ Missing transaction date for transaction {}, skipping", payPropId);
+                            skipped++;
+                            continue;
+                        }
+                        
+                        // Set transaction type
+                        String transactionType = (String) ppTransaction.get("type");
+                        if (transactionType != null && 
+                            Arrays.asList("invoice", "credit_note", "debit_note").contains(transactionType)) {
+                            transaction.setTransactionType(transactionType);
+                        } else {
+                            logger.warn("⚠️ Invalid transaction type '{}' for transaction {}, skipping", transactionType, payPropId);
+                            skipped++;
+                            continue;
+                        }
+                        
+                        // Set optional fields
+                        transaction.setDescription((String) ppTransaction.get("description"));
+                        transaction.setHasTax((Boolean) ppTransaction.getOrDefault("has_tax", false));
+                        transaction.setDepositId((String) ppTransaction.get("deposit_id"));
+                        
+                        // Tax amount (optional)
+                        Object taxAmount = ppTransaction.get("tax_amount");
+                        if (taxAmount instanceof String && !((String) taxAmount).isEmpty()) {
+                            try {
+                                transaction.setTaxAmount(new BigDecimal((String) taxAmount));
+                            } catch (NumberFormatException e) {
+                                transaction.setTaxAmount(BigDecimal.ZERO);
+                            }
+                        }
+                        
+                        // Property info
+                        Map<String, Object> property = (Map<String, Object>) ppTransaction.get("property");
+                        if (property != null) {
+                            transaction.setPropertyId((String) property.get("id"));
+                            transaction.setPropertyName((String) property.get("name"));
+                        }
+                        
+                        // Tenant info
+                        Map<String, Object> tenant = (Map<String, Object>) ppTransaction.get("tenant");
+                        if (tenant != null) {
+                            transaction.setTenantId((String) tenant.get("id"));
+                            transaction.setTenantName((String) tenant.get("name"));
+                        }
+                        
+                        // Category info
+                        Map<String, Object> category = (Map<String, Object>) ppTransaction.get("category");
+                        if (category != null) {
+                            transaction.setCategoryId((String) category.get("id"));
+                            transaction.setCategoryName((String) category.get("name"));
+                        }
+                        
+                        transaction.setCreatedAt(LocalDateTime.now());
+                        transaction.setUpdatedAt(LocalDateTime.now());
+                        
+                        financialTransactionRepository.save(transaction);
+                        created++;
+                        
+                        logger.debug("✅ Created financial transaction: {} (£{})", payPropId, transaction.getAmount());
+                        
                     } catch (Exception e) {
-                        logger.warn("⚠️ Invalid date format '{}' for transaction {}, skipping", dateStr, payPropId);
+                        logger.error("❌ Error processing transaction: {}", e.getMessage(), e);
                         skipped++;
-                        continue;
-                    }
-                } else {
-                    logger.warn("⚠️ Missing transaction date for transaction {}, skipping", payPropId);
-                    skipped++;
-                    continue;
-                }
-                
-                // Set transaction type (validate against constraint)
-                String transactionType = (String) ppTransaction.get("type");
-                if (transactionType != null && 
-                    Arrays.asList("invoice", "credit_note", "debit_note").contains(transactionType)) {
-                    transaction.setTransactionType(transactionType);
-                } else {
-                    logger.warn("⚠️ Invalid transaction type '{}' for transaction {}, skipping", transactionType, payPropId);
-                    skipped++;
-                    continue;
-                }
-                
-                // Set optional fields
-                transaction.setDescription((String) ppTransaction.get("description"));
-                transaction.setHasTax((Boolean) ppTransaction.getOrDefault("has_tax", false));
-                transaction.setDepositId((String) ppTransaction.get("deposit_id"));
-                
-                // Tax amount (optional)
-                Object taxAmount = ppTransaction.get("tax_amount");
-                if (taxAmount instanceof String && !((String) taxAmount).isEmpty()) {
-                    try {
-                        transaction.setTaxAmount(new BigDecimal((String) taxAmount));
-                    } catch (NumberFormatException e) {
-                        transaction.setTaxAmount(BigDecimal.ZERO);
                     }
                 }
-                
-                // Property info
-                Map<String, Object> property = (Map<String, Object>) ppTransaction.get("property");
-                if (property != null) {
-                    transaction.setPropertyId((String) property.get("id"));
-                    transaction.setPropertyName((String) property.get("name"));
-                }
-                
-                // Tenant info
-                Map<String, Object> tenant = (Map<String, Object>) ppTransaction.get("tenant");
-                if (tenant != null) {
-                    transaction.setTenantId((String) tenant.get("id"));
-                    transaction.setTenantName((String) tenant.get("name"));
-                }
-                
-                // Category info
-                Map<String, Object> category = (Map<String, Object>) ppTransaction.get("category");
-                if (category != null) {
-                    transaction.setCategoryId((String) category.get("id"));
-                    transaction.setCategoryName((String) category.get("name"));
-                }
-                
-                transaction.setCreatedAt(LocalDateTime.now());
-                transaction.setUpdatedAt(LocalDateTime.now());
-                
-                financialTransactionRepository.save(transaction);
-                created++;
-                
-                logger.debug("✅ Created financial transaction: {} ({})", payPropId, transaction.getAmount());
                 
             } catch (Exception e) {
-                logger.error("❌ Error processing transaction: {}", e.getMessage(), e);
-                skipped++;
+                logger.error("❌ Failed to sync period {} to {}: {}", startDate, endDate, e.getMessage());
             }
+            
+            // Move to next period
+            endDate = startDate.minusDays(1);
         }
         
         logger.info("💰 Financial transactions sync completed: {} created, {} skipped", created, skipped);
         
         return Map.of(
-            "total_processed", transactions.size(),
+            "total_processed", created + skipped,
             "created", created,
             "skipped_existing", skipped,
-            "date_range", startDate + " to " + endDate
+            "date_range", absoluteStartDate + " to " + LocalDate.now()
         );
     }
     
