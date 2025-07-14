@@ -32,7 +32,7 @@ public class Beneficiary {
     @Column(name = "phone", length = 20)
     private String phone;
     
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = BeneficiaryTypeConverter.class)
     @Column(name = "beneficiary_type")
     private BeneficiaryType beneficiaryType;
     
