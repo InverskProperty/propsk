@@ -29,6 +29,7 @@ import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 @Controller
@@ -139,39 +140,45 @@ public class GoogleDriveController {
     private String handlePropertyFiles(Property property, Model model, OAuthUser oAuthUser) throws IOException, GeneralSecurityException {
         // Get or create property folder structure
         String propertyFolderName = sanitizePropertyName(property.getPropertyName());
+        System.out.println("DEBUG: Creating/finding folder for property: " + propertyFolderName);
+        
         String propertyFolderId = googleDriveApiService.findOrCreateFolderInParent(oAuthUser, propertyFolderName, null);
+        System.out.println("DEBUG: Property folder ID: " + propertyFolderId);
         
         // Create property subfolders if they don't exist
         Map<String, String> subfolderMap = createPropertySubfolders(oAuthUser, propertyFolderId);
+        System.out.println("DEBUG: Created subfolders: " + subfolderMap);
         
         // Get files in property folder (only main folder, not subfolders)
         List<GoogleDriveFile> files = googleDriveApiService.listFilesInFolder(oAuthUser, propertyFolderId);
+        System.out.println("DEBUG: Found " + files.size() + " files in main folder");
         
         // Filter out subfolders from files list to avoid clutter
         files = files.stream()
             .filter(file -> !file.getMimeType().equals("application/vnd.google-apps.folder"))
             .collect(Collectors.toList());
+        System.out.println("DEBUG: After filtering folders: " + files.size() + " files");
         
         // Get organized folder structure for display
         Map<String, List<GoogleDriveFile>> filesByCategory = organizeFilesByCategory(oAuthUser, subfolderMap);
+        System.out.println("DEBUG: Files by category: " + filesByCategory.keySet());
         
-        // Get property relationships
-        List<Customer> propertyOwners = getPropertyCustomers(property.getId(), AssignmentType.OWNER);
-        List<Customer> tenants = getPropertyCustomers(property.getId(), AssignmentType.TENANT);
+        // Comment out the problematic customer loading for now
+        // List<Customer> propertyOwners = getPropertyCustomers(property.getId(), AssignmentType.OWNER);
+        // List<Customer> tenants = getPropertyCustomers(property.getId(), AssignmentType.TENANT);
         
         model.addAttribute("property", property);
         model.addAttribute("files", files);
         model.addAttribute("filesByCategory", filesByCategory);
         model.addAttribute("subfolderMap", subfolderMap);
-        model.addAttribute("propertyOwners", propertyOwners);
-        model.addAttribute("tenants", tenants);
+        model.addAttribute("propertyOwners", new ArrayList<Customer>()); // Empty for now
+        model.addAttribute("tenants", new ArrayList<Customer>()); // Empty for now
         model.addAttribute("pageTitle", "Files for " + property.getPropertyName());
         model.addAttribute("breadcrumb", property.getPropertyName());
         model.addAttribute("isPropertyView", true);
         model.addAttribute("propertyFolderId", propertyFolderId);
         
-        // Return the property-specific template
-        return "google-drive/property-files";  // Changed from "google-drive/list-files"
+        return "google-drive/property-files";
     }
 
     /**
@@ -599,9 +606,25 @@ public class GoogleDriveController {
     
     private List<Customer> getPropertyCustomers(Long propertyId, AssignmentType assignmentType) {
         try {
-            return assignmentService.getCustomersForProperty(propertyId, assignmentType);
+            List<Customer> customers = assignmentService.getCustomersForProperty(propertyId, assignmentType);
+            
+            // Additional safety - filter out null customers and validate they're accessible
+            return customers.stream()
+                .filter(customer -> {
+                    if (customer == null) return false;
+                    try {
+                        // Try to access the name to ensure the entity is properly loaded
+                        String name = customer.getName();
+                        return name != null;
+                    } catch (Exception e) {
+                        System.err.println("Filtering out inaccessible customer: " + e.getMessage());
+                        return false;
+                    }
+                })
+                .collect(Collectors.toList());
         } catch (Exception e) {
-            return List.of();
+            System.err.println("Error getting customers for property " + propertyId + ": " + e.getMessage());
+            return new ArrayList<>();
         }
     }
     
