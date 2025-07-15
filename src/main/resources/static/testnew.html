@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PayProp Comprehensive Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .endpoint { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .endpoint h3 { margin-top: 0; color: #333; }
+        .result { background: #f9f9f9; padding: 10px; margin: 10px 0; border-radius: 3px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        .loading { background: #fff3e0; color: #ef6c00; }
+        button { background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 3px; cursor: pointer; margin: 5px; }
+        button:hover { background: #45a049; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; overflow-x: auto; max-height: 300px; }
+        .property-info { background: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>PayProp Comprehensive Data Test</h1>
+    
+    <div class="property-info">
+        <h2>Target Property: 71b Shrubbery Road, Croydon</h2>
+        <p><strong>Property ID:</strong> K3Jwqg8W1E</p>
+        <p><strong>Expected Data:</strong> 4 payments (Apr 8, May 7, May 23, Jun 6) with varying amounts and commission splits</p>
+    </div>
+
+    <button onclick="testAllEndpoints()">🚀 Test All Endpoints</button>
+    <button onclick="clearResults()">🧹 Clear Results</button>
+
+    <!-- Beneficiary Payments -->
+    <div class="endpoint">
+        <h3>💰 1. Export Payments (All Beneficiary Payments)</h3>
+        <button onclick="testEndpoint('payments-all', '/api/payprop/oauth/test-endpoint', {endpoint: '/export/payments', params: 'include_beneficiary_info=true&rows=100'})">Test All Payments</button>
+        <button onclick="testEndpoint('payments-property', '/api/payprop/oauth/test-endpoint', {endpoint: '/export/payments', params: 'property_id=K3Jwqg8W1E&include_beneficiary_info=true&rows=100'})">Test Property Payments</button>
+        <button onclick="testEndpoint('payments-reconciled', '/api/payprop/oauth/test-endpoint', {endpoint: '/export/payments', params: 'property_id=K3Jwqg8W1E&filter_by=reconciliation_date&include_beneficiary_info=true&rows=100'})">Test Reconciled Payments</button>
+        <div id="payments-all" class="result"></div>
+        <div id="payments-property" class="result"></div>
+        <div id="payments-reconciled" class="result"></div>
+    </div>
+
+    <!-- Invoices -->
+    <div class="endpoint">
+        <h3>📄 2. Export Invoices</h3>
+        <button onclick="testEndpoint('invoices-all', '/api/payprop/oauth/test-endpoint', {endpoint: '/export/invoices', params: 'rows=100'})">Test All Invoices</button>
+        <button onclick="testEndpoint('invoices-property', '/api/payprop/oauth/test-endpoint', {endpoint: '/export/invoices', params: 'property_id=K3Jwqg8W1E&rows=100'})">Test Property Invoices</button>
+        <div id="invoices-all" class="result"></div>
+        <div id="invoices-property" class="result"></div>
+    </div>
+
+    <!-- ICDN Report -->
+    <div class="endpoint">
+        <h3>📊 3. ICDN Report (Financial Transactions)</h3>
+        <button onclick="testEndpoint('icdn-all', '/api/payprop/oauth/test-endpoint', {endpoint: '/report/icdn', params: 'from_date=2025-04-01&to_date=2025-07-01&rows=100'})">Test ICDN All</button>
+        <button onclick="testEndpoint('icdn-property', '/api/payprop/oauth/test-endpoint', {endpoint: '/report/icdn', params: 'property_id=K3Jwqg8W1E&from_date=2025-04-01&to_date=2025-07-01&rows=100'})">Test ICDN Property</button>
+        <div id="icdn-all" class="result"></div>
+        <div id="icdn-property" class="result"></div>
+    </div>
+
+    <!-- Tenant Statement -->
+    <div class="endpoint">
+        <h3>🏠 4. Tenant Statement</h3>
+        <button onclick="testEndpoint('tenant-statement', '/api/payprop/oauth/test-endpoint', {endpoint: '/report/tenant/statement', params: 'property_id=K3Jwqg8W1E&from_date=2025-04-01&to_date=2025-07-01'})">Test Tenant Statement</button>
+        <div id="tenant-statement" class="result"></div>
+    </div>
+
+    <!-- Beneficiary Balances -->
+    <div class="endpoint">
+        <h3>💳 5. Beneficiary Balances</h3>
+        <button onclick="testEndpoint('beneficiary-balances', '/api/payprop/oauth/test-endpoint', {endpoint: '/report/beneficiary/balances', params: 'property_id=K3Jwqg8W1E'})">Test Beneficiary Balances</button>
+        <div id="beneficiary-balances" class="result"></div>
+    </div>
+
+    <!-- Agency Income -->
+    <div class="endpoint">
+        <h3>🏢 6. Agency Income</h3>
+        <button onclick="testEndpoint('agency-income', '/api/payprop/oauth/test-endpoint', {endpoint: '/report/agency/income', params: 'year=2025&month=06'})">Test Agency Income June 2025</button>
+        <div id="agency-income" class="result"></div>
+    </div>
+
+    <!-- All Payments Report -->
+    <div class="endpoint">
+        <h3>📈 7. All Payments Report</h3>
+        <button onclick="testEndpoint('all-payments-report', '/api/payprop/oauth/test-endpoint', {endpoint: '/report/all-payments', params: 'property_id=K3Jwqg8W1E&from_date=2025-04-01&to_date=2025-07-01&filter_by=reconciliation_date'})">Test All Payments Report</button>
+        <div id="all-payments-report" class="result"></div>
+    </div>
+
+    <!-- Posted Payments -->
+    <div class="endpoint">
+        <h3>📥 8. Posted Payments</h3>
+        <button onclick="testEndpoint('posted-payments', '/api/payprop/oauth/test-endpoint', {endpoint: '/posted-payments', params: 'property_id=K3Jwqg8W1E&from_date=2025-04-01'})">Test Posted Payments</button>
+        <div id="posted-payments" class="result"></div>
+    </div>
+
+    <script>
+        async function testEndpoint(resultId, url, payload) {
+            const resultDiv = document.getElementById(resultId);
+            resultDiv.innerHTML = '<div class="loading">🔄 Testing endpoint...</div>';
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">✅ Success - Found ${data.count || 0} items</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">❌ Failed: ${data.error || 'Unknown error'}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ Error: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function testAllEndpoints() {
+            const buttons = document.querySelectorAll('button[onclick^="testEndpoint"]');
+            for (const button of buttons) {
+                button.click();
+                await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay between tests
+            }
+        }
+
+        function clearResults() {
+            const results = document.querySelectorAll('.result');
+            results.forEach(result => {
+                result.innerHTML = '';
+            });
+        }
+
+        // Alternative: Use existing diagnostic endpoint
+        async function runDiagnostic() {
+            try {
+                const response = await fetch('/api/payprop/oauth/diagnose-payment-data-sources', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                const data = await response.json();
+                console.log('Diagnostic results:', data);
+                
+                // Display results for our property
+                Object.keys(data).forEach(key => {
+                    if (data[key] && data[key].count > 0) {
+                        console.log(`${key} has ${data[key].count} items for property:`, data[key]);
+                    }
+                });
+            } catch (error) {
+                console.error('Diagnostic error:', error);
+            }
+        }
+    </script>
+
+    <hr>
+    <h3>Quick Test Commands (Run in Console)</h3>
+    <p>If the buttons don't work, try these direct fetch commands:</p>
+    <pre>
+// Test enhanced payment data
+fetch('/api/payprop/oauth/test-enhanced-payment-data', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    credentials: 'same-origin'
+}).then(r => r.json()).then(console.log);
+
+// Test ICDN financial types
+fetch('/api/payprop/oauth/test-icdn-financial-types', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    credentials: 'same-origin'
+}).then(r => r.json()).then(console.log);
+
+// Run diagnostic
+fetch('/api/payprop/oauth/diagnose-payment-data-sources', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    credentials: 'same-origin'
+}).then(r => r.json()).then(data => {
+    console.log('Diagnostic results:', data);
+    Object.keys(data).forEach(key => {
+        if (data[key] && data[key].count > 0) {
+            console.log(`${key}: ${data[key].count} items`, data[key].sample_data);
+        }
+    });
+});
+    </pre>
+
+</body>
+</html>
