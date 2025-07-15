@@ -648,7 +648,10 @@ public class PayPropFinancialSyncService {
         try {
             // Get all rent payments that need commission calculated
             List<FinancialTransaction> rentPayments = financialTransactionRepository
-                .findByDataSourceAndTransactionType("ICDN_ACTUAL", "invoice");
+                .findByDataSource("ICDN_ACTUAL")
+                .stream()
+                .filter(tx -> "invoice".equals(tx.getTransactionType()))
+                .collect(Collectors.toList());
             
             logger.info("📊 Found {} rent payments to calculate commission for", rentPayments.size());
             
