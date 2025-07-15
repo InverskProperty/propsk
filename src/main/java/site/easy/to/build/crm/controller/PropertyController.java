@@ -20,6 +20,9 @@ import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
+import site.easy.to.build.crm.repository.FinancialTransactionRepository;
+import site.easy.to.build.crm.repository.PaymentRepository;
+import java.util.Objects;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -38,16 +41,23 @@ public class PropertyController {
     private final TenantService tenantService;
     private final UserService userService;
     private final AuthenticationUtils authenticationUtils;
+    private FinancialTransactionRepository financialTransactionRepository;
+    private PaymentRepository paymentRepository;
+
     // TODO: Add PayPropSyncService after it's implemented
     // private final PayPropSyncService payPropSyncService;
 
     @Autowired
     public PropertyController(PropertyService propertyService, TenantService tenantService,
-                             UserService userService, AuthenticationUtils authenticationUtils) {
+                            UserService userService, AuthenticationUtils authenticationUtils,
+                            FinancialTransactionRepository financialTransactionRepository,
+                            PaymentRepository paymentRepository) {
         this.propertyService = propertyService;
         this.tenantService = tenantService;
         this.userService = userService;
         this.authenticationUtils = authenticationUtils;
+        this.financialTransactionRepository = financialTransactionRepository;
+        this.paymentRepository = paymentRepository;
     }
 
     // 🔄 UNIFIED - Single endpoint for all properties with role-based filtering
@@ -224,57 +234,6 @@ public class PropertyController {
             return propertyService.findByPropertyOwnerId(userId);
         } else {
             return propertyService.getRecentProperties((long) userId, 100);
-        }
-    }
-
-    @GetMapping("/{id}/financial-summary")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> getPropertyFinancialSummary(@PathVariable("id") Long id, Authentication authentication) {
-        try {
-            Property property = propertyService.findById(id);
-            if (property == null) {
-                return ResponseEntity.notFound().build();
-            }
-            
-            // Get financial transactions for this property
-            List<FinancialTransaction> transactions = financialTransactionRepository
-                .findByPropertyIdOrderByTransactionDateDesc(id);
-            
-            // Get payments for this property
-            List<Payment> payments = paymentRepository
-                .findByPropertyIdOrderByPaymentDateDesc(id);
-            
-            // Calculate summary metrics
-            BigDecimal totalIncome = transactions.stream()
-                .filter(t -> "invoice".equals(t.getTransactionType()))
-                .map(FinancialTransaction::getAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-                
-            BigDecimal totalCommissions = transactions.stream()
-                .map(FinancialTransaction::getCommissionAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-                
-            BigDecimal netOwnerIncome = transactions.stream()
-                .map(FinancialTransaction::getNetToOwnerAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("totalIncome", totalIncome);
-            response.put("totalCommissions", totalCommissions);
-            response.put("netOwnerIncome", netOwnerIncome);
-            response.put("transactionCount", transactions.size());
-            response.put("paymentCount", payments.size());
-            response.put("recentTransactions", transactions.stream().limit(5).collect(Collectors.toList()));
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
 
