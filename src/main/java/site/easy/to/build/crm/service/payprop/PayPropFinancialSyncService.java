@@ -664,7 +664,11 @@ public class PayPropFinancialSyncService {
                 .findByDataSource("ICDN_ACTUAL")
                 .stream()
                 .filter(tx -> "invoice".equals(tx.getTransactionType()))
-                .filter(tx -> !tx.isDeposit()) // Skip deposits
+                .filter(tx -> {
+                    // Only exclude if category explicitly says "deposit"
+                    String categoryName = tx.getCategoryName();
+                    return !(categoryName != null && categoryName.toLowerCase().contains("deposit"));
+                })
                 .collect(Collectors.toList());
             
             logger.info("📊 Found {} rent payments to calculate commission for", rentPayments.size());
