@@ -959,10 +959,10 @@ public class PayPropOAuth2Controller {
         }
     }
 
-    // ===== DIAGNOSTIC AND ENHANCED SYNC ENDPOINTS =====
 
     /**
      * 🔍 DIAGNOSTIC: Test different PayProp endpoints to find correct data source
+     * FIXED: Automatically finds valid property ID
      */
     @PostMapping("/diagnose-payment-data-sources")
     @ResponseBody
@@ -978,12 +978,55 @@ public class PayPropOAuth2Controller {
             HttpEntity<String> request = new HttpEntity<>(headers);
             String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
             
-            // Test property: 71b Shrubbery Road (the one with discrepancies)
-            String testPropertyId = "116"; // Adjust this to your actual property ID
+            // STEP 1: Find a valid property ID from your database
+            String testPropertyId = null;
+            try {
+                List<Property> properties = propertyService.findAll().stream()
+                    .filter(p -> p.getPayPropId() != null)
+                    .limit(1)
+                    .collect(Collectors.toList());
+                
+                if (!properties.isEmpty()) {
+                    testPropertyId = properties.get(0).getPayPropId();
+                    diagnosis.put("test_property_info", Map.of(
+                        "property_id", testPropertyId,
+                        "property_name", properties.get(0).getPropertyName(),
+                        "source", "Local database"
+                    ));
+                }
+            } catch (Exception e) {
+                logger.warn("Could not get property from database: {}", e.getMessage());
+            }
             
-            // 1. TEST: Payment Instructions Export
-            String paymentsUrl = baseUrl + "/export/payments?property_id=" + testPropertyId + 
-                               "&include_beneficiary_info=true&rows=10";
+            // STEP 2: If no property in database, get one from PayProp
+            if (testPropertyId == null) {
+                try {
+                    String propertiesUrl = baseUrl + "/export/properties?rows=1";
+                    ResponseEntity<Map> propResponse = restTemplate.exchange(propertiesUrl, HttpMethod.GET, request, Map.class);
+                    List<Map<String, Object>> properties = (List<Map<String, Object>>) propResponse.getBody().get("items");
+                    
+                    if (!properties.isEmpty()) {
+                        testPropertyId = (String) properties.get(0).get("id");
+                        diagnosis.put("test_property_info", Map.of(
+                            "property_id", testPropertyId,
+                            "property_name", properties.get(0).get("property_name"),
+                            "source", "PayProp API"
+                        ));
+                    }
+                } catch (Exception e) {
+                    logger.warn("Could not get property from PayProp: {}", e.getMessage());
+                }
+            }
+            
+            if (testPropertyId == null) {
+                diagnosis.put("error", "Could not find any valid property ID to test with");
+                return ResponseEntity.ok(diagnosis);
+            }
+            
+            logger.info("Using test property ID: {} for diagnostics", testPropertyId);
+            
+            // 1. TEST: Payment Instructions Export (general)
+            String paymentsUrl = baseUrl + "/export/payments?rows=10&include_beneficiary_info=true";
             ResponseEntity<Map> paymentsResponse = restTemplate.exchange(paymentsUrl, HttpMethod.GET, request, Map.class);
             
             diagnosis.put("1_payment_instructions", Map.of(
@@ -994,68 +1037,73 @@ public class PayPropOAuth2Controller {
             ));
             
             // 2. TEST: Reconciled Payments (filtered by reconciliation date)
-            String reconciledUrl = baseUrl + "/export/payments?property_id=" + testPropertyId + 
-                                 "&filter_by=reconciliation_date&include_beneficiary_info=true&rows=10";
-            ResponseEntity<Map> reconciledResponse = restTemplate.exchange(reconciledUrl, HttpMethod.GET, request, Map.class);
-            
-            diagnosis.put("2_reconciled_payments", Map.of(
-                "endpoint", "/export/payments?filter_by=reconciliation_date",
-                "description", "ACTUAL reconciled payments (what WAS paid)",
-                "count", getItemCount(reconciledResponse.getBody()),
-                "sample_data", getSampleData(reconciledResponse.getBody(), 3)
-            ));
+            String reconciledUrl = baseUrl + "/export/payments?filter_by=reconciliation_date&rows=10&include_beneficiary_info=true";
+            try {
+                ResponseEntity<Map> reconciledResponse = restTemplate.exchange(reconciledUrl, HttpMethod.GET, request, Map.class);
+                
+                diagnosis.put("2_reconciled_payments", Map.of(
+                    "endpoint", "/export/payments?filter_by=reconciliation_date",
+                    "description", "ACTUAL reconciled payments (what WAS paid)",
+                    "count", getItemCount(reconciledResponse.getBody()),
+                    "sample_data", getSampleData(reconciledResponse.getBody(), 3)
+                ));
+            } catch (Exception e) {
+                diagnosis.put("2_reconciled_payments", Map.of("error", "Endpoint failed: " + e.getMessage()));
+            }
             
             // 3. TEST: ICDN Report (financial transactions)
             LocalDate fromDate = LocalDate.now().minusMonths(6);
-            String icdnUrl = baseUrl + "/report/icdn?property_id=" + testPropertyId + 
-                           "&from_date=" + fromDate + "&rows=10";
-            ResponseEntity<Map> icdnResponse = restTemplate.exchange(icdnUrl, HttpMethod.GET, request, Map.class);
-            
-            diagnosis.put("3_icdn_transactions", Map.of(
-                "endpoint", "/report/icdn",
-                "description", "Financial transaction records",
-                "count", getItemCount(icdnResponse.getBody()),
-                "sample_data", getSampleData(icdnResponse.getBody(), 3)
-            ));
-            
-            // 4. TEST: Property-specific payment report
-            String propertyReportUrl = baseUrl + "/report/property/" + testPropertyId + "/payments" +
-                                     "?from_date=" + fromDate + "&rows=10";
+            String icdnUrl = baseUrl + "/report/icdn?from_date=" + fromDate + "&rows=10";
             try {
-                ResponseEntity<Map> propertyResponse = restTemplate.exchange(propertyReportUrl, HttpMethod.GET, request, Map.class);
-                diagnosis.put("4_property_payments", Map.of(
-                    "endpoint", "/report/property/{id}/payments",
-                    "description", "Property-specific payment report",
-                    "count", getItemCount(propertyResponse.getBody()),
-                    "sample_data", getSampleData(propertyResponse.getBody(), 3)
+                ResponseEntity<Map> icdnResponse = restTemplate.exchange(icdnUrl, HttpMethod.GET, request, Map.class);
+                
+                diagnosis.put("3_icdn_transactions", Map.of(
+                    "endpoint", "/report/icdn",
+                    "description", "Financial transaction records",
+                    "count", getItemCount(icdnResponse.getBody()),
+                    "sample_data", getSampleData(icdnResponse.getBody(), 3)
                 ));
             } catch (Exception e) {
-                diagnosis.put("4_property_payments", Map.of("error", "Endpoint not available: " + e.getMessage()));
+                diagnosis.put("3_icdn_transactions", Map.of("error", "Endpoint failed: " + e.getMessage()));
             }
             
-            // 5. TEST: Property account transactions
-            String accountUrl = baseUrl + "/report/property-account?property_id=" + testPropertyId + 
-                              "&from_date=" + fromDate + "&rows=10";
+            // 4. TEST: Property-specific payments (using valid property ID)
+            String propPaymentsUrl = baseUrl + "/export/payments?property_id=" + testPropertyId + "&rows=10&include_beneficiary_info=true";
             try {
-                ResponseEntity<Map> accountResponse = restTemplate.exchange(accountUrl, HttpMethod.GET, request, Map.class);
-                diagnosis.put("5_property_account", Map.of(
-                    "endpoint", "/report/property-account",
-                    "description", "Property account transaction history",
-                    "count", getItemCount(accountResponse.getBody()),
-                    "sample_data", getSampleData(accountResponse.getBody(), 3)
+                ResponseEntity<Map> propResponse = restTemplate.exchange(propPaymentsUrl, HttpMethod.GET, request, Map.class);
+                diagnosis.put("4_property_specific_payments", Map.of(
+                    "endpoint", "/export/payments?property_id=" + testPropertyId,
+                    "description", "Property-specific payment instructions",
+                    "count", getItemCount(propResponse.getBody()),
+                    "sample_data", getSampleData(propResponse.getBody(), 3)
                 ));
             } catch (Exception e) {
-                diagnosis.put("5_property_account", Map.of("error", "Endpoint not available: " + e.getMessage()));
+                diagnosis.put("4_property_specific_payments", Map.of("error", "Endpoint failed: " + e.getMessage()));
+            }
+            
+            // 5. TEST: Property-specific reconciled payments
+            String propReconciledUrl = baseUrl + "/export/payments?property_id=" + testPropertyId + "&filter_by=reconciliation_date&rows=10&include_beneficiary_info=true";
+            try {
+                ResponseEntity<Map> propReconResponse = restTemplate.exchange(propReconciledUrl, HttpMethod.GET, request, Map.class);
+                diagnosis.put("5_property_reconciled_payments", Map.of(
+                    "endpoint", "/export/payments?property_id=" + testPropertyId + "&filter_by=reconciliation_date",
+                    "description", "Property-specific ACTUAL reconciled payments",
+                    "count", getItemCount(propReconResponse.getBody()),
+                    "sample_data", getSampleData(propReconResponse.getBody(), 3)
+                ));
+            } catch (Exception e) {
+                diagnosis.put("5_property_reconciled_payments", Map.of("error", "Endpoint failed: " + e.getMessage()));
             }
             
             diagnosis.put("analysis", Map.of(
-                "issue", "Amount and date discrepancies suggest wrong endpoint",
-                "recommendation", "Compare sample data to identify correct source",
-                "test_property", "71b Shrubbery Road, Croydon (ID: " + testPropertyId + ")"
+                "recommendation", "Compare amounts and dates between endpoints 1 vs 2 and 4 vs 5",
+                "look_for", "Endpoint with correct amounts (e.g., £1,100.00 vs £1,075.00) and dates",
+                "test_property_id", testPropertyId
             ));
             
         } catch (Exception e) {
             diagnosis.put("error", e.getMessage());
+            logger.error("Diagnostic failed: {}", e.getMessage(), e);
         }
         
         return ResponseEntity.ok(diagnosis);
