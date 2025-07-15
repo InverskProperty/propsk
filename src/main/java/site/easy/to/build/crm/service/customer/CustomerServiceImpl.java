@@ -192,6 +192,23 @@ public class CustomerServiceImpl implements CustomerService {
         }
     }
 
+        // ===== STATEMENT GENERATION METHODS =====
+    
+    @Override
+    public List<Customer> findByAssignedPropertyId(Long propertyId) {
+        return customerRepository.findByAssignedPropertyId(propertyId);
+    }
+
+    @Override
+    public List<Customer> findByEntityTypeAndEntityId(String entityType, Long entityId) {
+        return customerRepository.findByEntityTypeAndEntityId(entityType, entityId);
+    }
+
+    @Override
+    public List<Customer> findActiveTenantsForProperty(Long propertyId) {
+        return customerRepository.findActiveTenantsForProperty(propertyId, LocalDate.now());
+    }
+
     // ===== TENANT SPECIFIC METHODS =====
     
     @Override

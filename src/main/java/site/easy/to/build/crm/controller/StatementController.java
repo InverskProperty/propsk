@@ -14,11 +14,13 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.sheets.GoogleSheetsStatementService;
-import site.easy.to.build.crm.service.ticket.user.OAuthUserService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
+import site.easy.to.build.crm.service.user.OAuthUserService;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map; // FIXED: Added missing Map import
+import java.util.Arrays;
 
 @Controller
 @RequestMapping("/statements")
@@ -28,16 +30,19 @@ public class StatementController {
     private final CustomerService customerService;
     private final PropertyService propertyService;
     private final OAuthUserService oAuthUserService;
+    private final AuthenticationUtils authenticationUtils; // FIXED: Added AuthenticationUtils
 
     @Autowired
     public StatementController(GoogleSheetsStatementService statementService,
                              CustomerService customerService,
                              PropertyService propertyService,
-                             OAuthUserService oAuthUserService) {
+                             OAuthUserService oAuthUserService,
+                             AuthenticationUtils authenticationUtils) { // FIXED: Added to constructor
         this.statementService = statementService;
         this.customerService = customerService;
         this.propertyService = propertyService;
         this.oAuthUserService = oAuthUserService;
+        this.authenticationUtils = authenticationUtils;
     }
 
     /**
@@ -45,7 +50,9 @@ public class StatementController {
      */
     @GetMapping
     public String showStatements(Model model, Authentication authentication) {
-        Integer userId = AuthenticationUtils.getUserId(authentication);
+        // FIXED: Use authenticationUtils method
+        OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+        Integer userId = oAuthUser != null ? oAuthUser.getUserId() : null;
         
         // Get property owners for dropdown
         List<Customer> propertyOwners = customerService.findPropertyOwners();
@@ -74,10 +81,9 @@ public class StatementController {
             RedirectAttributes redirectAttributes) {
         
         try {
-            Integer userId = AuthenticationUtils.getUserId(authentication);
+            // FIXED: Use authenticationUtils method
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             
-            // Get OAuth user for Google Sheets access
-            OAuthUser oAuthUser = oAuthUserService.findByUserId(userId);
             if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
                 redirectAttributes.addFlashAttribute("error", 
                     "Google account not connected. Please connect your Google account first.");
@@ -121,10 +127,9 @@ public class StatementController {
             RedirectAttributes redirectAttributes) {
         
         try {
-            Integer userId = AuthenticationUtils.getUserId(authentication);
+            // FIXED: Use authenticationUtils method
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             
-            // Get OAuth user for Google Sheets access
-            OAuthUser oAuthUser = oAuthUserService.findByUserId(userId);
             if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
                 redirectAttributes.addFlashAttribute("error", 
                     "Google account not connected. Please connect your Google account first.");
@@ -168,10 +173,9 @@ public class StatementController {
             RedirectAttributes redirectAttributes) {
         
         try {
-            Integer userId = AuthenticationUtils.getUserId(authentication);
+            // FIXED: Use authenticationUtils method
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             
-            // Get OAuth user for Google Sheets access
-            OAuthUser oAuthUser = oAuthUserService.findByUserId(userId);
             if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
                 redirectAttributes.addFlashAttribute("error", 
                     "Google account not connected. Please connect your Google account first.");
@@ -248,7 +252,7 @@ public class StatementController {
                 List<Property> properties = propertyService.getPropertiesByOwner(customerId);
                 
                 // Return preview data
-                return ResponseEntity.ok(Map.of(
+                return ResponseEntity.ok(Map.of( // FIXED: Now Map is imported
                     "propertyOwner", propertyOwner,
                     "properties", properties,
                     "propertyCount", properties.size(),
