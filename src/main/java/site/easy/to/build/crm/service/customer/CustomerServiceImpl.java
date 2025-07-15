@@ -260,7 +260,7 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public void sendPortfolioUpdateToOwner(Long customerId, String message) {
         Customer customer = customerRepository.findByCustomerId(customerId.intValue());
-        if (customer != null && customer.isOfType(CustomerType.PROPERTY_OWNER)) {
+        if (customer != null && (customer.getCustomerType() == CustomerType.PROPERTY_OWNER || customer.getIsPropertyOwner())) {
             // TODO: Integrate with your existing EmailService
             System.out.println("Portfolio update sent to " + customer.getEmail() + ": " + message);
         }

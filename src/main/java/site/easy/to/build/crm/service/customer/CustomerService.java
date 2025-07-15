@@ -21,6 +21,8 @@ public interface CustomerService {
 
     public List<Customer> findByUserId(int userId);
 
+    List<Customer> findActiveTenantsForProperty(Long propertyId);
+
     public Customer findByEmail(String email);
 
     public List<Customer> findAll();
