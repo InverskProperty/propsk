@@ -847,8 +847,16 @@ public class PayPropSyncService {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
             
-            // Enhanced export includes settings (monthly_payment) and active_tenancies
-            String url = payPropApiBase + "/export/properties?include_settings=true&include_active_tenancies=true&page=" + page + "&rows=" + Math.min(rows, 25);
+            // Enhanced export includes settings, tenancies, commission, contract amounts, balances, and processing info
+
+            String url = payPropApiBase + "/export/properties" +
+            "?include_settings=true" +
+            "&include_active_tenancies=true" +
+            "&include_commission=true" +
+            "&include_contract_amount=true" +
+            "&include_balance=true" +
+            "&include_last_processing_info=true" +
+            "&page=" + page + "&rows=" + Math.min(rows, 25);
             
             System.out.println("📥 Enhanced export from PayProp - Page " + page);
             
@@ -861,8 +869,7 @@ public class PayPropSyncService {
                 result.setItems((List<Map<String, Object>>) responseBody.get("items"));
                 result.setPagination((Map<String, Object>) responseBody.get("pagination"));
                 
-                System.out.println("✅ Enhanced export: " + result.getItems().size() + " properties with settings");
-                
+                System.out.println("✅ Enhanced export: " + result.getItems().size() + " properties with full data (settings, tenancies, commission, balances)");
                 return result;
             }
             
