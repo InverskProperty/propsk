@@ -589,8 +589,8 @@ public class PayPropFinancialSyncService {
                         // Property info
                         Map<String, Object> property = (Map<String, Object>) ppTransaction.get("property");
                         if (property != null) {
-                            transaction.setPropertyId((String) property.get("id"));
-                            transaction.setPropertyName((String) property.get("name"));
+                            transaction.setPropertyId((String) property.get("id"));        // ✅ This should work now
+                            transaction.setPropertyName((String) property.get("name"));    // ✅ This works
                         }
                         
                         // Tenant info
