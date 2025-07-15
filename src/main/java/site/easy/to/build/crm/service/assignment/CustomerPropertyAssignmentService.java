@@ -7,6 +7,7 @@ import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -41,16 +42,43 @@ public class CustomerPropertyAssignmentService {
     }
     
     public List<Property> getPropertiesForCustomer(Integer customerId, AssignmentType type) {
-        return assignmentRepository.findByCustomerCustomerId(customerId).stream()
-            .filter(assignment -> type == null || assignment.getAssignmentType() == type)
-            .map(CustomerPropertyAssignment::getProperty)
-            .collect(Collectors.toList());
+        try {
+            return assignmentRepository.findByCustomerCustomerId(customerId).stream()
+                .filter(assignment -> type == null || assignment.getAssignmentType() == type)
+                .map(assignment -> {
+                    try {
+                        return assignment.getProperty();
+                    } catch (Exception e) {
+                        System.err.println("Skipping orphaned property assignment: " + e.getMessage());
+                        return null;
+                    }
+                })
+                .filter(property -> property != null)
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            System.err.println("Error getting properties for customer " + customerId + ": " + e.getMessage());
+            return new ArrayList<>();
+        }
     }
     
     public List<Customer> getCustomersForProperty(Long propertyId, AssignmentType type) {
-        return assignmentRepository.findByPropertyId(propertyId).stream()
+        List<CustomerPropertyAssignment> assignments = assignmentRepository.findByPropertyId(propertyId);
+        
+        return assignments.stream()
             .filter(assignment -> type == null || assignment.getAssignmentType() == type)
-            .map(CustomerPropertyAssignment::getCustomer)
+            .map(assignment -> {
+                try {
+                    // Safely get the customer, handling cases where the customer might not exist
+                    Customer customer = assignment.getCustomer();
+                    return customer;
+                } catch (Exception e) {
+                    // Log the error and skip this assignment
+                    System.err.println("Error loading customer for assignment ID " + assignment.getId() + 
+                        ": " + e.getMessage());
+                    return null;
+                }
+            })
+            .filter(customer -> customer != null) // Remove null customers
             .collect(Collectors.toList());
     }
     
