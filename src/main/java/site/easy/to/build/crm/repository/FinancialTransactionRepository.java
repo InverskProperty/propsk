@@ -322,4 +322,95 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
      */
     @Query("SELECT COUNT(ft) FROM FinancialTransaction ft WHERE ft.transactionDate BETWEEN :fromDate AND :toDate")
     long countTransactionsByDateRange(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+    
+    // ===== NEW DATA SOURCE QUERIES =====
+    
+    /**
+     * Check if transaction exists by PayProp ID and data source
+     */
+    boolean existsByPayPropTransactionIdAndDataSource(String payPropTransactionId, String dataSource);
+    
+    /**
+     * Find transactions by data source
+     */
+    List<FinancialTransaction> findByDataSource(String dataSource);
+    
+    /**
+     * Find transactions by property and data source
+     */
+    List<FinancialTransaction> findByPropertyIdAndDataSource(String propertyId, String dataSource);
+    
+    /**
+     * Find transactions by property, data source and date range
+     */
+    @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.propertyId = :propertyId AND ft.dataSource = :dataSource AND ft.transactionDate BETWEEN :fromDate AND :toDate")
+    List<FinancialTransaction> findByPropertyIdAndDataSourceAndDateRange(@Param("propertyId") String propertyId, @Param("dataSource") String dataSource, @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+    
+    // ===== INSTRUCTION VS ACTUAL QUERIES =====
+    
+    /**
+     * Find all instruction transactions
+     */
+    List<FinancialTransaction> findByIsInstructionTrue();
+    
+    /**
+     * Find all actual transactions
+     */
+    List<FinancialTransaction> findByIsActualTransactionTrue();
+    
+    /**
+     * Find transactions linked to an instruction
+     */
+    @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.instructionId = :instructionId")
+    List<FinancialTransaction> findByInstructionId(@Param("instructionId") String instructionId);
+    
+    /**
+     * Find instruction transactions by property and date range
+     */
+    @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.propertyId = :propertyId AND ft.isInstruction = true AND ft.transactionDate BETWEEN :fromDate AND :toDate")
+    List<FinancialTransaction> findInstructionsByPropertyAndDateRange(@Param("propertyId") String propertyId, @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+    
+    /**
+     * Find actual transactions by property and date range
+     */
+    @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.propertyId = :propertyId AND ft.isActualTransaction = true AND ft.transactionDate BETWEEN :fromDate AND :toDate")
+    List<FinancialTransaction> findActualsByPropertyAndDateRange(@Param("propertyId") String propertyId, @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+    
+    // ===== COMPARISON QUERIES =====
+    
+    /**
+     * Get instructed vs actual summary by property
+     */
+    @Query("SELECT i.propertyId, i.propertyName, " +
+           "SUM(CASE WHEN i.isInstruction = true THEN i.amount ELSE 0 END) as instructed_total, " +
+           "SUM(CASE WHEN i.isActualTransaction = true THEN i.amount ELSE 0 END) as actual_total, " +
+           "SUM(CASE WHEN i.isInstruction = true THEN i.calculatedCommissionAmount ELSE 0 END) as instructed_commission, " +
+           "SUM(CASE WHEN i.isActualTransaction = true THEN i.actualCommissionAmount ELSE 0 END) as actual_commission " +
+           "FROM FinancialTransaction i WHERE i.transactionDate BETWEEN :fromDate AND :toDate " +
+           "GROUP BY i.propertyId, i.propertyName")
+    List<Object[]> getInstructedVsActualSummary(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+    
+    /**
+     * Get deposit transactions (should have no commission)
+     */
+    @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.depositId IS NOT NULL OR LOWER(ft.categoryName) LIKE '%deposit%'")
+    List<FinancialTransaction> findDepositTransactions();
+    
+    /**
+     * Find commission payments only
+     */
+    @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.dataSource = 'COMMISSION_PAYMENT'")
+    List<FinancialTransaction> findCommissionPayments();
+    
+    /**
+     * Find ICDN actual transactions
+     */
+    @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.dataSource = 'ICDN_ACTUAL'")
+    List<FinancialTransaction> findICDNTransactions();
+    
+    /**
+     * Find payment instructions
+     */
+    @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.dataSource = 'PAYMENT_INSTRUCTION'")
+    List<FinancialTransaction> findPaymentInstructions();
 }

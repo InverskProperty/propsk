@@ -26,7 +26,7 @@ import site.easy.to.build.crm.repository.PaymentRepository;
 import site.easy.to.build.crm.repository.PaymentCategoryRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.entity.Payment;
-import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.Property;  // ✅ ADDED: Missing import fix
 import site.easy.to.build.crm.entity.FinancialTransaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -725,6 +725,29 @@ public class PayPropOAuth2Controller {
     }
 
     /**
+     * NEW: Sync dual financial data (instructions vs actuals)
+     */
+    @PostMapping("/sync-dual-financial-data")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> syncDualFinancialData(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        try {
+            Map<String, Object> syncResults = payPropFinancialSyncService.syncDualFinancialData();
+            return ResponseEntity.ok(syncResults);
+            
+        } catch (Exception e) {
+            logger.error("❌ Dual financial sync failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "FAILED",
+                "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
      * Get financial summary from stored local data
      */
     @GetMapping("/financial-summary")
@@ -746,6 +769,39 @@ public class PayPropOAuth2Controller {
             
         } catch (Exception e) {
             logger.error("❌ Financial summary failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                "status", "ERROR",
+                "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * NEW: Get dashboard financial comparison (instructions vs actuals)
+     */
+    @GetMapping("/dashboard-financial-comparison")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getDashboardFinancialComparison(
+        @RequestParam(required = false) String propertyId,
+        @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fromDate,
+        @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate toDate,
+        Authentication authentication
+    ) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        try {
+            // Default to last 30 days if no dates provided
+            if (fromDate == null) fromDate = LocalDate.now().minusDays(30);
+            if (toDate == null) toDate = LocalDate.now();
+            
+            Map<String, Object> comparison = payPropFinancialSyncService.getDashboardFinancialComparison(
+                propertyId, fromDate, toDate);
+            return ResponseEntity.ok(comparison);
+            
+        } catch (Exception e) {
+            logger.error("❌ Dashboard financial comparison failed: {}", e.getMessage(), e);
             return ResponseEntity.status(500).body(Map.of(
                 "status", "ERROR",
                 "error", e.getMessage()
@@ -1108,206 +1164,5 @@ public class PayPropOAuth2Controller {
         }
         
         return ResponseEntity.ok(diagnosis);
-    }
-
-    /**
-     * ✅ COMPLETE: Determine transaction type based on PayProp data and endpoint
-     */
-    private String determineTransactionType(Map<String, Object> ppTransaction, String endpoint) {
-        // Check if this is a commission payment
-        String category = (String) ppTransaction.get("category");
-        if ("Commission".equalsIgnoreCase(category)) {
-            return "commission_payment";
-        }
-        
-        // Check for deposit indicators
-        if (isDepositFromPayPropData(ppTransaction)) {
-            return "deposit";
-        }
-        
-        // Check endpoint type
-        if (endpoint.contains("icdn")) {
-            // ICDN reports contain invoice/credit_note/debit_note types
-            String type = (String) ppTransaction.get("type");
-            if (type != null && Arrays.asList("invoice", "credit_note", "debit_note").contains(type.toLowerCase())) {
-                return type.toLowerCase();
-            }
-        }
-        
-        // Check for specific payment types
-        String paymentType = (String) ppTransaction.get("payment_type");
-        if (paymentType != null) {
-            switch (paymentType.toLowerCase()) {
-                case "rent":
-                case "rental":
-                    return "rent_payment";
-                case "deposit":
-                case "security_deposit":
-                    return "deposit";
-                case "maintenance":
-                case "repair":
-                    return "maintenance_payment";
-                default:
-                    return "payment";
-            }
-        }
-        
-        // Default based on data structure
-        if (ppTransaction.get("tenant_id") != null || ppTransaction.get("tenant") != null) {
-            return "rent_payment"; // Payment from tenant
-        }
-        
-        if (ppTransaction.get("beneficiary_id") != null || ppTransaction.get("beneficiary_info") != null) {
-            return "outgoing_payment"; // Payment to beneficiary
-        }
-        
-        // Generic fallback
-        return "payment";
-    }
-
-    /**
-     * ✅ COMPLETE: Extract property and tenant information from PayProp response
-     */
-    private void extractPropertyAndTenantInfo(FinancialTransaction transaction, Map<String, Object> ppTransaction) {
-        // Property information
-        Map<String, Object> property = (Map<String, Object>) ppTransaction.get("property");
-        if (property != null) {
-            transaction.setPropertyId((String) property.get("id"));
-            transaction.setPropertyName((String) property.get("name"));
-            
-            // Alternative property name fields
-            if (transaction.getPropertyName() == null) {
-                transaction.setPropertyName((String) property.get("property_name"));
-            }
-            if (transaction.getPropertyName() == null) {
-                transaction.setPropertyName((String) property.get("address"));
-            }
-        } else {
-            // Try direct property fields
-            transaction.setPropertyId((String) ppTransaction.get("property_id"));
-            transaction.setPropertyName((String) ppTransaction.get("property_name"));
-        }
-        
-        // Tenant information
-        Map<String, Object> tenant = (Map<String, Object>) ppTransaction.get("tenant");
-        if (tenant != null) {
-            transaction.setTenantId((String) tenant.get("id"));
-            transaction.setTenantName((String) tenant.get("name"));
-            
-            // Build tenant name from components if needed
-            if (transaction.getTenantName() == null) {
-                String firstName = (String) tenant.get("first_name");
-                String lastName = (String) tenant.get("last_name");
-                if (firstName != null && lastName != null) {
-                    transaction.setTenantName(firstName + " " + lastName);
-                } else if (firstName != null) {
-                    transaction.setTenantName(firstName);
-                } else if (lastName != null) {
-                    transaction.setTenantName(lastName);
-                }
-            }
-        } else {
-            // Try direct tenant fields
-            transaction.setTenantId((String) ppTransaction.get("tenant_id"));
-            transaction.setTenantName((String) ppTransaction.get("tenant_name"));
-        }
-        
-        // Category information
-        transaction.setCategoryId((String) ppTransaction.get("category_id"));
-        String categoryName = (String) ppTransaction.get("category");
-        if (categoryName == null) {
-            categoryName = (String) ppTransaction.get("category_name");
-        }
-        transaction.setCategoryName(categoryName);
-    }
-
-    /**
-     * ✅ Extract correct amount from different PayProp response formats
-     */
-    private BigDecimal extractAmount(Map<String, Object> ppTransaction) {
-        // Try different field names that PayProp might use
-        String[] amountFields = {"amount", "transaction_amount", "payment_amount", "value"};
-        
-        for (String field : amountFields) {
-            Object amount = ppTransaction.get(field);
-            if (amount != null) {
-                try {
-                    return new BigDecimal(amount.toString()).abs(); // Always positive
-                } catch (NumberFormatException e) {
-                    logger.warn("⚠️ Invalid amount format for field {}: {}", field, amount);
-                }
-            }
-        }
-        
-        return null;
-    }
-
-    /**
-     * ✅ Extract the CORRECT date (actual transaction date, not instruction date)
-     */
-    private LocalDate extractCorrectDate(Map<String, Object> ppTransaction) {
-        // Priority order: use ACTUAL dates over instruction dates
-        String[] dateFields = {
-            "reconciliation_date",    // When payment was actually processed
-            "cleared_date",          // When payment cleared
-            "transaction_date",      // Actual transaction date
-            "payment_date",          // Fallback to payment date
-            "date"                   // Generic date field
-        };
-        
-        for (String field : dateFields) {
-            String dateStr = (String) ppTransaction.get(field);
-            if (dateStr != null && !dateStr.trim().isEmpty()) {
-                try {
-                    return LocalDate.parse(dateStr);
-                } catch (Exception e) {
-                    logger.warn("⚠️ Invalid date format for field {}: {}", field, dateStr);
-                }
-            }
-        }
-        
-        return null;
-    }
-
-    /**
-     * ✅ Enhanced deposit detection from PayProp data
-     */
-    private boolean isDepositFromPayPropData(Map<String, Object> ppTransaction) {
-        // Check multiple indicators that PayProp uses for deposits
-        
-        // 1. Explicit deposit fields
-        if (ppTransaction.get("deposit_id") != null || ppTransaction.get("deposit_reference") != null) {
-            return true;
-        }
-        
-        // 2. Category indicators
-        String category = (String) ppTransaction.get("category");
-        if (category != null) {
-            String lowerCategory = category.toLowerCase();
-            if (lowerCategory.contains("deposit") || 
-                lowerCategory.contains("security") ||
-                lowerCategory.contains("holding")) {
-                return true;
-            }
-        }
-        
-        // 3. Description indicators
-        String description = (String) ppTransaction.get("description");
-        if (description != null) {
-            String lowerDesc = description.toLowerCase();
-            if (lowerDesc.contains("deposit") ||
-                lowerDesc.contains("security deposit") ||
-                lowerDesc.contains("holding deposit")) {
-                return true;
-            }
-        }
-        
-        // 4. Payment type indicators
-        String type = (String) ppTransaction.get("payment_type");
-        if ("deposit".equalsIgnoreCase(type)) {
-            return true;
-        }
-        
-        return false;
     }
 }

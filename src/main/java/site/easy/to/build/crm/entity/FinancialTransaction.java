@@ -83,6 +83,34 @@ public class FinancialTransaction {
     @Column(name = "net_to_owner_amount", precision = 10, scale = 2)
     private BigDecimal netToOwnerAmount;
     
+    // ===== DATA SOURCE TRACKING =====
+    
+    @Column(name = "data_source", length = 50)
+    private String dataSource; // "ICDN_ACTUAL", "PAYMENT_INSTRUCTION", "COMMISSION_PAYMENT"
+    
+    @Column(name = "instruction_id", length = 100) 
+    private String instructionId; // Links actual payments to their instructions
+    
+    @Column(name = "reconciliation_date")
+    private LocalDate reconciliationDate; // When payment was actually processed
+    
+    @Column(name = "instruction_date") 
+    private LocalDate instructionDate; // When payment was instructed
+    
+    // ===== ACTUAL VS CALCULATED TRACKING =====
+    
+    @Column(name = "is_actual_transaction")
+    private Boolean isActualTransaction = false; // true for reconciled payments
+    
+    @Column(name = "is_instruction")
+    private Boolean isInstruction = false; // true for payment instructions
+    
+    @Column(name = "actual_commission_amount", precision = 10, scale = 2)
+    private BigDecimal actualCommissionAmount; // Real commission taken by PayProp
+    
+    @Column(name = "calculated_commission_amount", precision = 10, scale = 2) 
+    private BigDecimal calculatedCommissionAmount; // What should have been charged
+    
     // ===== AUDIT FIELDS =====
     
     @Column(name = "created_at")
@@ -115,6 +143,12 @@ public class FinancialTransaction {
         }
         if (hasTax == null) {
             hasTax = false;
+        }
+        if (isActualTransaction == null) {
+            isActualTransaction = false;
+        }
+        if (isInstruction == null) {
+            isInstruction = false;
         }
     }
     
@@ -185,6 +219,30 @@ public class FinancialTransaction {
     public BigDecimal getNetToOwnerAmount() { return netToOwnerAmount; }
     public void setNetToOwnerAmount(BigDecimal netToOwnerAmount) { this.netToOwnerAmount = netToOwnerAmount; }
     
+    public String getDataSource() { return dataSource; }
+    public void setDataSource(String dataSource) { this.dataSource = dataSource; }
+    
+    public String getInstructionId() { return instructionId; }
+    public void setInstructionId(String instructionId) { this.instructionId = instructionId; }
+    
+    public LocalDate getReconciliationDate() { return reconciliationDate; }
+    public void setReconciliationDate(LocalDate reconciliationDate) { this.reconciliationDate = reconciliationDate; }
+    
+    public LocalDate getInstructionDate() { return instructionDate; }
+    public void setInstructionDate(LocalDate instructionDate) { this.instructionDate = instructionDate; }
+    
+    public Boolean getIsActualTransaction() { return isActualTransaction; }
+    public void setIsActualTransaction(Boolean isActualTransaction) { this.isActualTransaction = isActualTransaction; }
+    
+    public Boolean getIsInstruction() { return isInstruction; }
+    public void setIsInstruction(Boolean isInstruction) { this.isInstruction = isInstruction; }
+    
+    public BigDecimal getActualCommissionAmount() { return actualCommissionAmount; }
+    public void setActualCommissionAmount(BigDecimal actualCommissionAmount) { this.actualCommissionAmount = actualCommissionAmount; }
+    
+    public BigDecimal getCalculatedCommissionAmount() { return calculatedCommissionAmount; }
+    public void setCalculatedCommissionAmount(BigDecimal calculatedCommissionAmount) { this.calculatedCommissionAmount = calculatedCommissionAmount; }
+    
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     
@@ -224,6 +282,28 @@ public class FinancialTransaction {
         return getOutstandingAmount().compareTo(BigDecimal.ZERO) == 0;
     }
     
+    /**
+     * Check if this is a deposit transaction
+     */
+    public boolean isDeposit() {
+        return depositId != null || 
+               (categoryName != null && categoryName.toLowerCase().contains("deposit"));
+    }
+    
+    /**
+     * Check if this is an actual transaction (not instruction)
+     */
+    public boolean isActual() {
+        return Boolean.TRUE.equals(isActualTransaction);
+    }
+    
+    /**
+     * Check if this is an instruction (not actual)
+     */
+    public boolean isInstructionOnly() {
+        return Boolean.TRUE.equals(isInstruction);
+    }
+    
     @Override
     public String toString() {
         return "FinancialTransaction{" +
@@ -232,6 +312,7 @@ public class FinancialTransaction {
                 ", amount=" + amount +
                 ", transactionDate=" + transactionDate +
                 ", transactionType='" + transactionType + '\'' +
+                ", dataSource='" + dataSource + '\'' +
                 ", propertyName='" + propertyName + '\'' +
                 ", tenantName='" + tenantName + '\'' +
                 '}';
