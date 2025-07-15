@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.ArrayList;
 
 @Service
 public class PropertyServiceImpl implements PropertyService {
@@ -114,7 +115,7 @@ public class PropertyServiceImpl implements PropertyService {
         return propertyRepository.findByPortfolioId(portfolioId);
     }
 
-    // FIXED: Removed @Override annotation since this method is not in the interface
+    // This method is not in the interface but keeping for compatibility
     public long getTotalCount() {
         return propertyRepository.count();
     }
@@ -265,7 +266,7 @@ public class PropertyServiceImpl implements PropertyService {
         return propertyRepository.count();
     }
 
-    // PayProp compatible status methods - FIXED BOOLEAN TO STRING CONVERSIONS
+    // FIXED: PayProp compatible status methods - Uses financial transactions for occupancy
     @Override
     public List<Property> findActiveProperties() {
         // Fixed: Pass "N" string instead of false boolean
@@ -278,19 +279,45 @@ public class PropertyServiceImpl implements PropertyService {
         return propertyRepository.findByEnablePayments("Y");
     }
 
+    // FIXED: Now uses financial transactions to determine occupancy
     @Override
     public List<Property> findVacantProperties() {
-        return propertyRepository.findVacantProperties();
+        try {
+            // Use the updated method that checks financial transactions
+            return propertyRepository.findVacantProperties();
+        } catch (Exception e) {
+            // Fallback: return all active properties if query fails
+            System.err.println("Error finding vacant properties: " + e.getMessage());
+            return propertyRepository.findByIsArchivedOrderByCreatedAtDesc("N");
+        }
     }
 
     @Override
     public List<Property> findOccupiedProperties() {
-        return propertyRepository.findOccupiedProperties();
+        try {
+            // Use the updated method that checks financial transactions
+            return propertyRepository.findOccupiedProperties();
+        } catch (Exception e) {
+            // Fallback: return empty list if query fails
+            System.err.println("Error finding occupied properties: " + e.getMessage());
+            return new ArrayList<>();
+        }
     }
 
     @Override
     public boolean isPropertyAvailableForTenant(Long propertyId) {
-        return propertyRepository.hasNoActiveTenants(propertyId);
+        try {
+            Property property = findById(propertyId);
+            if (property == null) {
+                return false;
+            }
+            
+            // Use the new method with Long property ID
+            return propertyRepository.hasNoActiveTenantsById(propertyId);
+        } catch (Exception e) {
+            System.err.println("Error checking property availability: " + e.getMessage());
+            return true; // Default to available if check fails
+        }
     }
 
     @Override

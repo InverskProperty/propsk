@@ -21,15 +21,14 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     
     // 🔧 FIXED: Use String comparison for isArchived field
     List<Property> findByIsArchivedOrderByCreatedAtDesc(String isArchived);
-    List<Property> findByEnablePayments(String enablePayments); // Changed to String
-    long countByIsArchived(String isArchived); // Changed to String
+    List<Property> findByEnablePayments(String enablePayments);
+    long countByIsArchived(String isArchived);
 
     // Portfolio and Block relationship queries
     List<Property> findByPortfolioId(Long portfolioId);
     List<Property> findByBlockId(Long blockId);
     List<Property> findByPortfolioIdAndIsArchived(Long portfolioId, String isArchived);
     List<Property> findByBlockIdAndIsArchived(Long blockId, String isArchived);
-
     
     // ✅ Property characteristics (PayProp compatible)
     List<Property> findByPropertyType(String propertyType);
@@ -59,7 +58,7 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     List<Property> searchProperties(@Param("propertyName") String propertyName,
                                    @Param("city") String city,
                                    @Param("postalCode") String postalCode,
-                                   @Param("isArchived") String isArchived, // String not Boolean
+                                   @Param("isArchived") String isArchived,
                                    @Param("propertyType") String propertyType,
                                    @Param("bedrooms") Integer bedrooms,
                                    Pageable pageable);
@@ -96,18 +95,48 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     @Query("SELECT p FROM Property p LEFT JOIN FETCH p.portfolio WHERE p.id IN :propertyIds")
     List<Property> findByIdInWithPortfolio(@Param("propertyIds") List<Long> propertyIds);
     
-    // 🔧 FIXED: String comparison for isArchived
-    @Query("SELECT p FROM Property p WHERE p.isArchived = 'N' AND p.id NOT IN " +
-           "(SELECT DISTINCT t.property.id FROM Tenant t WHERE t.status = 'Active' AND t.property.id IS NOT NULL)")
+    // 🔧 FIXED: Use financial transactions to determine occupancy (NATIVE SQL for better performance)
+    @Query(value = "SELECT DISTINCT p.* FROM properties p " +
+                   "WHERE p.is_archived = 'N' " +
+                   "AND (p.payprop_property_id IS NULL OR p.payprop_property_id NOT IN ( " +
+                   "    SELECT DISTINCT ft.property_id " +
+                   "    FROM financial_transactions ft " +
+                   "    WHERE ft.property_id IS NOT NULL " +
+                   "    AND ft.tenant_id IS NOT NULL " +
+                   "    AND ft.transaction_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) " +
+                   "))", nativeQuery = true)
     List<Property> findVacantProperties();
     
-    @Query("SELECT p FROM Property p WHERE p.isArchived = 'N' AND p.id IN " +
-           "(SELECT DISTINCT t.property.id FROM Tenant t WHERE t.status = 'Active' AND t.property.id IS NOT NULL)")
+    @Query(value = "SELECT DISTINCT p.* FROM properties p " +
+                   "WHERE p.is_archived = 'N' " +
+                   "AND p.payprop_property_id IS NOT NULL " +
+                   "AND p.payprop_property_id IN ( " +
+                   "    SELECT DISTINCT ft.property_id " +
+                   "    FROM financial_transactions ft " +
+                   "    WHERE ft.property_id IS NOT NULL " +
+                   "    AND ft.tenant_id IS NOT NULL " +
+                   "    AND ft.transaction_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) " +
+                   ")", nativeQuery = true)
     List<Property> findOccupiedProperties();
     
-    @Query("SELECT CASE WHEN COUNT(t) = 0 THEN true ELSE false END " +
-           "FROM Tenant t WHERE t.property.id = :propertyId AND t.status = 'Active'")
-    boolean hasNoActiveTenants(@Param("propertyId") Long propertyId);
+    // Simple check for individual property using native SQL
+    @Query(value = "SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END " +
+                   "FROM financial_transactions ft " +
+                   "WHERE ft.property_id = ?1 " +
+                   "AND ft.tenant_id IS NOT NULL " +
+                   "AND ft.transaction_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)", 
+           nativeQuery = true)
+    boolean hasNoActiveTenants(@Param("payPropPropertyId") String payPropPropertyId);
+    
+    // Alternative method using Long property ID for backward compatibility
+    @Query(value = "SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END " +
+                   "FROM financial_transactions ft " +
+                   "JOIN properties p ON ft.property_id = p.payprop_property_id " +
+                   "WHERE p.id = ?1 " +
+                   "AND ft.tenant_id IS NOT NULL " +
+                   "AND ft.transaction_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)", 
+           nativeQuery = true)
+    boolean hasNoActiveTenantsById(@Param("propertyId") Long propertyId);
     
     // 🔧 FIXED: PayProp sync queries with String comparison
     @Query("SELECT p FROM Property p WHERE p.payPropId IS NULL AND p.isArchived = 'N'")
