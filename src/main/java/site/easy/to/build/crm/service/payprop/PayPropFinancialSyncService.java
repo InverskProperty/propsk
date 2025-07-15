@@ -646,91 +646,81 @@ public class PayPropFinancialSyncService {
     }
     
     /**
-     * ✅ SIMPLE: Calculate commission payments from rent payments + commission rates
+     * ✅ FAST: Get commission rates from PayProp and calculate commission
      */
     private Map<String, Object> syncActualCommissionPayments() throws Exception {
-        logger.info("💰 Calculating actual commission payments from rent + commission rates...");
+        logger.info("💰 Getting commission rates from PayProp and calculating commission...");
+        
+        // Step 1: Get commission rates from PayProp
+        Map<String, BigDecimal> commissionRates = getCommissionRatesFromPayProp();
+        logger.info("📊 Found {} properties with commission rates", commissionRates.size());
         
         int created = 0;
         BigDecimal totalCommission = BigDecimal.ZERO;
         
         try {
-            // Get all rent payments that need commission calculated
+            // Step 2: Get all rent payments and calculate commission
             List<FinancialTransaction> rentPayments = financialTransactionRepository
                 .findByDataSource("ICDN_ACTUAL")
                 .stream()
                 .filter(tx -> "invoice".equals(tx.getTransactionType()))
+                .filter(tx -> !tx.isDeposit()) // Skip deposits
                 .collect(Collectors.toList());
             
             logger.info("📊 Found {} rent payments to calculate commission for", rentPayments.size());
             
             for (FinancialTransaction rentPayment : rentPayments) {
                 try {
-                    // Skip if commission already calculated for this rent payment
+                    // Skip if commission already calculated
                     String commissionId = "COMM_" + rentPayment.getPayPropTransactionId();
                     if (financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(commissionId, "COMMISSION_PAYMENT")) {
                         continue;
                     }
                     
-                    // Skip deposits - no commission on deposits
-                    if (rentPayment.isDeposit()) {
-                        continue;
-                    }
-                    
-                    // Get property to find commission rate
-                    if (rentPayment.getPropertyId() != null) {
-                        Optional<Property> propertyOpt = propertyService.findByPayPropId(rentPayment.getPropertyId());
+                    // Get commission rate for this property
+                    BigDecimal commissionRate = commissionRates.get(rentPayment.getPropertyId());
+                    if (commissionRate != null && rentPayment.getAmount() != null) {
                         
-                        if (propertyOpt.isPresent()) {
-                            Property property = propertyOpt.get();
-                            
-                            if (property.getCommissionPercentage() != null && rentPayment.getAmount() != null) {
-                                // Calculate commission amount
-                                BigDecimal rentAmount = rentPayment.getAmount();
-                                BigDecimal commissionRate = property.getCommissionPercentage();
-                                BigDecimal commissionAmount = rentAmount
-                                    .multiply(commissionRate)
-                                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-                                
-                                // Create commission payment record
-                                FinancialTransaction commissionTx = new FinancialTransaction();
-                                commissionTx.setPayPropTransactionId(commissionId);
-                                commissionTx.setDataSource("COMMISSION_PAYMENT");
-                                commissionTx.setIsActualTransaction(true);
-                                commissionTx.setTransactionType("commission_payment");
-                                
-                                commissionTx.setAmount(commissionAmount);
-                                commissionTx.setActualCommissionAmount(commissionAmount);
-                                commissionTx.setTransactionDate(rentPayment.getTransactionDate());
-                                commissionTx.setReconciliationDate(rentPayment.getTransactionDate());
-                                
-                                // Link to property and rent payment
-                                commissionTx.setPropertyId(rentPayment.getPropertyId());
-                                commissionTx.setPropertyName(rentPayment.getPropertyName());
-                                commissionTx.setTenantId(rentPayment.getTenantId());
-                                commissionTx.setTenantName(rentPayment.getTenantName());
-                                
-                                commissionTx.setCommissionRate(commissionRate);
-                                commissionTx.setDescription("Commission on rent payment (" + commissionRate + "%)");
-                                commissionTx.setCategoryName("Commission");
-                                
-                                commissionTx.setCreatedAt(LocalDateTime.now());
-                                commissionTx.setUpdatedAt(LocalDateTime.now());
-                                
-                                financialTransactionRepository.save(commissionTx);
-                                
-                                created++;
-                                totalCommission = totalCommission.add(commissionAmount);
-                                
-                                logger.debug("✅ Created commission payment: Property {}, Amount £{}", 
-                                    property.getPropertyName(), commissionAmount);
-                            }
-                        }
+                        // Calculate commission
+                        BigDecimal commissionAmount = rentPayment.getAmount()
+                            .multiply(commissionRate)
+                            .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                        
+                        // Create commission payment
+                        FinancialTransaction commissionTx = new FinancialTransaction();
+                        commissionTx.setPayPropTransactionId(commissionId);
+                        commissionTx.setDataSource("COMMISSION_PAYMENT");
+                        commissionTx.setIsActualTransaction(true);
+                        commissionTx.setTransactionType("commission_payment");
+                        
+                        commissionTx.setAmount(commissionAmount);
+                        commissionTx.setActualCommissionAmount(commissionAmount);
+                        commissionTx.setTransactionDate(rentPayment.getTransactionDate());
+                        commissionTx.setReconciliationDate(rentPayment.getTransactionDate());
+                        
+                        commissionTx.setPropertyId(rentPayment.getPropertyId());
+                        commissionTx.setPropertyName(rentPayment.getPropertyName());
+                        commissionTx.setTenantId(rentPayment.getTenantId());
+                        commissionTx.setTenantName(rentPayment.getTenantName());
+                        
+                        commissionTx.setCommissionRate(commissionRate);
+                        commissionTx.setDescription("Commission (" + commissionRate + "%)");
+                        commissionTx.setCategoryName("Commission");
+                        
+                        commissionTx.setCreatedAt(LocalDateTime.now());
+                        commissionTx.setUpdatedAt(LocalDateTime.now());
+                        
+                        financialTransactionRepository.save(commissionTx);
+                        
+                        created++;
+                        totalCommission = totalCommission.add(commissionAmount);
+                        
+                        logger.debug("✅ Commission: {} £{} at {}%", 
+                            rentPayment.getPropertyName(), commissionAmount, commissionRate);
                     }
                     
                 } catch (Exception e) {
-                    logger.error("❌ Error calculating commission for rent payment {}: {}", 
-                        rentPayment.getPayPropTransactionId(), e.getMessage());
+                    logger.error("❌ Error calculating commission: {}", e.getMessage());
                 }
             }
             
@@ -738,13 +728,55 @@ public class PayPropFinancialSyncService {
             logger.error("❌ Commission calculation failed: {}", e.getMessage());
         }
         
-        logger.info("💰 Commission calculation completed: {} payments, £{} total", created, totalCommission);
+        logger.info("💰 Commission done: {} payments, £{} total", created, totalCommission);
         
         return Map.of(
             "calculated_commission_payments", created,
             "total_commission", totalCommission,
-            "method", "calculated_from_rent_payments"
+            "commission_rates_found", commissionRates.size()
         );
+    }
+    
+    /**
+     * ✅ FAST: Get commission rates directly from PayProp
+     */
+    private Map<String, BigDecimal> getCommissionRatesFromPayProp() throws Exception {
+        Map<String, BigDecimal> rates = new HashMap<>();
+        
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            // Get properties with commission data
+            String url = payPropApiBase + "/export/properties?include_commission=true&rows=1000";
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            List<Map<String, Object>> properties = (List<Map<String, Object>>) response.getBody().get("items");
+            
+            for (Map<String, Object> property : properties) {
+                String propertyId = (String) property.get("id");
+                Map<String, Object> commission = (Map<String, Object>) property.get("commission");
+                
+                if (propertyId != null && commission != null) {
+                    Object percentage = commission.get("percentage");
+                    if (percentage instanceof String && !((String) percentage).isEmpty()) {
+                        try {
+                            BigDecimal rate = new BigDecimal((String) percentage);
+                            rates.put(propertyId, rate);
+                            logger.debug("✅ Commission rate: {} = {}%", 
+                                property.get("property_name"), rate);
+                        } catch (NumberFormatException e) {
+                            logger.warn("⚠️ Invalid commission rate: {}", percentage);
+                        }
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            logger.error("❌ Failed to get commission rates: {}", e.getMessage());
+        }
+        
+        return rates;
     }
 
 
