@@ -547,11 +547,17 @@ public class PayPropFinancialSyncService {
                         
                         // Set transaction type
                         String transactionType = (String) ppTransaction.get("type");
-                        if (transactionType != null && 
-                            Arrays.asList("invoice", "credit_note", "debit_note").contains(transactionType)) {
-                            transaction.setTransactionType(transactionType);
+                        if (transactionType != null) {
+                            String normalizedType = transactionType.toLowerCase().replace(" ", "_");
+                            if (Arrays.asList("invoice", "credit_note", "debit_note").contains(normalizedType)) {
+                                transaction.setTransactionType(normalizedType);
+                            } else {
+                                logger.warn("⚠️ Invalid transaction type '{}' for transaction {}, skipping", transactionType, payPropId);
+                                skipped++;
+                                continue;
+                            }
                         } else {
-                            logger.warn("⚠️ Invalid transaction type '{}' for transaction {}, skipping", transactionType, payPropId);
+                            logger.warn("⚠️ Missing transaction type for transaction {}, skipping", payPropId);
                             skipped++;
                             continue;
                         }
