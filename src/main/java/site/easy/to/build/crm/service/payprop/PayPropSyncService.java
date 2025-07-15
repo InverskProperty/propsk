@@ -310,13 +310,13 @@ public class PayPropSyncService {
             }
         }
         
+        // AFTER (correct):
         Map<String, Object> beneficiaryInfo = (Map<String, Object>) data.get("beneficiary_info");
         if (beneficiaryInfo != null) {
             String beneficiaryPayPropId = (String) beneficiaryInfo.get("id");
-            // Find your beneficiary by PayProp ID and set the relationship
-            Beneficiary beneficiary = beneficiaryRepository.findByPayPropBeneficiaryId(beneficiaryPayPropId);
-            if (beneficiary != null) {
-                payment.setBeneficiaryId(beneficiary.getId());
+            Customer customer = customerService.findByPayPropEntityId(beneficiaryPayPropId);
+            if (customer != null) {
+                payment.setBeneficiaryId(customer.getCustomerId().longValue());
             }
         }
         
@@ -546,9 +546,9 @@ public class PayPropSyncService {
             Map<String, Object> beneficiary = (Map<String, Object>) beneficiaryInfo;
             String beneficiaryPayPropId = (String) beneficiary.get("id");
             if (beneficiaryPayPropId != null) {
-                Beneficiary beneficiaryEntity = beneficiaryRepository.findByPayPropBeneficiaryId(beneficiaryPayPropId);
-                if (beneficiaryEntity != null) {
-                    payment.setBeneficiaryId(beneficiaryEntity.getId());
+                Customer customer = customerService.findByPayPropEntityId(beneficiaryPayPropId);
+                if (customer != null) {
+                    payment.setBeneficiaryId(customer.getCustomerId().longValue());
                 }
             }
         }
