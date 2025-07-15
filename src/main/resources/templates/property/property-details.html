@@ -569,6 +569,8 @@ $(document).ready(function() {
 
 function loadFinancialData() {
     const propertyId = /*[[${property.id}]]*/ 0;
+    console.log('Property ID:', propertyId);
+    console.log('URL:', `/employee/property/${propertyId}/financial-summary`);
     
     $.ajax({
         url: `/employee/property/${propertyId}/financial-summary`,
