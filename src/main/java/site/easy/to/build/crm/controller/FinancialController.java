@@ -109,16 +109,33 @@ public class FinancialController {
         Map<String, Object> summary = new HashMap<>();
         
         try {
-            // Get financial transactions for this property
+            // Get the property first to get its PayProp ID
+            Property property = propertyService.findById(propertyId);
+            if (property == null || property.getPayPropId() == null) {
+                // Return zeros if no property or no PayProp ID
+                summary.put("totalIncome", BigDecimal.ZERO);
+                summary.put("totalCommissions", BigDecimal.ZERO);
+                summary.put("netOwnerIncome", BigDecimal.ZERO);
+                summary.put("transactionCount", 0);
+                summary.put("paymentCount", 0);
+                summary.put("recentTransactions", List.of());
+                summary.put("currentMonthIncome", BigDecimal.ZERO);
+                return summary;
+            }
+            
+            // Use PayProp ID to find financial transactions
+            String payPropId = property.getPayPropId();
+            
+            // Get financial transactions using PayProp ID
             List<FinancialTransaction> allTransactions = financialTransactionRepository.findAll();
             List<FinancialTransaction> propertyTransactions = allTransactions.stream()
-                .filter(t -> propertyId.equals(t.getPropertyId()))
+                .filter(t -> payPropId.equals(t.getPropertyId()))
                 .collect(Collectors.toList());
             
-            // Get payments for this property
+            // Get payments using PayProp ID
             List<Payment> allPayments = paymentRepository.findAll();
             List<Payment> propertyPayments = allPayments.stream()
-                .filter(p -> propertyId.equals(p.getPropertyId()))
+                .filter(p -> payPropId.equals(p.getPropertyId()))
                 .collect(Collectors.toList());
             
             // Calculate totals from financial transactions
