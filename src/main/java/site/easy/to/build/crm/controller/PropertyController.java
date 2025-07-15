@@ -10,6 +10,9 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import site.easy.to.build.crm.entity.FinancialTransaction;
+import site.easy.to.build.crm.entity.Payment;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.service.property.PropertyService;
@@ -221,6 +224,57 @@ public class PropertyController {
             return propertyService.findByPropertyOwnerId(userId);
         } else {
             return propertyService.getRecentProperties((long) userId, 100);
+        }
+    }
+
+    @GetMapping("/{id}/financial-summary")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getPropertyFinancialSummary(@PathVariable("id") Long id, Authentication authentication) {
+        try {
+            Property property = propertyService.findById(id);
+            if (property == null) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            // Get financial transactions for this property
+            List<FinancialTransaction> transactions = financialTransactionRepository
+                .findByPropertyIdOrderByTransactionDateDesc(id);
+            
+            // Get payments for this property
+            List<Payment> payments = paymentRepository
+                .findByPropertyIdOrderByPaymentDateDesc(id);
+            
+            // Calculate summary metrics
+            BigDecimal totalIncome = transactions.stream()
+                .filter(t -> "invoice".equals(t.getTransactionType()))
+                .map(FinancialTransaction::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                
+            BigDecimal totalCommissions = transactions.stream()
+                .map(FinancialTransaction::getCommissionAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                
+            BigDecimal netOwnerIncome = transactions.stream()
+                .map(FinancialTransaction::getNetToOwnerAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("totalIncome", totalIncome);
+            response.put("totalCommissions", totalCommissions);
+            response.put("netOwnerIncome", netOwnerIncome);
+            response.put("transactionCount", transactions.size());
+            response.put("paymentCount", payments.size());
+            response.put("recentTransactions", transactions.stream().limit(5).collect(Collectors.toList()));
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
 
