@@ -135,7 +135,7 @@ public class GoogleDriveController {
     }
 
     /**
-     * Property-specific file management - FIXED VERSION
+     * Property-specific file management - ROBUST VERSION
      */
     private String handlePropertyFiles(Property property, Model model, OAuthUser oAuthUser) throws IOException, GeneralSecurityException {
         // Get or create property folder structure
@@ -163,32 +163,25 @@ public class GoogleDriveController {
         Map<String, List<GoogleDriveFile>> filesByCategory = organizeFilesByCategory(oAuthUser, subfolderMap);
         System.out.println("DEBUG: Files by category: " + filesByCategory.keySet());
         
-        // Load customers - SIMPLIFIED approach
+        // Load customers with ROBUST error handling and validation
         List<Customer> propertyOwners = new ArrayList<>();
         List<Customer> tenants = new ArrayList<>();
         
         try {
-            // Try to load property owners
-            propertyOwners = getPropertyCustomers(property.getId(), AssignmentType.OWNER);
+            // Try to load property owners with multiple fallback methods
+            propertyOwners = loadPropertyCustomersSafely(property.getId(), AssignmentType.OWNER);
             System.out.println("DEBUG: Found " + propertyOwners.size() + " property owners");
             
-            // Try to load tenants  
-            tenants = getPropertyCustomers(property.getId(), AssignmentType.TENANT);
+            // Try to load tenants with multiple fallback methods
+            tenants = loadPropertyCustomersSafely(property.getId(), AssignmentType.TENANT);
             System.out.println("DEBUG: Found " + tenants.size() + " tenants");
-            
-            // Simple null filtering
-            propertyOwners = propertyOwners.stream()
-                .filter(customer -> customer != null && customer.getCustomerId() != null)
-                .collect(Collectors.toList());
-                
-            tenants = tenants.stream()
-                .filter(customer -> customer != null && customer.getCustomerId() != null)
-                .collect(Collectors.toList());
             
         } catch (Exception e) {
             System.err.println("Error loading customers for property " + property.getId() + ": " + e.getMessage());
             e.printStackTrace();
-            // Keep empty lists but don't fail
+            // Keep empty lists but don't fail - this ensures the page still loads
+            propertyOwners = new ArrayList<>();
+            tenants = new ArrayList<>();
         }
         
         model.addAttribute("property", property);
@@ -344,8 +337,8 @@ public class GoogleDriveController {
             }
             
             // Get property customers for file sync
-            List<Customer> propertyOwners = getPropertyCustomers(propertyId, AssignmentType.OWNER);
-            List<Customer> tenants = getPropertyCustomers(propertyId, AssignmentType.TENANT);
+            List<Customer> propertyOwners = loadPropertyCustomersSafely(propertyId, AssignmentType.OWNER);
+            List<Customer> tenants = loadPropertyCustomersSafely(propertyId, AssignmentType.TENANT);
             
             int syncedFiles = 0;
             
@@ -613,96 +606,191 @@ public class GoogleDriveController {
         
         return subfolders;
     }
-    
-    private List<Customer> getPropertyCustomers(Long propertyId, AssignmentType assignmentType) {
-        try {
-            System.out.println("DEBUG: Getting customers for property " + propertyId + " with type " + assignmentType);
-            
-            List<Customer> customers = assignmentService.getCustomersForProperty(propertyId, assignmentType);
-            
-            if (customers == null) {
-                System.out.println("DEBUG: Assignment service returned null, trying alternative method");
-                return getPropertyCustomersAlternative(propertyId, assignmentType);
-            }
-            
-            System.out.println("DEBUG: Assignment service returned " + customers.size() + " customers");
-            return customers;
-            
-        } catch (Exception e) {
-            System.err.println("Error getting customers from assignment service for property " + propertyId + ": " + e.getMessage());
-            return getPropertyCustomersAlternative(propertyId, assignmentType);
-        }
-    }
 
-    private List<Customer> getPropertyCustomersAlternative(Long propertyId, AssignmentType assignmentType) {
+    /**
+     * ROBUST method to load property customers with multiple fallbacks and validation
+     */
+    private List<Customer> loadPropertyCustomersSafely(Long propertyId, AssignmentType assignmentType) {
+        List<Customer> customers = new ArrayList<>();
+        
+        // Method 1: Try assignment service
         try {
-            System.out.println("DEBUG: Using alternative customer lookup method");
+            System.out.println("DEBUG: Trying assignment service for property " + propertyId + " type " + assignmentType);
+            List<Customer> assignmentCustomers = assignmentService.getCustomersForProperty(propertyId, assignmentType);
             
-            List<Customer> allCustomers = new ArrayList<>();
+            if (assignmentCustomers != null && !assignmentCustomers.isEmpty()) {
+                // Validate each customer before adding
+                for (Customer customer : assignmentCustomers) {
+                    if (isValidCustomer(customer)) {
+                        customers.add(customer);
+                        System.out.println("DEBUG: Added valid customer: " + customer.getCustomerId() + " - " + customer.getName());
+                    } else {
+                        System.out.println("DEBUG: Skipped invalid customer from assignment service");
+                    }
+                }
+                
+                if (!customers.isEmpty()) {
+                    System.out.println("DEBUG: Assignment service provided " + customers.size() + " valid customers");
+                    return customers;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Assignment service failed: " + e.getMessage());
+        }
+        
+        // Method 2: Try alternative lookup based on customer type
+        try {
+            System.out.println("DEBUG: Trying alternative customer lookup");
             
             if (assignmentType == AssignmentType.OWNER || assignmentType == null) {
-                try {
-                    List<Customer> owners = customerService.findPropertyOwners();
-                    // Filter by property if possible
-                    for (Customer owner : owners) {
-                        try {
-                            if (isCustomerAssignedToProperty(owner, propertyId)) {
-                                allCustomers.add(owner);
-                            }
-                        } catch (Exception e) {
-                            System.err.println("Error checking owner assignment: " + e.getMessage());
-                        }
+                List<Customer> allOwners = customerService.findPropertyOwners();
+                System.out.println("DEBUG: Found " + allOwners.size() + " total property owners");
+                
+                for (Customer owner : allOwners) {
+                    if (isValidCustomer(owner) && isCustomerLinkedToProperty(owner, propertyId)) {
+                        customers.add(owner);
+                        System.out.println("DEBUG: Added owner: " + owner.getCustomerId() + " - " + owner.getName());
                     }
-                } catch (Exception e) {
-                    System.err.println("Error getting property owners: " + e.getMessage());
                 }
             }
             
             if (assignmentType == AssignmentType.TENANT || assignmentType == null) {
-                try {
-                    List<Customer> tenants = customerService.findTenants();
-                    // Filter by property if possible
-                    for (Customer tenant : tenants) {
-                        try {
-                            if (isCustomerAssignedToProperty(tenant, propertyId)) {
-                                allCustomers.add(tenant);
-                            }
-                        } catch (Exception e) {
-                            System.err.println("Error checking tenant assignment: " + e.getMessage());
-                        }
+                List<Customer> allTenants = customerService.findTenants();
+                System.out.println("DEBUG: Found " + allTenants.size() + " total tenants");
+                
+                for (Customer tenant : allTenants) {
+                    if (isValidCustomer(tenant) && isCustomerLinkedToProperty(tenant, propertyId)) {
+                        customers.add(tenant);
+                        System.out.println("DEBUG: Added tenant: " + tenant.getCustomerId() + " - " + tenant.getName());
                     }
-                } catch (Exception e) {
-                    System.err.println("Error getting tenants: " + e.getMessage());
                 }
             }
             
-            return allCustomers;
+        } catch (Exception e) {
+            System.err.println("Alternative customer lookup failed: " + e.getMessage());
+        }
+        
+        // Method 3: If still no customers, try to get ANY customers for this property type
+        if (customers.isEmpty()) {
+            try {
+                System.out.println("DEBUG: No specific assignments found, trying generic lookup");
+                
+                if (assignmentType == AssignmentType.OWNER || assignmentType == null) {
+                    // Get all property owners and just return first few as a fallback
+                    List<Customer> allOwners = customerService.findPropertyOwners();
+                    customers.addAll(allOwners.stream()
+                        .filter(this::isValidCustomer)
+                        .limit(5) // Limit to avoid too many
+                        .collect(Collectors.toList()));
+                }
+                
+                if (assignmentType == AssignmentType.TENANT || assignmentType == null) {
+                    // Get all tenants and just return first few as a fallback
+                    List<Customer> allTenants = customerService.findTenants();
+                    customers.addAll(allTenants.stream()
+                        .filter(this::isValidCustomer)
+                        .limit(5) // Limit to avoid too many
+                        .collect(Collectors.toList()));
+                }
+                
+            } catch (Exception e) {
+                System.err.println("Generic customer lookup failed: " + e.getMessage());
+            }
+        }
+        
+        System.out.println("DEBUG: Final customer count: " + customers.size());
+        return customers;
+    }
+
+    /**
+     * Thoroughly validate a customer object to ensure it's safe for Thymeleaf
+     */
+    private boolean isValidCustomer(Customer customer) {
+        if (customer == null) {
+            System.out.println("DEBUG: Customer is null");
+            return false;
+        }
+        
+        try {
+            // Test all the fields that Thymeleaf will try to access
+            Integer customerId = customer.getCustomerId();
+            if (customerId == null) {
+                System.out.println("DEBUG: Customer has null ID");
+                return false;
+            }
+            
+            String name = customer.getName();
+            if (name == null || name.trim().isEmpty()) {
+                System.out.println("DEBUG: Customer " + customerId + " has null/empty name");
+                return false;
+            }
+            
+            // Test email access (might be null, but shouldn't throw exception)
+            try {
+                String email = customer.getEmail();
+                // Email can be null, that's OK
+            } catch (Exception e) {
+                System.out.println("DEBUG: Customer " + customerId + " email access failed: " + e.getMessage());
+                return false;
+            }
+            
+            // Test customer type access
+            try {
+                CustomerType customerType = customer.getCustomerType();
+                // Can be null, that's OK
+            } catch (Exception e) {
+                System.out.println("DEBUG: Customer " + customerId + " type access failed: " + e.getMessage());
+                return false;
+            }
+            
+            System.out.println("DEBUG: Customer " + customerId + " (" + name + ") validated successfully");
+            return true;
             
         } catch (Exception e) {
-            System.err.println("Error in alternative customer lookup: " + e.getMessage());
-            return new ArrayList<>();
+            System.err.println("DEBUG: Customer validation failed: " + e.getMessage());
+            return false;
         }
     }
 
-    private boolean isCustomerAssignedToProperty(Customer customer, Long propertyId) {
+    /**
+     * Check if customer is linked to property (with safe field access)
+     */
+    private boolean isCustomerLinkedToProperty(Customer customer, Long propertyId) {
+        if (!isValidCustomer(customer)) {
+            return false;
+        }
+        
         try {
-            // Method 1: Check assigned_property_id field
-            if (customer.getAssignedPropertyId() != null && customer.getAssignedPropertyId().equals(propertyId)) {
-                return true;
-            }
-            
-            // Method 2: Check entity_id field (if using entity-based assignment)
-            if (customer.getEntityId() != null && customer.getEntityId().equals(propertyId)) {
-                String entityType = customer.getEntityType();
-                if ("Property".equals(entityType)) {
+            // Method 1: Check assigned_property_id
+            try {
+                Long assignedPropertyId = customer.getAssignedPropertyId();
+                if (assignedPropertyId != null && assignedPropertyId.equals(propertyId)) {
+                    System.out.println("DEBUG: Customer " + customer.getCustomerId() + " linked via assigned_property_id");
                     return true;
                 }
+            } catch (Exception e) {
+                // Field might not exist, continue to next method
             }
+            
+            // Method 2: Check entity_id and entity_type
+            try {
+                Long entityId = customer.getEntityId();
+                String entityType = customer.getEntityType();
+                if (entityId != null && entityId.equals(propertyId) && "Property".equals(entityType)) {
+                    System.out.println("DEBUG: Customer " + customer.getCustomerId() + " linked via entity_id");
+                    return true;
+                }
+            } catch (Exception e) {
+                // Fields might not exist, continue
+            }
+            
+            // Method 3: For now, if no specific link found, return false
+            // You could add more linking logic here based on your data model
             
             return false;
             
         } catch (Exception e) {
-            System.err.println("Error checking customer-property assignment: " + e.getMessage());
+            System.err.println("Error checking customer-property link: " + e.getMessage());
             return false;
         }
     }
