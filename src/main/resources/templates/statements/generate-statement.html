@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Statements - CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .statement-card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+        }
+        .statement-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        .preview-section {
+            background: #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div th:replace="general/header :: header"></div>
+    
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-12">
+                <h2><i class="fas fa-file-invoice"></i> Generate Statements</h2>
+                <p class="text-muted">Create rental statements and financial reports in Google Sheets</p>
+                
+                <!-- Success/Error Messages -->
+                <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert">
+                    <span th:utext="${success}"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                
+                <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <span th:text="${error}"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- Property Owner Statement -->
+            <div class="col-md-4">
+                <div class="statement-card">
+                    <h4><i class="fas fa-building text-primary"></i> Property Owner Statement</h4>
+                    <p>Generate detailed rental statement for a property owner showing all properties, tenants, and financial summary.</p>
+                    
+                    <form th:action="@{/statements/property-owner}" method="post" id="propertyOwnerForm">
+                        <div class="mb-3">
+                            <label for="propertyOwnerId" class="form-label">Property Owner</label>
+                            <select class="form-select" id="propertyOwnerId" name="propertyOwnerId" required>
+                                <option value="">Select Property Owner...</option>
+                                <option th:each="owner : ${propertyOwners}" 
+                                        th:value="${owner.customerId}" 
+                                        th:text="${owner.name}"></option>
+                            </select>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-6">
+                                <label for="fromDate1" class="form-label">From Date</label>
+                                <input type="date" class="form-control" id="fromDate1" name="fromDate" 
+                                       th:value="${defaultFromDate}" required>
+                            </div>
+                            <div class="col-6">
+                                <label for="toDate1" class="form-label">To Date</label>
+                                <input type="date" class="form-control" id="toDate1" name="toDate" 
+                                       th:value="${defaultToDate}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewStatement('property-owner', 'propertyOwnerForm')">
+                                <i class="fas fa-eye"></i> Preview
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-file-excel"></i> Generate Statement
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div id="preview-property-owner" class="preview-section"></div>
+                </div>
+            </div>
+            
+            <!-- Tenant Statement -->
+            <div class="col-md-4">
+                <div class="statement-card">
+                    <h4><i class="fas fa-user text-success"></i> Tenant Statement</h4>
+                    <p>Generate payment statement for a specific tenant showing rent due, payments made, and balance.</p>
+                    
+                    <form th:action="@{/statements/tenant}" method="post" id="tenantForm">
+                        <div class="mb-3">
+                            <label for="tenantId" class="form-label">Tenant</label>
+                            <select class="form-select" id="tenantId" name="tenantId" required>
+                                <option value="">Select Tenant...</option>
+                                <!-- Will be populated via AJAX -->
+                            </select>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-6">
+                                <label for="fromDate2" class="form-label">From Date</label>
+                                <input type="date" class="form-control" id="fromDate2" name="fromDate" 
+                                       th:value="${defaultFromDate}" required>
+                            </div>
+                            <div class="col-6">
+                                <label for="toDate2" class="form-label">To Date</label>
+                                <input type="date" class="form-control" id="toDate2" name="toDate" 
+                                       th:value="${defaultToDate}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewStatement('tenant', 'tenantForm')">
+                                <i class="fas fa-eye"></i> Preview
+                            </button>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-file-excel"></i> Generate Statement
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div id="preview-tenant" class="preview-section"></div>
+                </div>
+            </div>
+            
+            <!-- Portfolio Statement -->
+            <div class="col-md-4">
+                <div class="statement-card">
+                    <h4><i class="fas fa-chart-line text-warning"></i> Portfolio Summary</h4>
+                    <p>Generate comprehensive portfolio overview with all properties, performance metrics, and totals.</p>
+                    
+                    <form th:action="@{/statements/portfolio}" method="post" id="portfolioForm">
+                        <div class="mb-3">
+                            <label for="portfolioOwnerId" class="form-label">Property Owner</label>
+                            <select class="form-select" id="portfolioOwnerId" name="propertyOwnerId" required>
+                                <option value="">Select Property Owner...</option>
+                                <option th:each="owner : ${propertyOwners}" 
+                                        th:value="${owner.customerId}" 
+                                        th:text="${owner.name}"></option>
+                            </select>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-6">
+                                <label for="fromDate3" class="form-label">From Date</label>
+                                <input type="date" class="form-control" id="fromDate3" name="fromDate" 
+                                       th:value="${defaultFromDate}" required>
+                            </div>
+                            <div class="col-6">
+                                <label for="toDate3" class="form-label">To Date</label>
+                                <input type="date" class="form-control" id="toDate3" name="toDate" 
+                                       th:value="${defaultToDate}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewStatement('portfolio', 'portfolioForm')">
+                                <i class="fas fa-eye"></i> Preview
+                            </button>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-file-excel"></i> Generate Portfolio
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div id="preview-portfolio" class="preview-section"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Help Section -->
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-info-circle"></i> How It Works</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <h6><i class="fas fa-1 text-primary"></i> Connect Google Account</h6>
+                                <p>Make sure your Google account is connected to enable Google Sheets creation.</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h6><i class="fas fa-2 text-primary"></i> Select Data</h6>
+                                <p>Choose the property owner or tenant and select the date range for the statement.</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h6><i class="fas fa-3 text-primary"></i> Generate & Share</h6>
+                                <p>The statement will be created in Google Sheets and automatically shared with you.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Load tenants on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTenants();
+        });
+
+        // Load tenants for tenant statement
+        function loadTenants() {
+            fetch('/statements/api/tenants')
+                .then(response => response.json())
+                .then(tenants => {
+                    const tenantSelect = document.getElementById('tenantId');
+                    tenantSelect.innerHTML = '<option value="">Select Tenant...</option>';
+                    
+                    tenants.forEach(tenant => {
+                        const option = document.createElement('option');
+                        option.value = tenant.customerId;
+                        option.textContent = tenant.name;
+                        tenantSelect.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading tenants:', error);
+                });
+        }
+
+        // Preview statement before generating
+        function previewStatement(type, formId) {
+            const form = document.getElementById(formId);
+            const formData = new FormData(form);
+            
+            const customerId = type === 'tenant' ? formData.get('tenantId') : formData.get('propertyOwnerId');
+            const fromDate = formData.get('fromDate');
+            const toDate = formData.get('toDate');
+            
+            if (!customerId || !fromDate || !toDate) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            const url = `/statements/preview?type=${type}&customerId=${customerId}&fromDate=${fromDate}&toDate=${toDate}`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    const previewDiv = document.getElementById(`preview-${type}`);
+                    
+                    let html = '<h6><i class="fas fa-eye"></i> Preview:</h6>';
+                    
+                    if (type === 'property-owner' || type === 'portfolio') {
+                        html += `
+                            <p><strong>Owner:</strong> ${data.propertyOwner.name}</p>
+                            <p><strong>Properties:</strong> ${data.propertyCount}</p>
+                            <p><strong>Period:</strong> ${data.period}</p>
+                        `;
+                    } else if (type === 'tenant') {
+                        html += `
+                            <p><strong>Tenant:</strong> ${data.tenant.name}</p>
+                            <p><strong>Property:</strong> ${data.property ? data.property.propertyName : 'None assigned'}</p>
+                            <p><strong>Period:</strong> ${data.period}</p>
+                        `;
+                    }
+                    
+                    previewDiv.innerHTML = html;
+                    previewDiv.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error generating preview:', error);
+                    alert('Error generating preview');
+                });
+        }
+    </script>
+</body>
+</html>

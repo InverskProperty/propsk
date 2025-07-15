@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerType;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Repository
@@ -114,4 +115,28 @@ public interface CustomerRepository extends JpaRepository<Customer, Integer> {
     
     @Query("SELECT c FROM Customer c WHERE c.customerType = 'CONTRACTOR' OR c.isContractor = true")
     List<Customer> findAllContractors();
+
+        // NEW METHODS FOR STATEMENT GENERATION:
+    
+    /**
+     * Find customers assigned to a specific property
+     */
+    List<Customer> findByAssignedPropertyId(Long propertyId);
+    
+    /**
+     * Find customers by entity type and entity ID (for property assignments)
+     */
+    List<Customer> findByEntityTypeAndEntityId(String entityType, Long entityId);
+
+    
+    
+    /**
+     * Find active tenants for a property (not moved out)
+     */
+    @Query("SELECT c FROM Customer c WHERE c.assignedPropertyId = :propertyId " +
+           "AND (c.isTenant = true OR c.customerType = 'TENANT') " +
+           "AND (c.moveOutDate IS NULL OR c.moveOutDate > :currentDate)")
+    List<Customer> findActiveTenantsForProperty(@Param("propertyId") Long propertyId, 
+                                               @Param("currentDate") LocalDate currentDate);
+
 }

@@ -413,4 +413,61 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
      */
     @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.dataSource = 'PAYMENT_INSTRUCTION'")
     List<FinancialTransaction> findPaymentInstructions();
+
+    // ===== STATEMENT GENERATION QUERIES =====
+    
+    /**
+     * Sum outstanding amounts for a property in date range
+     */
+    @Query("SELECT COALESCE(SUM(ft.amount), 0) FROM FinancialTransaction ft " +
+           "WHERE ft.propertyId = :propertyId " +
+           "AND ft.transactionDate BETWEEN :fromDate AND :toDate " +
+           "AND (ft.transactionType = 'OUTSTANDING' OR ft.amount > COALESCE(ft.matchedAmount, 0))")
+    BigDecimal sumOutstandingForProperty(@Param("propertyId") String propertyId, 
+                                       @Param("fromDate") LocalDate fromDate, 
+                                       @Param("toDate") LocalDate toDate);
+
+    /**
+     * Sum expenses for a property in date range
+     */
+    @Query("SELECT COALESCE(SUM(ft.amount), 0) FROM FinancialTransaction ft " +
+           "WHERE ft.propertyId = :propertyId " +
+           "AND ft.transactionDate BETWEEN :fromDate AND :toDate " +
+           "AND (ft.transactionType LIKE '%EXPENSE%' OR ft.categoryName LIKE '%Maintenance%' OR ft.categoryName LIKE '%Repair%')")
+    BigDecimal sumExpensesForProperty(@Param("propertyId") String propertyId, 
+                                    @Param("fromDate") LocalDate fromDate, 
+                                    @Param("toDate") LocalDate toDate);
+
+    /**
+     * Sum payments by tenant in date range
+     */
+    @Query("SELECT COALESCE(SUM(ft.amount), 0) FROM FinancialTransaction ft " +
+           "WHERE ft.tenantId = :tenantId " +
+           "AND ft.transactionDate BETWEEN :fromDate AND :toDate " +
+           "AND (ft.transactionType = 'PAYMENT' OR ft.transactionType = 'invoice')")
+    BigDecimal sumPaymentsByTenant(@Param("tenantId") String tenantId, 
+                                 @Param("fromDate") LocalDate fromDate, 
+                                 @Param("toDate") LocalDate toDate);
+
+    /**
+     * Find latest payment date for a property
+     */
+    @Query("SELECT MAX(ft.transactionDate) FROM FinancialTransaction ft " +
+           "WHERE ft.propertyId = :propertyId " +
+           "AND ft.transactionDate BETWEEN :fromDate AND :toDate " +
+           "AND (ft.transactionType = 'PAYMENT' OR ft.transactionType = 'invoice')")
+    LocalDate findLatestPaymentDateForProperty(@Param("propertyId") String propertyId, 
+                                             @Param("fromDate") LocalDate fromDate, 
+                                             @Param("toDate") LocalDate toDate);
+
+    /**
+     * Find financial transactions for property in date range (for statement generation)
+     */
+    @Query("SELECT ft FROM FinancialTransaction ft " +
+           "WHERE ft.propertyId = :propertyId " +
+           "AND ft.transactionDate BETWEEN :fromDate AND :toDate " +
+           "ORDER BY ft.transactionDate DESC")
+    List<FinancialTransaction> findByPropertyAndDateRange(@Param("propertyId") String propertyId, 
+                                                        @Param("fromDate") LocalDate fromDate, 
+                                                        @Param("toDate") LocalDate toDate);
 }

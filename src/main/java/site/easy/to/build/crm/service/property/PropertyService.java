@@ -14,6 +14,7 @@ public interface PropertyService {
     Property save(Property property);
     void delete(Property property);
     void deleteById(Long id);
+    Property getPropertyById(Long propertyId);
 
 
     // PayProp integration methods

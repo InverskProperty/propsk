@@ -73,6 +73,9 @@ public interface CustomerService {
     /**
      * Tenant specific methods
      */
+
+    List<Customer> findByAssignedPropertyId(Long propertyId);
+    List<Customer> findByEntityTypeAndEntityId(String entityType, Long entityId);
     Customer findTenantByEmail(String email);
     
     List<Customer> findTenantsByProperty(Long propertyId);
