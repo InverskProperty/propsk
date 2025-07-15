@@ -87,6 +87,14 @@
     margin-bottom: 20px;
     border-left: 4px solid #007bff;
 }
+
+.statement-generation-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-left: 4px solid #28a745;
+}
 </style>
 
 </head>
@@ -150,6 +158,69 @@
                         </div>
                         <div th:if="${tenants.size() == 0}" class="text-muted">
                             No tenants assigned
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statement Generation Section -->
+            <div class="row" th:if="${propertyOwners.size() > 0 or tenants.size() > 0}">
+                <div class="col-12">
+                    <div class="statement-generation-card">
+                        <h5><i class="fas fa-file-invoice text-success"></i> Generate Financial Statements</h5>
+                        <p class="text-muted">Create rental statements for property owners and tenants</p>
+                        
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">Statement Period:</label>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <input type="date" class="form-control" id="fromDate" name="fromDate">
+                                    </div>
+                                    <div class="col-6">
+                                        <input type="date" class="form-control" id="toDate" name="toDate">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4" th:if="${propertyOwners.size() > 0}">
+                                <label class="form-label">Property Owner Statements:</label>
+                                <div class="btn-group-vertical w-100">
+                                    <div th:each="owner : ${propertyOwners}">
+                                        <button class="btn btn-success btn-sm mb-1" 
+                                                th:onclick="'generateOwnerStatement(' + ${owner.customerId} + ')'"
+                                                th:text="'Owner Statement - ' + ${owner.name}">
+                                            Owner Statement
+                                        </button>
+                                        <button class="btn btn-info btn-sm mb-1" 
+                                                th:onclick="'generatePortfolioStatement(' + ${owner.customerId} + ')'"
+                                                th:text="'Portfolio Statement - ' + ${owner.name}">
+                                            Portfolio Statement
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4" th:if="${tenants.size() > 0}">
+                                <label class="form-label">Tenant Statements:</label>
+                                <div class="btn-group-vertical w-100">
+                                    <div th:each="tenant : ${tenants}">
+                                        <button class="btn btn-warning btn-sm mb-1" 
+                                                th:onclick="'generateTenantStatement(' + ${tenant.customerId} + ')'"
+                                                th:text="'Tenant Statement - ' + ${tenant.name}">
+                                            Tenant Statement
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle"></i> 
+                                Statements will be generated in Google Sheets and automatically shared with you.
+                                Make sure your Google account is connected before generating statements.
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -219,9 +290,9 @@
                             <button class="btn btn-info mr-2" onclick="uploadFile()">
                                 <i class="fas fa-upload"></i> Upload File
                             </button>
-                            <button class="btn btn-warning mr-2" onclick="generateStatement()">
-                                <i class="fas fa-file-invoice"></i> Generate Statement
-                            </button>
+                            <a href="/statements" class="btn btn-warning mr-2">
+                                <i class="fas fa-file-invoice"></i> Statement Center
+                            </a>
                             <a th:href="@{'/employee/property/' + ${property.id}}" class="btn btn-secondary">
                                 <i class="fas fa-arrow-left"></i> Back to Property
                             </a>
@@ -241,6 +312,157 @@
 <script th:src="@{/js/library/custom.min.js}"></script>
 
 <script>
+// Set default dates (current month)
+document.addEventListener('DOMContentLoaded', function() {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    
+    document.getElementById('fromDate').value = startOfMonth.toISOString().split('T')[0];
+    document.getElementById('toDate').value = endOfMonth.toISOString().split('T')[0];
+});
+
+function generateOwnerStatement(ownerId) {
+    const fromDate = document.getElementById('fromDate').value;
+    const toDate = document.getElementById('toDate').value;
+    
+    if (!fromDate || !toDate) {
+        alert('Please select both from and to dates');
+        return;
+    }
+    
+    // Create form and submit to StatementController
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/statements/property-owner';
+    
+    // CSRF token
+    const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = '_token';
+    csrfInput.value = csrfToken;
+    form.appendChild(csrfInput);
+    
+    // Property owner ID
+    const ownerInput = document.createElement('input');
+    ownerInput.type = 'hidden';
+    ownerInput.name = 'propertyOwnerId';
+    ownerInput.value = ownerId;
+    form.appendChild(ownerInput);
+    
+    // From date
+    const fromInput = document.createElement('input');
+    fromInput.type = 'hidden';
+    fromInput.name = 'fromDate';
+    fromInput.value = fromDate;
+    form.appendChild(fromInput);
+    
+    // To date
+    const toInput = document.createElement('input');
+    toInput.type = 'hidden';
+    toInput.name = 'toDate';
+    toInput.value = toDate;
+    form.appendChild(toInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function generateTenantStatement(tenantId) {
+    const fromDate = document.getElementById('fromDate').value;
+    const toDate = document.getElementById('toDate').value;
+    
+    if (!fromDate || !toDate) {
+        alert('Please select both from and to dates');
+        return;
+    }
+    
+    // Create form and submit to StatementController
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/statements/tenant';
+    
+    // CSRF token
+    const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = '_token';
+    csrfInput.value = csrfToken;
+    form.appendChild(csrfInput);
+    
+    // Tenant ID
+    const tenantInput = document.createElement('input');
+    tenantInput.type = 'hidden';
+    tenantInput.name = 'tenantId';
+    tenantInput.value = tenantId;
+    form.appendChild(tenantInput);
+    
+    // From date
+    const fromInput = document.createElement('input');
+    fromInput.type = 'hidden';
+    fromInput.name = 'fromDate';
+    fromInput.value = fromDate;
+    form.appendChild(fromInput);
+    
+    // To date
+    const toInput = document.createElement('input');
+    toInput.type = 'hidden';
+    toInput.name = 'toDate';
+    toInput.value = toDate;
+    form.appendChild(toInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function generatePortfolioStatement(ownerId) {
+    const fromDate = document.getElementById('fromDate').value;
+    const toDate = document.getElementById('toDate').value;
+    
+    if (!fromDate || !toDate) {
+        alert('Please select both from and to dates');
+        return;
+    }
+    
+    // Create form and submit to StatementController
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/statements/portfolio';
+    
+    // CSRF token
+    const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = '_token';
+    csrfInput.value = csrfToken;
+    form.appendChild(csrfInput);
+    
+    // Property owner ID
+    const ownerInput = document.createElement('input');
+    ownerInput.type = 'hidden';
+    ownerInput.name = 'propertyOwnerId';
+    ownerInput.value = ownerId;
+    form.appendChild(ownerInput);
+    
+    // From date
+    const fromInput = document.createElement('input');
+    fromInput.type = 'hidden';
+    fromInput.name = 'fromDate';
+    fromInput.value = fromDate;
+    form.appendChild(fromInput);
+    
+    // To date
+    const toInput = document.createElement('input');
+    toInput.type = 'hidden';
+    toInput.name = 'toDate';
+    toInput.value = toDate;
+    form.appendChild(toInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
 function syncPayPropFiles() {
     const propertyId = /*[[${property.id}]]*/ 0;
     
@@ -284,11 +506,6 @@ function createFolder() {
 function uploadFile() {
     // Implement file upload
     alert('Upload file feature');
-}
-
-function generateStatement() {
-    // Implement statement generation
-    alert('Generate statement feature');
 }
 </script>
 

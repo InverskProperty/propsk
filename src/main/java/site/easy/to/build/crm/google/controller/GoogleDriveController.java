@@ -135,7 +135,7 @@ public class GoogleDriveController {
     }
 
     /**
-     * Property-specific file management
+     * Property-specific file management - FIXED VERSION
      */
     private String handlePropertyFiles(Property property, Model model, OAuthUser oAuthUser) throws IOException, GeneralSecurityException {
         // Get or create property folder structure
@@ -163,16 +163,40 @@ public class GoogleDriveController {
         Map<String, List<GoogleDriveFile>> filesByCategory = organizeFilesByCategory(oAuthUser, subfolderMap);
         System.out.println("DEBUG: Files by category: " + filesByCategory.keySet());
         
-        // Comment out the problematic customer loading for now
-        // List<Customer> propertyOwners = getPropertyCustomers(property.getId(), AssignmentType.OWNER);
-        // List<Customer> tenants = getPropertyCustomers(property.getId(), AssignmentType.TENANT);
+        // Load customers - SIMPLIFIED approach
+        List<Customer> propertyOwners = new ArrayList<>();
+        List<Customer> tenants = new ArrayList<>();
+        
+        try {
+            // Try to load property owners
+            propertyOwners = getPropertyCustomers(property.getId(), AssignmentType.OWNER);
+            System.out.println("DEBUG: Found " + propertyOwners.size() + " property owners");
+            
+            // Try to load tenants  
+            tenants = getPropertyCustomers(property.getId(), AssignmentType.TENANT);
+            System.out.println("DEBUG: Found " + tenants.size() + " tenants");
+            
+            // Simple null filtering
+            propertyOwners = propertyOwners.stream()
+                .filter(customer -> customer != null && customer.getCustomerId() != null)
+                .collect(Collectors.toList());
+                
+            tenants = tenants.stream()
+                .filter(customer -> customer != null && customer.getCustomerId() != null)
+                .collect(Collectors.toList());
+            
+        } catch (Exception e) {
+            System.err.println("Error loading customers for property " + property.getId() + ": " + e.getMessage());
+            e.printStackTrace();
+            // Keep empty lists but don't fail
+        }
         
         model.addAttribute("property", property);
         model.addAttribute("files", files);
         model.addAttribute("filesByCategory", filesByCategory);
         model.addAttribute("subfolderMap", subfolderMap);
-        model.addAttribute("propertyOwners", new ArrayList<Customer>()); // Empty for now
-        model.addAttribute("tenants", new ArrayList<Customer>()); // Empty for now
+        model.addAttribute("propertyOwners", propertyOwners);
+        model.addAttribute("tenants", tenants);
         model.addAttribute("pageTitle", "Files for " + property.getPropertyName());
         model.addAttribute("breadcrumb", property.getPropertyName());
         model.addAttribute("isPropertyView", true);
@@ -418,7 +442,6 @@ public class GoogleDriveController {
         return "google-drive/create-folder";
     }
 
-
     @GetMapping("/property-files/{propertyId}")
     public String showPropertyFiles(@PathVariable Long propertyId, Model model, Authentication authentication) {
         if((authentication instanceof UsernamePasswordAuthenticationToken)) {
@@ -438,7 +461,7 @@ public class GoogleDriveController {
         } catch (IOException | GeneralSecurityException e) {
             e.printStackTrace();
             model.addAttribute("errorMessage", "Failed to load property files: " + e.getMessage());
-            return "error/error"; // or whatever your error template is called
+            return "error/error";
         }
     }
 
@@ -545,6 +568,8 @@ public class GoogleDriveController {
         return ResponseEntity.ok("Success");
     }
 
+    // ===== HELPER METHODS =====
+
     private Map<String, List<GoogleDriveFile>> organizeFilesByCategory(OAuthUser oAuthUser, Map<String, String> subfolderMap) throws IOException, GeneralSecurityException {
         Map<String, List<GoogleDriveFile>> filesByCategory = new HashMap<>();
         
@@ -563,8 +588,6 @@ public class GoogleDriveController {
         
         return filesByCategory;
     }
-    
-    // ===== ALL EXISTING METHODS UNCHANGED =====
     
     private Property findPropertyByName(String propertyName) {
         try {
@@ -591,40 +614,96 @@ public class GoogleDriveController {
         return subfolders;
     }
     
-    private List<GoogleDriveFolder> getPropertySubfolders(OAuthUser oAuthUser, String parentFolderId) throws IOException, GeneralSecurityException {
-        return googleDriveApiService.listFolders(oAuthUser).stream()
-            .filter(folder -> {
-                try {
-                    // This is a simplified check - in practice you'd need to verify parent relationship
-                    return true;
-                } catch (Exception e) {
-                    return false;
-                }
-            })
-            .collect(Collectors.toList());
-    }
-    
     private List<Customer> getPropertyCustomers(Long propertyId, AssignmentType assignmentType) {
         try {
+            System.out.println("DEBUG: Getting customers for property " + propertyId + " with type " + assignmentType);
+            
             List<Customer> customers = assignmentService.getCustomersForProperty(propertyId, assignmentType);
             
-            // Additional safety - filter out null customers and validate they're accessible
-            return customers.stream()
-                .filter(customer -> {
-                    if (customer == null) return false;
-                    try {
-                        // Try to access the name to ensure the entity is properly loaded
-                        String name = customer.getName();
-                        return name != null;
-                    } catch (Exception e) {
-                        System.err.println("Filtering out inaccessible customer: " + e.getMessage());
-                        return false;
-                    }
-                })
-                .collect(Collectors.toList());
+            if (customers == null) {
+                System.out.println("DEBUG: Assignment service returned null, trying alternative method");
+                return getPropertyCustomersAlternative(propertyId, assignmentType);
+            }
+            
+            System.out.println("DEBUG: Assignment service returned " + customers.size() + " customers");
+            return customers;
+            
         } catch (Exception e) {
-            System.err.println("Error getting customers for property " + propertyId + ": " + e.getMessage());
+            System.err.println("Error getting customers from assignment service for property " + propertyId + ": " + e.getMessage());
+            return getPropertyCustomersAlternative(propertyId, assignmentType);
+        }
+    }
+
+    private List<Customer> getPropertyCustomersAlternative(Long propertyId, AssignmentType assignmentType) {
+        try {
+            System.out.println("DEBUG: Using alternative customer lookup method");
+            
+            List<Customer> allCustomers = new ArrayList<>();
+            
+            if (assignmentType == AssignmentType.OWNER || assignmentType == null) {
+                try {
+                    List<Customer> owners = customerService.findPropertyOwners();
+                    // Filter by property if possible
+                    for (Customer owner : owners) {
+                        try {
+                            if (isCustomerAssignedToProperty(owner, propertyId)) {
+                                allCustomers.add(owner);
+                            }
+                        } catch (Exception e) {
+                            System.err.println("Error checking owner assignment: " + e.getMessage());
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error getting property owners: " + e.getMessage());
+                }
+            }
+            
+            if (assignmentType == AssignmentType.TENANT || assignmentType == null) {
+                try {
+                    List<Customer> tenants = customerService.findTenants();
+                    // Filter by property if possible
+                    for (Customer tenant : tenants) {
+                        try {
+                            if (isCustomerAssignedToProperty(tenant, propertyId)) {
+                                allCustomers.add(tenant);
+                            }
+                        } catch (Exception e) {
+                            System.err.println("Error checking tenant assignment: " + e.getMessage());
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error getting tenants: " + e.getMessage());
+                }
+            }
+            
+            return allCustomers;
+            
+        } catch (Exception e) {
+            System.err.println("Error in alternative customer lookup: " + e.getMessage());
             return new ArrayList<>();
+        }
+    }
+
+    private boolean isCustomerAssignedToProperty(Customer customer, Long propertyId) {
+        try {
+            // Method 1: Check assigned_property_id field
+            if (customer.getAssignedPropertyId() != null && customer.getAssignedPropertyId().equals(propertyId)) {
+                return true;
+            }
+            
+            // Method 2: Check entity_id field (if using entity-based assignment)
+            if (customer.getEntityId() != null && customer.getEntityId().equals(propertyId)) {
+                String entityType = customer.getEntityType();
+                if ("Property".equals(entityType)) {
+                    return true;
+                }
+            }
+            
+            return false;
+            
+        } catch (Exception e) {
+            System.err.println("Error checking customer-property assignment: " + e.getMessage());
+            return false;
         }
     }
     
