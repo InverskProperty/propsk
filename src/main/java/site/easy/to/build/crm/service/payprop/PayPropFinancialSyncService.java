@@ -637,166 +637,105 @@ public class PayPropFinancialSyncService {
     }
     
     /**
-     * ✅ FIXED: Sync actual commission payments from ICDN data
-     * These are the "Commission TAKEN" entries you see in PayProp interface
+     * ✅ SIMPLE: Calculate commission payments from rent payments + commission rates
      */
     private Map<String, Object> syncActualCommissionPayments() throws Exception {
-        logger.info("💳 Syncing ACTUAL commission payments from ICDN...");
+        logger.info("💰 Calculating actual commission payments from rent + commission rates...");
         
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<String> request = new HttpEntity<>(headers);
+        int created = 0;
+        BigDecimal totalCommission = BigDecimal.ZERO;
         
-        int created = 0, skipped = 0;
-        LocalDate endDate = LocalDate.now();
-        LocalDate absoluteStartDate = LocalDate.of(2024, 1, 1);
-        
-        // Sync in 90-day chunks looking for commission transactions
-        while (endDate.isAfter(absoluteStartDate)) {
-            LocalDate startDate = endDate.minusDays(90);
-            if (startDate.isBefore(absoluteStartDate)) {
-                startDate = absoluteStartDate;
-            }
+        try {
+            // Get all rent payments that need commission calculated
+            List<FinancialTransaction> rentPayments = financialTransactionRepository
+                .findByDataSourceAndTransactionType("ICDN_ACTUAL", "invoice");
             
-            logger.info("📅 Syncing commission payments from {} to {}", startDate, endDate);
+            logger.info("📊 Found {} rent payments to calculate commission for", rentPayments.size());
             
-            // ✅ FIX: Use ICDN endpoint and filter for commission descriptions
-            String url = payPropApiBase + "/report/icdn" +
-                "?from_date=" + startDate +
-                "&to_date=" + endDate +
-                "&rows=1000";
-                
-            try {
-                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-                List<Map<String, Object>> allTransactions = (List<Map<String, Object>>) response.getBody().get("items");
-                
-                // Filter for commission transactions
-                List<Map<String, Object>> commissionTransactions = allTransactions.stream()
-                    .filter(tx -> {
-                        String description = (String) tx.get("description");
-                        Map<String, Object> category = (Map<String, Object>) tx.get("category");
-                        String categoryName = category != null ? (String) category.get("name") : "";
-                        
-                        return (description != null && description.toLowerCase().contains("commission")) ||
-                               (categoryName != null && categoryName.toLowerCase().contains("commission"));
-                    })
-                    .collect(Collectors.toList());
-                
-                logger.info("📊 Found {} commission transactions in period {} to {}", 
-                    commissionTransactions.size(), startDate, endDate);
-                
-                for (Map<String, Object> ppCommission : commissionTransactions) {
-                    try {
-                        String payPropId = (String) ppCommission.get("id");
-                        
-                        if (payPropId == null || payPropId.trim().isEmpty()) {
-                            skipped++;
-                            continue;
-                        }
-                        
-                        // Check if commission payment already exists
-                        if (financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(payPropId, "COMMISSION_PAYMENT")) {
-                            skipped++;
-                            continue;
-                        }
-                        
-                        // Create commission payment transaction using ICDN data
-                        FinancialTransaction commissionTx = createCommissionPaymentFromICDN(ppCommission);
-                        
-                        if (commissionTx != null) {
-                            financialTransactionRepository.save(commissionTx);
-                            created++;
-                            
-                            logger.debug("✅ Created commission payment: {} (£{})", 
-                                payPropId, commissionTx.getAmount());
-                        } else {
-                            skipped++;
-                        }
-                        
-                    } catch (Exception e) {
-                        logger.error("❌ Error processing commission payment: {}", e.getMessage(), e);
-                        skipped++;
+            for (FinancialTransaction rentPayment : rentPayments) {
+                try {
+                    // Skip if commission already calculated for this rent payment
+                    String commissionId = "COMM_" + rentPayment.getPayPropTransactionId();
+                    if (financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(commissionId, "COMMISSION_PAYMENT")) {
+                        continue;
                     }
+                    
+                    // Skip deposits - no commission on deposits
+                    if (rentPayment.isDeposit()) {
+                        continue;
+                    }
+                    
+                    // Get property to find commission rate
+                    if (rentPayment.getPropertyId() != null) {
+                        Optional<Property> propertyOpt = propertyService.findByPayPropId(rentPayment.getPropertyId());
+                        
+                        if (propertyOpt.isPresent()) {
+                            Property property = propertyOpt.get();
+                            
+                            if (property.getCommissionPercentage() != null && rentPayment.getAmount() != null) {
+                                // Calculate commission amount
+                                BigDecimal rentAmount = rentPayment.getAmount();
+                                BigDecimal commissionRate = property.getCommissionPercentage();
+                                BigDecimal commissionAmount = rentAmount
+                                    .multiply(commissionRate)
+                                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                                
+                                // Create commission payment record
+                                FinancialTransaction commissionTx = new FinancialTransaction();
+                                commissionTx.setPayPropTransactionId(commissionId);
+                                commissionTx.setDataSource("COMMISSION_PAYMENT");
+                                commissionTx.setIsActualTransaction(true);
+                                commissionTx.setTransactionType("commission_payment");
+                                
+                                commissionTx.setAmount(commissionAmount);
+                                commissionTx.setActualCommissionAmount(commissionAmount);
+                                commissionTx.setTransactionDate(rentPayment.getTransactionDate());
+                                commissionTx.setReconciliationDate(rentPayment.getTransactionDate());
+                                
+                                // Link to property and rent payment
+                                commissionTx.setPropertyId(rentPayment.getPropertyId());
+                                commissionTx.setPropertyName(rentPayment.getPropertyName());
+                                commissionTx.setTenantId(rentPayment.getTenantId());
+                                commissionTx.setTenantName(rentPayment.getTenantName());
+                                
+                                commissionTx.setCommissionRate(commissionRate);
+                                commissionTx.setDescription("Commission on rent payment (" + commissionRate + "%)");
+                                commissionTx.setCategoryName("Commission");
+                                
+                                commissionTx.setCreatedAt(LocalDateTime.now());
+                                commissionTx.setUpdatedAt(LocalDateTime.now());
+                                
+                                financialTransactionRepository.save(commissionTx);
+                                
+                                created++;
+                                totalCommission = totalCommission.add(commissionAmount);
+                                
+                                logger.debug("✅ Created commission payment: Property {}, Amount £{}", 
+                                    property.getPropertyName(), commissionAmount);
+                            }
+                        }
+                    }
+                    
+                } catch (Exception e) {
+                    logger.error("❌ Error calculating commission for rent payment {}: {}", 
+                        rentPayment.getPayPropTransactionId(), e.getMessage());
                 }
-                
-            } catch (Exception e) {
-                logger.error("❌ Failed to sync commission payments for period {} to {}: {}", 
-                    startDate, endDate, e.getMessage());
             }
             
-            endDate = startDate.minusDays(1);
+        } catch (Exception e) {
+            logger.error("❌ Commission calculation failed: {}", e.getMessage());
         }
         
-        logger.info("💳 Commission payments sync completed: {} created, {} skipped", created, skipped);
+        logger.info("💰 Commission calculation completed: {} payments, £{} total", created, totalCommission);
         
         return Map.of(
-            "total_processed", created + skipped,
-            "created", created,
-            "skipped_existing", skipped,
-            "date_range", absoluteStartDate + " to " + LocalDate.now()
+            "calculated_commission_payments", created,
+            "total_commission", totalCommission,
+            "method", "calculated_from_rent_payments"
         );
     }
 
-    /**
-     * ✅ NEW: Create commission payment transaction from ICDN data
-     */
-    private FinancialTransaction createCommissionPaymentFromICDN(Map<String, Object> ppCommission) {
-        try {
-            FinancialTransaction transaction = new FinancialTransaction();
-            transaction.setPayPropTransactionId((String) ppCommission.get("id"));
-            transaction.setDataSource("COMMISSION_PAYMENT");
-            transaction.setIsActualTransaction(true);
-            transaction.setIsInstruction(false);
-            
-            // ✅ ICDN has reliable amount field
-            Object amount = ppCommission.get("amount");
-            if (amount != null) {
-                BigDecimal amountValue = new BigDecimal(amount.toString());
-                transaction.setAmount(amountValue.abs()); // Store as positive
-            } else {
-                logger.warn("⚠️ Missing amount for ICDN commission payment {}", ppCommission.get("id"));
-                return null;
-            }
-            
-            // Use ICDN date
-            String dateStr = (String) ppCommission.get("date");
-            if (dateStr != null && !dateStr.trim().isEmpty()) {
-                transaction.setTransactionDate(LocalDate.parse(dateStr));
-                transaction.setReconciliationDate(LocalDate.parse(dateStr));
-            } else {
-                logger.warn("⚠️ Missing date for ICDN commission payment {}", ppCommission.get("id"));
-                return null;
-            }
-            
-            // Mark as commission transaction
-            transaction.setTransactionType("commission_payment");
-            transaction.setDescription((String) ppCommission.get("description"));
-            
-            // Category info
-            Map<String, Object> category = (Map<String, Object>) ppCommission.get("category");
-            if (category != null) {
-                transaction.setCategoryName((String) category.get("name"));
-            }
-            
-            // Property info
-            Map<String, Object> property = (Map<String, Object>) ppCommission.get("property");
-            if (property != null) {
-                transaction.setPropertyId((String) property.get("id"));
-                transaction.setPropertyName((String) property.get("name"));
-            }
-            
-            // This is the actual commission amount taken by PayProp
-            transaction.setActualCommissionAmount(transaction.getAmount());
-            
-            transaction.setCreatedAt(LocalDateTime.now());
-            transaction.setUpdatedAt(LocalDateTime.now());
-            
-            return transaction;
-            
-        } catch (Exception e) {
-            logger.error("❌ Error creating commission payment from ICDN: {}", e.getMessage(), e);
-            return null;
-        }
-    }
+
     
     /**
      * Calculate and store commission data for financial transactions
