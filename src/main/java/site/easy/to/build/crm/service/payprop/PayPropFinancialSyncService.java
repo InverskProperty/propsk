@@ -85,7 +85,7 @@ public class PayPropFinancialSyncService {
             Map<String, Object> transactionsResult = syncFinancialTransactions();
             syncResults.put("transactions", transactionsResult);
             
-            // ✅ NEW: 5. Sync Actual Commission Payments
+            // ✅ FIXED: 5. Sync Actual Commission Payments using ICDN
             Map<String, Object> commissionPaymentsResult = syncActualCommissionPayments();
             syncResults.put("commission_payments", commissionPaymentsResult);
             
@@ -227,9 +227,6 @@ public class PayPropFinancialSyncService {
             "updated", updated
         );
     }
-
-    // FIXED: PayPropFinancialSyncService.java - Handle missing enum values
-    // Only showing the fixed syncOwnerBeneficiaries method - replace this method in your service
 
     private Map<String, Object> syncOwnerBeneficiaries() throws Exception {
         logger.info("👥 Syncing owner beneficiaries...");
@@ -640,11 +637,11 @@ public class PayPropFinancialSyncService {
     }
     
     /**
-     * ✅ NEW: Sync actual commission payment transactions from PayProp
+     * ✅ FIXED: Sync actual commission payments from ICDN data
      * These are the "Commission TAKEN" entries you see in PayProp interface
      */
     private Map<String, Object> syncActualCommissionPayments() throws Exception {
-        logger.info("💳 Syncing ACTUAL commission payments from PayProp...");
+        logger.info("💳 Syncing ACTUAL commission payments from ICDN...");
         
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
@@ -653,7 +650,7 @@ public class PayPropFinancialSyncService {
         LocalDate endDate = LocalDate.now();
         LocalDate absoluteStartDate = LocalDate.of(2024, 1, 1);
         
-        // Sync in 90-day chunks
+        // Sync in 90-day chunks looking for commission transactions
         while (endDate.isAfter(absoluteStartDate)) {
             LocalDate startDate = endDate.minusDays(90);
             if (startDate.isBefore(absoluteStartDate)) {
@@ -662,22 +659,32 @@ public class PayPropFinancialSyncService {
             
             logger.info("📅 Syncing commission payments from {} to {}", startDate, endDate);
             
-            // ✅ CRITICAL: Get actual commission payment transactions
-            String url = payPropApiBase + "/export/payments" +
+            // ✅ FIX: Use ICDN endpoint and filter for commission descriptions
+            String url = payPropApiBase + "/report/icdn" +
                 "?from_date=" + startDate +
                 "&to_date=" + endDate +
-                "&filter_by=reconciliation_date" +
-                "&category=Commission" +  // ✅ Filter for commission payments only
-                "&include_beneficiary_info=true" +
                 "&rows=1000";
                 
             try {
                 ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-                List<Map<String, Object>> commissionPayments = (List<Map<String, Object>>) response.getBody().get("items");
+                List<Map<String, Object>> allTransactions = (List<Map<String, Object>>) response.getBody().get("items");
                 
-                logger.info("📊 Found {} commission payments in period {} to {}", commissionPayments.size(), startDate, endDate);
+                // Filter for commission transactions
+                List<Map<String, Object>> commissionTransactions = allTransactions.stream()
+                    .filter(tx -> {
+                        String description = (String) tx.get("description");
+                        Map<String, Object> category = (Map<String, Object>) tx.get("category");
+                        String categoryName = category != null ? (String) category.get("name") : "";
+                        
+                        return (description != null && description.toLowerCase().contains("commission")) ||
+                               (categoryName != null && categoryName.toLowerCase().contains("commission"));
+                    })
+                    .collect(Collectors.toList());
                 
-                for (Map<String, Object> ppCommission : commissionPayments) {
+                logger.info("📊 Found {} commission transactions in period {} to {}", 
+                    commissionTransactions.size(), startDate, endDate);
+                
+                for (Map<String, Object> ppCommission : commissionTransactions) {
                     try {
                         String payPropId = (String) ppCommission.get("id");
                         
@@ -692,8 +699,8 @@ public class PayPropFinancialSyncService {
                             continue;
                         }
                         
-                        // Create commission payment transaction
-                        FinancialTransaction commissionTx = createCommissionPaymentTransaction(ppCommission);
+                        // Create commission payment transaction using ICDN data
+                        FinancialTransaction commissionTx = createCommissionPaymentFromICDN(ppCommission);
                         
                         if (commissionTx != null) {
                             financialTransactionRepository.save(commissionTx);
@@ -712,7 +719,8 @@ public class PayPropFinancialSyncService {
                 }
                 
             } catch (Exception e) {
-                logger.error("❌ Failed to sync commission payments for period {} to {}: {}", startDate, endDate, e.getMessage());
+                logger.error("❌ Failed to sync commission payments for period {} to {}: {}", 
+                    startDate, endDate, e.getMessage());
             }
             
             endDate = startDate.minusDays(1);
@@ -729,9 +737,9 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * ✅ NEW: Create commission payment transaction from PayProp data
+     * ✅ NEW: Create commission payment transaction from ICDN data
      */
-    private FinancialTransaction createCommissionPaymentTransaction(Map<String, Object> ppCommission) {
+    private FinancialTransaction createCommissionPaymentFromICDN(Map<String, Object> ppCommission) {
         try {
             FinancialTransaction transaction = new FinancialTransaction();
             transaction.setPayPropTransactionId((String) ppCommission.get("id"));
@@ -739,33 +747,35 @@ public class PayPropFinancialSyncService {
             transaction.setIsActualTransaction(true);
             transaction.setIsInstruction(false);
             
-            // Commission payments are typically negative amounts (deductions)
+            // ✅ ICDN has reliable amount field
             Object amount = ppCommission.get("amount");
             if (amount != null) {
                 BigDecimal amountValue = new BigDecimal(amount.toString());
-                transaction.setAmount(amountValue.abs()); // Store as positive for clarity
+                transaction.setAmount(amountValue.abs()); // Store as positive
             } else {
-                logger.warn("⚠️ Missing amount for commission payment {}", ppCommission.get("id"));
+                logger.warn("⚠️ Missing amount for ICDN commission payment {}", ppCommission.get("id"));
                 return null;
             }
             
-            // Use reconciliation date for actual processing date
-            String dateStr = (String) ppCommission.get("reconciliation_date");
-            if (dateStr == null || dateStr.trim().isEmpty()) {
-                dateStr = (String) ppCommission.get("payment_date");
-            }
+            // Use ICDN date
+            String dateStr = (String) ppCommission.get("date");
             if (dateStr != null && !dateStr.trim().isEmpty()) {
                 transaction.setTransactionDate(LocalDate.parse(dateStr));
                 transaction.setReconciliationDate(LocalDate.parse(dateStr));
             } else {
-                logger.warn("⚠️ Missing date for commission payment {}", ppCommission.get("id"));
+                logger.warn("⚠️ Missing date for ICDN commission payment {}", ppCommission.get("id"));
                 return null;
             }
             
             // Mark as commission transaction
             transaction.setTransactionType("commission_payment");
             transaction.setDescription((String) ppCommission.get("description"));
-            transaction.setCategoryName("Commission");
+            
+            // Category info
+            Map<String, Object> category = (Map<String, Object>) ppCommission.get("category");
+            if (category != null) {
+                transaction.setCategoryName((String) category.get("name"));
+            }
             
             // Property info
             Map<String, Object> property = (Map<String, Object>) ppCommission.get("property");
@@ -783,7 +793,7 @@ public class PayPropFinancialSyncService {
             return transaction;
             
         } catch (Exception e) {
-            logger.error("❌ Error creating commission payment transaction: {}", e.getMessage(), e);
+            logger.error("❌ Error creating commission payment from ICDN: {}", e.getMessage(), e);
             return null;
         }
     }
@@ -887,6 +897,7 @@ public class PayPropFinancialSyncService {
             
             for (FinancialTransaction transaction : transactions) {
                 Map<String, Object> summary = new HashMap<>();
+                summary.put("property_id", transaction.getPropertyId());
                 summary.put("property_name", transaction.getPropertyName());
                 summary.put("tenant_name", transaction.getTenantName());
                 summary.put("transaction_date", transaction.getTransactionDate());
