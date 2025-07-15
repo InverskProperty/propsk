@@ -177,16 +177,23 @@ public class PayPropFinancialSyncService {
                 property.setHoldOwnerFundsFromBoolean((Boolean) holdFunds);
             }
             
-            // Commission data
+            // Commission data - FIXED to handle the actual PayProp structure
             Map<String, Object> commission = (Map<String, Object>) ppProperty.get("commission");
             if (commission != null) {
                 Object percentage = commission.get("percentage");
                 if (percentage instanceof String && !((String) percentage).isEmpty()) {
                     try {
-                        property.setCommissionPercentage(new BigDecimal((String) percentage));
+                        BigDecimal commissionRate = new BigDecimal((String) percentage);
+                        property.setCommissionPercentage(commissionRate);
+                        logger.debug("✅ Set commission percentage for property {}: {}%", 
+                            property.getPropertyName(), commissionRate);
                     } catch (NumberFormatException e) {
+                        logger.warn("⚠️ Invalid commission percentage format for property {}: {}", 
+                            property.getPropertyName(), percentage);
                         property.setCommissionPercentage(BigDecimal.ZERO);
                     }
+                } else {
+                    logger.debug("⚠️ No commission percentage for property {}", property.getPropertyName());
                 }
                 
                 Object amount = commission.get("amount");
@@ -197,6 +204,8 @@ public class PayPropFinancialSyncService {
                         property.setCommissionAmount(BigDecimal.ZERO);
                     }
                 }
+            } else {
+                logger.debug("⚠️ No commission data for property {}", property.getPropertyName());
             }
             
             // Address data
