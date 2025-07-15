@@ -11,7 +11,7 @@
 
 </head>
 
-<body class="skin-blue fixed-layout">
+<body class="skin-blue fixed-layout" th:data-property-id="${property.id}">
 <div class="preloader">
     <div class="loader">
         <div class="loader__figure"></div>
@@ -568,7 +568,7 @@ $(document).ready(function() {
 });
 
 function loadFinancialData() {
-    const propertyId = /*[[${property.id}]]*/ 0;
+    const propertyId = $('body').data('property-id');
     console.log('Property ID:', propertyId);
     console.log('URL:', `/employee/property/${propertyId}/financial-summary`);
     
