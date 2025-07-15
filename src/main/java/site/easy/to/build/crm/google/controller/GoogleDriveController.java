@@ -60,9 +60,6 @@ public class GoogleDriveController {
         this.assignmentService = assignmentService;
     }
 
-    /**
-     * Main files listing with property/customer context
-     */
     @GetMapping("/list-files")
     public String listFilesWithFolder(@RequestParam(value = "folder", required = false) String folderName,
                                     @RequestParam(value = "propertyId", required = false) Long propertyId,
@@ -86,19 +83,37 @@ public class GoogleDriveController {
                 Property property = findPropertyByName(decodedFolderName);
                 
                 if (property != null) {
-                    return handlePropertyFiles(property, model, oAuthUser);
+                    try {
+                        return handlePropertyFiles(property, model, oAuthUser);
+                    } catch (IOException | GeneralSecurityException e) {
+                        e.printStackTrace();
+                        model.addAttribute("errorMessage", "Failed to load property files: " + e.getMessage());
+                        return "error/error";
+                    }
                 }
             } 
             else if (propertyId != null) {
                 Property property = propertyService.findById(propertyId);
                 if (property != null) {
-                    return handlePropertyFiles(property, model, oAuthUser);
+                    try {
+                        return handlePropertyFiles(property, model, oAuthUser);
+                    } catch (IOException | GeneralSecurityException e) {
+                        e.printStackTrace();
+                        model.addAttribute("errorMessage", "Failed to load property files: " + e.getMessage());
+                        return "error/error";
+                    }
                 }
             }
             else if (customerId != null) {
                 Customer customer = customerService.findByCustomerId(customerId);
                 if (customer != null) {
-                    return handleCustomerFiles(customer, model, oAuthUser);
+                    try {
+                        return handleCustomerFiles(customer, model, oAuthUser);
+                    } catch (IOException | GeneralSecurityException e) {
+                        e.printStackTrace();
+                        model.addAttribute("errorMessage", "Failed to load customer files: " + e.getMessage());
+                        return "error/error";
+                    }
                 }
             }
             
@@ -155,7 +170,8 @@ public class GoogleDriveController {
         model.addAttribute("isPropertyView", true);
         model.addAttribute("propertyFolderId", propertyFolderId);
         
-        return "google-drive/list-files";
+        // Return the property-specific template
+        return "google-drive/property-files";  // Changed from "google-drive/list-files"
     }
 
     /**
@@ -393,6 +409,30 @@ public class GoogleDriveController {
         }
         model.addAttribute("folder",new GoogleDriveFolder());
         return "google-drive/create-folder";
+    }
+
+
+    @GetMapping("/property-files/{propertyId}")
+    public String showPropertyFiles(@PathVariable Long propertyId, Model model, Authentication authentication) {
+        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
+            return "/google-error";
+        }
+        
+        OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+        Property property = propertyService.findById(propertyId);
+        
+        if (property == null) {
+            model.addAttribute("errorMessage", "Property not found.");
+            return "error/not-found";
+        }
+        
+        try {
+            return handlePropertyFiles(property, model, oAuthUser);
+        } catch (IOException | GeneralSecurityException e) {
+            e.printStackTrace();
+            model.addAttribute("errorMessage", "Failed to load property files: " + e.getMessage());
+            return "error/error"; // or whatever your error template is called
+        }
     }
 
     @PostMapping("/create-folder")
