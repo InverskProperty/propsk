@@ -26,6 +26,7 @@ import site.easy.to.build.crm.repository.PaymentRepository;
 import site.easy.to.build.crm.repository.PaymentCategoryRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.entity.Payment;
+import site.easy.to.build.crm.entity.FinancialTransaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +49,7 @@ public class PayPropOAuth2Controller {
 
     private final PayPropOAuth2Service oAuth2Service;
     private final RestTemplate restTemplate;
+    private final String payPropApiBase = "https://ukapi.staging.payprop.com/api/agency/v1.1";
     
     // NEW: Financial sync service injection
     @Autowired
@@ -67,6 +69,9 @@ public class PayPropOAuth2Controller {
     
     @Autowired
     private PropertyService propertyService;
+
+    @Autowired
+    private FinancialTransactionRepository financialTransactionRepository;
 
     @Autowired
     public PayPropOAuth2Controller(PayPropOAuth2Service oAuth2Service, RestTemplate restTemplate) {
@@ -952,5 +957,308 @@ public class PayPropOAuth2Controller {
                 "error", e.getMessage()
             ));
         }
+    }
+
+    // ===== DIAGNOSTIC AND ENHANCED SYNC ENDPOINTS =====
+
+    /**
+     * 🔍 DIAGNOSTIC: Test different PayProp endpoints to find correct data source
+     */
+    @PostMapping("/diagnose-payment-data-sources")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> diagnosePaymentDataSources(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> diagnosis = new HashMap<>();
+        
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
+            
+            // Test property: 71b Shrubbery Road (the one with discrepancies)
+            String testPropertyId = "116"; // Adjust this to your actual property ID
+            
+            // 1. TEST: Payment Instructions Export
+            String paymentsUrl = baseUrl + "/export/payments?property_id=" + testPropertyId + 
+                               "&include_beneficiary_info=true&rows=10";
+            ResponseEntity<Map> paymentsResponse = restTemplate.exchange(paymentsUrl, HttpMethod.GET, request, Map.class);
+            
+            diagnosis.put("1_payment_instructions", Map.of(
+                "endpoint", "/export/payments",
+                "description", "Payment instructions (what SHOULD be paid)",
+                "count", getItemCount(paymentsResponse.getBody()),
+                "sample_data", getSampleData(paymentsResponse.getBody(), 3)
+            ));
+            
+            // 2. TEST: Reconciled Payments (filtered by reconciliation date)
+            String reconciledUrl = baseUrl + "/export/payments?property_id=" + testPropertyId + 
+                                 "&filter_by=reconciliation_date&include_beneficiary_info=true&rows=10";
+            ResponseEntity<Map> reconciledResponse = restTemplate.exchange(reconciledUrl, HttpMethod.GET, request, Map.class);
+            
+            diagnosis.put("2_reconciled_payments", Map.of(
+                "endpoint", "/export/payments?filter_by=reconciliation_date",
+                "description", "ACTUAL reconciled payments (what WAS paid)",
+                "count", getItemCount(reconciledResponse.getBody()),
+                "sample_data", getSampleData(reconciledResponse.getBody(), 3)
+            ));
+            
+            // 3. TEST: ICDN Report (financial transactions)
+            LocalDate fromDate = LocalDate.now().minusMonths(6);
+            String icdnUrl = baseUrl + "/report/icdn?property_id=" + testPropertyId + 
+                           "&from_date=" + fromDate + "&rows=10";
+            ResponseEntity<Map> icdnResponse = restTemplate.exchange(icdnUrl, HttpMethod.GET, request, Map.class);
+            
+            diagnosis.put("3_icdn_transactions", Map.of(
+                "endpoint", "/report/icdn",
+                "description", "Financial transaction records",
+                "count", getItemCount(icdnResponse.getBody()),
+                "sample_data", getSampleData(icdnResponse.getBody(), 3)
+            ));
+            
+            // 4. TEST: Property-specific payment report
+            String propertyReportUrl = baseUrl + "/report/property/" + testPropertyId + "/payments" +
+                                     "?from_date=" + fromDate + "&rows=10";
+            try {
+                ResponseEntity<Map> propertyResponse = restTemplate.exchange(propertyReportUrl, HttpMethod.GET, request, Map.class);
+                diagnosis.put("4_property_payments", Map.of(
+                    "endpoint", "/report/property/{id}/payments",
+                    "description", "Property-specific payment report",
+                    "count", getItemCount(propertyResponse.getBody()),
+                    "sample_data", getSampleData(propertyResponse.getBody(), 3)
+                ));
+            } catch (Exception e) {
+                diagnosis.put("4_property_payments", Map.of("error", "Endpoint not available: " + e.getMessage()));
+            }
+            
+            // 5. TEST: Property account transactions
+            String accountUrl = baseUrl + "/report/property-account?property_id=" + testPropertyId + 
+                              "&from_date=" + fromDate + "&rows=10";
+            try {
+                ResponseEntity<Map> accountResponse = restTemplate.exchange(accountUrl, HttpMethod.GET, request, Map.class);
+                diagnosis.put("5_property_account", Map.of(
+                    "endpoint", "/report/property-account",
+                    "description", "Property account transaction history",
+                    "count", getItemCount(accountResponse.getBody()),
+                    "sample_data", getSampleData(accountResponse.getBody(), 3)
+                ));
+            } catch (Exception e) {
+                diagnosis.put("5_property_account", Map.of("error", "Endpoint not available: " + e.getMessage()));
+            }
+            
+            diagnosis.put("analysis", Map.of(
+                "issue", "Amount and date discrepancies suggest wrong endpoint",
+                "recommendation", "Compare sample data to identify correct source",
+                "test_property", "71b Shrubbery Road, Croydon (ID: " + testPropertyId + ")"
+            ));
+            
+        } catch (Exception e) {
+            diagnosis.put("error", e.getMessage());
+        }
+        
+        return ResponseEntity.ok(diagnosis);
+    }
+
+    /**
+     * ✅ COMPLETE: Determine transaction type based on PayProp data and endpoint
+     */
+    private String determineTransactionType(Map<String, Object> ppTransaction, String endpoint) {
+        // Check if this is a commission payment
+        String category = (String) ppTransaction.get("category");
+        if ("Commission".equalsIgnoreCase(category)) {
+            return "commission_payment";
+        }
+        
+        // Check for deposit indicators
+        if (isDepositFromPayPropData(ppTransaction)) {
+            return "deposit";
+        }
+        
+        // Check endpoint type
+        if (endpoint.contains("icdn")) {
+            // ICDN reports contain invoice/credit_note/debit_note types
+            String type = (String) ppTransaction.get("type");
+            if (type != null && Arrays.asList("invoice", "credit_note", "debit_note").contains(type.toLowerCase())) {
+                return type.toLowerCase();
+            }
+        }
+        
+        // Check for specific payment types
+        String paymentType = (String) ppTransaction.get("payment_type");
+        if (paymentType != null) {
+            switch (paymentType.toLowerCase()) {
+                case "rent":
+                case "rental":
+                    return "rent_payment";
+                case "deposit":
+                case "security_deposit":
+                    return "deposit";
+                case "maintenance":
+                case "repair":
+                    return "maintenance_payment";
+                default:
+                    return "payment";
+            }
+        }
+        
+        // Default based on data structure
+        if (ppTransaction.get("tenant_id") != null || ppTransaction.get("tenant") != null) {
+            return "rent_payment"; // Payment from tenant
+        }
+        
+        if (ppTransaction.get("beneficiary_id") != null || ppTransaction.get("beneficiary_info") != null) {
+            return "outgoing_payment"; // Payment to beneficiary
+        }
+        
+        // Generic fallback
+        return "payment";
+    }
+
+    /**
+     * ✅ COMPLETE: Extract property and tenant information from PayProp response
+     */
+    private void extractPropertyAndTenantInfo(FinancialTransaction transaction, Map<String, Object> ppTransaction) {
+        // Property information
+        Map<String, Object> property = (Map<String, Object>) ppTransaction.get("property");
+        if (property != null) {
+            transaction.setPropertyId((String) property.get("id"));
+            transaction.setPropertyName((String) property.get("name"));
+            
+            // Alternative property name fields
+            if (transaction.getPropertyName() == null) {
+                transaction.setPropertyName((String) property.get("property_name"));
+            }
+            if (transaction.getPropertyName() == null) {
+                transaction.setPropertyName((String) property.get("address"));
+            }
+        } else {
+            // Try direct property fields
+            transaction.setPropertyId((String) ppTransaction.get("property_id"));
+            transaction.setPropertyName((String) ppTransaction.get("property_name"));
+        }
+        
+        // Tenant information
+        Map<String, Object> tenant = (Map<String, Object>) ppTransaction.get("tenant");
+        if (tenant != null) {
+            transaction.setTenantId((String) tenant.get("id"));
+            transaction.setTenantName((String) tenant.get("name"));
+            
+            // Build tenant name from components if needed
+            if (transaction.getTenantName() == null) {
+                String firstName = (String) tenant.get("first_name");
+                String lastName = (String) tenant.get("last_name");
+                if (firstName != null && lastName != null) {
+                    transaction.setTenantName(firstName + " " + lastName);
+                } else if (firstName != null) {
+                    transaction.setTenantName(firstName);
+                } else if (lastName != null) {
+                    transaction.setTenantName(lastName);
+                }
+            }
+        } else {
+            // Try direct tenant fields
+            transaction.setTenantId((String) ppTransaction.get("tenant_id"));
+            transaction.setTenantName((String) ppTransaction.get("tenant_name"));
+        }
+        
+        // Category information
+        transaction.setCategoryId((String) ppTransaction.get("category_id"));
+        String categoryName = (String) ppTransaction.get("category");
+        if (categoryName == null) {
+            categoryName = (String) ppTransaction.get("category_name");
+        }
+        transaction.setCategoryName(categoryName);
+    }
+
+    /**
+     * ✅ Extract correct amount from different PayProp response formats
+     */
+    private BigDecimal extractAmount(Map<String, Object> ppTransaction) {
+        // Try different field names that PayProp might use
+        String[] amountFields = {"amount", "transaction_amount", "payment_amount", "value"};
+        
+        for (String field : amountFields) {
+            Object amount = ppTransaction.get(field);
+            if (amount != null) {
+                try {
+                    return new BigDecimal(amount.toString()).abs(); // Always positive
+                } catch (NumberFormatException e) {
+                    logger.warn("⚠️ Invalid amount format for field {}: {}", field, amount);
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * ✅ Extract the CORRECT date (actual transaction date, not instruction date)
+     */
+    private LocalDate extractCorrectDate(Map<String, Object> ppTransaction) {
+        // Priority order: use ACTUAL dates over instruction dates
+        String[] dateFields = {
+            "reconciliation_date",    // When payment was actually processed
+            "cleared_date",          // When payment cleared
+            "transaction_date",      // Actual transaction date
+            "payment_date",          // Fallback to payment date
+            "date"                   // Generic date field
+        };
+        
+        for (String field : dateFields) {
+            String dateStr = (String) ppTransaction.get(field);
+            if (dateStr != null && !dateStr.trim().isEmpty()) {
+                try {
+                    return LocalDate.parse(dateStr);
+                } catch (Exception e) {
+                    logger.warn("⚠️ Invalid date format for field {}: {}", field, dateStr);
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * ✅ Enhanced deposit detection from PayProp data
+     */
+    private boolean isDepositFromPayPropData(Map<String, Object> ppTransaction) {
+        // Check multiple indicators that PayProp uses for deposits
+        
+        // 1. Explicit deposit fields
+        if (ppTransaction.get("deposit_id") != null || ppTransaction.get("deposit_reference") != null) {
+            return true;
+        }
+        
+        // 2. Category indicators
+        String category = (String) ppTransaction.get("category");
+        if (category != null) {
+            String lowerCategory = category.toLowerCase();
+            if (lowerCategory.contains("deposit") || 
+                lowerCategory.contains("security") ||
+                lowerCategory.contains("holding")) {
+                return true;
+            }
+        }
+        
+        // 3. Description indicators
+        String description = (String) ppTransaction.get("description");
+        if (description != null) {
+            String lowerDesc = description.toLowerCase();
+            if (lowerDesc.contains("deposit") ||
+                lowerDesc.contains("security deposit") ||
+                lowerDesc.contains("holding deposit")) {
+                return true;
+            }
+        }
+        
+        // 4. Payment type indicators
+        String type = (String) ppTransaction.get("payment_type");
+        if ("deposit".equalsIgnoreCase(type)) {
+            return true;
+        }
+        
+        return false;
     }
 }

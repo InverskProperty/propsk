@@ -18,6 +18,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Service
@@ -59,6 +60,7 @@ public class PayPropFinancialSyncService {
     
     /**
      * Main method to sync all comprehensive financial data from PayProp
+     * ✅ UPDATED: Now includes actual commission payment sync
      */
     @Transactional
     public Map<String, Object> syncComprehensiveFinancialData() {
@@ -79,11 +81,15 @@ public class PayPropFinancialSyncService {
             Map<String, Object> categoriesResult = syncPaymentCategories();
             syncResults.put("categories", categoriesResult);
             
-            // 4. Sync Financial Transactions (ICDN)
+            // 4. Sync Financial Transactions (ICDN) - Rent payments and deposits
             Map<String, Object> transactionsResult = syncFinancialTransactions();
             syncResults.put("transactions", transactionsResult);
             
-            // 5. Calculate and store commission data
+            // ✅ NEW: 5. Sync Actual Commission Payments
+            Map<String, Object> commissionPaymentsResult = syncActualCommissionPayments();
+            syncResults.put("commission_payments", commissionPaymentsResult);
+            
+            // 6. Calculate and store commission data (for rent payments only)
             Map<String, Object> commissionsResult = calculateAndStoreCommissions();
             syncResults.put("commissions", commissionsResult);
             
@@ -631,6 +637,151 @@ public class PayPropFinancialSyncService {
     }
     
     /**
+     * ✅ NEW: Sync actual commission payment transactions from PayProp
+     * These are the "Commission TAKEN" entries you see in PayProp interface
+     */
+    private Map<String, Object> syncActualCommissionPayments() throws Exception {
+        logger.info("💳 Syncing ACTUAL commission payments from PayProp...");
+        
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        int created = 0, skipped = 0;
+        LocalDate endDate = LocalDate.now();
+        LocalDate absoluteStartDate = LocalDate.of(2024, 1, 1);
+        
+        // Sync in 90-day chunks
+        while (endDate.isAfter(absoluteStartDate)) {
+            LocalDate startDate = endDate.minusDays(90);
+            if (startDate.isBefore(absoluteStartDate)) {
+                startDate = absoluteStartDate;
+            }
+            
+            logger.info("📅 Syncing commission payments from {} to {}", startDate, endDate);
+            
+            // ✅ CRITICAL: Get actual commission payment transactions
+            String url = payPropApiBase + "/export/payments" +
+                "?from_date=" + startDate +
+                "&to_date=" + endDate +
+                "&filter_by=reconciliation_date" +
+                "&category=Commission" +  // ✅ Filter for commission payments only
+                "&include_beneficiary_info=true" +
+                "&rows=1000";
+                
+            try {
+                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                List<Map<String, Object>> commissionPayments = (List<Map<String, Object>>) response.getBody().get("items");
+                
+                logger.info("📊 Found {} commission payments in period {} to {}", commissionPayments.size(), startDate, endDate);
+                
+                for (Map<String, Object> ppCommission : commissionPayments) {
+                    try {
+                        String payPropId = (String) ppCommission.get("id");
+                        
+                        if (payPropId == null || payPropId.trim().isEmpty()) {
+                            skipped++;
+                            continue;
+                        }
+                        
+                        // Check if commission payment already exists
+                        if (financialTransactionRepository.existsByPayPropTransactionId(payPropId)) {
+                            skipped++;
+                            continue;
+                        }
+                        
+                        // Create commission payment transaction
+                        FinancialTransaction commissionTx = createCommissionPaymentTransaction(ppCommission);
+                        
+                        if (commissionTx != null) {
+                            financialTransactionRepository.save(commissionTx);
+                            created++;
+                            
+                            logger.debug("✅ Created commission payment: {} (£{})", 
+                                payPropId, commissionTx.getAmount());
+                        } else {
+                            skipped++;
+                        }
+                        
+                    } catch (Exception e) {
+                        logger.error("❌ Error processing commission payment: {}", e.getMessage(), e);
+                        skipped++;
+                    }
+                }
+                
+            } catch (Exception e) {
+                logger.error("❌ Failed to sync commission payments for period {} to {}: {}", startDate, endDate, e.getMessage());
+            }
+            
+            endDate = startDate.minusDays(1);
+        }
+        
+        logger.info("💳 Commission payments sync completed: {} created, {} skipped", created, skipped);
+        
+        return Map.of(
+            "total_processed", created + skipped,
+            "created", created,
+            "skipped_existing", skipped,
+            "date_range", absoluteStartDate + " to " + LocalDate.now()
+        );
+    }
+
+    /**
+     * ✅ NEW: Create commission payment transaction from PayProp data
+     */
+    private FinancialTransaction createCommissionPaymentTransaction(Map<String, Object> ppCommission) {
+        try {
+            FinancialTransaction transaction = new FinancialTransaction();
+            transaction.setPayPropTransactionId((String) ppCommission.get("id"));
+            
+            // Commission payments are typically negative amounts (deductions)
+            Object amount = ppCommission.get("amount");
+            if (amount != null) {
+                BigDecimal amountValue = new BigDecimal(amount.toString());
+                transaction.setAmount(amountValue.abs()); // Store as positive for clarity
+            } else {
+                logger.warn("⚠️ Missing amount for commission payment {}", ppCommission.get("id"));
+                return null;
+            }
+            
+            // Use reconciliation date for actual processing date
+            String dateStr = (String) ppCommission.get("reconciliation_date");
+            if (dateStr == null || dateStr.trim().isEmpty()) {
+                dateStr = (String) ppCommission.get("payment_date");
+            }
+            if (dateStr != null && !dateStr.trim().isEmpty()) {
+                transaction.setTransactionDate(LocalDate.parse(dateStr));
+            } else {
+                logger.warn("⚠️ Missing date for commission payment {}", ppCommission.get("id"));
+                return null;
+            }
+            
+            // Mark as commission transaction
+            transaction.setTransactionType("commission_payment");
+            transaction.setDescription((String) ppCommission.get("description"));
+            transaction.setCategoryName("Commission");
+            
+            // Property info
+            Map<String, Object> property = (Map<String, Object>) ppCommission.get("property");
+            if (property != null) {
+                transaction.setPropertyId((String) property.get("id"));
+                transaction.setPropertyName((String) property.get("name"));
+            }
+            
+            // This is the actual commission amount taken by PayProp
+            transaction.setCommissionAmount(transaction.getAmount());
+            
+            transaction.setCreatedAt(LocalDateTime.now());
+            transaction.setUpdatedAt(LocalDateTime.now());
+            
+            return transaction;
+            
+        } catch (Exception e) {
+            logger.error("❌ Error creating commission payment transaction: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+    
+    /**
      * Calculate and store commission data for financial transactions
      */
     private Map<String, Object> calculateAndStoreCommissions() throws Exception {
@@ -758,6 +909,47 @@ public class PayPropFinancialSyncService {
                 "status", "ERROR",
                 "error", e.getMessage()
             );
+        }
+    }
+    
+    /**
+     * ✅ NEW: Get commission payment summary for comparison with calculated commissions
+     */
+    public Map<String, Object> getCommissionPaymentSummary(String propertyId, LocalDate fromDate, LocalDate toDate) {
+        try {
+            List<FinancialTransaction> calculatedCommissions = financialTransactionRepository
+                .findByPropertyIdAndTransactionDateBetween(propertyId, fromDate, toDate)
+                .stream()
+                .filter(t -> "invoice".equals(t.getTransactionType()) && t.getCommissionAmount() != null)
+                .collect(Collectors.toList());
+            
+            List<FinancialTransaction> actualCommissionPayments = financialTransactionRepository
+                .findByPropertyIdAndTransactionDateBetween(propertyId, fromDate, toDate)
+                .stream()
+                .filter(t -> "commission_payment".equals(t.getTransactionType()))
+                .collect(Collectors.toList());
+            
+            BigDecimal totalCalculated = calculatedCommissions.stream()
+                .map(FinancialTransaction::getCommissionAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            BigDecimal totalActual = actualCommissionPayments.stream()
+                .map(FinancialTransaction::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            return Map.of(
+                "calculated_commission_total", totalCalculated,
+                "actual_commission_payments_total", totalActual,
+                "difference", totalCalculated.subtract(totalActual),
+                "calculated_transactions", calculatedCommissions.size(),
+                "actual_payment_transactions", actualCommissionPayments.size(),
+                "period", fromDate + " to " + toDate
+            );
+            
+        } catch (Exception e) {
+            return Map.of("error", "Failed to generate commission summary: " + e.getMessage());
         }
     }
 }
