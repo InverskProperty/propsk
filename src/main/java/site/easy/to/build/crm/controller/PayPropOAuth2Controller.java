@@ -197,6 +197,39 @@ public class PayPropOAuth2Controller {
         }
     }
 
+    @PostMapping("/test-property-payments")
+    public ResponseEntity<Map<String, Object>> testPropertyPayments(@RequestBody Map<String, String> request) {
+        try {
+            String propertyId = request.get("propertyId");
+            
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> httpRequest = new HttpEntity<>(headers);
+            
+            // Get last 90 days of payments for this property
+            LocalDate endDate = LocalDate.now();
+            LocalDate startDate = endDate.minusDays(90);
+            
+            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/payments" +
+                "?property_id=" + propertyId +
+                "&from_date=" + startDate +
+                "&to_date=" + endDate +
+                "&include_beneficiary_info=true" +
+                "&rows=100";
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, httpRequest, Map.class);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("url", url);
+            result.put("property_id", propertyId);
+            result.put("response", response.getBody());
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     /**
      * Test available payment endpoints with current scopes
      */
