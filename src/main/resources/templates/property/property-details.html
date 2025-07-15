@@ -552,6 +552,15 @@
     <div th:replace="~{general/footer.html}"></div>
 </div>
 
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
 <script>
 // Load financial data when page loads
 $(document).ready(function() {
@@ -640,14 +649,6 @@ function refreshFinancialData() {
 }
 </script>
 
-<!-- Scripts -->
-<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
-<script th:src="@{/js/library/popper.min.js}"></script>
-<script th:src="@{/js/library/bootstrap.min.js}"></script>
-<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
-<script th:src="@{/js/library/waves.js}"></script>
-<script th:src="@{/js/library/sidebarmenu.js}"></script>
-<script th:src="@{/js/library/custom.min.js}"></script>
 
 <style>
 .timeline {
