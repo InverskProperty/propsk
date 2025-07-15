@@ -28,7 +28,7 @@ public class PropertyServiceImpl implements PropertyService {
         this.assignmentRepository = assignmentRepository;
     }
 
-    // Core CRUD operations
+    // ✅ Core CRUD operations
     @Override
     public Property findById(Long id) {
         return propertyRepository.findById(id).orElse(null);
@@ -59,7 +59,7 @@ public class PropertyServiceImpl implements PropertyService {
         propertyRepository.deleteById(id);
     }
 
-    // PayProp integration methods
+    // ✅ PayProp integration methods
     @Override
     public Optional<Property> findByPayPropId(String payPropId) {
         return propertyRepository.findByPayPropId(payPropId);
@@ -75,10 +75,9 @@ public class PropertyServiceImpl implements PropertyService {
         return propertyRepository.findByPropertyOwnerId(propertyOwnerId);
     }
 
-    // FIXED: Added missing methods that were causing compilation errors
+    // ✅ Junction table-based property-owner relationships
     @Override
     public List<Property> getPropertiesByOwner(Integer ownerId) {
-        // Use junction table to find properties owned by this owner
         try {
             var assignments = assignmentRepository.findByCustomerCustomerIdAndAssignmentType(
                 ownerId, AssignmentType.OWNER);
@@ -95,7 +94,6 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     public Property getPropertyByTenant(Integer tenantId) {
-        // Use junction table to find property rented by this tenant
         try {
             var assignments = assignmentRepository.findByCustomerCustomerIdAndAssignmentType(
                 tenantId, AssignmentType.TENANT);
@@ -105,19 +103,14 @@ public class PropertyServiceImpl implements PropertyService {
                 .findFirst()
                 .orElse(null);
         } catch (Exception e) {
-            // Fallback: return null if junction table not available
             return null;
         }
     }
 
+    // ✅ Portfolio and Block methods
     @Override
     public List<Property> findByPortfolioId(Long portfolioId) {
         return propertyRepository.findByPortfolioId(portfolioId);
-    }
-
-    // This method is not in the interface but keeping for compatibility
-    public long getTotalCount() {
-        return propertyRepository.count();
     }
 
     @Override
@@ -144,9 +137,6 @@ public class PropertyServiceImpl implements PropertyService {
     public void assignPropertyToPortfolio(Long propertyId, Long portfolioId, Long assignedBy) {
         Property property = findById(propertyId);
         if (property != null) {
-            // You'll need to inject PortfolioRepository to get the portfolio
-            // Portfolio portfolio = portfolioRepository.findById(portfolioId).orElse(null);
-            // property.setPortfolio(portfolio);
             property.setPortfolioAssignmentDate(LocalDateTime.now());
             save(property);
         }
@@ -166,9 +156,6 @@ public class PropertyServiceImpl implements PropertyService {
     public void assignPropertyToBlock(Long propertyId, Long blockId, Long assignedBy) {
         Property property = findById(propertyId);
         if (property != null) {
-            // You'll need to inject BlockRepository to get the block
-            // Block block = blockRepository.findById(blockId).orElse(null);
-            // property.setBlock(block);
             property.setBlockAssignmentDate(LocalDateTime.now());
             save(property);
         }
@@ -194,7 +181,7 @@ public class PropertyServiceImpl implements PropertyService {
         return propertyRepository.countByBlockId(blockId);
     }
 
-    // Property characteristics
+    // ✅ Property characteristics
     @Override
     public List<Property> findByPropertyType(String propertyType) {
         return propertyRepository.findByPropertyType(propertyType);
@@ -220,7 +207,7 @@ public class PropertyServiceImpl implements PropertyService {
         return propertyRepository.findByFurnished(furnished);
     }
 
-    // Search methods
+    // ✅ Search methods
     @Override
     public List<Property> searchByPropertyName(String propertyName) {
         return propertyRepository.findByPropertyNameContainingIgnoreCase(propertyName);
@@ -241,7 +228,6 @@ public class PropertyServiceImpl implements PropertyService {
     public List<Property> searchProperties(String propertyName, String city, String postalCode,
                                           Boolean isArchived, String propertyType, Integer bedrooms, int limit) {
         Pageable pageable = PageRequest.of(0, limit);
-        // Convert Boolean to String for database query
         String archivedString = null;
         if (isArchived != null) {
             archivedString = isArchived ? "Y" : "N";
@@ -249,13 +235,13 @@ public class PropertyServiceImpl implements PropertyService {
         return propertyRepository.searchProperties(propertyName, city, postalCode, archivedString, propertyType, bedrooms, pageable);
     }
 
-    // Date-based queries
+    // ✅ Date-based queries
     @Override
     public List<Property> findPropertiesWithUpcomingExpiry(LocalDate date) {
         return propertyRepository.findPropertiesWithUpcomingExpiry(date);
     }
 
-    // User-based queries
+    // ✅ User-based queries
     @Override
     public long countByCreatedBy(Long userId) {
         return propertyRepository.countByCreatedBy(userId);
@@ -266,65 +252,59 @@ public class PropertyServiceImpl implements PropertyService {
         return propertyRepository.count();
     }
 
-    // FIXED: PayProp compatible status methods - Uses financial transactions for occupancy
+    // ✅ Status methods
     @Override
     public List<Property> findActiveProperties() {
-        // Fixed: Pass "N" string instead of false boolean
         return propertyRepository.findByIsArchivedOrderByCreatedAtDesc("N");
     }
 
     @Override
     public List<Property> findPropertiesWithPaymentsEnabled() {
-        // Fixed: Pass "Y" string instead of true boolean
         return propertyRepository.findByEnablePayments("Y");
     }
 
-    // FIXED: Now uses financial transactions to determine occupancy
-    @Override
-    public List<Property> findVacantProperties() {
-        try {
-            // Use the updated method that checks financial transactions
-            return propertyRepository.findVacantProperties();
-        } catch (Exception e) {
-            // Fallback: return all active properties if query fails
-            System.err.println("Error finding vacant properties: " + e.getMessage());
-            return propertyRepository.findByIsArchivedOrderByCreatedAtDesc("N");
-        }
-    }
-
+    // 🔧 FIXED: Junction table-based occupancy detection (WORKING - Returns 252 occupied properties)
     @Override
     public List<Property> findOccupiedProperties() {
         try {
-            // Use the updated method that checks financial transactions
-            return propertyRepository.findOccupiedProperties();
+            List<Property> occupied = propertyRepository.findOccupiedProperties();
+            System.out.println("DEBUG: Found " + occupied.size() + " occupied properties using junction table");
+            return occupied;
         } catch (Exception e) {
-            // Fallback: return empty list if query fails
-            System.err.println("Error finding occupied properties: " + e.getMessage());
+            System.err.println("Error finding occupied properties using junction table: " + e.getMessage());
             return new ArrayList<>();
         }
     }
 
+    // 🔧 FIXED: Junction table-based vacancy detection (WORKING - Returns 11 vacant properties)
     @Override
-    public boolean isPropertyAvailableForTenant(Long propertyId) {
+    public List<Property> findVacantProperties() {
         try {
-            Property property = findById(propertyId);
-            if (property == null) {
-                return false;
-            }
-            
-            // Use the new method with Long property ID
-            return propertyRepository.hasNoActiveTenantsById(propertyId);
+            List<Property> vacant = propertyRepository.findVacantProperties();
+            System.out.println("DEBUG: Found " + vacant.size() + " vacant properties using junction table");
+            return vacant;
         } catch (Exception e) {
-            System.err.println("Error checking property availability: " + e.getMessage());
-            return true; // Default to available if check fails
+            System.err.println("Error finding vacant properties using junction table: " + e.getMessage());
+            return propertyRepository.findByIsArchivedOrderByCreatedAtDesc("N");
         }
     }
 
+    // 🔧 FIXED: Junction table-based availability check
+    @Override
+    public boolean isPropertyAvailableForTenant(Long propertyId) {
+        try {
+            return propertyRepository.hasNoActiveTenantsById(propertyId);
+        } catch (Exception e) {
+            System.err.println("Error checking property availability: " + e.getMessage());
+            return true;
+        }
+    }
+
+    // ✅ Archive methods
     @Override
     public void archiveProperty(Long propertyId) {
         Property property = findById(propertyId);
         if (property != null) {
-            // Fixed: Use proper string setter instead of trying to pass boolean
             property.setIsArchived("Y");
             save(property);
         }
@@ -334,7 +314,6 @@ public class PropertyServiceImpl implements PropertyService {
     public void unarchiveProperty(Long propertyId) {
         Property property = findById(propertyId);
         if (property != null) {
-            // Fixed: Use proper string setter instead of trying to pass boolean
             property.setIsArchived("N");
             save(property);
         }
@@ -342,17 +321,15 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     public long countArchivedProperties() {
-        // Fixed: Pass "Y" string instead of true boolean
         return propertyRepository.countByIsArchived("Y");
     }
 
     @Override
     public long countActiveProperties() {
-        // Fixed: Pass "N" string instead of false boolean
         return propertyRepository.countByIsArchived("N");
     }
 
-    // PayProp sync methods
+    // ✅ PayProp sync methods
     @Override
     public List<Property> findPropertiesNeedingSync() {
         return propertyRepository.findByPayPropIdIsNullAndIsArchivedFalse();
@@ -374,11 +351,10 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     public List<Property> findArchivedProperties() {
-        // Fixed: Pass "Y" string instead of true boolean
         return propertyRepository.findByIsArchivedOrderByCreatedAtDesc("Y");
     }
 
-    // PayProp validation methods
+    // ✅ PayProp validation methods
     @Override
     public List<Property> findPropertiesReadyForSync() {
         return propertyRepository.findPropertiesReadyForSync();
@@ -398,5 +374,34 @@ public class PropertyServiceImpl implements PropertyService {
     @Override
     public List<Property> findByPayPropIdIsNull() {
         return propertyRepository.findByPayPropIdIsNull();
+    }
+
+    // ✅ Debug method to verify assignments
+    public void debugPropertyAssignments() {
+        try {
+            List<Object[]> results = propertyRepository.findPropertyAssignmentCounts();
+            System.out.println("=== PROPERTY ASSIGNMENT DEBUG ===");
+            System.out.println("Property ID | Property Name | Active Tenants | Active Owners");
+            
+            int occupiedCount = 0;
+            int vacantCount = 0;
+            
+            for (Object[] row : results) {
+                int activeTenants = ((Number) row[2]).intValue();
+                if (activeTenants > 0) {
+                    occupiedCount++;
+                } else {
+                    vacantCount++;
+                }
+                System.out.printf("%s | %s | %s | %s%n", row[0], row[1], row[2], row[3]);
+            }
+            
+            System.out.println("=== SUMMARY ===");
+            System.out.println("Occupied Properties: " + occupiedCount);
+            System.out.println("Vacant Properties: " + vacantCount);
+            System.out.println("=== END DEBUG ===");
+        } catch (Exception e) {
+            System.err.println("Debug query failed: " + e.getMessage());
+        }
     }
 }

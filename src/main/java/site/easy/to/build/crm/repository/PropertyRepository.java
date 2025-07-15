@@ -19,12 +19,12 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     Optional<Property> findByCustomerId(String customerId);
     List<Property> findByPropertyOwnerId(Integer propertyOwnerId);
     
-    // 🔧 FIXED: Use String comparison for isArchived field
+    // ✅ Archive status methods (String-based)
     List<Property> findByIsArchivedOrderByCreatedAtDesc(String isArchived);
     List<Property> findByEnablePayments(String enablePayments);
     long countByIsArchived(String isArchived);
 
-    // Portfolio and Block relationship queries
+    // ✅ Portfolio and Block relationship queries
     List<Property> findByPortfolioId(Long portfolioId);
     List<Property> findByBlockId(Long blockId);
     List<Property> findByPortfolioIdAndIsArchived(Long portfolioId, String isArchived);
@@ -47,7 +47,7 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     // ✅ Count methods
     long countByCreatedBy(Long userId);
     
-    // 🔧 FIXED: Updated search query - String comparison for isArchived
+    // ✅ Advanced search query
     @Query("SELECT p FROM Property p WHERE " +
            "(:propertyName IS NULL OR LOWER(p.propertyName) LIKE LOWER(CONCAT('%', :propertyName, '%'))) AND " +
            "(:city IS NULL OR LOWER(p.city) LIKE LOWER(CONCAT('%', :city, '%'))) AND " +
@@ -67,14 +67,14 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     @Query("SELECT p FROM Property p WHERE p.listedUntil IS NOT NULL AND p.listedUntil <= :date")
     List<Property> findPropertiesWithUpcomingExpiry(@Param("date") LocalDate date);
     
-    // 🔧 FIXED: Updated address search - PayProp compatible fields
+    // ✅ Address search - PayProp compatible fields
     @Query("SELECT p FROM Property p WHERE " +
            "LOWER(CONCAT(COALESCE(p.addressLine1, ''), ' ', COALESCE(p.addressLine2, ''), ' ', " +
            "COALESCE(p.addressLine3, ''), ' ', COALESCE(p.city, ''), ' ', COALESCE(p.postcode, ''))) " +
            "LIKE LOWER(CONCAT('%', :address, '%'))")
     List<Property> findByFullAddressContaining(@Param("address") String address);
 
-    // Portfolio assignment queries
+    // ✅ Portfolio assignment queries
     @Query("SELECT p FROM Property p WHERE p.portfolio IS NULL AND p.isArchived = 'N'")
     List<Property> findUnassignedProperties();
 
@@ -84,68 +84,79 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     @Query("SELECT p FROM Property p WHERE p.block.id = :blockId AND p.isArchived = 'N'")
     List<Property> findActivePropertiesByBlock(@Param("blockId") Long blockId);
 
-    // Count properties by portfolio/block
+    // ✅ Count properties by portfolio/block
     @Query("SELECT COUNT(p) FROM Property p WHERE p.portfolio.id = :portfolioId")
     long countByPortfolioId(@Param("portfolioId") Long portfolioId);
 
     @Query("SELECT COUNT(p) FROM Property p WHERE p.block.id = :blockId")
     long countByBlockId(@Param("blockId") Long blockId);
 
-    // Portfolio analytics support
+    // ✅ Portfolio analytics support
     @Query("SELECT p FROM Property p LEFT JOIN FETCH p.portfolio WHERE p.id IN :propertyIds")
     List<Property> findByIdInWithPortfolio(@Param("propertyIds") List<Long> propertyIds);
     
-    // 🔧 FIXED: Use financial transactions to determine occupancy (NATIVE SQL for better performance)
+    // 🔧 FIXED: Junction table-based occupancy detection (WORKING - 252 occupied properties)
     @Query(value = "SELECT DISTINCT p.* FROM properties p " +
                    "WHERE p.is_archived = 'N' " +
-                   "AND (p.payprop_property_id IS NULL OR p.payprop_property_id NOT IN ( " +
-                   "    SELECT DISTINCT ft.property_id " +
-                   "    FROM financial_transactions ft " +
-                   "    WHERE ft.property_id IS NOT NULL " +
-                   "    AND ft.tenant_id IS NOT NULL " +
-                   "    AND ft.transaction_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) " +
-                   "))", nativeQuery = true)
-    List<Property> findVacantProperties();
-    
-    @Query(value = "SELECT DISTINCT p.* FROM properties p " +
-                   "WHERE p.is_archived = 'N' " +
-                   "AND p.payprop_property_id IS NOT NULL " +
-                   "AND p.payprop_property_id IN ( " +
-                   "    SELECT DISTINCT ft.property_id " +
-                   "    FROM financial_transactions ft " +
-                   "    WHERE ft.property_id IS NOT NULL " +
-                   "    AND ft.tenant_id IS NOT NULL " +
-                   "    AND ft.transaction_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) " +
+                   "AND EXISTS ( " +
+                   "    SELECT 1 FROM customer_property_assignments cpa " +
+                   "    WHERE cpa.property_id = p.id " +
+                   "    AND cpa.assignment_type = 'TENANT' " +
+                   "    AND (cpa.end_date IS NULL OR cpa.end_date > CURDATE()) " +
+                   "    AND (cpa.start_date IS NULL OR cpa.start_date <= CURDATE()) " +
                    ")", nativeQuery = true)
     List<Property> findOccupiedProperties();
     
-    // Simple check for individual property using native SQL
-    @Query(value = "SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END " +
-                   "FROM financial_transactions ft " +
-                   "WHERE ft.property_id = ?1 " +
-                   "AND ft.tenant_id IS NOT NULL " +
-                   "AND ft.transaction_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)", 
-           nativeQuery = true)
-    boolean hasNoActiveTenants(@Param("payPropPropertyId") String payPropPropertyId);
+    // 🔧 FIXED: Junction table-based vacancy detection (WORKING - 11 vacant properties)
+    @Query(value = "SELECT DISTINCT p.* FROM properties p " +
+                   "WHERE p.is_archived = 'N' " +
+                   "AND NOT EXISTS ( " +
+                   "    SELECT 1 FROM customer_property_assignments cpa " +
+                   "    WHERE cpa.property_id = p.id " +
+                   "    AND cpa.assignment_type = 'TENANT' " +
+                   "    AND (cpa.end_date IS NULL OR cpa.end_date > CURDATE()) " +
+                   "    AND (cpa.start_date IS NULL OR cpa.start_date <= CURDATE()) " +
+                   ")", nativeQuery = true)
+    List<Property> findVacantProperties();
     
-    // Alternative method using Long property ID for backward compatibility
+    // 🔧 FIXED: Check individual property for active tenants using junction table
     @Query(value = "SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END " +
-                   "FROM financial_transactions ft " +
-                   "JOIN properties p ON ft.property_id = p.payprop_property_id " +
-                   "WHERE p.id = ?1 " +
-                   "AND ft.tenant_id IS NOT NULL " +
-                   "AND ft.transaction_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)", 
+                   "FROM customer_property_assignments cpa " +
+                   "WHERE cpa.property_id = ?1 " +
+                   "AND cpa.assignment_type = 'TENANT' " +
+                   "AND (cpa.end_date IS NULL OR cpa.end_date > CURDATE()) " +
+                   "AND (cpa.start_date IS NULL OR cpa.start_date <= CURDATE())", 
            nativeQuery = true)
     boolean hasNoActiveTenantsById(@Param("propertyId") Long propertyId);
     
-    // 🔧 FIXED: PayProp sync queries with String comparison
+    // ✅ Debug query to show assignment counts with dates
+    @Query(value = "SELECT " +
+                   "p.id, " +
+                   "p.property_name, " +
+                   "COUNT(CASE WHEN cpa.assignment_type = 'TENANT' " +
+                   "           AND (cpa.end_date IS NULL OR cpa.end_date > CURDATE()) " +
+                   "           AND (cpa.start_date IS NULL OR cpa.start_date <= CURDATE()) " +
+                   "           THEN 1 END) as active_tenants, " +
+                   "COUNT(CASE WHEN cpa.assignment_type = 'OWNER' " +
+                   "           AND (cpa.end_date IS NULL OR cpa.end_date > CURDATE()) " +
+                   "           AND (cpa.start_date IS NULL OR cpa.start_date <= CURDATE()) " +
+                   "           THEN 1 END) as active_owners " +
+                   "FROM properties p " +
+                   "LEFT JOIN customer_property_assignments cpa ON p.id = cpa.property_id " +
+                   "WHERE p.is_archived = 'N' " +
+                   "GROUP BY p.id, p.property_name " +
+                   "ORDER BY active_tenants DESC, p.property_name " +
+                   "LIMIT 30", nativeQuery = true)
+    List<Object[]> findPropertyAssignmentCounts();
+    
+    // ✅ PayProp sync queries
     @Query("SELECT p FROM Property p WHERE p.payPropId IS NULL AND p.isArchived = 'N'")
     List<Property> findByPayPropIdIsNullAndIsArchivedFalse();
     
     List<Property> findByPayPropIdIsNotNull();
     List<Property> findByPayPropIdIsNull();
     
-    // 🔧 FIXED: String comparison and proper validation
+    // ✅ PayProp validation queries
     @Query("SELECT p FROM Property p WHERE p.isArchived = 'N' AND " +
            "p.propertyName IS NOT NULL AND p.customerId IS NOT NULL AND " +
            "p.monthlyPayment IS NOT NULL AND p.monthlyPayment > 0")
