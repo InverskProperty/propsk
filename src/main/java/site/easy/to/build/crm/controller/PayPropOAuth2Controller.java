@@ -169,6 +169,34 @@ public class PayPropOAuth2Controller {
         }
     }
 
+    @PostMapping("/test-all-payments-report")
+    public ResponseEntity<Map<String, Object>> testAllPaymentsReport() {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            // Get last 30 days of actual payments
+            LocalDate endDate = LocalDate.now();
+            LocalDate startDate = endDate.minusDays(30);
+            
+            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
+                "?from_date=" + startDate +
+                "&to_date=" + endDate +
+                "&filter_by=reconciliation_date";
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("url", url);
+            result.put("response", response.getBody());
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     /**
      * Test available payment endpoints with current scopes
      */
