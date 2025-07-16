@@ -156,16 +156,21 @@ public class PayPropPortfolioSyncService {
         return createPayPropTag(newTag);
     }
     
+    // REPLACE the existing getAllPayPropTags method with this corrected version
+
     /**
-     * Get all PayProp tags - public method for controller access
+     * Get all PayProp tags - CORRECTED VERSION using proper API response format
      */
     public List<PayPropTagDTO> getAllPayPropTags() throws Exception {
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
         try {
+            // PayProp tags endpoint - may need pagination for large tag sets
+            String url = payPropApiBase + "/tags?rows=100"; // Get up to 100 tags
+            
             ResponseEntity<Map> response = restTemplate.exchange(
-                payPropApiBase + "/tags", 
+                url, 
                 HttpMethod.GET, 
                 request, 
                 Map.class
@@ -174,51 +179,53 @@ public class PayPropPortfolioSyncService {
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
                 
-                // FIXED: Check for different possible response formats
+                // PayProp API returns tags in 'data' array
                 List<Map<String, Object>> tags = null;
                 
-                // Try different response formats PayProp might use
                 if (responseBody.containsKey("data")) {
                     tags = (List<Map<String, Object>>) responseBody.get("data");
-                } else if (responseBody.containsKey("tags")) {
-                    tags = (List<Map<String, Object>>) responseBody.get("tags");
-                } else if (responseBody.containsKey("items")) {
-                    tags = (List<Map<String, Object>>) responseBody.get("items");
                 } else {
-                    // Response might be the tags array directly
+                    // Fallback - response might be the tags array directly
                     if (responseBody instanceof List) {
                         tags = (List<Map<String, Object>>) responseBody;
                     } else {
-                        // Log the actual response format for debugging
-                        System.out.println("🔍 PayProp /tags response format: " + responseBody.keySet());
+                        log.warn("Unexpected PayProp /tags response format: {}", responseBody.keySet());
                         tags = new ArrayList<>();
                     }
                 }
                 
-                // NULL-SAFETY: Check if tags is null
                 if (tags == null) {
-                    System.out.println("⚠️ PayProp API returned null for tags");
+                    log.warn("PayProp API returned null for tags data");
                     return new ArrayList<>();
                 }
                 
                 return tags.stream().map(tagMap -> {
                     PayPropTagDTO tag = new PayPropTagDTO();
-                    tag.setId((String) tagMap.get("id"));
+                    
+                    // PayProp uses 'external_id' as the tag identifier
+                    tag.setId((String) tagMap.get("external_id"));
                     tag.setName((String) tagMap.get("name"));
-                    tag.setDescription((String) tagMap.get("description"));
-                    tag.setColor((String) tagMap.get("color"));
+                    
+                    // These fields may not be present in PayProp API
+                    tag.setDescription((String) tagMap.getOrDefault("description", ""));
+                    tag.setColor((String) tagMap.getOrDefault("color", "#3498db"));
+                    
                     return tag;
                 }).collect(Collectors.toList());
             }
             
+            log.warn("PayProp /tags API returned non-200 status: {}", response.getStatusCode());
             return new ArrayList<>();
             
         } catch (HttpClientErrorException e) {
-            System.err.println("❌ PayProp API error: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
+            log.error("PayProp API error getting tags: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
             throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error("Unexpected error getting PayProp tags: {}", e.getMessage());
+            throw new RuntimeException("Failed to get PayProp tags: " + e.getMessage(), e);
         }
     }
-
+    
     /**
      * Get specific PayProp tag - public method for controller access
      */
@@ -227,8 +234,11 @@ public class PayPropPortfolioSyncService {
         HttpEntity<String> request = new HttpEntity<>(headers);
         
         try {
+            // Use the external_id parameter to get specific tag
+            String url = payPropApiBase + "/tags?external_id=" + tagId;
+            
             ResponseEntity<Map> response = restTemplate.exchange(
-                payPropApiBase + "/tags/" + tagId, 
+                url, 
                 HttpMethod.GET, 
                 request, 
                 Map.class
@@ -236,20 +246,32 @@ public class PayPropPortfolioSyncService {
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 Map<String, Object> responseBody = response.getBody();
-                PayPropTagDTO tag = new PayPropTagDTO();
-                tag.setId((String) responseBody.get("id"));
-                tag.setName((String) responseBody.get("name"));
-                tag.setDescription((String) responseBody.get("description"));
-                tag.setColor((String) responseBody.get("color"));
-                return tag;
+                
+                // PayProp returns array even for single tag lookup
+                List<Map<String, Object>> tags = null;
+                if (responseBody.containsKey("data")) {
+                    tags = (List<Map<String, Object>>) responseBody.get("data");
+                }
+                
+                if (tags != null && !tags.isEmpty()) {
+                    Map<String, Object> tagMap = tags.get(0);
+                    PayPropTagDTO tag = new PayPropTagDTO();
+                    tag.setId((String) tagMap.get("external_id"));
+                    tag.setName((String) tagMap.get("name"));
+                    tag.setDescription((String) tagMap.getOrDefault("description", ""));
+                    tag.setColor((String) tagMap.getOrDefault("color", "#3498db"));
+                    return tag;
+                }
             }
             
             return null;
             
         } catch (HttpClientErrorException e) {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                log.warn("PayProp tag {} not found", tagId);
                 return null;
             }
+            log.error("PayProp API error getting tag {}: {}", tagId, e.getResponseBodyAsString());
             throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
         }
     }
@@ -533,19 +555,68 @@ public class PayPropPortfolioSyncService {
         }
     }
     
-    private void applyTagToProperty(String payPropPropertyId, String tagId) throws Exception {
+
+    /**
+     * Apply tag to property using PayProp API - PUBLIC METHOD for controller access
+     * Uses the correct PayProp endpoint: POST /tags/entities/property/{property_id}
+     */
+    public void applyTagToProperty(String payPropPropertyId, String tagId) throws Exception {
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        Map<String, Object> requestBody = Map.of("tag_id", tagId);
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+        
+        // PayProp expects an array of tag IDs for bulk tagging
+        List<String> tagIds = List.of(tagId);
+        HttpEntity<List<String>> request = new HttpEntity<>(tagIds, headers);
         
         try {
-            restTemplate.postForEntity(
-                payPropApiBase + "/properties/" + payPropPropertyId + "/tags", 
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                payPropApiBase + "/tags/entities/property/" + payPropPropertyId, 
                 request, 
                 Map.class
             );
+            
+            if (response.getStatusCode() == HttpStatus.OK) {
+                log.info("Successfully applied PayProp tag {} to property {}", tagId, payPropPropertyId);
+            } else {
+                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
+            }
         } catch (HttpClientErrorException e) {
+            log.error("Failed to apply tag {} to property {}: {}", tagId, payPropPropertyId, e.getResponseBodyAsString());
             throw new RuntimeException("Failed to apply tag to property: " + e.getResponseBodyAsString(), e);
+        }
+    }
+
+    /**
+     * Remove tag from property using PayProp API - PUBLIC METHOD for controller access
+     * Uses the correct PayProp endpoint: DELETE /tags/{tag_id}/entities
+     */
+    public void removeTagFromProperty(String payPropPropertyId, String tagId) throws Exception {
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        try {
+            // PayProp API endpoint for removing tag from specific entity
+            String url = payPropApiBase + "/tags/" + tagId + "/entities" +
+                        "?entity_type=property&entity_id=" + payPropPropertyId;
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
+                url,
+                HttpMethod.DELETE,
+                request,
+                Map.class
+            );
+            
+            if (response.getStatusCode() == HttpStatus.OK) {
+                log.info("Successfully removed PayProp tag {} from property {}", tagId, payPropPropertyId);
+            } else {
+                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
+            }
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                log.warn("Tag {} or property {} not found during removal - may already be removed", tagId, payPropPropertyId);
+                return; // Not an error if already removed
+            }
+            log.error("Failed to remove tag {} from property {}: {}", tagId, payPropPropertyId, e.getResponseBodyAsString());
+            throw new RuntimeException("Failed to remove tag from property: " + e.getResponseBodyAsString(), e);
         }
     }
     
@@ -689,7 +760,58 @@ public class PayPropPortfolioSyncService {
     }
     
     // ===== UTILITY METHODS =====
-    
+    /**
+     * Get available PayProp tags that are not yet adopted as portfolios
+     * PUBLIC METHOD for controller access
+     */
+    public List<PayPropTagDTO> getAvailablePayPropTags() throws Exception {
+        List<PayPropTagDTO> allTags = getAllPayPropTags();
+        
+        // Filter out tags that are already associated with portfolios
+        return allTags.stream()
+            .filter(tag -> {
+                // Check if any portfolio already uses this tag
+                List<Portfolio> existingPortfolios = portfolioRepository.findAll().stream()
+                    .filter(portfolio -> portfolioHasPayPropTag(portfolio, tag.getId()))
+                    .collect(Collectors.toList());
+                return existingPortfolios.isEmpty();
+            })
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Bulk apply tags to multiple properties
+     * More efficient for portfolio assignment
+     */
+    public Map<String, Object> bulkApplyTagToProperties(String tagId, List<String> payPropPropertyIds) {
+        Map<String, Object> result = new HashMap<>();
+        int successCount = 0;
+        int failureCount = 0;
+        List<String> errors = new ArrayList<>();
+        
+        for (String propertyId : payPropPropertyIds) {
+            try {
+                applyTagToProperty(propertyId, tagId);
+                successCount++;
+            } catch (Exception e) {
+                failureCount++;
+                errors.add("Property " + propertyId + ": " + e.getMessage());
+                log.error("Failed to apply tag {} to property {}: {}", tagId, propertyId, e.getMessage());
+            }
+        }
+        
+        result.put("successCount", successCount);
+        result.put("failureCount", failureCount);
+        result.put("errors", errors);
+        result.put("totalProcessed", payPropPropertyIds.size());
+        
+        return result;
+    }
+
+
+
+
+
     /**
      * Find portfolios that contain a specific PayProp tag
      */

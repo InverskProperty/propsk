@@ -8,140 +8,72 @@
 <!-- Custom CSS -->
 <link th:href="@{/css/style.min.css}" rel="stylesheet">
 
-<!-- Custom Workflow Styles -->
+<!-- Custom Dashboard Styles -->
 <style>
-.workflow-card {
+.portfolio-card {
     transition: all 0.3s ease;
     border-left: 4px solid #dee2e6;
     cursor: pointer;
 }
-.workflow-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+.portfolio-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     border-left-color: #007bff;
 }
-.workflow-card.active {
+.portfolio-card.synced {
     border-left-color: #28a745;
-    background: linear-gradient(135deg, #f8fff9 0%, #ffffff 100%);
+}
+.portfolio-card.pending {
+    border-left-color: #ffc107;
+}
+.portfolio-card.shared {
+    border-left-color: #007bff;
 }
 
-.step-indicator {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 2rem;
-}
-.step {
-    flex: 1;
-    text-align: center;
-    position: relative;
-}
-.step::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 100%;
-    width: 100%;
-    height: 2px;
-    background: #dee2e6;
-    z-index: 1;
-}
-.step:last-child::before { display: none; }
-.step.completed::before { background: #28a745; }
-.step-circle {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: #dee2e6;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 10px;
-    position: relative;
-    z-index: 2;
-}
-.step.active .step-circle { background: #007bff; }
-.step.completed .step-circle { background: #28a745; }
-
-.property-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1rem;
-    max-height: 400px;
-    overflow-y: auto;
-}
-.property-item {
-    border: 2px solid transparent;
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
-.property-item:hover { border-color: #007bff; }
-.property-item.selected { 
-    border-color: #28a745; 
-    background: linear-gradient(135deg, #f8fff9 0%, #ffffff 100%);
-}
-
-.portfolio-targets {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 1rem;
-    max-height: 500px;
-    overflow-y: auto;
-}
-.portfolio-target {
-    border: 2px dashed #dee2e6;
-    transition: all 0.3s ease;
-    min-height: 120px;
-}
-.portfolio-target:hover { border-color: #007bff; }
-.portfolio-target.active { border-color: #28a745; background: #f8fff9; }
-
-.sync-badge {
-    font-size: 0.75em;
-    padding: 3px 8px;
-}
-.sync-badge.synced { background: #d4edda; color: #155724; }
-.sync-badge.pending { background: #fff3cd; color: #856404; }
-
-.financial-summary {
+.property-owner-filter {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     border-radius: 10px;
     padding: 1.5rem;
+    margin-bottom: 2rem;
 }
 
-.tag-visualization {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 1rem;
+.filter-card {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 1rem;
 }
-.tag-item {
-    background: #007bff;
-    color: white;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.85em;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+
+.quick-action-btn {
+    transition: all 0.3s ease;
 }
-.tag-item.payprop { background: #28a745; }
-.tag-item .remove-tag {
-    cursor: pointer;
-    opacity: 0.7;
+
+.quick-action-btn:hover {
+    transform: translateY(-2px);
 }
-.tag-item .remove-tag:hover { opacity: 1; }
+
+.unassigned-property {
+    border: 2px solid #ffc107;
+    transition: all 0.3s ease;
+}
+
+.unassigned-property:hover {
+    border-color: #007bff;
+    transform: translateY(-2px);
+}
 </style>
 
-<!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
-<!--[if lt IE 9]>
-<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
-<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
-<![endif]-->
 </head>
 
 <body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
 <div id="main-wrapper">
     <div th:replace="~{general/header.html}"></div>
     <div th:replace="~{general/left-sidebar.html}"></div>
@@ -153,319 +85,271 @@
                 <div class="col-md-8 align-self-center">
                     <h3 class="text-themecolor">
                         <i class="fas fa-sitemap text-primary"></i> 
-                        Portfolio Organization Workflow
+                        Portfolio Management Dashboard
                     </h3>
-                    <p class="text-muted">Organize properties into portfolios with PayProp tag synchronization</p>
+                    <p class="text-muted">Organize and manage property portfolios with PayProp synchronization</p>
                 </div>
                 <div class="col-md-4 text-right">
                     <div class="btn-group">
-                        <button class="btn btn-success" onclick="startNewWorkflow()">
-                            <i class="fas fa-play"></i> Start New Workflow
-                        </button>
-                        <button class="btn btn-info" onclick="showPayPropStatus()">
+                        <a href="/portfolio/all" class="btn btn-info">
+                            <i class="fas fa-list"></i> All Portfolios
+                        </a>
+                        <a href="/portfolio/create" class="btn btn-success">
+                            <i class="fas fa-plus"></i> Create Portfolio
+                        </a>
+                        <button class="btn btn-warning" onclick="showPayPropStatus()">
                             <i class="fas fa-sync"></i> PayProp Status
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Workflow Steps Indicator -->
+            <!-- Success/Error Messages -->
+            <div th:if="${successMessage}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-success alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <h4><i class="icon fa fa-check"></i> Success!</h4>
+                        <span th:text="${successMessage}">Success message</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Property Owner Filtering -->
+            <div class="property-owner-filter">
+                <h5 class="text-white mb-3">
+                    <i class="fas fa-filter"></i> Filter Properties & Portfolios by Owner
+                </h5>
+                <form method="get" class="form-inline">
+                    <div class="form-group mr-3">
+                        <label for="ownerFilter" class="text-white mr-2">Property Owner:</label>
+                        <select name="ownerId" id="ownerFilter" class="form-control">
+                            <option value="">All Owners</option>
+                            <option th:each="owner : ${propertyOwners}" 
+                                    th:value="${owner.customerId}" 
+                                    th:selected="${selectedOwnerId == owner.customerId}"
+                                    th:text="${owner.name + ' (ID: ' + owner.customerId + ')'}">Owner Name</option>
+                        </select>
+                    </div>
+                    <div class="form-group mr-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="showUnassigned" 
+                                   th:checked="${showUnassigned}" value="true">
+                            <label class="form-check-label text-white">Show Unassigned Properties</label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-light mr-2">
+                        <i class="fas fa-search"></i> Filter
+                    </button>
+                    <a href="/portfolio/dashboard" class="btn btn-outline-light">
+                        <i class="fa fa-times"></i> Clear
+                    </a>
+                </form>
+            </div>
+
+            <!-- Statistics -->
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body text-center">
+                            <h4 th:text="${#lists.size(portfolios ?: {})}">0</h4>
+                            <p class="mb-0">Total Portfolios</p>
+                            <small class="opacity-75" th:if="${selectedOwnerId}">for selected owner</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <h4 th:text="${aggregateStats?.totalProperties ?: 0}">0</h4>
+                            <p class="mb-0">Total Properties</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body text-center">
+                            <h4 th:text="${unassignedPropertiesCount ?: 0}">0</h4>
+                            <p class="mb-0">Unassigned Properties</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <h4 th:text="${aggregateStats?.totalSynced ?: 0}">0</h4>
+                            <p class="mb-0">PayProp Synced</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
             <div class="row">
                 <div class="col-12">
                     <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-bolt"></i> Quick Actions
+                            </h4>
+                        </div>
                         <div class="card-body">
-                            <div class="step-indicator">
-                                <div class="step" id="step1">
-                                    <div class="step-circle">1</div>
-                                    <div class="step-title">Select Properties</div>
-                                    <small class="text-muted">Choose properties to organize</small>
-                                </div>
-                                <div class="step" id="step2">
-                                    <div class="step-circle">2</div>
-                                    <div class="step-title">Create Strategy</div>
-                                    <small class="text-muted">Define portfolio & tags</small>
-                                </div>
-                                <div class="step" id="step3">
-                                    <div class="step-circle">3</div>
-                                    <div class="step-title">PayProp Sync</div>
-                                    <small class="text-muted">Synchronize with PayProp</small>
-                                </div>
-                                <div class="step" id="step4">
-                                    <div class="step-circle">4</div>
-                                    <div class="step-title">Review</div>
-                                    <small class="text-muted">Confirm & finalize</small>
-                                </div>
+                            <div class="btn-group mr-2">
+                                <a href="/portfolio/create" class="btn btn-success quick-action-btn">
+                                    <i class="fas fa-plus"></i> Create New Portfolio
+                                </a>
+                                <a href="/portfolio/assign-properties" class="btn btn-info quick-action-btn">
+                                    <i class="fas fa-tasks"></i> Bulk Property Assignment
+                                </a>
+                                <button class="btn btn-primary quick-action-btn" onclick="pullPayPropTags()">
+                                    <i class="fas fa-download"></i> Import PayProp Tags
+                                </button>
+                            </div>
+                            <div class="btn-group">
+                                <button class="btn btn-warning quick-action-btn" onclick="syncAllPortfolios()">
+                                    <i class="fas fa-sync"></i> Sync All with PayProp
+                                </button>
+                                <a href="/admin/payprop/dashboard" class="btn btn-secondary quick-action-btn">
+                                    <i class="fas fa-cog"></i> PayProp Admin
+                                </a>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Workflow Content -->
-            
-            <!-- Step 1: Property Selection -->
-            <div id="step1-content" class="workflow-step">
-                <div class="row">
-                    <div class="col-md-8">
-                        <div class="card">
-                            <div class="card-header bg-primary text-white">
-                                <h4 class="text-white mb-0">
-                                    <i class="fas fa-home"></i> Available Properties
-                                </h4>
-                            </div>
-                            <div class="card-body">
-                                <!-- Filters -->
-                                <div class="row mb-3">
-                                    <div class="col-md-4">
-                                        <input type="text" class="form-control" id="propertySearch" 
-                                               placeholder="Search properties..." onkeyup="filterProperties()">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <select class="form-control" id="cityFilter" onchange="filterProperties()">
-                                            <option value="">All Cities</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <select class="form-control" id="syncFilter" onchange="filterProperties()">
-                                            <option value="">All Properties</option>
-                                            <option value="synced">PayProp Synced</option>
-                                            <option value="pending">Sync Pending</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <button class="btn btn-primary btn-block" onclick="loadProperties()">
-                                            <i class="fas fa-search"></i>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <!-- Properties Grid -->
-                                <div class="property-grid" id="propertiesGrid">
-                                    <div class="text-center py-4">
-                                        <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
-                                        <p class="text-muted mt-2">Loading properties...</p>
-                                    </div>
-                                </div>
-                            </div>
+            <!-- Unassigned Properties (if requested) -->
+            <div th:if="${showUnassigned}" class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-warning text-dark">
+                            <h4 class="mb-0">
+                                <i class="fas fa-exclamation-triangle"></i> Unassigned Properties
+                            </h4>
                         </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card">
-                            <div class="card-header bg-success text-white">
-                                <h5 class="text-white mb-0">
-                                    <i class="fas fa-check-square"></i> Selection Summary
-                                </h5>
+                        <div class="card-body">
+                            <div th:if="${#lists.isEmpty(unassignedProperties ?: {})}" class="text-center py-4">
+                                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                                <h5>All Properties Assigned</h5>
+                                <p class="text-muted">Great! All properties are assigned to portfolios.</p>
                             </div>
-                            <div class="card-body">
-                                <div id="selectionSummary">
-                                    <p class="text-muted">No properties selected</p>
-                                </div>
-                                <button class="btn btn-success btn-block" onclick="proceedToStrategy()" disabled id="proceedBtn">
-                                    <i class="fas fa-arrow-right"></i> Proceed to Strategy
-                                </button>
-                            </div>
-                        </div>
 
-                        <!-- Quick Actions -->
-                        <div class="card mt-3">
-                            <div class="card-header">
-                                <h6 class="mb-0">Quick Actions</h6>
-                            </div>
-                            <div class="card-body">
-                                <button class="btn btn-outline-primary btn-sm btn-block mb-2" onclick="selectByCity()">
-                                    <i class="fas fa-map-marker-alt"></i> Select by City
-                                </button>
-                                <button class="btn btn-outline-info btn-sm btn-block mb-2" onclick="selectByType()">
-                                    <i class="fas fa-building"></i> Select by Type
-                                </button>
-                                <button class="btn btn-outline-warning btn-sm btn-block mb-2" onclick="selectUnsynced()">
-                                    <i class="fas fa-exclamation-triangle"></i> Select Unsynced
-                                </button>
-                                <button class="btn btn-outline-secondary btn-sm btn-block" onclick="clearSelection()">
-                                    <i class="fas fa-times"></i> Clear Selection
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Step 2: Strategy Creation -->
-            <div id="step2-content" class="workflow-step" style="display: none;">
-                <div class="row">
-                    <div class="col-md-8">
-                        <div class="card">
-                            <div class="card-header bg-info text-white">
-                                <h4 class="text-white mb-0">
-                                    <i class="fas fa-chart-pie"></i> Portfolio Strategy
-                                </h4>
-                            </div>
-                            <div class="card-body">
-                                <form id="portfolioStrategyForm">
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label>Portfolio Name</label>
-                                                <input type="text" class="form-control" id="portfolioName" 
-                                                       placeholder="e.g., City Center Collection" required>
+                            <div th:unless="${#lists.isEmpty(unassignedProperties ?: {})}" class="row">
+                                <div th:each="property : ${unassignedProperties}" class="col-lg-4 col-md-6 mb-3">
+                                    <div class="card unassigned-property">
+                                        <div class="card-body">
+                                            <h6 th:text="${property.propertyName}">Property Name</h6>
+                                            <p class="text-muted small" th:text="${property.fullAddress}">Address</p>
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <span class="badge badge-secondary" th:text="${property.propertyType}">Type</span>
+                                                <span th:if="${property.monthlyPayment}" 
+                                                      class="text-success small"
+                                                      th:text="'£' + ${#numbers.formatDecimal(property.monthlyPayment, 0, 'COMMA', 0, 'POINT')}">£0</span>
                                             </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label>Portfolio Type</label>
-                                                <select class="form-control" id="portfolioType" required>
-                                                    <option value="">Select strategy...</option>
-                                                    <option value="GEOGRAPHIC">Geographic Grouping</option>
-                                                    <option value="PROPERTY_TYPE">By Property Type</option>
-                                                    <option value="INVESTMENT_CLASS">Investment Strategy</option>
-                                                    <option value="TENANT_TYPE">By Tenant Type</option>
-                                                    <option value="CUSTOM">Custom Strategy</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label>Description</label>
-                                        <textarea class="form-control" id="portfolioDescription" rows="3"
-                                                 placeholder="Describe the portfolio strategy and goals..."></textarea>
-                                    </div>
-
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label>Target Monthly Income (£)</label>
-                                                <input type="number" class="form-control" id="targetIncome" 
-                                                       step="0.01" placeholder="0.00">
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-group">
-                                                <label>Target Occupancy (%)</label>
-                                                <input type="number" class="form-control" id="targetOccupancy" 
-                                                       min="0" max="100" placeholder="95">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Tag Management -->
-                                    <div class="form-group">
-                                        <label>Portfolio Tags</label>
-                                        <div class="input-group">
-                                            <input type="text" class="form-control" id="newTag" 
-                                                   placeholder="Add a tag...">
-                                            <div class="input-group-append">
-                                                <button type="button" class="btn btn-outline-primary" onclick="addTag()">
-                                                    <i class="fas fa-plus"></i> Add
+                                            <div class="mt-2">
+                                                <button class="btn btn-sm btn-success btn-block" 
+                                                        th:onclick="'quickAssignProperty(' + ${property.id} + ')'">
+                                                    <i class="fas fa-plus"></i> Quick Assign
                                                 </button>
                                             </div>
                                         </div>
-                                        <div class="tag-visualization" id="tagVisualization">
-                                            <!-- Tags will be added here -->
-                                        </div>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                                    <!-- PayProp Sync Options -->
-                                    <div class="card border-success">
-                                        <div class="card-header bg-light">
-                                            <h6 class="mb-0">
-                                                <i class="fas fa-sync text-success"></i> PayProp Integration
-                                            </h6>
+            <!-- Portfolio List -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between">
+                            <h4>Portfolio Management</h4>
+                            <div class="btn-group">
+                                <span class="badge badge-info mr-2" th:text="${#lists.size(portfolios ?: {})} + ' portfolios'">0 portfolios</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${#lists.isEmpty(portfolios ?: {})}" class="text-center py-5">
+                                <i class="fas fa-folder-plus fa-4x text-muted mb-3"></i>
+                                <h5>No Portfolios Found</h5>
+                                <p class="text-muted" th:if="${selectedOwnerId}">No portfolios found for the selected owner.</p>
+                                <p class="text-muted" th:unless="${selectedOwnerId}">Create your first portfolio to start organizing properties.</p>
+                                <a href="/portfolio/create" class="btn btn-success btn-lg">
+                                    <i class="fas fa-plus"></i> Create Portfolio
+                                </a>
+                            </div>
+
+                            <div th:unless="${#lists.isEmpty(portfolios ?: {})}" class="row">
+                                <div th:each="portfolioData : ${portfolios}" class="col-lg-6 col-xl-4 mb-4">
+                                    <div th:class="'card portfolio-card h-100 ' + ${portfolioData.portfolio.isShared == 'Y' ? 'shared' : (portfolioData.portfolio.isSyncedWithPayProp() ? 'synced' : 'pending')}">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <h6 class="mb-0" th:text="${portfolioData.portfolio.name}">Portfolio Name</h6>
+                                            <div>
+                                                <span th:if="${portfolioData.portfolio.isShared == 'Y'}" 
+                                                      class="badge badge-primary">Shared</span>
+                                                <span th:unless="${portfolioData.portfolio.isShared == 'Y'}" 
+                                                      class="badge badge-info">Owner-Specific</span>
+                                            </div>
                                         </div>
                                         <div class="card-body">
-                                            <div class="custom-control custom-switch">
-                                                <input type="checkbox" class="custom-control-input" 
-                                                       id="enablePayPropSync" checked>
-                                                <label class="custom-control-label" for="enablePayPropSync">
-                                                    <strong>Enable PayProp Tag Sync</strong>
-                                                </label>
+                                            <p class="card-text text-muted small" th:text="${portfolioData.portfolio.description}">Description</p>
+                                            
+                                            <!-- Owner Info -->
+                                            <div class="mb-3">
+                                                <strong>Owner:</strong>
+                                                <span th:if="${portfolioData.portfolio.propertyOwnerId}" 
+                                                      th:text="'ID: ' + ${portfolioData.portfolio.propertyOwnerId}">Owner ID</span>
+                                                <span th:unless="${portfolioData.portfolio.propertyOwnerId}" 
+                                                      class="text-muted">Shared Portfolio</span>
                                             </div>
-                                            <small class="text-muted">
-                                                Creates corresponding tags in PayProp and keeps them synchronized
-                                            </small>
-                                        </div>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <!-- Selected Properties Preview -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">Selected Properties</h6>
-                            </div>
-                            <div class="card-body">
-                                <div id="selectedPropertiesPreview">
-                                    <!-- Will be populated with selected properties -->
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Strategy Actions -->
-                        <div class="card mt-3">
-                            <div class="card-body">
-                                <button class="btn btn-info btn-block" onclick="previewStrategy()">
-                                    <i class="fas fa-eye"></i> Preview Strategy
-                                </button>
-                                <button class="btn btn-success btn-block mt-2" onclick="proceedToSync()">
-                                    <i class="fas fa-arrow-right"></i> Proceed to Sync
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Step 3: PayProp Sync -->
-            <div id="step3-content" class="workflow-step" style="display: none;">
-                <div class="row">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-header bg-warning text-dark">
-                                <h4 class="mb-0">
-                                    <i class="fas fa-sync"></i> PayProp Synchronization
-                                </h4>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-8">
-                                        <h5>Synchronization Plan</h5>
-                                        <div id="syncPlan">
-                                            <!-- Sync plan will be generated here -->
-                                        </div>
-                                        
-                                        <div class="mt-4">
-                                            <button class="btn btn-warning btn-lg" onclick="executeSyncPlan()">
-                                                <i class="fas fa-play"></i> Execute Synchronization
-                                            </button>
-                                        </div>
-                                        
-                                        <!-- Sync Progress -->
-                                        <div id="syncProgress" style="display: none;">
-                                            <h5 class="mt-4">Synchronization Progress</h5>
-                                            <div class="progress mb-3">
-                                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                                                     id="syncProgressBar" style="width: 0%"></div>
-                                            </div>
-                                            <div id="syncLog">
-                                                <!-- Sync log entries will appear here -->
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="card border-info">
-                                            <div class="card-header bg-info text-white">
-                                                <h6 class="text-white mb-0">PayProp Status</h6>
-                                            </div>
-                                            <div class="card-body">
-                                                <div id="payPropStatus">
-                                                    <div class="text-center">
-                                                        <i class="fas fa-spinner fa-spin"></i>
-                                                        <p>Checking PayProp connection...</p>
-                                                    </div>
+                                            
+                                            <!-- Analytics -->
+                                            <div class="row text-center mb-3" th:if="${portfolioData.analytics}">
+                                                <div class="col-4">
+                                                    <strong th:text="${portfolioData.analytics.totalProperties}">0</strong>
+                                                    <small class="d-block text-muted">Properties</small>
+                                                </div>
+                                                <div class="col-4">
+                                                    <strong th:text="${portfolioData.analytics.occupiedProperties}">0</strong>
+                                                    <small class="d-block text-muted">Occupied</small>
+                                                </div>
+                                                <div class="col-4">
+                                                    <strong th:text="${#numbers.formatDecimal(portfolioData.analytics.occupancyRate, 0, 'COMMA', 1, 'POINT')} + '%'">0%</strong>
+                                                    <small class="d-block text-muted">Occupancy</small>
                                                 </div>
                                             </div>
+
+                                            <!-- PayProp Status -->
+                                            <div class="mb-3">
+                                                <strong>PayProp:</strong>
+                                                <span th:if="${portfolioData.portfolio.isSyncedWithPayProp()}" 
+                                                      class="badge badge-success">
+                                                    <i class="fas fa-sync"></i> Synced
+                                                </span>
+                                                <span th:unless="${portfolioData.portfolio.isSyncedWithPayProp()}" 
+                                                      class="badge badge-warning">
+                                                    <i class="fas fa-clock"></i> Pending
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="card-footer">
+                                            <div class="btn-group btn-group-sm w-100">
+                                                <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id}}" 
+                                                   class="btn btn-info">
+                                                    <i class="fas fa-eye"></i> View
+                                                </a>
+                                                <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id} + '/assign'}" 
+                                                   class="btn btn-success">
+                                                    <i class="fas fa-plus"></i> Assign
+                                                </a>
+                                                <button class="btn btn-primary" 
+                                                        th:onclick="'syncPortfolio(' + ${portfolioData.portfolio.id} + ')'">
+                                                    <i class="fas fa-sync"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -474,507 +358,190 @@
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Step 4: Review & Finalize -->
-            <div id="step4-content" class="workflow-step" style="display: none;">
-                <div class="row">
-                    <div class="col-12">
-                        <div class="card">
-                            <div class="card-header bg-success text-white">
-                                <h4 class="text-white mb-0">
-                                    <i class="fas fa-check-circle"></i> Portfolio Created Successfully!
-                                </h4>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-8">
-                                        <div id="finalSummary">
-                                            <!-- Final summary will be populated here -->
-                                        </div>
-                                        
-                                        <div class="financial-summary mt-4">
-                                            <h5 class="text-white">Financial Summary</h5>
-                                            <div id="financialSummary">
-                                                <!-- Financial summary will be populated here -->
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="card border-success">
-                                            <div class="card-header bg-success text-white">
-                                                <h6 class="text-white mb-0">Next Steps</h6>
-                                            </div>
-                                            <div class="card-body">
-                                                <button class="btn btn-primary btn-block mb-2" onclick="viewPortfolio()">
-                                                    <i class="fas fa-eye"></i> View Portfolio
-                                                </button>
-                                                <button class="btn btn-info btn-block mb-2" onclick="manageProperties()">
-                                                    <i class="fas fa-cog"></i> Manage Properties
-                                                </button>
-                                                <button class="btn btn-success btn-block mb-2" onclick="startNewWorkflow()">
-                                                    <i class="fas fa-plus"></i> Create Another Portfolio
-                                                </button>
-                                                <button class="btn btn-secondary btn-block" onclick="goToDashboard()">
-                                                    <i class="fas fa-tachometer-alt"></i> Portfolio Dashboard
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Quick Assignment Modal -->
+<div class="modal fade" id="quickAssignModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Quick Property Assignment</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Select Portfolio:</label>
+                    <select class="form-control" id="quickAssignPortfolio">
+                        <option value="">Choose portfolio...</option>
+                        <option th:each="portfolioData : ${portfolios}" 
+                                th:value="${portfolioData.portfolio.id}" 
+                                th:text="${portfolioData.portfolio.name}">Portfolio</option>
+                    </select>
                 </div>
+                <div id="quickAssignProperty" style="display: none;">
+                    <p><strong>Property:</strong> <span id="quickAssignPropertyName"></span></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="executeQuickAssign()">
+                    <i class="fas fa-check"></i> Assign Property
+                </button>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
 <script>
-// Workflow state management
-let workflowState = {
-    currentStep: 1,
-    selectedProperties: [],
-    portfolioData: {},
-    tags: [],
-    syncResult: {},
-    createdPortfolio: null
-};
+let currentPropertyForQuickAssign = null;
 
-// Initialize workflow
-document.addEventListener('DOMContentLoaded', function() {
-    activateStep(1);
-    loadProperties();
-    checkPayPropStatus();
-});
-
-function activateStep(stepNumber) {
-    // Update step indicators
-    for (let i = 1; i <= 4; i++) {
-        const step = document.getElementById(`step${i}`);
-        const content = document.getElementById(`step${i}-content`);
-        
-        step.classList.remove('active', 'completed');
-        content.style.display = 'none';
-        
-        if (i < stepNumber) {
-            step.classList.add('completed');
-        } else if (i === stepNumber) {
-            step.classList.add('active');
-            content.style.display = 'block';
-        }
-    }
+function quickAssignProperty(propertyId) {
+    currentPropertyForQuickAssign = propertyId;
     
-    workflowState.currentStep = stepNumber;
-}
-
-function loadProperties() {
-    fetch('/api/properties/unassigned')
+    // Get property name for display
+    fetch('/api/properties/' + propertyId)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                displayProperties(data.properties);
-                populateFilters(data);
-            } else {
-                showError('Failed to load properties: ' + data.message);
+                document.getElementById('quickAssignPropertyName').textContent = data.property.propertyName;
+                document.getElementById('quickAssignProperty').style.display = 'block';
             }
         })
-        .catch(error => {
-            console.error('Error loading properties:', error);
-            showError('Failed to load properties');
-        });
+        .catch(error => console.error('Error:', error));
+    
+    $('#quickAssignModal').modal('show');
 }
 
-function displayProperties(properties) {
-    const grid = document.getElementById('propertiesGrid');
-    grid.innerHTML = '';
+function executeQuickAssign() {
+    const portfolioId = document.getElementById('quickAssignPortfolio').value;
     
-    if (properties.length === 0) {
-        grid.innerHTML = `
-            <div class="col-12 text-center py-4">
-                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
-                <h5>All Properties Assigned</h5>
-                <p class="text-muted">Great! All properties are already assigned to portfolios.</p>
-            </div>
-        `;
+    if (!portfolioId || !currentPropertyForQuickAssign) {
+        alert('Please select a portfolio');
         return;
     }
     
-    properties.forEach(property => {
-        const syncBadge = property.isPayPropSynced ? 
-            '<span class="sync-badge synced">Synced</span>' : 
-            '<span class="sync-badge pending">Pending</span>';
-            
-        const propertyCard = document.createElement('div');
-        propertyCard.className = 'card property-item';
-        propertyCard.setAttribute('data-property-id', property.id);
-        propertyCard.onclick = () => togglePropertySelection(property.id);
-        
-        propertyCard.innerHTML = `
-            <div class="card-body">
-                <h6 class="mb-1">${property.propertyName}</h6>
-                <p class="text-muted mb-2 small">${property.fullAddress}</p>
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="badge badge-secondary">${property.propertyType}</span>
-                    ${syncBadge}
-                </div>
-                <div class="mt-2">
-                    <strong>Rent:</strong> £${property.monthlyPayment || 'N/A'}
-                </div>
-            </div>
-        `;
-        
-        grid.appendChild(propertyCard);
-    });
-}
-
-function togglePropertySelection(propertyId) {
-    const card = document.querySelector(`[data-property-id="${propertyId}"]`);
-    const index = workflowState.selectedProperties.indexOf(propertyId);
-    
-    if (index > -1) {
-        workflowState.selectedProperties.splice(index, 1);
-        card.classList.remove('selected');
-    } else {
-        workflowState.selectedProperties.push(propertyId);
-        card.classList.add('selected');
-    }
-    
-    updateSelectionSummary();
-}
-
-function updateSelectionSummary() {
-    const count = workflowState.selectedProperties.length;
-    const summary = document.getElementById('selectionSummary');
-    const proceedBtn = document.getElementById('proceedBtn');
-    
-    if (count > 0) {
-        summary.innerHTML = `
-            <h5 class="text-success">${count} Properties Selected</h5>
-            <p class="text-muted">Ready to create portfolio strategy</p>
-            <small class="text-info">Selected IDs: ${workflowState.selectedProperties.join(', ')}</small>
-        `;
-        proceedBtn.disabled = false;
-    } else {
-        summary.innerHTML = '<p class="text-muted">No properties selected</p>';
-        proceedBtn.disabled = true;
-    }
-}
-
-function proceedToStrategy() {
-    if (workflowState.selectedProperties.length === 0) {
-        showError('Please select at least one property');
-        return;
-    }
-    
-    updateSelectedPropertiesPreview();
-    activateStep(2);
-}
-
-function updateSelectedPropertiesPreview() {
-    const preview = document.getElementById('selectedPropertiesPreview');
-    preview.innerHTML = `
-        <h6>${workflowState.selectedProperties.length} Properties Selected</h6>
-        <p class="text-muted small">Properties will be organized into the portfolio you create</p>
-    `;
-}
-
-function addTag() {
-    const tagInput = document.getElementById('newTag');
-    const tagValue = tagInput.value.trim();
-    
-    if (tagValue && !workflowState.tags.includes(tagValue)) {
-        workflowState.tags.push(tagValue);
-        tagInput.value = '';
-        updateTagVisualization();
-    }
-}
-
-function updateTagVisualization() {
-    const container = document.getElementById('tagVisualization');
-    container.innerHTML = '';
-    
-    workflowState.tags.forEach(tag => {
-        const tagElement = document.createElement('div');
-        tagElement.className = 'tag-item';
-        tagElement.innerHTML = `
-            ${tag}
-            <span class="remove-tag" onclick="removeTag('${tag}')">×</span>
-        `;
-        container.appendChild(tagElement);
-    });
-}
-
-function removeTag(tag) {
-    const index = workflowState.tags.indexOf(tag);
-    if (index > -1) {
-        workflowState.tags.splice(index, 1);
-        updateTagVisualization();
-    }
-}
-
-function proceedToSync() {
-    // Validate form
-    const name = document.getElementById('portfolioName').value.trim();
-    const type = document.getElementById('portfolioType').value;
-    
-    if (!name || !type) {
-        showError('Please fill in all required fields');
-        return;
-    }
-    
-    // Save portfolio data
-    workflowState.portfolioData = {
-        name: name,
-        type: type,
-        description: document.getElementById('portfolioDescription').value.trim(),
-        targetIncome: document.getElementById('targetIncome').value,
-        targetOccupancy: document.getElementById('targetOccupancy').value,
-        enableSync: document.getElementById('enablePayPropSync').checked,
-        tags: workflowState.tags
-    };
-    
-    generateSyncPlan();
-    activateStep(3);
-}
-
-function generateSyncPlan() {
-    const plan = document.getElementById('syncPlan');
-    plan.innerHTML = `
-        <div class="list-group">
-            <div class="list-group-item">
-                <h6>1. Create Portfolio: "${workflowState.portfolioData.name}"</h6>
-                <small class="text-muted">Type: ${workflowState.portfolioData.type}</small>
-            </div>
-            <div class="list-group-item">
-                <h6>2. Assign ${workflowState.selectedProperties.length} Properties</h6>
-                <small class="text-muted">Selected properties will be assigned to the portfolio</small>
-            </div>
-            ${workflowState.portfolioData.enableSync ? `
-            <div class="list-group-item">
-                <h6>3. Create PayProp Tags</h6>
-                <small class="text-muted">Create corresponding tags in PayProp system</small>
-            </div>
-            <div class="list-group-item">
-                <h6>4. Sync Property Tags</h6>
-                <small class="text-muted">Apply tags to properties in PayProp</small>
-            </div>
-            ` : ''}
-        </div>
-    `;
-}
-
-function executeSyncPlan() {
-    document.getElementById('syncProgress').style.display = 'block';
-    
-    const portfolioData = {
-        name: workflowState.portfolioData.name,
-        portfolioType: workflowState.portfolioData.type,
-        description: workflowState.portfolioData.description,
-        targetMonthlyIncome: workflowState.portfolioData.targetIncome,
-        targetOccupancyRate: workflowState.portfolioData.targetOccupancy,
-        enablePayPropSync: workflowState.portfolioData.enableSync,
-        propertyIds: workflowState.selectedProperties,
-        tags: workflowState.tags
-    };
-    
-    updateProgress(25, 'Creating portfolio...');
-    
-    fetch('/api/portfolio/create-with-sync', {
+    fetch('/portfolio/' + portfolioId + '/assign-properties', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded',
             'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
         },
-        body: JSON.stringify(portfolioData)
+        body: 'propertyIds=' + currentPropertyForQuickAssign
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            workflowState.createdPortfolio = data.portfolio;
-            workflowState.syncResult = data;
-            
-            updateProgress(100, 'Portfolio created successfully!');
-            
-            setTimeout(() => {
-                generateFinalSummary();
-                activateStep(4);
-            }, 1500);
+            $('#quickAssignModal').modal('hide');
+            showSuccess('Property assigned successfully!');
+            setTimeout(() => location.reload(), 1500);
         } else {
-            updateProgress(100, 'Error: ' + data.message, true);
+            showError('Error: ' + data.message);
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        updateProgress(100, 'Failed to create portfolio', true);
+        showError('Failed to assign property');
     });
 }
 
-function updateProgress(percentage, message, isError = false) {
-    const progressBar = document.getElementById('syncProgressBar');
-    const log = document.getElementById('syncLog');
-    
-    progressBar.style.width = percentage + '%';
-    progressBar.classList.toggle('bg-danger', isError);
-    
-    const logEntry = document.createElement('div');
-    logEntry.className = isError ? 'text-danger' : 'text-success';
-    logEntry.innerHTML = `<i class="fas fa-${isError ? 'times' : 'check'}"></i> ${message}`;
-    log.appendChild(logEntry);
-}
-
-function generateFinalSummary() {
-    const summary = document.getElementById('finalSummary');
-    const financial = document.getElementById('financialSummary');
-    
-    summary.innerHTML = `
-        <h5>Portfolio "${workflowState.portfolioData.name}" Created</h5>
-        <div class="row mt-3">
-            <div class="col-md-4">
-                <h6>Properties Organized</h6>
-                <p class="mb-0">${workflowState.selectedProperties.length} properties</p>
-            </div>
-            <div class="col-md-4">
-                <h6>PayProp Integration</h6>
-                <p class="mb-0">${workflowState.portfolioData.enableSync ? 'Enabled & Synced' : 'Disabled'}</p>
-            </div>
-            <div class="col-md-4">
-                <h6>Tags Created</h6>
-                <p class="mb-0">${workflowState.tags.length} tags</p>
-            </div>
-        </div>
-    `;
-    
-    financial.innerHTML = `
-        <div class="row text-white">
-            <div class="col-md-6">
-                <h6>Target Monthly Income</h6>
-                <h4>£${workflowState.portfolioData.targetIncome || 'Not set'}</h4>
-            </div>
-            <div class="col-md-6">
-                <h6>Target Occupancy</h6>
-                <h4>${workflowState.portfolioData.targetOccupancy || 'Not set'}%</h4>
-            </div>
-        </div>
-    `;
-}
-
-function checkPayPropStatus() {
-    const status = document.getElementById('payPropStatus');
-    // Simulate PayProp status check
-    setTimeout(() => {
-        status.innerHTML = `
-            <div class="text-success">
-                <i class="fas fa-check-circle"></i>
-                <strong>Connected</strong>
-            </div>
-            <small class="text-muted">PayProp integration active</small>
-        `;
-    }, 1000);
-}
-
-// Navigation functions
-function viewPortfolio() {
-    if (workflowState.createdPortfolio) {
-        window.location.href = '/portfolio/' + workflowState.createdPortfolio.id;
+function syncPortfolio(portfolioId) {
+    if (confirm('Sync this portfolio with PayProp?')) {
+        fetch('/portfolio/' + portfolioId + '/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('Portfolio sync initiated successfully!');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showError('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Failed to sync portfolio');
+        });
     }
 }
 
-function manageProperties() {
-    window.location.href = '/portfolio/assign-properties';
+function syncAllPortfolios() {
+    if (confirm('Sync all portfolios with PayProp? This may take several minutes.')) {
+        fetch('/portfolio/sync-all', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('Portfolio sync initiated successfully!');
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showError('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Failed to initiate sync');
+        });
+    }
 }
 
-function goToDashboard() {
-    window.location.href = '/portfolio/dashboard';
+function pullPayPropTags() {
+    if (confirm('Import existing PayProp tags as portfolios?')) {
+        fetch('/portfolio/actions/pull-payprop-tags', {
+            method: 'GET',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess(data.message);
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showError('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Failed to pull PayProp tags');
+        });
+    }
 }
 
-function startNewWorkflow() {
-    workflowState = {
-        currentStep: 1,
-        selectedProperties: [],
-        portfolioData: {},
-        tags: [],
-        syncResult: {},
-        createdPortfolio: null
-    };
-    activateStep(1);
-    loadProperties();
-}
-
-// Utility functions
-function showError(message) {
-    alert('❌ ' + message);
+function showPayPropStatus() {
+    window.open('/admin/payprop/dashboard', '_blank');
 }
 
 function showSuccess(message) {
     alert('✅ ' + message);
 }
 
-// Quick selection functions
-function selectByCity() {
-    const city = prompt('Enter city name:');
-    if (city) {
-        document.querySelectorAll('.property-item').forEach(card => {
-            const propertyId = parseInt(card.getAttribute('data-property-id'));
-            // Simple city-based selection logic
-            if (!workflowState.selectedProperties.includes(propertyId)) {
-                togglePropertySelection(propertyId);
-            }
-        });
-    }
-}
-
-function selectByType() {
-    const type = prompt('Enter property type:');
-    if (type) {
-        // Similar logic for type-based selection
-    }
-}
-
-function selectUnsynced() {
-    document.querySelectorAll('.property-item').forEach(card => {
-        const syncBadge = card.querySelector('.sync-badge');
-        if (syncBadge && syncBadge.classList.contains('pending')) {
-            const propertyId = parseInt(card.getAttribute('data-property-id'));
-            if (!workflowState.selectedProperties.includes(propertyId)) {
-                togglePropertySelection(propertyId);
-            }
-        }
-    });
-}
-
-function clearSelection() {
-    workflowState.selectedProperties = [];
-    document.querySelectorAll('.property-item').forEach(card => {
-        card.classList.remove('selected');
-    });
-    updateSelectionSummary();
-}
-
-function populateFilters(data) {
-    const cityFilter = document.getElementById('cityFilter');
-    if (data.cities) {
-        data.cities.forEach(city => {
-            const option = document.createElement('option');
-            option.value = city;
-            option.textContent = city;
-            cityFilter.appendChild(option);
-        });
-    }
-}
-
-function filterProperties() {
-    // Implement property filtering logic
-    console.log('Filtering properties...');
-}
-
-function previewStrategy() {
-    showSuccess('Strategy looks good! Ready to proceed.');
-}
-
-function showPayPropStatus() {
-    // Show detailed PayProp status
-    alert('PayProp Status: Connected and ready for sync');
+function showError(message) {
+    alert('❌ ' + message);
 }
 </script>
 

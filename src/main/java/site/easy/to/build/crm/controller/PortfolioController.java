@@ -1,6 +1,8 @@
 // FORCE REBUILD - Route fix deployment v4 - Remove after successful deployment
 package site.easy.to.build.crm.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -37,6 +39,8 @@ import java.util.stream.Collectors;
 @Controller
 @RequestMapping("/portfolio")
 public class PortfolioController {
+
+    private static final Logger log = LoggerFactory.getLogger(PortfolioController.class);
 
     private final PortfolioService portfolioService;
     private final PropertyService propertyService;
@@ -426,50 +430,6 @@ public class PortfolioController {
         }
     }
 
-    /**
-     * Portfolio-Specific Property Assignment Interface - NEW METHOD
-     */
-    @GetMapping("/{id}/assign")
-    public String showPortfolioSpecificAssignmentPage(@PathVariable("id") Long portfolioId, 
-                                                     Model model, 
-                                                     Authentication authentication) {
-        try {
-            // Check access permissions
-            if (!portfolioService.canUserAccessPortfolio(portfolioId, authentication)) {
-                return "redirect:/access-denied";
-            }
-            
-            // Get the specific portfolio
-            Portfolio targetPortfolio = portfolioService.findById(portfolioId);
-            if (targetPortfolio == null) {
-                return "error/not-found";
-            }
-            
-            // Get all portfolios for the general assignment interface
-            List<Portfolio> allPortfolios = portfolioService.findPortfoliosForUser(authentication);
-            
-            // Get all properties and unassigned properties
-            List<Property> allProperties = propertyService.findAll();
-            List<Property> unassignedProperties = allProperties.stream()
-                .filter(property -> property.getPortfolio() == null)
-                .collect(Collectors.toList());
-            
-            // Add attributes for the assignment page
-            model.addAttribute("targetPortfolio", targetPortfolio);
-            model.addAttribute("portfolios", allPortfolios);
-            model.addAttribute("unassignedProperties", unassignedProperties);
-            model.addAttribute("allProperties", allProperties);
-            model.addAttribute("pageTitle", "Assign Properties to " + targetPortfolio.getName());
-            model.addAttribute("isPortfolioSpecific", true);
-            
-            return "portfolio/assign-properties";
-            
-        } catch (Exception e) {
-            model.addAttribute("error", "Error loading assignment page: " + e.getMessage());
-            return "error/500";
-        }
-    }
-
     @GetMapping("/debug/test-payprop-direct")
     @ResponseBody
     public ResponseEntity<String> testPayPropDirect(Authentication authentication) {
@@ -676,7 +636,6 @@ public class PortfolioController {
         }
     }
 
-
     @PostMapping("/sync-all")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> syncAllPortfoliosWithPayProp(Authentication authentication) {
@@ -748,6 +707,290 @@ public class PortfolioController {
     }
 
     // ===== PARAMETERIZED ROUTES LAST =====
+
+    /**
+     * Portfolio-Specific Property Assignment Interface - NEW METHOD
+     */
+    @GetMapping("/{id}/assign")
+    public String showPortfolioSpecificAssignmentPage(@PathVariable("id") Long portfolioId, 
+                                                     Model model, 
+                                                     Authentication authentication) {
+        try {
+            // Check access permissions
+            if (!portfolioService.canUserAccessPortfolio(portfolioId, authentication)) {
+                return "redirect:/access-denied";
+            }
+            
+            // Get the specific portfolio
+            Portfolio targetPortfolio = portfolioService.findById(portfolioId);
+            if (targetPortfolio == null) {
+                return "error/not-found";
+            }
+            
+            // Get all portfolios for the general assignment interface
+            List<Portfolio> allPortfolios = portfolioService.findPortfoliosForUser(authentication);
+            
+            // Get all properties and unassigned properties
+            List<Property> allProperties = propertyService.findAll();
+            List<Property> unassignedProperties = allProperties.stream()
+                .filter(property -> property.getPortfolio() == null)
+                .collect(Collectors.toList());
+            
+            // Add attributes for the assignment page
+            model.addAttribute("targetPortfolio", targetPortfolio);
+            model.addAttribute("portfolios", allPortfolios);
+            model.addAttribute("unassignedProperties", unassignedProperties);
+            model.addAttribute("allProperties", allProperties);
+            model.addAttribute("pageTitle", "Assign Properties to " + targetPortfolio.getName());
+            model.addAttribute("isPortfolioSpecific", true);
+            
+            return "portfolio/assign-properties";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading assignment page: " + e.getMessage());
+            return "error/500";
+        }
+    }
+
+    /**
+     * Get available properties for assignment to a specific portfolio
+     */
+    @GetMapping("/{id}/available-properties")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getAvailablePropertiesForPortfolio(
+            @PathVariable("id") Long portfolioId, 
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!portfolioService.canUserAccessPortfolio(portfolioId, authentication)) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            // Get all properties that are NOT assigned to any portfolio
+            List<Property> allProperties = propertyService.findAll();
+            List<Property> availableProperties = allProperties.stream()
+                .filter(property -> property.getPortfolio() == null || 
+                                  !property.getPortfolio().getId().equals(portfolioId))
+                .collect(Collectors.toList());
+            
+            // Convert to simple DTOs for JSON response
+            List<Map<String, Object>> propertyDTOs = availableProperties.stream()
+                .map(property -> {
+                    Map<String, Object> dto = new HashMap<>();
+                    dto.put("id", property.getId());
+                    dto.put("propertyName", property.getPropertyName());
+                    dto.put("fullAddress", property.getFullAddress());
+                    dto.put("propertyType", property.getPropertyType());
+                    dto.put("monthlyPayment", property.getMonthlyPayment());
+                    dto.put("payPropId", property.getPayPropId());
+                    dto.put("isOccupied", property.isOccupied());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+            
+            response.put("success", true);
+            response.put("properties", propertyDTOs);
+            response.put("totalAvailable", propertyDTOs.size());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Failed to load available properties: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * Remove a single property from portfolio
+     */
+    @PostMapping("/{portfolioId}/remove-property/{propertyId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> removePropertyFromPortfolio(
+            @PathVariable("portfolioId") Long portfolioId,
+            @PathVariable("propertyId") Long propertyId,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!canUserEditPortfolio(portfolioId, authentication)) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            Property property = propertyService.findById(propertyId);
+            if (property == null) {
+                response.put("success", false);
+                response.put("message", "Property not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            if (portfolio == null) {
+                response.put("success", false);
+                response.put("message", "Portfolio not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            // Remove PayProp tags if applicable
+            if (payPropEnabled && payPropSyncService != null && 
+                portfolio.isSyncedWithPayProp() && property.getPayPropId() != null) {
+                
+                List<String> payPropTags = portfolio.getPayPropTagList();
+                for (String tagId : payPropTags) {
+                    try {
+                        payPropSyncService.removeTagFromProperty(property.getPayPropId(), tagId);
+                    } catch (Exception e) {
+                        log.warn("Failed to remove PayProp tag {} from property {}: {}", 
+                            tagId, property.getPayPropId(), e.getMessage());
+                    }
+                }
+            }
+            
+            // Remove from local portfolio
+            property.setPortfolio(null);
+            property.setPortfolioAssignmentDate(null);
+            propertyService.save(property);
+            
+            response.put("success", true);
+            response.put("message", "Property removed from portfolio successfully");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Failed to remove property: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * Enhanced assignment with PayProp sync
+     */
+    @PostMapping("/{id}/assign-properties")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> assignPropertiesToPortfolio(
+            @PathVariable("id") Long portfolioId,
+            @RequestParam("propertyIds") List<Long> propertyIds,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!canUserEditPortfolio(portfolioId, authentication)) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            if (portfolio == null) {
+                response.put("success", false);
+                response.put("message", "Portfolio not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            int assignedCount = 0;
+            int syncedCount = 0;
+            int errorCount = 0;
+            List<String> errors = new ArrayList<>();
+            
+            for (Long propertyId : propertyIds) {
+                try {
+                    Property property = propertyService.findById(propertyId);
+                    if (property != null) {
+                        // Assign locally
+                        property.setPortfolio(portfolio);
+                        property.setPortfolioAssignmentDate(LocalDateTime.now());
+                        propertyService.save(property);
+                        assignedCount++;
+                        
+                        // Sync to PayProp if enabled and property has PayProp ID
+                        if (payPropEnabled && payPropSyncService != null && 
+                            portfolio.isSyncedWithPayProp() && property.getPayPropId() != null) {
+                            
+                            List<String> payPropTags = portfolio.getPayPropTagList();
+                            for (String tagId : payPropTags) {
+                                try {
+                                    payPropSyncService.applyTagToProperty(property.getPayPropId(), tagId);
+                                    syncedCount++;
+                                } catch (Exception e) {
+                                    log.warn("Failed to apply PayProp tag {} to property {}: {}", 
+                                        tagId, property.getPayPropId(), e.getMessage());
+                                    errors.add("PayProp sync failed for property " + property.getPropertyName());
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    errorCount++;
+                    errors.add("Failed to assign property ID " + propertyId + ": " + e.getMessage());
+                    log.error("Failed to assign property {} to portfolio {}: {}", propertyId, portfolioId, e.getMessage());
+                }
+            }
+            
+            response.put("success", true);
+            response.put("message", assignedCount + " properties assigned successfully");
+            response.put("assignedCount", assignedCount);
+            response.put("syncedToPayProp", syncedCount);
+            response.put("errorCount", errorCount);
+            response.put("errors", errors);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Assignment failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * Recalculate Portfolio Analytics - Fixed method name
+     */
+    @PostMapping("/{id}/recalculate")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> recalculatePortfolioAnalytics(
+            @PathVariable("id") Long portfolioId,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!portfolioService.canUserAccessPortfolio(portfolioId, authentication)) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            PortfolioAnalytics analytics = portfolioService.calculatePortfolioAnalytics(portfolioId, LocalDate.now());
+            
+            response.put("success", true);
+            response.put("message", "Analytics recalculated successfully");
+            response.put("analytics", Map.of(
+                "totalProperties", analytics.getTotalProperties(),
+                "occupiedProperties", analytics.getOccupiedProperties(),
+                "vacantProperties", analytics.getVacantProperties(),
+                "occupancyRate", analytics.getOccupancyRate(),
+                "totalMonthlyRent", analytics.getTotalMonthlyRent(),
+                "actualMonthlyIncome", analytics.getActualMonthlyIncome()
+            ));
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Failed to recalculate analytics: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
 
     /**
      * Portfolio Details - MOVED TO END to prevent route conflicts
@@ -877,41 +1120,6 @@ public class PortfolioController {
     }
 
     /**
-     * Assign Properties to Portfolio
-     */
-    @PostMapping("/{id}/assign-properties")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> assignPropertiesToPortfolio(
-            @PathVariable("id") Long portfolioId,
-            @RequestParam("propertyIds") List<Long> propertyIds,
-            Authentication authentication) {
-        
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            if (!canUserEditPortfolio(portfolioId, authentication)) {
-                response.put("success", false);
-                response.put("message", "Access denied");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
-            }
-            
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            portfolioService.assignPropertiesToPortfolio(portfolioId, propertyIds, (long) userId);
-            
-            response.put("success", true);
-            response.put("message", propertyIds.size() + " properties assigned successfully");
-            response.put("assignedCount", propertyIds.size());
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-        }
-    }
-
-    /**
      * Remove Properties from Portfolio
      */
     @PostMapping("/{id}/remove-properties")
@@ -987,7 +1195,7 @@ public class PortfolioController {
     }
 
     /**
-     * Recalculate Portfolio Analytics
+     * Recalculate Portfolio Analytics (alternative endpoint)
      */
     @PostMapping("/{id}/recalculate-analytics")
     @ResponseBody
@@ -995,35 +1203,7 @@ public class PortfolioController {
             @PathVariable("id") Long portfolioId,
             Authentication authentication) {
         
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            if (!portfolioService.canUserAccessPortfolio(portfolioId, authentication)) {
-                response.put("success", false);
-                response.put("message", "Access denied");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
-            }
-            
-            PortfolioAnalytics analytics = portfolioService.calculatePortfolioAnalytics(portfolioId, LocalDate.now());
-            
-            response.put("success", true);
-            response.put("message", "Analytics recalculated successfully");
-            response.put("analytics", Map.of(
-                "totalProperties", analytics.getTotalProperties(),
-                "occupiedProperties", analytics.getOccupiedProperties(),
-                "vacantProperties", analytics.getVacantProperties(),
-                "occupancyRate", analytics.getOccupancyRate(),
-                "totalMonthlyRent", analytics.getTotalMonthlyRent(),
-                "actualMonthlyIncome", analytics.getActualMonthlyIncome()
-            ));
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-        }
+        return recalculatePortfolioAnalytics(portfolioId, authentication);
     }
 
     // ===== UTILITY METHODS =====
@@ -1155,7 +1335,7 @@ public class PortfolioController {
         public PortfolioAnalytics getAnalytics() { return analytics; }
     }
 
-    public static class PortfolioAggregateStats {
+    public static class PortfolioAggregateStats {  
         public int totalProperties = 0;
         public int totalOccupied = 0;
         public int totalVacant = 0;
