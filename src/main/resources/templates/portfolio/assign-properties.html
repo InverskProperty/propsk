@@ -576,7 +576,7 @@ function assignPropertyToPortfolio(propertyId, portfolioId) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            [csrfHeader]: csrfToken
+            'X-CSRF-TOKEN': csrfToken  // Fixed: Use hardcoded header name
         },
         body: formData.toString()
     })
@@ -695,7 +695,7 @@ function assignSelected() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                [csrfHeader]: csrfToken
+                'X-CSRF-TOKEN': csrfToken  // Fixed: Use hardcoded header name
             },
             body: formData.toString()
         })
