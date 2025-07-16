@@ -19,10 +19,12 @@ import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
 import site.easy.to.build.crm.service.payprop.SyncResult;
 import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.service.user.UserService;
+import site.easy.to.build.crm.service.property.PropertyService;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * PayPropWebhookController - Handles incoming PayProp webhooks for two-way synchronization
@@ -40,18 +42,21 @@ public class PayPropWebhookController {
     private final CustomerService customerService;
     private final UserService userService;
     private final EmailService emailService;
+    private final PropertyService propertyService; // ADDED: Missing PropertyService
 
     @Autowired
     public PayPropWebhookController(PayPropPortfolioSyncService syncService,
                                    TicketService ticketService,
                                    CustomerService customerService,
                                    UserService userService,
-                                   EmailService emailService) {
+                                   EmailService emailService,
+                                   PropertyService propertyService) { // ADDED: PropertyService injection
         this.syncService = syncService;
         this.ticketService = ticketService;
         this.customerService = customerService;
         this.userService = userService;
         this.emailService = emailService;
+        this.propertyService = propertyService; // ADDED: Initialize PropertyService
     }
 
     // ===== EXISTING TAG WEBHOOK HANDLERS =====
@@ -623,7 +628,7 @@ public class PayPropWebhookController {
         }
     }
 
-    // Fixed property owner lookup method for PayPropWebhookController
+    // FIXED: Single, complete property owner lookup method
     private Customer findPropertyOwnerForTicket(Ticket ticket) {
         try {
             // First, try to find property by PayProp property ID
@@ -679,14 +684,6 @@ public class PayPropWebhookController {
             log.error("Error finding property owner for ticket {}: {}", ticket.getTicketId(), e.getMessage());
             return null;
         }
-    }
-        
-        // Fallback: if customer is property owner
-        if (ticket.getCustomer() != null && Boolean.TRUE.equals(ticket.getCustomer().getIsPropertyOwner())) {
-            return ticket.getCustomer();
-        }
-        
-        return null;
     }
 
     private Customer createCustomerForUser(User user) {
