@@ -8,12 +8,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import site.easy.to.build.crm.entity.Customer;
-import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
-import site.easy.to.build.crm.entity.CustomerType;
-import site.easy.to.build.crm.entity.EmailTemplate;
-import site.easy.to.build.crm.entity.OAuthUser;
-import site.easy.to.build.crm.entity.AssignmentType;
+import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.google.service.acess.GoogleAccessService;
 import site.easy.to.build.crm.google.service.gmail.GoogleGmailApiService;
 import site.easy.to.build.crm.service.customer.CustomerService;
@@ -28,6 +23,7 @@ import java.util.stream.Collectors;
 /**
  * ✅ COMPLETE WORKING EmailServiceImpl.java
  * Fixed Gmail API integration and unified customer model support
+ * Added maintenance-specific email methods for TicketController
  */
 @Service
 public class EmailServiceImpl implements EmailService {
@@ -188,7 +184,59 @@ public class EmailServiceImpl implements EmailService {
         return email != null && EMAIL_PATTERN.matcher(email).matches();
     }
 
-    // ===== ✅ FIXED: NEW UNIFIED CUSTOMER MODEL METHODS =====
+    // ===== ✅ MISSING METHODS FROM INTERFACE (FIXED) =====
+
+    @Override
+    public boolean sendEmail(String toEmail, String subject, String message) {
+        if (!isValidEmail(toEmail)) {
+            logger.warn("Invalid email address: {}", toEmail);
+            return false;
+        }
+        
+        // For system emails, try to get current authentication or create a system one
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        
+        if (auth == null || !isGmailApiAvailable(auth)) {
+            logger.warn("No Gmail API available for system email to: {}", toEmail);
+            // Could implement alternative email sending here (SMTP, etc.)
+            return false;
+        }
+        
+        try {
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(auth);
+            if (oAuthUser == null) {
+                logger.error("Could not get OAuth user for system email");
+                return false;
+            }
+            
+            googleGmailApiService.sendEmail(oAuthUser, toEmail, subject, message);
+            logger.info("System email sent successfully to: {}", toEmail);
+            return true;
+            
+        } catch (Exception e) {
+            logger.error("Error sending system email to: {}", toEmail, e);
+            return false;
+        }
+    }
+
+    @Override
+    public boolean sendSystemNotification(String toEmail, String subject, String message) {
+        // Format message as system notification
+        String formattedMessage = String.format(
+            "System Notification\n" +
+            "Generated: %s\n\n" +
+            "%s\n\n" +
+            "---\n" +
+            "This is an automated message from %s",
+            java.time.LocalDateTime.now(),
+            message,
+            getApplicationName()
+        );
+        
+        return sendEmail(toEmail, "[SYSTEM] " + subject, formattedMessage);
+    }
+
+    // ===== ✅ EXISTING UNIFIED CUSTOMER MODEL METHODS =====
 
     @Override
     public void sendBulkEmailToPropertyOwners(String subject, String message, List<Long> ownerIds) {
@@ -231,8 +279,95 @@ public class EmailServiceImpl implements EmailService {
             logger.info("Sent bulk email to {} tenants out of {} requested", sentCount, tenantIds.size());
         }
     }
-    
-    // ===== ✅ NEW: PROPERTY-BASED EMAIL METHODS =====
+
+    // ===== ✅ NEW: MAINTENANCE-SPECIFIC EMAIL METHODS (Required by TicketController) =====
+
+    @Override
+    public boolean sendMaintenanceTicketAlert(Customer propertyOwner, Ticket ticket, Authentication authentication) {
+        if (propertyOwner == null || ticket == null) {
+            logger.warn("Invalid property owner or ticket for maintenance alert");
+            return false;
+        }
+
+        String subject = String.format("Maintenance Request - %s", ticket.getSubject());
+        String message = buildMaintenanceTicketAlertMessage(propertyOwner, ticket);
+        
+        logger.info("Sending maintenance ticket alert for ticket #{} to property owner: {}", 
+                   ticket.getTicketId(), propertyOwner.getEmail());
+        
+        return sendEmailToCustomer(propertyOwner, subject, message, authentication);
+    }
+
+    @Override
+    public boolean sendContractorBidInvitation(Customer contractor, Ticket ticket, Authentication authentication) {
+        if (contractor == null || ticket == null) {
+            logger.warn("Invalid contractor or ticket for bid invitation");
+            return false;
+        }
+
+        if (!Boolean.TRUE.equals(contractor.getIsContractor())) {
+            logger.warn("Customer {} is not marked as a contractor", contractor.getEmail());
+            return false;
+        }
+
+        String subject = String.format("Bid Invitation - %s", ticket.getSubject());
+        String message = buildBidInvitationMessage(contractor, ticket);
+        
+        logger.info("Sending bid invitation for ticket #{} to contractor: {}", 
+                   ticket.getTicketId(), contractor.getEmail());
+        
+        return sendEmailToCustomer(contractor, subject, message, authentication);
+    }
+
+    @Override
+    public boolean sendJobAwardNotification(Customer contractor, Ticket ticket, Authentication authentication) {
+        if (contractor == null || ticket == null) {
+            logger.warn("Invalid contractor or ticket for job award notification");
+            return false;
+        }
+
+        String subject = String.format("Job Awarded - %s", ticket.getSubject());
+        String message = buildJobAwardMessage(contractor, ticket);
+        
+        logger.info("Sending job award notification for ticket #{} to contractor: {}", 
+                   ticket.getTicketId(), contractor.getEmail());
+        
+        return sendEmailToCustomer(contractor, subject, message, authentication);
+    }
+
+    @Override
+    public boolean sendWorkCompletionNotification(Customer customer, Ticket ticket, Authentication authentication) {
+        if (customer == null || ticket == null) {
+            logger.warn("Invalid customer or ticket for work completion notification");
+            return false;
+        }
+
+        String subject = String.format("Work Completed - %s", ticket.getSubject());
+        String message = buildWorkCompletionMessage(customer, ticket);
+        
+        logger.info("Sending work completion notification for ticket #{} to customer: {}", 
+                   ticket.getTicketId(), customer.getEmail());
+        
+        return sendEmailToCustomer(customer, subject, message, authentication);
+    }
+
+    @Override
+    public boolean sendPaymentNotification(Customer customer, Ticket ticket, String paymentAmount, Authentication authentication) {
+        if (customer == null || ticket == null) {
+            logger.warn("Invalid customer or ticket for payment notification");
+            return false;
+        }
+
+        String subject = String.format("Payment Processed - %s", ticket.getSubject());
+        String message = buildPaymentNotificationMessage(customer, ticket, paymentAmount);
+        
+        logger.info("Sending payment notification for ticket #{} to customer: {}", 
+                   ticket.getTicketId(), customer.getEmail());
+        
+        return sendEmailToCustomer(customer, subject, message, authentication);
+    }
+
+    // ===== ✅ EXISTING PROPERTY-BASED EMAIL METHODS =====
     
     /**
      * Send email to all tenants of a specific property
@@ -297,7 +432,7 @@ public class EmailServiceImpl implements EmailService {
         return sendBulkEmail(activeTenants, subject, message, authentication);
     }
 
-    // ===== HELPER METHODS =====
+    // ===== ✅ EXISTING HELPER METHODS =====
     
     private String personalizeEmailContent(String content, Customer customer) {
         if (content == null || customer == null) {
@@ -357,6 +492,176 @@ public class EmailServiceImpl implements EmailService {
             message,
             getApplicationName()
         );
+    }
+
+    // ===== ✅ NEW: MAINTENANCE EMAIL CONTENT BUILDERS =====
+
+    private String buildMaintenanceTicketAlertMessage(Customer propertyOwner, Ticket ticket) {
+        return String.format(
+            "Dear %s,\n\n" +
+            "A maintenance request has been raised for your property.\n\n" +
+            "Ticket Details:\n" +
+            "- Ticket #: %d\n" +
+            "- Subject: %s\n" +
+            "- Description: %s\n" +
+            "- Priority: %s\n" +
+            "- Category: %s\n" +
+            "- Reported: %s\n\n" +
+            "We will keep you updated on the progress and notify you when contractors are selected.\n\n" +
+            "You can view the full details in your portal.\n\n" +
+            "Best regards,\n" +
+            "The %s Property Management Team",
+            propertyOwner.getName() != null ? propertyOwner.getName() : "Property Owner",
+            ticket.getTicketId(),
+            ticket.getSubject() != null ? ticket.getSubject() : "Maintenance Request",
+            ticket.getDescription() != null ? ticket.getDescription() : "No description provided",
+            ticket.getPriorityDisplayName() != null ? ticket.getPriorityDisplayName() : "Medium",
+            ticket.getMaintenanceCategory() != null ? ticket.getMaintenanceCategory() : "General",
+            ticket.getCreatedAt() != null ? ticket.getCreatedAt().toString() : "Recently",
+            getApplicationName()
+        );
+    }
+
+    private String buildBidInvitationMessage(Customer contractor, Ticket ticket) {
+        return String.format(
+            "Dear %s,\n\n" +
+            "You are invited to submit a bid for the following maintenance work:\n\n" +
+            "Job Details:\n" +
+            "- Ticket #: %d\n" +
+            "- Subject: %s\n" +
+            "- Description: %s\n" +
+            "- Category: %s\n" +
+            "- Priority: %s\n\n" +
+            "Requirements:\n" +
+            "- Access Required: %s\n" +
+            "- Tenant Present: %s\n" +
+            "- Preferred Time: %s\n\n" +
+            "Please submit your bid including:\n" +
+            "- Total cost estimate\n" +
+            "- Estimated completion time\n" +
+            "- Materials breakdown\n" +
+            "- Availability to start\n\n" +
+            "Deadline for submissions: 48 hours from this email\n\n" +
+            "Please contact us to submit your bid or for any questions.\n\n" +
+            "Best regards,\n" +
+            "The %s Property Management Team",
+            contractor.getName() != null ? contractor.getName() : "Contractor",
+            ticket.getTicketId(),
+            ticket.getSubject() != null ? ticket.getSubject() : "Maintenance Work",
+            ticket.getDescription() != null ? ticket.getDescription() : "No description provided",
+            ticket.getMaintenanceCategory() != null ? ticket.getMaintenanceCategory() : "General",
+            ticket.getPriorityDisplayName() != null ? ticket.getPriorityDisplayName() : "Medium",
+            Boolean.TRUE.equals(ticket.getAccessRequired()) ? "Yes" : "No",
+            Boolean.TRUE.equals(ticket.getTenantPresentRequired()) ? "Required" : "Not Required",
+            ticket.getPreferredTimeSlot() != null ? ticket.getPreferredTimeSlot() : "Flexible",
+            getApplicationName()
+        );
+    }
+
+    private String buildJobAwardMessage(Customer contractor, Ticket ticket) {
+        return String.format(
+            "Dear %s,\n\n" +
+            "Congratulations! Your bid has been accepted for the following job:\n\n" +
+            "Job Details:\n" +
+            "- Ticket #: %d\n" +
+            "- Subject: %s\n" +
+            "- Description: %s\n" +
+            "- Approved Amount: £%.2f\n" +
+            "- Expected Start: ASAP\n\n" +
+            "Next Steps:\n" +
+            "1. Contact the property management team to confirm start date\n" +
+            "2. Arrange access with the property contact\n" +
+            "3. Complete the work as specified in your bid\n" +
+            "4. Submit completion photos and any invoices\n" +
+            "5. Payment will be processed upon completion and approval\n\n" +
+            "Important: Please confirm receipt of this email and your intended start date within 24 hours.\n\n" +
+            "Contact us for access arrangements and any questions.\n\n" +
+            "Best regards,\n" +
+            "The %s Property Management Team",
+            contractor.getName() != null ? contractor.getName() : "Contractor",
+            ticket.getTicketId(),
+            ticket.getSubject() != null ? ticket.getSubject() : "Maintenance Work",
+            ticket.getDescription() != null ? ticket.getDescription() : "No description provided",
+            ticket.getApprovedAmount() != null ? ticket.getApprovedAmount() : java.math.BigDecimal.ZERO,
+            getApplicationName()
+        );
+    }
+
+    private String buildWorkCompletionMessage(Customer customer, Ticket ticket) {
+        String contractorName = getContractorNameForTicket(ticket);
+        
+        return String.format(
+            "Dear %s,\n\n" +
+            "The maintenance work for ticket #%d has been completed.\n\n" +
+            "Work Details:\n" +
+            "- Subject: %s\n" +
+            "- Description: %s\n" +
+            "- Completed by: %s\n" +
+            "- Completion Date: %s\n" +
+            "- Final Cost: £%.2f\n\n" +
+            "%s\n\n" +
+            "Quality Assurance:\n" +
+            "- All work has been completed to our standards\n" +
+            "- Documentation is available upon request\n" +
+            "- Warranty period: %d months from completion date\n\n" +
+            "If you have any concerns about the work completed, please contact us within 48 hours.\n\n" +
+            "Best regards,\n" +
+            "The %s Property Management Team",
+            customer.getName() != null ? customer.getName() : "Customer",
+            ticket.getTicketId(),
+            ticket.getSubject() != null ? ticket.getSubject() : "Maintenance Work",
+            ticket.getDescription() != null ? ticket.getDescription() : "No description provided",
+            contractorName,
+            ticket.getWorkCompletedAt() != null ? ticket.getWorkCompletedAt().toString() : "Recently",
+            ticket.getActualCost() != null ? ticket.getActualCost() : 
+                (ticket.getApprovedAmount() != null ? ticket.getApprovedAmount() : java.math.BigDecimal.ZERO),
+            Boolean.TRUE.equals(customer.getIsTenant()) ? 
+                "Please inspect the work and let us know if everything is satisfactory." :
+                "The invoice will be processed through your regular payment schedule.",
+            ticket.getWarrantyPeriodMonths() != null ? ticket.getWarrantyPeriodMonths() : 12,
+            getApplicationName()
+        );
+    }
+
+    private String buildPaymentNotificationMessage(Customer customer, Ticket ticket, String paymentAmount) {
+        return String.format(
+            "Dear %s,\n\n" +
+            "Payment has been processed for the completed maintenance work.\n\n" +
+            "Payment Details:\n" +
+            "- Ticket #: %d\n" +
+            "- Work Description: %s\n" +
+            "- Payment Amount: %s\n" +
+            "- Payment Date: %s\n" +
+            "- Reference: MAINT-%d\n\n" +
+            "Work Summary:\n" +
+            "- Contractor: %s\n" +
+            "- Work Completed: %s\n" +
+            "- Quality Rating: Satisfactory\n\n" +
+            "This payment has been processed through your regular payment schedule.\n" +
+            "A detailed invoice will be available in your portal within 24 hours.\n\n" +
+            "Thank you for your prompt attention to this matter.\n\n" +
+            "Best regards,\n" +
+            "The %s Property Management Team",
+            customer.getName() != null ? customer.getName() : "Customer",
+            ticket.getTicketId(),
+            ticket.getSubject() != null ? ticket.getSubject() : "Maintenance Work",
+            paymentAmount,
+            java.time.LocalDate.now(),
+            ticket.getTicketId(),
+            getContractorNameForTicket(ticket),
+            ticket.getWorkCompletedAt() != null ? ticket.getWorkCompletedAt().toLocalDate().toString() : "Recently",
+            getApplicationName()
+        );
+    }
+
+    private String getContractorNameForTicket(Ticket ticket) {
+        if (ticket.getSelectedContractorId() != null) {
+            Customer contractor = customerService.findByCustomerId(ticket.getSelectedContractorId());
+            if (contractor != null) {
+                return contractor.getName();
+            }
+        }
+        return "Contracted Service Provider";
     }
     
     private String getApplicationName() {
