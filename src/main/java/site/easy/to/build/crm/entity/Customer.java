@@ -332,28 +332,6 @@ public class Customer {
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
 
-    /**
-     * Get customer's display name
-     */
-    public String getName() {
-        // Return the customer's name field, or construct from first/last name
-        if (name != null && !name.trim().isEmpty()) {
-            return name;
-        }
-        // Fallback logic if you have separate first/last name fields
-        if (firstName != null && lastName != null) {
-            return firstName + " " + lastName;
-        }
-        return "Unknown Customer";
-    }
-
-    public String getName() {
-        if (userProfile != null && userProfile.getFullName() != null && !userProfile.getFullName().trim().isEmpty()) {
-            return userProfile.getFullName();
-        }
-        return username != null ? username : "Unknown User";
-    }
-
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
 
