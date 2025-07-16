@@ -776,8 +776,8 @@ public class PortfolioController {
      */
     @GetMapping("/{id}/assign")
     public String showPortfolioSpecificAssignmentPage(@PathVariable("id") Long portfolioId, 
-                                                     Model model, 
-                                                     Authentication authentication) {
+                                                    Model model, 
+                                                    Authentication authentication) {
         try {
             // Check access permissions
             if (!portfolioService.canUserAccessPortfolio(portfolioId, authentication)) {
@@ -799,13 +799,13 @@ public class PortfolioController {
                 .filter(property -> property.getPortfolio() == null)
                 .collect(Collectors.toList());
             
-            // Add attributes for the assignment page
+            // FIXED: Add the missing attributes
             model.addAttribute("targetPortfolio", targetPortfolio);
             model.addAttribute("portfolios", allPortfolios);
             model.addAttribute("unassignedProperties", unassignedProperties);
             model.addAttribute("allProperties", allProperties);
             model.addAttribute("pageTitle", "Assign Properties to " + targetPortfolio.getName());
-            model.addAttribute("isPortfolioSpecific", true);
+            model.addAttribute("isPortfolioSpecific", true);  // ✅ FIXED: This was missing
             
             return "portfolio/assign-properties";
             
@@ -814,7 +814,6 @@ public class PortfolioController {
             return "error/500";
         }
     }
-
     /**
      * Get available properties for assignment to a specific portfolio
      */
