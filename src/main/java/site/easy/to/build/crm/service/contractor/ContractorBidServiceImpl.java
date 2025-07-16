@@ -10,8 +10,6 @@ import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.Ticket;
 import site.easy.to.build.crm.repository.ContractorBidRepository;
 
-import static org.mockito.Mockito.description;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -65,7 +63,7 @@ public class ContractorBidServiceImpl implements ContractorBidService {
         for (Customer contractor : contractors) {
             // Check if bid already exists for this ticket and contractor
             Optional<ContractorBid> existingBid = contractorBidRepository
-                .findByTicketAndContractor(ticket, contractor);
+                .findByTicketTicketIdAndContractorCustomerId(ticket.getTicketId(), contractor.getCustomerId());
                 
             if (existingBid.isEmpty()) {
                 ContractorBid bid = new ContractorBid();
@@ -113,7 +111,6 @@ public class ContractorBidServiceImpl implements ContractorBidService {
         bid.setBidAmount(amount);
         bid.setBidDescription(description);
         bid.setEstimatedCompletionHours(estimatedHours);
-        bid.setEstimatedStartDate(estimatedStart);
         bid.setStatus("submitted");
         bid.setSubmittedAt(LocalDateTime.now());
         bid.setUpdatedAt(LocalDateTime.now());
@@ -137,41 +134,10 @@ public class ContractorBidServiceImpl implements ContractorBidService {
         
         LocalDateTime now = LocalDateTime.now();
         
-    // Update bid details
-    bid.setBidAmount(amount);
-    bid.setBidDescription(description);
-    bid.setEstimatedCompletionHours(estimatedHours);
-    // Remove this line - setEstimatedStartDate doesn't exist
-    // bid.setEstimatedStartDate(estimatedStart);
-    bid.setStatus("submitted");
-    bid.setSubmittedAt(LocalDateTime.now());
-    bid.setUpdatedAt(LocalDateTime.now());
-
-    return contractorBidRepository.save(bid);
-    }
-
-    @Override
-    public ContractorBid acceptBid(Long bidId, Long reviewedBy) {
-        Optional<ContractorBid> bidOpt = contractorBidRepository.findById(bidId);
-        if (bidOpt.isEmpty()) {
-            throw new RuntimeException("Bid not found with id: " + bidId);
-        }
-        
-        ContractorBid bid = bidOpt.get();
-        
-        // Validate bid can be accepted
-        if (!"submitted".equals(bid.getStatus()) && !"under-review".equals(bid.getStatus())) {
-            throw new RuntimeException("Bid cannot be accepted - current status: " + bid.getStatus());
-        }
-        
-        LocalDateTime now = LocalDateTime.now();
-        
         // Accept this bid
         bid.setStatus("accepted");
         bid.setAcceptedAt(now);
         bid.setReviewedAt(now);
-        // Remove this line - setReviewedBy doesn't exist
-        // bid.setReviewedBy(reviewedBy);
         bid.setUpdatedAt(now);
         
         ContractorBid acceptedBid = contractorBidRepository.save(bid);
@@ -187,8 +153,6 @@ public class ContractorBidServiceImpl implements ContractorBidService {
                 otherBid.setStatus("rejected");
                 otherBid.setRejectedAt(now);
                 otherBid.setReviewedAt(now);
-                // Remove this line - setReviewedBy doesn't exist
-                // otherBid.setReviewedBy(reviewedBy);
                 otherBid.setUpdatedAt(now);
                 otherBid.setAdminNotes("Automatically rejected - another bid was accepted");
                 contractorBidRepository.save(otherBid);
@@ -216,8 +180,6 @@ public class ContractorBidServiceImpl implements ContractorBidService {
         bid.setStatus("rejected");
         bid.setRejectedAt(now);
         bid.setReviewedAt(now);
-        // Remove this line - setReviewedBy doesn't exist
-        // bid.setReviewedBy(reviewedBy);
         bid.setUpdatedAt(now);
         
         if (reason != null && !reason.trim().isEmpty()) {
@@ -283,37 +245,38 @@ public class ContractorBidServiceImpl implements ContractorBidService {
     public Optional<ContractorBid> findAcceptedBidForTicket(Integer ticketId) {
         List<ContractorBid> acceptedBids = contractorBidRepository.findByTicketTicketIdAndStatus(ticketId, "accepted");
         return acceptedBids.isEmpty() ? Optional.empty() : Optional.of(acceptedBids.get(0));
+    }
         
-        // ===== ANALYTICS AND REPORTING =====
-        
-        @Override
-        public long countBidsForTicket(Integer ticketId) {
-            return contractorBidRepository.countByTicketTicketId(ticketId);
-        }
-        
-        @Override
-        public long countBidsForContractor(Integer contractorId) {
-            return contractorBidRepository.countByContractorCustomerId(contractorId);
-        }
-        
-        @Override
-        public BigDecimal getAverageBidAmountForTicket(Integer ticketId) {
-            BigDecimal average = contractorBidRepository.getAverageBidAmountForTicket(ticketId);
-            return average != null ? average : BigDecimal.ZERO;
-        }
-        
-        @Override
-        public List<ContractorBid> getLowestBidsForTicket(Integer ticketId, int limit) {
-            Pageable pageable = PageRequest.of(0, limit);
-            return contractorBidRepository.findLowestBidsForTicket(ticketId, pageable);
-        }
-        
-        @Override
-        public List<ContractorBid> getHighestBidsForTicket(Integer ticketId, int limit) {
-            Pageable pageable = PageRequest.of(0, limit);
-            return contractorBidRepository.findHighestBidsForTicket(ticketId, pageable);
-        }
+    // ===== ANALYTICS AND REPORTING =====
     
+    @Override
+    public long countBidsForTicket(Integer ticketId) {
+        return contractorBidRepository.countByTicketTicketId(ticketId);
+    }
+    
+    @Override
+    public long countBidsForContractor(Integer contractorId) {
+        return contractorBidRepository.countByContractorCustomerId(contractorId);
+    }
+    
+    @Override
+    public BigDecimal getAverageBidAmountForTicket(Integer ticketId) {
+        BigDecimal average = contractorBidRepository.getAverageBidAmountForTicket(ticketId);
+        return average != null ? average : BigDecimal.ZERO;
+    }
+    
+    @Override
+    public List<ContractorBid> getLowestBidsForTicket(Integer ticketId, int limit) {
+        Pageable pageable = PageRequest.of(0, limit);
+        return contractorBidRepository.findLowestBidsForTicket(ticketId, pageable);
+    }
+    
+    @Override
+    public List<ContractorBid> getHighestBidsForTicket(Integer ticketId, int limit) {
+        Pageable pageable = PageRequest.of(0, limit);
+        return contractorBidRepository.findHighestBidsForTicket(ticketId, pageable);
+    }
+
     // ===== CONTRACTOR PERFORMANCE =====
     
     @Override
