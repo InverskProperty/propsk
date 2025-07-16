@@ -54,15 +54,12 @@ public class User {
     @Column(name = "hire_date")
     private LocalDate hireDate;
 
-    /**
-     * Get user's display name - uses UserProfile if available, fallback to username
-     */
-    public String getName() {
-        if (userProfile != null && userProfile.getFullName() != null && !userProfile.getFullName().trim().isEmpty()) {
-            return userProfile.getFullName();
-        }
-        return username != null ? username : "Unknown User";
-    }
+   /**
+    * Get user's display name
+    */
+   public String getName() {
+       return username != null ? username : "Unknown User";
+   }
 
     /**
      * Get user's primary role (first role in the list)
