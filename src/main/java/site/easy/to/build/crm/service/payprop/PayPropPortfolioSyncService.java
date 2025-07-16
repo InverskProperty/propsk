@@ -225,7 +225,7 @@ public class PayPropPortfolioSyncService {
             throw new RuntimeException("Failed to get PayProp tags: " + e.getMessage(), e);
         }
     }
-    
+
     /**
      * Get specific PayProp tag - public method for controller access
      */
@@ -620,21 +620,6 @@ public class PayPropPortfolioSyncService {
         }
     }
     
-    private void removeTagFromProperty(String payPropPropertyId, String tagId) throws Exception {
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<String> request = new HttpEntity<>(headers);
-        
-        try {
-            restTemplate.exchange(
-                payPropApiBase + "/properties/" + payPropPropertyId + "/tags/" + tagId,
-                HttpMethod.DELETE,
-                request,
-                Map.class
-            );
-        } catch (HttpClientErrorException e) {
-            throw new RuntimeException("Failed to remove tag from property: " + e.getResponseBodyAsString(), e);
-        }
-    }
     
     // ===== BULK OPERATIONS =====
     
