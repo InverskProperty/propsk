@@ -12,7 +12,7 @@ import java.util.Optional;
 
 public interface ContractorBidService {
     
-    // ===== BASIC CRUD OPERATIONS =====
+    // ===== BASIC CRUD OPERATIONS ======
     
     ContractorBid save(ContractorBid bid);
     Optional<ContractorBid> findById(Long id);
