@@ -1404,6 +1404,33 @@ public class PayPropSyncService {
             return null;
         }
     }
+
+    /**
+     * Remove tag from property using PayProp API
+     * Uses the PayProp endpoint: DELETE /tags/entities/property/{property_id}/{tag_id}
+     */
+    public void removeTagFromProperty(String payPropPropertyId, String tagId) throws Exception {
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                payPropApiBase + "/tags/entities/property/" + payPropPropertyId + "/" + tagId,
+                HttpMethod.DELETE,
+                request,
+                Map.class
+            );
+            
+            if (response.getStatusCode() == HttpStatus.OK) {
+                log.info("Successfully removed PayProp tag {} from property {}", tagId, payPropPropertyId);
+            } else {
+                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
+            }
+        } catch (HttpClientErrorException e) {
+            log.error("Failed to remove tag {} from property {}: {}", tagId, payPropPropertyId, e.getResponseBodyAsString());
+            throw new RuntimeException("Failed to remove tag from property: " + e.getResponseBodyAsString(), e);
+        }
+    }
     
     // ===== CONVERSION METHODS (UNCHANGED BUT NEEDED FOR COMPILATION) =====
     

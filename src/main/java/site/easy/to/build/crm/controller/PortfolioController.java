@@ -848,7 +848,7 @@ public class PortfolioController {
                         payPropSyncService.removeTagFromProperty(property.getPayPropId(), tagId);
                     } catch (Exception e) {
                         log.warn("Failed to remove PayProp tag {} from property {}: {}", 
-                            tagId, property.getPayPropId(), e.getMessage());
+                                tagId, property.getPayPropId(), e.getMessage());
                     }
                 }
             }
