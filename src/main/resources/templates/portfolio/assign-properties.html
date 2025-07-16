@@ -49,6 +49,18 @@
     50% { border-color: #20c997; }
     100% { border-color: #28a745; }
 }
+
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+.toast {
+    margin-bottom: 10px;
+    min-width: 300px;
+}
 </style>
 
 </head>
@@ -64,6 +76,9 @@
 <div id="main-wrapper">
     <div th:replace="~{general/header.html}"></div>
     <div th:replace="~{general/left-sidebar.html}"></div>
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
     
     <div class="page-wrapper">
         <div class="container-fluid">
@@ -189,7 +204,8 @@
                                          class="card property-item mb-3" 
                                          draggable="true"
                                          th:data-property-id="${property.id}"
-                                         ondragstart="dragStart(event)">
+                                         ondragstart="dragStart(event)"
+                                         ondragend="dragEnd(event)">
                                         <div class="card-body p-3">
                                             <h6 class="mb-1" th:text="${property.propertyName}">Property Name</h6>
                                             <p class="text-muted mb-1 small" th:text="${property.fullAddress}">Address</p>
@@ -408,6 +424,43 @@ let currentMode = 'dragdrop';
 const isPortfolioSpecific = /*[[${isPortfolioSpecific ?: false}]]*/ false;
 const targetPortfolioId = /*[[${targetPortfolio?.id ?: null}]]*/ null;
 
+// Enhanced toast notification system
+function createToast(type, title, message) {
+    const toastContainer = document.getElementById('toastContainer');
+    const toastId = 'toast-' + Date.now();
+    
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = `toast fade show`;
+    toast.setAttribute('role', 'alert');
+    
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+    
+    toast.innerHTML = `
+        <div class="toast-header ${bgClass} text-white">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} mr-2"></i>
+            <strong class="mr-auto">${title}</strong>
+            <button type="button" class="ml-2 mb-1 close text-white" data-dismiss="toast">
+                <span>&times;</span>
+            </button>
+        </div>
+        <div class="toast-body">
+            ${message}
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        const toastElement = document.getElementById(toastId);
+        if (toastElement) {
+            $(toastElement).toast('hide');
+            setTimeout(() => toastElement.remove(), 300);
+        }
+    }, 5000);
+}
+
 function setMode(mode) {
     currentMode = mode;
     
@@ -443,10 +496,15 @@ function toggleAssignmentMode() {
     setMode(currentMode === 'dragdrop' ? 'bulk' : 'dragdrop');
 }
 
-// Drag and Drop Functions
+// Enhanced Drag and Drop Functions
 function dragStart(event) {
+    console.log('Drag started for property:', event.target.getAttribute('data-property-id'));
     event.dataTransfer.setData("text/plain", event.target.getAttribute('data-property-id'));
     event.target.style.opacity = '0.5';
+}
+
+function dragEnd(event) {
+    event.target.style.opacity = '1';
 }
 
 function allowDrop(event) {
@@ -459,7 +517,9 @@ function dragEnter(event) {
 }
 
 function dragLeave(event) {
-    event.currentTarget.classList.remove('drag-over');
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+        event.currentTarget.classList.remove('drag-over');
+    }
 }
 
 function drop(event) {
@@ -470,49 +530,103 @@ function drop(event) {
     
     event.currentTarget.classList.remove('drag-over');
     
+    console.log('Drop event - Property:', propertyId, 'Portfolio:', portfolioId);
+    
     if (propertyId && portfolioId) {
         assignPropertyToPortfolio(propertyId, portfolioId);
+    } else {
+        showError('Error', 'Invalid property or portfolio ID');
     }
 }
 
 function assignPropertyToPortfolio(propertyId, portfolioId) {
-    fetch('/portfolio/' + portfolioId + '/assign-properties', {
+    console.log('=== ASSIGNMENT DEBUG ===');
+    console.log('Property ID:', propertyId);
+    console.log('Portfolio ID:', portfolioId);
+    
+    // Get CSRF token with enhanced error handling
+    const csrfMeta = document.querySelector('meta[name="_csrf"]');
+    const csrfHeaderMeta = document.querySelector('meta[name="_csrf_header"]');
+    
+    if (!csrfMeta || !csrfHeaderMeta) {
+        console.error('CSRF meta tags not found');
+        showError('Configuration Error', 'CSRF protection not configured properly');
+        return;
+    }
+    
+    const csrfToken = csrfMeta.getAttribute('content');
+    const csrfHeader = csrfHeaderMeta.getAttribute('content');
+    
+    console.log('CSRF Token:', csrfToken);
+    console.log('CSRF Header:', csrfHeader);
+    
+    const url = '/portfolio/' + portfolioId + '/assign-properties';
+    console.log('Request URL:', url);
+    
+    // Create form data
+    const formData = new URLSearchParams();
+    formData.append('propertyIds', propertyId);
+    
+    console.log('Request body:', formData.toString());
+    
+    // Show loading state
+    createToast('info', 'Processing', 'Assigning property to portfolio...');
+    
+    fetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
+            [csrfHeader]: csrfToken
         },
-        body: 'propertyIds=' + propertyId
+        body: formData.toString()
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Response status:', response.status);
+        console.log('Response ok:', response.ok);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        return response.json();
+    })
     .then(data => {
+        console.log('Response data:', data);
+        
         if (data.success) {
             // Remove the property from unassigned list
             const propertyElement = document.querySelector('[data-property-id="' + propertyId + '"]');
             if (propertyElement) {
                 propertyElement.style.opacity = '1';
-                propertyElement.remove();
+                propertyElement.style.transition = 'all 0.5s ease';
+                propertyElement.style.transform = 'scale(0)';
+                setTimeout(() => propertyElement.remove(), 500);
             }
             
-            showSuccess('Property assigned successfully!');
+            showSuccess('Success!', 'Property assigned successfully');
             
             // If portfolio-specific and assigned to target portfolio, show celebration
             if (isPortfolioSpecific && portfolioId == targetPortfolioId) {
                 setTimeout(() => {
-                    showSuccess('🎉 Property added to your target portfolio!');
-                }, 500);
+                    showSuccess('🎉 Excellent!', 'Property added to your target portfolio!');
+                }, 1000);
             }
+            
+            // Update statistics after a delay
+            setTimeout(() => updateStatistics(), 2000);
+            
         } else {
-            showError('Error: ' + data.message);
+            console.error('Assignment failed:', data);
+            showError('Assignment Failed', data.message || 'Unknown error occurred');
         }
     })
     .catch(error => {
-        console.error('Error:', error);
-        showError('Failed to assign property');
+        console.error('Network/Parse error:', error);
+        showError('Network Error', 'Failed to assign property: ' + error.message);
     });
 }
 
-// Bulk Assignment Functions
+// Enhanced Bulk Assignment Functions
 function toggleSelectAll() {
     const selectAll = document.getElementById('selectAll');
     const checkboxes = document.querySelectorAll('.property-checkbox');
@@ -520,6 +634,8 @@ function toggleSelectAll() {
     checkboxes.forEach(checkbox => {
         checkbox.checked = selectAll.checked;
     });
+    
+    console.log('Select all toggled:', selectAll.checked);
 }
 
 function clearSelection() {
@@ -527,6 +643,7 @@ function clearSelection() {
     document.querySelectorAll('.property-checkbox').forEach(checkbox => {
         checkbox.checked = false;
     });
+    console.log('Selection cleared');
 }
 
 function assignSelected() {
@@ -534,52 +651,112 @@ function assignSelected() {
     const selectedProperties = Array.from(document.querySelectorAll('.property-checkbox:checked'))
         .map(checkbox => checkbox.value);
     
+    console.log('=== BULK ASSIGNMENT DEBUG ===');
+    console.log('Portfolio ID:', portfolioId);
+    console.log('Selected properties:', selectedProperties);
+    console.log('Property count:', selectedProperties.length);
+    
     if (!portfolioId) {
-        showError('Please select a target portfolio');
+        showError('Validation Error', 'Please select a target portfolio');
         return;
     }
     
     if (selectedProperties.length === 0) {
-        showError('Please select at least one property');
+        showError('Validation Error', 'Please select at least one property');
         return;
     }
     
     if (confirm(`Assign ${selectedProperties.length} properties to the selected portfolio?`)) {
+        // Get CSRF token
+        const csrfMeta = document.querySelector('meta[name="_csrf"]');
+        const csrfHeaderMeta = document.querySelector('meta[name="_csrf_header"]');
+        
+        if (!csrfMeta || !csrfHeaderMeta) {
+            showError('Configuration Error', 'CSRF protection not configured properly');
+            return;
+        }
+        
+        const csrfToken = csrfMeta.getAttribute('content');
+        const csrfHeader = csrfHeaderMeta.getAttribute('content');
+        
+        // Build form data
+        const formData = new URLSearchParams();
+        formData.append('portfolioId', portfolioId);
+        selectedProperties.forEach(propertyId => {
+            formData.append('propertyIds', propertyId);
+        });
+        
+        console.log('Bulk request body:', formData.toString());
+        
+        // Show loading state
+        createToast('info', 'Processing', `Assigning ${selectedProperties.length} properties...`);
+        
         fetch('/portfolio/bulk-assign', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
+                [csrfHeader]: csrfToken
             },
-            body: 'portfolioId=' + portfolioId + '&propertyIds=' + selectedProperties.join('&propertyIds=')
+            body: formData.toString()
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Bulk response status:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            return response.json();
+        })
         .then(data => {
+            console.log('Bulk response data:', data);
+            
             if (data.success) {
-                showSuccess(data.message);
-                setTimeout(() => location.reload(), 1500);
+                showSuccess('Bulk Assignment Complete!', data.message || `${selectedProperties.length} properties assigned successfully`);
+                
+                // Clear selection
+                clearSelection();
+                
+                // Reload page after delay
+                setTimeout(() => {
+                    createToast('info', 'Refreshing', 'Updating page with latest data...');
+                    setTimeout(() => location.reload(), 1000);
+                }, 2000);
             } else {
-                showError('Error: ' + data.message);
+                console.error('Bulk assignment failed:', data);
+                showError('Bulk Assignment Failed', data.message || 'Unknown error occurred');
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            showError('Failed to assign properties');
+            console.error('Bulk assignment error:', error);
+            showError('Network Error', 'Failed to assign properties: ' + error.message);
         });
     }
 }
 
-function showSuccess(message) {
-    // Simple alert for now - you can enhance with toast notifications
-    alert('✅ ' + message);
+function updateStatistics() {
+    console.log('Updating statistics...');
+    // In a production app, you'd make an AJAX call to get updated stats
+    // For now, just show a message that stats will update on page reload
+    createToast('info', 'Statistics', 'Statistics will update automatically');
 }
 
-function showError(message) {
-    alert('❌ ' + message);
+function showSuccess(title, message) {
+    console.log('Success:', title, message);
+    createToast('success', title, message);
+}
+
+function showError(title, message) {
+    console.error('Error:', title, message);
+    createToast('error', title, message);
 }
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Page loaded. Initializing...');
+    console.log('Is portfolio specific:', isPortfolioSpecific);
+    console.log('Target portfolio ID:', targetPortfolioId);
+    
     setMode('dragdrop');
     
     // If portfolio-specific, pre-select the target portfolio in bulk mode
@@ -588,9 +765,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const targetSelect = document.getElementById('targetPortfolio');
             if (targetSelect) {
                 targetSelect.value = targetPortfolioId;
+                console.log('Pre-selected target portfolio:', targetPortfolioId);
             }
         }, 100);
     }
+    
+    console.log('Page initialization complete');
 });
 </script>
 
