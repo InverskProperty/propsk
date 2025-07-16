@@ -584,41 +584,6 @@ public class PayPropPortfolioSyncService {
             throw new RuntimeException("Failed to apply tag to property: " + e.getResponseBodyAsString(), e);
         }
     }
-
-    /**
-     * Remove tag from property using PayProp API - PUBLIC METHOD for controller access
-     * Uses the correct PayProp endpoint: DELETE /tags/{tag_id}/entities
-     */
-    public void removeTagFromProperty(String payPropPropertyId, String tagId) throws Exception {
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<String> request = new HttpEntity<>(headers);
-        
-        try {
-            // PayProp API endpoint for removing tag from specific entity
-            String url = payPropApiBase + "/tags/" + tagId + "/entities" +
-                        "?entity_type=property&entity_id=" + payPropPropertyId;
-            
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url,
-                HttpMethod.DELETE,
-                request,
-                Map.class
-            );
-            
-            if (response.getStatusCode() == HttpStatus.OK) {
-                log.info("Successfully removed PayProp tag {} from property {}", tagId, payPropPropertyId);
-            } else {
-                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
-            }
-        } catch (HttpClientErrorException e) {
-            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
-                log.warn("Tag {} or property {} not found during removal - may already be removed", tagId, payPropPropertyId);
-                return; // Not an error if already removed
-            }
-            log.error("Failed to remove tag {} from property {}: {}", tagId, payPropPropertyId, e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to remove tag from property: " + e.getResponseBodyAsString(), e);
-        }
-    }
     
     
     // ===== BULK OPERATIONS =====

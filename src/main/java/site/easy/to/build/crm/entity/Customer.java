@@ -6,7 +6,6 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.groups.Default;
-import jakarta.persistence.Convert;
 import site.easy.to.build.crm.converter.YesNoConverter;
 import site.easy.to.build.crm.customValidations.customer.UniqueEmail;
 
@@ -332,6 +331,28 @@ public class Customer {
 
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+
+    /**
+     * Get customer's display name
+     */
+    public String getName() {
+        // Return the customer's name field, or construct from first/last name
+        if (name != null && !name.trim().isEmpty()) {
+            return name;
+        }
+        // Fallback logic if you have separate first/last name fields
+        if (firstName != null && lastName != null) {
+            return firstName + " " + lastName;
+        }
+        return "Unknown Customer";
+    }
+
+    public String getName() {
+        if (userProfile != null && userProfile.getFullName() != null && !userProfile.getFullName().trim().isEmpty()) {
+            return userProfile.getFullName();
+        }
+        return username != null ? username : "Unknown User";
+    }
 
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }

@@ -79,11 +79,6 @@ public interface ContractorBidRepository extends JpaRepository<ContractorBid, Lo
      */
     List<ContractorBid> findByStatus(String status, Pageable pageable);
     
-    /**
-     * Find accepted bid for a ticket
-     */
-    Optional<ContractorBid> findByTicketTicketIdAndStatus(Integer ticketId, String status);
-
     // ===== TIME-BASED QUERIES =====
     
     /**

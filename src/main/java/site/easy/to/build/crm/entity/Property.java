@@ -471,6 +471,21 @@ public class Property {
     }
 
     /**
+     * Check if property is occupied (has active tenants)
+     * This is a business logic method for property management
+     */
+    public Boolean isOccupied() {
+        // Logic based on property status and rental information
+        if (status != null) {
+            return "occupied".equalsIgnoreCase(status) || 
+                "rented".equalsIgnoreCase(status) || 
+                "let".equalsIgnoreCase(status);
+        }
+        // Fallback: if property is active and has monthly payment, likely occupied
+        return isActive() && monthlyPayment != null && monthlyPayment.compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    /**
      * Check if property is set up for PayProp sync
      */
     public boolean isPayPropConfigured() {
