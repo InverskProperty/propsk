@@ -72,11 +72,74 @@ public class PortfolioController {
     /**
      * Portfolio Dashboard - Main entry point
      */
+    /**
+     * Portfolio Dashboard - Main entry point
+     * FIXED: Added property owners and filtering support
+     */
     @GetMapping("/dashboard")
-    public String portfolioDashboard(Model model, Authentication authentication) {
+    public String portfolioDashboard(Model model, 
+                                Authentication authentication,
+                                @RequestParam(value = "ownerId", required = false) Integer selectedOwnerId,
+                                @RequestParam(value = "showUnassigned", defaultValue = "false") boolean showUnassigned) {
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             List<Portfolio> userPortfolios = portfolioService.findPortfoliosForUser(authentication);
+            
+            // FIX 1: Add property owners to model using Customer entity
+            List<Customer> propertyOwners = new ArrayList<>();
+            if (customerService != null) {
+                try {
+                    propertyOwners = customerService.findPropertyOwners();
+                    System.out.println("✅ Found " + propertyOwners.size() + " property owners for dropdown");
+                } catch (Exception e) {
+                    System.out.println("❌ Error loading property owners: " + e.getMessage());
+                }
+            }
+            model.addAttribute("propertyOwners", propertyOwners);
+            
+            // FIX 2: Apply owner filtering if specified
+            if (selectedOwnerId != null && selectedOwnerId > 0) {
+                userPortfolios = userPortfolios.stream()
+                    .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(selectedOwnerId))
+                    .collect(Collectors.toList());
+                System.out.println("✅ Filtered to " + userPortfolios.size() + " portfolios for owner " + selectedOwnerId);
+            }
+            
+            // FIX 3: Add unassigned properties if requested
+            List<Property> unassignedProperties = new ArrayList<>();
+            int unassignedCount = 0;
+            
+            if (showUnassigned) {
+                try {
+                    unassignedProperties = propertyService.findUnassignedProperties();
+                    
+                    // Filter unassigned properties by owner if specified
+                    if (selectedOwnerId != null && selectedOwnerId > 0) {
+                        // This filters based on properties owned by the customer
+                        // You may need to adjust this based on your Customer-Property relationship
+                        unassignedProperties = unassignedProperties.stream()
+                            .filter(property -> {
+                                // Check if property is owned by the selected customer
+                                List<Customer> propertyCustomers = customerService.findByEntityTypeAndEntityId("Property", property.getId());
+                                return propertyCustomers.stream()
+                                    .anyMatch(customer -> customer.getCustomerId().equals(selectedOwnerId) && 
+                                            customer.getIsPropertyOwner() != null && customer.getIsPropertyOwner());
+                            })
+                            .collect(Collectors.toList());
+                    }
+                    unassignedCount = unassignedProperties.size();
+                    System.out.println("✅ Found " + unassignedCount + " unassigned properties");
+                } catch (Exception e) {
+                    System.out.println("❌ Error loading unassigned properties: " + e.getMessage());
+                }
+            }
+            
+            model.addAttribute("unassignedProperties", unassignedProperties);
+            model.addAttribute("unassignedPropertiesCount", unassignedCount);
+            model.addAttribute("showUnassigned", showUnassigned);
+            model.addAttribute("selectedOwnerId", selectedOwnerId);
+            
+            // Existing code continues...
             PortfolioAggregateStats aggregateStats = calculateAggregateStats(userPortfolios);
             
             List<PortfolioWithAnalytics> portfoliosWithAnalytics = userPortfolios.stream()
@@ -87,10 +150,10 @@ public class PortfolioController {
                 .collect(Collectors.toList());
             
             boolean canCreatePortfolio = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
-                                       AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER");
+                                    AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER");
             boolean canSyncPayProp = (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
-                                   AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) && 
-                                   payPropEnabled && payPropSyncService != null;
+                                AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) && 
+                                payPropEnabled && payPropSyncService != null;
             boolean isPropertyOwner = AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER");
             
             model.addAttribute("portfolios", portfoliosWithAnalytics);
