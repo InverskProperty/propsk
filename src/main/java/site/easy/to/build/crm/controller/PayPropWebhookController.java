@@ -572,7 +572,7 @@ public class PayPropWebhookController {
             List<User> managers = userService.findAll().stream()
                 .filter(u -> u.getRoles() != null && !u.getRoles().isEmpty() && 
                             u.getRoles().stream().anyMatch(role -> 
-                                role != null && "ROLE_MANAGER".equals(role.getRoleName())))
+                                role != null && "ROLE_MANAGER".equals(role.getName())))
                 .toList();
             if (!managers.isEmpty()) {
                 assignedUser = managers.get(0);
