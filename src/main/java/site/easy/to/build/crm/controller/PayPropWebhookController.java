@@ -568,9 +568,11 @@ public class PayPropWebhookController {
         // 3. Default assignment
         
         if (Boolean.TRUE.equals(isEmergency)) {
-            // Try to find manager for emergency handling
+            // Try to find manager for emergency handling - FIXED VERSION
             List<User> managers = userService.findAll().stream()
-                .filter(u -> u.getRole() != null && "ROLE_MANAGER".equals(u.getRole().getRoleName()))
+                .filter(u -> u.getRoles() != null && !u.getRoles().isEmpty() && 
+                            u.getRoles().stream().anyMatch(role -> 
+                                role != null && "ROLE_MANAGER".equals(role.getRoleName())))
                 .toList();
             if (!managers.isEmpty()) {
                 assignedUser = managers.get(0);
