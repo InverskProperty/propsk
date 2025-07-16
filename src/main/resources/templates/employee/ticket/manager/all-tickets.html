@@ -79,6 +79,14 @@
                         <span th:text="${successMessage}"></span>
                     </div>
 
+                    <div th:if="${errorMessage}" class="alert alert-danger">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-danger"><i class="fa fa-exclamation-circle"></i> Error</h3>
+                        <span th:text="${errorMessage}"></span>
+                    </div>
+
                     <!-- Filter Controls -->
                     <div class="card">
                         <div class="card-body">
@@ -89,19 +97,33 @@
                                     <select name="type" id="type" class="form-control">
                                         <option value="">All Types</option>
                                         <option value="maintenance" th:selected="${typeFilter == 'maintenance'}">Maintenance</option>
-                                        <option value="support" th:selected="${typeFilter == 'support'}">Support</option>
                                         <option value="emergency" th:selected="${typeFilter == 'emergency'}">Emergency</option>
+                                        <option value="support" th:selected="${typeFilter == 'support'}">Support</option>
+                                        <option value="billing" th:selected="${typeFilter == 'billing'}">Billing</option>
+                                        <option value="general" th:selected="${typeFilter == 'general'}">General</option>
+                                        <option value="complaint" th:selected="${typeFilter == 'complaint'}">Complaint</option>
+                                        <option value="request" th:selected="${typeFilter == 'request'}">Request</option>
                                     </select>
                                 </div>
                                 <div class="form-group m-r-20">
                                     <label for="status" class="m-r-10">Status:</label>
                                     <select name="status" id="status" class="form-control">
                                         <option value="">All Statuses</option>
-                                        <option value="open">Open</option>
-                                        <option value="in-progress">In Progress</option>
-                                        <option value="on-hold">On Hold</option>
-                                        <option value="resolved">Resolved</option>
-                                        <option value="closed">Closed</option>
+                                        <option value="open" th:selected="${statusFilter == 'open'}">Open</option>
+                                        <option value="assigned" th:selected="${statusFilter == 'assigned'}">Assigned</option>
+                                        <option value="bidding" th:selected="${statusFilter == 'bidding'}">Seeking Bids</option>
+                                        <option value="bid-review" th:selected="${statusFilter == 'bid-review'}">Reviewing Bids</option>
+                                        <option value="contractor-selected" th:selected="${statusFilter == 'contractor-selected'}">Contractor Selected</option>
+                                        <option value="work-in-progress" th:selected="${statusFilter == 'work-in-progress'}">Work in Progress</option>
+                                        <option value="work-completed" th:selected="${statusFilter == 'work-completed'}">Work Completed</option>
+                                        <option value="payment-pending" th:selected="${statusFilter == 'payment-pending'}">Payment Pending</option>
+                                        <option value="payment-processed" th:selected="${statusFilter == 'payment-processed'}">Payment Processed</option>
+                                        <option value="on-hold" th:selected="${statusFilter == 'on-hold'}">On Hold</option>
+                                        <option value="resolved" th:selected="${statusFilter == 'resolved'}">Resolved</option>
+                                        <option value="closed" th:selected="${statusFilter == 'closed'}">Closed</option>
+                                        <option value="reopened" th:selected="${statusFilter == 'reopened'}">Reopened</option>
+                                        <option value="escalated" th:selected="${statusFilter == 'escalated'}">Escalated</option>
+                                        <option value="archived" th:selected="${statusFilter == 'archived'}">Archived</option>
                                     </select>
                                 </div>
                                 <button type="submit" class="btn btn-primary m-r-10">
@@ -126,8 +148,11 @@
                                     <a href="/employee/ticket/create-ticket" class="btn btn-success m-r-10">
                                         <i class="fa fa-plus"></i> Create New Ticket
                                     </a>
+                                    <a href="/employee/ticket/pending-bids" class="btn btn-info m-r-10">
+                                        <i class="fa fa-clock"></i> Pending Bids
+                                    </a>
                                     <a href="/employee/ticket/contractor-bids" class="btn btn-warning">
-                                        <i class="fa fa-gavel"></i> View Contractor Bids
+                                        <i class="fa fa-gavel"></i> Contractor Bids
                                     </a>
                                 </div>
                             </div>
@@ -149,6 +174,7 @@
                                             <th>Subject</th>
                                             <th>Customer</th>
                                             <th>Assigned To</th>
+                                            <th>Type</th>
                                             <th>Priority</th>
                                             <th>Status</th>
                                             <th>Created</th>
@@ -159,6 +185,9 @@
                                         <tr th:each="ticket : ${tickets}">
                                             <td>
                                                 <strong th:text="'#' + ${ticket.ticketId}">#123</strong>
+                                                <div th:if="${ticket.payPropTicketId}" class="small text-muted">
+                                                    <i class="fa fa-link"></i> PayProp: <span th:text="${ticket.payPropTicketId}">PP-123</span>
+                                                </div>
                                             </td>
                                             <td>
                                                 <div>
@@ -172,44 +201,92 @@
                                                     <span th:text="${ticket.customer.name}">Customer Name</span>
                                                     <br>
                                                     <small class="text-muted" th:text="${ticket.customer.email}">customer@email.com</small>
+                                                    <div th:if="${ticket.customer.isPropertyOwner}" class="small">
+                                                        <span class="badge badge-info">Property Owner</span>
+                                                    </div>
+                                                    <div th:if="${ticket.customer.isTenant}" class="small">
+                                                        <span class="badge badge-secondary">Tenant</span>
+                                                    </div>
                                                 </div>
+                                                <span th:if="${ticket.customer == null}" class="text-muted">No customer</span>
                                             </td>
                                             <td>
+                                                <!-- FIXED: Use ticket.employee.name instead of firstName/lastName -->
                                                 <div th:if="${ticket.employee != null}">
-                                                    <span th:text="${(ticket.employee.firstName ?: '') + ' ' + (ticket.employee.lastName ?: '')}">Employee Name</span>
+                                                    <span th:text="${ticket.employee.name ?: 'Unknown'}">Employee Name</span>
                                                     <br>
                                                     <small class="text-muted" th:text="${ticket.employee.email ?: 'No email'}">employee@email.com</small>
                                                 </div>
                                                 <span th:if="${ticket.employee == null}" class="text-muted">Unassigned</span>
                                             </td>
                                             <td>
-                                                <span th:if="${ticket.priority == 'critical'}" class="label label-danger">Critical</span>
-                                                <span th:if="${ticket.priority == 'urgent'}" class="label label-danger">Urgent</span>
-                                                <span th:if="${ticket.priority == 'high'}" class="label label-warning">High</span>
-                                                <span th:if="${ticket.priority == 'medium'}" class="label label-info">Medium</span>
-                                                <span th:if="${ticket.priority == 'low'}" class="label label-secondary">Low</span>
+                                                <span th:switch="${ticket.type}">
+                                                    <span th:case="'maintenance'" class="badge badge-primary">Maintenance</span>
+                                                    <span th:case="'emergency'" class="badge badge-danger">Emergency</span>
+                                                    <span th:case="'support'" class="badge badge-info">Support</span>
+                                                    <span th:case="'billing'" class="badge badge-warning">Billing</span>
+                                                    <span th:case="'general'" class="badge badge-secondary">General</span>
+                                                    <span th:case="'complaint'" class="badge badge-dark">Complaint</span>
+                                                    <span th:case="'request'" class="badge badge-success">Request</span>
+                                                    <span th:case="*" class="badge badge-light" th:text="${ticket.type}">Other</span>
+                                                </span>
                                             </td>
                                             <td>
-                                                <span th:if="${ticket.status == 'open'}" class="label label-primary">Open</span>
-                                                <span th:if="${ticket.status == 'in-progress'}" class="label label-warning">In Progress</span>
-                                                <span th:if="${ticket.status == 'on-hold'}" class="label label-secondary">On Hold</span>
-                                                <span th:if="${ticket.status == 'resolved'}" class="label label-success">Resolved</span>
-                                                <span th:if="${ticket.status == 'closed'}" class="label label-dark">Closed</span>
+                                                <span th:switch="${ticket.priority}">
+                                                    <span th:case="'emergency'" class="label label-danger">Emergency</span>
+                                                    <span th:case="'critical'" class="label label-danger">Critical</span>
+                                                    <span th:case="'urgent'" class="label label-danger">Urgent</span>
+                                                    <span th:case="'high'" class="label label-warning">High</span>
+                                                    <span th:case="'medium'" class="label label-info">Medium</span>
+                                                    <span th:case="'low'" class="label label-secondary">Low</span>
+                                                    <span th:case="*" class="label label-light" th:text="${ticket.priority}">Unknown</span>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span th:switch="${ticket.status}">
+                                                    <span th:case="'open'" class="label label-primary">Open</span>
+                                                    <span th:case="'assigned'" class="label label-info">Assigned</span>
+                                                    <span th:case="'bidding'" class="label label-warning">Seeking Bids</span>
+                                                    <span th:case="'bid-review'" class="label label-warning">Reviewing Bids</span>
+                                                    <span th:case="'contractor-selected'" class="label label-success">Contractor Selected</span>
+                                                    <span th:case="'work-in-progress'" class="label label-info">Work in Progress</span>
+                                                    <span th:case="'work-completed'" class="label label-success">Work Completed</span>
+                                                    <span th:case="'payment-pending'" class="label label-warning">Payment Pending</span>
+                                                    <span th:case="'payment-processed'" class="label label-success">Payment Processed</span>
+                                                    <span th:case="'on-hold'" class="label label-secondary">On Hold</span>
+                                                    <span th:case="'resolved'" class="label label-success">Resolved</span>
+                                                    <span th:case="'closed'" class="label label-dark">Closed</span>
+                                                    <span th:case="'reopened'" class="label label-warning">Reopened</span>
+                                                    <span th:case="'escalated'" class="label label-danger">Escalated</span>
+                                                    <span th:case="'archived'" class="label label-secondary">Archived</span>
+                                                    <span th:case="*" class="label label-light" th:text="${ticket.status}">Unknown</span>
+                                                </span>
                                             </td>
                                             <td>
                                                 <span th:if="${ticket.createdAt}" th:text="${#temporals.format(ticket.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2024 10:30</span>
+                                                <span th:if="${ticket.createdAt == null}" class="text-muted">Unknown</span>
                                             </td>
                                             <td>
-                                                <a th:href="@{'/employee/ticket/show-ticket/' + ${ticket.ticketId}}" class="btn btn-sm btn-info m-r-5" title="View Details">
-                                                    <i class="fa fa-eye"></i>
-                                                </a>
-                                                <a th:href="@{'/employee/ticket/update-ticket/' + ${ticket.ticketId}}" class="btn btn-sm btn-warning m-r-5" title="Edit">
-                                                    <i class="fa fa-edit"></i>
-                                                </a>
-                                                <button type="button" class="btn btn-sm btn-danger" title="Delete"
-                                                        onclick="deleteTicket([[${ticket.ticketId}]], '[[${ticket.subject}]]')">
-                                                    <i class="fa fa-trash"></i>
-                                                </button>
+                                                <div class="btn-group" role="group">
+                                                    <a th:href="@{'/employee/ticket/show-ticket/' + ${ticket.ticketId}}" 
+                                                       class="btn btn-sm btn-info" title="View Details">
+                                                        <i class="fa fa-eye"></i>
+                                                    </a>
+                                                    <a th:href="@{'/employee/ticket/update-ticket/' + ${ticket.ticketId}}" 
+                                                       class="btn btn-sm btn-warning" title="Edit">
+                                                        <i class="fa fa-edit"></i>
+                                                    </a>
+                                                    <!-- Show contractor management for maintenance tickets -->
+                                                    <a th:if="${ticket.type == 'maintenance' or ticket.type == 'emergency'}" 
+                                                       th:href="@{'/employee/ticket/' + ${ticket.ticketId} + '/bids'}" 
+                                                       class="btn btn-sm btn-success" title="Manage Contractors">
+                                                        <i class="fa fa-users"></i>
+                                                    </a>
+                                                    <button type="button" class="btn btn-sm btn-danger" title="Delete"
+                                                            onclick="deleteTicket([[${ticket.ticketId}]], '[[${ticket.subject}]]')">
+                                                        <i class="fa fa-trash"></i>
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -265,6 +342,7 @@
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                 <form id="deleteForm" method="post" style="display: inline;">
                     <input type="hidden" name="_method" value="delete">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                     <button type="submit" class="btn btn-danger">Delete</button>
                 </form>
             </div>
@@ -292,8 +370,18 @@
 <script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
 
 <script>
-$('#config-table').DataTable({
-    responsive: true
+$(document).ready(function() {
+    $('#config-table').DataTable({
+        responsive: true,
+        pageLength: 25,
+        order: [[0, 'desc']], // Sort by ticket ID descending (newest first)
+        columnDefs: [
+            {
+                targets: [8], // Actions column
+                orderable: false
+            }
+        ]
+    });
 });
 
 function deleteTicket(ticketId, ticketSubject) {
