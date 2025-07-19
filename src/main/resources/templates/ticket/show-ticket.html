@@ -71,31 +71,267 @@
                 <div class="col-lg-12">
                     <div class="card">
                         <div class="card-body">
-                            <h4 class="card-title">Ticket Details</h4>
+                            <h4 class="card-title">
+                                Ticket Details #<span th:text="${ticket.ticketId}"></span>
+                                <!-- Add ticket type badge -->
+                                <span th:if="${ticket.type == 'emergency'}" class="badge badge-danger ml-2">EMERGENCY</span>
+                                <span th:if="${ticket.type == 'maintenance'}" class="badge badge-warning ml-2">MAINTENANCE</span>
+                                <span th:if="${ticket.type == 'general'}" class="badge badge-info ml-2">GENERAL</span>
+                                <span th:if="${ticket.type == 'support'}" class="badge badge-primary ml-2">SUPPORT</span>
+                                <span th:if="${ticket.type == 'billing'}" class="badge badge-secondary ml-2">BILLING</span>
+                                <span th:if="${ticket.type == 'complaint'}" class="badge badge-dark ml-2">COMPLAINT</span>
+                                <span th:if="${ticket.type == 'request'}" class="badge badge-success ml-2">REQUEST</span>
+                            </h4>
+                            
+                            <!-- Basic Ticket Information -->
                             <div class="row">
-                                <div class="col-md-2 col-xs-6 b-r"> <strong>Customer</strong>
+                                <div class="col-md-2 col-xs-6 b-r"> 
+                                    <strong>Customer</strong>
                                     <br>
                                     <p class="text-muted" th:text="${ticket.customer.name}"></p>
                                 </div>
-                                <div class="col-md-2 col-xs-6 b-r"> <strong>Subject</strong>
+                                <div class="col-md-2 col-xs-6 b-r"> 
+                                    <strong>Subject</strong>
                                     <br>
                                     <p class="text-muted" th:text="${ticket.subject}"></p>
                                 </div>
-                                <div class="col-md-2 col-xs-6 b-r"> <strong>Status</strong>
+                                <div class="col-md-2 col-xs-6 b-r"> 
+                                    <strong>Status</strong>
                                     <br>
-                                    <p class="text-muted" th:text="${ticket.status}"></p>
+                                    <p class="text-muted">
+                                        <span th:if="${ticket.status == 'open'}" class="badge badge-warning">Open</span>
+                                        <span th:if="${ticket.status == 'in-progress'}" class="badge badge-info">In Progress</span>
+                                        <span th:if="${ticket.status == 'work-in-progress'}" class="badge badge-info">Work In Progress</span>
+                                        <span th:if="${ticket.status == 'on-hold'}" class="badge badge-secondary">On Hold</span>
+                                        <span th:if="${ticket.status == 'resolved'}" class="badge badge-success">Resolved</span>
+                                        <span th:if="${ticket.status == 'closed'}" class="badge badge-dark">Closed</span>
+                                        <span th:if="${ticket.status == 'bidding'}" class="badge badge-primary">Bidding</span>
+                                        <span th:if="${ticket.status == 'contractor-selected'}" class="badge badge-info">Contractor Selected</span>
+                                        <span th:if="${ticket.status == 'work-completed'}" class="badge badge-success">Work Completed</span>
+                                        <span th:if="${ticket.status == 'payment-pending'}" class="badge badge-warning">Payment Pending</span>
+                                    </p>
                                 </div>
-                                <div class="col-md-2 col-xs-6"> <strong>Priority</strong>
+                                <div class="col-md-2 col-xs-6 b-r"> 
+                                    <strong>Priority</strong>
                                     <br>
-                                    <p class="text-muted" th:text="${ticket.priority}"></p>
+                                    <p class="text-muted">
+                                        <span th:if="${ticket.priority == 'critical'}" class="badge badge-danger">Critical</span>
+                                        <span th:if="${ticket.priority == 'urgent'}" class="badge badge-warning">Urgent</span>
+                                        <span th:if="${ticket.priority == 'high'}" class="badge badge-warning">High</span>
+                                        <span th:if="${ticket.priority == 'medium'}" class="badge badge-info">Medium</span>
+                                        <span th:if="${ticket.priority == 'low'}" class="badge badge-secondary">Low</span>
+                                    </p>
                                 </div>
-                                <div class="col-md-4 col-xs-6"> <strong>Assigned Employee</strong>
+                                <div class="col-md-2 col-xs-6 b-r"> 
+                                    <strong>Type</strong>
+                                    <br>
+                                    <p class="text-muted text-capitalize" th:text="${ticket.type}"></p>
+                                </div>
+                                <div class="col-md-2 col-xs-6"> 
+                                    <strong>Assigned Employee</strong>
                                     <br>
                                     <p class="text-muted" th:text="${ticket.employee.username}"></p>
                                 </div>
                             </div>
-                            <hr>
-                            <p class="m-t-30" th:utext="${ticket.description}"></p>
+
+                            <!-- Maintenance-Specific Information -->
+                            <div th:if="${ticket.type == 'maintenance' or ticket.type == 'emergency'}" class="row mt-4">
+                                <div class="col-12">
+                                    <h5 class="card-title">Maintenance Details</h5>
+                                    <hr>
+                                </div>
+                                
+                                <div class="col-md-3 col-xs-6 b-r"> 
+                                    <strong>Category</strong>
+                                    <br>
+                                    <p class="text-muted text-capitalize" th:text="${ticket.maintenanceCategory ?: 'Not specified'}"></p>
+                                </div>
+                                <div class="col-md-3 col-xs-6 b-r"> 
+                                    <strong>Urgency Level</strong>
+                                    <br>
+                                    <p class="text-muted">
+                                        <span th:if="${ticket.urgencyLevel == 'emergency'}" class="badge badge-danger">Emergency</span>
+                                        <span th:if="${ticket.urgencyLevel == 'health-safety'}" class="badge badge-warning">Health & Safety</span>
+                                        <span th:if="${ticket.urgencyLevel == 'urgent'}" class="badge badge-warning">Urgent</span>
+                                        <span th:if="${ticket.urgencyLevel == 'routine'}" class="badge badge-info">Routine</span>
+                                        <span th:unless="${ticket.urgencyLevel}" class="text-muted">Not specified</span>
+                                    </p>
+                                </div>
+                                <div class="col-md-3 col-xs-6 b-r"> 
+                                    <strong>Property Access</strong>
+                                    <br>
+                                    <p class="text-muted">
+                                        <span th:if="${ticket.accessRequired}" class="badge badge-info">Required</span>
+                                        <span th:unless="${ticket.accessRequired}" class="text-muted">Not required</span>
+                                    </p>
+                                </div>
+                                <div class="col-md-3 col-xs-6"> 
+                                    <strong>Tenant Present</strong>
+                                    <br>
+                                    <p class="text-muted">
+                                        <span th:if="${ticket.tenantPresentRequired}" class="badge badge-warning">Required</span>
+                                        <span th:unless="${ticket.tenantPresentRequired}" class="text-muted">Not required</span>
+                                    </p>
+                                </div>
+                                
+                                <div th:if="${ticket.preferredTimeSlot}" class="col-md-6 col-xs-12 mt-3"> 
+                                    <strong>Preferred Time Slot</strong>
+                                    <br>
+                                    <p class="text-muted" th:text="${ticket.preferredTimeSlot}"></p>
+                                </div>
+                            </div>
+
+                            <!-- PayProp Integration Information -->
+                            <div th:if="${ticket.payPropTicketId or ticket.payPropPropertyId}" class="row mt-4">
+                                <div class="col-12">
+                                    <h5 class="card-title">PayProp Integration</h5>
+                                    <hr>
+                                </div>
+                                
+                                <div th:if="${ticket.payPropTicketId}" class="col-md-3 col-xs-6 b-r"> 
+                                    <strong>PayProp Ticket ID</strong>
+                                    <br>
+                                    <p class="text-muted" th:text="${ticket.payPropTicketId}"></p>
+                                </div>
+                                <div th:if="${ticket.payPropPropertyId}" class="col-md-3 col-xs-6 b-r"> 
+                                    <strong>PayProp Property ID</strong>
+                                    <br>
+                                    <p class="text-muted" th:text="${ticket.payPropPropertyId}"></p>
+                                </div>
+                                <div th:if="${ticket.payPropTenantId}" class="col-md-3 col-xs-6 b-r"> 
+                                    <strong>PayProp Tenant ID</strong>
+                                    <br>
+                                    <p class="text-muted" th:text="${ticket.payPropTenantId}"></p>
+                                </div>
+                                <div th:if="${ticket.payPropSynced}" class="col-md-3 col-xs-6"> 
+                                    <strong>Sync Status</strong>
+                                    <br>
+                                    <p class="text-muted">
+                                        <span class="badge badge-success">Synced</span>
+                                        <small th:if="${ticket.payPropLastSync}" class="d-block text-muted">
+                                            Last sync: <span th:text="${#temporals.format(ticket.payPropLastSync, 'yyyy-MM-dd HH:mm')}"></span>
+                                        </small>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Contractor Information -->
+                            <div th:if="${ticket.selectedContractorId or ticket.approvedAmount}" class="row mt-4">
+                                <div class="col-12">
+                                    <h5 class="card-title">Contractor Details</h5>
+                                    <hr>
+                                </div>
+                                
+                                <div th:if="${ticket.selectedContractorId}" class="col-md-4 col-xs-6 b-r"> 
+                                    <strong>Selected Contractor</strong>
+                                    <br>
+                                    <p class="text-muted">Contractor ID: <span th:text="${ticket.selectedContractorId}"></span></p>
+                                </div>
+                                <div th:if="${ticket.approvedAmount}" class="col-md-4 col-xs-6 b-r"> 
+                                    <strong>Approved Amount</strong>
+                                    <br>
+                                    <p class="text-muted">£<span th:text="${#numbers.formatDecimal(ticket.approvedAmount, 0, 2)}"></span></p>
+                                </div>
+                                <div th:if="${ticket.actualCost}" class="col-md-4 col-xs-6"> 
+                                    <strong>Actual Cost</strong>
+                                    <br>
+                                    <p class="text-muted">£<span th:text="${#numbers.formatDecimal(ticket.actualCost, 0, 2)}"></span></p>
+                                </div>
+                            </div>
+
+                            <!-- Work Timeline -->
+                            <div th:if="${ticket.workStartedAt or ticket.workCompletedAt}" class="row mt-4">
+                                <div class="col-12">
+                                    <h5 class="card-title">Work Timeline</h5>
+                                    <hr>
+                                </div>
+                                
+                                <div class="col-md-3 col-xs-6 b-r"> 
+                                    <strong>Created</strong>
+                                    <br>
+                                    <p class="text-muted" th:text="${#temporals.format(ticket.createdAt, 'yyyy-MM-dd HH:mm')}"></p>
+                                </div>
+                                <div th:if="${ticket.workStartedAt}" class="col-md-3 col-xs-6 b-r"> 
+                                    <strong>Work Started</strong>
+                                    <br>
+                                    <p class="text-muted" th:text="${#temporals.format(ticket.workStartedAt, 'yyyy-MM-dd HH:mm')}"></p>
+                                </div>
+                                <div th:if="${ticket.workCompletedAt}" class="col-md-3 col-xs-6 b-r"> 
+                                    <strong>Work Completed</strong>
+                                    <br>
+                                    <p class="text-muted" th:text="${#temporals.format(ticket.workCompletedAt, 'yyyy-MM-dd HH:mm')}"></p>
+                                </div>
+                                <div th:if="${ticket.actualHours}" class="col-md-3 col-xs-6"> 
+                                    <strong>Hours Worked</strong>
+                                    <br>
+                                    <p class="text-muted" th:text="${ticket.actualHours} + ' hours'"></p>
+                                </div>
+                            </div>
+
+                            <!-- Payment Information -->
+                            <div th:if="${ticket.paymentReference}" class="row mt-4">
+                                <div class="col-12">
+                                    <h5 class="card-title">Payment Information</h5>
+                                    <hr>
+                                </div>
+                                
+                                <div class="col-md-6 col-xs-12"> 
+                                    <strong>Payment Reference</strong>
+                                    <br>
+                                    <p class="text-muted" th:text="${ticket.paymentReference}"></p>
+                                </div>
+                            </div>
+
+                            <!-- Description -->
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <h5 class="card-title">Description</h5>
+                                    <hr>
+                                    <div class="border p-3 bg-light" th:utext="${ticket.description}"></div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="row mt-4">
+                                <div class="col-12">
+                                    <div class="btn-group" role="group">
+                                        <!-- Edit Button -->
+                                        <a th:href="@{'/employee/ticket/update-ticket/' + ${ticket.ticketId}}" 
+                                           class="btn btn-primary">
+                                            <i class="fa fa-edit"></i> Edit Ticket
+                                        </a>
+                                        
+                                        <!-- Maintenance-specific actions -->
+                                        <div th:if="${ticket.type == 'maintenance' or ticket.type == 'emergency'}">
+                                            <!-- View Bids Button -->
+                                            <a th:href="@{'/employee/ticket/' + ${ticket.ticketId} + '/bids'}" 
+                                               class="btn btn-info">
+                                                <i class="fa fa-gavel"></i> View Bids
+                                            </a>
+                                            
+                                            <!-- Start Work Button -->
+                                            <button th:if="${ticket.status == 'contractor-selected'}" 
+                                                    type="button" class="btn btn-success"
+                                                    onclick="startWork()">
+                                                <i class="fa fa-play"></i> Start Work
+                                            </button>
+                                            
+                                            <!-- Complete Work Button -->
+                                            <button th:if="${ticket.status == 'work-in-progress'}" 
+                                                    type="button" class="btn btn-warning"
+                                                    onclick="completeWork()">
+                                                <i class="fa fa-check"></i> Complete Work
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- Back Button -->
+                                        <a href="javascript:history.back()" class="btn btn-secondary">
+                                            <i class="fa fa-arrow-left"></i> Back
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -130,31 +366,80 @@
 <!-- ============================================================== -->
 <!-- End Wrapper -->
 <!-- ============================================================== -->
+
+<!-- Hidden forms for AJAX actions -->
+<form id="startWorkForm" th:action="@{'/employee/ticket/' + ${ticket.ticketId} + '/start-work'}" method="post" style="display: none;">
+    <input type="hidden" name="${_csrf.parameterName}" value="${_csrf.token}"/>
+</form>
+
+<!-- Complete Work Modal -->
+<div class="modal fade" id="completeWorkModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form th:action="@{'/employee/ticket/' + ${ticket.ticketId} + '/complete-work'}" method="post">
+                <input type="hidden" name="${_csrf.parameterName}" value="${_csrf.token}"/>
+                <div class="modal-header">
+                    <h5 class="modal-title">Complete Work</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="actualCost">Actual Cost (£):</label>
+                        <input type="number" step="0.01" name="actualCost" id="actualCost" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="actualHours">Hours Worked:</label>
+                        <input type="number" name="actualHours" id="actualHours" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="completionNotes">Completion Notes:</label>
+                        <textarea name="completionNotes" id="completionNotes" class="form-control" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Complete Work</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- ============================================================== -->
 <!-- All Jquery -->
 <!-- ============================================================== -->
 <script th:inline="javascript">
     var home = /*[[${home}]]*/ null;
 </script>
-<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
 <!--    &lt;!&ndash; Bootstrap tether Core JavaScript &ndash;&gt;-->
-<script th:src="@{/js/library/popper.min.js}" type="text/javascript">></script>
-<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
 <!--    &lt;!&ndash; slimscrollbar scrollbar JavaScript &ndash;&gt;-->
-<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
 <!--Wave Effects -->
-<script th:src="@{/js/library/waves.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
 <!--Menu sidebar -->
-<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
 <!--stickey kit -->
 <script th:src="@{/js/library/sticky-kit.min.js}"></script>
-<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
 <!--Custom JavaScript -->
-<script th:src="@{/js/library/custom.min.js}" type="text/javascript">></script>
-<!-- Editable -->
+<script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
+
+<script>
+function startWork() {
+    if (confirm('Are you sure you want to start work on this ticket?')) {
+        document.getElementById('startWorkForm').submit();
+    }
+}
+
+function completeWork() {
+    $('#completeWorkModal').modal('show');
+}
+</script>
 
 </body>
 </html>
-
-
-

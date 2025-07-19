@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- CSS -->
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
+
+<!-- Enhanced Maintenance History Styles -->
+<style>
+.maintenance-timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.maintenance-timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, #007bff 0%, #6c757d 50%, #28a745 100%);
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 30px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.timeline-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -22px;
+    top: 20px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    z-index: 2;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.timeline-marker.emergency {
+    background: #dc3545;
+    animation: pulse-emergency 2s infinite;
+}
+
+.timeline-marker.urgent {
+    background: #ffc107;
+}
+
+.timeline-marker.routine {
+    background: #007bff;
+}
+
+.timeline-marker.completed {
+    background: #28a745;
+}
+
+@keyframes pulse-emergency {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+.timeline-content {
+    padding: 20px;
+}
+
+.maintenance-card {
+    border-left: 4px solid #007bff;
+    margin-bottom: 0;
+}
+
+.maintenance-card.emergency {
+    border-left-color: #dc3545;
+}
+
+.maintenance-card.urgent {
+    border-left-color: #ffc107;
+}
+
+.maintenance-card.completed {
+    border-left-color: #28a745;
+}
+
+.maintenance-stats {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 20px;
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.filter-section {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+}
+
+.status-badge {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.category-badge {
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 8px;
+    background: #e9ecef;
+    color: #495057;
+}
+
+.cost-display {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #28a745;
+}
+
+.maintenance-summary {
+    background: linear-gradient(45deg, #f8f9fa, #ffffff);
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 25px;
+    margin-bottom: 30px;
+}
+
+.quick-filters {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.filter-btn {
+    padding: 8px 16px;
+    border: 1px solid #dee2e6;
+    background: white;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.filter-btn:hover, .filter-btn.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.maintenance-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.contractor-info {
+    background: #e3f2fd;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 10px;
+    font-size: 0.9rem;
+}
+
+.time-tracking {
+    background: #fff3cd;
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    margin-top: 8px;
+}
+
+.export-section {
+    text-align: right;
+    margin-bottom: 20px;
+}
+</style>
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-wrench text-primary"></i> Maintenance History
+                        <span th:if="${propertyId}" class="text-muted">- Property #<span th:text="${propertyId}">123</span></span>
+                    </h4>
+                    <p class="text-muted">Complete maintenance and repair history</p>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0)">Home</a></li>
+                            <li class="breadcrumb-item">
+                                <a th:href="${propertyId ? '/employee/property/' + propertyId : '/employee/ticket/manager/all-tickets'}">
+                                    <span th:if="${propertyId}">Property</span>
+                                    <span th:unless="${propertyId}">Tickets</span>
+                                </a>
+                            </li>
+                            <li class="breadcrumb-item active">Maintenance History</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Maintenance Statistics Summary -->
+            <div class="maintenance-summary">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h5 class="mb-3">
+                            <i class="fas fa-chart-bar"></i> Maintenance Overview
+                            <span th:if="${tickets}" class="text-muted">(<span th:text="${#lists.size(tickets)}">0</span> total records)</span>
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="stat-item">
+                                    <div class="stat-number text-danger" th:text="${#lists.size(tickets.?[urgencyLevel == 'emergency'])}">0</div>
+                                    <div class="stat-label text-muted">Emergency</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-item">
+                                    <div class="stat-number text-warning" th:text="${#lists.size(tickets.?[urgencyLevel == 'urgent'])}">0</div>
+                                    <div class="stat-label text-muted">Urgent</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-item">
+                                    <div class="stat-number text-info" th:text="${#lists.size(tickets.?[urgencyLevel == 'routine'])}">0</div>
+                                    <div class="stat-label text-muted">Routine</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-item">
+                                    <div class="stat-number text-success" th:text="${#lists.size(tickets.?[status == 'completed' or status == 'closed'])}">0</div>
+                                    <div class="stat-label text-muted">Completed</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-right">
+                        <div class="export-section">
+                            <button class="btn btn-outline-primary btn-sm" onclick="exportMaintenanceHistory()">
+                                <i class="fas fa-download"></i> Export
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" onclick="printMaintenanceHistory()">
+                                <i class="fas fa-print"></i> Print
+                            </button>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                Last updated: <span th:text="${#temporals.format(#temporals.createNow(), 'dd/MM/yyyy HH:mm')}">Now</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Filters -->
+            <div class="filter-section">
+                <h6 class="mb-3"><i class="fas fa-filter"></i> Quick Filters</h6>
+                <div class="quick-filters">
+                    <button class="filter-btn active" onclick="filterTickets('all')">All Tickets</button>
+                    <button class="filter-btn" onclick="filterTickets('emergency')">Emergency</button>
+                    <button class="filter-btn" onclick="filterTickets('urgent')">Urgent</button>
+                    <button class="filter-btn" onclick="filterTickets('routine')">Routine</button>
+                    <button class="filter-btn" onclick="filterTickets('completed')">Completed</button>
+                    <button class="filter-btn" onclick="filterTickets('open')">Open</button>
+                    <button class="filter-btn" onclick="filterTickets('in-progress')">In Progress</button>
+                </div>
+                
+                <!-- Advanced Filters -->
+                <div class="row mt-3">
+                    <div class="col-md-3">
+                        <select class="form-control form-control-sm" id="categoryFilter" onchange="applyFilters()">
+                            <option value="">All Categories</option>
+                            <option value="plumbing">Plumbing</option>
+                            <option value="electrical">Electrical</option>
+                            <option value="heating">Heating</option>
+                            <option value="appliance">Appliance</option>
+                            <option value="external">External</option>
+                            <option value="internal">Internal</option>
+                            <option value="general">General</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-control form-control-sm" id="statusFilter" onchange="applyFilters()">
+                            <option value="">All Statuses</option>
+                            <option value="open">Open</option>
+                            <option value="in-progress">In Progress</option>
+                            <option value="work-in-progress">Work In Progress</option>
+                            <option value="completed">Completed</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="date" class="form-control form-control-sm" id="dateFromFilter" onchange="applyFilters()" placeholder="From Date">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="date" class="form-control form-control-sm" id="dateToFilter" onchange="applyFilters()" placeholder="To Date">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="btn-group" role="group">
+                        <a th:href="@{'/employee/ticket/create-ticket' + (${propertyId} ? '?propertyId=' + ${propertyId} + '&type=maintenance' : '?type=maintenance')}" 
+                           class="btn btn-success">
+                            <i class="fas fa-plus"></i> New Maintenance Ticket
+                        </a>
+                        <a th:href="@{'/employee/ticket/create-ticket' + (${propertyId} ? '?propertyId=' + ${propertyId} + '&type=emergency' : '?type=emergency')}" 
+                           class="btn btn-danger">
+                            <i class="fas fa-bolt"></i> Emergency Ticket
+                        </a>
+                        <a th:href="@{'/employee/ticket/pending-bids' + (${propertyId} ? '?propertyId=' + ${propertyId} : '')}" 
+                           class="btn btn-warning">
+                            <i class="fas fa-gavel"></i> Pending Bids
+                        </a>
+                        <a th:if="${propertyId}" th:href="@{'/employee/property/' + ${propertyId}}" 
+                           class="btn btn-info">
+                            <i class="fas fa-arrow-left"></i> Back to Property
+                        </a>
+                        <a th:unless="${propertyId}" th:href="@{'/employee/ticket/manager/all-tickets'}" 
+                           class="btn btn-info">
+                            <i class="fas fa-list"></i> All Tickets
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Maintenance History Timeline -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-history"></i> Maintenance Timeline
+                                <span class="badge badge-primary ml-2" th:if="${tickets}" th:text="${#lists.size(tickets)}">0</span>
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <!-- Timeline Content -->
+                            <div th:if="${tickets and !#lists.isEmpty(tickets)}" class="maintenance-timeline">
+                                <div th:each="ticket : ${tickets}" 
+                                     class="timeline-item ticket-item"
+                                     th:classappend="${ticket.urgencyLevel}"
+                                     th:data-category="${ticket.maintenanceCategory}"
+                                     th:data-status="${ticket.status}"
+                                     th:data-urgency="${ticket.urgencyLevel}"
+                                     th:data-date="${ticket.createdAt}">
+                                     
+                                    <div class="timeline-marker" 
+                                         th:classappend="${ticket.urgencyLevel == 'emergency'} ? 'emergency' : 
+                                                        (${ticket.urgencyLevel == 'urgent'} ? 'urgent' : 
+                                                        (${ticket.status == 'completed' or ticket.status == 'closed'} ? 'completed' : 'routine'))">
+                                    </div>
+                                    
+                                    <div class="timeline-content">
+                                        <div class="maintenance-card card" 
+                                             th:classappend="${ticket.urgencyLevel == 'emergency'} ? 'emergency' : 
+                                                            (${ticket.urgencyLevel == 'urgent'} ? 'urgent' : 
+                                                            (${ticket.status == 'completed' or ticket.status == 'closed'} ? 'completed' : ''))">
+                                            <div class="card-body">
+                                                <!-- Header with Ticket Info -->
+                                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                                    <div>
+                                                        <h5 class="card-title mb-1">
+                                                            <a th:href="@{'/employee/ticket/show-ticket/' + ${ticket.ticketId}}" 
+                                                               class="text-decoration-none">
+                                                                Ticket #<span th:text="${ticket.ticketId}">123</span>: 
+                                                                <span th:text="${ticket.subject}">Subject</span>
+                                                            </a>
+                                                        </h5>
+                                                        <div class="mb-2">
+                                                            <!-- Status Badge -->
+                                                            <span th:if="${ticket.status == 'open'}" class="status-badge badge-primary">Open</span>
+                                                            <span th:if="${ticket.status == 'in-progress'}" class="status-badge badge-warning">In Progress</span>
+                                                            <span th:if="${ticket.status == 'work-in-progress'}" class="status-badge badge-warning">Work In Progress</span>
+                                                            <span th:if="${ticket.status == 'completed'}" class="status-badge badge-success">Completed</span>
+                                                            <span th:if="${ticket.status == 'closed'}" class="status-badge badge-secondary">Closed</span>
+                                                            <span th:if="${ticket.status == 'bidding'}" class="status-badge badge-info">Awaiting Bids</span>
+                                                            
+                                                            <!-- Urgency Badge -->
+                                                            <span th:if="${ticket.urgencyLevel == 'emergency'}" 
+                                                                  class="badge badge-danger ml-2">
+                                                                <i class="fas fa-exclamation-triangle"></i> EMERGENCY
+                                                            </span>
+                                                            <span th:if="${ticket.urgencyLevel == 'urgent'}" 
+                                                                  class="badge badge-warning ml-2">
+                                                                <i class="fas fa-exclamation"></i> URGENT
+                                                            </span>
+                                                            <span th:if="${ticket.urgencyLevel == 'routine'}" 
+                                                                  class="badge badge-info ml-2">
+                                                                <i class="fas fa-calendar"></i> ROUTINE
+                                                            </span>
+                                                            
+                                                            <!-- Category Badge -->
+                                                            <span th:if="${ticket.maintenanceCategory}" 
+                                                                  class="category-badge ml-2"
+                                                                  th:text="${#strings.capitalizeWords(ticket.maintenanceCategory)}">Category</span>
+                                                                  
+                                                            <!-- PayProp Integration Badge -->
+                                                            <span th:if="${ticket.payPropTicketId}" 
+                                                                  class="badge badge-secondary ml-2">
+                                                                <i class="fas fa-sync"></i> PayProp
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="text-right">
+                                                        <div class="text-muted small mb-1">
+                                                            <i class="fas fa-calendar"></i> 
+                                                            <span th:text="${#temporals.format(ticket.createdAt, 'dd/MM/yyyy')}">Date</span>
+                                                        </div>
+                                                        <div th:if="${ticket.approvedAmount}" class="cost-display">
+                                                            £<span th:text="${#numbers.formatDecimal(ticket.approvedAmount, 0, 2)}">0.00</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Description -->
+                                                <p class="card-text mb-3" 
+                                                   th:text="${#strings.abbreviate(ticket.description, 200)}">Description...</p>
+
+                                                <!-- Contractor Information -->
+                                                <div th:if="${ticket.selectedContractorId}" class="contractor-info">
+                                                    <i class="fas fa-hard-hat"></i> 
+                                                    <strong>Contractor:</strong> 
+                                                    <span th:text="${ticket.selectedContractorName ?: 'Contractor #' + ticket.selectedContractorId}">Contractor Name</span>
+                                                    <span th:if="${ticket.approvedAmount}" class="ml-3">
+                                                        <strong>Approved:</strong> £<span th:text="${#numbers.formatDecimal(ticket.approvedAmount, 0, 2)}">0.00</span>
+                                                    </span>
+                                                </div>
+
+                                                <!-- Time Tracking -->
+                                                <div th:if="${ticket.workStartedAt or ticket.workCompletedAt}" class="time-tracking">
+                                                    <i class="fas fa-clock"></i>
+                                                    <span th:if="${ticket.workStartedAt}">
+                                                        Started: <span th:text="${#temporals.format(ticket.workStartedAt, 'dd/MM/yyyy HH:mm')}">Date</span>
+                                                    </span>
+                                                    <span th:if="${ticket.workCompletedAt}" class="ml-3">
+                                                        Completed: <span th:text="${#temporals.format(ticket.workCompletedAt, 'dd/MM/yyyy HH:mm')}">Date</span>
+                                                    </span>
+                                                    <span th:if="${ticket.actualHours}" class="ml-3">
+                                                        Duration: <span th:text="${ticket.actualHours}">0</span> hours
+                                                    </span>
+                                                </div>
+
+                                                <!-- Access Requirements -->
+                                                <div th:if="${ticket.accessRequired or ticket.tenantPresentRequired}" class="mt-2">
+                                                    <small class="text-info">
+                                                        <span th:if="${ticket.accessRequired}">
+                                                            <i class="fas fa-key"></i> Property Access Required
+                                                        </span>
+                                                        <span th:if="${ticket.tenantPresentRequired}" class="ml-3">
+                                                            <i class="fas fa-user"></i> Tenant Must Be Present
+                                                        </span>
+                                                    </small>
+                                                </div>
+
+                                                <!-- Action Buttons -->
+                                                <div class="maintenance-actions">
+                                                    <a th:href="@{'/employee/ticket/show-ticket/' + ${ticket.ticketId}}" 
+                                                       class="btn btn-sm btn-outline-primary">
+                                                        <i class="fas fa-eye"></i> View Details
+                                                    </a>
+                                                    
+                                                    <a th:if="${ticket.status == 'open' or ticket.status == 'in-progress'}"
+                                                       th:href="@{'/employee/ticket/pending-bids?ticketId=' + ${ticket.ticketId}}" 
+                                                       class="btn btn-sm btn-outline-warning">
+                                                        <i class="fas fa-gavel"></i> Manage Bids
+                                                    </a>
+                                                    
+                                                    <a th:if="${ticket.status == 'bidding' or ticket.status == 'contractor-selected'}"
+                                                       th:href="@{'/employee/ticket/' + ${ticket.ticketId} + '/bids'}" 
+                                                       class="btn btn-sm btn-outline-success">
+                                                        <i class="fas fa-list"></i> View Bids
+                                                    </a>
+                                                    
+                                                    <button th:if="${ticket.status == 'completed'}" 
+                                                            class="btn btn-sm btn-outline-info"
+                                                            onclick="showTicketSummary([[${ticket.ticketId}]])">
+                                                        <i class="fas fa-chart-line"></i> Summary
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- No Maintenance History -->
+                            <div th:if="${#lists.isEmpty(tickets)}" class="text-center py-5">
+                                <i class="fas fa-wrench fa-4x text-muted mb-4"></i>
+                                <h4 class="text-muted">No Maintenance History</h4>
+                                <p class="text-muted mb-4">
+                                    <span th:if="${propertyId}">This property has no maintenance tickets yet.</span>
+                                    <span th:unless="${propertyId}">No maintenance tickets found matching your criteria.</span>
+                                </p>
+                                <a th:href="@{'/employee/ticket/create-ticket' + (${propertyId} ? '?propertyId=' + ${propertyId} + '&type=maintenance' : '?type=maintenance')}" 
+                                   class="btn btn-primary">
+                                    <i class="fas fa-plus"></i> Create First Maintenance Ticket
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div th:insert="~{general/right-sidebar.html}"></div>
+        </div>
+    </div>
+    
+    <div th:replace="~{general/footer.html}"></div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script>
+// Filtering functionality
+let allTickets = [];
+
+$(document).ready(function() {
+    // Store all tickets for filtering
+    allTickets = $('.ticket-item').toArray();
+    
+    // Initialize date filters
+    setDefaultDateRange();
+});
+
+function filterTickets(type) {
+    // Update active filter button
+    $('.filter-btn').removeClass('active');
+    $(`button[onclick="filterTickets('${type}')"]`).addClass('active');
+    
+    // Show/hide tickets based on filter
+    $('.ticket-item').each(function() {
+        const $item = $(this);
+        let show = false;
+        
+        switch(type) {
+            case 'all':
+                show = true;
+                break;
+            case 'emergency':
+                show = $item.data('urgency') === 'emergency';
+                break;
+            case 'urgent':
+                show = $item.data('urgency') === 'urgent';
+                break;
+            case 'routine':
+                show = $item.data('urgency') === 'routine';
+                break;
+            case 'completed':
+                show = $item.data('status') === 'completed' || $item.data('status') === 'closed';
+                break;
+            case 'open':
+                show = $item.data('status') === 'open';
+                break;
+            case 'in-progress':
+                show = $item.data('status') === 'in-progress' || $item.data('status') === 'work-in-progress';
+                break;
+        }
+        
+        if (show) {
+            $item.show();
+        } else {
+            $item.hide();
+        }
+    });
+    
+    updateVisibleCount();
+}
+
+function applyFilters() {
+    const categoryFilter = $('#categoryFilter').val();
+    const statusFilter = $('#statusFilter').val();
+    const dateFromFilter = $('#dateFromFilter').val();
+    const dateToFilter = $('#dateToFilter').val();
+    
+    $('.ticket-item').each(function() {
+        const $item = $(this);
+        let show = true;
+        
+        // Category filter
+        if (categoryFilter && $item.data('category') !== categoryFilter) {
+            show = false;
+        }
+        
+        // Status filter
+        if (statusFilter && $item.data('status') !== statusFilter) {
+            show = false;
+        }
+        
+        // Date range filter
+        if (dateFromFilter || dateToFilter) {
+            const ticketDate = new Date($item.data('date'));
+            
+            if (dateFromFilter && ticketDate < new Date(dateFromFilter)) {
+                show = false;
+            }
+            
+            if (dateToFilter && ticketDate > new Date(dateToFilter)) {
+                show = false;
+            }
+        }
+        
+        if (show) {
+            $item.show();
+        } else {
+            $item.hide();
+        }
+    });
+    
+    updateVisibleCount();
+}
+
+function setDefaultDateRange() {
+    // Set date filters to last 6 months by default
+    const today = new Date();
+    const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 6, today.getDate());
+    
+    $('#dateFromFilter').val(sixMonthsAgo.toISOString().split('T')[0]);
+    $('#dateToFilter').val(today.toISOString().split('T')[0]);
+}
+
+function updateVisibleCount() {
+    const visibleCount = $('.ticket-item:visible').length;
+    const totalCount = $('.ticket-item').length;
+    
+    // Update the badge in the card header
+    $('.card-title .badge').text(visibleCount);
+    
+    // Show message if no tickets visible
+    if (visibleCount === 0) {
+        if ($('#noResultsMessage').length === 0) {
+            $('.maintenance-timeline').append(`
+                <div id="noResultsMessage" class="text-center py-4">
+                    <i class="fas fa-search fa-2x text-muted mb-3"></i>
+                    <h5 class="text-muted">No tickets match your filters</h5>
+                    <p class="text-muted">Try adjusting your search criteria</p>
+                </div>
+            `);
+        }
+    } else {
+        $('#noResultsMessage').remove();
+    }
+}
+
+function exportMaintenanceHistory() {
+    const visibleTickets = $('.ticket-item:visible');
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Ticket ID,Subject,Status,Urgency,Category,Created Date,Approved Amount,Contractor\n";
+    
+    visibleTickets.each(function() {
+        const $item = $(this);
+        const ticketId = $item.find('.card-title a').text().match(/Ticket #(\d+)/)[1];
+        const subject = $item.find('.card-title a').text().split(': ')[1];
+        const status = $item.data('status');
+        const urgency = $item.data('urgency');
+        const category = $item.data('category') || '';
+        const date = new Date($item.data('date')).toLocaleDateString();
+        const amount = $item.find('.cost-display').text().replace('£', '') || '0';
+        const contractor = $item.find('.contractor-info strong:contains("Contractor:")').next().text() || '';
+        
+        csvContent += `${ticketId},"${subject}",${status},${urgency},${category},${date},${amount},"${contractor}"\n`;
+    });
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `maintenance_history_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function printMaintenanceHistory() {
+    window.print();
+}
+
+function showTicketSummary(ticketId) {
+    // You can implement a modal or redirect to detailed summary
+    window.location.href = `/employee/ticket/show-ticket/${ticketId}`;
+}
+
+// Auto-refresh every 5 minutes for live updates
+setInterval(function() {
+    if (document.hidden === false) {
+        location.reload();
+    }
+}, 300000);
+</script>
+
+</body>
+</html>

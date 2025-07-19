@@ -43,6 +43,8 @@ public class PropertyController {
     private final AuthenticationUtils authenticationUtils;
     private FinancialTransactionRepository financialTransactionRepository;
     private PaymentRepository paymentRepository;
+    // TODO: Add TicketService after it's implemented
+    // private final TicketService ticketService;
 
     // TODO: Add PayPropSyncService after it's implemented
     // private final PayPropSyncService payPropSyncService;
@@ -89,6 +91,19 @@ public class PropertyController {
             
             // Add comprehensive portfolio statistics
             addComprehensivePortfolioStatistics(model, properties);
+            
+            // Add global maintenance statistics
+            // TODO: Uncomment when TicketService is implemented
+            // model.addAttribute("emergencyMaintenanceCount", ticketService.getEmergencyTicketCount());
+            // model.addAttribute("urgentMaintenanceCount", ticketService.getUrgentTicketCount());
+            // model.addAttribute("routineMaintenanceCount", ticketService.getRoutineTicketCount());
+            // model.addAttribute("totalMaintenanceCount", ticketService.getTotalActiveMaintenanceCount());
+            
+            // Temporary mock values until TicketService is implemented
+            model.addAttribute("emergencyMaintenanceCount", 0);
+            model.addAttribute("urgentMaintenanceCount", 0);
+            model.addAttribute("routineMaintenanceCount", 0);
+            model.addAttribute("totalMaintenanceCount", 0);
             
         } catch (Exception e) {
             setDefaultModelAttributes(model);
@@ -394,6 +409,23 @@ public class PropertyController {
         long tenantCount = tenantService.countByPropertyId(property.getId());
         model.addAttribute("tenantCount", tenantCount);
 
+        // Add maintenance statistics and recent tickets
+        // TODO: Uncomment when TicketService is implemented
+        // model.addAttribute("emergencyMaintenanceCount", ticketService.getEmergencyTicketCountByProperty(id));
+        // model.addAttribute("urgentMaintenanceCount", ticketService.getUrgentTicketCountByProperty(id));
+        // model.addAttribute("routineMaintenanceCount", ticketService.getRoutineTicketCountByProperty(id));
+        // model.addAttribute("activeMaintenanceCount", ticketService.getActiveTicketCountByProperty(id));
+        // model.addAttribute("completedMaintenanceCount", ticketService.getCompletedTicketCountByProperty(id));
+        // model.addAttribute("maintenanceTickets", ticketService.getRecentMaintenanceTicketsByProperty(id, 5));
+        
+        // Temporary mock values until TicketService is implemented
+        model.addAttribute("emergencyMaintenanceCount", 0);
+        model.addAttribute("urgentMaintenanceCount", 0);
+        model.addAttribute("routineMaintenanceCount", 0);
+        model.addAttribute("activeMaintenanceCount", 0);
+        model.addAttribute("completedMaintenanceCount", 0);
+        model.addAttribute("maintenanceTickets", new ArrayList<>());
+
         model.addAttribute("property", property);
         return "property/property-details";
     }
@@ -447,6 +479,115 @@ public class PropertyController {
         }
 
         return "redirect:/employee/property/all-properties";
+    }
+
+    // NEW: Maintenance summary endpoint for AJAX
+    @GetMapping("/{id}/maintenance-summary")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getMaintenanceSummary(@PathVariable("id") Long id, Authentication authentication) {
+        try {
+            Property property = propertyService.findById(id);
+            if (property == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Check authorization (same logic as showPropertyDetail)
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            boolean hasAccess = false;
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                hasAccess = true;
+            } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") && 
+                       property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(userId)) {
+                hasAccess = true;
+            } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
+                hasAccess = true;
+            }
+            
+            if (!hasAccess) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            
+            // TODO: Uncomment when TicketService is implemented
+            // response.put("emergencyMaintenanceCount", ticketService.getEmergencyTicketCountByProperty(id));
+            // response.put("urgentMaintenanceCount", ticketService.getUrgentTicketCountByProperty(id));
+            // response.put("routineMaintenanceCount", ticketService.getRoutineTicketCountByProperty(id));
+            // response.put("activeMaintenanceCount", ticketService.getActiveTicketCountByProperty(id));
+            // response.put("completedMaintenanceCount", ticketService.getCompletedTicketCountByProperty(id));
+            
+            // Temporary mock values until TicketService is implemented
+            response.put("emergencyMaintenanceCount", 0);
+            response.put("urgentMaintenanceCount", 0);
+            response.put("routineMaintenanceCount", 0);
+            response.put("activeMaintenanceCount", 0);
+            response.put("completedMaintenanceCount", 0);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // NEW: Financial summary endpoint for AJAX
+    @GetMapping("/{id}/financial-summary")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getFinancialSummary(@PathVariable("id") Long id, Authentication authentication) {
+        try {
+            Property property = propertyService.findById(id);
+            if (property == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Check authorization (same logic as showPropertyDetail)
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            boolean hasAccess = false;
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                hasAccess = true;
+            } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") && 
+                       property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(userId)) {
+                hasAccess = true;
+            } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
+                hasAccess = true;
+            }
+            
+            if (!hasAccess) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+
+            // Get financial transactions for this property
+            List<FinancialTransaction> transactions = financialTransactionRepository.findByPropertyIdOrderByTransactionDateDesc(id);
+            List<Payment> payments = paymentRepository.findByPropertyIdOrderByPaymentDateDesc(id);
+            
+            Map<String, Object> response = new HashMap<>();
+            
+            // Calculate totals
+            BigDecimal totalIncome = transactions.stream()
+                .filter(t -> "invoice".equals(t.getTransactionType()))
+                .map(FinancialTransaction::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                
+            BigDecimal totalCommissions = transactions.stream()
+                .map(FinancialTransaction::getCommissionAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                
+            BigDecimal netOwnerIncome = transactions.stream()
+                .map(FinancialTransaction::getNetToOwnerAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            response.put("totalIncome", totalIncome);
+            response.put("totalCommissions", totalCommissions);
+            response.put("netOwnerIncome", netOwnerIncome);
+            response.put("transactionCount", transactions.size());
+            response.put("recentTransactions", transactions.stream().limit(10).collect(Collectors.toList()));
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     // PayProp Sync Endpoints

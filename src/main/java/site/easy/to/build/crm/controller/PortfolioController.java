@@ -21,6 +21,7 @@ import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.user.UserService;
+import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.service.payprop.PayPropPortfolioSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
 import site.easy.to.build.crm.service.payprop.SyncResult;
@@ -46,6 +47,9 @@ public class PortfolioController {
     private final PropertyService propertyService;
     private final AuthenticationUtils authenticationUtils;
     
+    // ✅ NEW: Add TicketService for maintenance statistics
+    private final TicketService ticketService;
+    
     @Autowired
     private UserService userService;
     
@@ -61,10 +65,12 @@ public class PortfolioController {
     @Autowired
     public PortfolioController(PortfolioService portfolioService,
                               PropertyService propertyService,
-                              AuthenticationUtils authenticationUtils) {
+                              AuthenticationUtils authenticationUtils,
+                              TicketService ticketService) {
         this.portfolioService = portfolioService;
         this.propertyService = propertyService;
         this.authenticationUtils = authenticationUtils;
+        this.ticketService = ticketService;
     }
 
     // ===== SPECIFIC ROUTES FIRST (BEFORE /{id}) =====
@@ -138,6 +144,15 @@ public class PortfolioController {
             model.addAttribute("unassignedPropertiesCount", unassignedCount);
             model.addAttribute("showUnassigned", showUnassigned);
             model.addAttribute("selectedOwnerId", selectedOwnerId);
+            
+            // ✅ NEW: Add maintenance statistics for portfolio dashboard
+            try {
+                Map<String, Object> maintenanceStats = calculatePortfolioMaintenanceStats(userPortfolios, userId, authentication);
+                model.addAttribute("maintenanceStats", maintenanceStats);
+            } catch (Exception e) {
+                System.err.println("Error calculating portfolio maintenance statistics: " + e.getMessage());
+                model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
+            }
             
             // Existing code continues...
             PortfolioAggregateStats aggregateStats = calculateAggregateStats(userPortfolios);
@@ -433,6 +448,16 @@ public class PortfolioController {
             
             PortfolioAggregateStats aggregateStats = calculateAggregateStats(allPortfolios);
             
+            // ✅ NEW: Add maintenance statistics for all portfolios view
+            try {
+                int userId = authenticationUtils.getLoggedInUserId(authentication);
+                Map<String, Object> maintenanceStats = calculatePortfolioMaintenanceStats(allPortfolios, userId, authentication);
+                model.addAttribute("maintenanceStats", maintenanceStats);
+            } catch (Exception e) {
+                System.err.println("Error calculating maintenance stats for all portfolios: " + e.getMessage());
+                model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
+            }
+            
             List<Customer> propertyOwners = new ArrayList<>();
             if (customerService != null) {
                 try {
@@ -489,6 +514,46 @@ public class PortfolioController {
             
         } catch (Exception e) {
             model.addAttribute("error", "Error loading assignment page: " + e.getMessage());
+            return "error/500";
+        }
+    }
+
+    // ✅ NEW: Portfolio Maintenance Dashboard
+    @GetMapping("/maintenance-dashboard")
+    public String portfolioMaintenanceDashboard(Model model, Authentication authentication,
+                                               @RequestParam(value = "portfolioId", required = false) Long portfolioId) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            List<Portfolio> userPortfolios = portfolioService.findPortfoliosForUser(authentication);
+            
+            // If specific portfolio selected, filter to that one
+            if (portfolioId != null) {
+                userPortfolios = userPortfolios.stream()
+                    .filter(p -> p.getId().equals(portfolioId))
+                    .collect(Collectors.toList());
+            }
+            
+            // Calculate detailed maintenance statistics
+            Map<String, Object> detailedMaintenanceStats = calculateDetailedPortfolioMaintenanceStats(userPortfolios);
+            
+            // Get maintenance tickets for portfolios
+            List<Ticket> portfolioMaintenanceTickets = getMaintenanceTicketsForPortfolios(userPortfolios);
+            List<Ticket> recentTickets = portfolioMaintenanceTickets.stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .limit(10)
+                .collect(Collectors.toList());
+            
+            model.addAttribute("portfolios", userPortfolios);
+            model.addAttribute("selectedPortfolioId", portfolioId);
+            model.addAttribute("maintenanceStats", detailedMaintenanceStats);
+            model.addAttribute("recentMaintenanceTickets", recentTickets);
+            model.addAttribute("totalMaintenanceTickets", portfolioMaintenanceTickets.size());
+            model.addAttribute("pageTitle", "Portfolio Maintenance Dashboard");
+            
+            return "portfolio/maintenance-dashboard";
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading maintenance dashboard: " + e.getMessage());
             return "error/500";
         }
     }
@@ -1085,6 +1150,15 @@ public class PortfolioController {
             boolean canManageProperties = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
                                         AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE");
             
+            // ✅ NEW: Add portfolio-specific maintenance statistics
+            try {
+                Map<String, Object> portfolioMaintenanceStats = calculatePortfolioSpecificMaintenanceStats(portfolioId);
+                model.addAttribute("portfolioMaintenanceStats", portfolioMaintenanceStats);
+            } catch (Exception e) {
+                System.err.println("Error calculating portfolio-specific maintenance stats: " + e.getMessage());
+                model.addAttribute("portfolioMaintenanceStats", getDefaultMaintenanceStats());
+            }
+            
             model.addAttribute("portfolio", portfolio);
             model.addAttribute("analytics", analytics);
             model.addAttribute("blocks", blocks);
@@ -1266,6 +1340,288 @@ public class PortfolioController {
             Authentication authentication) {
         
         return recalculatePortfolioAnalytics(portfolioId, authentication);
+    }
+
+    // ===== ✅ NEW: MAINTENANCE STATISTICS HELPER METHODS =====
+
+    /**
+     * Calculate maintenance statistics for multiple portfolios
+     */
+    private Map<String, Object> calculatePortfolioMaintenanceStats(List<Portfolio> portfolios, int userId, Authentication authentication) {
+        Map<String, Object> stats = new HashMap<>();
+        
+        try {
+            // Get all properties from all portfolios
+            List<Long> allPropertyIds = portfolios.stream()
+                .flatMap(portfolio -> {
+                    try {
+                        return propertyService.findByPortfolioId(portfolio.getId()).stream();
+                    } catch (Exception e) {
+                        return java.util.stream.Stream.empty();
+                    }
+                })
+                .map(Property::getId)
+                .collect(Collectors.toList());
+            
+            // Get maintenance tickets for all portfolio properties
+            List<Ticket> allMaintenanceTickets = new ArrayList<>();
+            List<Ticket> allEmergencyTickets = new ArrayList<>();
+            
+            for (Long propertyId : allPropertyIds) {
+                try {
+                    List<Ticket> propertyMaintenanceTickets = ticketService.getTicketsByPropertyIdAndType(propertyId, "maintenance");
+                    List<Ticket> propertyEmergencyTickets = ticketService.getTicketsByPropertyIdAndType(propertyId, "emergency");
+                    
+                    allMaintenanceTickets.addAll(propertyMaintenanceTickets);
+                    allEmergencyTickets.addAll(propertyEmergencyTickets);
+                } catch (Exception e) {
+                    System.err.println("Error getting tickets for property " + propertyId + ": " + e.getMessage());
+                }
+            }
+            
+            // Calculate statistics
+            long openTickets = allMaintenanceTickets.stream()
+                .filter(t -> "open".equals(t.getStatus()))
+                .count();
+            
+            long inProgressTickets = allMaintenanceTickets.stream()
+                .filter(t -> "in-progress".equals(t.getStatus()) || "work-in-progress".equals(t.getStatus()))
+                .count();
+            
+            long emergencyCount = allEmergencyTickets.stream()
+                .filter(t -> !"closed".equals(t.getStatus()) && !"resolved".equals(t.getStatus()))
+                .count();
+            
+            long awaitingBids = allMaintenanceTickets.stream()
+                .filter(t -> "bidding".equals(t.getStatus()) || "awaiting-bids".equals(t.getStatus()))
+                .count();
+            
+            long completedTickets = allMaintenanceTickets.stream()
+                .filter(t -> "completed".equals(t.getStatus()) || "closed".equals(t.getStatus()))
+                .count();
+            
+            stats.put("openTickets", openTickets);
+            stats.put("inProgressTickets", inProgressTickets);
+            stats.put("emergencyTickets", emergencyCount);
+            stats.put("awaitingBids", awaitingBids);
+            stats.put("totalMaintenance", allMaintenanceTickets.size());
+            stats.put("completedTickets", completedTickets);
+            stats.put("totalPortfolios", portfolios.size());
+            stats.put("totalProperties", allPropertyIds.size());
+            
+            // Debug logging
+            System.out.println("=== PORTFOLIO MAINTENANCE STATS ===");
+            System.out.println("Portfolios: " + portfolios.size());
+            System.out.println("Properties: " + allPropertyIds.size());
+            System.out.println("Open: " + openTickets);
+            System.out.println("In Progress: " + inProgressTickets);
+            System.out.println("Emergency: " + emergencyCount);
+            System.out.println("=== END PORTFOLIO STATS ===");
+            
+        } catch (Exception e) {
+            System.err.println("Error in portfolio maintenance stats calculation: " + e.getMessage());
+            return getDefaultMaintenanceStats();
+        }
+        
+        return stats;
+    }
+    
+    /**
+     * Calculate detailed maintenance statistics for portfolios
+     */
+    private Map<String, Object> calculateDetailedPortfolioMaintenanceStats(List<Portfolio> portfolios) {
+        Map<String, Object> stats = new HashMap<>();
+        
+        try {
+            // Initialize counters
+            Map<String, Integer> categoryBreakdown = new HashMap<>();
+            Map<String, Integer> priorityBreakdown = new HashMap<>();
+            Map<String, Integer> portfolioBreakdown = new HashMap<>();
+            
+            int totalTickets = 0;
+            int totalCost = 0;
+            
+            // Process each portfolio
+            for (Portfolio portfolio : portfolios) {
+                try {
+                    List<Property> portfolioProperties = propertyService.findByPortfolioId(portfolio.getId());
+                    int portfolioTicketCount = 0;
+                    
+                    for (Property property : portfolioProperties) {
+                        try {
+                            List<Ticket> propertyTickets = ticketService.getTicketsByPropertyId(property.getId());
+                            
+                            for (Ticket ticket : propertyTickets) {
+                                if ("maintenance".equals(ticket.getType()) || "emergency".equals(ticket.getType())) {
+                                    totalTickets++;
+                                    portfolioTicketCount++;
+                                    
+                                    // Category breakdown
+                                    String category = ticket.getMaintenanceCategory() != null ? 
+                                        ticket.getMaintenanceCategory() : "General";
+                                    categoryBreakdown.put(category, 
+                                        categoryBreakdown.getOrDefault(category, 0) + 1);
+                                    
+                                    // Priority breakdown
+                                    String priority = ticket.getPriority() != null ? 
+                                        ticket.getPriority() : "Medium";
+                                    priorityBreakdown.put(priority, 
+                                        priorityBreakdown.getOrDefault(priority, 0) + 1);
+                                    
+                                    // Add to cost if available
+                                    if (ticket.getApprovedAmount() != null) {
+                                        totalCost += ticket.getApprovedAmount().intValue();
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            System.err.println("Error processing property " + property.getId() + ": " + e.getMessage());
+                        }
+                    }
+                    
+                    // Portfolio breakdown
+                    portfolioBreakdown.put(portfolio.getName(), portfolioTicketCount);
+                    
+                } catch (Exception e) {
+                    System.err.println("Error processing portfolio " + portfolio.getId() + ": " + e.getMessage());
+                }
+            }
+            
+            stats.put("totalTickets", totalTickets);
+            stats.put("totalCost", totalCost);
+            stats.put("categoryBreakdown", categoryBreakdown);
+            stats.put("priorityBreakdown", priorityBreakdown);
+            stats.put("portfolioBreakdown", portfolioBreakdown);
+            stats.put("averageCostPerTicket", totalTickets > 0 ? totalCost / totalTickets : 0);
+            
+        } catch (Exception e) {
+            System.err.println("Error in detailed portfolio maintenance stats: " + e.getMessage());
+            return getDefaultMaintenanceStats();
+        }
+        
+        return stats;
+    }
+    
+    /**
+     * Calculate maintenance statistics for a specific portfolio
+     */
+    private Map<String, Object> calculatePortfolioSpecificMaintenanceStats(Long portfolioId) {
+        Map<String, Object> stats = new HashMap<>();
+        
+        try {
+            List<Property> portfolioProperties = propertyService.findByPortfolioId(portfolioId);
+            List<Long> propertyIds = portfolioProperties.stream().map(Property::getId).collect(Collectors.toList());
+            
+            // Get all maintenance tickets for this portfolio's properties
+            List<Ticket> allMaintenanceTickets = new ArrayList<>();
+            List<Ticket> allEmergencyTickets = new ArrayList<>();
+            
+            for (Long propertyId : propertyIds) {
+                try {
+                    List<Ticket> propertyMaintenanceTickets = ticketService.getTicketsByPropertyIdAndType(propertyId, "maintenance");
+                    List<Ticket> propertyEmergencyTickets = ticketService.getTicketsByPropertyIdAndType(propertyId, "emergency");
+                    
+                    allMaintenanceTickets.addAll(propertyMaintenanceTickets);
+                    allEmergencyTickets.addAll(propertyEmergencyTickets);
+                } catch (Exception e) {
+                    System.err.println("Error getting tickets for property " + propertyId + ": " + e.getMessage());
+                }
+            }
+            
+            // Calculate basic statistics
+            long openTickets = allMaintenanceTickets.stream()
+                .filter(t -> "open".equals(t.getStatus()))
+                .count();
+            
+            long inProgressTickets = allMaintenanceTickets.stream()
+                .filter(t -> "in-progress".equals(t.getStatus()) || "work-in-progress".equals(t.getStatus()))
+                .count();
+            
+            long emergencyCount = allEmergencyTickets.stream()
+                .filter(t -> !"closed".equals(t.getStatus()) && !"resolved".equals(t.getStatus()))
+                .count();
+            
+            long completedTickets = allMaintenanceTickets.stream()
+                .filter(t -> "completed".equals(t.getStatus()) || "closed".equals(t.getStatus()))
+                .count();
+            
+            // Calculate cost metrics
+            double totalCost = allMaintenanceTickets.stream()
+                .filter(t -> t.getApprovedAmount() != null)
+                .mapToDouble(t -> t.getApprovedAmount().doubleValue())
+                .sum();
+            
+            double averageCostPerProperty = portfolioProperties.size() > 0 ? totalCost / portfolioProperties.size() : 0;
+            
+            stats.put("openTickets", openTickets);
+            stats.put("inProgressTickets", inProgressTickets);
+            stats.put("emergencyTickets", emergencyCount);
+            stats.put("completedTickets", completedTickets);
+            stats.put("totalTickets", allMaintenanceTickets.size());
+            stats.put("totalCost", totalCost);
+            stats.put("averageCostPerProperty", averageCostPerProperty);
+            stats.put("propertiesInPortfolio", portfolioProperties.size());
+            
+        } catch (Exception e) {
+            System.err.println("Error in portfolio-specific maintenance stats: " + e.getMessage());
+            return getDefaultMaintenanceStats();
+        }
+        
+        return stats;
+    }
+    
+    /**
+     * Get maintenance tickets for a list of portfolios
+     */
+    private List<Ticket> getMaintenanceTicketsForPortfolios(List<Portfolio> portfolios) {
+        List<Ticket> allTickets = new ArrayList<>();
+        
+        try {
+            for (Portfolio portfolio : portfolios) {
+                List<Property> portfolioProperties = propertyService.findByPortfolioId(portfolio.getId());
+                
+                for (Property property : portfolioProperties) {
+                    try {
+                        List<Ticket> propertyTickets = ticketService.getTicketsByPropertyId(property.getId());
+                        List<Ticket> maintenanceTickets = propertyTickets.stream()
+                            .filter(t -> "maintenance".equals(t.getType()) || "emergency".equals(t.getType()))
+                            .collect(Collectors.toList());
+                        
+                        allTickets.addAll(maintenanceTickets);
+                    } catch (Exception e) {
+                        System.err.println("Error getting tickets for property " + property.getId() + ": " + e.getMessage());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting maintenance tickets for portfolios: " + e.getMessage());
+        }
+        
+        return allTickets;
+    }
+    
+    /**
+     * Default maintenance stats in case of errors
+     */
+    private Map<String, Object> getDefaultMaintenanceStats() {
+        Map<String, Object> defaultStats = new HashMap<>();
+        defaultStats.put("openTickets", 0L);
+        defaultStats.put("inProgressTickets", 0L);
+        defaultStats.put("emergencyTickets", 0L);
+        defaultStats.put("awaitingBids", 0L);
+        defaultStats.put("totalMaintenance", 0L);
+        defaultStats.put("completedTickets", 0L);
+        defaultStats.put("totalPortfolios", 0);
+        defaultStats.put("totalProperties", 0);
+        defaultStats.put("totalTickets", 0);
+        defaultStats.put("totalCost", 0);
+        defaultStats.put("averageCostPerTicket", 0);
+        defaultStats.put("averageCostPerProperty", 0.0);
+        defaultStats.put("propertiesInPortfolio", 0);
+        defaultStats.put("categoryBreakdown", new HashMap<>());
+        defaultStats.put("priorityBreakdown", new HashMap<>());
+        defaultStats.put("portfolioBreakdown", new HashMap<>());
+        return defaultStats;
     }
 
     // ===== UTILITY METHODS =====

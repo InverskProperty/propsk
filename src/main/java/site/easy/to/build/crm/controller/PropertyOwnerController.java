@@ -11,11 +11,13 @@ import site.easy.to.build.crm.entity.CustomerLoginInfo;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.PropertyOwner;
 import site.easy.to.build.crm.entity.Tenant;
+import site.easy.to.build.crm.entity.Ticket;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
+import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 // Portfolio imports - NEW
@@ -46,6 +48,9 @@ public class PropertyOwnerController {
     private final CustomerService customerService;
     private final CustomerLoginInfoService customerLoginInfoService;
     private final AuthenticationUtils authenticationUtils;
+    
+    // ✅ NEW: Add TicketService for maintenance statistics
+    private final TicketService ticketService;
 
     // NEW PORTFOLIO SERVICE - Add this one only
     @Autowired(required = false)
@@ -57,13 +62,15 @@ public class PropertyOwnerController {
                                  TenantService tenantService,
                                  CustomerService customerService,
                                  CustomerLoginInfoService customerLoginInfoService,
-                                 AuthenticationUtils authenticationUtils) {
+                                 AuthenticationUtils authenticationUtils,
+                                 TicketService ticketService) {
         this.propertyService = propertyService;
         this.propertyOwnerService = propertyOwnerService;
         this.tenantService = tenantService;
         this.customerService = customerService;
         this.customerLoginInfoService = customerLoginInfoService;
         this.authenticationUtils = authenticationUtils;
+        this.ticketService = ticketService;
     }
 
     // ===== EMPLOYEE PROPERTY OWNER MANAGEMENT ROUTES =====
@@ -105,6 +112,16 @@ public class PropertyOwnerController {
                 System.out.println("DEBUG: Customer found: " + customer.getCustomerId());
                 System.out.println("DEBUG: Customer email: " + customer.getEmail());
                 System.out.println("DEBUG: Customer type: " + customer.getCustomerType());
+                
+                // ✅ NEW: Add maintenance statistics for property owner
+                try {
+                    Map<String, Object> maintenanceStats = calculatePropertyOwnerMaintenanceStats(customer.getCustomerId());
+                    model.addAttribute("maintenanceStats", maintenanceStats);
+                    System.out.println("DEBUG: ✅ Maintenance stats loaded successfully!");
+                } catch (Exception e) {
+                    System.err.println("ERROR loading maintenance stats: " + e.getMessage());
+                    model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
+                }
                 
                 // Get properties for this specific customer
                 try {
@@ -195,6 +212,7 @@ public class PropertyOwnerController {
                 model.addAttribute("portfolios", List.of());
                 model.addAttribute("properties", List.of());
                 model.addAttribute("totalProperties", 0);
+                model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
                 model.addAttribute("error", "Customer authentication issue - Customer ID mismatch or data issue");
             }
             
@@ -209,6 +227,7 @@ public class PropertyOwnerController {
             model.addAttribute("portfolios", List.of());
             model.addAttribute("properties", List.of());
             model.addAttribute("customerName", "Property Owner");
+            model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
             
             return "property-owner/dashboard";
         }
@@ -258,6 +277,15 @@ public class PropertyOwnerController {
                 .filter(payment -> payment != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+            // ✅ NEW: Add maintenance statistics for properties view
+            try {
+                Map<String, Object> maintenanceStats = calculatePropertyOwnerMaintenanceStats(customer.getCustomerId());
+                model.addAttribute("maintenanceStats", maintenanceStats);
+            } catch (Exception e) {
+                System.err.println("Error calculating maintenance stats for properties view: " + e.getMessage());
+                model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
+            }
+
             model.addAttribute("customer", customer);
             model.addAttribute("properties", properties);
             model.addAttribute("filterStatus", status);
@@ -301,6 +329,15 @@ public class PropertyOwnerController {
             // Get tenants for this property
             List<Tenant> tenants = tenantService.findByPropertyId(propertyId);
             List<Tenant> activeTenants = tenantService.findActiveTenantsForProperty(propertyId);
+
+            // ✅ NEW: Add property-specific maintenance statistics
+            try {
+                Map<String, Object> propertyMaintenanceStats = calculatePropertyMaintenanceStats(propertyId);
+                model.addAttribute("propertyMaintenanceStats", propertyMaintenanceStats);
+            } catch (Exception e) {
+                System.err.println("Error calculating property maintenance stats: " + e.getMessage());
+                model.addAttribute("propertyMaintenanceStats", getDefaultMaintenanceStats());
+            }
 
             model.addAttribute("customer", customer);
             model.addAttribute("property", property);
@@ -381,6 +418,15 @@ public class PropertyOwnerController {
                 .map(Property::getMonthlyPayment)
                 .filter(payment -> payment != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            // ✅ NEW: Add tenant-related maintenance statistics
+            try {
+                Map<String, Object> maintenanceStats = calculatePropertyOwnerMaintenanceStats(customer.getCustomerId());
+                model.addAttribute("maintenanceStats", maintenanceStats);
+            } catch (Exception e) {
+                System.err.println("Error calculating maintenance stats for tenants view: " + e.getMessage());
+                model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
+            }
 
             // Add all statistics to model
             model.addAttribute("tenants", tenants);
@@ -534,6 +580,15 @@ public class PropertyOwnerController {
                 })
                 .collect(Collectors.toList());
 
+            // ✅ NEW: Add maintenance statistics for financials view
+            try {
+                Map<String, Object> maintenanceStats = calculatePropertyOwnerMaintenanceStats(customer.getCustomerId());
+                model.addAttribute("maintenanceStats", maintenanceStats);
+            } catch (Exception e) {
+                System.err.println("Error calculating maintenance stats for financials view: " + e.getMessage());
+                model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
+            }
+
             System.out.println("🔍 DEBUG: Adding model attributes");
             model.addAttribute("customer", customer);
             model.addAttribute("properties", properties);
@@ -557,6 +612,147 @@ public class PropertyOwnerController {
             model.addAttribute("error", "Error loading financial data: " + e.getMessage());
             return "error/500";
         }
+    }
+
+    // ✅ NEW: Helper method to calculate property owner maintenance statistics
+    private Map<String, Object> calculatePropertyOwnerMaintenanceStats(int customerId) {
+        Map<String, Object> stats = new HashMap<>();
+        
+        try {
+            // Get all tickets related to this property owner's properties
+            List<Property> ownerProperties = propertyService.findByPropertyOwnerId(customerId);
+            List<Long> propertyIds = ownerProperties.stream().map(Property::getId).collect(Collectors.toList());
+            
+            // Get maintenance and emergency tickets for owner's properties
+            List<Ticket> allMaintenanceTickets = new ArrayList<>();
+            List<Ticket> allEmergencyTickets = new ArrayList<>();
+            
+            // Collect tickets for all owner's properties
+            for (Long propertyId : propertyIds) {
+                try {
+                    List<Ticket> propertyMaintenanceTickets = ticketService.getTicketsByPropertyIdAndType(propertyId, "maintenance");
+                    List<Ticket> propertyEmergencyTickets = ticketService.getTicketsByPropertyIdAndType(propertyId, "emergency");
+                    
+                    allMaintenanceTickets.addAll(propertyMaintenanceTickets);
+                    allEmergencyTickets.addAll(propertyEmergencyTickets);
+                } catch (Exception e) {
+                    System.err.println("Error getting tickets for property " + propertyId + ": " + e.getMessage());
+                }
+            }
+            
+            // Calculate open maintenance tickets
+            long openTickets = allMaintenanceTickets.stream()
+                .filter(t -> "open".equals(t.getStatus()))
+                .count();
+            
+            // Calculate in-progress maintenance tickets  
+            long inProgressTickets = allMaintenanceTickets.stream()
+                .filter(t -> "in-progress".equals(t.getStatus()) || "work-in-progress".equals(t.getStatus()))
+                .count();
+            
+            // Calculate emergency tickets (not closed)
+            long emergencyCount = allEmergencyTickets.stream()
+                .filter(t -> !"closed".equals(t.getStatus()) && !"resolved".equals(t.getStatus()))
+                .count();
+            
+            // Calculate tickets awaiting bids
+            long awaitingBids = allMaintenanceTickets.stream()
+                .filter(t -> "bidding".equals(t.getStatus()) || "awaiting-bids".equals(t.getStatus()))
+                .count();
+            
+            // Calculate total maintenance tickets
+            long totalMaintenance = allMaintenanceTickets.size();
+            
+            // Calculate completed tickets
+            long completedTickets = allMaintenanceTickets.stream()
+                .filter(t -> "completed".equals(t.getStatus()) || "closed".equals(t.getStatus()))
+                .count();
+            
+            // Calculate this month's tickets (approximate)
+            long thisMonthTickets = allMaintenanceTickets.stream()
+                .filter(t -> t.getCreatedAt() != null)
+                .count(); // You can add date filtering here if needed
+            
+            stats.put("openTickets", openTickets);
+            stats.put("inProgressTickets", inProgressTickets);
+            stats.put("emergencyTickets", emergencyCount);
+            stats.put("awaitingBids", awaitingBids);
+            stats.put("totalMaintenance", totalMaintenance);
+            stats.put("completedTickets", completedTickets);
+            stats.put("thisMonthTickets", thisMonthTickets);
+            stats.put("totalProperties", ownerProperties.size());
+            
+            // Debug logging
+            System.out.println("=== PROPERTY OWNER MAINTENANCE STATS ===");
+            System.out.println("Properties: " + ownerProperties.size());
+            System.out.println("Open: " + openTickets);
+            System.out.println("In Progress: " + inProgressTickets);
+            System.out.println("Emergency: " + emergencyCount);
+            System.out.println("Awaiting Bids: " + awaitingBids);
+            System.out.println("Total: " + totalMaintenance);
+            System.out.println("=== END PROPERTY OWNER STATS ===");
+            
+        } catch (Exception e) {
+            System.err.println("Error in property owner maintenance stats calculation: " + e.getMessage());
+            return getDefaultMaintenanceStats();
+        }
+        
+        return stats;
+    }
+    
+    // ✅ NEW: Helper method to calculate property-specific maintenance statistics
+    private Map<String, Object> calculatePropertyMaintenanceStats(Long propertyId) {
+        Map<String, Object> stats = new HashMap<>();
+        
+        try {
+            // Get tickets for this specific property
+            List<Ticket> propertyMaintenanceTickets = ticketService.getTicketsByPropertyIdAndType(propertyId, "maintenance");
+            List<Ticket> propertyEmergencyTickets = ticketService.getTicketsByPropertyIdAndType(propertyId, "emergency");
+            
+            // Calculate statistics for this property
+            long openTickets = propertyMaintenanceTickets.stream()
+                .filter(t -> "open".equals(t.getStatus()))
+                .count();
+            
+            long inProgressTickets = propertyMaintenanceTickets.stream()
+                .filter(t -> "in-progress".equals(t.getStatus()) || "work-in-progress".equals(t.getStatus()))
+                .count();
+            
+            long emergencyCount = propertyEmergencyTickets.stream()
+                .filter(t -> !"closed".equals(t.getStatus()) && !"resolved".equals(t.getStatus()))
+                .count();
+            
+            long completedTickets = propertyMaintenanceTickets.stream()
+                .filter(t -> "completed".equals(t.getStatus()) || "closed".equals(t.getStatus()))
+                .count();
+            
+            stats.put("openTickets", openTickets);
+            stats.put("inProgressTickets", inProgressTickets);
+            stats.put("emergencyTickets", emergencyCount);
+            stats.put("completedTickets", completedTickets);
+            stats.put("totalTickets", propertyMaintenanceTickets.size());
+            
+        } catch (Exception e) {
+            System.err.println("Error in property maintenance stats calculation: " + e.getMessage());
+            return getDefaultMaintenanceStats();
+        }
+        
+        return stats;
+    }
+    
+    // ✅ NEW: Default maintenance stats in case of errors
+    private Map<String, Object> getDefaultMaintenanceStats() {
+        Map<String, Object> defaultStats = new HashMap<>();
+        defaultStats.put("openTickets", 0L);
+        defaultStats.put("inProgressTickets", 0L);
+        defaultStats.put("emergencyTickets", 0L);
+        defaultStats.put("awaitingBids", 0L);
+        defaultStats.put("totalMaintenance", 0L);
+        defaultStats.put("completedTickets", 0L);
+        defaultStats.put("thisMonthTickets", 0L);
+        defaultStats.put("totalProperties", 0);
+        defaultStats.put("totalTickets", 0L);
+        return defaultStats;
     }
 
     /**

@@ -191,6 +191,27 @@ public class TicketController {
         return "employee/ticket/pending-bids";
     }
     
+    @GetMapping("/property/{propertyId}/maintenance-history")
+    public String showPropertyMaintenanceHistory(@PathVariable Long propertyId, Model model, Authentication authentication) {
+        // Find all tickets related to this property
+        List<Ticket> maintenanceTickets = ticketService.findAll().stream()
+            .filter(ticket -> "maintenance".equals(ticket.getType()) || "emergency".equals(ticket.getType()))
+            .filter(ticket -> {
+                // Link tickets to property via customer relationships
+                if (ticket.getCustomer() != null && ticket.getCustomer().getAssignedPropertyId() != null) {
+                    return ticket.getCustomer().getAssignedPropertyId().equals(propertyId);
+                }
+                return false;
+            })
+            .sorted((t1, t2) -> t2.getCreatedAt().compareTo(t1.getCreatedAt()))
+            .collect(Collectors.toList());
+
+        model.addAttribute("tickets", maintenanceTickets);
+        model.addAttribute("propertyId", propertyId);
+        
+        return "property/maintenance-history";
+    }
+
     @GetMapping("/contractor-bids")
     public String showContractorBids(@RequestParam(value = "ticketId", required = false) Integer ticketId,
                                    Model model, Authentication authentication) {

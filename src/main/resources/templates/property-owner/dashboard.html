@@ -64,6 +64,14 @@
             color: #ffffff !important;
         }
         
+        .card.card-inverse.card-danger .card-body,
+        .card.card-inverse.card-danger .card-body h2,
+        .card.card-inverse.card-danger .card-body h6,
+        .card.card-inverse.card-danger .card-body .text-white,
+        .card.card-inverse.card-danger .card-body i {
+            color: #ffffff !important;
+        }
+        
         .list-group-item {
             color: #495057 !important;
         }
@@ -78,6 +86,9 @@
         }
         .text-info {
             color: #17a2b8 !important;
+        }
+        .text-danger {
+            color: #dc3545 !important;
         }
         .text-themecolor {
             color: #2f3d4a !important;
@@ -104,6 +115,73 @@
         .btn-primary {
             background-color: #007bff;
             border-color: #007bff;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            border-color: #dc3545;
+        }
+        
+        /* Maintenance specific styles */
+        .maintenance-alert {
+            border-left: 4px solid #dc3545;
+            background-color: #fff5f5;
+        }
+        
+        .maintenance-summary {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .maintenance-stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .maintenance-stat-item:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .stat-value {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        
+        .stat-value.urgent {
+            color: #dc3545;
+            animation: pulse-urgent 2s infinite;
+        }
+        
+        @keyframes pulse-urgent {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .maintenance-action-btn {
+            margin: 5px 5px 5px 0;
+        }
+        
+        .priority-high {
+            color: #dc3545 !important;
+            font-weight: bold;
+        }
+        
+        .priority-medium {
+            color: #ffc107 !important;
+        }
+        
+        .priority-low {
+            color: #28a745 !important;
         }
     </style>
 </head>
@@ -142,6 +220,24 @@
                 </div>
             </div>
 
+            <!-- Emergency Maintenance Alert -->
+            <div th:if="${maintenanceStats.emergencyTickets > 0}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible fade show maintenance-alert" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>URGENT MAINTENANCE ALERT!</strong>
+                        You have <span th:text="${maintenanceStats.emergencyTickets}">0</span> emergency maintenance issue(s) requiring immediate attention across your properties.
+                        <div class="mt-2">
+                            <a href="/property-owner/properties?filter=maintenance" class="btn btn-sm btn-outline-light">View Properties</a>
+                            <a href="/property-owner/tenants" class="btn btn-sm btn-outline-light ml-2">Contact Tenants</a>
+                        </div>
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Error Display -->
             <div th:if="${error}" class="row">
                 <div class="col-12">
@@ -160,6 +256,101 @@
                         <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
                         <h4><i class="icon fa fa-check"></i> Portfolio System Active!</h4>
                         Your portfolio management system is fully operational with <strong th:text="${totalProperties}">0</strong> properties ready to organize.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Maintenance Overview Section -->
+            <div th:if="${maintenanceStats}" class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-wrench text-warning"></i> Property Maintenance Overview
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="maintenance-summary">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="maintenance-stat-item">
+                                            <span class="stat-label">
+                                                <i class="fas fa-clock text-warning"></i> Open Issues:
+                                            </span>
+                                            <span class="stat-value" th:classappend="${maintenanceStats.openTickets > 0 ? 'text-warning' : 'text-success'}" th:text="${maintenanceStats.openTickets ?: 0}">0</span>
+                                        </div>
+                                        
+                                        <div class="maintenance-stat-item">
+                                            <span class="stat-label">
+                                                <i class="fas fa-exclamation-triangle text-danger"></i> Emergency Issues:
+                                            </span>
+                                            <span class="stat-value urgent" th:classappend="${maintenanceStats.emergencyTickets > 0 ? 'urgent' : 'text-success'}" th:text="${maintenanceStats.emergencyTickets ?: 0}">0</span>
+                                        </div>
+                                        
+                                        <div class="maintenance-stat-item">
+                                            <span class="stat-label">
+                                                <i class="fas fa-cogs text-info"></i> In Progress:
+                                            </span>
+                                            <span class="stat-value text-info" th:text="${maintenanceStats.inProgressTickets ?: 0}">0</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <div class="maintenance-stat-item">
+                                            <span class="stat-label">
+                                                <i class="fas fa-handshake text-primary"></i> Awaiting Bids:
+                                            </span>
+                                            <span class="stat-value text-primary" th:text="${maintenanceStats.awaitingBids ?: 0}">0</span>
+                                        </div>
+                                        
+                                        <div class="maintenance-stat-item">
+                                            <span class="stat-label">
+                                                <i class="fas fa-check-circle text-success"></i> Completed:
+                                            </span>
+                                            <span class="stat-value text-success" th:text="${maintenanceStats.completedTickets ?: 0}">0</span>
+                                        </div>
+                                        
+                                        <div class="maintenance-stat-item">
+                                            <span class="stat-label">
+                                                <i class="fas fa-calendar text-secondary"></i> This Month:
+                                            </span>
+                                            <span class="stat-value text-secondary" th:text="${maintenanceStats.thisMonthTickets ?: 0}">0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Maintenance Actions -->
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <hr>
+                                        <h6><i class="fas fa-tools"></i> Quick Maintenance Actions:</h6>
+                                        <div class="maintenance-actions">
+                                            <a th:if="${maintenanceStats.emergencyTickets > 0}" 
+                                               href="/property-owner/properties?filter=emergency" 
+                                               class="btn btn-danger btn-sm maintenance-action-btn">
+                                                <i class="fas fa-exclamation-triangle"></i> View Emergency Issues
+                                            </a>
+                                            
+                                            <a th:if="${maintenanceStats.openTickets > 0}" 
+                                               href="/property-owner/properties?filter=maintenance" 
+                                               class="btn btn-warning btn-sm maintenance-action-btn">
+                                                <i class="fas fa-wrench"></i> View Open Issues
+                                            </a>
+                                            
+                                            <a href="/property-owner/properties" 
+                                               class="btn btn-primary btn-sm maintenance-action-btn">
+                                                <i class="fas fa-building"></i> All Properties
+                                            </a>
+                                            
+                                            <a href="/property-owner/tenants" 
+                                               class="btn btn-info btn-sm maintenance-action-btn">
+                                                <i class="fas fa-users"></i> Contact Tenants
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -199,15 +390,15 @@
                 </div>
                 
                 <div class="col-lg-3 col-md-6">
-                    <div class="card card-inverse card-warning">
+                    <div th:class="'card card-inverse ' + ${maintenanceStats.openTickets > 0 ? 'card-danger' : 'card-warning'}">
                         <div class="card-body">
                             <div class="d-flex">
                                 <div class="align-self-center">
-                                    <h2 class="text-white" th:text="${unassignedPropertiesCount ?: 0}">0</h2>
-                                    <h6 class="text-white m-b-0">Unassigned</h6>
+                                    <h2 class="text-white" th:text="${maintenanceStats.openTickets ?: unassignedPropertiesCount ?: 0}">0</h2>
+                                    <h6 class="text-white m-b-0" th:text="${maintenanceStats.openTickets > 0 ? 'Open Issues' : 'Unassigned'}">Unassigned</h6>
                                 </div>
                                 <div class="align-self-center display-6 ml-auto">
-                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <i th:class="${maintenanceStats.openTickets > 0 ? 'fas fa-exclamation-triangle' : 'fas fa-exclamation-triangle'}"></i>
                                 </div>
                             </div>
                         </div>
@@ -240,6 +431,21 @@
                         </div>
                         <div class="card-body">
                             <div class="list-group list-group-flush">
+                                <!-- Maintenance-priority actions first -->
+                                <a th:if="${maintenanceStats.emergencyTickets > 0}" 
+                                   href="/property-owner/properties?filter=emergency" 
+                                   class="list-group-item list-group-item-action priority-high">
+                                    <i class="fas fa-exclamation-triangle text-danger"></i> URGENT: Emergency Issues
+                                    <span class="badge badge-danger float-right" th:text="${maintenanceStats.emergencyTickets}">0</span>
+                                </a>
+                                
+                                <a th:if="${maintenanceStats.openTickets > 0}" 
+                                   href="/property-owner/properties?filter=maintenance" 
+                                   class="list-group-item list-group-item-action priority-medium">
+                                    <i class="fas fa-wrench text-warning"></i> Open Maintenance Issues
+                                    <span class="badge badge-warning float-right" th:text="${maintenanceStats.openTickets}">0</span>
+                                </a>
+                                
                                 <a href="/portfolio/create" class="list-group-item list-group-item-action">
                                     <i class="fas fa-plus text-success"></i> Create Portfolio
                                 </a>
@@ -273,8 +479,8 @@
                                 </div>
                                 <div class="col-md-6">
                                     <div class="text-center">
-                                        <h3 class="text-warning" th:text="${unassignedPropertiesCount ?: 0}">0</h3>
-                                        <p class="text-muted m-b-0">Ready for Portfolio Assignment</p>
+                                        <h3 th:class="${maintenanceStats.openTickets > 0 ? 'text-danger' : 'text-warning'}" th:text="${maintenanceStats.openTickets ?: unassignedPropertiesCount ?: 0}">0</h3>
+                                        <p class="text-muted m-b-0" th:text="${maintenanceStats.openTickets > 0 ? 'Properties with Issues' : 'Ready for Portfolio Assignment'}">Ready for Portfolio Assignment</p>
                                     </div>
                                 </div>
                             </div>
@@ -292,6 +498,25 @@
                                     <div class="text-center">
                                         <h3 class="text-info" th:text="${#lists.size(portfolios ?: {})}">0</h3>
                                         <p class="text-muted m-b-0">Active Portfolios</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Additional Maintenance Summary -->
+                            <div th:if="${maintenanceStats.totalMaintenance > 0}" class="mt-3">
+                                <hr>
+                                <div class="row text-center">
+                                    <div class="col-md-4">
+                                        <h4 th:class="${maintenanceStats.inProgressTickets > 0 ? 'text-info' : 'text-muted'}" th:text="${maintenanceStats.inProgressTickets ?: 0}">0</h4>
+                                        <small class="text-muted">In Progress</small>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <h4 class="text-primary" th:text="${maintenanceStats.awaitingBids ?: 0}">0</h4>
+                                        <small class="text-muted">Awaiting Bids</small>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <h4 class="text-success" th:text="${maintenanceStats.completedTickets ?: 0}">0</h4>
+                                        <small class="text-muted">Completed</small>
                                     </div>
                                 </div>
                             </div>
@@ -317,6 +542,11 @@
                                         You have <strong th:text="${totalProperties ?: 0}">0</strong> properties ready to organize. 
                                         Create portfolios to group them by location, type, or investment strategy.
                                     </p>
+                                    <div th:if="${maintenanceStats.totalMaintenance > 0}" class="alert alert-info">
+                                        <i class="fas fa-info-circle"></i>
+                                        <strong>Note:</strong> You have <span th:text="${maintenanceStats.totalMaintenance}">0</span> maintenance items to track across your properties.
+                                        Organizing them into portfolios will help you manage maintenance more effectively.
+                                    </div>
                                 </div>
                                 <div class="col-md-4 text-center">
                                     <a href="/portfolio/create" class="btn btn-success btn-lg">
@@ -366,6 +596,20 @@
                                                           class="label label-warning">Pending</span>
                                                 </div>
                                             </div>
+                                            
+                                            <!-- Portfolio Maintenance Status -->
+                                            <div class="mt-3 pt-3 border-top">
+                                                <div class="row text-center">
+                                                    <div class="col-6">
+                                                        <small class="text-muted">Maintenance:</small><br>
+                                                        <span class="badge badge-success">Active</span>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <small class="text-muted">Issues:</small><br>
+                                                        <span class="badge badge-secondary">0</span>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div class="card-footer">
                                             <div class="btn-group btn-group-full">
@@ -393,6 +637,9 @@
 </div>
 
 <!-- Scripts -->
+<script th:inline="javascript">
+    var maintenanceStats = /*[[${maintenanceStats}]]*/ {};
+</script>
 <script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
 <script th:src="@{/js/library/popper.min.js}"></script>
 <script th:src="@{/js/library/bootstrap.min.js}"></script>
@@ -403,15 +650,165 @@
 <script th:src="@{/js/library/custom.min.js}"></script>
 
 <script>
+$(document).ready(function() {
+    // Auto-dismiss success alerts after 5 seconds
+    setTimeout(function() {
+        $('.alert-success').fadeOut();
+    }, 5000);
+
+    // Emergency maintenance notification
+    if (maintenanceStats && maintenanceStats.emergencyTickets > 0) {
+        // Add pulsing effect to emergency elements
+        $('.urgent').addClass('pulse-urgent');
+        
+        // Show periodic reminder (every 5 minutes)
+        setInterval(function() {
+            if (maintenanceStats.emergencyTickets > 0) {
+                showMaintenanceReminder();
+            }
+        }, 300000); // 5 minutes
+    }
+
+    // Maintenance stats hover effects
+    $('.maintenance-stat-item').hover(
+        function() {
+            $(this).css('background-color', '#f8f9fa');
+        },
+        function() {
+            $(this).css('background-color', 'transparent');
+        }
+    );
+
+    // Quick action animations
+    $('.list-group-item-action').hover(
+        function() {
+            $(this).addClass('shadow-sm');
+        },
+        function() {
+            $(this).removeClass('shadow-sm');
+        }
+    );
+});
+
 function assignProperties(portfolioId) {
-    alert('Property assignment for portfolio ' + portfolioId + ' coming soon!');
-    // TODO: Implement property assignment modal
+    if (confirm('Would you like to assign properties to this portfolio?')) {
+        window.location.href = '/portfolio/' + portfolioId + '/assign';
+    }
+}
+
+function showMaintenanceReminder() {
+    if (maintenanceStats && maintenanceStats.emergencyTickets > 0) {
+        // Create toast notification
+        var toast = $('<div class="toast-notification emergency-toast">' +
+                     '<i class="fas fa-exclamation-triangle"></i> ' +
+                     'You have ' + maintenanceStats.emergencyTickets + ' emergency maintenance issues!' +
+                     '</div>');
+        
+        $('body').append(toast);
+        toast.fadeIn().delay(4000).fadeOut(function() {
+            $(this).remove();
+        });
+    }
 }
 
 function showComingSoon(feature) {
     alert(feature + ' feature is coming soon! We\'re working hard to bring you this functionality.');
 }
+
+// Property owner keyboard shortcuts
+$(document).keydown(function(e) {
+    if (e.ctrlKey) {
+        switch(e.which) {
+            case 80: // Ctrl+P - Properties
+                e.preventDefault();
+                window.location.href = '/property-owner/properties';
+                break;
+            case 70: // Ctrl+F - Financials
+                e.preventDefault();
+                window.location.href = '/property-owner/financials';
+                break;
+            case 84: // Ctrl+T - Tenants
+                e.preventDefault();
+                window.location.href = '/property-owner/tenants';
+                break;
+            case 77: // Ctrl+M - Maintenance (if issues exist)
+                e.preventDefault();
+                if (maintenanceStats && maintenanceStats.openTickets > 0) {
+                    window.location.href = '/property-owner/properties?filter=maintenance';
+                }
+                break;
+            case 69: // Ctrl+E - Emergency (if exists)
+                e.preventDefault();
+                if (maintenanceStats && maintenanceStats.emergencyTickets > 0) {
+                    window.location.href = '/property-owner/properties?filter=emergency';
+                }
+                break;
+        }
+    }
+});
 </script>
+
+<style>
+/* Toast notification styles */
+.toast-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #dc3545;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 10000;
+    display: none;
+    font-weight: 600;
+    max-width: 300px;
+}
+
+.toast-notification i {
+    margin-right: 10px;
+    font-size: 18px;
+}
+
+/* Enhanced hover effects */
+.list-group-item-action.priority-high:hover {
+    background-color: #fff5f5 !important;
+    border-left: 4px solid #dc3545;
+}
+
+.list-group-item-action.priority-medium:hover {
+    background-color: #fffbf0 !important;
+    border-left: 4px solid #ffc107;
+}
+
+/* Portfolio card enhancements */
+.card.portfolio-card {
+    transition: all 0.3s ease;
+}
+
+.card.portfolio-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .maintenance-summary {
+        padding: 15px;
+    }
+    
+    .maintenance-action-btn {
+        margin-bottom: 10px;
+        width: 100%;
+    }
+    
+    .toast-notification {
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+}
+</style>
 
 </body>
 </html>

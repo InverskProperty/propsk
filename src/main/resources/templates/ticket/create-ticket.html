@@ -122,6 +122,65 @@
                                     <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('priority')}" th:errors="*{priority}"></span>
                                 </div>
 
+                                <label class="m-t-20" for="type">Ticket Type:</label>
+                                <div class="input-group">
+                                    <select id="type" th:field="*{type}" class="form-control">
+                                        <option value="general">General</option>
+                                        <option value="support">Support</option>
+                                        <option value="billing">Billing</option>
+                                        <option value="maintenance">Maintenance</option>
+                                        <option value="emergency">Emergency</option>
+                                        <option value="complaint">Complaint</option>
+                                        <option value="request">Request</option>
+                                    </select>
+                                </div>
+                                <div class="input-group">
+                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('type')}" th:errors="*{type}"></span>
+                                </div>
+
+                                <!-- Maintenance-specific fields (show/hide with JavaScript) -->
+                                <div id="maintenanceFields" style="display: none;">
+                                    <label class="m-t-20" for="maintenanceCategory">Maintenance Category:</label>
+                                    <div class="input-group">
+                                        <select id="maintenanceCategory" th:field="*{maintenanceCategory}" class="form-control">
+                                            <option value="">Select Category</option>
+                                            <option value="plumbing">Plumbing</option>
+                                            <option value="electrical">Electrical</option>
+                                            <option value="heating">Heating</option>
+                                            <option value="general">General Maintenance</option>
+                                            <option value="appliance">Appliance</option>
+                                            <option value="external">External</option>
+                                            <option value="internal">Internal</option>
+                                        </select>
+                                    </div>
+
+                                    <label class="m-t-20" for="urgencyLevel">Urgency Level:</label>
+                                    <div class="input-group">
+                                        <select id="urgencyLevel" th:field="*{urgencyLevel}" class="form-control">
+                                            <option value="routine">Routine</option>
+                                            <option value="urgent">Urgent</option>
+                                            <option value="emergency">Emergency</option>
+                                            <option value="health-safety">Health & Safety</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-check m-t-20">
+                                        <input type="checkbox" id="accessRequired" th:field="*{accessRequired}" class="form-check-input">
+                                        <label class="form-check-label" for="accessRequired">Property access required</label>
+                                    </div>
+
+                                    <div class="form-check">
+                                        <input type="checkbox" id="tenantPresentRequired" th:field="*{tenantPresentRequired}" class="form-check-input">
+                                        <label class="form-check-label" for="tenantPresentRequired">Tenant must be present</label>
+                                    </div>
+
+                                    <label class="m-t-20" for="preferredTimeSlot">Preferred Time Slot:</label>
+                                    <div class="input-group">
+                                        <input type="text" id="preferredTimeSlot" th:field="*{preferredTimeSlot}" class="form-control" 
+                                            placeholder="e.g., Mornings, Weekends, After 6pm">
+                                    </div>
+                                </div>
+
                                 <label class="m-t-20" for="employeeId">Assign Employee:</label>
                                 <div class="input-group">
                                     <select name="employeeId" id="employeeId" class="form-control">
@@ -200,9 +259,18 @@
 <script>
     $(document).ready(function() {
         $('.textarea_editor').wysihtml5();
+        
+        // Show/hide maintenance fields based on ticket type
+        $('#type').on('change', function() {
+            const maintenanceFields = $('#maintenanceFields');
+            if (this.value === 'maintenance' || this.value === 'emergency') {
+                maintenanceFields.show();
+            } else {
+                maintenanceFields.hide();
+            }
+        });
     });
 </script>
 
 </body>
 </html>
-

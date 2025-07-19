@@ -320,6 +320,40 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
+    public boolean sendPropertyMaintenanceAlert(Long propertyId, Ticket ticket, Authentication authentication) {
+        try {
+            // Find all property owners for this property
+            List<Customer> propertyOwners = customerService.findByEntityTypeAndEntityId("Property", propertyId)
+                .stream()
+                .filter(customer -> Boolean.TRUE.equals(customer.getIsPropertyOwner()))
+                .collect(Collectors.toList());
+            
+            for (Customer owner : propertyOwners) {
+                String subject = String.format("Maintenance Alert - Property %d", propertyId);
+                String message = String.format(
+                    "A new maintenance ticket has been created for your property.\n\n" +
+                    "Ticket #: %d\n" +
+                    "Subject: %s\n" +
+                    "Priority: %s\n" +
+                    "Category: %s\n\n" +
+                    "We will keep you updated on the progress.",
+                    ticket.getTicketId(),
+                    ticket.getSubject(),
+                    ticket.getPriorityDisplayName(),
+                    ticket.getMaintenanceCategory()
+                );
+                
+                sendEmailToCustomer(owner, subject, message, authentication);
+            }
+            
+            return true;
+        } catch (Exception e) {
+            logger.error("Error sending property maintenance alert: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    @Override
     public boolean sendJobAwardNotification(Customer contractor, Ticket ticket, Authentication authentication) {
         if (contractor == null || ticket == null) {
             logger.warn("Invalid contractor or ticket for job award notification");

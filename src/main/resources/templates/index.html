@@ -43,6 +43,21 @@
                 </div>
             </div>
 
+            <!-- Emergency Maintenance Alert -->
+            <div th:if="${maintenanceStats.emergencyTickets > 0}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Emergency Maintenance Alert!</strong>
+                        You have <span th:text="${maintenanceStats.emergencyTickets}">0</span> emergency maintenance ticket(s) requiring immediate attention.
+                        <a th:href="@{/employee/ticket/manager/all-tickets?type=emergency}" class="btn btn-sm btn-outline-light ml-2">View Emergency Tickets</a>
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- PayProp Integration Status -->
             <div class="row">
                 <div class="col-12">
@@ -61,6 +76,121 @@
                                     <div class="countdown-timer">
                                         <h2 class="mb-0" id="daysLeft">2</h2>
                                         <small>Days to Go-Live</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Maintenance Statistics Overview -->
+            <div th:if="${maintenanceStats}" class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-wrench text-primary"></i> Maintenance Overview
+                            </h4>
+                            <div class="card-actions">
+                                <a th:href="@{/employee/ticket/pending-bids}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-hammer"></i> Manage Maintenance
+                                </a>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-2 col-sm-6">
+                                    <div class="maintenance-stat-card">
+                                        <div class="stat-icon bg-warning">
+                                            <i class="fas fa-clock"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 class="mb-0 font-weight-bold" th:text="${maintenanceStats.openTickets ?: 0}">0</h3>
+                                            <p class="text-muted mb-0">Open Tickets</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-2 col-sm-6">
+                                    <div class="maintenance-stat-card">
+                                        <div class="stat-icon bg-info">
+                                            <i class="fas fa-cogs"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 class="mb-0 font-weight-bold" th:text="${maintenanceStats.inProgressTickets ?: 0}">0</h3>
+                                            <p class="text-muted mb-0">In Progress</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-2 col-sm-6">
+                                    <div class="maintenance-stat-card">
+                                        <div class="stat-icon bg-danger">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 class="mb-0 font-weight-bold" th:text="${maintenanceStats.emergencyTickets ?: 0}">0</h3>
+                                            <p class="text-muted mb-0">Emergency</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-2 col-sm-6">
+                                    <div class="maintenance-stat-card">
+                                        <div class="stat-icon bg-secondary">
+                                            <i class="fas fa-handshake"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 class="mb-0 font-weight-bold" th:text="${maintenanceStats.awaitingBids ?: 0}">0</h3>
+                                            <p class="text-muted mb-0">Awaiting Bids</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-2 col-sm-6">
+                                    <div class="maintenance-stat-card">
+                                        <div class="stat-icon bg-success">
+                                            <i class="fas fa-check-circle"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 class="mb-0 font-weight-bold" th:text="${maintenanceStats.completedThisMonth ?: 0}">0</h3>
+                                            <p class="text-muted mb-0">Completed</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-2 col-sm-6">
+                                    <div class="maintenance-stat-card">
+                                        <div class="stat-icon bg-primary">
+                                            <i class="fas fa-list-alt"></i>
+                                        </div>
+                                        <div class="stat-content">
+                                            <h3 class="mb-0 font-weight-bold" th:text="${maintenanceStats.totalMaintenance ?: 0}">0</h3>
+                                            <p class="text-muted mb-0">Total Tickets</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Maintenance Actions Row -->
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <div class="maintenance-actions">
+                                        <a th:href="@{/employee/ticket/create-ticket}" class="btn btn-sm btn-success mr-2">
+                                            <i class="fas fa-plus"></i> New Ticket
+                                        </a>
+                                        <a th:href="@{/employee/ticket/pending-bids}" class="btn btn-sm btn-warning mr-2">
+                                            <i class="fas fa-hammer"></i> Pending Bids
+                                        </a>
+                                        <a th:href="@{/employee/ticket/contractor-bids}" class="btn btn-sm btn-info mr-2">
+                                            <i class="fas fa-handshake"></i> Contractor Bids
+                                        </a>
+                                        <a th:if="${maintenanceStats.emergencyTickets > 0}" 
+                                           th:href="@{/employee/ticket/manager/all-tickets?type=emergency}" 
+                                           class="btn btn-sm btn-danger">
+                                            <i class="fas fa-exclamation-triangle"></i> View Emergencies
+                                        </a>
                                     </div>
                                 </div>
                             </div>
@@ -148,10 +278,31 @@
                         </div>
                         <div class="card-body">
                             <div class="list-group list-group-flush">
+                                <!-- Maintenance-specific quick actions -->
+                                <a th:if="${maintenanceStats.emergencyTickets > 0}" 
+                                   th:href="@{/employee/ticket/manager/all-tickets?type=emergency}" 
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center urgent-action">
+                                    <div>
+                                        <i class="fas fa-exclamation-triangle text-danger mr-2"></i>
+                                        <strong>URGENT: Emergency Tickets</strong>
+                                    </div>
+                                    <span class="badge badge-danger" th:text="${maintenanceStats.emergencyTickets}">0</span>
+                                </a>
+                                
+                                <a th:if="${maintenanceStats.openTickets > 0}" 
+                                   th:href="@{/employee/ticket/pending-bids}" 
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-wrench text-warning mr-2"></i>
+                                        Open Maintenance Tickets
+                                    </div>
+                                    <span class="badge badge-warning" th:text="${maintenanceStats.openTickets}">0</span>
+                                </a>
+                                
                                 <a th:href="@{/employee/property/vacant-properties}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                     <div>
                                         <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
-                                        Urgent: View Vacant Properties
+                                        View Vacant Properties
                                     </div>
                                     <span class="badge badge-warning" th:text="${vacantProperties ?: 0}">4</span>
                                 </a>
@@ -166,7 +317,7 @@
                                     Add New Tenant
                                 </a>
                                 
-                                <a th:href="@{/employee/maintenance/create-ticket}" class="list-group-item list-group-item-action">
+                                <a th:href="@{/employee/ticket/create-ticket}" class="list-group-item list-group-item-action">
                                     <i class="fas fa-wrench text-info mr-2"></i>
                                     Create Maintenance Ticket
                                 </a>
@@ -306,6 +457,25 @@
                         </div>
                         <div class="card-body">
                             <div class="timeline">
+                                <!-- Dynamic maintenance activity -->
+                                <div th:if="${maintenanceStats.emergencyTickets > 0}" class="timeline-item">
+                                    <div class="timeline-marker bg-danger"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Emergency Maintenance Alert</h6>
+                                        <p class="timeline-text" th:text="${maintenanceStats.emergencyTickets} + ' emergency tickets require immediate attention'">Emergency tickets need attention</p>
+                                        <span class="timeline-date">Now</span>
+                                    </div>
+                                </div>
+                                
+                                <div th:if="${maintenanceStats.openTickets > 0}" class="timeline-item">
+                                    <div class="timeline-marker bg-warning"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title">Open Maintenance Requests</h6>
+                                        <p class="timeline-text" th:text="${maintenanceStats.openTickets} + ' maintenance tickets awaiting assignment'">Maintenance tickets pending</p>
+                                        <span class="timeline-date">Recent</span>
+                                    </div>
+                                </div>
+                                
                                 <div class="timeline-item">
                                     <div class="timeline-marker bg-success"></div>
                                     <div class="timeline-content">
@@ -439,6 +609,7 @@
     var totalProperties = /*[[${totalProperties}]]*/ 0;
     var occupiedProperties = /*[[${occupiedProperties}]]*/ 0;
     var vacantProperties = /*[[${vacantProperties}]]*/ 0;
+    var maintenanceStats = /*[[${maintenanceStats}]]*/ {};
 </script>
 <script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
 <script th:src="@{/js/library/popper.min.js}"></script>
@@ -512,6 +683,31 @@ $(document).ready(function() {
         });
     });
 
+    // Maintenance stats animation
+    $('.maintenance-stat-card h3').each(function() {
+        const $this = $(this);
+        const countTo = parseInt($this.text());
+        
+        $({ countNum: 0 }).animate({
+            countNum: countTo
+        }, {
+            duration: 1500,
+            easing: 'easeOutQuart',
+            step: function() {
+                $this.text(Math.floor(this.countNum));
+            },
+            complete: function() {
+                $this.text(this.countNum);
+            }
+        });
+    });
+
+    // Emergency maintenance pulsing effect
+    if (maintenanceStats && maintenanceStats.emergencyTickets > 0) {
+        $('.urgent-action').addClass('pulse-danger');
+        $('.timeline-marker.bg-danger').addClass('pulse-danger');
+    }
+
     // Property status real-time updates (simulate)
     function simulateRealTimeUpdates() {
         // This would normally connect to PayProp API or WebSocket
@@ -539,11 +735,17 @@ $(document).ready(function() {
                     break;
                 case 77: // Ctrl+M - Maintenance
                     e.preventDefault();
-                    window.location.href = home + 'employee/maintenance/create-ticket';
+                    window.location.href = home + 'employee/ticket/create-ticket';
                     break;
                 case 86: // Ctrl+V - Vacant Properties
                     e.preventDefault();
                     window.location.href = home + 'employee/property/vacant-properties';
+                    break;
+                case 69: // Ctrl+E - Emergency Tickets
+                    e.preventDefault();
+                    if (maintenanceStats && maintenanceStats.emergencyTickets > 0) {
+                        window.location.href = home + 'employee/ticket/manager/all-tickets?type=emergency';
+                    }
                     break;
             }
         }
@@ -557,7 +759,8 @@ $(document).ready(function() {
                 Ctrl+P: Add Property<br>
                 Ctrl+T: Add Tenant<br>
                 Ctrl+M: Maintenance<br>
-                Ctrl+V: Vacant Properties
+                Ctrl+V: Vacant Properties<br>
+                ${maintenanceStats && maintenanceStats.emergencyTickets > 0 ? 'Ctrl+E: Emergency Tickets<br>' : ''}
             </div>
         </div>
     `);
@@ -576,10 +779,122 @@ $(document).ready(function() {
             $('#shortcutsTooltip').fadeOut();
         }
     });
+
+    // Auto-refresh maintenance stats every 5 minutes
+    setInterval(function() {
+        // This would normally fetch updated stats via AJAX
+        // For now, we'll just add a visual indicator
+        $('.maintenance-stat-card').addClass('refreshing');
+        setTimeout(function() {
+            $('.maintenance-stat-card').removeClass('refreshing');
+        }, 1000);
+    }, 300000); // 5 minutes
 });
 </script>
 
 <style>
+/* Maintenance Statistics Styles */
+.maintenance-stat-card {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.maintenance-stat-card:hover {
+    background: #e9ecef;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.maintenance-stat-card .stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 15px;
+    color: white;
+    font-size: 20px;
+}
+
+.maintenance-stat-card .stat-content h3 {
+    font-size: 24px;
+    margin: 0;
+    color: #333;
+}
+
+.maintenance-stat-card .stat-content p {
+    font-size: 12px;
+    margin: 0;
+    color: #666;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+.maintenance-actions {
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #007bff;
+}
+
+.maintenance-actions .btn {
+    margin-bottom: 5px;
+}
+
+/* Emergency Alert Styles */
+.urgent-action {
+    border-left: 4px solid #dc3545 !important;
+    background-color: #fff5f5 !important;
+}
+
+.urgent-action:hover {
+    background-color: #fee !important;
+}
+
+.pulse-danger {
+    animation: pulse-danger 2s infinite;
+}
+
+@keyframes pulse-danger {
+    0% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+    }
+}
+
+/* Maintenance stat card loading states */
+.maintenance-stat-card.refreshing {
+    opacity: 0.7;
+    transform: scale(0.98);
+}
+
+.maintenance-stat-card.refreshing::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    width: 16px;
+    height: 16px;
+    margin-top: -8px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* Timeline styles (existing) */
 .timeline {
     position: relative;
     padding-left: 30px;
@@ -685,6 +1000,22 @@ $(document).ready(function() {
     .timeline-marker {
         left: -17px;
     }
+    
+    .maintenance-stat-card {
+        margin-bottom: 10px;
+        padding: 10px;
+    }
+    
+    .maintenance-stat-card .stat-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+        margin-right: 10px;
+    }
+    
+    .maintenance-stat-card .stat-content h3 {
+        font-size: 20px;
+    }
 }
 
 /* Loading states */
@@ -728,8 +1059,15 @@ $(document).ready(function() {
         box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
     }
 }
+
+/* Background color utilities for maintenance stats */
+.bg-warning { background-color: #ffc107 !important; }
+.bg-info { background-color: #17a2b8 !important; }
+.bg-danger { background-color: #dc3545 !important; }
+.bg-secondary { background-color: #6c757d !important; }
+.bg-success { background-color: #28a745 !important; }
+.bg-primary { background-color: #007bff !important; }
 </style>
 
 </body>
 </html>
-

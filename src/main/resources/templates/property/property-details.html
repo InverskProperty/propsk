@@ -9,6 +9,123 @@
 <link th:href="@{/css/style.min.css}" rel="stylesheet">
 <link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
 
+<!-- Custom Maintenance Styles -->
+<style>
+.maintenance-alert {
+    border-left: 4px solid #dc3545;
+    background: linear-gradient(45deg, #fff5f5, #ffffff);
+    animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+    0% { border-left-color: #dc3545; }
+    50% { border-left-color: #ff6b6b; }
+    100% { border-left-color: #dc3545; }
+}
+
+.maintenance-card {
+    transition: all 0.3s ease;
+    border-radius: 8px;
+}
+
+.maintenance-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.maintenance-stats {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+}
+
+.maintenance-timeline {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e9ecef;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -22px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    z-index: 1;
+}
+
+.timeline-content {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    border-left: 3px solid #007bff;
+}
+
+.timeline-title {
+    margin: 0 0 5px 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.timeline-text {
+    margin: 0 0 5px 0;
+    font-size: 13px;
+    color: #6c757d;
+}
+
+.timeline-date {
+    font-size: 12px;
+    color: #999;
+}
+
+.tags .badge {
+    font-size: 12px;
+    padding: 5px 8px;
+}
+
+.emergency-indicator {
+    animation: blink 1s infinite;
+    background: linear-gradient(45deg, #dc3545, #ff6b6b);
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.7; }
+}
+
+.maintenance-category-badge {
+    font-size: 0.75em;
+    padding: 3px 8px;
+    border-radius: 12px;
+}
+
+.financial-chart {
+    height: 300px;
+    margin: 20px 0;
+}
+</style>
+
 </head>
 
 <body class="skin-blue fixed-layout" th:data-property-id="${property.id}">
@@ -42,6 +159,27 @@
                 </div>
             </div>
 
+            <!-- Emergency Maintenance Alert -->
+            <div th:if="${emergencyMaintenanceCount > 0}" class="alert maintenance-alert">
+                <h4 class="alert-heading">
+                    <i class="fas fa-exclamation-triangle emergency-indicator"></i> 
+                    URGENT: Emergency Maintenance Required
+                </h4>
+                <p class="mb-3">
+                    This property has <strong th:text="${emergencyMaintenanceCount}">0</strong> active emergency maintenance ticket(s) requiring immediate attention.
+                </p>
+                <div class="d-flex">
+                    <a th:href="@{'/employee/ticket/pending-bids?propertyId=' + ${property.id} + '&urgency=emergency'}" 
+                       class="btn btn-danger mr-2">
+                        <i class="fas fa-bolt"></i> View Emergency Tickets
+                    </a>
+                    <a th:href="@{'/employee/ticket/create-ticket?propertyId=' + ${property.id} + '&type=emergency'}" 
+                       class="btn btn-warning">
+                        <i class="fas fa-plus-circle"></i> Create Emergency Ticket
+                    </a>
+                </div>
+            </div>
+
             <!-- Action Buttons -->
             <div class="row mb-3">
                 <div class="col-12">
@@ -55,9 +193,13 @@
                            class="btn btn-success">
                             <i class="fas fa-user-plus"></i> Add Tenant
                         </a>
-                        <a th:href="${home + 'employee/maintenance/create-ticket?propertyId=' + property.id}" 
+                        <a th:href="${home + 'employee/ticket/create-ticket?propertyId=' + property.id + '&type=maintenance'}" 
                            class="btn btn-info">
                             <i class="fas fa-wrench"></i> Create Maintenance
+                        </a>
+                        <a th:href="${home + 'employee/ticket/create-ticket?propertyId=' + property.id + '&type=emergency'}" 
+                           class="btn btn-danger">
+                            <i class="fas fa-bolt"></i> Emergency Ticket
                         </a>
                         <a th:href="${home + 'employee/drive/property-files/' + property.id}" 
                         class="btn btn-primary">
@@ -67,7 +209,7 @@
                 </div>
             </div>
 
-            <!-- Property Status Cards -->
+            <!-- Enhanced Property Status Cards -->
             <div class="row">
                 <div class="col-md-3">
                     <div class="card">
@@ -105,28 +247,43 @@
                     <div class="card">
                         <div class="card-body">
                             <div class="d-flex flex-row">
-                                <div th:class="${property.payPropId != null ? 'round round-lg align-self-center round-success' : 'round round-lg align-self-center round-warning'}">
-                                    <i th:class="${property.payPropId != null ? 'fas fa-sync' : 'fas fa-clock'}"></i>
-                                </div>
-                                <div class="m-l-10 align-self-center">
-                                    <h3 class="m-b-0 font-light" th:text="${property.payPropId != null ? 'Synced' : 'Pending'}">Pending</h3>
-                                    <h5 class="text-muted m-b-0">PayProp Status</h5>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="d-flex flex-row">
                                 <div class="round round-lg align-self-center round-primary">
                                     <i class="fas fa-users"></i>
                                 </div>
                                 <div class="m-l-10 align-self-center">
                                     <h3 class="m-b-0 font-light" th:text="${tenantCount ?: 0}">0</h3>
                                     <h5 class="text-muted m-b-0">Active Tenants</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- NEW: Maintenance Status Card -->
+                <div class="col-md-3">
+                    <div class="card maintenance-stats">
+                        <div class="card-body text-center text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h3 class="m-b-0 font-light" th:text="${activeMaintenanceCount ?: 0}">0</h3>
+                                    <h6 class="m-b-0">Active Issues</h6>
+                                </div>
+                                <div>
+                                    <i class="fas fa-wrench fa-2x"></i>
+                                </div>
+                            </div>
+                            <div class="row mt-2 text-center">
+                                <div class="col-4">
+                                    <small th:text="${emergencyMaintenanceCount ?: 0}">0</small><br>
+                                    <small>Emergency</small>
+                                </div>
+                                <div class="col-4">
+                                    <small th:text="${urgentMaintenanceCount ?: 0}">0</small><br>
+                                    <small>Urgent</small>
+                                </div>
+                                <div class="col-4">
+                                    <small th:text="${routineMaintenanceCount ?: 0}">0</small><br>
+                                    <small>Routine</small>
                                 </div>
                             </div>
                         </div>
@@ -212,6 +369,178 @@
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- NEW: Maintenance History Section -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h4 class="card-title">
+                                    <i class="fas fa-wrench text-primary"></i> Maintenance History
+                                </h4>
+                                <div>
+                                    <button class="btn btn-sm btn-info" onclick="refreshMaintenanceData()">
+                                        <i class="fas fa-sync"></i> Refresh
+                                    </button>
+                                    <a th:href="@{'/employee/ticket/create-ticket?propertyId=' + ${property.id} + '&type=maintenance'}" 
+                                       class="btn btn-sm btn-success">
+                                        <i class="fas fa-plus"></i> New Ticket
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- Maintenance Statistics -->
+                            <div class="row mb-4">
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h4 class="text-danger" th:text="${emergencyMaintenanceCount ?: 0}">0</h4>
+                                        <p class="text-muted">Emergency</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h4 class="text-warning" th:text="${urgentMaintenanceCount ?: 0}">0</h4>
+                                        <p class="text-muted">Urgent</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h4 class="text-info" th:text="${routineMaintenanceCount ?: 0}">0</h4>
+                                        <p class="text-muted">Routine</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <h4 class="text-success" th:text="${completedMaintenanceCount ?: 0}">0</h4>
+                                        <p class="text-muted">Completed</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recent Maintenance Tickets -->
+                            <div class="maintenance-timeline" th:if="${maintenanceTickets and !#lists.isEmpty(maintenanceTickets)}">
+                                <h6 class="mb-3">Recent Maintenance Activity</h6>
+                                <div th:each="ticket : ${maintenanceTickets}" class="maintenance-card card mb-3"
+                                     th:classappend="${ticket.urgencyLevel == 'emergency'} ? 'border-danger' : 
+                                                    (${ticket.urgencyLevel == 'urgent'} ? 'border-warning' : 'border-light')">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div class="flex-grow-1">
+                                                <h6 class="card-title">
+                                                    <a th:href="@{'/employee/ticket/show-ticket/' + ${ticket.ticketId}}" 
+                                                       class="text-decoration-none">
+                                                        Ticket #<span th:text="${ticket.ticketId}">123</span>: 
+                                                        <span th:text="${ticket.subject}">Subject</span>
+                                                    </a>
+                                                </h6>
+                                                
+                                                <div class="mb-2">
+                                                    <span th:if="${ticket.maintenanceCategory}" 
+                                                          class="maintenance-category-badge badge badge-primary text-capitalize"
+                                                          th:text="${ticket.maintenanceCategory}">Category</span>
+                                                    
+                                                    <span th:if="${ticket.urgencyLevel == 'emergency'}" 
+                                                          class="badge badge-danger emergency-indicator">
+                                                        <i class="fas fa-exclamation-triangle"></i> EMERGENCY
+                                                    </span>
+                                                    <span th:if="${ticket.urgencyLevel == 'urgent'}" 
+                                                          class="badge badge-warning">
+                                                        <i class="fas fa-exclamation"></i> URGENT
+                                                    </span>
+                                                    <span th:if="${ticket.urgencyLevel == 'routine'}" 
+                                                          class="badge badge-info">
+                                                        <i class="fas fa-calendar"></i> ROUTINE
+                                                    </span>
+                                                    
+                                                    <span th:if="${ticket.payPropTicketId}" 
+                                                          class="badge badge-secondary">
+                                                        <i class="fas fa-sync"></i> PayProp
+                                                    </span>
+                                                </div>
+                                                
+                                                <p class="card-text text-muted mb-2" 
+                                                   th:text="${#strings.abbreviate(ticket.description, 150)}">Description...</p>
+                                                
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <small class="text-muted">
+                                                            <i class="fas fa-calendar"></i> 
+                                                            Created: <span th:text="${#temporals.format(ticket.createdAt, 'dd/MM/yyyy')}">Date</span>
+                                                        </small>
+                                                    </div>
+                                                    <div class="col-md-6" th:if="${ticket.assignedEmployee}">
+                                                        <small class="text-muted">
+                                                            <i class="fas fa-user"></i> 
+                                                            Assigned: <span th:text="${ticket.assignedEmployee}">Employee</span>
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Access Requirements -->
+                                                <div th:if="${ticket.accessRequired or ticket.tenantPresentRequired}" class="mt-2">
+                                                    <small class="text-info">
+                                                        <span th:if="${ticket.accessRequired}">
+                                                            <i class="fas fa-key"></i> Property Access Required
+                                                        </span>
+                                                        <span th:if="${ticket.tenantPresentRequired}" class="ml-3">
+                                                            <i class="fas fa-user"></i> Tenant Must Be Present
+                                                        </span>
+                                                    </small>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="text-right">
+                                                <div class="mb-2">
+                                                    <span th:if="${ticket.status == 'open'}" class="badge badge-primary">Open</span>
+                                                    <span th:if="${ticket.status == 'in-progress'}" class="badge badge-warning">In Progress</span>
+                                                    <span th:if="${ticket.status == 'bidding'}" class="badge badge-info">Awaiting Bids</span>
+                                                    <span th:if="${ticket.status == 'contractor-selected'}" class="badge badge-success">Contractor Selected</span>
+                                                    <span th:if="${ticket.status == 'work-in-progress'}" class="badge badge-warning">Work In Progress</span>
+                                                    <span th:if="${ticket.status == 'work-completed'}" class="badge badge-success">Work Completed</span>
+                                                    <span th:if="${ticket.status == 'closed'}" class="badge badge-secondary">Closed</span>
+                                                </div>
+                                                
+                                                <div th:if="${ticket.approvedAmount}" class="text-success font-weight-bold">
+                                                    £<span th:text="${#numbers.formatDecimal(ticket.approvedAmount, 0, 2)}">500.00</span>
+                                                </div>
+                                                
+                                                <div class="btn-group-vertical" role="group">
+                                                    <a th:href="@{'/employee/ticket/show-ticket/' + ${ticket.ticketId}}" 
+                                                       class="btn btn-sm btn-outline-primary">
+                                                        <i class="fas fa-eye"></i>
+                                                    </a>
+                                                    <a th:if="${ticket.status == 'open' or ticket.status == 'in-progress'}"
+                                                       th:href="@{'/employee/ticket/pending-bids?ticketId=' + ${ticket.ticketId}}" 
+                                                       class="btn btn-sm btn-outline-success">
+                                                        <i class="fas fa-gavel"></i>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- No Maintenance History -->
+                            <div th:if="${#lists.isEmpty(maintenanceTickets)}" class="text-center py-5">
+                                <i class="fas fa-wrench fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No Maintenance History</h5>
+                                <p class="text-muted">This property has no maintenance tickets yet.</p>
+                                <a th:href="@{'/employee/ticket/create-ticket?propertyId=' + ${property.id} + '&type=maintenance'}" 
+                                   class="btn btn-primary">
+                                    <i class="fas fa-plus"></i> Create First Maintenance Ticket
+                                </a>
+                            </div>
+                            
+                            <!-- View All Link -->
+                            <div th:if="${#lists.size(maintenanceTickets) >= 5}" class="text-center mt-3">
+                                <a th:href="@{'/employee/ticket/manager/all-tickets?propertyId=' + ${property.id}}" 
+                                   class="btn btn-outline-primary">
+                                    <i class="fas fa-list"></i> View All Maintenance Tickets
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -432,7 +761,7 @@
                     </div>
                 </div>
 
-                <!-- Sidebar -->
+                <!-- Enhanced Sidebar -->
                 <div class="col-lg-4">
                     <!-- Quick Actions -->
                     <div class="card">
@@ -445,19 +774,23 @@
                                 class="list-group-item list-group-item-action">
                                     <i class="fas fa-users text-primary"></i> View Tenants
                                 </a>
-                                <a th:href="${home + 'employee/maintenance/all-tickets?propertyId=' + property.id}" 
+                                <a th:href="${home + 'employee/ticket/manager/all-tickets?propertyId=' + property.id}" 
                                    class="list-group-item list-group-item-action">
                                     <i class="fas fa-wrench text-info"></i> Maintenance History
+                                </a>
+                                <a th:href="${home + 'employee/ticket/pending-bids?propertyId=' + property.id}" 
+                                   class="list-group-item list-group-item-action">
+                                    <i class="fas fa-gavel text-warning"></i> Pending Maintenance Bids
                                 </a>
                                 <a th:href="${home + 'employee/drive/list-files?folder=' + property.propertyName}" 
                                    class="list-group-item list-group-item-action">
                                     <i class="fas fa-folder text-warning"></i> Property Documents
                                 </a>
-                                <a th:href="${home + 'employee/customer/property-owners?propertyId=' + property.id}" 
+                                <a th:href="@{'/employee/customer/property-owners?propertyId=' + ${property.id}}" 
                                 class="list-group-item list-group-item-action">
                                     <i class="fas fa-user-tie text-success"></i> Property Owners
                                 </a>
-                                <a href="#financialSection" class="btn btn-success" onclick="$('#financialSection').show(); loadFinancialData();">
+                                <a href="#financialSection" class="btn btn-success mt-2" onclick="$('#financialSection').show(); loadFinancialData();">
                                     <i class="fas fa-chart-line"></i> View Financials
                                 </a>
                                 <a th:href="${home + 'employee/property/portfolio-overview'}" 
@@ -468,7 +801,7 @@
                         </div>
                     </div>
 
-                    <!-- Recent Activity -->
+                    <!-- Enhanced Recent Activity -->
                     <div class="card">
                         <div class="card-header">
                             <h4 class="card-title">Recent Activity</h4>
@@ -483,6 +816,19 @@
                                         <span class="timeline-date" th:text="${property.createdAt != null ? #temporals.format(property.createdAt, 'dd/MM/yyyy HH:mm') : 'Unknown'}">15/06/2025 14:30</span>
                                     </div>
                                 </div>
+                                
+                                <!-- Recent Maintenance Activity -->
+                                <div th:if="${recentMaintenanceActivity}" th:each="activity : ${recentMaintenanceActivity}" class="timeline-item">
+                                    <div class="timeline-marker" 
+                                         th:classappend="${activity.urgencyLevel == 'emergency'} ? 'bg-danger' : 
+                                                        (${activity.urgencyLevel == 'urgent'} ? 'bg-warning' : 'bg-info')"></div>
+                                    <div class="timeline-content">
+                                        <h6 class="timeline-title" th:text="${activity.title}">Maintenance Event</h6>
+                                        <p class="timeline-text" th:text="${activity.description}">Event description</p>
+                                        <span class="timeline-date" th:text="${#temporals.format(activity.timestamp, 'dd/MM/yyyy HH:mm')}">Date</span>
+                                    </div>
+                                </div>
+                                
                                 <div class="timeline-item">
                                     <div class="timeline-marker bg-info"></div>
                                     <div class="timeline-content">
@@ -565,6 +911,7 @@
 // Load financial data when page loads
 $(document).ready(function() {
     loadFinancialData();
+    loadMaintenanceData();
 });
 
 function loadFinancialData() {
@@ -585,6 +932,21 @@ function loadFinancialData() {
             $('#recentTransactionsBody').html(
                 '<tr><td colspan="6" class="text-center text-danger">Error loading financial data</td></tr>'
             );
+        }
+    });
+}
+
+function loadMaintenanceData() {
+    const propertyId = $('body').data('property-id');
+    
+    $.ajax({
+        url: `/employee/property/${propertyId}/maintenance-summary`,
+        method: 'GET',
+        success: function(data) {
+            updateMaintenanceDisplay(data);
+        },
+        error: function(xhr, status, error) {
+            console.error('Error loading maintenance data:', error);
         }
     });
 }
@@ -623,6 +985,15 @@ function updateFinancialDisplay(data) {
     }
 }
 
+function updateMaintenanceDisplay(data) {
+    // Update maintenance statistics if received
+    if (data) {
+        // Update counters dynamically
+        $('.maintenance-stats h3').eq(0).text(data.activeMaintenanceCount || 0);
+        // Additional maintenance display updates can go here
+    }
+}
+
 function formatNumber(number) {
     if (!number) return '0.00';
     return parseFloat(number).toLocaleString('en-GB', {
@@ -649,71 +1020,11 @@ function refreshFinancialData() {
     $('#financialSection').hide();
     loadFinancialData();
 }
+
+function refreshMaintenanceData() {
+    loadMaintenanceData();
+}
 </script>
-
-
-<style>
-.timeline {
-    position: relative;
-    padding-left: 30px;
-}
-
-.timeline::before {
-    content: '';
-    position: absolute;
-    left: 15px;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: #e9ecef;
-}
-
-.timeline-item {
-    position: relative;
-    margin-bottom: 20px;
-}
-
-.timeline-marker {
-    position: absolute;
-    left: -22px;
-    top: 5px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid #fff;
-    z-index: 1;
-}
-
-.timeline-content {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 5px;
-    border-left: 3px solid #007bff;
-}
-
-.timeline-title {
-    margin: 0 0 5px 0;
-    font-size: 14px;
-    font-weight: 600;
-}
-
-.timeline-text {
-    margin: 0 0 5px 0;
-    font-size: 13px;
-    color: #6c757d;
-}
-
-.timeline-date {
-    font-size: 12px;
-    color: #999;
-}
-
-.tags .badge {
-    font-size: 12px;
-    padding: 5px 8px;
-}
-</style>
 
 </body>
 </html>
-

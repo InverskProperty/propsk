@@ -141,7 +141,16 @@ public interface EmailService {
      * @return true if email sent successfully
      */
     boolean sendContractorBidInvitation(Customer contractor, Ticket ticket, Authentication authentication);
-    
+
+    /**
+     * Send property maintenance alert to all property owners
+     * @param propertyId The property ID
+     * @param ticket The maintenance ticket
+     * @param authentication Current user authentication
+     * @return true if email sent successfully
+     */
+    boolean sendPropertyMaintenanceAlert(Long propertyId, Ticket ticket, Authentication authentication);
+
     /**
      * Send contractor job award notification
      * @param contractor The selected contractor

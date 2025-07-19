@@ -70,9 +70,22 @@
                 <div class="col-lg-12">
                     <div class="card">
                         <div class="card-body">
-                            <h4 class="card-title">Create New Ticket</h4>
+                            <h4 class="card-title">
+                                Update Ticket #<span th:text="${ticket.ticketId}"></span>
+                                <!-- Add ticket type badge -->
+                                <span th:if="${ticket.type == 'emergency'}" class="badge badge-danger ml-2">EMERGENCY</span>
+                                <span th:if="${ticket.type == 'maintenance'}" class="badge badge-warning ml-2">MAINTENANCE</span>
+                                <span th:if="${ticket.type == 'general'}" class="badge badge-info ml-2">GENERAL</span>
+                                <span th:if="${ticket.type == 'support'}" class="badge badge-primary ml-2">SUPPORT</span>
+                                <span th:if="${ticket.type == 'billing'}" class="badge badge-secondary ml-2">BILLING</span>
+                                <span th:if="${ticket.type == 'complaint'}" class="badge badge-dark ml-2">COMPLAINT</span>
+                                <span th:if="${ticket.type == 'request'}" class="badge badge-success ml-2">REQUEST</span>
+                            </h4>
+                            
                             <form th:object="${ticket}" th:action="@{/employee/ticket/update-ticket}" method="post">
                                 <input type="hidden" name="ticketId" id="ticketId" th:field="*{ticketId}">
+                                
+                                <!-- Basic Fields -->
                                 <label class="m-t-20" for="subject">Subject:</label>
                                 <div class="input-group">
                                     <input type="text" id="subject" th:field="*{subject}" class="form-control">
@@ -89,19 +102,24 @@
                                     <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('description')}" th:errors="*{description}" autocomplete="off"></span>
                                 </div>
 
-                                <label class="m-t-20" for="status">status:</label>
+                                <label class="m-t-20" for="status">Status:</label>
                                 <div class="input-group">
                                     <select id="status" th:field="*{status}" class="form-control">
-                                        <option th:selected="${ticket.status == 'open' ? 'selected' : ''}" value="open">Open</option>
-                                        <option th:selected="${ticket.status == 'assigned' ? 'selected' : ''}" value="assigned">Assigned</option>
-                                        <option th:selected="${ticket.status == 'on-hold' ? 'selected' : ''}" value="on-hold">On Hold</option>
-                                        <option th:selected="${ticket.status == 'in-progress' ? 'selected' : ''}" value="in-progress">In Progress</option>
-                                        <option th:selected="${ticket.status == 'resolved' ? 'selected' : ''}" value="resolved">Resolved</option>
-                                        <option th:selected="${ticket.status == 'closed' ? 'selected' : ''}" value="closed">Closed</option>
-                                        <option th:selected="${ticket.status == 'reopened' ? 'selected' : ''}" value="reopened">Reopened</option>
-                                        <option th:selected="${ticket.status == 'pending-customer-response' ? 'selected' : ''}" value="pending-customer-response">Pending Customer Response</option>
-                                        <option th:selected="${ticket.status == 'escalated' ? 'selected' : ''}" value="escalated">Escalated</option>
-                                        <option th:selected="${ticket.status == 'archived' ? 'selected' : ''}" value="archived">Archived</option>
+                                        <option value="open">Open</option>
+                                        <option value="assigned">Assigned</option>
+                                        <option value="on-hold">On Hold</option>
+                                        <option value="in-progress">In Progress</option>
+                                        <option value="work-in-progress">Work In Progress</option>
+                                        <option value="bidding">Bidding</option>
+                                        <option value="contractor-selected">Contractor Selected</option>
+                                        <option value="work-completed">Work Completed</option>
+                                        <option value="payment-pending">Payment Pending</option>
+                                        <option value="resolved">Resolved</option>
+                                        <option value="closed">Closed</option>
+                                        <option value="reopened">Reopened</option>
+                                        <option value="pending-customer-response">Pending Customer Response</option>
+                                        <option value="escalated">Escalated</option>
+                                        <option value="archived">Archived</option>
                                     </select>
                                 </div>
                                 <div class="input-group">
@@ -111,33 +129,214 @@
                                 <label class="m-t-20" for="priority">Priority:</label>
                                 <div class="input-group">
                                     <select id="priority" th:field="*{priority}" class="form-control">
-                                        <option th:selected="${ticket.priority == 'low' ? 'selected' : ''}" value="low">Low</option>
-                                        <option th:selected="${ticket.priority == 'medium' ? 'selected' : ''}" value="medium">Medium</option>
-                                        <option th:selected="${ticket.priority == 'high' ? 'selected' : ''}" value="high">High</option>
-                                        <option th:selected="${ticket.priority == 'closed' ? 'selected' : ''}" value="closed">Closed</option>
-                                        <option th:selected="${ticket.priority == 'urgent' ? 'selected' : ''}" value="urgent">Urgent</option>
-                                        <option th:selected="${ticket.priority == 'critical' ? 'selected' : ''}" value="critical">Critical</option>
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="urgent">Urgent</option>
+                                        <option value="critical">Critical</option>
                                     </select>
                                 </div>
                                 <div class="input-group">
                                     <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('priority')}" th:errors="*{priority}"></span>
                                 </div>
 
+                                <label class="m-t-20" for="type">Ticket Type:</label>
+                                <div class="input-group">
+                                    <select id="type" th:field="*{type}" class="form-control">
+                                        <option value="general">General</option>
+                                        <option value="support">Support</option>
+                                        <option value="billing">Billing</option>
+                                        <option value="maintenance">Maintenance</option>
+                                        <option value="emergency">Emergency</option>
+                                        <option value="complaint">Complaint</option>
+                                        <option value="request">Request</option>
+                                    </select>
+                                </div>
+                                <div class="input-group">
+                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('type')}" th:errors="*{type}"></span>
+                                </div>
+
+                                <!-- Maintenance-specific fields (show/hide with JavaScript) -->
+                                <div id="maintenanceFields" th:style="${ticket.type == 'maintenance' or ticket.type == 'emergency'} ? 'display: block;' : 'display: none;'">
+                                    <hr class="m-t-30">
+                                    <h5 class="card-title text-info">Maintenance Details</h5>
+                                    
+                                    <label class="m-t-20" for="maintenanceCategory">Maintenance Category:</label>
+                                    <div class="input-group">
+                                        <select id="maintenanceCategory" th:field="*{maintenanceCategory}" class="form-control">
+                                            <option value="">Select Category</option>
+                                            <option value="plumbing">Plumbing</option>
+                                            <option value="electrical">Electrical</option>
+                                            <option value="heating">Heating</option>
+                                            <option value="general">General Maintenance</option>
+                                            <option value="appliance">Appliance</option>
+                                            <option value="external">External</option>
+                                            <option value="internal">Internal</option>
+                                        </select>
+                                    </div>
+                                    <div class="input-group">
+                                        <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('maintenanceCategory')}" th:errors="*{maintenanceCategory}"></span>
+                                    </div>
+
+                                    <label class="m-t-20" for="urgencyLevel">Urgency Level:</label>
+                                    <div class="input-group">
+                                        <select id="urgencyLevel" th:field="*{urgencyLevel}" class="form-control">
+                                            <option value="routine">Routine</option>
+                                            <option value="urgent">Urgent</option>
+                                            <option value="emergency">Emergency</option>
+                                            <option value="health-safety">Health & Safety</option>
+                                        </select>
+                                    </div>
+                                    <div class="input-group">
+                                        <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('urgencyLevel')}" th:errors="*{urgencyLevel}"></span>
+                                    </div>
+
+                                    <div class="form-check m-t-20">
+                                        <input type="checkbox" id="accessRequired" th:field="*{accessRequired}" class="form-check-input">
+                                        <label class="form-check-label" for="accessRequired">Property access required</label>
+                                    </div>
+
+                                    <div class="form-check">
+                                        <input type="checkbox" id="tenantPresentRequired" th:field="*{tenantPresentRequired}" class="form-check-input">
+                                        <label class="form-check-label" for="tenantPresentRequired">Tenant must be present</label>
+                                    </div>
+
+                                    <label class="m-t-20" for="preferredTimeSlot">Preferred Time Slot:</label>
+                                    <div class="input-group">
+                                        <input type="text" id="preferredTimeSlot" th:field="*{preferredTimeSlot}" class="form-control" 
+                                            placeholder="e.g., Mornings, Weekends, After 6pm">
+                                    </div>
+                                    <div class="input-group">
+                                        <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('preferredTimeSlot')}" th:errors="*{preferredTimeSlot}"></span>
+                                    </div>
+                                </div>
+
+                                <!-- Contractor Information (if applicable) -->
+                                <div th:if="${ticket.selectedContractorId or ticket.approvedAmount}" id="contractorFields">
+                                    <hr class="m-t-30">
+                                    <h5 class="card-title text-warning">Contractor Information</h5>
+                                    
+                                    <div th:if="${ticket.selectedContractorId}" class="m-t-20">
+                                        <label for="selectedContractorId">Selected Contractor ID:</label>
+                                        <div class="input-group">
+                                            <input type="number" id="selectedContractorId" th:field="*{selectedContractorId}" class="form-control" readonly>
+                                        </div>
+                                        <small class="text-muted">Contractor selection cannot be changed here. Use the bid management interface.</small>
+                                    </div>
+
+                                    <div th:if="${ticket.approvedAmount}" class="m-t-20">
+                                        <label for="approvedAmount">Approved Amount (£):</label>
+                                        <div class="input-group">
+                                            <input type="number" step="0.01" id="approvedAmount" th:field="*{approvedAmount}" class="form-control">
+                                        </div>
+                                        <div class="input-group">
+                                            <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('approvedAmount')}" th:errors="*{approvedAmount}"></span>
+                                        </div>
+                                    </div>
+
+                                    <div th:if="${ticket.actualCost}" class="m-t-20">
+                                        <label for="actualCost">Actual Cost (£):</label>
+                                        <div class="input-group">
+                                            <input type="number" step="0.01" id="actualCost" th:field="*{actualCost}" class="form-control">
+                                        </div>
+                                        <div class="input-group">
+                                            <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('actualCost')}" th:errors="*{actualCost}"></span>
+                                        </div>
+                                    </div>
+
+                                    <div th:if="${ticket.actualHours}" class="m-t-20">
+                                        <label for="actualHours">Actual Hours Worked:</label>
+                                        <div class="input-group">
+                                            <input type="number" id="actualHours" th:field="*{actualHours}" class="form-control">
+                                        </div>
+                                        <div class="input-group">
+                                            <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('actualHours')}" th:errors="*{actualHours}"></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- PayProp Integration Fields (read-only) -->
+                                <div th:if="${ticket.payPropTicketId or ticket.payPropPropertyId}" id="payPropFields">
+                                    <hr class="m-t-30">
+                                    <h5 class="card-title text-primary">PayProp Integration</h5>
+                                    
+                                    <div th:if="${ticket.payPropTicketId}" class="m-t-20">
+                                        <label for="payPropTicketId">PayProp Ticket ID:</label>
+                                        <div class="input-group">
+                                            <input type="text" id="payPropTicketId" th:value="${ticket.payPropTicketId}" class="form-control" readonly>
+                                        </div>
+                                        <small class="text-muted">This field is automatically synced with PayProp and cannot be edited.</small>
+                                    </div>
+
+                                    <div th:if="${ticket.payPropPropertyId}" class="m-t-20">
+                                        <label for="payPropPropertyId">PayProp Property ID:</label>
+                                        <div class="input-group">
+                                            <input type="text" id="payPropPropertyId" th:value="${ticket.payPropPropertyId}" class="form-control" readonly>
+                                        </div>
+                                    </div>
+
+                                    <div th:if="${ticket.payPropTenantId}" class="m-t-20">
+                                        <label for="payPropTenantId">PayProp Tenant ID:</label>
+                                        <div class="input-group">
+                                            <input type="text" id="payPropTenantId" th:value="${ticket.payPropTenantId}" class="form-control" readonly>
+                                        </div>
+                                    </div>
+
+                                    <div th:if="${ticket.payPropLastSync}" class="m-t-20">
+                                        <label>Last PayProp Sync:</label>
+                                        <div class="input-group">
+                                            <input type="text" th:value="${#temporals.format(ticket.payPropLastSync, 'yyyy-MM-dd HH:mm:ss')}" class="form-control" readonly>
+                                        </div>
+                                        <small class="text-muted">
+                                            <span th:if="${ticket.payPropSynced}" class="text-success">✓ Synced with PayProp</span>
+                                            <span th:unless="${ticket.payPropSynced}" class="text-warning">⚠ Sync pending</span>
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <!-- Assignment Fields -->
+                                <hr class="m-t-30">
+                                <h5 class="card-title">Assignment</h5>
+                                
                                 <label class="m-t-20" for="employeeId">Assign Employee:</label>
                                 <div class="input-group">
                                     <select name="employeeId" id="employeeId" class="form-control">
-                                        <option th:each="employee : ${employees}" th:text="${employee.username}" th:value="${employee.id}" th:selected="${ticket.employee.id eq employee.id}"></option>
+                                        <option th:each="employee : ${employees}" 
+                                                th:text="${employee.username}" 
+                                                th:value="${employee.id}" 
+                                                th:selected="${ticket.employee.id eq employee.id}">
+                                        </option>
                                     </select>
                                 </div>
 
                                 <label class="m-t-20" for="customerId">Customer:</label>
                                 <div class="input-group">
                                     <select name="customerId" id="customerId" class="form-control">
-                                        <option th:each="customer : ${customers}" th:text="${customer.name}" th:value="${customer.customerId}" th:selected="${ticket.customer.customerId eq customer.customerId}"></option>
+                                        <option th:each="customer : ${customers}" 
+                                                th:text="${customer.name}" 
+                                                th:value="${customer.customerId}" 
+                                                th:selected="${ticket.customer.customerId eq customer.customerId}">
+                                        </option>
                                     </select>
                                 </div>
 
-                                <button type="submit" class="btn btn-primary m-t-20">Update ticket</button>
+                                <!-- Action Buttons -->
+                                <div class="row m-t-30">
+                                    <div class="col-12">
+                                        <div class="btn-group" role="group">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="fa fa-save"></i> Update Ticket
+                                            </button>
+                                            <a th:href="@{'/employee/ticket/show-ticket/' + ${ticket.ticketId}}" class="btn btn-info">
+                                                <i class="fa fa-eye"></i> View Ticket
+                                            </a>
+                                            <a href="javascript:history.back()" class="btn btn-secondary">
+                                                <i class="fa fa-arrow-left"></i> Cancel
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+
                             </form>
                         </div>
                     </div>
@@ -178,22 +377,23 @@
 <!-- ============================================================== -->
 <script th:inline="javascript">
     var home = /*[[${home}]]*/ null;
+    var currentTicketType = /*[[${ticket.type}]]*/ '';
 </script>
-<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
 <!--    &lt;!&ndash; Bootstrap tether Core JavaScript &ndash;&gt;-->
-<script th:src="@{/js/library/popper.min.js}" type="text/javascript">></script>
-<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
 <!--    &lt;!&ndash; slimscrollbar scrollbar JavaScript &ndash;&gt;-->
-<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
 <!--Wave Effects -->
-<script th:src="@{/js/library/waves.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
 <!--Menu sidebar -->
-<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
 <!--stickey kit -->
 <script th:src="@{/js/library/sticky-kit.min.js}"></script>
-<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
 <!--Custom JavaScript -->
-<script th:src="@{/js/library/custom.min.js}" type="text/javascript">></script>
+<script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
 <!-- Editable -->
 
 <script th:src="@{/js/library/wysihtml5-0.3.0.js}"></script>
@@ -201,9 +401,83 @@
 <script>
     $(document).ready(function() {
         $('.textarea_editor').wysihtml5();
+        
+        // Show/hide maintenance fields based on ticket type
+        function toggleMaintenanceFields() {
+            const ticketType = $('#type').val();
+            const maintenanceFields = $('#maintenanceFields');
+            
+            if (ticketType === 'maintenance' || ticketType === 'emergency') {
+                maintenanceFields.show();
+            } else {
+                maintenanceFields.hide();
+            }
+        }
+        
+        // Initialize on page load
+        toggleMaintenanceFields();
+        
+        // Handle ticket type changes
+        $('#type').on('change', function() {
+            toggleMaintenanceFields();
+            
+            // Auto-adjust urgency level for emergency tickets
+            if (this.value === 'emergency') {
+                $('#urgencyLevel').val('emergency');
+                $('#priority').val('urgent');
+            }
+        });
+        
+        // Auto-sync urgency and priority for consistency
+        $('#urgencyLevel').on('change', function() {
+            if (this.value === 'emergency') {
+                $('#priority').val('urgent');
+                $('#type').val('emergency');
+            }
+        });
+        
+        // Warn about PayProp sync when changing critical fields
+        $('#status, #maintenanceCategory, #urgencyLevel').on('change', function() {
+            const hasPayPropId = $('#payPropTicketId').val();
+            if (hasPayPropId) {
+                // Show a small warning about PayProp sync
+                if (!$('#payPropWarning').length) {
+                    $(this).closest('.input-group').after(
+                        '<small id="payPropWarning" class="text-info">ℹ Changes will be synced to PayProp automatically.</small>'
+                    );
+                    setTimeout(function() {
+                        $('#payPropWarning').fadeOut(function() {
+                            $(this).remove();
+                        });
+                    }, 3000);
+                }
+            }
+        });
+        
+        // Validation for contractor fields
+        $('#approvedAmount, #actualCost').on('input', function() {
+            const value = parseFloat($(this).val());
+            if (value < 0) {
+                $(this).addClass('is-invalid');
+                $(this).closest('.input-group').after('<div class="invalid-feedback">Amount cannot be negative.</div>');
+            } else {
+                $(this).removeClass('is-invalid');
+                $(this).siblings('.invalid-feedback').remove();
+            }
+        });
+        
+        $('#actualHours').on('input', function() {
+            const value = parseInt($(this).val());
+            if (value < 0) {
+                $(this).addClass('is-invalid');
+                $(this).closest('.input-group').after('<div class="invalid-feedback">Hours cannot be negative.</div>');
+            } else {
+                $(this).removeClass('is-invalid');
+                $(this).siblings('.invalid-feedback').remove();
+            }
+        });
     });
 </script>
 
 </body>
 </html>
-

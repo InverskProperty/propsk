@@ -25,7 +25,7 @@
                     </ul>
                 </li>
 
-                <!-- PROPERTY MANAGEMENT - Safe implementation using existing controllers -->
+                <!-- PROPERTY MANAGEMENT - Enhanced with maintenance links -->
                 <li class="nav-small-cap">--- Property Management</li>
                 <li>
                     <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
@@ -40,12 +40,12 @@
                         <li><a th:href="${home + 'employee/property/portfolio-overview'}"><i class="fas fa-chart-bar"></i> Portfolio Overview</a></li>
                         <li><a th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}" th:href="${home + 'employee/property/create-property'}"><i class="fas fa-plus"></i> Add New Property</a></li>
                         <li><a th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}" th:href="${home + 'employee/property/sync-status'}"><i class="fas fa-sync"></i> PayProp Sync Status</a></li>
+                        <!-- NEW: Maintenance History Link -->
+                        <li><a th:href="${home + 'employee/ticket/manager/all-tickets?type=maintenance'}"><i class="fas fa-wrench text-info"></i> Maintenance History</a></li>
                     </ul>
                 </li>
 
-                <!-- Add this section to your left-sidebar.html right after PROPERTY MANAGEMENT section -->
-
-                <!-- PORTFOLIO MANAGEMENT - New section for managers -->
+                <!-- PORTFOLIO MANAGEMENT - Enhanced based on your PortfolioController -->
                 <li>
                     <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
                         <i class="fas fa-chart-pie"></i>
@@ -61,37 +61,72 @@
                         
                         <!-- Property Assignment -->
                         <li><a th:href="${home + 'portfolio/assign-properties'}"><i class="fas fa-home"></i> Assign Properties</a></li>
-                        <li><a th:href="${home + 'portfolio/unassigned'}"><i class="fas fa-exclamation-triangle text-warning"></i> Unassigned Properties</a></li>
+                        
+                        <!-- NEW: Portfolio Maintenance Dashboard -->
+                        <li><a th:href="${home + 'portfolio/maintenance-dashboard'}"><i class="fas fa-wrench text-primary"></i> Portfolio Maintenance</a></li>
                         
                         <!-- PayProp Integration (Manager only) -->
                         <li th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">
                             <a href="javascript:void(0)" class="has-arrow">PayProp Sync</a>
                             <ul class="collapse">
-                                <li><a th:href="${home + 'admin/payprop/dashboard'}"><i class="fas fa-sync"></i> PayProp Admin</a></li>
-                                <li><a th:href="${home + 'portfolio/sync-all'}"><i class="fas fa-cloud-upload-alt"></i> Sync All Portfolios</a></li>
-                                <li><a th:href="${home + 'portfolio/pull-payprop-tags'}"><i class="fas fa-cloud-download-alt"></i> Import PayProp Tags</a></li>
+                                <li><a th:href="${home + 'admin/payprop-dashboard'}"><i class="fas fa-sync"></i> PayProp Admin</a></li>
+                                <li><a href="javascript:void(0)" onclick="syncAllPortfolios()"><i class="fas fa-cloud-upload-alt"></i> Sync All Portfolios</a></li>
+                                <li><a href="javascript:void(0)" onclick="pullPayPropTags()"><i class="fas fa-cloud-download-alt"></i> Import PayProp Tags</a></li>
                             </ul>
                         </li>
-                        
-                        <!-- Analytics -->
-                        <li><a th:href="${home + 'portfolio/analytics'}"><i class="fas fa-chart-bar"></i> Portfolio Analytics</a></li>
                     </ul>
                 </li>
 
-                <!-- PEOPLE MANAGEMENT - Using existing CustomerController with extensions -->
+                <!-- MAINTENANCE MANAGEMENT - NEW comprehensive section based on your TicketController -->
+                <li>
+                    <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
+                        <i class="fas fa-wrench"></i>
+                        <span class="hide-menu">Maintenance</span>
+                        <!-- NEW: Add maintenance notification badge -->
+                        <span class="badge badge-danger" id="emergencyMaintenanceCount" style="display: none;">0</span>
+                    </a>
+                    <ul class="collapse">
+                        <!-- Dashboard and Overview -->
+                        <li><a th:href="${home + 'employee/dashboard'}"><i class="fas fa-tachometer-alt"></i> Maintenance Dashboard</a></li>
+                        <li><a th:href="${home + 'employee/work-dashboard'}"><i class="fas fa-clipboard-list"></i> My Work Dashboard</a></li>
+                        
+                        <!-- Ticket Management -->
+                        <li><a th:href="${home + 'employee/ticket/manager/all-tickets?type=maintenance'}"><i class="fas fa-list"></i> All Maintenance</a></li>
+                        <li><a th:href="${home + 'employee/ticket/manager/all-tickets?type=emergency'}"><i class="fas fa-bolt text-danger"></i> Emergency Tickets</a></li>
+                        <li><a th:href="${home + 'employee/ticket/assigned-tickets'}"><i class="fas fa-user-check text-primary"></i> My Assigned Tickets</a></li>
+                        
+                        <!-- Ticket Creation -->
+                        <li><a th:href="${home + 'employee/ticket/create-ticket?type=maintenance'}"><i class="fas fa-plus text-success"></i> Create Maintenance Ticket</a></li>
+                        <li><a th:href="${home + 'employee/ticket/create-ticket?type=emergency'}"><i class="fas fa-exclamation-triangle text-danger"></i> Create Emergency Ticket</a></li>
+                        
+                        <!-- Contractor and Bidding -->
+                        <li><a th:href="${home + 'employee/ticket/pending-bids'}"><i class="fas fa-clock text-warning"></i> Pending Bids</a></li>
+                        <li><a th:href="${home + 'employee/ticket/contractor-bids'}"><i class="fas fa-gavel text-info"></i> Contractor Bids</a></li>
+                        
+                        <!-- History and Reports -->
+                        <li><a th:href="${home + 'employee/ticket/maintenance-history'}"><i class="fas fa-history"></i> Maintenance History</a></li>
+                        
+                        <!-- Performance (Employee only) -->
+                        <li th:if="${#authorization.expression('hasRole(''ROLE_EMPLOYEE'')')}">
+                            <a th:href="${home + 'employee/performance'}"><i class="fas fa-chart-line"></i> My Performance</a>
+                        </li>
+                    </ul>
+                </li>
+
+                <!-- PEOPLE MANAGEMENT - Enhanced based on your controllers -->
                 <li>
                     <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
                         <i class="fas fa-user-tie"></i>
                         <span class="hide-menu">Property Owners</span>
                     </a>
                     <ul class="collapse">
-                        <!-- ✅ SAFE - Extends existing CustomerController -->
+                        <!-- ✅ SAFE - Based on your CustomerController and PropertyOwnerController -->
                         <li><a th:href="${home + 'employee/customer/property-owners'}"><i class="fas fa-list"></i> All Property Owners</a></li>
-                        <li><a th:href="${home + 'employee/customer/property-owners?owner=rama'}"><i class="fas fa-crown text-warning"></i> Rama Talluri Portfolio</a></li>
-                        <li><a th:href="${home + 'employee/customer/property-owners?owner=udayan'}"><i class="fas fa-crown text-info"></i> Udayan Bhardwaj Portfolio</a></li>
-                        <li><a th:href="${home + 'employee/customer/create-property-owner'}"><i class="fas fa-plus"></i> Add Property Owner</a></li>
+                        <li><a th:href="${home + 'employee/customer/create-customer?type=property_owner'}"><i class="fas fa-plus"></i> Add Property Owner</a></li>
                         <!-- Email integration using existing system -->
                         <li><a th:href="${home + 'employee/customer/email-property-owners'}"><i class="fas fa-envelope"></i> Email All Owners</a></li>
+                        <!-- NEW: Link to property owner portal -->
+                        <li><a th:href="${home + 'property-owner/dashboard'}"><i class="fas fa-external-link-alt"></i> Owner Portal Preview</a></li>
                     </ul>
                 </li>
                 
@@ -101,11 +136,11 @@
                         <span class="hide-menu">Tenants</span>
                     </a>
                     <ul class="collapse">
-                        <!-- ✅ SAFE - Extends existing CustomerController -->
+                        <!-- ✅ SAFE - Based on your TenantController and CustomerController -->
                         <li><a th:href="${home + 'employee/customer/tenants'}"><i class="fas fa-list"></i> All Tenants</a></li>
                         <li><a th:href="${home + 'employee/customer/tenants?status=active'}"><i class="fas fa-check-circle text-success"></i> Active Tenants</a></li>
                         <li><a th:href="${home + 'employee/customer/tenants?status=inactive'}"><i class="fas fa-times-circle text-danger"></i> Inactive Tenants</a></li>
-                        <li><a th:href="${home + 'employee/customer/create-tenant'}"><i class="fas fa-user-plus"></i> Add New Tenant</a></li>
+                        <li><a th:href="${home + 'employee/customer/create-customer?type=tenant'}"><i class="fas fa-user-plus"></i> Add New Tenant</a></li>
                         <!-- Email integration using existing system -->
                         <li><a th:href="${home + 'employee/customer/email-tenants'}"><i class="fas fa-envelope"></i> Email Tenants</a></li>
                     </ul>
@@ -117,34 +152,19 @@
                         <span class="hide-menu">Contractors</span>
                     </a>
                     <ul class="collapse">
-                        <!-- ✅ SAFE - Extends existing CustomerController -->
+                        <!-- ✅ SAFE - Based on your ContractorController -->
                         <li><a th:href="${home + 'employee/customer/contractors'}"><i class="fas fa-list"></i> All Contractors</a></li>
                         <li><a th:href="${home + 'employee/customer/contractors?preferred=true'}"><i class="fas fa-star text-warning"></i> Preferred Contractors</a></li>
                         <li><a th:href="${home + 'employee/customer/contractors?emergency=true'}"><i class="fas fa-phone text-danger"></i> Emergency Available</a></li>
-                        <li><a th:href="${home + 'employee/customer/create-contractor'}"><i class="fas fa-plus"></i> Add New Contractor</a></li>
+                        <li><a th:href="${home + 'employee/customer/create-customer?type=contractor'}"><i class="fas fa-plus"></i> Add New Contractor</a></li>
                         <!-- Integration with ticket system for bidding -->
-                        <li><a th:href="${home + 'employee/ticket/contractor-bids'}"><i class="fas fa-gavel"></i> View Bids</a></li>
+                        <li><a th:href="${home + 'employee/ticket/contractor-bids'}"><i class="fas fa-gavel"></i> View All Bids</a></li>
+                        <!-- NEW: Contractor dashboard link -->
+                        <li><a th:href="${home + 'contractor/dashboard'}"><i class="fas fa-external-link-alt"></i> Contractor Portal</a></li>
                     </ul>
                 </li>
 
-                <!-- MAINTENANCE - Using existing TicketController -->
-                <li>
-                    <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
-                        <i class="fas fa-wrench"></i>
-                        <span class="hide-menu">Maintenance</span>
-                    </a>
-                    <ul class="collapse">
-                        <!-- ✅ SAFE - TicketController exists -->
-                        <li><a th:href="${home + 'employee/ticket/manager/all-tickets?type=maintenance'}"><i class="fas fa-list"></i> All Maintenance</a></li>
-                        <li><a th:href="${home + 'employee/ticket/assigned-tickets?type=maintenance&status=open'}"><i class="fas fa-folder-open text-primary"></i> Open Tickets</a></li>
-                        <li><a th:href="${home + 'employee/ticket/assigned-tickets?type=maintenance&priority=urgent'}"><i class="fas fa-exclamation text-danger"></i> Urgent Tickets</a></li>
-                        <li><a th:href="${home + 'employee/ticket/create-ticket?type=maintenance'}"><i class="fas fa-plus"></i> Create Maintenance Ticket</a></li>
-                        <!-- Contractor bidding using existing ticket system -->
-                        <li><a th:href="${home + 'employee/ticket/pending-bids'}"><i class="fas fa-clock text-warning"></i> Pending Bids</a></li>
-                    </ul>
-                </li>
-
-                <!-- EXISTING SECTIONS - Keep completely unchanged -->
+                <!-- EXISTING SECTIONS - Enhanced with your new features -->
                 <li class="nav-small-cap">--- Settings</li>
                 <li>
                     <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
@@ -195,20 +215,37 @@
                                 <li><a th:href="${home + 'employee/drive/list-files'}">files && Folders</a></li>
                                 <li><a th:href="${home + 'employee/drive/create-file'}">Create file</a></li>
                                 <li><a th:href="${home + 'employee/drive/create-folder'}">Create folder</a></li>
+                                <!-- NEW: Property-specific file management -->
+                                <li><a th:href="${home + 'employee/drive/property-files'}"><i class="fas fa-building"></i> Property Documents</a></li>
                             </ul>
                         </li>
                     </ul>
                 </li>
                 
-                <li th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}" class="nav-small-cap">--- Users</li>
+                <li th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}" class="nav-small-cap">--- Administration</li>
                 <li>
                     <a th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}" class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
                         <i class="fas fa-users"></i>
                         <span class="hide-menu">Users</span>
                     </a>
                     <ul th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}" class="collapse">
+                        <li><a th:href="${home + 'manager/dashboard'}"><i class="fas fa-tachometer-alt"></i> Manager Dashboard</a></li>
                         <li><a th:href="${home + 'manager/all-users'}">All user</a></li>
                         <li><a th:href="${home + 'manager/register-user'}">Create user</a></li>
+                    </ul>
+                </li>
+
+                <!-- NEW: PayProp Admin Section (Manager only) -->
+                <li th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">
+                    <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
+                        <i class="fas fa-sync-alt"></i>
+                        <span class="hide-menu">PayProp Admin</span>
+                    </a>
+                    <ul class="collapse">
+                        <li><a th:href="${home + 'admin/payprop-dashboard'}"><i class="fas fa-tachometer-alt"></i> PayProp Dashboard</a></li>
+                        <li><a th:href="${home + 'admin/payprop-payments-dashboard'}"><i class="fas fa-credit-card"></i> Payments Dashboard</a></li>
+                        <li><a th:href="${home + 'payprop/oauth-status'}"><i class="fas fa-key"></i> OAuth Status</a></li>
+                        <li><a th:href="${home + 'payprop/sync-dashboard'}"><i class="fas fa-exchange-alt"></i> Sync Dashboard</a></li>
                     </ul>
                 </li>
                 
@@ -225,11 +262,13 @@
                         <li><a th:href="${home + 'employee/customer/my-customers'}">My customers</a></li>
                         <li><a th:href="${home + 'employee/customer/create-customer'}">Create customer</a></li>
                         <!-- NEW - Property management specific -->
-                        <li><a th:href="${home + 'employee/customer/by-type'}"><i class="fas fa-filter"></i> Filter by Type</a></li>
+                        <li><a th:href="${home + 'employee/customer/all-customers?type=property_owner'}"><i class="fas fa-building"></i> Property Owners</a></li>
+                        <li><a th:href="${home + 'employee/customer/all-customers?type=tenant'}"><i class="fas fa-user"></i> Tenants</a></li>
+                        <li><a th:href="${home + 'employee/customer/all-customers?type=contractor'}"><i class="fas fa-tools"></i> Contractors</a></li>
                     </ul>
                 </li>
                 
-                <!-- TICKETS - Keep unchanged, enhance with maintenance -->
+                <!-- TICKETS - Enhanced with maintenance features -->
                 <li class="nav-small-cap">--- Tickets</li>
                 <li>
                     <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
@@ -242,6 +281,9 @@
                         <li><a th:href="${home + 'employee/ticket/assigned-tickets'}">Assigned tickets</a></li>
                         <li><a th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}" th:href="${home + 'employee/ticket/created-tickets'}">Created tickets</a></li>
                         <li><a th:href="${home + 'employee/ticket/create-ticket'}">Create ticket</a></li>
+                        <!-- NEW: Maintenance-specific ticket links -->
+                        <li><a th:href="${home + 'employee/ticket/create-ticket?type=maintenance'}"><i class="fas fa-wrench"></i> Create Maintenance</a></li>
+                        <li><a th:href="${home + 'employee/ticket/create-ticket?type=emergency'}"><i class="fas fa-exclamation-triangle"></i> Create Emergency</a></li>
                     </ul>
                 </li>
                 
@@ -287,7 +329,7 @@
                 </li>
             </ul>
 
-            <!-- CUSTOMER ROLE SIDEBAR - Keep unchanged -->
+            <!-- CUSTOMER ROLE SIDEBAR - Enhanced for property owners -->
             <ul id="sidebarnav" th:if="${#authorization.expression('hasRole(''ROLE_CUSTOMER'')')}">
                 <!-- Keep existing customer sidebar exactly as is -->
                 <li class="user-pro">
@@ -304,14 +346,34 @@
                         </li>
                     </ul>
                 </li>
-                <!-- Add property owner access here when needed -->
-                <li class="nav-small-cap" th:if="${#authentication.principal.username == 'rama.talluri@example.com' or #authentication.principal.username == 'udayan.bhardwaj@example.com'}">--- My Portfolio</li>
-                <li th:if="${#authentication.principal.username == 'rama.talluri@example.com' or #authentication.principal.username == 'udayan.bhardwaj@example.com'}">
-                    <a th:href="${home + 'customer/my-portfolio'}" class="waves-effect waves-dark">
+                
+                <!-- NEW: Property Owner Portal Access -->
+                <li class="nav-small-cap">--- My Portfolio</li>
+                <li>
+                    <a th:href="${home + 'property-owner/dashboard'}" class="waves-effect waves-dark">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span class="hide-menu">Dashboard</span>
+                    </a>
+                </li>
+                <li>
+                    <a th:href="${home + 'property-owner/properties'}" class="waves-effect waves-dark">
                         <i class="fas fa-building"></i>
                         <span class="hide-menu">My Properties</span>
                     </a>
                 </li>
+                <li>
+                    <a th:href="${home + 'property-owner/tenants'}" class="waves-effect waves-dark">
+                        <i class="fas fa-users"></i>
+                        <span class="hide-menu">My Tenants</span>
+                    </a>
+                </li>
+                <li>
+                    <a th:href="${home + 'property-owner/financials'}" class="waves-effect waves-dark">
+                        <i class="fas fa-chart-line"></i>
+                        <span class="hide-menu">Financial Summary</span>
+                    </a>
+                </li>
+                
                 <!-- Keep rest of customer sidebar unchanged -->
                 <li>
                     <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
@@ -353,3 +415,70 @@
         </nav>
     </div>
 </aside>
+
+<!-- NEW: JavaScript for maintenance notifications and PayProp actions -->
+<script>
+// Load maintenance statistics and update notification badges
+$(document).ready(function() {
+    loadMaintenanceNotifications();
+});
+
+function loadMaintenanceNotifications() {
+    // Load emergency maintenance count for notification badge
+    $.ajax({
+        url: '/employee/api/maintenance-stats',
+        method: 'GET',
+        success: function(data) {
+            if (data.emergencyTickets && data.emergencyTickets > 0) {
+                $('#emergencyMaintenanceCount').text(data.emergencyTickets).show();
+            }
+        },
+        error: function() {
+            // Silently fail - don't show errors for notification loading
+        }
+    });
+}
+
+// PayProp integration functions
+function syncAllPortfolios() {
+    if (confirm('Are you sure you want to sync all portfolios with PayProp? This may take a few minutes.')) {
+        $.ajax({
+            url: '/portfolio/sync-all',
+            method: 'POST',
+            success: function(data) {
+                if (data.success) {
+                    alert('Portfolio sync initiated successfully. Check the PayProp dashboard for progress.');
+                } else {
+                    alert('Sync failed: ' + data.message);
+                }
+            },
+            error: function() {
+                alert('Error initiating sync. Please try again.');
+            }
+        });
+    }
+}
+
+function pullPayPropTags() {
+    if (confirm('Are you sure you want to pull all tags from PayProp? This will import any new portfolios.')) {
+        $.ajax({
+            url: '/portfolio/actions/pull-payprop-tags',
+            method: 'GET',
+            success: function(data) {
+                if (data.success) {
+                    alert('PayProp tags imported successfully: ' + data.message);
+                    location.reload(); // Refresh to show new portfolios
+                } else {
+                    alert('Import failed: ' + data.message);
+                }
+            },
+            error: function() {
+                alert('Error importing PayProp tags. Please try again.');
+            }
+        });
+    }
+}
+
+// Refresh maintenance notifications every 5 minutes
+setInterval(loadMaintenanceNotifications, 300000);
+</script>

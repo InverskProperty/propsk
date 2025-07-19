@@ -15,6 +15,97 @@
 <!-- page css -->
 <link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
 
+<!-- Custom Bid Management Styles -->
+<style>
+.bid-card {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    transition: all 0.3s ease;
+}
+
+.bid-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.bid-card.accepted {
+    border-color: #28a745;
+    background-color: #f8fff9;
+}
+
+.bid-card.rejected {
+    border-color: #dc3545;
+    background-color: #fff5f5;
+}
+
+.bid-card.pending {
+    border-color: #ffc107;
+    background-color: #fffbf0;
+}
+
+.bid-amount {
+    font-size: 1.5em;
+    font-weight: bold;
+}
+
+.contractor-rating {
+    color: #ffc107;
+}
+
+.bid-timeline {
+    border-left: 3px solid #dee2e6;
+    padding-left: 15px;
+    margin-left: 10px;
+}
+
+.timeline-item {
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f1f1;
+}
+
+.timeline-item:last-child {
+    border-bottom: none;
+}
+
+.emergency-indicator {
+    background: linear-gradient(45deg, #dc3545, #ff6b6b);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.bid-comparison {
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.payprop-sync {
+    background-color: #17a2b8;
+    color: white;
+    font-size: 0.75em;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.maintenance-details {
+    background-color: #e3f2fd;
+    border-radius: 5px;
+    padding: 10px;
+    margin: 5px 0;
+}
+</style>
+
 <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
 <!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
@@ -79,90 +170,298 @@
                         <span th:text="${successMessage}"></span>
                     </div>
 
+                    <div th:if="${errorMessage}" class="alert alert-danger">
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h3 class="text-danger"><i class="fa fa-exclamation-circle"></i> Error</h3>
+                        <span th:text="${errorMessage}"></span>
+                    </div>
+
+                    <!-- Filter Controls -->
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-subtitle">Filter contractor bids</h6>
+                            <form method="get" class="form-inline m-t-20">
+                                <div class="form-group m-r-20">
+                                    <label for="ticketId" class="m-r-10">Ticket ID:</label>
+                                    <input type="number" name="ticketId" id="ticketId" class="form-control" 
+                                           th:value="${ticketIdFilter}" placeholder="Enter ticket ID">
+                                </div>
+                                <div class="form-group m-r-20">
+                                    <label for="bidStatus" class="m-r-10">Bid Status:</label>
+                                    <select name="bidStatus" id="bidStatus" class="form-control">
+                                        <option value="">All Statuses</option>
+                                        <option value="pending" th:selected="${bidStatusFilter == 'pending'}">Pending Review</option>
+                                        <option value="accepted" th:selected="${bidStatusFilter == 'accepted'}">Accepted</option>
+                                        <option value="rejected" th:selected="${bidStatusFilter == 'rejected'}">Rejected</option>
+                                        <option value="withdrawn" th:selected="${bidStatusFilter == 'withdrawn'}">Withdrawn</option>
+                                    </select>
+                                </div>
+                                <div class="form-group m-r-20">
+                                    <label for="urgency" class="m-r-10">Urgency:</label>
+                                    <select name="urgency" id="urgency" class="form-control">
+                                        <option value="">All Urgency Levels</option>
+                                        <option value="emergency" th:selected="${urgencyFilter == 'emergency'}">Emergency</option>
+                                        <option value="urgent" th:selected="${urgencyFilter == 'urgent'}">Urgent</option>
+                                        <option value="routine" th:selected="${urgencyFilter == 'routine'}">Routine</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary m-r-10">
+                                    <i class="fa fa-filter"></i> Filter
+                                </button>
+                                <a href="/employee/ticket/contractor-bids" class="btn btn-secondary">
+                                    <i class="fa fa-times"></i> Clear
+                                </a>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Bid Statistics -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="card text-center bg-warning text-white">
+                                <div class="card-body">
+                                    <h4 th:text="${pendingBidsCount ?: 0}">0</h4>
+                                    <p class="mb-0">Pending Bids</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center bg-success text-white">
+                                <div class="card-body">
+                                    <h4 th:text="${acceptedBidsCount ?: 0}">0</h4>
+                                    <p class="mb-0">Accepted Bids</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center bg-danger text-white">
+                                <div class="card-body">
+                                    <h4 th:text="${emergencyBidsCount ?: 0}">0</h4>
+                                    <p class="mb-0">Emergency Bids</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center bg-info text-white">
+                                <div class="card-body">
+                                    <h4 th:text="${avgBidAmount ?: '£0'}">£0</h4>
+                                    <p class="mb-0">Average Bid</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Bids Display -->
                     <div class="card">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <h4 class="card-title">Contractor Bids</h4>
-                                    <h6 class="card-subtitle">Review and manage contractor bids for maintenance tickets</h6>
+                                    <h4 class="card-title">
+                                        <i class="fa fa-gavel text-primary"></i> Contractor Bids Management
+                                    </h4>
+                                    <h6 class="card-subtitle">
+                                        Review, compare, and manage contractor bids for maintenance tickets
+                                        <span th:if="${tickets and !#lists.isEmpty(tickets)}" class="ml-2">
+                                            (<span th:text="${#lists.size(tickets)}">0</span> tickets with bids)
+                                        </span>
+                                    </h6>
                                 </div>
                                 <div>
+                                    <a href="/employee/ticket/pending-bids" class="btn btn-warning m-r-10">
+                                        <i class="fa fa-clock-o"></i> Pending Bids
+                                    </a>
                                     <a href="/employee/ticket/manager/all-tickets" class="btn btn-secondary">
-                                        <i class="fa fa-arrow-left"></i> Back to Tickets
+                                        <i class="fa fa-arrow-left"></i> All Tickets
                                     </a>
                                 </div>
                             </div>
                             
-                            <div th:if="${#lists.isEmpty(bids)}" class="text-center m-t-40">
+                            <!-- No Bids State -->
+                            <div th:if="${#lists.isEmpty(tickets)}" class="text-center m-t-40">
                                 <i class="fa fa-gavel" style="font-size: 4em; color: #ccc;"></i>
-                                <h5 class="text-muted m-t-20">No contractor bids found</h5>
-                                <p class="text-muted">Contractor bids will appear here when maintenance tickets are created and contractors submit bids.</p>
-                                <a href="/employee/ticket/create-ticket" class="btn btn-success">
-                                    <i class="fa fa-plus"></i> Create Maintenance Ticket
-                                </a>
+                                <h5 class="text-muted m-t-20">No contractor bids available</h5>
+                                <p class="text-muted">Contractor bids will appear here when maintenance tickets receive bid submissions.</p>
+                                <div class="mt-3">
+                                    <a href="/employee/ticket/pending-bids" class="btn btn-primary m-r-10">
+                                        <i class="fa fa-paper-plane"></i> Invite Contractor Bids
+                                    </a>
+                                    <a href="/employee/ticket/create-ticket" class="btn btn-success">
+                                        <i class="fa fa-plus"></i> Create Maintenance Ticket
+                                    </a>
+                                </div>
                             </div>
 
-                            <!-- Placeholder for when bids functionality is implemented -->
-                            <div th:unless="${#lists.isEmpty(bids)}" class="table-responsive m-t-40">
-                                <table id="config-table" class="table display table-bordered table-striped no-wrap">
-                                    <thead>
-                                        <tr>
-                                            <th>Ticket</th>
-                                            <th>Contractor</th>
-                                            <th>Bid Amount</th>
-                                            <th>Estimated Time</th>
-                                            <th>Status</th>
-                                            <th>Submitted Date</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <!-- This will be populated when bid functionality is implemented -->
-                                        <tr th:each="bid : ${bids}">
-                                            <td>
-                                                <div>
-                                                    <strong>Ticket #[[${bid.ticketId}]]</strong>
-                                                    <br>
-                                                    <small class="text-muted" th:text="${bid.ticketSubject}">Subject</small>
+                            <!-- Bids Display by Ticket -->
+                            <div th:if="${!#lists.isEmpty(tickets)}" class="m-t-30">
+                                <div th:each="ticket : ${tickets}" class="mb-4">
+                                    <!-- Ticket Header -->
+                                    <div class="card border-primary">
+                                        <div class="card-header bg-primary text-white">
+                                            <div class="row align-items-center">
+                                                <div class="col-md-8">
+                                                    <h5 class="mb-0">
+                                                        <i class="fa fa-ticket"></i> Ticket #<span th:text="${ticket.ticketId}">123</span>
+                                                        <span th:if="${ticket.urgencyLevel == 'emergency'}" class="emergency-indicator ml-2">
+                                                            <i class="fa fa-exclamation-triangle"></i> EMERGENCY
+                                                        </span>
+                                                        <span th:if="${ticket.payPropTicketId}" class="payprop-sync ml-2">
+                                                            <i class="fa fa-sync"></i> PayProp
+                                                        </span>
+                                                    </h5>
+                                                    <p class="mb-0" th:text="${ticket.subject}">Ticket Subject</p>
                                                 </div>
-                                            </td>
-                                            <td>
-                                                <span th:text="${bid.contractorName}">Contractor Name</span>
-                                                <br>
-                                                <small class="text-muted" th:text="${bid.contractorEmail}">email</small>
-                                            </td>
-                                            <td>
-                                                <strong th:text="'£' + ${bid.amount}">£500.00</strong>
-                                            </td>
-                                            <td>
-                                                <span th:text="${bid.estimatedTime}">2 hours</span>
-                                            </td>
-                                            <td>
-                                                <span class="label label-info" th:text="${bid.status}">Pending</span>
-                                            </td>
-                                            <td>
-                                                <span th:text="${#temporals.format(bid.submittedDate, 'dd/MM/yyyy')}">01/01/2024</span>
-                                            </td>
-                                            <td>
-                                                <a href="#" class="btn btn-sm btn-success m-r-5" title="Accept Bid">
-                                                    <i class="fa fa-check"></i>
-                                                </a>
-                                                <a href="#" class="btn btn-sm btn-danger" title="Reject Bid">
-                                                    <i class="fa fa-times"></i>
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                                                <div class="col-md-4 text-right">
+                                                    <span th:if="${ticket.status == 'bidding'}" class="badge badge-warning badge-lg">Awaiting Bids</span>
+                                                    <span th:if="${ticket.status == 'contractor-selected'}" class="badge badge-success badge-lg">Contractor Selected</span>
+                                                    <span th:if="${ticket.status == 'work-in-progress'}" class="badge badge-info badge-lg">Work In Progress</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Ticket Details -->
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-8">
+                                                    <div th:if="${ticket.maintenanceCategory}" class="maintenance-details">
+                                                        <div class="row">
+                                                            <div class="col-md-6">
+                                                                <small><strong>Category:</strong> <span class="text-capitalize" th:text="${ticket.maintenanceCategory}">Category</span></small>
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <small><strong>Urgency:</strong> <span class="text-capitalize" th:text="${ticket.urgencyLevel}">Level</span></small>
+                                                            </div>
+                                                        </div>
+                                                        <div th:if="${ticket.accessRequired or ticket.tenantPresentRequired}" class="mt-2">
+                                                            <small class="text-info">
+                                                                <span th:if="${ticket.accessRequired}">
+                                                                    <i class="fa fa-key"></i> Property Access Required
+                                                                </span>
+                                                                <span th:if="${ticket.tenantPresentRequired}" class="ml-3">
+                                                                    <i class="fa fa-user"></i> Tenant Must Be Present
+                                                                </span>
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                    <p class="text-muted mt-2" th:text="${#strings.abbreviate(ticket.description, 200)}">Description...</p>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="text-right">
+                                                        <small class="text-muted">Customer:</small><br>
+                                                        <strong th:text="${ticket.customer.name}">Customer Name</strong><br>
+                                                        <small th:text="${ticket.customer.email}">customer@email.com</small><br>
+                                                        <small class="text-muted">Created: <span th:text="${#temporals.format(ticket.createdAt, 'dd/MM/yyyy')}">Date</span></small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                            <!-- Information Alert -->
-                            <div class="alert alert-info m-t-30">
-                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                                    <span aria-hidden="true">&times;</span>
-                                </button>
-                                <h3 class="text-info"><i class="fa fa-info-circle"></i> Information</h3>
-                                Note: Contractor bid functionality is ready for implementation. This page will show contractor bids when the bidding system is active.
+                                    <!-- Bids for this Ticket -->
+                                    <div class="row mt-3" th:if="${ticket.bids and !#lists.isEmpty(ticket.bids)}">
+                                        <div th:each="bid : ${ticket.bids}" class="col-md-6 col-lg-4 mb-3">
+                                            <div class="bid-card" th:classappend="${bid.status}">
+                                                <div class="card-body">
+                                                    <!-- Contractor Info -->
+                                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                                        <div>
+                                                            <h6 class="mb-1" th:text="${bid.contractor.name}">Contractor Name</h6>
+                                                            <small class="text-muted" th:text="${bid.contractor.email}">email@contractor.com</small>
+                                                            <div th:if="${bid.contractor.phone}" class="mt-1">
+                                                                <small class="text-muted">
+                                                                    <i class="fa fa-phone"></i> <span th:text="${bid.contractor.phone}">Phone</span>
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                        <div class="text-right">
+                                                            <div th:if="${bid.contractor.rating}" class="contractor-rating">
+                                                                <span th:each="star : ${#numbers.sequence(1, bid.contractor.rating)}">★</span>
+                                                                <small>(<span th:text="${bid.contractor.rating}">5</span>/5)</small>
+                                                            </div>
+                                                            <div th:if="${bid.contractor.isEmergencyContractor}" class="text-danger mt-1">
+                                                                <small><i class="fa fa-bolt"></i> Emergency</small>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Bid Details -->
+                                                    <div class="bid-amount text-center mb-3">
+                                                        <span class="text-success">£<span th:text="${#numbers.formatDecimal(bid.bidAmount, 0, 2)}">500.00</span></span>
+                                                    </div>
+
+                                                    <div class="row text-center text-muted mb-3">
+                                                        <div class="col-6">
+                                                            <small><strong>Timeline</strong></small><br>
+                                                            <span th:text="${bid.estimatedDuration}">2 days</span>
+                                                        </div>
+                                                        <div class="col-6">
+                                                            <small><strong>Submitted</strong></small><br>
+                                                            <span th:text="${#temporals.format(bid.submittedAt, 'dd/MM')}">01/01</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Bid Notes -->
+                                                    <div th:if="${bid.notes}" class="mb-3">
+                                                        <small class="text-muted">
+                                                            <strong>Notes:</strong><br>
+                                                            <span th:text="${#strings.abbreviate(bid.notes, 100)}">Contractor notes...</span>
+                                                        </small>
+                                                    </div>
+
+                                                    <!-- Status Badge -->
+                                                    <div class="text-center mb-3">
+                                                        <span th:if="${bid.status == 'pending'}" class="badge badge-warning">
+                                                            <i class="fa fa-clock-o"></i> Pending Review
+                                                        </span>
+                                                        <span th:if="${bid.status == 'accepted'}" class="badge badge-success">
+                                                            <i class="fa fa-check"></i> Accepted
+                                                        </span>
+                                                        <span th:if="${bid.status == 'rejected'}" class="badge badge-danger">
+                                                            <i class="fa fa-times"></i> Rejected
+                                                        </span>
+                                                        <span th:if="${bid.status == 'withdrawn'}" class="badge badge-secondary">
+                                                            <i class="fa fa-undo"></i> Withdrawn
+                                                        </span>
+                                                    </div>
+
+                                                    <!-- Action Buttons -->
+                                                    <div class="text-center" th:if="${bid.status == 'pending'}">
+                                                        <button type="button" class="btn btn-success btn-sm m-r-5" 
+                                                                th:onclick="'acceptBid(' + ${bid.id} + ', ' + ${ticket.ticketId} + ', ' + ${bid.bidAmount} + ')'"
+                                                                title="Accept this bid">
+                                                            <i class="fa fa-check"></i> Accept
+                                                        </button>
+                                                        <button type="button" class="btn btn-danger btn-sm" 
+                                                                th:onclick="'rejectBid(' + ${bid.id} + ', ' + ${ticket.ticketId} + ')'"
+                                                                title="Reject this bid">
+                                                            <i class="fa fa-times"></i> Reject
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    <!-- View Details Button -->
+                                                    <div class="text-center mt-2">
+                                                        <button type="button" class="btn btn-info btn-sm" 
+                                                                th:onclick="'viewBidDetails(' + ${bid.id} + ')'"
+                                                                title="View full bid details">
+                                                            <i class="fa fa-eye"></i> View Details
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- No Bids for this Ticket -->
+                                    <div th:if="${#lists.isEmpty(ticket.bids)}" class="alert alert-info">
+                                        <i class="fa fa-info-circle"></i> No bids received for this ticket yet.
+                                        <a th:href="@{'/employee/ticket/pending-bids?ticketId=' + ${ticket.ticketId}}" class="alert-link">
+                                            Invite contractor bids →
+                                        </a>
+                                    </div>
+
+                                    <hr th:unless="${ticketStat.last}" class="my-4">
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -197,6 +496,121 @@
 <!-- ============================================================== -->
 <!-- End Wrapper -->
 <!-- ============================================================== -->
+
+<!-- Accept Bid Modal -->
+<div class="modal fade" id="acceptBidModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">
+                    <i class="fa fa-check-circle text-success"></i> Accept Contractor Bid
+                </h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <form id="acceptBidForm" method="post" action="/employee/ticket/accept-bid">
+                <input type="hidden" name="${_csrf.parameterName}" value="${_csrf.token}"/>
+                <div class="modal-body">
+                    <p>Are you sure you want to accept this bid?</p>
+                    <div class="alert alert-info">
+                        <strong>Bid Amount:</strong> £<span id="acceptBidAmount">0.00</span><br>
+                        <strong>Ticket:</strong> #<span id="acceptTicketId">0</span>
+                    </div>
+                    <input type="hidden" id="acceptBidIdInput" name="bidId" value="">
+                    <input type="hidden" id="acceptTicketIdInput" name="ticketId" value="">
+                    
+                    <div class="form-group">
+                        <label for="acceptanceNotes">Acceptance Notes (Optional):</label>
+                        <textarea name="notes" id="acceptanceNotes" class="form-control" rows="3" 
+                                  placeholder="Add any additional instructions or notes for the contractor..."></textarea>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="fa fa-exclamation-triangle"></i>
+                        <strong>Note:</strong> Accepting this bid will automatically reject all other bids for this ticket and notify the contractor to begin work.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fa fa-check"></i> Accept Bid
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Bid Modal -->
+<div class="modal fade" id="rejectBidModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">
+                    <i class="fa fa-times-circle text-danger"></i> Reject Contractor Bid
+                </h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <form id="rejectBidForm" method="post" action="/employee/ticket/reject-bid">
+                <input type="hidden" name="${_csrf.parameterName}" value="${_csrf.token}"/>
+                <div class="modal-body">
+                    <p>Please provide a reason for rejecting this bid:</p>
+                    <input type="hidden" id="rejectBidIdInput" name="bidId" value="">
+                    <input type="hidden" id="rejectTicketIdInput" name="ticketId" value="">
+                    
+                    <div class="form-group">
+                        <label for="rejectionReason">Rejection Reason:</label>
+                        <select name="reason" id="rejectionReason" class="form-control" required>
+                            <option value="">Select a reason...</option>
+                            <option value="price-too-high">Price too high</option>
+                            <option value="timeline-too-long">Timeline too long</option>
+                            <option value="contractor-unavailable">Contractor unavailable</option>
+                            <option value="better-bid-selected">Better bid selected</option>
+                            <option value="insufficient-qualifications">Insufficient qualifications</option>
+                            <option value="other">Other (specify below)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="rejectionNotes">Additional Notes:</label>
+                        <textarea name="notes" id="rejectionNotes" class="form-control" rows="3" 
+                                  placeholder="Provide additional details about the rejection..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fa fa-times"></i> Reject Bid
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bid Details Modal -->
+<div class="modal fade" id="bidDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">
+                    <i class="fa fa-file-text-o"></i> Bid Details
+                </h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body" id="bidDetailsContent">
+                <!-- Content will be loaded via AJAX -->
+                <div class="text-center">
+                    <i class="fa fa-spinner fa-spin fa-2x"></i>
+                    <p>Loading bid details...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ============================================================== -->
 <!-- All Jquery -->
 <!-- ============================================================== -->
@@ -217,8 +631,82 @@
 <script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
 
 <script>
-$('#config-table').DataTable({
-    responsive: true
+function acceptBid(bidId, ticketId, bidAmount) {
+    document.getElementById('acceptBidIdInput').value = bidId;
+    document.getElementById('acceptTicketIdInput').value = ticketId;
+    document.getElementById('acceptTicketId').textContent = ticketId;
+    document.getElementById('acceptBidAmount').textContent = bidAmount.toFixed(2);
+    
+    // Clear previous notes
+    document.getElementById('acceptanceNotes').value = '';
+    
+    $('#acceptBidModal').modal('show');
+}
+
+function rejectBid(bidId, ticketId) {
+    document.getElementById('rejectBidIdInput').value = bidId;
+    document.getElementById('rejectTicketIdInput').value = ticketId;
+    
+    // Clear previous selections
+    document.getElementById('rejectionReason').value = '';
+    document.getElementById('rejectionNotes').value = '';
+    
+    $('#rejectBidModal').modal('show');
+}
+
+function viewBidDetails(bidId) {
+    // Load bid details via AJAX
+    $.get('/employee/ticket/bid-details/' + bidId)
+        .done(function(data) {
+            document.getElementById('bidDetailsContent').innerHTML = data;
+        })
+        .fail(function() {
+            document.getElementById('bidDetailsContent').innerHTML = 
+                '<div class="alert alert-danger"><i class="fa fa-exclamation-triangle"></i> Failed to load bid details.</div>';
+        });
+    
+    $('#bidDetailsModal').modal('show');
+}
+
+// Form validation
+document.getElementById('rejectBidForm').addEventListener('submit', function(e) {
+    const reason = document.getElementById('rejectionReason').value;
+    if (!reason) {
+        e.preventDefault();
+        alert('Please select a rejection reason.');
+        return false;
+    }
+});
+
+// Auto-refresh for real-time updates (optional)
+let autoRefreshInterval;
+function startAutoRefresh() {
+    autoRefreshInterval = setInterval(function() {
+        // Only refresh if no modals are open
+        if (!$('.modal').hasClass('show')) {
+            location.reload();
+        }
+    }, 30000); // Refresh every 30 seconds
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+}
+
+// Start auto-refresh when page loads
+$(document).ready(function() {
+    startAutoRefresh();
+    
+    // Stop auto-refresh when modals are open
+    $('.modal').on('show.bs.modal', function() {
+        stopAutoRefresh();
+    });
+    
+    $('.modal').on('hidden.bs.modal', function() {
+        startAutoRefresh();
+    });
 });
 </script>
 </body>

@@ -1,111 +1,800 @@
 <!DOCTYPE html>
-<html>
+<html xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title>Contractor Dashboard</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
+    <title>Contractor Dashboard - CRM</title>
+    
+    <!-- CSRF Meta Tags -->
+    <meta name="_csrf" content="${_csrf.token}"/>
+    <meta name="_csrf_header" content="${_csrf.headerName}"/>
+    
+    <!-- Bootstrap Core CSS -->
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link th:href="@{/css/style.min.css}" rel="stylesheet">
+    <!-- Dashboard specific CSS -->
+    <link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link th:href="@{/css/all.css}" rel="stylesheet">
+    
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 40px;
-            background-color: #fff8f0;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
+        .contractor-welcome {
+            background: linear-gradient(135deg, #ff7f50 0%, #d2691e 100%);
+            color: white;
             padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .bid-opportunity-card {
+            border-left: 4px solid #28a745;
+            background: linear-gradient(135deg, #f8fff9 0%, #e8f5e8 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .bid-opportunity-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        .urgent-job {
+            border-left: 4px solid #dc3545 !important;
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe6e6 100%) !important;
+        }
+        
+        .emergency-alert {
+            animation: pulse-urgent 2s infinite;
+        }
+        
+        @keyframes pulse-urgent {
+            0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+        }
+        
+        .work-stat-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #d2691e;
-            text-align: center;
-        }
-        .welcome {
-            font-size: 18px;
-            color: #555;
-            text-align: center;
-            margin: 20px 0;
-        }
-        .success {
-            background-color: #fff3cd;
-            color: #856404;
-            padding: 15px;
-            border-radius: 5px;
-            text-align: center;
-            margin: 20px 0;
-        }
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-top: 30px;
-        }
-        .feature-card {
-            background: #f8f9fa;
             padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-            border: 1px solid #dee2e6;
+            margin-bottom: 20px;
+            border-left: 4px solid #007bff;
+            transition: all 0.3s ease;
         }
-        .feature-card h3 {
-            color: #d2691e;
-            margin-top: 0;
+        
+        .work-stat-card:hover {
+            background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
         }
-        .icon {
-            font-size: 24px;
-            margin-bottom: 10px;
+        
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            color: white;
+            font-size: 20px;
+        }
+        
+        .job-card {
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .job-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        .job-priority-high {
+            border-left: 4px solid #dc3545;
+        }
+        
+        .job-priority-medium {
+            border-left: 4px solid #ffc107;
+        }
+        
+        .job-priority-low {
+            border-left: 4px solid #28a745;
+        }
+        
+        .payment-status-paid {
+            color: #28a745;
+        }
+        
+        .payment-status-pending {
+            color: #ffc107;
+        }
+        
+        .payment-status-overdue {
+            color: #dc3545;
+        }
+        
+        .quick-action-btn {
+            border-radius: 25px;
+            padding: 10px 20px;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+        
+        .quick-action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .bid-timer {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .bid-timer.urgent {
+            color: #dc3545;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.5; }
+        }
+        
+        .earnings-card {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 25px;
+        }
+        
+        .rating-stars {
+            color: #ffc107;
+        }
+        
+        .job-status-badge {
+            font-size: 12px;
+            padding: 4px 8px;
+        }
+        
+        @media (max-width: 768px) {
+            .contractor-welcome {
+                padding: 20px;
+                text-align: center;
+            }
+            
+            .work-stat-card {
+                padding: 15px;
+            }
+            
+            .quick-action-btn {
+                width: 100%;
+                margin: 5px 0;
+            }
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>🔨 Contractor Dashboard</h1>
-        <div class="welcome">Welcome to your Contractor Portal!</div>
-        <div class="success">
-            ✅ Contractor login system is working perfectly!
-        </div>
-        
-        <div class="features">
-            <div class="feature-card">
-                <div class="icon">📋</div>
-                <h3>Job Assignments</h3>
-                <p>View and manage your assigned work orders</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="icon">⏰</div>
-                <h3>Schedule</h3>
-                <p>Manage your work schedule and appointments</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="icon">💼</div>
-                <h3>Invoicing</h3>
-                <p>Submit invoices and track payments</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="icon">📸</div>
-                <h3>Progress Reports</h3>
-                <p>Upload photos and update job progress</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="icon">🏠</div>
-                <h3>Property Access</h3>
-                <p>View property details and access information</p>
-            </div>
-            
-            <div class="feature-card">
-                <div class="icon">📞</div>
-                <h3>Property Manager Contact</h3>
-                <p>Communicate with property management team</p>
-            </div>
-        </div>
-        
-        <div style="text-align: center; margin-top: 30px; color: #666;">
-            <p>🎉 Contractor authentication and routing successful!</p>
-        </div>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">Contractor Portal</p>
     </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Welcome Header -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="contractor-welcome">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h2 class="mb-2">
+                                    <i class="fas fa-hammer"></i> Contractor Dashboard
+                                </h2>
+                                <p class="mb-0" th:text="'Welcome, ' + ${contractorName ?: 'Contractor'} + '! Manage your jobs, bids, and earnings.'">
+                                    Welcome! Manage your jobs, bids, and earnings.
+                                </p>
+                            </div>
+                            <div class="col-md-4 text-right">
+                                <div class="text-white">
+                                    <h4 class="mb-0">Overall Rating</h4>
+                                    <div class="rating-stars">
+                                        <span th:each="star : ${#numbers.sequence(1, contractorRating ?: 5)}">
+                                            <i class="fas fa-star"></i>
+                                        </span>
+                                        <span th:text="'(' + ${contractorRating ?: '5.0'} + '/5)'"> (5.0/5)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Emergency Job Alert -->
+            <div th:if="${hasEmergencyJobs}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible fade show emergency-alert" role="alert">
+                        <i class="fas fa-exclamation-triangle fa-2x float-left mr-3"></i>
+                        <div>
+                            <h4 class="alert-heading">🚨 EMERGENCY JOBS AVAILABLE</h4>
+                            <p class="mb-2">High-priority emergency maintenance jobs are available for bidding. These jobs offer premium rates!</p>
+                            <hr>
+                            <div>
+                                <a href="#emergency-section" class="btn btn-light btn-sm">
+                                    <i class="fas fa-eye"></i> View Emergency Jobs
+                                </a>
+                                <a href="/contractor/bids/emergency" class="btn btn-outline-light btn-sm ml-2">
+                                    <i class="fas fa-bolt"></i> Submit Emergency Bid
+                                </a>
+                            </div>
+                        </div>
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Work Statistics Overview -->
+            <div class="row">
+                <div class="col-md-3 col-sm-6">
+                    <div class="work-stat-card d-flex align-items-center">
+                        <div class="stat-icon bg-primary">
+                            <i class="fas fa-clipboard-list"></i>
+                        </div>
+                        <div>
+                            <h3 class="mb-0 font-weight-bold" th:text="${contractorStats.activeJobs ?: 0}">0</h3>
+                            <p class="text-muted mb-0">Active Jobs</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 col-sm-6">
+                    <div class="work-stat-card d-flex align-items-center">
+                        <div class="stat-icon bg-warning">
+                            <i class="fas fa-hourglass-half"></i>
+                        </div>
+                        <div>
+                            <h3 class="mb-0 font-weight-bold" th:text="${contractorStats.pendingBids ?: 0}">0</h3>
+                            <p class="text-muted mb-0">Pending Bids</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 col-sm-6">
+                    <div class="work-stat-card d-flex align-items-center">
+                        <div class="stat-icon bg-success">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div>
+                            <h3 class="mb-0 font-weight-bold" th:text="${contractorStats.completedJobs ?: 0}">0</h3>
+                            <p class="text-muted mb-0">Completed Jobs</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 col-sm-6">
+                    <div class="work-stat-card d-flex align-items-center">
+                        <div class="stat-icon bg-info">
+                            <i class="fas fa-pound-sign"></i>
+                        </div>
+                        <div>
+                            <h3 class="mb-0 font-weight-bold">£<span th:text="${contractorStats.monthlyEarnings ?: 0}">0</span></h3>
+                            <p class="text-muted mb-0">This Month</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-tachometer-alt text-primary"></i> Quick Actions
+                            </h4>
+                        </div>
+                        <div class="card-body text-center">
+                            <a href="/contractor/bids/available" class="btn btn-success quick-action-btn">
+                                <i class="fas fa-search"></i> View Available Jobs
+                            </a>
+                            <a href="/contractor/jobs/active" class="btn btn-primary quick-action-btn">
+                                <i class="fas fa-tools"></i> My Active Jobs
+                            </a>
+                            <a href="/contractor/invoices/submit" class="btn btn-info quick-action-btn">
+                                <i class="fas fa-file-invoice"></i> Submit Invoice
+                            </a>
+                            <a href="/contractor/schedule" class="btn btn-warning quick-action-btn">
+                                <i class="fas fa-calendar"></i> My Schedule
+                            </a>
+                            <a href="/contractor/profile" class="btn btn-secondary quick-action-btn">
+                                <i class="fas fa-user-cog"></i> Update Profile
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Jobs and Bid Opportunities -->
+            <div class="row">
+                <!-- Active Jobs -->
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-wrench text-warning"></i> My Active Jobs
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${activeJobs}" th:each="job : ${activeJobs}" 
+                                 class="job-card" 
+                                 th:classappend="'job-priority-' + ${job.priority}">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h5 class="card-title" th:text="${job.title}">Kitchen Faucet Repair</h5>
+                                            <p class="card-text text-muted" th:text="${job.description}">Replace leaky kitchen faucet in apartment 2B</p>
+                                            
+                                            <div class="job-details mb-2">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-map-marker-alt"></i> <span th:text="${job.propertyAddress}">123 Main St</span> |
+                                                    <i class="fas fa-calendar"></i> Due: <span th:text="${job.dueDate}">Tomorrow</span> |
+                                                    <i class="fas fa-pound-sign"></i> <span th:text="${job.approvedAmount}">£150</span>
+                                                </small>
+                                            </div>
+                                            
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge job-status-badge mr-2" 
+                                                      th:classappend="'badge-' + ${job.status == 'in-progress' ? 'info' : (job.status == 'completed' ? 'success' : 'warning')}"
+                                                      th:text="${job.status}">in-progress</span>
+                                                <span class="badge job-status-badge mr-2" 
+                                                      th:classappend="'badge-' + ${job.priority == 'high' ? 'danger' : (job.priority == 'medium' ? 'warning' : 'success')}"
+                                                      th:text="${job.priority}">medium</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="job-actions ml-3">
+                                            <div class="btn-group-vertical">
+                                                <a th:href="@{'/contractor/jobs/' + ${job.id}}" class="btn btn-sm btn-primary mb-1">
+                                                    <i class="fas fa-eye"></i> View
+                                                </a>
+                                                <button th:if="${job.status == 'assigned'}" 
+                                                        class="btn btn-sm btn-success mb-1"
+                                                        th:onclick="'startJob(' + ${job.id} + ')'">
+                                                    <i class="fas fa-play"></i> Start
+                                                </button>
+                                                <button th:if="${job.status == 'in-progress'}" 
+                                                        class="btn btn-sm btn-info mb-1"
+                                                        th:onclick="'updateProgress(' + ${job.id} + ')'">
+                                                    <i class="fas fa-camera"></i> Update
+                                                </button>
+                                                <button th:if="${job.status == 'in-progress'}" 
+                                                        class="btn btn-sm btn-success"
+                                                        th:onclick="'completeJob(' + ${job.id} + ')'">
+                                                    <i class="fas fa-check"></i> Complete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- No active jobs message -->
+                            <div th:unless="${activeJobs}" class="text-center py-5">
+                                <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No active jobs</h5>
+                                <p class="text-muted">Check available bidding opportunities to get started</p>
+                                <a href="/contractor/bids/available" class="btn btn-primary">
+                                    <i class="fas fa-search"></i> Find Jobs
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Bid Opportunities and Earnings -->
+                <div class="col-lg-4">
+                    <!-- Monthly Earnings -->
+                    <div class="earnings-card mb-4">
+                        <h5 class="mb-3">
+                            <i class="fas fa-chart-line"></i> Monthly Performance
+                        </h5>
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <h3 class="mb-1">£<span th:text="${contractorStats.monthlyEarnings ?: 0}">0</span></h3>
+                                <small>This Month</small>
+                            </div>
+                            <div class="col-6">
+                                <h3 class="mb-1" th:text="${contractorStats.completedJobs ?: 0}">0</h3>
+                                <small>Jobs Done</small>
+                            </div>
+                        </div>
+                        <hr class="bg-white">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <h4 class="mb-1">£<span th:text="${contractorStats.avgJobValue ?: 0}">0</span></h4>
+                                <small>Avg Job Value</small>
+                            </div>
+                            <div class="col-6">
+                                <h4 class="mb-1" th:text="${contractorStats.winRate ?: 0}">0</h4>%
+                                <small>Bid Win Rate</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Available Bid Opportunities -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-gavel text-success"></i> Bid Opportunities
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${bidOpportunities}" th:each="opportunity : ${bidOpportunities}" 
+                                 class="bid-opportunity-card p-3 mb-3" 
+                                 th:classappend="${opportunity.priority == 'emergency' ? 'urgent-job' : ''}">
+                                <h6 class="mb-2" th:text="${opportunity.title}">Plumbing Repair</h6>
+                                <p class="small text-muted mb-2" th:text="${opportunity.description}">Emergency pipe leak repair needed</p>
+                                
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <small class="text-muted">
+                                        <i class="fas fa-pound-sign"></i> Budget: £<span th:text="${opportunity.budget}">200</span>
+                                    </small>
+                                    <span class="badge badge-sm" 
+                                          th:classappend="'badge-' + ${opportunity.priority == 'emergency' ? 'danger' : 'primary'}"
+                                          th:text="${opportunity.priority}">emergency</span>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="bid-timer" 
+                                         th:classappend="${opportunity.timeLeft < 2 ? 'urgent' : ''}"
+                                         th:text="'⏰ ' + ${opportunity.timeLeft} + 'h left'">⏰ 6h left</div>
+                                    <a th:href="@{'/contractor/bids/submit/' + ${opportunity.id}}" 
+                                       class="btn btn-sm btn-success">
+                                        <i class="fas fa-hand-paper"></i> Bid
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <!-- View all opportunities -->
+                            <div class="text-center mt-3">
+                                <a href="/contractor/bids/available" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-eye"></i> View All Opportunities
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Payment Status -->
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-credit-card text-info"></i> Payment Status
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="payment-summary">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Outstanding:</span>
+                                    <span class="payment-status-pending font-weight-bold">
+                                        £<span th:text="${paymentStats.outstanding ?: 0}">0</span>
+                                    </span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>This Month:</span>
+                                    <span class="payment-status-paid font-weight-bold">
+                                        £<span th:text="${paymentStats.thisMonth ?: 0}">0</span>
+                                    </span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>Next Payment:</span>
+                                    <span class="font-weight-bold" th:text="${paymentStats.nextPaymentDate ?: 'TBD'}">
+                                        Jan 15
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center mt-3">
+                                <a href="/contractor/invoices" class="btn btn-outline-info btn-sm">
+                                    <i class="fas fa-file-invoice"></i> View Invoices
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:inline="javascript">
+    var contractorStats = /*[[${contractorStats}]]*/ {};
+    var hasEmergencyJobs = /*[[${hasEmergencyJobs}]]*/ false;
+</script>
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script>
+$(document).ready(function() {
+    // Animate work statistics
+    $('.work-stat-card h3').each(function() {
+        const $this = $(this);
+        const countTo = parseInt($this.text().replace(/[^0-9]/g, ''));
+        
+        if (countTo > 0) {
+            $({ countNum: 0 }).animate({
+                countNum: countTo
+            }, {
+                duration: 1500,
+                easing: 'linear',
+                step: function() {
+                    $this.text(Math.floor(this.countNum));
+                },
+                complete: function() {
+                    $this.text(this.countNum);
+                }
+            });
+        }
+    });
+
+    // Emergency job alert handling
+    if (hasEmergencyJobs) {
+        // Show reminder every 15 minutes
+        setInterval(function() {
+            showEmergencyJobReminder();
+        }, 900000); // 15 minutes
+    }
+
+    // Update bid timers every minute
+    setInterval(updateBidTimers, 60000);
+
+    // Job action hover effects
+    $('.job-card').hover(
+        function() {
+            $(this).find('.job-actions').addClass('scale-up');
+        },
+        function() {
+            $(this).find('.job-actions').removeClass('scale-up');
+        }
+    );
+
+    // Quick action animations
+    $('.quick-action-btn').hover(
+        function() {
+            $(this).addClass('shadow-lg');
+        },
+        function() {
+            $(this).removeClass('shadow-lg');
+        }
+    );
+
+    // Contractor keyboard shortcuts
+    $(document).keydown(function(e) {
+        if (e.ctrlKey) {
+            switch(e.which) {
+                case 74: // Ctrl+J - Jobs
+                    e.preventDefault();
+                    window.location.href = '/contractor/jobs/active';
+                    break;
+                case 66: // Ctrl+B - Bids
+                    e.preventDefault();
+                    window.location.href = '/contractor/bids/available';
+                    break;
+                case 73: // Ctrl+I - Invoices
+                    e.preventDefault();
+                    window.location.href = '/contractor/invoices/submit';
+                    break;
+                case 83: // Ctrl+S - Schedule
+                    e.preventDefault();
+                    window.location.href = '/contractor/schedule';
+                    break;
+                case 69: // Ctrl+E - Emergency bids
+                    e.preventDefault();
+                    if (hasEmergencyJobs) {
+                        window.location.href = '/contractor/bids/emergency';
+                    }
+                    break;
+            }
+        }
+    });
+
+    // Show keyboard shortcuts tooltip
+    $('body').append(`
+        <div id="contractorShortcuts" class="tooltip fade" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: none;">
+            <div class="tooltip-inner">
+                <strong>Contractor Shortcuts:</strong><br>
+                Ctrl+J: My Jobs<br>
+                Ctrl+B: Available Bids<br>
+                Ctrl+I: Submit Invoice<br>
+                Ctrl+S: Schedule<br>
+                ${hasEmergencyJobs ? 'Ctrl+E: Emergency Bids<br>' : ''}
+            </div>
+        </div>
+    `);
+
+    // Show shortcuts on double Ctrl
+    let ctrlCount = 0;
+    $(document).keydown(function(e) {
+        if (e.which === 17) {
+            ctrlCount++;
+            if (ctrlCount >= 2) {
+                $('#contractorShortcuts').fadeIn();
+                setTimeout(function() {
+                    $('#contractorShortcuts').fadeOut();
+                    ctrlCount = 0;
+                }, 3000);
+            }
+            setTimeout(function() { ctrlCount = 0; }, 1000);
+        }
+    });
+});
+
+function startJob(jobId) {
+    if (confirm('Are you ready to start this job?')) {
+        // AJAX call to start job
+        $.post('/contractor/jobs/' + jobId + '/start', function(response) {
+            if (response.success) {
+                location.reload();
+            } else {
+                alert('Error starting job: ' + response.message);
+            }
+        });
+    }
+}
+
+function updateProgress(jobId) {
+    // Open progress update modal or redirect to update page
+    window.location.href = '/contractor/jobs/' + jobId + '/update';
+}
+
+function completeJob(jobId) {
+    if (confirm('Mark this job as complete? Make sure all work is finished and documented.')) {
+        // AJAX call to complete job
+        $.post('/contractor/jobs/' + jobId + '/complete', function(response) {
+            if (response.success) {
+                alert('Job marked as complete! You can now submit your invoice.');
+                location.reload();
+            } else {
+                alert('Error completing job: ' + response.message);
+            }
+        });
+    }
+}
+
+function updateBidTimers() {
+    $('.bid-timer').each(function() {
+        const $timer = $(this);
+        const currentText = $timer.text();
+        const hours = parseInt(currentText.match(/(\d+)h/)?.[1] || 0);
+        
+        if (hours > 0) {
+            const newHours = hours - (1/60); // Decrease by 1 minute
+            if (newHours <= 0) {
+                $timer.html('⏰ <span class="text-danger">EXPIRED</span>');
+                $timer.closest('.bid-opportunity-card').addClass('opacity-50');
+            } else if (newHours < 2) {
+                $timer.html(`⏰ ${Math.floor(newHours)}h ${Math.floor((newHours % 1) * 60)}m left`);
+                $timer.addClass('urgent');
+            }
+        }
+    });
+}
+
+function showEmergencyJobReminder() {
+    if (hasEmergencyJobs) {
+        // Create toast notification
+        var toast = $('<div class="toast-notification emergency-toast">' +
+                     '<i class="fas fa-exclamation-triangle"></i> ' +
+                     'Emergency jobs are available for bidding!' +
+                     '</div>');
+        
+        $('body').append(toast);
+        toast.fadeIn().delay(4000).fadeOut(function() {
+            $(this).remove();
+        });
+    }
+}
+
+// Job progress photo upload
+function uploadProgressPhoto(jobId) {
+    // This would open a file upload dialog
+    console.log('Upload photo for job ' + jobId);
+}
+
+// Bid submission helper
+function submitBid(opportunityId, amount) {
+    // This would submit a bid
+    console.log('Submit bid for opportunity ' + opportunityId + ' with amount ' + amount);
+}
+</script>
+
+<style>
+/* Toast notification styles */
+.toast-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #28a745;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 10000;
+    display: none;
+    font-weight: 600;
+    max-width: 300px;
+}
+
+.toast-notification i {
+    margin-right: 10px;
+    font-size: 18px;
+}
+
+/* Job action scaling */
+.scale-up {
+    transform: scale(1.05);
+    transition: transform 0.3s ease;
+}
+
+/* Rating stars alignment */
+.rating-stars {
+    display: inline-block;
+}
+
+/* Responsive bid cards */
+@media (max-width: 576px) {
+    .job-card .d-flex {
+        flex-direction: column;
+    }
+    
+    .job-actions {
+        margin-left: 0 !important;
+        margin-top: 15px;
+    }
+    
+    .job-actions .btn-group-vertical {
+        width: 100%;
+    }
+    
+    .bid-opportunity-card {
+        margin-bottom: 15px;
+    }
+}
+
+/* Enhanced hover effects */
+.card:hover {
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    transition: box-shadow 0.3s ease;
+}
+
+/* Payment status colors */
+.payment-summary {
+    font-size: 14px;
+}
+</style>
+
 </body>
 </html>
