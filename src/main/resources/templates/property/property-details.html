@@ -537,9 +537,9 @@
                             
                             <!-- View All Link -->
                             <div th:if="${#lists.size(maintenanceTickets) >= 5}" class="text-center mt-3">
-                                <a th:href="@{'/employee/ticket/manager/all-tickets?propertyId=' + ${property.id}}" 
-                                   class="btn btn-outline-primary">
-                                    <i class="fas fa-list"></i> View All Maintenance Tickets
+                                <a th:href="@{'/employee/ticket/property/' + ${property.id} + '/maintenance-history'}" 
+                                class="btn btn-outline-primary">
+                                    <i class="fas fa-list"></i> View All Maintenance History
                                 </a>
                             </div>
                         </div>
@@ -774,8 +774,8 @@
                                 class="list-group-item list-group-item-action">
                                     <i class="fas fa-users text-primary"></i> View Tenants
                                 </a>
-                                <a th:href="${home + 'employee/ticket/manager/all-tickets?propertyId=' + property.id}" 
-                                   class="list-group-item list-group-item-action">
+                                <a th:href="@{'/employee/ticket/property/' + ${property.id} + '/maintenance-history'}" 
+                                class="list-group-item list-group-item-action">
                                     <i class="fas fa-wrench text-info"></i> Maintenance History
                                 </a>
                                 <a th:href="${home + 'employee/ticket/pending-bids?propertyId=' + property.id}" 

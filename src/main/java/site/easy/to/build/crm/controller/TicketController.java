@@ -193,23 +193,109 @@ public class TicketController {
     
     @GetMapping("/property/{propertyId}/maintenance-history")
     public String showPropertyMaintenanceHistory(@PathVariable Long propertyId, Model model, Authentication authentication) {
-        // Find all tickets related to this property
-        List<Ticket> maintenanceTickets = ticketService.findAll().stream()
-            .filter(ticket -> "maintenance".equals(ticket.getType()) || "emergency".equals(ticket.getType()))
-            .filter(ticket -> {
-                // Link tickets to property via customer relationships
-                if (ticket.getCustomer() != null && ticket.getCustomer().getAssignedPropertyId() != null) {
-                    return ticket.getCustomer().getAssignedPropertyId().equals(propertyId);
-                }
-                return false;
-            })
-            .sorted((t1, t2) -> t2.getCreatedAt().compareTo(t1.getCreatedAt()))
-            .collect(Collectors.toList());
+        try {
+            System.out.println("=== DEBUG: Property Maintenance History ===");
+            System.out.println("Property ID: " + propertyId);
+            
+            // Get the property to verify it exists
+            Property property = propertyService.findById(propertyId);
+            if (property == null) {
+                System.out.println("ERROR: Property not found with ID: " + propertyId);
+                return "error/not-found";
+            }
+            
+            System.out.println("Property found: " + property.getPropertyName());
+            System.out.println("Property PayProp ID: " + property.getPayPropId());
+            
+            // Get all tickets first
+            List<Ticket> allTickets = ticketService.findAll();
+            System.out.println("Total tickets in system: " + allTickets.size());
+            
+            // Filter maintenance and emergency tickets
+            List<Ticket> maintenanceTickets = allTickets.stream()
+                .filter(ticket -> {
+                    String type = ticket.getType();
+                    return "maintenance".equalsIgnoreCase(type) || "emergency".equalsIgnoreCase(type);
+                })
+                .collect(Collectors.toList());
+            
+            System.out.println("Maintenance/Emergency tickets: " + maintenanceTickets.size());
+            
+            // Now filter by property using MULTIPLE methods
+            List<Ticket> propertyTickets = maintenanceTickets.stream()
+                .filter(ticket -> {
+                    boolean matches = false;
+                    
+                    // Method 1: Customer assigned property ID (your current method)
+                    if (ticket.getCustomer() != null && ticket.getCustomer().getAssignedPropertyId() != null) {
+                        if (ticket.getCustomer().getAssignedPropertyId().equals(propertyId)) {
+                            System.out.println("Ticket " + ticket.getTicketId() + " matches via customer.assignedPropertyId");
+                            matches = true;
+                        }
+                    }
+                    
+                    // Method 2: PayProp property ID matching
+                    if (!matches && ticket.getPayPropPropertyId() != null && property.getPayPropId() != null) {
+                        if (ticket.getPayPropPropertyId().equals(property.getPayPropId())) {
+                            System.out.println("Ticket " + ticket.getTicketId() + " matches via PayProp ID");
+                            matches = true;
+                        }
+                    }
+                    
+                    // Method 3: Direct property ID field (if your Ticket entity has one)
+                    // Uncomment this if your Ticket entity has a propertyId field:
+                    /*
+                    if (!matches && ticket.getPropertyId() != null) {
+                        if (ticket.getPropertyId().equals(propertyId)) {
+                            System.out.println("Ticket " + ticket.getTicketId() + " matches via direct propertyId");
+                            matches = true;
+                        }
+                    }
+                    */
+                    
+                    // Method 4: Check if customer is tenant of this property (if you have tenant-property relationships)
+                    if (!matches && ticket.getCustomer() != null) {
+                        // You can add logic here to check if the customer is a tenant of this property
+                        // This depends on how your tenant-property relationships work
+                    }
+                    
+                    if (!matches) {
+                        System.out.println("Ticket " + ticket.getTicketId() + " does NOT match property " + propertyId);
+                        if (ticket.getCustomer() != null) {
+                            System.out.println("  - Customer assigned property ID: " + ticket.getCustomer().getAssignedPropertyId());
+                        } else {
+                            System.out.println("  - No customer assigned");
+                        }
+                        System.out.println("  - PayProp property ID: " + ticket.getPayPropPropertyId());
+                    }
+                    
+                    return matches;
+                })
+                .sorted((t1, t2) -> t2.getCreatedAt().compareTo(t1.getCreatedAt())) // Most recent first
+                .collect(Collectors.toList());
 
-        model.addAttribute("tickets", maintenanceTickets);
-        model.addAttribute("propertyId", propertyId);
-        
-        return "employee/ticket/maintenance-history";
+            System.out.println("Final filtered tickets for property " + propertyId + ": " + propertyTickets.size());
+            
+            // Add debug info for tickets
+            for (Ticket ticket : propertyTickets) {
+                System.out.println("  - Ticket #" + ticket.getTicketId() + ": " + ticket.getSubject() + " (" + ticket.getType() + ")");
+            }
+            
+            model.addAttribute("tickets", propertyTickets);
+            model.addAttribute("propertyId", propertyId);
+            model.addAttribute("property", property); // Add property for template reference
+            
+            return "employee/ticket/maintenance-history";
+            
+        } catch (Exception e) {
+            System.err.println("ERROR in showPropertyMaintenanceHistory: " + e.getMessage());
+            e.printStackTrace();
+            
+            // Return with empty tickets to prevent template errors
+            model.addAttribute("tickets", new ArrayList<>());
+            model.addAttribute("propertyId", propertyId);
+            return "employee/ticket/maintenance-history";
+        }
     }
 
     @GetMapping("/contractor-bids")
