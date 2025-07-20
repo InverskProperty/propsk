@@ -41,7 +41,7 @@ public class TicketServiceImpl implements TicketService{
 
     @Override
     public List<Ticket> findEmployeeTickets(int id) {
-        return ticketRepository.findByEmployeeId(id);
+        return ticketRepository.findByEmployee_Id(id);
     }
 
     @Override
@@ -63,7 +63,7 @@ public class TicketServiceImpl implements TicketService{
     @Override
     public List<Ticket> getRecentEmployeeTickets(int employeeId, int limit) {
         Pageable pageable = PageRequest.of(0, limit);
-        return ticketRepository.findByEmployeeIdOrderByCreatedAtDesc(employeeId, pageable);
+        return ticketRepository.findByEmployee_IdOrderByCreatedAtDesc(employeeId, pageable);
     }
 
     @Override
@@ -74,7 +74,7 @@ public class TicketServiceImpl implements TicketService{
 
     @Override
     public long countByEmployeeId(int employeeId) {
-        return ticketRepository.countByEmployeeId(employeeId);
+        return ticketRepository.countByEmployee_Id(employeeId);
     }
 
     @Override
@@ -111,12 +111,12 @@ public class TicketServiceImpl implements TicketService{
 
     @Override
     public List<Ticket> getTicketsByEmployeeId(int employeeId) {
-        return ticketRepository.findByEmployeeId(employeeId);
+        return ticketRepository.findByEmployee_Id(employeeId);
     }
 
     @Override
     public List<Ticket> getTicketsByEmployeeIdAndType(int employeeId, String type) {
-        return ticketRepository.findByEmployeeIdAndType(employeeId, type);
+        return ticketRepository.findByEmployee_IdAndType(employeeId, type);
     }
 
     @Override
