@@ -562,7 +562,7 @@
     </div>
 </div>
 
-<!-- Scripts - Load in correct order -->
+<!-- Scripts - FIXED ORDER AND PROPER LOADING -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script th:src="@{/js/library/popper.min.js}"></script>
 <script th:src="@{/js/library/bootstrap.min.js}"></script>
@@ -581,8 +581,9 @@
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap4.min.js"></script>
 
-<!-- Custom script for this page -->
-<script>
+<!-- FIXED: Custom script with proper Thymeleaf CDATA escaping -->
+<script th:inline="javascript">
+/*<![CDATA[*/
 $(document).ready(function() {
     console.log("Initializing all-properties page...");
     
@@ -741,6 +742,7 @@ $(document).ready(function() {
         console.error("Error during initialization:", error);
     }
 });
+/*]]>*/
 </script>
 
 </body>
