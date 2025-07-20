@@ -17,9 +17,11 @@ import site.easy.to.build.crm.entity.FinancialTransaction;
 import site.easy.to.build.crm.entity.Payment;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.entity.Ticket;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.user.UserService;
+import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
@@ -42,26 +44,23 @@ public class PropertyController {
     private final PropertyService propertyService;
     private final TenantService tenantService;
     private final UserService userService;
+    private final TicketService ticketService;
     private final AuthenticationUtils authenticationUtils;
     private FinancialTransactionRepository financialTransactionRepository;
     private PaymentRepository paymentRepository;
-    // TODO: Add TicketService after it's implemented
-    // private final TicketService ticketService;
-
-    // TODO: Add PayPropSyncService after it's implemented
-    // private final PayPropSyncService payPropSyncService;
 
     @Autowired
     public PropertyController(PropertyService propertyService, TenantService tenantService,
                             UserService userService, AuthenticationUtils authenticationUtils,
                             FinancialTransactionRepository financialTransactionRepository,
-                            PaymentRepository paymentRepository) {
+                            PaymentRepository paymentRepository, TicketService ticketService) {
         this.propertyService = propertyService;
         this.tenantService = tenantService;
         this.userService = userService;
         this.authenticationUtils = authenticationUtils;
         this.financialTransactionRepository = financialTransactionRepository;
         this.paymentRepository = paymentRepository;
+        this.ticketService = ticketService;
     }
 
     // 🔄 UNIFIED - Single endpoint for all properties with role-based filtering
@@ -91,30 +90,138 @@ public class PropertyController {
                 properties = propertyService.getRecentProperties((long) userId, 100);
             }
             
+            // Populate maintenance counts for each property
+            if (properties != null) {
+                for (Property property : properties) {
+                    try {
+                        // Get tickets by property ID
+                        List<Ticket> emergencyTickets = ticketService.getTicketsByPropertyIdAndType(property.getId(), "emergency");
+                        List<Ticket> urgentTickets = ticketService.getTicketsByPropertyIdAndType(property.getId(), "urgent");
+                        List<Ticket> routineTickets = ticketService.getTicketsByPropertyIdAndType(property.getId(), "routine");
+                        List<Ticket> maintenanceTickets = ticketService.getTicketsByPropertyIdAndType(property.getId(), "maintenance");
+                        
+                        // Set the counts on the property object
+                        property.setEmergencyMaintenanceCount(emergencyTickets.size());
+                        property.setUrgentMaintenanceCount(urgentTickets.size());
+                        property.setRoutineMaintenanceCount(routineTickets.size() + maintenanceTickets.size());
+                    } catch (Exception e) {
+                        // If maintenance count lookup fails, set safe defaults
+                        System.err.println("Error loading maintenance counts for property " + property.getId() + ": " + e.getMessage());
+                        property.setEmergencyMaintenanceCount(0);
+                        property.setUrgentMaintenanceCount(0);
+                        property.setRoutineMaintenanceCount(0);
+                    }
+                }
+            }
+            
             // Add comprehensive portfolio statistics
             addComprehensivePortfolioStatistics(model, properties);
             
             // Add global maintenance statistics
-            // TODO: Uncomment when TicketService is implemented
-            // model.addAttribute("emergencyMaintenanceCount", ticketService.getEmergencyTicketCount());
-            // model.addAttribute("urgentMaintenanceCount", ticketService.getUrgentTicketCount());
-            // model.addAttribute("routineMaintenanceCount", ticketService.getRoutineTicketCount());
-            // model.addAttribute("totalMaintenanceCount", ticketService.getTotalActiveMaintenanceCount());
-            
-            // Temporary mock values until TicketService is implemented
-            model.addAttribute("emergencyMaintenanceCount", 0);
-            model.addAttribute("urgentMaintenanceCount", 0);
-            model.addAttribute("routineMaintenanceCount", 0);
-            model.addAttribute("totalMaintenanceCount", 0);
+            try {
+                List<Ticket> allEmergencyTickets = ticketService.findByType("emergency");
+                List<Ticket> allUrgentTickets = ticketService.findByType("urgent");
+                List<Ticket> allRoutineTickets = ticketService.findByType("routine");
+                List<Ticket> allMaintenanceTickets = ticketService.findByType("maintenance");
+                
+                model.addAttribute("emergencyMaintenanceCount", allEmergencyTickets.size());
+                model.addAttribute("urgentMaintenanceCount", allUrgentTickets.size());
+                model.addAttribute("routineMaintenanceCount", allRoutineTickets.size() + allMaintenanceTickets.size());
+                model.addAttribute("totalMaintenanceCount", 
+                    allEmergencyTickets.size() + allUrgentTickets.size() + allRoutineTickets.size() + allMaintenanceTickets.size());
+            } catch (Exception e) {
+                System.err.println("Error loading global maintenance statistics: " + e.getMessage());
+                model.addAttribute("emergencyMaintenanceCount", 0);
+                model.addAttribute("urgentMaintenanceCount", 0);
+                model.addAttribute("routineMaintenanceCount", 0);
+                model.addAttribute("totalMaintenanceCount", 0);
+            }
             
         } catch (Exception e) {
+            System.err.println("Error in getAllProperties: " + e.getMessage());
+            e.printStackTrace();
             setDefaultModelAttributes(model);
-            return "error/500";
+            properties = new ArrayList<>();
         }
         
         model.addAttribute("properties", properties);
         model.addAttribute("pageTitle", "All Properties");
         return "property/all-properties";
+    }
+
+    // Add missing AJAX endpoints for maintenance statistics
+    @GetMapping("/maintenance-summary")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getMaintenanceSummary(Authentication authentication) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            if (userId == -1) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            
+            try {
+                // Get actual maintenance statistics using TicketService
+                List<Ticket> emergencyTickets = ticketService.findByType("emergency");
+                List<Ticket> urgentTickets = ticketService.findByType("urgent");
+                List<Ticket> routineTickets = ticketService.findByType("routine");
+                List<Ticket> maintenanceTickets = ticketService.findByType("maintenance");
+                
+                int totalActiveIssues = emergencyTickets.size() + urgentTickets.size() + 
+                                      routineTickets.size() + maintenanceTickets.size();
+                
+                response.put("totalActiveIssues", totalActiveIssues);
+                response.put("emergencyCount", emergencyTickets.size());
+                response.put("urgentCount", urgentTickets.size());
+                response.put("routineCount", routineTickets.size() + maintenanceTickets.size());
+                
+            } catch (Exception e) {
+                System.err.println("Error loading maintenance summary: " + e.getMessage());
+                // Return safe defaults if TicketService fails
+                response.put("totalActiveIssues", 0);
+                response.put("emergencyCount", 0);
+                response.put("urgentCount", 0);
+                response.put("routineCount", 0);
+            }
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // Also add this endpoint for the API calls from the left sidebar maintenance stats loading
+    @GetMapping("/api/maintenance-stats")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getMaintenanceStats(Authentication authentication) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            if (userId == -1) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            
+            try {
+                List<Ticket> emergencyTickets = ticketService.findByType("emergency");
+                List<Ticket> urgentTickets = ticketService.findByType("urgent");
+                List<Ticket> routineTickets = ticketService.findByType("routine");
+                
+                response.put("emergencyTickets", emergencyTickets.size());
+                response.put("urgentTickets", urgentTickets.size());
+                response.put("routineTickets", routineTickets.size());
+                
+            } catch (Exception e) {
+                response.put("emergencyTickets", 0);
+                response.put("urgentTickets", 0);
+                response.put("routineTickets", 0);
+            }
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     // 🔄 Updated - PayProp compatible vacancy logic with role filtering
@@ -412,21 +519,28 @@ public class PropertyController {
         model.addAttribute("tenantCount", tenantCount);
 
         // Add maintenance statistics and recent tickets
-        // TODO: Uncomment when TicketService is implemented
-        // model.addAttribute("emergencyMaintenanceCount", ticketService.getEmergencyTicketCountByProperty(id));
-        // model.addAttribute("urgentMaintenanceCount", ticketService.getUrgentTicketCountByProperty(id));
-        // model.addAttribute("routineMaintenanceCount", ticketService.getRoutineTicketCountByProperty(id));
-        // model.addAttribute("activeMaintenanceCount", ticketService.getActiveTicketCountByProperty(id));
-        // model.addAttribute("completedMaintenanceCount", ticketService.getCompletedTicketCountByProperty(id));
-        // model.addAttribute("maintenanceTickets", ticketService.getRecentMaintenanceTicketsByProperty(id, 5));
-        
-        // Temporary mock values until TicketService is implemented
-        model.addAttribute("emergencyMaintenanceCount", 0);
-        model.addAttribute("urgentMaintenanceCount", 0);
-        model.addAttribute("routineMaintenanceCount", 0);
-        model.addAttribute("activeMaintenanceCount", 0);
-        model.addAttribute("completedMaintenanceCount", 0);
-        model.addAttribute("maintenanceTickets", new ArrayList<>());
+        try {
+            List<Ticket> emergencyTickets = ticketService.getTicketsByPropertyIdAndType(id, "emergency");
+            List<Ticket> urgentTickets = ticketService.getTicketsByPropertyIdAndType(id, "urgent");
+            List<Ticket> routineTickets = ticketService.getTicketsByPropertyIdAndType(id, "routine");
+            List<Ticket> maintenanceTickets = ticketService.getTicketsByPropertyIdAndType(id, "maintenance");
+            List<Ticket> allPropertyTickets = ticketService.getTicketsByPropertyId(id);
+            
+            model.addAttribute("emergencyMaintenanceCount", emergencyTickets.size());
+            model.addAttribute("urgentMaintenanceCount", urgentTickets.size());
+            model.addAttribute("routineMaintenanceCount", routineTickets.size() + maintenanceTickets.size());
+            model.addAttribute("activeMaintenanceCount", emergencyTickets.size() + urgentTickets.size() + routineTickets.size() + maintenanceTickets.size());
+            model.addAttribute("completedMaintenanceCount", 0); // TODO: Add completed status filter
+            model.addAttribute("maintenanceTickets", allPropertyTickets.stream().limit(5).collect(Collectors.toList()));
+        } catch (Exception e) {
+            System.err.println("Error loading maintenance data for property " + id + ": " + e.getMessage());
+            model.addAttribute("emergencyMaintenanceCount", 0);
+            model.addAttribute("urgentMaintenanceCount", 0);
+            model.addAttribute("routineMaintenanceCount", 0);
+            model.addAttribute("activeMaintenanceCount", 0);
+            model.addAttribute("completedMaintenanceCount", 0);
+            model.addAttribute("maintenanceTickets", new ArrayList<>());
+        }
 
         model.addAttribute("property", property);
         return "property/property-details";
@@ -443,8 +557,6 @@ public class PropertyController {
         model.addAttribute("property", new Property());
         return "property/create-property";
     }
-
-    // Add these methods to your PropertyController class
 
     @PostMapping("/create-property")
     public String createProperty(@ModelAttribute("property") @Validated Property property, 
@@ -511,19 +623,25 @@ public class PropertyController {
 
             Map<String, Object> response = new HashMap<>();
             
-            // TODO: Uncomment when TicketService is implemented
-            // response.put("emergencyMaintenanceCount", ticketService.getEmergencyTicketCountByProperty(id));
-            // response.put("urgentMaintenanceCount", ticketService.getUrgentTicketCountByProperty(id));
-            // response.put("routineMaintenanceCount", ticketService.getRoutineTicketCountByProperty(id));
-            // response.put("activeMaintenanceCount", ticketService.getActiveTicketCountByProperty(id));
-            // response.put("completedMaintenanceCount", ticketService.getCompletedTicketCountByProperty(id));
-            
-            // Temporary mock values until TicketService is implemented
-            response.put("emergencyMaintenanceCount", 0);
-            response.put("urgentMaintenanceCount", 0);
-            response.put("routineMaintenanceCount", 0);
-            response.put("activeMaintenanceCount", 0);
-            response.put("completedMaintenanceCount", 0);
+            try {
+                List<Ticket> emergencyTickets = ticketService.getTicketsByPropertyIdAndType(id, "emergency");
+                List<Ticket> urgentTickets = ticketService.getTicketsByPropertyIdAndType(id, "urgent");
+                List<Ticket> routineTickets = ticketService.getTicketsByPropertyIdAndType(id, "routine");
+                List<Ticket> maintenanceTickets = ticketService.getTicketsByPropertyIdAndType(id, "maintenance");
+                
+                response.put("emergencyMaintenanceCount", emergencyTickets.size());
+                response.put("urgentMaintenanceCount", urgentTickets.size());
+                response.put("routineMaintenanceCount", routineTickets.size() + maintenanceTickets.size());
+                response.put("activeMaintenanceCount", emergencyTickets.size() + urgentTickets.size() + routineTickets.size() + maintenanceTickets.size());
+                response.put("completedMaintenanceCount", 0);
+            } catch (Exception e) {
+                System.err.println("Error loading maintenance summary for property " + id + ": " + e.getMessage());
+                response.put("emergencyMaintenanceCount", 0);
+                response.put("urgentMaintenanceCount", 0);
+                response.put("routineMaintenanceCount", 0);
+                response.put("activeMaintenanceCount", 0);
+                response.put("completedMaintenanceCount", 0);
+            }
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {

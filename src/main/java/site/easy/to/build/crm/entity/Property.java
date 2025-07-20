@@ -205,6 +205,45 @@ public class Property {
         this.countryCode = "UK";
     }
 
+    // Add these @Transient fields (not stored in database)
+    @Transient
+    private Integer emergencyMaintenanceCount;
+
+    @Transient 
+    private Integer urgentMaintenanceCount;
+
+    @Transient
+    private Integer routineMaintenanceCount;
+
+    // Add these getter/setter methods
+    public Integer getEmergencyMaintenanceCount() {
+        return emergencyMaintenanceCount != null ? emergencyMaintenanceCount : 0;
+    }
+
+    public void setEmergencyMaintenanceCount(Integer emergencyMaintenanceCount) {
+        this.emergencyMaintenanceCount = emergencyMaintenanceCount;
+    }
+
+    public Integer getUrgentMaintenanceCount() {
+        return urgentMaintenanceCount != null ? urgentMaintenanceCount : 0;
+    }
+
+    public void setUrgentMaintenanceCount(Integer urgentMaintenanceCount) {
+        this.urgentMaintenanceCount = urgentMaintenanceCount;
+    }
+
+    public Integer getRoutineMaintenanceCount() {
+        return routineMaintenanceCount != null ? routineMaintenanceCount : 0;
+    }
+
+    public void setRoutineMaintenanceCount(Integer routineMaintenanceCount) {
+        this.routineMaintenanceCount = routineMaintenanceCount;
+    }
+
+    public Integer getTotalMaintenanceCount() {
+        return getEmergencyMaintenanceCount() + getUrgentMaintenanceCount() + getRoutineMaintenanceCount();
+    }
+
     // Add this setter to handle PayProp data with blank names
     public void setPropertyName(String propertyName) {
         if (propertyName == null || propertyName.trim().isEmpty()) {
