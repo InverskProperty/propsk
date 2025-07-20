@@ -14,13 +14,13 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
 
     public List<Ticket> findByManagerId(int id);
 
-    public List<Ticket> findByEmployeeId(int id);
+    public List<Ticket> findByEmployee_Id(int id);
 
     List<Ticket> findByCustomerCustomerId(Integer customerId);
 
     List<Ticket> findByManagerIdOrderByCreatedAtDesc(int managerId, Pageable pageable);
 
-    List<Ticket> findByEmployeeIdOrderByCreatedAtDesc(int managerId, Pageable pageable);
+    List<Ticket> findByEmployee_IdOrderByCreatedAtDesc(int managerId, Pageable pageable);
 
     List<Ticket> findByCustomerCustomerIdOrderByCreatedAtDesc(int customerId, Pageable pageable);
 
@@ -34,7 +34,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
     
     long countByStatus(String status);
 
-    long countByEmployeeId(int employeeId);
+    long countByEmployee_Id(int employeeId);
 
     long countByManagerId(int managerId);
 
@@ -43,7 +43,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
     void deleteAllByCustomer(Customer customer);
 
     // Employee and type filtering
-    List<Ticket> findByEmployeeIdAndType(int employeeId, String type);
+    List<Ticket> findByEmployee_IdAndType(int employeeId, String type);
 
     // Customer and type filtering
     List<Ticket> findByCustomerCustomerIdAndType(int customerId, String type);
