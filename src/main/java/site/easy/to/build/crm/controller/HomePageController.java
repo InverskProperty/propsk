@@ -28,6 +28,7 @@ import java.security.GeneralSecurityException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Controller
 public class HomePageController {
@@ -222,6 +223,7 @@ public class HomePageController {
             // Additional attributes for dashboard compatibility
             model.addAttribute("occupiedProperties", occupied);
             model.addAttribute("vacantProperties", vacant);
+            model.addAttribute("recentProperties", userProperties.stream().limit(5).collect(Collectors.toList()));
             
             // Debug logging
             System.out.println("=== HOME PAGE PROPERTY STATS ===");
