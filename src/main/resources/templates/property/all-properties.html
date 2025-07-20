@@ -573,13 +573,12 @@
 <script th:src="@{/js/library/jquery.dataTables.min.js}"></script>
 <script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
 
-<script th:inline="none">
-let dataTable;
-
+<script>
 $(document).ready(function() {
+    let dataTable;
+    
     initializeDataTable();
     loadMaintenanceData();
-});
 
 function initializeDataTable() {
     dataTable = $('#propertiesTable').DataTable({
@@ -750,10 +749,11 @@ function printTable() {
     dataTable.button('.buttons-print').trigger();
 }
 
-// Auto-refresh maintenance data every 2 minutes
-setInterval(function() {
-    loadMaintenanceData();
-}, 120000);
+    // Auto-refresh maintenance data every 2 minutes
+    setInterval(function() {
+        loadMaintenanceData();
+    }, 120000);
+});
 </script>
 
 </body>
