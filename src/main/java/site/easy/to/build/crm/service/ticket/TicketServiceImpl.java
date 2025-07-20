@@ -125,12 +125,12 @@ public class TicketServiceImpl implements TicketService{
     }
 
     @Override
-    public List<Ticket> getTicketsByPropertyId(Long propertyId) {
-        return ticketRepository.findByPropertyId(propertyId);
+    public List<Ticket> getTicketsByPayPropPropertyId(String payPropPropertyId) {
+        return ticketRepository.findByPayPropPropertyId(payPropPropertyId);
     }
 
     @Override
-    public List<Ticket> getTicketsByPropertyIdAndType(Long propertyId, String type) {
-        return ticketRepository.findByPropertyIdAndType(propertyId, type);
+    public List<Ticket> getTicketsByPayPropPropertyIdAndType(String payPropPropertyId, String type) {
+        return ticketRepository.findByPayPropPropertyIdAndType(payPropPropertyId, type);
     }
 }
