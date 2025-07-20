@@ -41,4 +41,15 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
     long countByCustomerCustomerId(int customerId);
 
     void deleteAllByCustomer(Customer customer);
+
+    // Employee and type filtering
+    List<Ticket> findByEmployeeIdAndType(int employeeId, String type);
+
+    // Customer and type filtering
+    List<Ticket> findByCustomerCustomerIdAndType(int customerId, String type);
+
+    // Property-based queries (for maintenance tickets linked to properties)
+    List<Ticket> findByPropertyId(Long propertyId);
+    
+    List<Ticket> findByPropertyIdAndType(Long propertyId, String type);
 }

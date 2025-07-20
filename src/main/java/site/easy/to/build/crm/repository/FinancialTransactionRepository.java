@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import site.easy.to.build.crm.entity.FinancialTransaction;
+import site.easy.to.build.crm.entity.Payment;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -294,7 +295,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     /**
      * Find transactions by property with pagination
      */
-    List<FinancialTransaction> findByPropertyIdOrderByTransactionDateDesc(String propertyId, Pageable pageable);
+    List<Payment> findByPropertyIdOrderByPaymentDateDesc(Long propertyId, Pageable pageable);
     
     /**
      * Find transactions by tenant with pagination

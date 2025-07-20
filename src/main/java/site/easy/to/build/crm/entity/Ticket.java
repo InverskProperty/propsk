@@ -596,6 +596,14 @@ public class Ticket {
         return "Sync Needed";
     }
 
+    /**
+     * Get the employee ID for this ticket
+     * @return employee ID or null if no employee assigned
+     */
+    public Integer getEmployeeId() {
+        return employee != null ? employee.getId() : null;
+    }
+
     @Override
     public String toString() {
         return "Ticket{" +

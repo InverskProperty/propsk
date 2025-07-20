@@ -108,4 +108,29 @@ public class TicketServiceImpl implements TicketService{
     public void deleteAllByCustomer(Customer customer) {
         ticketRepository.deleteAllByCustomer(customer);
     }
+
+    @Override
+    public List<Ticket> getTicketsByEmployeeId(int employeeId) {
+        return ticketRepository.findByEmployeeId(employeeId);
+    }
+
+    @Override
+    public List<Ticket> getTicketsByEmployeeIdAndType(int employeeId, String type) {
+        return ticketRepository.findByEmployeeIdAndType(employeeId, type);
+    }
+
+    @Override
+    public List<Ticket> getTicketsByCustomerIdAndType(int customerId, String type) {
+        return ticketRepository.findByCustomerCustomerIdAndType(customerId, type);
+    }
+
+    @Override
+    public List<Ticket> getTicketsByPropertyId(Long propertyId) {
+        return ticketRepository.findByPropertyId(propertyId);
+    }
+
+    @Override
+    public List<Ticket> getTicketsByPropertyIdAndType(Long propertyId, String type) {
+        return ticketRepository.findByPropertyIdAndType(propertyId, type);
+    }
 }
