@@ -559,7 +559,7 @@
     </div>
 </div>
 
-<!-- Scripts -->
+<!-- Scripts - FIXED LOADING ORDER -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script th:src="@{/js/library/popper.min.js}"></script>
 <script th:src="@{/js/library/bootstrap.min.js}"></script>
@@ -569,191 +569,224 @@
 <script th:src="@{/js/library/sticky-kit.min.js}"></script>
 <script th:src="@{/js/library/custom.min.js}"></script>
 
-<!-- DataTables -->
+<!-- DataTables - Load AFTER jQuery -->
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap4.min.js"></script>
 
+<!-- Your custom script - Load LAST -->
 <script>
+// Wait for DOM to be ready
 $(document).ready(function() {
+    console.log("jQuery loaded:", typeof $ !== 'undefined');
+    console.log("Starting page initialization...");
+    
     let dataTable;
     
     function initializeDataTable() {
-    dataTable = $('#propertiesTable').DataTable({
-        "pageLength": 25,
-        "order": [[ 0, "asc" ]],
-        "columnDefs": [
-            { "orderable": false, "targets": 8 }, // Actions column
-            { "width": "15%", "targets": 0 }, // Property name
-            { "width": "20%", "targets": 1 }, // Address
-            { "width": "10%", "targets": 6 }, // Maintenance
-            { "width": "15%", "targets": 8 }  // Actions
-        ],
-        "responsive": true,
-        "dom": 'Bfrtip',
-        "buttons": [
-            {
-                extend: 'csv',
-                text: '<i class="fas fa-download"></i> Export CSV',
-                className: 'btn btn-sm btn-primary'
-            },
-            {
-                extend: 'print',
-                text: '<i class="fas fa-print"></i> Print',
-                className: 'btn btn-sm btn-secondary'
-            }
-        ],
-        "rowCallback": function(row, data, index) {
-            // Add hover effects and emergency highlighting
-            const $row = $(row);
-            const emergencyCount = $row.data('emergency-count') || 0;
-            const urgentCount = $row.data('urgent-count') || 0;
-            
-            if (emergencyCount > 0) {
-                $row.addClass('maintenance-alert-row');
-            } else if (urgentCount > 0) {
-                $row.addClass('maintenance-urgent-row');
-            }
-        }
-    });
-}
-
-function applyFilters() {
-    const statusFilter = $('#statusFilter').val();
-    const occupancyFilter = $('#occupancyFilter').val();
-    const maintenanceFilter = $('#maintenanceFilter').val();
-    const syncFilter = $('#syncFilter').val();
-    
-    dataTable.rows().every(function() {
-        const $row = $(this.node());
-        let show = true;
-        
-        // Status filter
-        if (statusFilter) {
-            const isActive = $row.find('.badge-success:contains("Active")').length > 0;
-            if (statusFilter === 'active' && !isActive) show = false;
-            if (statusFilter === 'archived' && isActive) show = false;
-        }
-        
-        // Occupancy filter
-        if (occupancyFilter) {
-            const isOccupied = $row.data('occupied');
-            if (occupancyFilter === 'occupied' && !isOccupied) show = false;
-            if (occupancyFilter === 'vacant' && isOccupied) show = false;
-        }
-        
-        // Maintenance filter
-        if (maintenanceFilter) {
-            const emergencyCount = $row.data('emergency-count') || 0;
-            const urgentCount = $row.data('urgent-count') || 0;
-            const routineCount = $row.data('routine-count') || 0;
-            const totalIssues = emergencyCount + urgentCount + routineCount;
-            
-            switch(maintenanceFilter) {
-                case 'emergency':
-                    if (emergencyCount === 0) show = false;
-                    break;
-                case 'urgent':
-                    if (urgentCount === 0) show = false;
-                    break;
-                case 'routine':
-                    if (routineCount === 0) show = false;
-                    break;
-                case 'no-issues':
-                    if (totalIssues > 0) show = false;
-                    break;
-            }
-        }
-        
-        // Sync filter
-        if (syncFilter) {
-            const isSynced = $row.data('synced');
-            if (syncFilter === 'synced' && !isSynced) show = false;
-            if (syncFilter === 'pending' && isSynced) show = false;
-        }
-        
-        // Show/hide row
-        if (show) {
-            $row.show();
-        } else {
-            $row.hide();
-        }
-    });
-    
-    dataTable.draw();
-}
-
-function clearFilters() {
-    $('#statusFilter').val('');
-    $('#occupancyFilter').val('');
-    $('#maintenanceFilter').val('');
-    $('#syncFilter').val('');
-    
-    // Show all rows
-    dataTable.rows().every(function() {
-        $(this.node()).show();
-    });
-    
-    dataTable.draw();
-}
-
-function loadMaintenanceData() {
-    // AJAX call to refresh maintenance statistics
-    $.ajax({
-        url: '/employee/property/maintenance-summary',
-        method: 'GET',
-        success: function(data) {
-            updateMaintenanceStats(data);
-        },
-        error: function(xhr, status, error) {
-            console.error('Error loading maintenance data:', error);
-        }
-    });
-}
-
-function updateMaintenanceStats(data) {
-    if (data) {
-        // Update the maintenance overview card
-        $('.maintenance-overview h3').text(data.totalActiveIssues || 0);
-        $('.maintenance-overview .col-4:nth-child(1) small:first-child').text(data.emergencyCount || 0);
-        $('.maintenance-overview .col-4:nth-child(2) small:first-child').text(data.urgentCount || 0);
-        $('.maintenance-overview .col-4:nth-child(3) small:first-child').text(data.routineCount || 0);
-        
-        // Update maintenance badge if there are emergency issues
-        const emergencyCount = data.emergencyCount || 0;
-        if (emergencyCount > 0) {
-            if ($('.maintenance-badge').length === 0) {
-                $('.maintenance-icon').append(`<span class="maintenance-badge">${emergencyCount}</span>`);
-            } else {
-                $('.maintenance-badge').text(emergencyCount);
-            }
-        } else {
-            $('.maintenance-badge').remove();
+        try {
+            dataTable = $('#propertiesTable').DataTable({
+                "pageLength": 25,
+                "order": [[ 0, "asc" ]],
+                "columnDefs": [
+                    { "orderable": false, "targets": 8 }, // Actions column
+                    { "width": "15%", "targets": 0 }, // Property name
+                    { "width": "20%", "targets": 1 }, // Address
+                    { "width": "10%", "targets": 6 }, // Maintenance
+                    { "width": "15%", "targets": 8 }  // Actions
+                ],
+                "responsive": true,
+                "dom": 'Bfrtip',
+                "buttons": [
+                    {
+                        extend: 'csv',
+                        text: '<i class="fas fa-download"></i> Export CSV',
+                        className: 'btn btn-sm btn-primary'
+                    },
+                    {
+                        extend: 'print',
+                        text: '<i class="fas fa-print"></i> Print',
+                        className: 'btn btn-sm btn-secondary'
+                    }
+                ],
+                "rowCallback": function(row, data, index) {
+                    // Add hover effects and emergency highlighting
+                    const $row = $(row);
+                    const emergencyCount = $row.data('emergency-count') || 0;
+                    const urgentCount = $row.data('urgent-count') || 0;
+                    
+                    if (emergencyCount > 0) {
+                        $row.addClass('maintenance-alert-row');
+                    } else if (urgentCount > 0) {
+                        $row.addClass('maintenance-urgent-row');
+                    }
+                }
+            });
+            console.log("DataTable initialized successfully");
+        } catch (error) {
+            console.error("Error initializing DataTable:", error);
         }
     }
-}
 
-function refreshMaintenanceData() {
-    loadMaintenanceData();
-    // Optionally reload the page to get fresh property data
-    // location.reload();
-}
+    function applyFilters() {
+        const statusFilter = $('#statusFilter').val();
+        const occupancyFilter = $('#occupancyFilter').val();
+        const maintenanceFilter = $('#maintenanceFilter').val();
+        const syncFilter = $('#syncFilter').val();
+        
+        if (!dataTable) {
+            console.warn("DataTable not initialized");
+            return;
+        }
+        
+        dataTable.rows().every(function() {
+            const $row = $(this.node());
+            let show = true;
+            
+            // Status filter
+            if (statusFilter) {
+                const isActive = $row.find('.badge-success:contains("Active")').length > 0;
+                if (statusFilter === 'active' && !isActive) show = false;
+                if (statusFilter === 'archived' && isActive) show = false;
+            }
+            
+            // Occupancy filter
+            if (occupancyFilter) {
+                const isOccupied = $row.data('occupied');
+                if (occupancyFilter === 'occupied' && !isOccupied) show = false;
+                if (occupancyFilter === 'vacant' && isOccupied) show = false;
+            }
+            
+            // Maintenance filter
+            if (maintenanceFilter) {
+                const emergencyCount = $row.data('emergency-count') || 0;
+                const urgentCount = $row.data('urgent-count') || 0;
+                const routineCount = $row.data('routine-count') || 0;
+                const totalIssues = emergencyCount + urgentCount + routineCount;
+                
+                switch(maintenanceFilter) {
+                    case 'emergency':
+                        if (emergencyCount === 0) show = false;
+                        break;
+                    case 'urgent':
+                        if (urgentCount === 0) show = false;
+                        break;
+                    case 'routine':
+                        if (routineCount === 0) show = false;
+                        break;
+                    case 'no-issues':
+                        if (totalIssues > 0) show = false;
+                        break;
+                }
+            }
+            
+            // Sync filter
+            if (syncFilter) {
+                const isSynced = $row.data('synced');
+                if (syncFilter === 'synced' && !isSynced) show = false;
+                if (syncFilter === 'pending' && isSynced) show = false;
+            }
+            
+            // Show/hide row
+            if (show) {
+                $row.show();
+            } else {
+                $row.hide();
+            }
+        });
+        
+        dataTable.draw();
+    }
 
-function exportToCSV() {
-    dataTable.button('.buttons-csv').trigger();
-}
+    function clearFilters() {
+        $('#statusFilter').val('');
+        $('#occupancyFilter').val('');
+        $('#maintenanceFilter').val('');
+        $('#syncFilter').val('');
+        
+        // Show all rows
+        if (dataTable) {
+            dataTable.rows().every(function() {
+                $(this.node()).show();
+            });
+            dataTable.draw();
+        }
+    }
 
-function printTable() {
-    dataTable.button('.buttons-print').trigger();
-}
+    function loadMaintenanceData() {
+        // AJAX call to refresh maintenance statistics
+        $.ajax({
+            url: '/employee/property/maintenance-summary',
+            method: 'GET',
+            success: function(data) {
+                console.log("Maintenance data loaded:", data);
+                updateMaintenanceStats(data);
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading maintenance data:', error);
+                // Don't show user errors for optional features
+            }
+        });
+    }
+
+    function updateMaintenanceStats(data) {
+        if (data) {
+            // Update the maintenance overview card
+            $('.maintenance-overview h3').text(data.totalActiveIssues || 0);
+            $('.maintenance-overview .col-4:nth-child(1) small:first-child').text(data.emergencyCount || 0);
+            $('.maintenance-overview .col-4:nth-child(2) small:first-child').text(data.urgentCount || 0);
+            $('.maintenance-overview .col-4:nth-child(3) small:first-child').text(data.routineCount || 0);
+            
+            // Update maintenance badge if there are emergency issues
+            const emergencyCount = data.emergencyCount || 0;
+            if (emergencyCount > 0) {
+                if ($('.maintenance-badge').length === 0) {
+                    $('.maintenance-icon').append(`<span class="maintenance-badge">${emergencyCount}</span>`);
+                } else {
+                    $('.maintenance-badge').text(emergencyCount);
+                }
+            } else {
+                $('.maintenance-badge').remove();
+            }
+        }
+    }
+
+    function refreshMaintenanceData() {
+        loadMaintenanceData();
+    }
+
+    function exportToCSV() {
+        if (dataTable) {
+            dataTable.button('.buttons-csv').trigger();
+        }
+    }
+
+    function printTable() {
+        if (dataTable) {
+            dataTable.button('.buttons-print').trigger();
+        }
+    }
+
+    // Make functions global so they can be called from HTML
+    window.applyFilters = applyFilters;
+    window.clearFilters = clearFilters;
+    window.refreshMaintenanceData = refreshMaintenanceData;
+    window.exportToCSV = exportToCSV;
+    window.printTable = printTable;
 
     // Initialize everything
-    initializeDataTable();
-    loadMaintenanceData();
-    
-    // Auto-refresh maintenance data every 2 minutes
-    setInterval(function() {
+    try {
+        initializeDataTable();
         loadMaintenanceData();
-    }, 120000);
+        
+        // Auto-refresh maintenance data every 2 minutes
+        setInterval(function() {
+            loadMaintenanceData();
+        }, 120000);
+        
+        console.log("Page initialization completed successfully");
+    } catch (error) {
+        console.error("Error during page initialization:", error);
+    }
 });
 </script>
 
