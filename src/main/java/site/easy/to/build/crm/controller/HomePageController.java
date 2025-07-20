@@ -25,10 +25,12 @@ import site.easy.to.build.crm.util.AuthorizationUtil;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.security.GeneralSecurityException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
 
 @Controller
 public class HomePageController {
@@ -152,6 +154,7 @@ public class HomePageController {
             model.addAttribute("hasCalendarAccess", hasCalendarAccess);
             model.addAttribute("isGoogleUser", isGoogleUser);
 
+
             // ✅ NEW: Add maintenance statistics for employees/managers
             try {
                 Map<String, Object> maintenanceStats = calculateMaintenanceStats(userId, false);
@@ -246,6 +249,7 @@ public class HomePageController {
             model.addAttribute("totalRentPotential", BigDecimal.ZERO);
             model.addAttribute("occupiedProperties", 0);
             model.addAttribute("vacantProperties", 0);
+            model.addAttribute("recentProperties", new ArrayList<>());  // <-- ADD THIS LINE
         }
 
         model.addAttribute("tickets", tickets);
