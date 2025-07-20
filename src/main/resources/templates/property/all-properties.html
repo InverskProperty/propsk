@@ -577,10 +577,7 @@
 $(document).ready(function() {
     let dataTable;
     
-    initializeDataTable();
-    loadMaintenanceData();
-
-function initializeDataTable() {
+    function initializeDataTable() {
     dataTable = $('#propertiesTable').DataTable({
         "pageLength": 25,
         "order": [[ 0, "asc" ]],
@@ -749,6 +746,10 @@ function printTable() {
     dataTable.button('.buttons-print').trigger();
 }
 
+    // Initialize everything
+    initializeDataTable();
+    loadMaintenanceData();
+    
     // Auto-refresh maintenance data every 2 minutes
     setInterval(function() {
         loadMaintenanceData();
