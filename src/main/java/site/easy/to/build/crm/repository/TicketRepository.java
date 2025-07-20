@@ -49,7 +49,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
     List<Ticket> findByCustomerCustomerIdAndType(int customerId, String type);
 
     // Property-based queries (for maintenance tickets linked to properties)
-    List<Ticket> findByPropertyId(Long propertyId);
+    List<Ticket> findByPayPropPropertyId(String payPropPropertyId);
     
-    List<Ticket> findByPropertyIdAndType(Long propertyId, String type);
+    List<Ticket> findByPayPropPropertyIdAndType(String payPropPropertyId, String type);
 }
