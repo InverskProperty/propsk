@@ -10,6 +10,8 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import site.easy.to.build.crm.entity.FinancialTransaction;
 import site.easy.to.build.crm.entity.Payment;
@@ -555,9 +557,12 @@ public class PropertyController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
 
-            // Get financial transactions for this property
-            List<FinancialTransaction> transactions = financialTransactionRepository.findByPropertyIdOrderByTransactionDateDesc(id);
-            List<Payment> payments = paymentRepository.findByPropertyIdOrderByPaymentDateDesc(id);
+            // Create Pageable for limiting results (e.g., last 100 transactions)
+            Pageable pageable = PageRequest.of(0, 100);
+            
+            // Convert Long id to String for FinancialTransaction repository (expects String propertyId)
+            List<FinancialTransaction> transactions = financialTransactionRepository.findByPropertyIdOrderByTransactionDateDesc(id.toString(), pageable);
+            List<Payment> payments = paymentRepository.findByPropertyIdOrderByPaymentDateDesc(id, pageable);
             
             Map<String, Object> response = new HashMap<>();
             

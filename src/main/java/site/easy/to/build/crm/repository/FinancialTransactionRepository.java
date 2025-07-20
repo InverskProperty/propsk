@@ -293,10 +293,10 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     List<FinancialTransaction> findByOrderByTransactionDateDesc(Pageable pageable);
     
     /**
-     * Find transactions by property with pagination
+     * Find transactions by property with pagination - FIXED METHOD SIGNATURE
      */
-    List<Payment> findByPropertyIdOrderByPaymentDateDesc(Long propertyId, Pageable pageable);
-    
+    List<FinancialTransaction> findByPropertyIdOrderByTransactionDateDesc(String propertyId, Pageable pageable);
+
     /**
      * Find transactions by tenant with pagination
      */
