@@ -209,7 +209,7 @@ public class TicketController {
         model.addAttribute("tickets", maintenanceTickets);
         model.addAttribute("propertyId", propertyId);
         
-        return "property/maintenance-history";
+        return "employee/ticket/maintenance-history";
     }
 
     @GetMapping("/contractor-bids")
