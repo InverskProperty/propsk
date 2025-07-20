@@ -48,9 +48,11 @@ public interface TicketService {
     // Customer-based ticket retrieval
     List<Ticket> getTicketsByCustomerIdAndType(int customerId, String type);
 
-    // FIXED: Changed from Property ID to PayProp Property ID to match implementation
-    // Property-based ticket retrieval using PayProp integration
+    // CORE METHODS: Property-based ticket retrieval using PayProp integration
     List<Ticket> getTicketsByPayPropPropertyId(String payPropPropertyId);
-    
     List<Ticket> getTicketsByPayPropPropertyIdAndType(String payPropPropertyId, String type);
+    
+    // BRIDGE METHODS: For controller compatibility (Long propertyId -> String payPropPropertyId)
+    List<Ticket> getTicketsByPropertyId(Long propertyId);
+    List<Ticket> getTicketsByPropertyIdAndType(Long propertyId, String type);
 }

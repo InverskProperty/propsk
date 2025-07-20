@@ -4,8 +4,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.repository.TicketRepository;
 import site.easy.to.build.crm.entity.Ticket;
+import site.easy.to.build.crm.service.property.PropertyService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,9 +16,11 @@ import java.util.List;
 public class TicketServiceImpl implements TicketService{
 
     private final TicketRepository ticketRepository;
+    private final PropertyService propertyService;
 
-    public TicketServiceImpl(TicketRepository ticketRepository) {
+    public TicketServiceImpl(TicketRepository ticketRepository, PropertyService propertyService) {
         this.ticketRepository = ticketRepository;
+        this.propertyService = propertyService;
     }
 
     @Override
@@ -132,5 +136,44 @@ public class TicketServiceImpl implements TicketService{
     @Override
     public List<Ticket> getTicketsByPayPropPropertyIdAndType(String payPropPropertyId, String type) {
         return ticketRepository.findByPayPropPropertyIdAndType(payPropPropertyId, type);
+    }
+
+    // ===== BRIDGE METHODS FOR CONTROLLER COMPATIBILITY =====
+    @Override
+    public List<Ticket> getTicketsByPropertyId(Long propertyId) {
+        // Convert Long propertyId to String payPropPropertyId
+        String payPropPropertyId = getPayPropPropertyIdFromPropertyId(propertyId);
+        if (payPropPropertyId != null && !payPropPropertyId.trim().isEmpty()) {
+            return ticketRepository.findByPayPropPropertyId(payPropPropertyId);
+        }
+        return new ArrayList<>();
+    }
+
+    @Override
+    public List<Ticket> getTicketsByPropertyIdAndType(Long propertyId, String type) {
+        // Convert Long propertyId to String payPropPropertyId
+        String payPropPropertyId = getPayPropPropertyIdFromPropertyId(propertyId);
+        if (payPropPropertyId != null && !payPropPropertyId.trim().isEmpty()) {
+            return ticketRepository.findByPayPropPropertyIdAndType(payPropPropertyId, type);
+        }
+        return new ArrayList<>();
+    }
+
+    /**
+     * Helper method to convert Property database ID to PayProp Property ID
+     */
+    private String getPayPropPropertyIdFromPropertyId(Long propertyId) {
+        if (propertyId == null) {
+            return null;
+        }
+        try {
+            Property property = propertyService.findById(propertyId);
+            if (property != null) {
+                return property.getPayPropPropertyId();
+            }
+        } catch (Exception e) {
+            System.err.println("Error looking up property " + propertyId + ": " + e.getMessage());
+        }
+        return null;
     }
 }
