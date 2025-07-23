@@ -347,12 +347,13 @@
                                                     <p class="text-muted mt-2" th:text="${#strings.abbreviate(ticket.description, 200)}">Description...</p>
                                                 </div>
                                                 <div class="col-md-4">
+                                                    <!-- FIXED: Null safety for customer fields -->
                                                     <div class="text-right">
                                                         <small class="text-muted">Customer:</small><br>
-                                                        <strong th:text="${ticket.customer.name}">Customer Name</strong><br>
-                                                        <small th:text="${ticket.customer.email}">customer@email.com</small><br>
+                                                        <strong th:text="${ticket.customer?.name ?: 'No customer assigned'}">Customer Name</strong><br>
+                                                        <small th:text="${ticket.customer?.email ?: 'No email'}">customer@email.com</small><br>
                                                         <small class="text-muted">Created: <span th:text="${#temporals.format(ticket.createdAt, 'dd/MM/yyyy')}">Date</span></small>
-                                                    </div>
+                                                    </div>                                                    
                                                 </div>
                                             </div>
                                         </div>
