@@ -262,8 +262,8 @@
                                         <i class="fa fa-gavel text-primary"></i> Contractor Bids Management
                                     </h4>
                                     <h6 class="card-subtitle">
-                                        Review, compare, and manage contractor bids for maintenance tickets
-                                        <span th:if="${tickets and !#lists.isEmpty(tickets)}" class="ml-2">
+                                        <!-- FIXED: Proper null check and list emptiness check -->
+                                        <span th:if="${tickets != null and !#lists.isEmpty(tickets)}" class="ml-2">
                                             (<span th:text="${#lists.size(tickets)}">0</span> tickets with bids)
                                         </span>
                                     </h6>
