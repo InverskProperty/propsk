@@ -360,8 +360,8 @@
                                     </div>
 
                                     <!-- Bids for this Ticket -->
-                                    <div class="row mt-3" th:if="${ticket.bids and !#lists.isEmpty(ticket.bids)}">
-                                        <div th:each="bid : ${ticket.bids}" class="col-md-6 col-lg-4 mb-3">
+                                    <div class="row mt-3" th:if="${ticket.contractorBids != null and !#lists.isEmpty(ticket.contractorBids)}">
+                                        <div th:each="bid : ${ticket.contractorBids}" class="col-md-6 col-lg-4 mb-3">
                                             <div class="bid-card" th:classappend="${bid.status}">
                                                 <div class="card-body">
                                                     <!-- Contractor Info -->
@@ -454,7 +454,7 @@
                                     </div>
 
                                     <!-- No Bids for this Ticket -->
-                                    <div th:if="${#lists.isEmpty(ticket.bids)}" class="alert alert-info">
+                                    <div th:if="${ticket.contractorBids == null or #lists.isEmpty(ticket.contractorBids)}" class="alert alert-info">
                                         <i class="fa fa-info-circle"></i> No bids received for this ticket yet.
                                         <a th:href="@{'/employee/ticket/pending-bids?ticketId=' + ${ticket.ticketId}}" class="alert-link">
                                             Invite contractor bids →
