@@ -369,7 +369,9 @@
 <script th:src="@{/js/library/jquery.dataTables.min.js}"></script>
 <script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
 
-<script>
+<!-- FIXED: Custom script with proper CDATA escaping to prevent Thymeleaf parsing -->
+<script th:inline="none">
+/*<![CDATA[*/
 $(document).ready(function() {
     $('#config-table').DataTable({
         responsive: true,
@@ -389,6 +391,7 @@ function deleteTicket(ticketId, ticketSubject) {
     document.getElementById('deleteForm').action = '/employee/ticket/delete-ticket/' + ticketId;
     $('#deleteModal').modal('show');
 }
+/*]]>*/
 </script>
 </body>
 </html>
