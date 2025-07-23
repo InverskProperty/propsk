@@ -235,7 +235,7 @@
                         <ol class="breadcrumb">
                             <li class="breadcrumb-item"><a href="javascript:void(0)">Home</a></li>
                             <li class="breadcrumb-item">
-                                <a th:href="${propertyId ? '/employee/property/' + propertyId : '/employee/ticket/manager/all-tickets'}">
+                                <a th:href="${propertyId != null ? '/employee/property/' + propertyId : '/employee/ticket/manager/all-tickets'}">
                                     <span th:if="${propertyId}">Property</span>
                                     <span th:unless="${propertyId}">Tickets</span>
                                 </a>
