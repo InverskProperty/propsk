@@ -233,11 +233,11 @@ public class TicketController {
             }
             
             Set<String> propertyPayPropIds = new HashSet<>();
-            if (property.getPaypropId() != null) {
-                propertyPayPropIds.add(property.getPaypropId());
+            if (property.getPayPropId() != null) {
+                propertyPayPropIds.add(property.getPayPropId());
             }
-            if (property.getPaypropPropertyId() != null) {
-                propertyPayPropIds.add(property.getPaypropPropertyId());
+            if (property.getPayPropPropertyId() != null) {
+                propertyPayPropIds.add(property.getPayPropPropertyId());
             }
             if (property.getCustomerId() != null) {
                 propertyPayPropIds.add(property.getCustomerId());
