@@ -201,6 +201,12 @@ public class TicketController {
             System.out.println("=== DEBUG: Property Maintenance History ===");
             System.out.println("Property ID: " + propertyId);
             
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User loggedInUser = userService.findById(userId);
+            if(loggedInUser.isInactiveUser()) {
+                return "error/account-inactive";
+            }
+
             // Get all tickets first
             List<Ticket> allTickets = ticketService.findAll();
             System.out.println("Total tickets in system: " + allTickets.size());
@@ -215,31 +221,74 @@ public class TicketController {
             
             System.out.println("Maintenance/Emergency tickets: " + maintenanceTickets.size());
             
-            // Debug: Print details of first few tickets to understand the structure
-            maintenanceTickets.stream().limit(3).forEach(ticket -> {
-                System.out.println("Ticket #" + ticket.getTicketId() + ":");
-                System.out.println("  - Type: " + ticket.getType());
-                System.out.println("  - Subject: " + ticket.getSubject());
-                System.out.println("  - PayProp Property ID: " + ticket.getPayPropPropertyId());
-                if (ticket.getCustomer() != null) {
-                    System.out.println("  - Customer ID: " + ticket.getCustomer().getCustomerId());
-                    System.out.println("  - Customer Assigned Property ID: " + ticket.getCustomer().getAssignedPropertyId());
-                } else {
-                    System.out.println("  - No customer assigned");
-                }
-            });
+            // Method 1: Link via PayProp Property IDs (if populated)
+            // Get property PayProp IDs for comparison
+            Property property = propertyService.findById(propertyId);
+            if (property == null) {
+                System.out.println("❌ Property not found: " + propertyId);
+                model.addAttribute("tickets", new ArrayList<>());
+                model.addAttribute("propertyId", propertyId);
+                model.addAttribute("errorMessage", "Property not found");
+                return "employee/ticket/maintenance-history";
+            }
             
-            // Filter by property using your current method
+            Set<String> propertyPayPropIds = new HashSet<>();
+            if (property.getPaypropId() != null) {
+                propertyPayPropIds.add(property.getPaypropId());
+            }
+            if (property.getPaypropPropertyId() != null) {
+                propertyPayPropIds.add(property.getPaypropPropertyId());
+            }
+            if (property.getCustomerId() != null) {
+                propertyPayPropIds.add(property.getCustomerId());
+            }
+            
+            System.out.println("Property PayProp IDs to match: " + propertyPayPropIds);
+            
+            // Method 2: Use customer_property_assignments table
+            // Get all customers assigned to this property
+            String assignmentQuery = """
+                SELECT DISTINCT c.customer_id 
+                FROM customers c 
+                JOIN customer_property_assignments cpa ON c.customer_id = cpa.customer_id 
+                WHERE cpa.property_id = ?
+                """;
+                
+            @SuppressWarnings("unchecked")
+            List<Integer> assignedCustomerIds = entityManager.createNativeQuery(assignmentQuery)
+                .setParameter(1, propertyId)
+                .getResultList();
+                
+            System.out.println("Customers assigned to property " + propertyId + ": " + assignedCustomerIds);
+            
+            // Filter tickets by multiple linking methods
             List<Ticket> propertyTickets = maintenanceTickets.stream()
                 .filter(ticket -> {
-                    // Link tickets to property via customer relationships
-                    if (ticket.getCustomer() != null && ticket.getCustomer().getAssignedPropertyId() != null) {
-                        boolean matches = ticket.getCustomer().getAssignedPropertyId().equals(propertyId);
-                        if (matches) {
-                            System.out.println("✅ Ticket #" + ticket.getTicketId() + " MATCHES property " + propertyId);
-                        }
-                        return matches;
+                    // Method 1: Direct PayProp property ID match
+                    if (ticket.getPayPropPropertyId() != null && 
+                        propertyPayPropIds.contains(ticket.getPayPropPropertyId())) {
+                        System.out.println("✅ Ticket #" + ticket.getTicketId() + 
+                            " MATCHES via PayProp Property ID: " + ticket.getPayPropPropertyId());
+                        return true;
                     }
+                    
+                    // Method 2: Customer assignment match
+                    if (ticket.getCustomer() != null && 
+                        assignedCustomerIds.contains(ticket.getCustomer().getCustomerId())) {
+                        System.out.println("✅ Ticket #" + ticket.getTicketId() + 
+                            " MATCHES via Customer Assignment: Customer ID " + ticket.getCustomer().getCustomerId());
+                        return true;
+                    }
+                    
+                    // Method 3: Legacy assigned_property_id match (fallback)
+                    if (ticket.getCustomer() != null && 
+                        ticket.getCustomer().getAssignedPropertyId() != null &&
+                        ticket.getCustomer().getAssignedPropertyId().equals(propertyId)) {
+                        System.out.println("✅ Ticket #" + ticket.getTicketId() + 
+                            " MATCHES via Legacy Assignment: Property ID " + propertyId);
+                        return true;
+                    }
+                    
                     return false;
                 })
                 .sorted((t1, t2) -> t2.getCreatedAt().compareTo(t1.getCreatedAt()))
@@ -247,8 +296,22 @@ public class TicketController {
 
             System.out.println("Final filtered tickets for property " + propertyId + ": " + propertyTickets.size());
             
+            // Debug: Show which tickets were found and why
+            propertyTickets.forEach(ticket -> {
+                System.out.println("📋 Ticket #" + ticket.getTicketId() + ": " + ticket.getSubject());
+                System.out.println("   - Type: " + ticket.getType());
+                System.out.println("   - Status: " + ticket.getStatus());
+                System.out.println("   - Created: " + ticket.getCreatedAt());
+                System.out.println("   - PayProp Property ID: " + ticket.getPayPropPropertyId());
+                if (ticket.getCustomer() != null) {
+                    System.out.println("   - Customer: " + ticket.getCustomer().getName() + 
+                        " (ID: " + ticket.getCustomer().getCustomerId() + ")");
+                }
+            });
+            
             model.addAttribute("tickets", propertyTickets);
             model.addAttribute("propertyId", propertyId);
+            model.addAttribute("property", property);
             
             return "employee/ticket/maintenance-history";
             
@@ -258,6 +321,7 @@ public class TicketController {
             
             model.addAttribute("tickets", new ArrayList<>());
             model.addAttribute("propertyId", propertyId);
+            model.addAttribute("errorMessage", "Error loading maintenance history: " + e.getMessage());
             return "employee/ticket/maintenance-history";
         }
     }

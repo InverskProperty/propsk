@@ -23,6 +23,10 @@ public class TicketServiceImpl implements TicketService{
         this.propertyService = propertyService;
     }
 
+    public Ticket findByPayPropTicketId(String payPropTicketId) {
+        return ticketRepository.findByPayPropTicketId(payPropTicketId);
+    }
+
     @Override
     public Ticket findByTicketId(int id) {
         return ticketRepository.findByTicketId(id);
