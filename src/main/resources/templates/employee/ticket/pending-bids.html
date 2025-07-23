@@ -226,7 +226,9 @@
                                                     <i class="fa fa-eye"></i>
                                                 </a>
                                                 <button type="button" class="btn btn-sm btn-success m-r-5" title="Invite Contractor Bids"
-                                                        th:onclick="'showBidModal(' + ${ticket.ticketId} + ', \'' + ${ticket.subject} + '\')'">
+                                                        th:data-ticket-id="${ticket.ticketId}"
+                                                        th:data-ticket-subject="${ticket.subject}"
+                                                        onclick="showBidModal(this.dataset.ticketId, this.dataset.ticketSubject)">
                                                     <i class="fa fa-gavel"></i>
                                                 </button>
                                                 <a th:href="@{'/employee/ticket/update-ticket/' + ${ticket.ticketId}}" class="btn btn-sm btn-warning" title="Edit">
