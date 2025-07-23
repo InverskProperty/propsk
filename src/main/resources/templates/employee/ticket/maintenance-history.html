@@ -385,14 +385,14 @@
                         </div>
                         <div class="card-body">
                             <!-- Timeline Content -->
-                            <div th:if="${tickets and !#lists.isEmpty(tickets)}" class="maintenance-timeline">
+                            <div th:if="${tickets != null and !#lists.isEmpty(tickets)}" class="maintenance-timeline">
                                 <div th:each="ticket : ${tickets}" 
-                                     class="timeline-item ticket-item"
-                                     th:classappend="${ticket.urgencyLevel}"
-                                     th:data-category="${ticket.maintenanceCategory}"
-                                     th:data-status="${ticket.status}"
-                                     th:data-urgency="${ticket.urgencyLevel}"
-                                     th:data-date="${ticket.createdAt}">
+                                    class="timeline-item ticket-item"
+                                    th:classappend="${ticket.urgencyLevel}"
+                                    th:data-category="${ticket.maintenanceCategory}"
+                                    th:data-status="${ticket.status}"
+                                    th:data-urgency="${ticket.urgencyLevel}"
+                                    th:data-date="${ticket.createdAt}">
                                      
                                     <div class="timeline-marker" 
                                          th:classappend="${ticket.urgencyLevel == 'emergency'} ? 'emergency' : 
