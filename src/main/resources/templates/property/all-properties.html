@@ -581,9 +581,9 @@
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap4.min.js"></script>
 
-<!-- FIXED: Custom script with proper Thymeleaf CDATA escaping -->
-<script th:inline="javascript">
-/*<![CDATA[*/
+<!-- FIXED: Custom script with proper CDATA escaping (NO Thymeleaf inline processing) -->
+<script>
+//<![CDATA[
 $(document).ready(function() {
     console.log("Initializing all-properties page...");
     
@@ -742,7 +742,7 @@ $(document).ready(function() {
         console.error("Error during initialization:", error);
     }
 });
-/*]]>*/
+//]]>
 </script>
 
 </body>
