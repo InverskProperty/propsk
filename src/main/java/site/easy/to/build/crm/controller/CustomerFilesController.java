@@ -50,7 +50,7 @@ public class CustomerFilesController {
      * Display customer files dashboard
      */
     @GetMapping("/{customerId}")
-    public String customerFilesDashboard(@PathVariable int customerId, Model model, Authentication authentication) {
+    public String customerFilesDashboard(@PathVariable Long customerId, Model model, Authentication authentication) {
         try {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             Customer customer = customerService.findByCustomerId(customerId);
@@ -82,7 +82,7 @@ public class CustomerFilesController {
      * Upload file to customer folder
      */
     @PostMapping("/{customerId}/upload")
-    public String uploadFile(@PathVariable int customerId,
+    public String uploadFile(@PathVariable Long customerId,
                            @RequestParam("file") MultipartFile file,
                            @RequestParam("category") String category,
                            @RequestParam(value = "description", required = false) String description,
@@ -113,7 +113,7 @@ public class CustomerFilesController {
      * Generate property owner statement
      */
     @PostMapping("/{customerId}/generate-owner-statement")
-    public ResponseEntity<Map<String, String>> generateOwnerStatement(@PathVariable int customerId,
+    public ResponseEntity<Map<String, String>> generateOwnerStatement(@PathVariable Long customerId,
                                                                      @RequestParam("fromDate") String fromDate,
                                                                      @RequestParam("toDate") String toDate,
                                                                      Authentication authentication) {
@@ -147,7 +147,7 @@ public class CustomerFilesController {
      * Generate tenant statement
      */
     @PostMapping("/{customerId}/generate-tenant-statement")
-    public ResponseEntity<Map<String, String>> generateTenantStatement(@PathVariable int customerId,
+    public ResponseEntity<Map<String, String>> generateTenantStatement(@PathVariable Long customerId,
                                                                       @RequestParam("fromDate") String fromDate,
                                                                       @RequestParam("toDate") String toDate,
                                                                       Authentication authentication) {
@@ -181,7 +181,7 @@ public class CustomerFilesController {
      * Generate portfolio statement
      */
     @PostMapping("/{customerId}/generate-portfolio-statement")
-    public ResponseEntity<Map<String, String>> generatePortfolioStatement(@PathVariable int customerId,
+    public ResponseEntity<Map<String, String>> generatePortfolioStatement(@PathVariable Long customerId,
                                                                           @RequestParam("fromDate") String fromDate,
                                                                           @RequestParam("toDate") String toDate,
                                                                           Authentication authentication) {
@@ -215,7 +215,7 @@ public class CustomerFilesController {
      * Sync PayProp files for customer - UPDATED to use PayPropSyncOrchestrator
      */
     @PostMapping("/{customerId}/sync-payprop")
-    public ResponseEntity<Map<String, String>> syncPayPropFiles(@PathVariable int customerId,
+    public ResponseEntity<Map<String, String>> syncPayPropFiles(@PathVariable Long customerId,
                                                                Authentication authentication) {
         try {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
@@ -272,7 +272,7 @@ public class CustomerFilesController {
      * Delete file
      */
     @DeleteMapping("/{customerId}/file/{fileId}")
-    public ResponseEntity<Map<String, String>> deleteFile(@PathVariable int customerId,
+    public ResponseEntity<Map<String, String>> deleteFile(@PathVariable Long customerId,
                                                           @PathVariable int fileId,
                                                           Authentication authentication) {
         try {
@@ -299,7 +299,7 @@ public class CustomerFilesController {
      */
     @GetMapping("/{customerId}/api/files")
     @ResponseBody
-    public ResponseEntity<Map<String, List<GoogleDriveFile>>> getCustomerFilesApi(@PathVariable int customerId,
+    public ResponseEntity<Map<String, List<GoogleDriveFile>>> getCustomerFilesApi(@PathVariable Long customerId,
                                                                                  @RequestParam(required = false) String category,
                                                                                  Authentication authentication) {
         try {

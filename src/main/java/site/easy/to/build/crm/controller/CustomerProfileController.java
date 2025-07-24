@@ -97,7 +97,7 @@ public class CustomerProfileController {
         int customerId = authenticationUtils.getLoggedInUserId(authentication);
         CustomerLoginInfo customerLoginInfo = customerLoginInfoService.findById(customerId);
         Customer customer = customerService.findByEmail(customerLoginInfo.getEmail());
-        List<Ticket> tickets = ticketService.findCustomerTickets(customer.getCustomerId());
+        List<Ticket> tickets = ticketService.findCustomerTickets(customer.getCustomerId().intValue());
 
         model.addAttribute("tickets", tickets);
         return "customer-info/my-tickets";
@@ -108,7 +108,7 @@ public class CustomerProfileController {
         int customerId = authenticationUtils.getLoggedInUserId(authentication);
         CustomerLoginInfo customerLoginInfo = customerLoginInfoService.findById(customerId);
         Customer customer = customerService.findByEmail(customerLoginInfo.getEmail());
-        List<Lead> leads = leadService.getCustomerLeads(customer.getCustomerId());
+        List<Lead> leads = leadService.getCustomerLeads(customer.getCustomerId().intValue());
 
         model.addAttribute("leads", leads);
         return "customer-info/my-leads";
@@ -119,7 +119,7 @@ public class CustomerProfileController {
         int customerId = authenticationUtils.getLoggedInUserId(authentication);
         CustomerLoginInfo customerLoginInfo = customerLoginInfoService.findById(customerId);
         Customer customer = customerService.findByEmail(customerLoginInfo.getEmail());
-        List<Contract> contracts = contractService.getCustomerContracts(customer.getCustomerId());
+        List<Contract> contracts = contractService.getCustomerContracts(customer.getCustomerId().intValue());
 
         model.addAttribute("contracts", contracts);
         return "customer-info/my-contracts";

@@ -247,7 +247,7 @@ public class EmailServiceImpl implements EmailService {
         
         // ✅ FIXED: Use unified customer model
         List<Customer> propertyOwners = ownerIds.stream()
-            .map(id -> customerService.findByCustomerId(id.intValue()))
+            .map(id -> customerService.findByCustomerId(id))
             .filter(customer -> customer != null && Boolean.TRUE.equals(customer.getIsPropertyOwner()))
             .filter(customer -> isValidEmail(customer.getEmail()))
             .collect(Collectors.toList());
@@ -268,7 +268,7 @@ public class EmailServiceImpl implements EmailService {
         
         // ✅ FIXED: Use unified customer model
         List<Customer> tenants = tenantIds.stream()
-            .map(id -> customerService.findByCustomerId(id.intValue()))
+            .map(id -> customerService.findByCustomerId(id))
             .filter(customer -> customer != null && Boolean.TRUE.equals(customer.getIsTenant()))
             .filter(customer -> isValidEmail(customer.getEmail()))
             .collect(Collectors.toList());

@@ -79,7 +79,7 @@ public class CustomerRegistrationController {
             } else {
                 // Create new login record
                 loginInfo = new CustomerLoginInfo();
-                loginInfo.setId(customer.getCustomerId()); // Use customer ID as login ID
+                loginInfo.setId(customer.getCustomerId().intValue()); // Use customer ID as login ID
             }
 
             // Set login credentials

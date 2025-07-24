@@ -131,8 +131,8 @@ public class ContractController {
     }
 
     @GetMapping("/customer-contracts/{customerId}")
-    public String getCustomerContracts(Model model, @PathVariable("customerId") int customerId, Authentication authentication) {
-        List<Contract> contracts = contractService.getCustomerContracts(customerId);
+    public String getCustomerContracts(Model model, @PathVariable("customerId") Long customerId, Authentication authentication) {
+        List<Contract> contracts = contractService.getCustomerContracts(customerId.intValue());
         //TODO after activate the login by customer do the authorization check
         model.addAttribute("contracts", contracts);
         return "contract/contracts";
@@ -155,7 +155,7 @@ public class ContractController {
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
             customers = customerService.findAll();
         } else {
-            customers = customerService.findByUserId(userId);
+            customers = customerService.findByUserId(Long.valueOf(userId));
         }
 
         List<GoogleDriveFolder> folders = null;
@@ -183,7 +183,7 @@ public class ContractController {
     }
 
     @PostMapping("/create")
-    public String createNewContract(@ModelAttribute("contract") @Validated Contract contract, BindingResult bindingResult, @RequestParam("customerId") int customerId,
+    public String createNewContract(@ModelAttribute("contract") @Validated Contract contract, BindingResult bindingResult, @RequestParam("customerId") Long customerId,
                                     @RequestParam("leadId") @Nullable Integer leadId, Authentication authentication, Model model,
                                     @RequestParam("allFiles") @Nullable String files, @RequestParam("folderId") @Nullable String folderId)
             throws IOException, GeneralSecurityException {
@@ -210,7 +210,7 @@ public class ContractController {
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 customers = customerService.findAll();
             } else {
-                customers = customerService.findByUserId(userId);
+                customers = customerService.findByUserId(Long.valueOf(userId));
             }
 
             List<GoogleDriveFolder> folders = null;
@@ -285,7 +285,7 @@ public class ContractController {
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
             customers = customerService.findAll();
         } else {
-            customers = customerService.findByUserId(userId);
+            customers = customerService.findByUserId(Long.valueOf(userId));
         }
 
         List<File> files = contract.getFiles();
@@ -327,7 +327,7 @@ public class ContractController {
 
     @PostMapping("/update")
     public String updateContract(@ModelAttribute("contract") @Validated Contract contract, BindingResult bindingResult,
-                                 Authentication authentication, @RequestParam("customerId") int customerId, Model model,
+                                 Authentication authentication, @RequestParam("customerId") Long customerId, Model model,
                                  @RequestParam("allFiles") @Nullable String files, @RequestParam("folderId") @Nullable String folderId) throws JsonProcessingException {
 
         Contract prevContract = contractService.findByContractId(contract.getContractId());
@@ -353,7 +353,7 @@ public class ContractController {
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 customers = customerService.findAll();
             } else {
-                customers = customerService.findByUserId(userId);
+                customers = customerService.findByUserId(Long.valueOf(userId));
             }
 
             List<File> tempFiles = originalContract.getFiles();

@@ -109,7 +109,7 @@ public class CustomerDriveOrganizationService {
         GoogleDriveFile googleDriveFile = new GoogleDriveFile();
         googleDriveFile.setDriveFileId(driveFileId);
         googleDriveFile.setGoogleDriveFolderId(targetFolderId);
-        googleDriveFile.setCustomerId(customer.getCustomerId());
+        googleDriveFile.setCustomerId(customer.getCustomerId().intValue());
         googleDriveFile.setFileCategory(category);
         googleDriveFile.setFileDescription(description);
         googleDriveFile.setCreatedAt(LocalDateTime.now());
@@ -133,7 +133,7 @@ public class CustomerDriveOrganizationService {
         GoogleDriveFile googleDriveFile = new GoogleDriveFile();
         googleDriveFile.setDriveFileId(driveFileId);
         googleDriveFile.setGoogleDriveFolderId(targetFolderId);
-        googleDriveFile.setCustomerId(customer.getCustomerId());
+        googleDriveFile.setCustomerId(customer.getCustomerId().intValue());
         googleDriveFile.setFileName(fileName);
         googleDriveFile.setFileCategory("payprop");
         googleDriveFile.setFileDescription("PayProp sync: " + payPropEntityType);
@@ -168,14 +168,14 @@ public class CustomerDriveOrganizationService {
             case TENANT:
                 // Tenants can only see their own files
                 if (customer.getCustomerType() == CustomerType.TENANT) {
-                    files = googleDriveFileService.getFilesByCustomerAndCategory(customer.getCustomerId(), category);
+                    files = googleDriveFileService.getFilesByCustomerAndCategory(customer.getCustomerId().intValue(), category);
                 }
                 break;
                 
             case PROPERTY_OWNER:
                 // Property owners can see property and tenancy files, but not property owner files
                 if (customer.getCustomerType() == CustomerType.PROPERTY_OWNER) {
-                    files = googleDriveFileService.getFilesByCustomerAndCategory(customer.getCustomerId(), category);
+                    files = googleDriveFileService.getFilesByCustomerAndCategory(customer.getCustomerId().intValue(), category);
                     
                     // Also get property-related files
                     List<Long> propertyIds = getCustomerPropertyIds(customer);
@@ -187,7 +187,7 @@ public class CustomerDriveOrganizationService {
                 
             default:
                 // Employees can see all files
-                files = googleDriveFileService.getFilesByCustomerAndCategory(customer.getCustomerId(), category);
+                files = googleDriveFileService.getFilesByCustomerAndCategory(customer.getCustomerId().intValue(), category);
                 break;
         }
         
@@ -234,7 +234,7 @@ public class CustomerDriveOrganizationService {
         return Arrays.asList(); // Replace with actual property lookup
     }
 
-    private CustomerFolderStructure getCustomerFolderStructure(int customerId) {
+    private CustomerFolderStructure getCustomerFolderStructure(Long customerId) {
         // This would retrieve from a new table or cache
         // For now, return null to trigger creation
         return null;
@@ -247,14 +247,14 @@ public class CustomerDriveOrganizationService {
 
     // Inner class for folder structure
     public static class CustomerFolderStructure {
-        private int customerId;
+        private Long customerId;
         private String mainFolderId;
         private String mainFolderName;
         private Map<String, String> subFolders;
 
         // Getters and setters
-        public int getCustomerId() { return customerId; }
-        public void setCustomerId(int customerId) { this.customerId = customerId; }
+        public Long getCustomerId() { return customerId; }
+        public void setCustomerId(Long customerId) { this.customerId = customerId; }
 
         public String getMainFolderId() { return mainFolderId; }
         public void setMainFolderId(String mainFolderId) { this.mainFolderId = mainFolderId; }

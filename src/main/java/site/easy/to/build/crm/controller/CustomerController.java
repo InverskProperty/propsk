@@ -57,8 +57,8 @@ public class CustomerController {
     @GetMapping("/dashboard")
     public String customerDashboard(Model model, Authentication authentication) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             // Get statistics for all customer types using the WORKING repository methods
             List<Customer> propertyOwners = customerService.findPropertyOwners();
@@ -107,8 +107,8 @@ public class CustomerController {
                                 @RequestParam(value = "propertyId", required = false) Long propertyId,
                                 Model model, Authentication authentication) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             List<Customer> propertyOwners = customerService.findPropertyOwners();
 
@@ -118,7 +118,7 @@ public class CustomerController {
                         List<CustomerPropertyAssignment> propertyAssignments = 
                             customerPropertyAssignmentRepository.findByPropertyId(propertyId);
                         
-                        List<Integer> ownerCustomerIds = propertyAssignments.stream()
+                        List<Long> ownerCustomerIds = propertyAssignments.stream()
                             .filter(assignment -> assignment.getAssignmentType() == AssignmentType.OWNER)
                             .map(assignment -> assignment.getCustomer().getCustomerId())
                             .collect(Collectors.toList());
@@ -182,8 +182,8 @@ public class CustomerController {
                             Authentication authentication,
                             RedirectAttributes redirectAttributes) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             // Set basic properties
             customer.setUser(user);
@@ -244,8 +244,8 @@ public class CustomerController {
                                     Authentication authentication,
                                     RedirectAttributes redirectAttributes) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             customer.setUser(user);
             customer.setIsPropertyOwner(true);
@@ -270,8 +270,8 @@ public class CustomerController {
     @GetMapping("/email-property-owners")
     public String emailPropertyOwnersForm(Model model, Authentication authentication) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             List<Customer> propertyOwners = customerService.findPropertyOwners();
             
@@ -330,7 +330,7 @@ public class CustomerController {
                     List<CustomerPropertyAssignment> propertyAssignments = 
                         customerPropertyAssignmentRepository.findByPropertyId(propertyId);
                     
-                    List<Integer> ownerCustomerIds = propertyAssignments.stream()
+                    List<Long> ownerCustomerIds = propertyAssignments.stream()
                         .filter(assignment -> assignment.getAssignmentType() == AssignmentType.OWNER)
                         .map(assignment -> assignment.getCustomer().getCustomerId())
                         .collect(Collectors.toList());
@@ -352,7 +352,7 @@ public class CustomerController {
                 // Apply owner filter if specified
                 if (ownerId != null) {
                     propertyOwners = propertyOwners.stream()
-                        .filter(owner -> owner.getCustomerId().equals(ownerId))
+                        .filter(owner -> owner.getCustomerId().equals(ownerId.longValue()))
                         .collect(Collectors.toList());
                     
                     if (!filterDescription.isEmpty()) {
@@ -364,7 +364,7 @@ public class CustomerController {
             } else {
                 // Email only selected property owners
                 propertyOwners = selectedIds.stream()
-                    .map(customerService::findByCustomerId)
+                    .map(id -> customerService.findByCustomerId(id.longValue()))
                     .filter(customer -> customer != null && Boolean.TRUE.equals(customer.getIsPropertyOwner()))
                     .collect(Collectors.toList());
                 filterDescription = "selected owners";
@@ -430,8 +430,8 @@ public class CustomerController {
                             @RequestParam(value = "propertyId", required = false) Long propertyId,
                             Model model, Authentication authentication) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             List<Customer> tenants = customerService.findTenants();
 
@@ -441,7 +441,7 @@ public class CustomerController {
                 List<CustomerPropertyAssignment> propertyAssignments = 
                     customerPropertyAssignmentRepository.findByPropertyId(propertyId);
                 
-                List<Integer> tenantCustomerIds = propertyAssignments.stream()
+                List<Long> tenantCustomerIds = propertyAssignments.stream()
                     .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
                     .map(assignment -> assignment.getCustomer().getCustomerId())
                     .collect(Collectors.toList());
@@ -511,8 +511,8 @@ public class CustomerController {
                             Authentication authentication,
                             RedirectAttributes redirectAttributes) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             customer.setUser(user);
             customer.setIsTenant(true);
@@ -540,8 +540,8 @@ public class CustomerController {
     @GetMapping("/email-tenants")
     public String emailTenantsForm(Model model, Authentication authentication) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             List<Customer> tenants = customerService.findTenants();
             
@@ -592,7 +592,7 @@ public class CustomerController {
                     List<CustomerPropertyAssignment> propertyAssignments = 
                         customerPropertyAssignmentRepository.findByPropertyId(propertyId);
                     
-                    List<Integer> tenantCustomerIds = propertyAssignments.stream()
+                    List<Long> tenantCustomerIds = propertyAssignments.stream()
                         .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
                         .map(assignment -> assignment.getCustomer().getCustomerId())
                         .collect(Collectors.toList());
@@ -606,7 +606,7 @@ public class CustomerController {
                     List<CustomerPropertyAssignment> activeAssignments = customerPropertyAssignmentRepository
                         .findByAssignmentType(AssignmentType.TENANT);
                     
-                    List<Integer> activeTenantIds = activeAssignments.stream()
+                    List<Long> activeTenantIds = activeAssignments.stream()
                         .map(assignment -> assignment.getCustomer().getCustomerId())
                         .distinct()
                         .collect(Collectors.toList());
@@ -621,7 +621,7 @@ public class CustomerController {
             } else {
                 // Email only selected tenants
                 tenants = selectedIds.stream()
-                    .map(customerService::findByCustomerId)
+                    .map(id -> customerService.findByCustomerId(id.longValue()))
                     .filter(customer -> customer != null && Boolean.TRUE.equals(customer.getIsTenant()))
                     .collect(Collectors.toList());
             }
@@ -671,8 +671,8 @@ public class CustomerController {
                                 @RequestParam(value = "status", required = false) String status,
                                 Model model, Authentication authentication) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             List<Customer> contractors = customerService.findContractors();
             
@@ -721,8 +721,8 @@ public class CustomerController {
                                  Authentication authentication,
                                  RedirectAttributes redirectAttributes) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             customer.setUser(user);
             customer.setIsContractor(true);
@@ -748,8 +748,8 @@ public class CustomerController {
     @GetMapping("/email-contractors")
     public String emailContractorsForm(Model model, Authentication authentication) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             List<Customer> contractors = customerService.findContractors();
             
@@ -802,7 +802,7 @@ public class CustomerController {
             } else {
                 // Email only selected contractors
                 contractors = selectedIds.stream()
-                    .map(customerService::findByCustomerId)
+                    .map(id -> customerService.findByCustomerId(id.longValue()))
                     .filter(customer -> customer != null && Boolean.TRUE.equals(customer.getIsContractor()))
                     .collect(Collectors.toList());
                 filterDescription = "selected contractors";
@@ -841,15 +841,15 @@ public class CustomerController {
     // ===== CUSTOMER DETAILS & MANAGEMENT =====
     
     @GetMapping("/{id:[0-9]+}")  // FIXED: Only match numeric IDs
-    public String showCustomerDetail(@PathVariable("id") int id, Model model, Authentication authentication) {
+    public String showCustomerDetail(@PathVariable("id") Long id, Model model, Authentication authentication) {
         try {
             Customer customer = customerService.findByCustomerId(id);
             if (customer == null) {
                 return "error/not-found";
             }
 
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User loggedInUser = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User loggedInUser = userService.findById(userId.intValue());
             
             // Check if user can access this customer (handle NULL user relationship)
             if (customer.getUser() != null && 
@@ -939,15 +939,15 @@ public class CustomerController {
     // ===== EDIT CUSTOMER =====
     
     @GetMapping("/{id:[0-9]+}/edit")
-    public String editCustomerForm(@PathVariable("id") int id, Model model, Authentication authentication) {
+    public String editCustomerForm(@PathVariable("id") Long id, Model model, Authentication authentication) {
         try {
             Customer customer = customerService.findByCustomerId(id);
             if (customer == null) {
                 return "error/not-found";
             }
 
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User loggedInUser = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User loggedInUser = userService.findById(userId.intValue());
             
             // Check if user can access this customer
             if (customer.getUser() != null && 
@@ -994,7 +994,7 @@ public class CustomerController {
     }
 
     @PostMapping("/{id:[0-9]+}/edit")
-    public String updateCustomer(@PathVariable("id") int id,
+    public String updateCustomer(@PathVariable("id") Long id,
                                @ModelAttribute Customer customer,
                                Authentication authentication,
                                RedirectAttributes redirectAttributes) {
@@ -1051,8 +1051,8 @@ public class CustomerController {
     public String showCreateCustomerForm(@RequestParam(value = "type", required = false) String customerType,
                                     Model model, Authentication authentication) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             Customer customer = new Customer();
             String displayType = "Customer";
@@ -1153,8 +1153,8 @@ public class CustomerController {
         System.out.println("🔍 Property ID: " + propertyId);
         
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             // Set basic properties
             customer.setUser(user);
@@ -1359,7 +1359,7 @@ public class CustomerController {
     // ===== LOGIN MANAGEMENT FOR CUSTOMERS =====
     
     @PostMapping("/{id:[0-9]+}/create-login")
-    public String createCustomerLogin(@PathVariable("id") int id,
+    public String createCustomerLogin(@PathVariable("id") Long id,
                                     Authentication authentication,
                                     RedirectAttributes redirectAttributes) {
         try {
@@ -1430,8 +1430,8 @@ public class CustomerController {
                                  @RequestParam(value = "type", required = false) String type,
                                  Model model, Authentication authentication) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             List<Customer> customers;
             
@@ -1483,8 +1483,8 @@ public class CustomerController {
                                         @RequestParam(value = "type", required = false) String typeFilter,
                                         Model model, Authentication authentication) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             // Check if user is manager
             if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
@@ -1630,7 +1630,7 @@ public class CustomerController {
                         List<CustomerPropertyAssignment> propertyAssignments = 
                             customerPropertyAssignmentRepository.findByPropertyId(propertyId);
                         
-                        List<Integer> ownerCustomerIds = propertyAssignments.stream()
+                        List<Long> ownerCustomerIds = propertyAssignments.stream()
                             .filter(assignment -> assignment.getAssignmentType() == AssignmentType.OWNER)
                             .map(assignment -> assignment.getCustomer().getCustomerId())
                             .collect(Collectors.toList());
@@ -1649,7 +1649,7 @@ public class CustomerController {
                         List<CustomerPropertyAssignment> activeAssignments = customerPropertyAssignmentRepository
                             .findByAssignmentType(AssignmentType.TENANT);
                         
-                        List<Integer> activeTenantIds = activeAssignments.stream()
+                        List<Long> activeTenantIds = activeAssignments.stream()
                             .map(assignment -> assignment.getCustomer().getCustomerId())
                             .distinct()
                             .collect(Collectors.toList());
@@ -1669,7 +1669,7 @@ public class CustomerController {
                         List<CustomerPropertyAssignment> propertyAssignments = 
                             customerPropertyAssignmentRepository.findByPropertyId(propertyId);
                         
-                        List<Integer> tenantCustomerIds = propertyAssignments.stream()
+                        List<Long> tenantCustomerIds = propertyAssignments.stream()
                             .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
                             .map(assignment -> assignment.getCustomer().getCustomerId())
                             .collect(Collectors.toList());
@@ -1741,8 +1741,8 @@ public class CustomerController {
                                    @RequestParam(value = "propertyId", required = false) Long propertyId,
                                    Model model, Authentication authentication) {
         try {
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId.intValue());
             
             if (!emailService.isGmailApiAvailable(authentication)) {
                 model.addAttribute("gmailError", "Gmail API access required. Please log in with Google and grant Gmail permissions.");
@@ -1784,7 +1784,7 @@ public class CustomerController {
     }
     
     @PostMapping("/{id:[0-9]+}/send-email")
-    public String sendIndividualEmail(@PathVariable("id") int id,
+    public String sendIndividualEmail(@PathVariable("id") Long id,
                                      @RequestParam("subject") String subject,
                                      @RequestParam("message") String message,
                                      Authentication authentication,

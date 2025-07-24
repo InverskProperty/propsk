@@ -454,7 +454,7 @@ public class PortfolioServiceImpl implements PortfolioService {
     public void processAutoAssignment(Property property) {
         // Get auto-assignment portfolios for this property owner
         List<Portfolio> autoAssignPortfolios = portfolioRepository
-            .findAutoAssignPortfoliosForOwner(property.getPropertyOwnerId());
+            .findAutoAssignPortfoliosForOwner(property.getPropertyOwnerId().intValue());
         
         for (Portfolio portfolio : autoAssignPortfolios) {
             if (shouldAutoAssignToPortfolio(property, portfolio)) {

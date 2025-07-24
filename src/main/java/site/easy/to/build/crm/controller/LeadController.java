@@ -166,7 +166,7 @@ public class LeadController {
 
     @PostMapping("/create")
     public String createLead(@ModelAttribute("lead") @Validated Lead lead, BindingResult bindingResult,
-                             @RequestParam("customerId") int customerId, @RequestParam("employeeId") int employeeId,
+                             @RequestParam("customerId") Long customerId, @RequestParam("employeeId") int employeeId,
                              Authentication authentication, @RequestParam("allFiles")@Nullable String files,
                              @RequestParam("folderId") @Nullable String folderId, Model model) throws JsonProcessingException {
 
@@ -257,7 +257,7 @@ public class LeadController {
             if(!Objects.equals(employee.getId(), lead.getManager().getId())) {
                 customers.add(lead.getCustomer());
             } else {
-                customers = customerService.findByUserId(loggedInUser.getId());
+                customers = customerService.findByUserId(loggedInUser.getId().longValue());
             }
         }
 
@@ -301,7 +301,7 @@ public class LeadController {
     }
 
     @PostMapping("/update")
-    public String updateLead(@ModelAttribute("lead") @Validated Lead lead, BindingResult bindingResult, @RequestParam("customerId") int customerId,
+    public String updateLead(@ModelAttribute("lead") @Validated Lead lead, BindingResult bindingResult, @RequestParam("customerId") Long customerId,
                              @RequestParam("employeeId") int employeeId, Authentication authentication, Model model,
                              @RequestParam("allFiles") @Nullable String files, @RequestParam("folderId") @Nullable String folderId) throws JsonProcessingException {
 
@@ -329,7 +329,7 @@ public class LeadController {
                 return "error/500";
             }
         } else {
-            if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && currLead.getCustomer().getCustomerId() != customerId) {
+            if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && !currLead.getCustomer().getCustomerId().equals(customerId)) {
                 return "error/500";
             }
         }
@@ -352,7 +352,7 @@ public class LeadController {
                 if(!Objects.equals(employee.getId(), lead.getManager().getId())) {
                     customers.add(lead.getCustomer());
                 } else {
-                    customers = customerService.findByUserId(loggedInUser.getId());
+                    customers = customerService.findByUserId(loggedInUser.getId().longValue());
                 }
             }
             Lead tempLead = leadService.findByLeadId(lead.getLeadId());
@@ -589,7 +589,7 @@ public class LeadController {
             customers = customerService.findAll();
         } else {
             employees.add(loggedInUser);
-            customers = customerService.findByUserId(loggedInUser.getId());
+            customers = customerService.findByUserId(loggedInUser.getId().longValue());
         }
 
         List<GoogleDriveFolder> folders = null;

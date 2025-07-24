@@ -20,11 +20,11 @@ public interface PropertyService {
     // PayProp integration methods
     Optional<Property> findByPayPropId(String payPropId);
     Optional<Property> findByCustomerId(String customerId);
-    List<Property> findByPropertyOwnerId(Integer propertyOwnerId);
+    List<Property> findByPropertyOwnerId(Long propertyOwnerId);
 
     // FIXED: Added missing methods that were causing compilation errors
-    List<Property> getPropertiesByOwner(Integer ownerId);
-    Property getPropertyByTenant(Integer tenantId);
+    List<Property> getPropertiesByOwner(Long ownerId);
+    Property getPropertyByTenant(Long tenantId);
     
     // Property characteristics (PayProp compatible)
     List<Property> findByPropertyType(String propertyType);

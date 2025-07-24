@@ -1,5 +1,5 @@
 // ContractorBidService.java
-package site.easy.to.build.crm.service.bid;
+package site.easy.to.build.crm.service.contractor;
 
 import site.easy.to.build.crm.entity.ContractorBid;
 import site.easy.to.build.crm.entity.Customer;
@@ -51,8 +51,8 @@ public interface ContractorBidService {
     // ===== SEARCH AND RETRIEVAL =====
     
     List<ContractorBid> findBidsForTicket(Integer ticketId);
-    List<ContractorBid> findBidsForContractor(Integer contractorId);
-    Optional<ContractorBid> findBidByTicketAndContractor(Integer ticketId, Integer contractorId);
+    List<ContractorBid> findBidsForContractor(Long contractorId);
+    Optional<ContractorBid> findBidByTicketAndContractor(Integer ticketId, Long contractorId);
     List<ContractorBid> findBidsByStatus(String status);
     List<ContractorBid> findPendingBids();
     List<ContractorBid> findSubmittedBidsForTicket(Integer ticketId);
@@ -61,22 +61,22 @@ public interface ContractorBidService {
     // ===== ANALYTICS AND REPORTING =====
     
     long countBidsForTicket(Integer ticketId);
-    long countBidsForContractor(Integer contractorId);
+    long countBidsForContractor(Long contractorId);
     BigDecimal getAverageBidAmountForTicket(Integer ticketId);
     List<ContractorBid> getLowestBidsForTicket(Integer ticketId, int limit);
     List<ContractorBid> getHighestBidsForTicket(Integer ticketId, int limit);
     
     // ===== CONTRACTOR PERFORMANCE =====
     
-    double getContractorWinRate(Integer contractorId);
-    BigDecimal getContractorAverageBidAmount(Integer contractorId);
-    List<ContractorBid> getContractorRecentBids(Integer contractorId, int limit);
+    double getContractorWinRate(Long contractorId);
+    BigDecimal getContractorAverageBidAmount(Long contractorId);
+    List<ContractorBid> getContractorRecentBids(Long contractorId, int limit);
     
     // ===== MAINTENANCE AND CLEANUP =====
     
     List<ContractorBid> findOverdueBidResponses(int daysOverdue);
     List<ContractorBid> findBidsNeedingFollowUp(int daysAgo);
     void cleanupBidsForTicket(Integer ticketId);
-    void cleanupBidsForContractor(Integer contractorId);
+    void cleanupBidsForContractor(Long contractorId);
 }
 

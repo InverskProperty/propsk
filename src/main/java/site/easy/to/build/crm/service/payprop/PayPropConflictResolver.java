@@ -192,7 +192,7 @@ public class PayPropConflictResolver {
         ConflictResolution resolution = new ConflictResolution();
         
         try {
-            Customer customer = customerService.findByCustomerId(Integer.parseInt(conflict.getEntityId()));
+            Customer customer = customerService.findByCustomerId(Long.parseLong(conflict.getEntityId()));
             if (customer == null) {
                 resolution.setResolved(false);
                 resolution.setReason("Customer not found");

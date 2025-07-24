@@ -1,5 +1,5 @@
 //ContractorBidServiceImpl.java
-package site.easy.to.build.crm.service.bid;
+package site.easy.to.build.crm.service.contractor;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -63,7 +63,7 @@ public class ContractorBidServiceImpl implements ContractorBidService {
         for (Customer contractor : contractors) {
             // Check if bid already exists for this ticket and contractor
             Optional<ContractorBid> existingBid = contractorBidRepository
-                .findByTicketTicketIdAndContractorCustomerId(ticket.getTicketId(), contractor.getCustomerId());
+                .findByTicketTicketIdAndContractorCustomerId(ticket.getTicketId(), contractor.getCustomerId().intValue());
                 
             if (existingBid.isEmpty()) {
                 ContractorBid bid = new ContractorBid();
@@ -217,13 +217,13 @@ public class ContractorBidServiceImpl implements ContractorBidService {
     }
 
     @Override
-    public List<ContractorBid> findBidsForContractor(Integer contractorId) {
-        return contractorBidRepository.findByContractorCustomerId(contractorId);
+    public List<ContractorBid> findBidsForContractor(Long contractorId) {
+        return contractorBidRepository.findByContractorCustomerId(contractorId.intValue());
     }
 
     @Override
-    public Optional<ContractorBid> findBidByTicketAndContractor(Integer ticketId, Integer contractorId) {
-        return contractorBidRepository.findByTicketTicketIdAndContractorCustomerId(ticketId, contractorId);
+    public Optional<ContractorBid> findBidByTicketAndContractor(Integer ticketId, Long contractorId) {
+        return contractorBidRepository.findByTicketTicketIdAndContractorCustomerId(ticketId, contractorId.intValue());
     }
 
     @Override
@@ -255,8 +255,8 @@ public class ContractorBidServiceImpl implements ContractorBidService {
     }
     
     @Override
-    public long countBidsForContractor(Integer contractorId) {
-        return contractorBidRepository.countByContractorCustomerId(contractorId);
+    public long countBidsForContractor(Long contractorId) {
+        return contractorBidRepository.countByContractorCustomerId(contractorId.intValue());
     }
     
     @Override
@@ -280,8 +280,8 @@ public class ContractorBidServiceImpl implements ContractorBidService {
     // ===== CONTRACTOR PERFORMANCE =====
     
     @Override
-    public double getContractorWinRate(Integer contractorId) {
-        Object[] result = contractorBidRepository.getContractorBidWinRate(contractorId);
+    public double getContractorWinRate(Long contractorId) {
+        Object[] result = contractorBidRepository.getContractorBidWinRate(contractorId.intValue());
         if (result != null && result.length == 2) {
             Long wonBids = (Long) result[0];
             Long totalBids = (Long) result[1];
@@ -294,15 +294,15 @@ public class ContractorBidServiceImpl implements ContractorBidService {
     }
     
     @Override
-    public BigDecimal getContractorAverageBidAmount(Integer contractorId) {
-        BigDecimal average = contractorBidRepository.getContractorAverageBidAmount(contractorId);
+    public BigDecimal getContractorAverageBidAmount(Long contractorId) {
+        BigDecimal average = contractorBidRepository.getContractorAverageBidAmount(contractorId.intValue());
         return average != null ? average : BigDecimal.ZERO;
     }
     
     @Override
-    public List<ContractorBid> getContractorRecentBids(Integer contractorId, int limit) {
+    public List<ContractorBid> getContractorRecentBids(Long contractorId, int limit) {
         Pageable pageable = PageRequest.of(0, limit);
-        return contractorBidRepository.findByContractorCustomerIdOrderByCreatedAtDesc(contractorId, pageable);
+        return contractorBidRepository.findByContractorCustomerIdOrderByCreatedAtDesc(contractorId.intValue(), pageable);
     }
     
     // ===== MAINTENANCE AND CLEANUP =====
@@ -325,7 +325,7 @@ public class ContractorBidServiceImpl implements ContractorBidService {
     }
     
     @Override
-    public void cleanupBidsForContractor(Integer contractorId) {
-        contractorBidRepository.deleteByContractorCustomerId(contractorId);
+    public void cleanupBidsForContractor(Long contractorId) {
+        contractorBidRepository.deleteByContractorCustomerId(contractorId.intValue());
     }
 }

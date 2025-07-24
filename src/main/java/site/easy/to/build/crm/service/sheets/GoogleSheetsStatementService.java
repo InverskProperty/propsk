@@ -158,7 +158,7 @@ public class GoogleSheetsStatementService {
         data.setPortfolioName("PROPERTY PORTFOLIO"); // Set a default portfolio name
         
         // Get properties for this owner
-        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId().intValue());
         data.setProperties(properties);
         
         // Build rental data for each property
@@ -221,7 +221,7 @@ public class GoogleSheetsStatementService {
         data.setToDate(toDate);
         
         // Get tenant's property
-        Property property = propertyService.getPropertyByTenant(tenant.getCustomerId());
+        Property property = propertyService.getPropertyByTenant(tenant.getCustomerId().intValue());
         data.setProperty(property);
         
         // Calculate rent and payments
@@ -240,7 +240,7 @@ public class GoogleSheetsStatementService {
         data.setToDate(toDate);
         
         // Get all properties for portfolio view
-        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId().intValue());
         
         // Build summary data for each property
         List<PropertySummary> summaries = new ArrayList<>();

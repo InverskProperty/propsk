@@ -79,7 +79,7 @@ public class PropertyOwnerController {
      * Handle /property/owner/{id} - redirect to customer details
      */
     @GetMapping("/property/owner/{id}")
-    public String propertyOwnerById(@PathVariable("id") Integer customerId) {
+    public String propertyOwnerById(@PathVariable("id") Long customerId) {
         // Redirect to the customer details page for this property owner
         return "redirect:/employee/customer/" + customerId;
     }
@@ -125,7 +125,7 @@ public class PropertyOwnerController {
                 
                 // Get properties for this specific customer
                 try {
-                    List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+                    List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId().intValue());
                     model.addAttribute("properties", properties);
                     model.addAttribute("totalProperties", properties.size());
                     System.out.println("DEBUG: Found " + properties.size() + " properties for customer " + customer.getCustomerId());
@@ -143,7 +143,7 @@ public class PropertyOwnerController {
                     if (portfolioService != null) {
                         System.out.println("DEBUG: PortfolioService is available, attempting to load portfolios...");
                         
-                        List<Portfolio> userPortfolios = portfolioService.findPortfoliosForPropertyOwner(customer.getCustomerId());
+                        List<Portfolio> userPortfolios = portfolioService.findPortfoliosForPropertyOwner(customer.getCustomerId().intValue());
                         model.addAttribute("portfolios", userPortfolios);
                         System.out.println("DEBUG: Found " + userPortfolios.size() + " portfolios for customer " + customer.getCustomerId());
                         
@@ -196,7 +196,7 @@ public class PropertyOwnerController {
                     
                     // Find a customer that has properties
                     for (Customer testCustomer : allCustomers) {
-                        List<Property> testProperties = propertyService.findByPropertyOwnerId(testCustomer.getCustomerId());
+                        List<Property> testProperties = propertyService.findByPropertyOwnerId(testCustomer.getCustomerId().intValue());
                         if (testProperties.size() > 0) {
                             System.out.println("DEBUG: TEMP TEST - Found customer " + testCustomer.getCustomerId() + 
                                             " with " + testProperties.size() + " properties");
@@ -251,7 +251,7 @@ public class PropertyOwnerController {
                 return "redirect:/customer-login?error=not_found";
             }
 
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId().intValue());
             
             // Calculate occupancy for ALL properties first
             List<Property> allOccupiedProperties = properties.stream()
@@ -367,7 +367,7 @@ public class PropertyOwnerController {
                 return "redirect:/customer-login?error=not_found";
             }
 
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId().intValue());
             List<Tenant> tenants;
 
             if (propertyId != null) {
@@ -491,7 +491,7 @@ public class PropertyOwnerController {
             }
             System.out.println("🔍 DEBUG: Customer found: " + customer.getCustomerId());
 
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId().intValue());
             System.out.println("🔍 DEBUG: Found " + properties.size() + " properties");
             
             // Use the EXACT same SQL logic that works in your database exploration
@@ -615,12 +615,12 @@ public class PropertyOwnerController {
     }
 
     // ✅ NEW: Helper method to calculate property owner maintenance statistics
-    private Map<String, Object> calculatePropertyOwnerMaintenanceStats(int customerId) {
+    private Map<String, Object> calculatePropertyOwnerMaintenanceStats(Long customerId) {
         Map<String, Object> stats = new HashMap<>();
         
         try {
             // Get all tickets related to this property owner's properties
-            List<Property> ownerProperties = propertyService.findByPropertyOwnerId(customerId);
+            List<Property> ownerProperties = propertyService.findByPropertyOwnerId(customerId.intValue());
             List<Long> propertyIds = ownerProperties.stream().map(Property::getId).collect(Collectors.toList());
             
             // Get maintenance and emergency tickets for owner's properties
@@ -844,7 +844,7 @@ public class PropertyOwnerController {
                     // Create a temporary customer object with known good values for testing
                     // This is just to get the system working - we'll fix the real lookup later
                     Customer tempCustomer = new Customer();
-                    tempCustomer.setCustomerId(45);  // We know from logs this ID exists
+                    tempCustomer.setCustomerId(45L);  // We know from logs this ID exists
                     tempCustomer.setEmail(email);
                     tempCustomer.setName("Uday (Test)");
                     tempCustomer.setCustomerType(site.easy.to.build.crm.entity.CustomerType.PROPERTY_OWNER);

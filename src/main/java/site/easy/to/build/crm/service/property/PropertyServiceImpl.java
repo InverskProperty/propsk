@@ -71,13 +71,13 @@ public class PropertyServiceImpl implements PropertyService {
     }
 
     @Override
-    public List<Property> findByPropertyOwnerId(Integer propertyOwnerId) {
+    public List<Property> findByPropertyOwnerId(Long propertyOwnerId) {
         return propertyRepository.findByPropertyOwnerId(propertyOwnerId);
     }
 
     // ✅ Junction table-based property-owner relationships
     @Override
-    public List<Property> getPropertiesByOwner(Integer ownerId) {
+    public List<Property> getPropertiesByOwner(Long ownerId) {
         try {
             var assignments = assignmentRepository.findByCustomerCustomerIdAndAssignmentType(
                 ownerId, AssignmentType.OWNER);
@@ -93,7 +93,7 @@ public class PropertyServiceImpl implements PropertyService {
     }
 
     @Override
-    public Property getPropertyByTenant(Integer tenantId) {
+    public Property getPropertyByTenant(Long tenantId) {
         try {
             var assignments = assignmentRepository.findByCustomerCustomerIdAndAssignmentType(
                 tenantId, AssignmentType.TENANT);

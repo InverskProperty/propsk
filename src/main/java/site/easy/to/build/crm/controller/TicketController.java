@@ -23,7 +23,7 @@ import site.easy.to.build.crm.service.settings.TicketEmailSettingsService;
 import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.util.*;
-import site.easy.to.build.crm.service.bid.ContractorBidService;
+import site.easy.to.build.crm.service.contractor.ContractorBidService;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -255,9 +255,14 @@ public class TicketController {
                 """;
                 
             @SuppressWarnings("unchecked")
-            List<Integer> assignedCustomerIds = entityManager.createNativeQuery(assignmentQuery)
+            List<Number> rawCustomerIds = entityManager.createNativeQuery(assignmentQuery)
                 .setParameter(1, propertyId)
                 .getResultList();
+                
+            // FIXED: Convert Number results to Long (handles both Integer and Long from database)
+            List<Long> assignedCustomerIds = rawCustomerIds.stream()
+                .map(Number::longValue)
+                .collect(Collectors.toList());
                 
             System.out.println("Customers assigned to property " + propertyId + ": " + assignedCustomerIds);
             
@@ -272,7 +277,7 @@ public class TicketController {
                         return true;
                     }
                     
-                    // Method 2: Customer assignment match
+                    // Method 2: Customer assignment match - FIXED: Use Long comparison
                     if (ticket.getCustomer() != null && 
                         assignedCustomerIds.contains(ticket.getCustomer().getCustomerId())) {
                         System.out.println("✅ Ticket #" + ticket.getTicketId() + 
@@ -364,10 +369,10 @@ public class TicketController {
         return "employee/ticket/contractor-bids";
     }
     
-    // Replace the existing invite contractor bid method with this complete implementation
+    // FIXED: Replace the existing invite contractor bid method with this complete implementation
     @PostMapping("/invite-contractor-bid")
     public String inviteContractorBid(@RequestParam("ticketId") int ticketId,
-                                    @RequestParam("contractorIds") List<Integer> contractorIds,
+                                    @RequestParam("contractorIds") List<Long> contractorIds, // FIXED: Integer → Long
                                     @RequestParam(value = "message", required = false) String message,
                                     Authentication authentication,
                                     RedirectAttributes redirectAttributes) {
@@ -388,9 +393,9 @@ public class TicketController {
                 return "redirect:/employee/ticket/pending-bids";
             }
             
-            // Get contractors and validate they're actually contractors
+            // FIXED: Get contractors and validate they're actually contractors - use Long IDs
             List<Customer> contractors = contractorIds.stream()
-                .map(customerService::findByCustomerId)
+                .map(id -> customerService.findByCustomerId(id)) // FIXED: Now correctly passes Long
                 .filter(Objects::nonNull)
                 .filter(customer -> Boolean.TRUE.equals(customer.getIsContractor()))
                 .collect(Collectors.toList());
@@ -443,7 +448,7 @@ public class TicketController {
 
     @PostMapping("/{ticketId}/select-contractor")
     public String selectContractor(@PathVariable int ticketId,
-                                  @RequestParam("contractorId") int contractorId,
+                                  @RequestParam("contractorId") Long contractorId,
                                   @RequestParam("approvedAmount") BigDecimal approvedAmount,
                                   @RequestParam(value = "notes", required = false) String notes,
                                   Authentication authentication,
@@ -724,7 +729,7 @@ public class TicketController {
             customers = customerService.findAll();
         } else {
             employees.add(user);
-            customers = customerService.findByUserId(user.getId());
+            customers = customerService.findByUserId(user.getId().longValue());
         }
 
         model.addAttribute("employees",employees);
@@ -735,7 +740,7 @@ public class TicketController {
 
     @PostMapping("/create-ticket")
     public String createTicket(@ModelAttribute("ticket") @Validated Ticket ticket, BindingResult bindingResult, 
-                               @RequestParam("customerId") int customerId,
+                               @RequestParam("customerId") Long customerId,
                                @RequestParam Map<String, String> formParams, Model model,
                                @RequestParam("employeeId") int employeeId, Authentication authentication) {
 
@@ -756,7 +761,7 @@ public class TicketController {
                 customers = customerService.findAll();
             } else {
                 employees.add(manager);
-                customers = customerService.findByUserId(manager.getId());
+                customers = customerService.findByUserId(manager.getId().longValue());
             }
 
             model.addAttribute("employees",employees);
@@ -817,7 +822,7 @@ public class TicketController {
             if(!Objects.equals(employee.getId(), ticket.getManager().getId())) {
                 customers.add(ticket.getCustomer());
             } else {
-                customers = customerService.findByUserId(loggedInUser.getId());
+                customers = customerService.findByUserId(loggedInUser.getId().longValue());
             }
         }
 
@@ -829,7 +834,7 @@ public class TicketController {
 
     @PostMapping("/update-ticket")
     public String updateTicket(@ModelAttribute("ticket") @Validated Ticket ticket, BindingResult bindingResult,
-                               @RequestParam("customerId") int customerId, @RequestParam("employeeId") int employeeId,
+                               @RequestParam("customerId") Long customerId, @RequestParam("employeeId") int employeeId,
                                Authentication authentication, Model model) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
@@ -871,7 +876,7 @@ public class TicketController {
                 if(!Objects.equals(employee.getId(), ticket.getManager().getId())) {
                     customers.add(ticket.getCustomer());
                 } else {
-                    customers = customerService.findByUserId(loggedInUser.getId());
+                    customers = customerService.findByUserId(loggedInUser.getId().longValue());
                 }
             }
 
@@ -884,7 +889,8 @@ public class TicketController {
                 return "error/500";
             }
         } else {
-            if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && originalTicket.getCustomer().getCustomerId() != customerId) {
+            // FIXED: Use Long comparison for customerId
+            if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && !originalTicket.getCustomer().getCustomerId().equals(customerId)) {
                 return "error/500";
             }
         }

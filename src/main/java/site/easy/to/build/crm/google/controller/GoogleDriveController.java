@@ -64,7 +64,7 @@ public class GoogleDriveController {
     @GetMapping("/list-files")
     public String listFilesWithFolder(@RequestParam(value = "folder", required = false) String folderName,
                                     @RequestParam(value = "propertyId", required = false) Long propertyId,
-                                    @RequestParam(value = "customerId", required = false) Integer customerId,
+                                    @RequestParam(value = "customerId", required = false) Long customerId,
                                     Model model, Authentication authentication) {
         if((authentication instanceof UsernamePasswordAuthenticationToken)) {
             return "/google-error";
@@ -274,7 +274,7 @@ public class GoogleDriveController {
      */
     @PostMapping("/setup-customer/{customerId}")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> setupCustomerFolder(@PathVariable Integer customerId, 
+    public ResponseEntity<Map<String, Object>> setupCustomerFolder(@PathVariable Long customerId, 
                                                                   Authentication authentication) {
         Map<String, Object> response = new HashMap<>();
         
@@ -713,7 +713,7 @@ public class GoogleDriveController {
         
         try {
             // Test all the fields that Thymeleaf will try to access
-            Integer customerId = customer.getCustomerId();
+            Long customerId = customer.getCustomerId();
             if (customerId == null) {
                 System.out.println("DEBUG: Customer has null ID");
                 return false;

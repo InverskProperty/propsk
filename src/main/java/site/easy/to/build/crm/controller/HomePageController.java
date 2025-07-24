@@ -101,7 +101,7 @@ public class HomePageController {
         if(AuthorizationUtil.hasRole(authentication,"ROLE_CUSTOMER")) {
             String email = customerLoginInfoService.findById(userId).getEmail();
             Customer customer = customerService.findByEmail(email);
-            userId = customer.getCustomerId();
+            userId = customer.getCustomerId().intValue();
             tickets = ticketService.getRecentCustomerTickets(userId, 10);
             countTickets = ticketService.countByCustomerCustomerId(userId);
 
@@ -123,12 +123,12 @@ public class HomePageController {
         } else {
             tickets = ticketService.getRecentEmployeeTickets(userId, 10);
             leads = leadService.getRecentLeadsByEmployee(userId, 10);
-            customers = customerService.getRecentCustomers(userId, 10);
+            customers = customerService.getRecentCustomers(Long.valueOf(userId), 10);
             contracts = contractService.getRecentContracts(userId, 10);
 
             countTickets = ticketService.countByEmployeeId(userId);
             countLeads = leadService.countByEmployeeId(userId);
-            Long countCustomers = customerService.countByUserId(userId);
+            Long countCustomers = customerService.countByUserId(Long.valueOf(userId));
             countContracts = contractService.countByUserId(userId);
             
             List<EventDisplay> eventDisplays = null;

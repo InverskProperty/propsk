@@ -235,7 +235,7 @@ public class PropertyOwner {
     
     // Foreign Keys (keeping original structure)
     @Column(name = "customer_id_fk", nullable = false)
-    private Integer customerIdFk;
+    private Long customerIdFk;
     
     @Column(name = "property_id", nullable = false)
     private Long propertyId;
@@ -253,7 +253,7 @@ public class PropertyOwner {
     // Constructors
     public PropertyOwner() {}
     
-    public PropertyOwner(AccountType accountType, PaymentMethod paymentMethod, Integer customerIdFk, Long propertyId) {
+    public PropertyOwner(AccountType accountType, PaymentMethod paymentMethod, Long customerIdFk, Long propertyId) {
         this.customerIdFk = customerIdFk;
         this.propertyId = propertyId;
         this.createdAt = LocalDateTime.now();
@@ -442,8 +442,8 @@ public class PropertyOwner {
     public Long getUpdatedBy() { return updatedBy; }
     public void setUpdatedBy(Long updatedBy) { this.updatedBy = updatedBy; }
     
-    public Integer getCustomerIdFk() { return customerIdFk; }
-    public void setCustomerIdFk(Integer customerIdFk) { this.customerIdFk = customerIdFk; }
+    public Long getCustomerIdFk() { return customerIdFk; }
+    public void setCustomerIdFk(Long customerIdFk) { this.customerIdFk = customerIdFk; }
     
     public Long getPropertyId() { return propertyId; }
     public void setPropertyId(Long propertyId) { this.propertyId = propertyId; }

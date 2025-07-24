@@ -17,7 +17,7 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     // ✅ PayProp integration methods
     Optional<Property> findByPayPropId(String payPropId);
     Optional<Property> findByCustomerId(String customerId);
-    List<Property> findByPropertyOwnerId(Integer propertyOwnerId);
+    List<Property> findByPropertyOwnerId(Long propertyOwnerId);
     
     // ✅ Archive status methods (String-based)
     List<Property> findByIsArchivedOrderByCreatedAtDesc(String isArchived);

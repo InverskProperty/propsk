@@ -1155,8 +1155,7 @@ public class PayPropSyncOrchestrator {
 
    private boolean fileAlreadyExists(Customer customer, String externalId) {
        try {
-           return !googleDriveFileService.findByCustomerIdAndPayPropExternalId(
-               customer.getCustomerId(), externalId).isEmpty();
+           return !googleDriveFileService.findByCustomerIdAndPayPropExternalId(customer.getCustomerId().intValue(), externalId).isEmpty();
        } catch (Exception e) {
            log.warn("Error checking if file exists: {}", e.getMessage());
            return false; // Assume it doesn't exist if we can't check

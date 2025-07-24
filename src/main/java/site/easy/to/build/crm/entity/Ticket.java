@@ -61,7 +61,7 @@ public class Ticket {
     // ===== CONTRACTOR MANAGEMENT FIELDS =====
     
     @Column(name = "selected_contractor_id")
-    private Integer selectedContractorId;
+    private Long selectedContractorId;
     
     @Column(name = "approved_amount", precision = 10, scale = 2)
     private BigDecimal approvedAmount;
@@ -209,8 +209,8 @@ public class Ticket {
 
     // ===== CONTRACTOR MANAGEMENT GETTERS AND SETTERS =====
     
-    public Integer getSelectedContractorId() { return selectedContractorId; }
-    public void setSelectedContractorId(Integer selectedContractorId) { 
+    public Long getSelectedContractorId() { return selectedContractorId; }
+    public void setSelectedContractorId(Long selectedContractorId) { 
         this.selectedContractorId = selectedContractorId; 
     }
 

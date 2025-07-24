@@ -62,7 +62,7 @@ public class CustomerEntityBridgeService {
         for (PropertyOwner owner : orphanedOwners) {
             try {
                 Customer customer = createCustomerFromPropertyOwner(owner, defaultUser);
-                result.addSuccess("PropertyOwner", owner.getId(), customer.getCustomerId());
+                result.addSuccess("PropertyOwner", owner.getId(), customer.getCustomerId().intValue());
             } catch (Exception e) {
                 result.addError("PropertyOwner", owner.getId(), e.getMessage());
             }
@@ -73,7 +73,7 @@ public class CustomerEntityBridgeService {
         for (Tenant tenant : orphanedTenants) {
             try {
                 Customer customer = createCustomerFromTenant(tenant, defaultUser);
-                result.addSuccess("Tenant", tenant.getId(), customer.getCustomerId());
+                result.addSuccess("Tenant", tenant.getId(), customer.getCustomerId().intValue());
             } catch (Exception e) {
                 result.addError("Tenant", tenant.getId(), e.getMessage());
             }
@@ -84,7 +84,7 @@ public class CustomerEntityBridgeService {
         for (Contractor contractor : orphanedContractors) {
             try {
                 Customer customer = createCustomerFromContractor(contractor, defaultUser);
-                result.addSuccess("Contractor", contractor.getId(), customer.getCustomerId());
+                result.addSuccess("Contractor", contractor.getId(), customer.getCustomerId().intValue());
             } catch (Exception e) {
                 result.addError("Contractor", contractor.getId(), e.getMessage());
             }

@@ -91,7 +91,7 @@ public class StatementController {
             }
             
             // Get property owner
-            Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId);
+            Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId.longValue());
             if (propertyOwner == null) {
                 redirectAttributes.addFlashAttribute("error", "Property owner not found.");
                 return "redirect:/statements";
@@ -137,7 +137,7 @@ public class StatementController {
             }
             
             // Get tenant
-            Customer tenant = customerService.findByCustomerId(tenantId);
+            Customer tenant = customerService.findByCustomerId(tenantId.longValue());
             if (tenant == null) {
                 redirectAttributes.addFlashAttribute("error", "Tenant not found.");
                 return "redirect:/statements";
@@ -183,7 +183,7 @@ public class StatementController {
             }
             
             // Get property owner
-            Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId);
+            Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId.longValue());
             if (propertyOwner == null) {
                 redirectAttributes.addFlashAttribute("error", "Property owner not found.");
                 return "redirect:/statements";
@@ -248,7 +248,7 @@ public class StatementController {
         
         try {
             if ("property-owner".equals(type)) {
-                Customer propertyOwner = customerService.findByCustomerId(customerId);
+                Customer propertyOwner = customerService.findByCustomerId(customerId.longValue());
                 List<Property> properties = propertyService.getPropertiesByOwner(customerId);
                 
                 // Return preview data
@@ -259,7 +259,7 @@ public class StatementController {
                     "period", fromDate + " to " + toDate
                 ));
             } else if ("tenant".equals(type)) {
-                Customer tenant = customerService.findByCustomerId(customerId);
+                Customer tenant = customerService.findByCustomerId(customerId.longValue());
                 Property property = propertyService.getPropertyByTenant(customerId);
                 
                 return ResponseEntity.ok(Map.of(
