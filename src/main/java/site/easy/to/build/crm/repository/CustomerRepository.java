@@ -12,14 +12,14 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Repository
-public interface CustomerRepository extends JpaRepository<Customer, Integer> {
+public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     // ===== EXISTING METHODS =====
-    Customer findByCustomerId(int customerId);
+    Customer findByCustomerId(Long customerId);
     Customer findByEmail(String email);
-    List<Customer> findByUserId(int userId);
-    List<Customer> findByUserIdOrderByCreatedAtDesc(int userId, Pageable pageable);
-    long countByUserId(int userId);
+    List<Customer> findByUserId(Long userId);
+    List<Customer> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    long countByUserId(Long userId);
     List<Customer> findByIsPropertyOwner(Boolean isPropertyOwner);
     List<Customer> findByIsTenant(Boolean isTenant); 
     List<Customer> findByIsContractor(Boolean isContractor);

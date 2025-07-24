@@ -41,7 +41,7 @@ public class CustomerPropertyAssignmentService {
         return assignmentRepository.save(assignment);
     }
     
-    public List<Property> getPropertiesForCustomer(Integer customerId, AssignmentType type) {
+    public List<Property> getPropertiesForCustomer(Long customerId, AssignmentType type) {
         try {
             return assignmentRepository.findByCustomerCustomerId(customerId).stream()
                 .filter(assignment -> type == null || assignment.getAssignmentType() == type)
@@ -82,12 +82,11 @@ public class CustomerPropertyAssignmentService {
             .collect(Collectors.toList());
     }
     
-    public void removeAssignment(Integer customerId, Long propertyId, AssignmentType type) {
+    public void removeAssignment(Long customerId, Long propertyId, AssignmentType type) {
         assignmentRepository.deleteByCustomerCustomerIdAndPropertyIdAndAssignmentType(customerId, propertyId, type);
     }
     
-    public CustomerPropertyAssignment updateAssignment(Integer customerId, Long propertyId, 
-                                                     AssignmentType type, BigDecimal percentage) {
+    public CustomerPropertyAssignment updateAssignment(Long customerId, Long propertyId, AssignmentType type, BigDecimal percentage) {
         CustomerPropertyAssignment assignment = assignmentRepository
             .findByCustomerCustomerIdAndPropertyIdAndAssignmentType(customerId, propertyId, type)
             .orElseThrow(() -> new RuntimeException("Assignment not found"));
@@ -106,7 +105,7 @@ public class CustomerPropertyAssignmentService {
         return assignmentRepository.findByAssignmentType(type);
     }
     
-    public long countPropertiesForCustomer(Integer customerId) {
+    public long countPropertiesForCustomer(Long customerId) {
         return assignmentRepository.findByCustomerCustomerId(customerId).size();
     }
     
@@ -114,7 +113,7 @@ public class CustomerPropertyAssignmentService {
         return assignmentRepository.findByPropertyId(propertyId).size();
     }
     
-    public boolean hasAssignment(Integer customerId, Long propertyId, AssignmentType type) {
+    public boolean hasAssignment(Long customerId, Long propertyId, AssignmentType type) {
         return assignmentRepository.existsByCustomerCustomerIdAndPropertyIdAndAssignmentType(customerId, propertyId, type);
     }
     

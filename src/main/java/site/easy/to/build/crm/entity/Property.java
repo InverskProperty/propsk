@@ -189,7 +189,7 @@ public class Property {
     
     // Foreign key (keeping original structure)
     @Column(name = "property_owner_id")
-    private Integer propertyOwnerId;
+    private Long propertyOwnerId;
     
     // Constructors
     public Property() {}
@@ -444,8 +444,8 @@ public class Property {
     public Long getUpdatedBy() { return updatedBy; }
     public void setUpdatedBy(Long updatedBy) { this.updatedBy = updatedBy; }
     
-    public Integer getPropertyOwnerId() { return propertyOwnerId; }
-    public void setPropertyOwnerId(Integer propertyOwnerId) { this.propertyOwnerId = propertyOwnerId; }
+    public Long getPropertyOwnerId() { return propertyOwnerId; }
+    public void setPropertyOwnerId(Long propertyOwnerId) { this.propertyOwnerId = propertyOwnerId; }
         
     // PayProp Utility Methods
     public String getFullAddress() {

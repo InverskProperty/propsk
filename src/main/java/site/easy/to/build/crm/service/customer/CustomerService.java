@@ -14,12 +14,12 @@ import java.util.List;
 public interface CustomerService {
 
     // EXISTING METHODS - Keep unchanged
-    public Customer findByCustomerId(int customerId);
+    public Customer findByCustomerId(Long customerId);
 
     // Add this method to your CustomerService interface
-    public boolean existsById(Integer customerId);
+    public boolean existsById(Long customerId);
 
-    public List<Customer> findByUserId(int userId);
+    public List<Customer> findByUserId(Long userId);
 
     List<Customer> findActiveTenantsForProperty(Long propertyId);
 
@@ -31,9 +31,9 @@ public interface CustomerService {
 
     public void delete(Customer customer);
 
-    public List<Customer> getRecentCustomers(int userId, int limit);
+    public List<Customer> getRecentCustomers(Long userId, int limit);
 
-    long countByUserId(int userId);
+    long countByUserId(Long userId);
 
     // NEW SEARCH METHODS - Work immediately with existing data
     List<Customer> findByKeyword(String keyword);

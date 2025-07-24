@@ -26,12 +26,12 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public Customer findByCustomerId(int customerId) {
+    public Customer findByCustomerId(Long customerId) {
         return customerRepository.findByCustomerId(customerId);
     }
 
     @Override
-    public boolean existsById(Integer customerId) {
+    public boolean existsById(Long customerId) {
         return customerRepository.existsById(customerId);
     }
 
@@ -46,7 +46,7 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public List<Customer> findByUserId(int userId) {
+    public List<Customer> findByUserId(Long userId) {
         return customerRepository.findByUserId(userId);
     }
 
@@ -66,13 +66,13 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public List<Customer> getRecentCustomers(int userId, int limit) {
+    public List<Customer> getRecentCustomers(Long userId, int limit) {
         Pageable pageable = PageRequest.of(0, limit);
         return customerRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
     }
 
     @Override
-    public long countByUserId(int userId) {
+    public long countByUserId(Long userId) {
         return customerRepository.countByUserId(userId);
     }
 
@@ -183,7 +183,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public void updateOwnerPortfolioStats(Long customerId, BigDecimal portfolioValue, Integer totalProperties) {
-        Customer customer = customerRepository.findByCustomerId(customerId.intValue());
+        Customer customer = customerRepository.findByCustomerId(customerId);
         if (customer != null) {
             // TODO: Add portfolio fields to Customer entity
             // customer.setPortfolioValue(portfolioValue);
@@ -235,7 +235,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public void assignTenantToProperty(Long customerId, Long propertyId, BigDecimal monthlyRent, LocalDate startDate) {
-        Customer customer = customerRepository.findByCustomerId(customerId.intValue());
+        Customer customer = customerRepository.findByCustomerId(customerId);
         if (customer != null) {
             customer.setEntityType("Property");
             customer.setEntityId(propertyId);
@@ -248,7 +248,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public void endTenancy(Long customerId, LocalDate endDate) {
-        Customer customer = customerRepository.findByCustomerId(customerId.intValue());
+        Customer customer = customerRepository.findByCustomerId(customerId);
         if (customer != null) {
             customer.setDescription("Inactive - Tenancy ended " + endDate);
             customerRepository.save(customer);
@@ -259,7 +259,7 @@ public class CustomerServiceImpl implements CustomerService {
     
     @Override
     public void sendPortfolioUpdateToOwner(Long customerId, String message) {
-        Customer customer = customerRepository.findByCustomerId(customerId.intValue());
+        Customer customer = customerRepository.findByCustomerId(customerId);
         if (customer != null && (customer.getCustomerType() == CustomerType.PROPERTY_OWNER || customer.getIsPropertyOwner())) {
             // TODO: Integrate with your existing EmailService
             System.out.println("Portfolio update sent to " + customer.getEmail() + ": " + message);
@@ -268,7 +268,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public void sendMaintenanceNotificationToTenant(Long customerId, String message) {
-        Customer customer = customerRepository.findByCustomerId(customerId.intValue());
+        Customer customer = customerRepository.findByCustomerId(customerId);
         if (customer != null && customer.isOfType(CustomerType.TENANT)) {
             // TODO: Integrate with your existing EmailService
             System.out.println("Maintenance notification sent to " + customer.getEmail() + ": " + message);
@@ -289,7 +289,7 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public List<Ticket> getTicketsForCustomer(Long customerId) {
         // TODO: Implement using your existing TicketService
-        Customer customer = customerRepository.findByCustomerId(customerId.intValue());
+        Customer customer = customerRepository.findByCustomerId(customerId);
         if (customer != null) {
             // Return customer.getTickets() or call ticketService.findByCustomerId(customerId)
         }
@@ -299,7 +299,7 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public List<Lead> getLeadsForCustomer(Long customerId) {
         // TODO: Implement using your existing LeadService
-        Customer customer = customerRepository.findByCustomerId(customerId.intValue());
+        Customer customer = customerRepository.findByCustomerId(customerId);
         if (customer != null) {
             // Return customer.getLeads() or call leadService.findByCustomerId(customerId)
         }
@@ -309,7 +309,7 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public List<Contract> getContractsForCustomer(Long customerId) {
         // TODO: Implement using your existing ContractService
-        Customer customer = customerRepository.findByCustomerId(customerId.intValue());
+        Customer customer = customerRepository.findByCustomerId(customerId);
         if (customer != null) {
             // Return customer.getContracts() or call contractService.findByCustomerId(customerId)
         }
@@ -330,7 +330,7 @@ public class CustomerServiceImpl implements CustomerService {
     
     @Override
     public void syncCustomerWithPayProp(Long customerId) {
-        Customer customer = customerRepository.findByCustomerId(customerId.intValue());
+        Customer customer = customerRepository.findByCustomerId(customerId);
         if (customer != null && customer.isPayPropEntity()) {
             customer.setPayPropSynced(true);
             customer.setPayPropLastSync(java.time.LocalDateTime.now());
@@ -361,7 +361,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public void updatePayPropCustomerId(Long customerId, String payPropId) {
-        Customer customer = customerRepository.findByCustomerId(customerId.intValue());
+        Customer customer = customerRepository.findByCustomerId(customerId);
         if (customer != null) {
             customer.setPayPropCustomerId(payPropId);
             customer.setPayPropSynced(true);
