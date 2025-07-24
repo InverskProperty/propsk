@@ -29,7 +29,13 @@ public class TicketServiceImpl implements TicketService{
 
     @Override
     public Ticket findByTicketId(int id) {
-        return ticketRepository.findByTicketId(id);
+        // FIXED: Use the new method that eagerly loads relationships
+        Ticket ticket = ticketRepository.findByTicketIdWithRelations(id);
+        if (ticket == null) {
+            // Fallback to original method if the new one doesn't work
+            ticket = ticketRepository.findByTicketId(id);
+        }
+        return ticket;
     }
 
     @Override

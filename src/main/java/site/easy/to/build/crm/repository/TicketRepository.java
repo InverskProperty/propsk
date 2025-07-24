@@ -2,6 +2,8 @@ package site.easy.to.build.crm.repository;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.Ticket;
@@ -10,6 +12,16 @@ import java.util.List;
 
 @Repository
 public interface TicketRepository extends JpaRepository<Ticket, Integer> {
+    
+    // FIXED: Add JOIN FETCH to eagerly load customer and employee relationships
+    @Query("SELECT t FROM Ticket t " +
+           "LEFT JOIN FETCH t.customer " +
+           "LEFT JOIN FETCH t.employee " +
+           "LEFT JOIN FETCH t.manager " +
+           "WHERE t.ticketId = :ticketId")
+    Ticket findByTicketIdWithRelations(@Param("ticketId") int ticketId);
+    
+    // Keep the original method for backward compatibility
     public Ticket findByTicketId(int ticketId);
 
     public List<Ticket> findByManagerId(int id);
