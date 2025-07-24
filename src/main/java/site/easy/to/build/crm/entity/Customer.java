@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.HashMap;
 
 @Entity
-@Table(name = "customer")
+@Table(name = "customers")
 public class Customer {
 
     public interface CustomerUpdateValidationGroupInclusion {}
