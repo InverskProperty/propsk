@@ -211,7 +211,7 @@ public class FinancialController {
         
         try {
             // Get all properties for this customer
-            List<Property> customerProperties = propertyService.findByPropertyOwnerId(customerId);
+            List<Property> customerProperties = propertyService.findByPropertyOwnerId(customerId.longValue());
             List<Long> propertyIds = customerProperties.stream()
                 .map(Property::getId)
                 .collect(Collectors.toList());

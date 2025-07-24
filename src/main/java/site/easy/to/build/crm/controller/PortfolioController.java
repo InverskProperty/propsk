@@ -287,7 +287,7 @@ public class PortfolioController {
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 if (selectedOwnerId != null && selectedOwnerId > 0) {
                     // Verify owner exists
-                    if (customerService != null && customerService.existsById(selectedOwnerId)) {
+                    if (customerService != null && customerService.existsById(selectedOwnerId.longValue())) {
                         portfolio.setPropertyOwnerId(selectedOwnerId);
                         portfolio.setIsShared("N");
                         System.out.println("✅ Manager creating owner-specific portfolio for: " + selectedOwnerId);

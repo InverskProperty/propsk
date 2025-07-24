@@ -214,7 +214,7 @@ public class StatementController {
     @ResponseBody
     public ResponseEntity<List<Property>> getPropertiesForOwner(@PathVariable Integer ownerId) {
         try {
-            List<Property> properties = propertyService.getPropertiesByOwner(ownerId);
+            List<Property> properties = propertyService.getPropertiesByOwner(ownerId.longValue());
             return ResponseEntity.ok(properties);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
@@ -249,7 +249,7 @@ public class StatementController {
         try {
             if ("property-owner".equals(type)) {
                 Customer propertyOwner = customerService.findByCustomerId(customerId.longValue());
-                List<Property> properties = propertyService.getPropertiesByOwner(customerId);
+                List<Property> properties = propertyService.getPropertiesByOwner(customerId.longValue());
                 
                 // Return preview data
                 return ResponseEntity.ok(Map.of( // FIXED: Now Map is imported
@@ -260,7 +260,7 @@ public class StatementController {
                 ));
             } else if ("tenant".equals(type)) {
                 Customer tenant = customerService.findByCustomerId(customerId.longValue());
-                Property property = propertyService.getPropertyByTenant(customerId);
+                Property property = propertyService.getPropertyByTenant(customerId.longValue());
                 
                 return ResponseEntity.ok(Map.of(
                     "tenant", tenant,

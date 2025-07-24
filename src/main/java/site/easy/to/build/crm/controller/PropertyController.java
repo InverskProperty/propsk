@@ -83,9 +83,9 @@ public class PropertyController {
                 if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                     properties = propertyService.findAll();
                 } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
-                    properties = propertyService.findByPropertyOwnerId(userId);
+                    properties = propertyService.findByPropertyOwnerId(Long.valueOf(userId));
                 } else {
-                    properties = propertyService.getRecentProperties((long) userId, 100);
+                    properties = propertyService.getRecentProperties(Long.valueOf(userId), 100);
                 }
                 
                 System.out.println("DEBUG: Found " + (properties != null ? properties.size() : "null") + " properties");
@@ -149,7 +149,7 @@ public class PropertyController {
             properties = allVacantProperties;
         } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
             properties = allVacantProperties.stream()
-                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(userId))
+                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(Long.valueOf(userId)))
                 .collect(Collectors.toList());
         } else {
             properties = allVacantProperties.stream()
@@ -187,7 +187,7 @@ public class PropertyController {
             properties = allOccupiedProperties;
         } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
             properties = allOccupiedProperties.stream()
-                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(userId))
+                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(Long.valueOf(userId)))
                 .collect(Collectors.toList());
         } else {
             properties = allOccupiedProperties.stream()
@@ -214,9 +214,9 @@ public class PropertyController {
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 properties = propertyService.findAll();
             } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
-                properties = propertyService.findByPropertyOwnerId(userId);
+                properties = propertyService.findByPropertyOwnerId(Long.valueOf(userId));
             } else {
-                properties = propertyService.getRecentProperties((long) userId, 100);
+                properties = propertyService.getRecentProperties(Long.valueOf(userId), 100);
             }
 
             addComprehensivePortfolioStatistics(model, properties);
@@ -247,7 +247,7 @@ public class PropertyController {
             properties = allArchivedProperties;
         } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
             properties = allArchivedProperties.stream()
-                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(userId))
+                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(Long.valueOf(userId)))
                 .collect(Collectors.toList());
         } else {
             properties = allArchivedProperties.stream()
@@ -296,7 +296,7 @@ public class PropertyController {
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
             hasAccess = true;
         } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") && 
-                   property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(userId)) {
+                   property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(Long.valueOf(userId))) {
             hasAccess = true;
         } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
             hasAccess = true;
@@ -408,7 +408,7 @@ public class PropertyController {
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 hasAccess = true;
             } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") && 
-                    property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(userId)) {
+                    property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(Long.valueOf(userId))) {
                 hasAccess = true;
             } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
                 hasAccess = true;
@@ -451,7 +451,7 @@ public class PropertyController {
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
             hasAccess = true;
         } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") && 
-                   existingProperty.getPropertyOwnerId() != null && existingProperty.getPropertyOwnerId().equals(userId)) {
+                   existingProperty.getPropertyOwnerId() != null && existingProperty.getPropertyOwnerId().equals(Long.valueOf(userId))) {
             hasAccess = true;
         } else if (existingProperty.getCreatedBy() != null && existingProperty.getCreatedBy().equals((long) userId)) {
             hasAccess = true;
@@ -538,7 +538,7 @@ public class PropertyController {
             properties = allResults;
         } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
             properties = allResults.stream()
-                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(userId))
+                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(Long.valueOf(userId)))
                 .collect(Collectors.toList());
         } else {
             properties = allResults.stream()
@@ -733,7 +733,7 @@ public class PropertyController {
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
             return propertyService.findAll();
         } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
-            return propertyService.findByPropertyOwnerId(userId);
+            return propertyService.findByPropertyOwnerId(Long.valueOf(userId));
         } else {
             return propertyService.getRecentProperties((long) userId, 100);
         }
@@ -829,7 +829,7 @@ public class PropertyController {
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 hasAccess = true;
             } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") && 
-                       property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(userId)) {
+                       property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(Long.valueOf(userId))) {
                 hasAccess = true;
             } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
                 hasAccess = true;
