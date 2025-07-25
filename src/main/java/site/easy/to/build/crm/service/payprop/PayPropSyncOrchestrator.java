@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
+import site.easy.to.build.crm.repository.UserRepository;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService.PayPropExportResult;
 import site.easy.to.build.crm.service.property.PropertyService;
@@ -41,6 +42,7 @@ public class PayPropSyncOrchestrator {
    private final CustomerPropertyAssignmentService assignmentService;
    private final CustomerDriveOrganizationService customerDriveOrganizationService;
    private final GoogleDriveFileService googleDriveFileService;
+   private final UserRepository userRepository;
 
    @Value("${payprop.sync.batch-size:25}")
    private int batchSize;
@@ -53,7 +55,8 @@ public class PayPropSyncOrchestrator {
                                  AuthenticationUtils authenticationUtils,
                                  CustomerPropertyAssignmentService assignmentService,
                                  CustomerDriveOrganizationService customerDriveOrganizationService,
-                                 GoogleDriveFileService googleDriveFileService) {
+                                 GoogleDriveFileService googleDriveFileService,
+                                 UserRepository userRepository) {
        this.payPropSyncService = payPropSyncService;
        this.syncLogger = syncLogger;
        this.customerService = customerService;
@@ -62,6 +65,7 @@ public class PayPropSyncOrchestrator {
        this.assignmentService = assignmentService;
        this.customerDriveOrganizationService = customerDriveOrganizationService;
        this.googleDriveFileService = googleDriveFileService;
+       this.userRepository = userRepository;
    }
 
    // ===== MAIN SYNC ORCHESTRATION =====
@@ -855,7 +859,8 @@ public class PayPropSyncOrchestrator {
        }
        
        // Set user_id for database constraint
-       customer.setUserId(initiatedBy);
+       User user = userRepository.getReferenceById(initiatedBy);
+       customer.setUser(user);
        
        return customer;
    }
@@ -1299,7 +1304,8 @@ public class PayPropSyncOrchestrator {
        // No direct assignment to customer entity anymore
        
        // Set user_id for database constraint
-       customer.setUserId(initiatedBy);
+       User user = userRepository.getReferenceById(initiatedBy);
+       customer.setUser(user);
        
        return customer;
    }
@@ -1368,7 +1374,8 @@ public class PayPropSyncOrchestrator {
        }
        
        // Set user_id for database constraint
-       customer.setUserId(initiatedBy);
+       User user = userRepository.getReferenceById(initiatedBy);
+       customer.setUser(user);
        
        return customer;
    }
