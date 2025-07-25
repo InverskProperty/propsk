@@ -86,6 +86,15 @@ public class Payment {
     @Column(name = "updated_by")
     private Long updatedBy;
 
+    // ===== BATCH PAYMENT RELATIONSHIP =====
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "batch_payment_id")
+    private BatchPayment batchPayment;
+
+    @Column(name = "payprop_batch_id")
+    private String payPropBatchId;
+
     // ===== CONSTRUCTORS =====
     
     public Payment() {}
@@ -154,6 +163,12 @@ public class Payment {
 
     public Long getUpdatedBy() { return updatedBy; }
     public void setUpdatedBy(Long updatedBy) { this.updatedBy = updatedBy; }
+
+    public BatchPayment getBatchPayment() { return batchPayment; }
+    public void setBatchPayment(BatchPayment batchPayment) { this.batchPayment = batchPayment; }
+
+    public String getPayPropBatchId() { return payPropBatchId; }
+    public void setPayPropBatchId(String payPropBatchId) { this.payPropBatchId = payPropBatchId; }
 
     // ===== UTILITY METHODS =====
     

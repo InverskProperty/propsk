@@ -119,6 +119,18 @@ public class FinancialTransaction {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
+    // ===== BATCH PAYMENT RELATIONSHIP =====
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "batch_payment_id")
+    private BatchPayment batchPayment;
+
+    @Column(name = "payprop_batch_id")
+    private String payPropBatchId;
+
+    @Column(name = "batch_sequence_number")
+    private Integer batchSequenceNumber;
+    
     // ===== CONSTRUCTORS =====
     
     public FinancialTransaction() {}
@@ -248,6 +260,15 @@ public class FinancialTransaction {
     
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    
+    public BatchPayment getBatchPayment() { return batchPayment; }
+    public void setBatchPayment(BatchPayment batchPayment) { this.batchPayment = batchPayment; }
+
+    public String getPayPropBatchId() { return payPropBatchId; }
+    public void setPayPropBatchId(String payPropBatchId) { this.payPropBatchId = payPropBatchId; }
+
+    public Integer getBatchSequenceNumber() { return batchSequenceNumber; }
+    public void setBatchSequenceNumber(Integer batchSequenceNumber) { this.batchSequenceNumber = batchSequenceNumber; }
     
     // ===== UTILITY METHODS =====
     

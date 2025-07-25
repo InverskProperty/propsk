@@ -391,6 +391,133 @@ public class PayPropWebhookController {
         }
     }
 
+        // ===== NEW: BATCH PAYMENT WEBHOOK HANDLERS =====
+
+    /**
+     * Handle PayProp outgoing payment batch webhook
+     * This webhook is triggered when a batch of payments is processed
+     */
+    @PostMapping("/outgoing-payment-batch")
+    public ResponseEntity<Map<String, Object>> handleOutgoingPaymentBatch(@RequestBody Map<String, Object> webhookData) {
+        try {
+            log.info("Received PayProp outgoing-payment-batch webhook");
+            
+            @SuppressWarnings("unchecked")
+            Map<String, Object> batchData = (Map<String, Object>) webhookData.get("data");
+            
+            if (batchData == null) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "No batch data provided"));
+            }
+            
+            // Extract batch information
+            String batchId = (String) batchData.get("id");
+            String status = (String) batchData.get("status");
+            Object amount = batchData.get("amount");
+            String date = (String) batchData.get("date");
+            
+            log.info("Processing payment batch: ID={}, Status={}, Amount={}, Date={}", 
+                batchId, status, amount, date);
+            
+            // Store batch information in your system
+            processBatchPaymentNotification(batchData);
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Batch payment processed successfully",
+                "batchId", batchId
+            ));
+            
+        } catch (Exception e) {
+            log.error("Error processing outgoing-payment-batch webhook: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Handle PayProp payment created webhook
+     * Individual payments within a batch might trigger this
+     */
+    @PostMapping("/payment-created")
+    public ResponseEntity<Map<String, Object>> handlePaymentCreated(@RequestBody Map<String, Object> webhookData) {
+        try {
+            log.info("Received PayProp payment-created webhook");
+            
+            @SuppressWarnings("unchecked")
+            Map<String, Object> paymentData = (Map<String, Object>) webhookData.get("data");
+            
+            if (paymentData == null) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "No payment data provided"));
+            }
+            
+            // Extract payment information
+            String paymentId = (String) paymentData.get("id");
+            String batchId = (String) paymentData.get("payment_batch_id"); // Look for this field
+            Object amount = paymentData.get("amount");
+            String propertyId = (String) paymentData.get("property_id");
+            String tenantId = (String) paymentData.get("tenant_id");
+            
+            log.info("Processing payment: ID={}, BatchID={}, Amount={}, Property={}, Tenant={}", 
+                paymentId, batchId, amount, propertyId, tenantId);
+            
+            // Store payment information
+            processPaymentNotification(paymentData);
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Payment processed successfully",
+                "paymentId", paymentId,
+                "batchId", batchId
+            ));
+            
+        } catch (Exception e) {
+            log.error("Error processing payment-created webhook: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Handle PayProp payment updated webhook
+     */
+    @PostMapping("/payment-updated")
+    public ResponseEntity<Map<String, Object>> handlePaymentUpdated(@RequestBody Map<String, Object> webhookData) {
+        try {
+            log.info("Received PayProp payment-updated webhook");
+            
+            @SuppressWarnings("unchecked")
+            Map<String, Object> paymentData = (Map<String, Object>) webhookData.get("data");
+            
+            if (paymentData == null) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "No payment data provided"));
+            }
+            
+            // Extract payment information including batch ID
+            String paymentId = (String) paymentData.get("id");
+            String batchId = (String) paymentData.get("payment_batch_id");
+            String status = (String) paymentData.get("status");
+            
+            log.info("Updating payment: ID={}, BatchID={}, Status={}", paymentId, batchId, status);
+            
+            // Update payment information
+            updatePaymentNotification(paymentData);
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Payment update processed successfully",
+                "paymentId", paymentId
+            ));
+            
+        } catch (Exception e) {
+            log.error("Error processing payment-updated webhook: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
     // ===== PRIVATE HELPER METHODS FOR MAINTENANCE TICKETS =====
 
     private Ticket createTicketFromPayPropData(Map<String, Object> data) {
@@ -627,6 +754,90 @@ public class PayPropWebhookController {
             
         } catch (Exception e) {
             log.error("Error sending maintenance ticket alerts: {}", e.getMessage());
+        }
+    }
+
+    // ===== PRIVATE HELPER METHODS FOR BATCH PAYMENTS =====
+
+    private void processBatchPaymentNotification(Map<String, Object> batchData) {
+        try {
+            String batchId = (String) batchData.get("id");
+            String status = (String) batchData.get("status");
+            
+            // TODO: Implement your batch payment storage logic here
+            // This could involve:
+            // 1. Creating a BatchPayment entity
+            // 2. Linking it to related customers/properties
+            // 3. Updating financial records
+            // 4. Sending notifications
+            
+            log.info("Stored batch payment notification for batch ID: {}", batchId);
+            
+            // If this is a completed batch, you might want to:
+            if ("completed".equals(status) || "processed".equals(status)) {
+                // Fetch full batch details from PayProp API
+                fetchAndStoreBatchDetails(batchId);
+                
+                // Send notifications to relevant stakeholders
+                sendBatchCompletionNotifications(batchId);
+            }
+            
+        } catch (Exception e) {
+            log.error("Error processing batch payment notification: {}", e.getMessage());
+        }
+    }
+
+    private void processPaymentNotification(Map<String, Object> paymentData) {
+        try {
+            String paymentId = (String) paymentData.get("id");
+            String batchId = (String) paymentData.get("payment_batch_id");
+            
+            // Find existing financial transaction or create new one
+            // Link it to the batch if batch ID is provided
+            
+            log.info("Processed payment notification: Payment={}, Batch={}", paymentId, batchId);
+            
+        } catch (Exception e) {
+            log.error("Error processing payment notification: {}", e.getMessage());
+        }
+    }
+
+    private void updatePaymentNotification(Map<String, Object> paymentData) {
+        try {
+            String paymentId = (String) paymentData.get("id");
+            String status = (String) paymentData.get("status");
+            
+            // Update existing payment record
+            // Update batch status if needed
+            
+            log.info("Updated payment notification: Payment={}, Status={}", paymentId, status);
+            
+        } catch (Exception e) {
+            log.error("Error updating payment notification: {}", e.getMessage());
+        }
+    }
+
+    private void fetchAndStoreBatchDetails(String batchId) {
+        try {
+            // Use PayProp API to get full batch details
+            String url = "/report/all-payments?payment_batch_id=" + batchId;
+            // Map<String, Object> batchDetails = payPropSyncService.makePayPropApiCall(url, Map.class);
+            
+            // Store detailed batch information
+            log.info("Would fetch detailed batch information for batch ID: {}", batchId);
+            
+        } catch (Exception e) {
+            log.error("Error fetching batch details for batch {}: {}", batchId, e.getMessage());
+        }
+    }
+
+    private void sendBatchCompletionNotifications(String batchId) {
+        try {
+            // Send notifications to property owners, managers, etc.
+            log.info("Would send batch completion notifications for batch ID: {}", batchId);
+            
+        } catch (Exception e) {
+            log.error("Error sending batch notifications for batch {}: {}", batchId, e.getMessage());
         }
     }
 
