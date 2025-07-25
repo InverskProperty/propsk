@@ -391,6 +391,12 @@ public class PayPropSyncService {
                 
                 int processed = 0;
                 
+                // Check if balances is null or empty
+                if (balances == null || balances.isEmpty()) {
+                    return SyncResult.success("No beneficiary balances found to sync", 
+                        Map.of("processed", 0));
+                }
+                
                 for (Map<String, Object> balanceData : balances) {
                     try {
                         createOrUpdateBeneficiaryBalance(balanceData);

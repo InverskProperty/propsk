@@ -792,14 +792,14 @@ public class PayPropSyncOrchestrator {
            customerService.save(existing);
            return false;
        } else {
-           Customer customer = createCustomerFromContractorData(beneficiaryData);
+           Customer customer = createCustomerFromContractorData(beneficiaryData, initiatedBy);
            customer.setCreatedAt(LocalDateTime.now());
            customerService.save(customer);
            return true;
        }
    }
 
-   private Customer createCustomerFromContractorData(Map<String, Object> data) {
+   private Customer createCustomerFromContractorData(Map<String, Object> data, Long initiatedBy) {
        Customer customer = new Customer();
        
        // PayProp Integration Fields
@@ -853,6 +853,9 @@ public class PayPropSyncOrchestrator {
            customer.setBankIban((String) bankAccount.get("iban"));
            customer.setBankSwiftCode((String) bankAccount.get("swift_code"));
        }
+       
+       // Set user_id for database constraint
+       customer.setUserId(initiatedBy);
        
        return customer;
    }
@@ -1200,7 +1203,7 @@ public class PayPropSyncOrchestrator {
            customerService.save(existing);
            return false;
        } else {
-           Customer customer = createCustomerFromBeneficiaryData(beneficiaryData, relationship);
+           Customer customer = createCustomerFromBeneficiaryData(beneficiaryData, relationship, initiatedBy);
            customer.setCreatedAt(LocalDateTime.now());
            customerService.save(customer);
            return true;
@@ -1216,7 +1219,7 @@ public class PayPropSyncOrchestrator {
            customerService.save(existing);
            return false;
        } else {
-           Customer customer = createCustomerFromTenantData(tenantData);
+           Customer customer = createCustomerFromTenantData(tenantData, initiatedBy);
            customer.setCreatedAt(LocalDateTime.now());
            customerService.save(customer);
            return true;
@@ -1225,7 +1228,7 @@ public class PayPropSyncOrchestrator {
 
    // ===== CUSTOMER MAPPING METHODS =====
 
-   private Customer createCustomerFromBeneficiaryData(Map<String, Object> data, PropertyRelationship relationship) {
+   private Customer createCustomerFromBeneficiaryData(Map<String, Object> data, PropertyRelationship relationship, Long initiatedBy) {
        Customer customer = new Customer();
        
        // PayProp Integration Fields
@@ -1295,10 +1298,13 @@ public class PayPropSyncOrchestrator {
        // Property Relationship will be handled separately via junction table
        // No direct assignment to customer entity anymore
        
+       // Set user_id for database constraint
+       customer.setUserId(initiatedBy);
+       
        return customer;
    }
 
-   private Customer createCustomerFromTenantData(Map<String, Object> data) {
+   private Customer createCustomerFromTenantData(Map<String, Object> data, Long initiatedBy) {
        Customer customer = new Customer();
        
        // PayProp Integration Fields
@@ -1360,6 +1366,9 @@ public class PayPropSyncOrchestrator {
                customer.setHasBankAccount(true);
            }
        }
+       
+       // Set user_id for database constraint
+       customer.setUserId(initiatedBy);
        
        return customer;
    }
