@@ -1,7 +1,7 @@
 // BatchPayment.java - Entity to store PayProp batch payment information
 package site.easy.to.build.crm.entity;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
