@@ -14,6 +14,8 @@ public interface OAuthUserService {
 
     public OAuthUser getOAuthUserByUser(User user);
 
+    public boolean hasValidTokens(OAuthUser oauthUser);
+    
     public String refreshAccessTokenIfNeeded(OAuthUser oauthUser);
 
     public void revokeAccess(OAuthUser oAuthUser);

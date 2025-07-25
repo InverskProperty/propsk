@@ -50,7 +50,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
 
     @Override
     public OAuthUser findById(Long id) {
-        return oAuthUserRepository.findById(id.intValue());
+        return oAuthUserRepository.findById(id);
     }
 
     @Override
@@ -63,6 +63,27 @@ public class OAuthUserServiceImpl implements OAuthUserService{
         return oAuthUserRepository.getOAuthUserByUser(user);
     }
 
+    /**
+     * Check if the OAuth user has valid tokens for API access
+     */
+    public boolean hasValidTokens(OAuthUser oauthUser) {
+        if (oauthUser == null) {
+            return false;
+        }
+        
+        // Check if we have an access token that's still valid
+        if (oauthUser.getAccessToken() != null && oauthUser.getAccessTokenExpiration() != null) {
+            if (Instant.now().isBefore(oauthUser.getAccessTokenExpiration())) {
+                return true;
+            }
+        }
+        
+        // Check if we have a refresh token to get a new access token
+        return oauthUser.getRefreshToken() != null && 
+               !oauthUser.getRefreshToken().isEmpty() && 
+               !"N/A".equals(oauthUser.getRefreshToken());
+    }
+    
     @Override
     @ConditionalOnExpression("!T(site.easy.to.build.crm.util.StringUtils).isEmpty('${spring.security.oauth2.client.registration.google.client-id:}')")
     public String refreshAccessTokenIfNeeded(OAuthUser oauthUser) {
@@ -107,6 +128,25 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             
         } catch (IOException e) {
             System.err.println("❌ Failed to refresh access token: " + e.getMessage());
+            
+            // Handle invalid_grant error specifically
+            if (e.getMessage().contains("invalid_grant")) {
+                System.err.println("🔄 Refresh token appears to be invalid or expired");
+                System.err.println("   Clearing stored tokens to force re-authentication");
+                
+                // Clear the invalid refresh token
+                oauthUser.setRefreshToken(null);
+                oauthUser.setRefreshTokenIssuedAt(null);
+                oauthUser.setRefreshTokenExpiration(null);
+                oauthUser.setAccessToken(null);
+                oauthUser.setAccessTokenExpiration(null);
+                oauthUser.setAccessTokenIssuedAt(null);
+                
+                oAuthUserRepository.save(oauthUser);
+                
+                throw new RuntimeException("OAuth tokens expired. Please re-authenticate with Google to continue using Google services.", e);
+            }
+            
             throw new RuntimeException("Failed to refresh access token: " + e.getMessage(), e);
         }
 

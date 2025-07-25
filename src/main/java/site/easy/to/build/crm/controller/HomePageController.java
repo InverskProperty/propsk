@@ -18,6 +18,7 @@ import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.lead.LeadService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.ticket.TicketService;
+import site.easy.to.build.crm.service.user.OAuthUserService;
 import site.easy.to.build.crm.service.weather.WeatherService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
@@ -43,11 +44,12 @@ public class HomePageController {
     private final GoogleCalendarApiService googleCalendarApiService;
     private final CustomerLoginInfoService customerLoginInfoService;
     private final PropertyService propertyService;
+    private final OAuthUserService oAuthUserService;
 
     @Autowired
     public HomePageController(TicketService ticketService, CustomerService customerService, ContractService contractService, LeadService leadService,
                               WeatherService weatherService, AuthenticationUtils authenticationUtils, GoogleCalendarApiService googleCalendarApiService,
-                              CustomerLoginInfoService customerLoginInfoService, PropertyService propertyService) {
+                              CustomerLoginInfoService customerLoginInfoService, PropertyService propertyService, OAuthUserService oAuthUserService) {
         this.ticketService = ticketService;
         this.customerService = customerService;
         this.contractService = contractService;
@@ -57,6 +59,7 @@ public class HomePageController {
         this.googleCalendarApiService = googleCalendarApiService;
         this.customerLoginInfoService = customerLoginInfoService;
         this.propertyService = propertyService;
+        this.oAuthUserService = oAuthUserService;
     }
 
     @GetMapping("/login")
@@ -137,13 +140,36 @@ public class HomePageController {
             if (!(authentication instanceof UsernamePasswordAuthenticationToken) && googleCalendarApiService != null) {
                 isGoogleUser = true;
                 OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-                if (oAuthUser.getGrantedScopes().contains(GoogleAccessService.SCOPE_CALENDAR)) {
+                
+                // Check if user has valid OAuth tokens before attempting API calls
+                if (!oAuthUserService.hasValidTokens(oAuthUser)) {
+                    System.out.println("⚠️ OAuth tokens not available or expired for user");
+                    hasCalendarAccess = false;
+                    model.addAttribute("oauthTokenExpired", true);
+                    model.addAttribute("oauthMessage", "Google services require authentication. Please re-authenticate to access Google calendar.");
+                } else if (oAuthUser.getGrantedScopes().contains(GoogleAccessService.SCOPE_CALENDAR)) {
                     try {
                         hasCalendarAccess = true;
                         EventDisplayList eventDisplayList = googleCalendarApiService.getEvents("primary", oAuthUser);
                         eventDisplays = eventDisplayList.getItems();
+                    } catch (RuntimeException e) {
+                        if (e.getMessage().contains("OAuth tokens expired")) {
+                            System.err.println("🔄 OAuth tokens expired for user, calendar access disabled");
+                            hasCalendarAccess = false;
+                            eventDisplays = null;
+                            model.addAttribute("oauthTokenExpired", true);
+                            model.addAttribute("oauthMessage", "Google calendar access expired. Please re-authenticate to restore Google services.");
+                        } else {
+                            System.err.println("❌ Google Calendar API error: " + e.getMessage());
+                            hasCalendarAccess = false;
+                            eventDisplays = null;
+                            model.addAttribute("googleCalendarError", "Unable to load calendar events: " + e.getMessage());
+                        }
                     } catch (IOException | GeneralSecurityException e) {
-                        throw new RuntimeException("error" + e);
+                        System.err.println("❌ Google Calendar API error: " + e.getMessage());
+                        hasCalendarAccess = false;
+                        eventDisplays = null;
+                        model.addAttribute("googleCalendarError", "Unable to load calendar events: " + e.getMessage());
                     }
                 }
             }
@@ -152,6 +178,7 @@ public class HomePageController {
             model.addAttribute("countCustomers", countCustomers);
             model.addAttribute("eventDisplays", eventDisplays);
             model.addAttribute("hasCalendarAccess", hasCalendarAccess);
+            model.addAttribute("isGoogleUser", isGoogleUser);
             model.addAttribute("isGoogleUser", isGoogleUser);
 
 
