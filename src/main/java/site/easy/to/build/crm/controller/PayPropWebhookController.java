@@ -636,9 +636,6 @@ public class PayPropWebhookController {
         ));
     }
 
-    /**
-     * List recent batch payments stored in the system
-     */
     @GetMapping("/batch-payments")
     public ResponseEntity<Map<String, Object>> listBatchPayments(
             @RequestParam(required = false) Integer limit) {
@@ -656,23 +653,25 @@ public class PayPropWebhookController {
                 .collect(Collectors.toList());
             
             List<Map<String, Object>> batchSummaries = recentBatches.stream()
-                .map(batch -> Map.<String, Object>of(
-                    "id", batch.getId(),
-                    "payPropBatchId", batch.getPayPropBatchId(),
-                    "status", batch.getStatus(),
-                    "totalAmount", batch.getTotalAmount(),
-                    "recordCount", batch.getRecordCount(),
-                    "batchDate", batch.getBatchDate(),
-                    "lastWebhook", batch.getPayPropWebhookReceived()
-                ))
+                .map(batch -> {
+                    Map<String, Object> summary = new HashMap<>();
+                    summary.put("id", batch.getId());
+                    summary.put("payPropBatchId", batch.getPayPropBatchId());
+                    summary.put("status", batch.getStatus());
+                    summary.put("totalAmount", batch.getTotalAmount());
+                    summary.put("recordCount", batch.getRecordCount());
+                    summary.put("batchDate", batch.getBatchDate());
+                    summary.put("lastWebhook", batch.getPayPropWebhookReceived());
+                    return summary;
+                })
                 .collect(Collectors.toList());
-            
+
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "count", batchSummaries.size(),
                 "batches", batchSummaries
             ));
-            
+
         } catch (Exception e) {
             log.error("Error listing batch payments: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

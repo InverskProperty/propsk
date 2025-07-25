@@ -1,4 +1,3 @@
-// BatchPayment.java - Entity to store PayProp batch payment information
 package site.easy.to.build.crm.entity;
 
 import jakarta.persistence.*;
@@ -17,69 +16,84 @@ public class BatchPayment {
     private Long id;
     
     @Column(name = "payprop_batch_id", unique = true)
-    private String payPropBatchId;
+    private String paypropBatchId;
     
-    @Column(name = "batch_date")
-    private LocalDate batchDate;
+    @Column(name = "customer_id")
+    private Long customerId;  // Changed from String to Long
     
     @Column(name = "status")
     private String status;
     
-    @Column(name = "total_amount", precision = 10, scale = 2)
+    @Column(name = "total_amount", precision = 19, scale = 2)
     private BigDecimal totalAmount;
     
-    @Column(name = "total_in", precision = 10, scale = 2)
-    private BigDecimal totalIn;
+    @Column(name = "payment_count")
+    private Integer paymentCount;
     
-    @Column(name = "total_out", precision = 10, scale = 2)
-    private BigDecimal totalOut;
+    @Column(name = "processing_date")
+    private LocalDateTime processingDate;
     
-    @Column(name = "total_commission", precision = 10, scale = 2)
-    private BigDecimal totalCommission;
+    @Column(name = "completed_date")
+    private LocalDateTime completedDate;
     
-    @Column(name = "record_count")
-    private Integer recordCount;
+    @Column(name = "payment_method")
+    private String paymentMethod;
     
-    @Column(name = "description")
-    private String description;
+    @Column(name = "currency", length = 3)
+    private String currency = "GBP";
     
-    @Column(name = "processed_date")
-    private LocalDateTime processedDate;
+    @Column(name = "bank_reference")
+    private String bankReference;
     
-    @Column(name = "created_at")
+    @OneToMany(mappedBy = "batchPayment", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Payment> payments = new ArrayList<>();
+    
+    @Column(name = "webhook_received_at")
+    private LocalDateTime webhookReceivedAt;
+    
+    @Column(name = "error_message", columnDefinition = "TEXT")
+    private String errorMessage;
+    
+    @Column(name = "retry_count")
+    private Integer retryCount = 0;
+    
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
-    // Relationship to payments in this batch
-    @OneToMany(mappedBy = "batchPayment", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Payment> payments = new ArrayList<>();
+    // Additional fields for PayProp webhook data
+    @Column(name = "total_in", precision = 19, scale = 2)
+    private BigDecimal totalIn;
     
-    // Relationship to financial transactions
-    @OneToMany(mappedBy = "batchPayment", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<FinancialTransaction> financialTransactions = new ArrayList<>();
+    @Column(name = "total_out", precision = 19, scale = 2)
+    private BigDecimal totalOut;
     
-    // PayProp integration fields
-    @Column(name = "payprop_synced")
-    private Boolean payPropSynced = false;
+    @Column(name = "total_commission", precision = 19, scale = 2)
+    private BigDecimal totalCommission;
     
-    @Column(name = "payprop_last_sync")
-    private LocalDateTime payPropLastSync;
+    @Column(name = "batch_date")
+    private LocalDate batchDate;
     
-    @Column(name = "payprop_webhook_received")
-    private LocalDateTime payPropWebhookReceived;
+    @Column(name = "processed_date")
+    private LocalDateTime processedDate;
     
-    // Constructors
-    public BatchPayment() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
+    @Column(name = "record_count")
+    private Integer recordCount;
+    
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+    
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
     }
     
-    public BatchPayment(String payPropBatchId, LocalDate batchDate) {
-        this();
-        this.payPropBatchId = payPropBatchId;
-        this.batchDate = batchDate;
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
     
     // Getters and Setters
@@ -91,20 +105,29 @@ public class BatchPayment {
         this.id = id;
     }
     
+    public String getPaypropBatchId() {
+        return paypropBatchId;
+    }
+    
+    public void setPaypropBatchId(String paypropBatchId) {
+        this.paypropBatchId = paypropBatchId;
+    }
+    
+    // Add alias methods for consistency with controller usage
     public String getPayPropBatchId() {
-        return payPropBatchId;
+        return paypropBatchId;
     }
     
     public void setPayPropBatchId(String payPropBatchId) {
-        this.payPropBatchId = payPropBatchId;
+        this.paypropBatchId = payPropBatchId;
     }
     
-    public LocalDate getBatchDate() {
-        return batchDate;
+    public Long getCustomerId() {  // Changed return type
+        return customerId;
     }
     
-    public void setBatchDate(LocalDate batchDate) {
-        this.batchDate = batchDate;
+    public void setCustomerId(Long customerId) {  // Changed parameter type
+        this.customerId = customerId;
     }
     
     public String getStatus() {
@@ -113,7 +136,6 @@ public class BatchPayment {
     
     public void setStatus(String status) {
         this.status = status;
-        this.updatedAt = LocalDateTime.now();
     }
     
     public BigDecimal getTotalAmount() {
@@ -122,61 +144,86 @@ public class BatchPayment {
     
     public void setTotalAmount(BigDecimal totalAmount) {
         this.totalAmount = totalAmount;
-        this.updatedAt = LocalDateTime.now();
     }
     
-    public BigDecimal getTotalIn() {
-        return totalIn;
+    public Integer getPaymentCount() {
+        return paymentCount;
     }
     
-    public void setTotalIn(BigDecimal totalIn) {
-        this.totalIn = totalIn;
-        this.updatedAt = LocalDateTime.now();
+    public void setPaymentCount(Integer paymentCount) {
+        this.paymentCount = paymentCount;
     }
     
-    public BigDecimal getTotalOut() {
-        return totalOut;
+    public LocalDateTime getProcessingDate() {
+        return processingDate;
     }
     
-    public void setTotalOut(BigDecimal totalOut) {
-        this.totalOut = totalOut;
-        this.updatedAt = LocalDateTime.now();
+    public void setProcessingDate(LocalDateTime processingDate) {
+        this.processingDate = processingDate;
     }
     
-    public BigDecimal getTotalCommission() {
-        return totalCommission;
+    public LocalDateTime getCompletedDate() {
+        return completedDate;
     }
     
-    public void setTotalCommission(BigDecimal totalCommission) {
-        this.totalCommission = totalCommission;
-        this.updatedAt = LocalDateTime.now();
+    public void setCompletedDate(LocalDateTime completedDate) {
+        this.completedDate = completedDate;
     }
     
-    public Integer getRecordCount() {
-        return recordCount;
+    public String getPaymentMethod() {
+        return paymentMethod;
     }
     
-    public void setRecordCount(Integer recordCount) {
-        this.recordCount = recordCount;
-        this.updatedAt = LocalDateTime.now();
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethod = paymentMethod;
     }
     
-    public String getDescription() {
-        return description;
+    public String getCurrency() {
+        return currency;
     }
     
-    public void setDescription(String description) {
-        this.description = description;
-        this.updatedAt = LocalDateTime.now();
+    public void setCurrency(String currency) {
+        this.currency = currency;
     }
     
-    public LocalDateTime getProcessedDate() {
-        return processedDate;
+    public String getBankReference() {
+        return bankReference;
     }
     
-    public void setProcessedDate(LocalDateTime processedDate) {
-        this.processedDate = processedDate;
-        this.updatedAt = LocalDateTime.now();
+    public void setBankReference(String bankReference) {
+        this.bankReference = bankReference;
+    }
+    
+    public List<Payment> getPayments() {
+        return payments;
+    }
+    
+    public void setPayments(List<Payment> payments) {
+        this.payments = payments;
+    }
+    
+    public LocalDateTime getWebhookReceivedAt() {
+        return webhookReceivedAt;
+    }
+    
+    public void setWebhookReceivedAt(LocalDateTime webhookReceivedAt) {
+        this.webhookReceivedAt = webhookReceivedAt;
+    }
+    
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+    
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
+    }
+    
+    public Integer getRetryCount() {
+        return retryCount;
+    }
+    
+    public void setRetryCount(Integer retryCount) {
+        this.retryCount = retryCount;
     }
     
     public LocalDateTime getCreatedAt() {
@@ -195,47 +242,71 @@ public class BatchPayment {
         this.updatedAt = updatedAt;
     }
     
-    public List<Payment> getPayments() {
-        return payments;
+    // Additional getters and setters for PayProp webhook fields
+    public BigDecimal getTotalIn() {
+        return totalIn;
     }
     
-    public void setPayments(List<Payment> payments) {
-        this.payments = payments;
+    public void setTotalIn(BigDecimal totalIn) {
+        this.totalIn = totalIn;
     }
     
-    public List<FinancialTransaction> getFinancialTransactions() {
-        return financialTransactions;
+    public BigDecimal getTotalOut() {
+        return totalOut;
     }
     
-    public void setFinancialTransactions(List<FinancialTransaction> financialTransactions) {
-        this.financialTransactions = financialTransactions;
+    public void setTotalOut(BigDecimal totalOut) {
+        this.totalOut = totalOut;
     }
     
-    public Boolean getPayPropSynced() {
-        return payPropSynced;
+    public BigDecimal getTotalCommission() {
+        return totalCommission;
     }
     
-    public void setPayPropSynced(Boolean payPropSynced) {
-        this.payPropSynced = payPropSynced;
-        this.updatedAt = LocalDateTime.now();
+    public void setTotalCommission(BigDecimal totalCommission) {
+        this.totalCommission = totalCommission;
     }
     
-    public LocalDateTime getPayPropLastSync() {
-        return payPropLastSync;
+    public LocalDate getBatchDate() {
+        return batchDate;
     }
     
-    public void setPayPropLastSync(LocalDateTime payPropLastSync) {
-        this.payPropLastSync = payPropLastSync;
-        this.updatedAt = LocalDateTime.now();
+    public void setBatchDate(LocalDate batchDate) {
+        this.batchDate = batchDate;
     }
     
+    public LocalDateTime getProcessedDate() {
+        return processedDate;
+    }
+    
+    public void setProcessedDate(LocalDateTime processedDate) {
+        this.processedDate = processedDate;
+    }
+    
+    public Integer getRecordCount() {
+        return recordCount;
+    }
+    
+    public void setRecordCount(Integer recordCount) {
+        this.recordCount = recordCount;
+    }
+    
+    public String getDescription() {
+        return description;
+    }
+    
+    public void setDescription(String description) {
+        this.description = description;
+    }
+    
+    // Alias method for consistency
     public LocalDateTime getPayPropWebhookReceived() {
-        return payPropWebhookReceived;
+        return webhookReceivedAt;
     }
     
-    public void setPayPropWebhookReceived(LocalDateTime payPropWebhookReceived) {
-        this.payPropWebhookReceived = payPropWebhookReceived;
-        this.updatedAt = LocalDateTime.now();
+    // Add setter alias for controller usage
+    public void setPayPropWebhookReceived(LocalDateTime dateTime) {
+        this.webhookReceivedAt = dateTime;
     }
     
     // Helper methods
@@ -249,26 +320,15 @@ public class BatchPayment {
         payment.setBatchPayment(null);
     }
     
-    public void addFinancialTransaction(FinancialTransaction transaction) {
-        financialTransactions.add(transaction);
-        transaction.setBatchPayment(this);
+    public boolean isCompleted() {
+        return "COMPLETED".equalsIgnoreCase(status);
     }
     
-    public void removeFinancialTransaction(FinancialTransaction transaction) {
-        financialTransactions.remove(transaction);
-        transaction.setBatchPayment(null);
+    public boolean isFailed() {
+        return "FAILED".equalsIgnoreCase(status);
     }
     
-    @Override
-    public String toString() {
-        return "BatchPayment{" +
-                "id=" + id +
-                ", payPropBatchId='" + payPropBatchId + '\'' +
-                ", batchDate=" + batchDate +
-                ", status='" + status + '\'' +
-                ", totalAmount=" + totalAmount +
-                ", recordCount=" + recordCount +
-                ", createdAt=" + createdAt +
-                '}';
+    public boolean isPending() {
+        return "PENDING".equalsIgnoreCase(status);
     }
 }
