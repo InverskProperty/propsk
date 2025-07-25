@@ -195,14 +195,12 @@ public class HomePageController {
                 }
             } else {
                 System.out.println("📅 User is not OAuth authenticated or Google Calendar service unavailable");
-                }
             }
             
             model.addAttribute("customers", customers);
             model.addAttribute("countCustomers", countCustomers);
             model.addAttribute("eventDisplays", eventDisplays);
             model.addAttribute("hasCalendarAccess", hasCalendarAccess);
-            model.addAttribute("isGoogleUser", isGoogleUser);
             model.addAttribute("isGoogleUser", isGoogleUser);
 
 
