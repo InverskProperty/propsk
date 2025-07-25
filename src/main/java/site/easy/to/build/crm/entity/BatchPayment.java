@@ -16,7 +16,7 @@ public class BatchPayment {
     private Long id;
     
     @Column(name = "payprop_batch_id", unique = true)
-    private String paypropBatchId;
+    private String payPropBatchId;  // Changed from paypropBatchId
     
     @Column(name = "customer_id")
     private Long customerId;  // Changed from String to Long
@@ -105,21 +105,12 @@ public class BatchPayment {
         this.id = id;
     }
     
-    public String getPaypropBatchId() {
-        return paypropBatchId;
-    }
-    
-    public void setPaypropBatchId(String paypropBatchId) {
-        this.paypropBatchId = paypropBatchId;
-    }
-    
-    // Add alias methods for consistency with controller usage
     public String getPayPropBatchId() {
-        return paypropBatchId;
+        return payPropBatchId;
     }
     
     public void setPayPropBatchId(String payPropBatchId) {
-        this.paypropBatchId = payPropBatchId;
+        this.payPropBatchId = payPropBatchId;
     }
     
     public Long getCustomerId() {  // Changed return type
