@@ -7,11 +7,11 @@ import java.util.Optional;
 
 public interface UserProfileService {
 
-    public Optional<UserProfile> findById(int id);
+    public Optional<UserProfile> findById(Long id);  // Changed int to Long
 
     public UserProfile save(UserProfile userProfile);
 
-    public UserProfile findByUserId(int userId);
+    public UserProfile findByUserId(Long userId);    // Changed int to Long
 
     public List<UserProfile> getAllProfiles();
 }

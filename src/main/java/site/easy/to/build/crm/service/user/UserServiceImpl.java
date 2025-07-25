@@ -19,8 +19,8 @@ public class UserServiceImpl implements UserService{
     }
 
     @Override
-    public User findById(int id) {
-        return userRepository.findById(id);
+    public User findById(Long id) {
+        return userRepository.findById(id.intValue());
     }
 
     @Override
@@ -44,8 +44,8 @@ public class UserServiceImpl implements UserService{
     }
 
     @Override
-    public void deleteById(int id) {
-        userRepository.deleteById(id);
+    public void deleteById(Long id) {
+        userRepository.deleteById(id.intValue());
     }
 
     @Override

@@ -8,7 +8,7 @@ import site.easy.to.build.crm.entity.User;
 
 public interface OAuthUserService {
 
-    public OAuthUser findById(int id);
+    public OAuthUser findById(Long id);
 
     public OAuthUser findBtEmail(String email);
 
@@ -22,7 +22,7 @@ public interface OAuthUserService {
 
     public void save(OAuthUser oAuthUser);
 
-    public void deleteById(int id);
+    public void deleteById(Long id);
 
     public void updateOAuthUserTokens(OAuthUser oAuthUser, OAuth2AccessToken oAuth2AccessToken, OAuth2RefreshToken oAuth2RefreshToken);
 

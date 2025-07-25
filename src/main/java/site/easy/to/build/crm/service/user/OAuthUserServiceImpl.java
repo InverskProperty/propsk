@@ -49,8 +49,8 @@ public class OAuthUserServiceImpl implements OAuthUserService{
     UserRepository userRepository;
 
     @Override
-    public OAuthUser findById(int id) {
-        return oAuthUserRepository.findById(id);
+    public OAuthUser findById(Long id) {
+        return oAuthUserRepository.findById(id.intValue());
     }
 
     @Override
@@ -145,7 +145,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
     }
 
     @Override
-    public void deleteById(int id) {
+    public void deleteById(Long id) {
         // Implementation if needed
     }
 

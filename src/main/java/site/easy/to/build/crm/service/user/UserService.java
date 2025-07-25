@@ -8,7 +8,7 @@ public interface UserService {
 
     public long countAllUsers();
 
-    public User findById(int id);
+    public User findById(Long id);
 
     public List<User> findByUsername(String username);
 
@@ -18,7 +18,7 @@ public interface UserService {
 
     public User save(User user);
 
-    public void deleteById(int id);
+    public void deleteById(Long id);
 
     public List<User> findAll();
 

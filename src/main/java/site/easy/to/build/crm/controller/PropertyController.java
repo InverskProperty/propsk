@@ -72,7 +72,7 @@ public class PropertyController {
                 return "error/not-found";
             }
             
-            User user = userService.findById(userId);
+            User user = userService.findById(Long.valueOf(userId));
             if (user != null && user.isInactiveUser()) {
                 return "error/account-inactive";
             }
@@ -136,7 +136,7 @@ public class PropertyController {
     @GetMapping("/vacant-properties")
     public String getVacantProperties(Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if (user.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -173,7 +173,7 @@ public class PropertyController {
     @GetMapping("/occupied")
     public String getOccupiedProperties(Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if (user.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -205,7 +205,7 @@ public class PropertyController {
     public String getPortfolioOverview(Model model, Authentication authentication) {
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            User user = userService.findById(Long.valueOf(userId));
             if (user.isInactiveUser()) {
                 return "error/account-inactive";
             }
@@ -234,7 +234,7 @@ public class PropertyController {
     @GetMapping("/archived")
     public String getArchivedProperties(Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if (user.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -286,7 +286,7 @@ public class PropertyController {
         }
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if (loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -345,7 +345,7 @@ public class PropertyController {
     @GetMapping("/create-property")
     public String showCreatePropertyForm(Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if (user.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -363,7 +363,7 @@ public class PropertyController {
         }
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if (loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -398,7 +398,7 @@ public class PropertyController {
             }
 
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User loggedInUser = userService.findById(userId);
+            User loggedInUser = userService.findById(Long.valueOf(userId));
             if (loggedInUser.isInactiveUser()) {
                 return "error/account-inactive";
             }
@@ -436,7 +436,7 @@ public class PropertyController {
         }
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if (loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -489,7 +489,7 @@ public class PropertyController {
         }
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if (user.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -524,7 +524,7 @@ public class PropertyController {
                                   @RequestParam(value = "bedrooms", required = false) Integer bedrooms,
                                   Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if (user.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -567,7 +567,7 @@ public class PropertyController {
     public String archiveProperty(@PathVariable("id") Long id, Authentication authentication,
                                  RedirectAttributes redirectAttributes) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if (user.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -598,7 +598,7 @@ public class PropertyController {
     public String unarchiveProperty(@PathVariable("id") Long id, Authentication authentication,
                                    RedirectAttributes redirectAttributes) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if (user.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -728,7 +728,7 @@ public class PropertyController {
     @ResponseBody
     public List<Property> getAllPropertiesApi(Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
             return propertyService.findAll();

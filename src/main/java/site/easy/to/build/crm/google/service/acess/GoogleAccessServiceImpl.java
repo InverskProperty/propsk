@@ -93,7 +93,7 @@ public class GoogleAccessServiceImpl implements GoogleAccessService {
         }
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
 
         handleScopeChanges(session, oAuthUser);

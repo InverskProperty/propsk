@@ -17,8 +17,8 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     @Override
-    public Optional<UserProfile> findById(int id) {
-        return userProfileRepository.findById(id);
+    public Optional<UserProfile> findById(Long id) {    // Fixed: return type should be Optional<UserProfile>
+        return userProfileRepository.findById(id.intValue());
     }
 
     @Override
@@ -27,8 +27,8 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     @Override
-    public UserProfile findByUserId(int userId) {
-        return userProfileRepository.findByUserId(userId);
+    public UserProfile findByUserId(Long userId) {
+        return userProfileRepository.findByUserId(userId.intValue());
     }
 
     @Override
