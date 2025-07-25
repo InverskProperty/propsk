@@ -722,37 +722,35 @@ public class PayPropWebhookController {
         }
     }
 
-    // ===== PRIVATE HELPER METHODS =====
-
-    /**
-     * Process batch payment webhook data and create/update entity
-     */
     private BatchPayment processBatchPaymentWebhook(String batchId, String action, Map<String, Object> data) {
         // Find existing or create new
-        BatchPayment batchPayment = batchPaymentRepository.findByPayPropBatchId(batchId);
-        if (batchPayment == null) {
-            batchPayment = new BatchPayment();
-            batchPayment.setPayPropBatchId(batchId);
-            batchPayment.setCreatedAt(LocalDateTime.now());
-            log.info("Creating new batch payment record for ID: {}", batchId);
-        } else {
+        BatchPayment batchPayment = batchPaymentRepository.findByPayPropBatchId(batchId)
+            .orElseGet(() -> {
+                BatchPayment newBatch = new BatchPayment();
+                newBatch.setPayPropBatchId(batchId);
+                newBatch.setCreatedAt(LocalDateTime.now());
+                log.info("Creating new batch payment record for ID: {}", batchId);
+                return newBatch;
+            });
+        
+        if (batchPayment.getId() != null) {
             log.info("Updating existing batch payment record for ID: {}", batchId);
         }
         
         // Update with whatever fields PayProp sends
-        // Try common field names based on API patterns
-        
         // Status
-        if (data.containsKey("status")) {
-            batchPayment.setStatus((String) data.get("status"));
+        String status = extractString(data, "status", "batch_status", "state");
+        if (status != null) {
+            batchPayment.setStatus(status.toUpperCase());
         }
         
-        // Amounts - try various field names
+        // Total amount
         BigDecimal totalAmount = extractBigDecimal(data, "total_amount", "amount", "total");
         if (totalAmount != null) {
             batchPayment.setTotalAmount(totalAmount);
         }
         
+        // Financial breakdown
         BigDecimal totalIn = extractBigDecimal(data, "total_in", "inflow", "credits");
         if (totalIn != null) {
             batchPayment.setTotalIn(totalIn);
@@ -944,7 +942,7 @@ public class PayPropWebhookController {
                 log.info("Payment {} is part of batch {}", paymentId, batchId);
                 
                 // Ensure batch exists
-                BatchPayment batch = batchPaymentRepository.findByPayPropBatchId(batchId);
+                BatchPayment batch = batchPaymentRepository.findByPayPropBatchId(batchId).orElse(null);
                 if (batch == null) {
                     log.info("Creating batch record for newly discovered batch ID: {}", batchId);
                     batch = new BatchPayment();

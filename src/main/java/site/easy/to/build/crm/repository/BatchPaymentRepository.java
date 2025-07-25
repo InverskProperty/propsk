@@ -15,10 +15,8 @@ import java.util.Optional;
 @Repository
 public interface BatchPaymentRepository extends JpaRepository<BatchPayment, Long> {
     
-    Optional<BatchPayment> findByPaypropBatchId(String paypropBatchId);
-    
-    // Also add this version that returns BatchPayment directly (can be null)
-    BatchPayment findByPayPropBatchId(String payPropBatchId);
+    // Use only the Optional version
+    Optional<BatchPayment> findByPayPropBatchId(String payPropBatchId);
     
     List<BatchPayment> findByStatus(String status);
     
