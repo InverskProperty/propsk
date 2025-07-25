@@ -33,7 +33,7 @@ public class UserProfileController {
     public String showProfileInfo(Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
         User user = userService.findById(Long.valueOf(userId));
-        UserProfile profile = userProfileService.findByUserId(userId);
+        UserProfile profile = userProfileService.findByUserId(Long.valueOf(userId));
 
         model.addAttribute("user", user);
         model.addAttribute("profile",profile);
