@@ -1,4 +1,4 @@
-// PayPropWebhookController.java - Enhanced with Maintenance Ticket Support
+// PayPropWebhookController.java - Complete webhook controller with all handlers
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
+import site.easy.to.build.crm.repository.BatchPaymentRepository;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.email.EmailService;
 import site.easy.to.build.crm.service.payprop.PayPropPortfolioSyncService;
@@ -21,14 +22,16 @@ import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.service.property.PropertyService;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * PayPropWebhookController - Handles incoming PayProp webhooks for two-way synchronization
- * Enhanced with maintenance ticket support for complete workflow integration
+ * PayPropWebhookController - Handles all incoming PayProp webhooks
+ * Includes tag sync, maintenance tickets, batch payments, and discovery mode
  */
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @RestController
@@ -42,7 +45,8 @@ public class PayPropWebhookController {
     private final CustomerService customerService;
     private final UserService userService;
     private final EmailService emailService;
-    private final PropertyService propertyService; // ADDED: Missing PropertyService
+    private final PropertyService propertyService;
+    private final BatchPaymentRepository batchPaymentRepository;
 
     @Autowired
     public PayPropWebhookController(PayPropPortfolioSyncService syncService,
@@ -50,20 +54,91 @@ public class PayPropWebhookController {
                                    CustomerService customerService,
                                    UserService userService,
                                    EmailService emailService,
-                                   PropertyService propertyService) { // ADDED: PropertyService injection
+                                   PropertyService propertyService,
+                                   BatchPaymentRepository batchPaymentRepository) {
         this.syncService = syncService;
         this.ticketService = ticketService;
         this.customerService = customerService;
         this.userService = userService;
         this.emailService = emailService;
-        this.propertyService = propertyService; // ADDED: Initialize PropertyService
+        this.propertyService = propertyService;
+        this.batchPaymentRepository = batchPaymentRepository;
     }
 
-    // ===== EXISTING TAG WEBHOOK HANDLERS =====
+    // ===== DISCOVERY MODE WEBHOOK HANDLER =====
 
     /**
-     * Handle PayProp tag creation webhook
+     * Generic webhook handler that logs the complete payload structure
+     * Use this endpoint to discover undocumented webhook fields
      */
+    @PostMapping("/discovery")
+    public ResponseEntity<Map<String, Object>> handleDiscoveryWebhook(
+            @RequestBody Map<String, Object> payload,
+            @RequestHeader Map<String, String> headers) {
+        
+        log.info("=== PAYPROP WEBHOOK DISCOVERY ===");
+        log.info("Headers: {}", headers);
+        log.info("Full Payload: {}", payload);
+        
+        // Extract agency info if present
+        Map<String, Object> agency = (Map<String, Object>) payload.get("agency");
+        if (agency != null) {
+            log.info("Agency: id={}, name={}", agency.get("id"), agency.get("name"));
+        }
+        
+        // Extract events
+        List<Map<String, Object>> events = (List<Map<String, Object>>) payload.get("events");
+        if (events != null) {
+            log.info("Number of events: {}", events.size());
+            
+            for (int i = 0; i < events.size(); i++) {
+                Map<String, Object> event = events.get(i);
+                String type = (String) event.get("type");
+                String action = (String) event.get("action");
+                Map<String, Object> data = (Map<String, Object>) event.get("data");
+                
+                log.info("Event[{}]: type={}, action={}", i, type, action);
+                log.info("Event[{}] data fields: {}", i, data != null ? data.keySet() : "null");
+                
+                if (data != null) {
+                    logDataStructure(type, data);
+                }
+            }
+        }
+        
+        return ResponseEntity.ok(Map.of(
+            "success", true,
+            "message", "Webhook logged for discovery - check logs for structure"
+        ));
+    }
+
+    /**
+     * Log data structure for discovery
+     */
+    private void logDataStructure(String type, Map<String, Object> data) {
+        log.info("=== {} DATA STRUCTURE ===", type.toUpperCase());
+        
+        for (Map.Entry<String, Object> entry : data.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            String valueType = value != null ? value.getClass().getSimpleName() : "null";
+            
+            if (value instanceof Map) {
+                Map<String, Object> nested = (Map<String, Object>) value;
+                log.info("  {} [{}]: {} fields: {}", key, valueType, nested.size(), nested.keySet());
+            } else if (value instanceof List) {
+                List<?> list = (List<?>) value;
+                log.info("  {} [{}]: {} items", key, valueType, list.size());
+            } else {
+                log.info("  {} [{}]: {}", key, valueType, value);
+            }
+        }
+        
+        log.info("=== END {} DATA ===", type.toUpperCase());
+    }
+
+    // ===== TAG WEBHOOK HANDLERS =====
+
     @PostMapping("/tag-created")
     public ResponseEntity<Map<String, Object>> handleTagCreated(@RequestBody PayPropTagWebhookPayload payload) {
         try {
@@ -101,9 +176,6 @@ public class PayPropWebhookController {
         }
     }
 
-    /**
-     * Handle PayProp tag update webhook
-     */
     @PostMapping("/tag-updated")
     public ResponseEntity<Map<String, Object>> handleTagUpdated(@RequestBody PayPropTagWebhookPayload payload) {
         try {
@@ -141,9 +213,6 @@ public class PayPropWebhookController {
         }
     }
 
-    /**
-     * Handle PayProp tag deletion webhook
-     */
     @PostMapping("/tag-deleted")
     public ResponseEntity<Map<String, Object>> handleTagDeleted(@RequestBody PayPropTagWebhookPayload payload) {
         try {
@@ -175,9 +244,6 @@ public class PayPropWebhookController {
         }
     }
 
-    /**
-     * Handle PayProp tag applied to properties webhook
-     */
     @PostMapping("/tag-applied")
     public ResponseEntity<Map<String, Object>> handleTagApplied(@RequestBody PayPropTagApplicationWebhookPayload payload) {
         try {
@@ -210,9 +276,6 @@ public class PayPropWebhookController {
         }
     }
 
-    /**
-     * Handle PayProp tag removed from properties webhook
-     */
     @PostMapping("/tag-removed")
     public ResponseEntity<Map<String, Object>> handleTagRemoved(@RequestBody PayPropTagApplicationWebhookPayload payload) {
         try {
@@ -245,35 +308,38 @@ public class PayPropWebhookController {
         }
     }
 
-    // ===== NEW: MAINTENANCE TICKET WEBHOOK HANDLERS =====
+    // ===== MAINTENANCE TICKET WEBHOOK HANDLERS =====
 
-    /**
-     * Handle PayProp maintenance ticket creation webhook
-     */
     @PostMapping("/maintenance-ticket-created")
     public ResponseEntity<Map<String, Object>> handleMaintenanceTicketCreated(@RequestBody Map<String, Object> webhookData) {
         try {
             log.info("Received PayProp maintenance-ticket-created webhook");
             
-            @SuppressWarnings("unchecked")
-            Map<String, Object> ticketData = (Map<String, Object>) webhookData.get("data");
-            
-            if (ticketData == null) {
+            List<Map<String, Object>> events = (List<Map<String, Object>>) webhookData.get("events");
+            if (events == null || events.isEmpty()) {
                 return ResponseEntity.badRequest()
-                    .body(Map.of("success", false, "message", "No ticket data provided"));
+                    .body(Map.of("success", false, "message", "No events in webhook data"));
             }
             
-            // Create ticket from PayProp data
-            Ticket ticket = createTicketFromPayPropData(ticketData);
+            for (Map<String, Object> event : events) {
+                if ("maintenance_ticket".equals(event.get("type")) && "create".equals(event.get("action"))) {
+                    Map<String, Object> ticketData = (Map<String, Object>) event.get("data");
+                    
+                    if (ticketData != null) {
+                        Ticket ticket = createTicketFromPayPropData(ticketData);
+                        sendMaintenanceTicketAlerts(ticket);
+                        
+                        return ResponseEntity.ok(Map.of(
+                            "success", true,
+                            "message", "Maintenance ticket created successfully",
+                            "ticketId", ticket.getTicketId()
+                        ));
+                    }
+                }
+            }
             
-            // Send alerts to stakeholders
-            sendMaintenanceTicketAlerts(ticket);
-            
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "Maintenance ticket created successfully",
-                "ticketId", ticket.getTicketId()
-            ));
+            return ResponseEntity.badRequest()
+                .body(Map.of("success", false, "message", "No valid maintenance ticket data found"));
             
         } catch (Exception e) {
             log.error("Error processing maintenance-ticket-created webhook: {}", e.getMessage());
@@ -282,29 +348,34 @@ public class PayPropWebhookController {
         }
     }
 
-    /**
-     * Handle PayProp maintenance ticket update webhook
-     */
     @PostMapping("/maintenance-ticket-updated")
     public ResponseEntity<Map<String, Object>> handleMaintenanceTicketUpdated(@RequestBody Map<String, Object> webhookData) {
         try {
             log.info("Received PayProp maintenance-ticket-updated webhook");
             
-            @SuppressWarnings("unchecked")
-            Map<String, Object> ticketData = (Map<String, Object>) webhookData.get("data");
-            
-            if (ticketData == null) {
+            List<Map<String, Object>> events = (List<Map<String, Object>>) webhookData.get("events");
+            if (events == null || events.isEmpty()) {
                 return ResponseEntity.badRequest()
-                    .body(Map.of("success", false, "message", "No ticket data provided"));
+                    .body(Map.of("success", false, "message", "No events in webhook data"));
             }
             
-            // Update existing ticket
-            updateTicketFromPayPropData(ticketData);
+            for (Map<String, Object> event : events) {
+                if ("maintenance_ticket".equals(event.get("type")) && "update".equals(event.get("action"))) {
+                    Map<String, Object> ticketData = (Map<String, Object>) event.get("data");
+                    
+                    if (ticketData != null) {
+                        updateTicketFromPayPropData(ticketData);
+                        
+                        return ResponseEntity.ok(Map.of(
+                            "success", true,
+                            "message", "Maintenance ticket updated successfully"
+                        ));
+                    }
+                }
+            }
             
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "Maintenance ticket updated successfully"
-            ));
+            return ResponseEntity.badRequest()
+                .body(Map.of("success", false, "message", "No valid maintenance ticket data found"));
             
         } catch (Exception e) {
             log.error("Error processing maintenance-ticket-updated webhook: {}", e.getMessage());
@@ -313,29 +384,34 @@ public class PayPropWebhookController {
         }
     }
 
-    /**
-     * Handle PayProp maintenance message webhook
-     */
     @PostMapping("/maintenance-message")
     public ResponseEntity<Map<String, Object>> handleMaintenanceMessage(@RequestBody Map<String, Object> webhookData) {
         try {
             log.info("Received PayProp maintenance-message webhook");
             
-            @SuppressWarnings("unchecked")
-            Map<String, Object> messageData = (Map<String, Object>) webhookData.get("data");
-            
-            if (messageData == null) {
+            List<Map<String, Object>> events = (List<Map<String, Object>>) webhookData.get("events");
+            if (events == null || events.isEmpty()) {
                 return ResponseEntity.badRequest()
-                    .body(Map.of("success", false, "message", "No message data provided"));
+                    .body(Map.of("success", false, "message", "No events in webhook data"));
             }
             
-            // Process message
-            processMaintenanceMessage(messageData);
+            for (Map<String, Object> event : events) {
+                if ("maintenance_message".equals(event.get("type"))) {
+                    Map<String, Object> messageData = (Map<String, Object>) event.get("data");
+                    
+                    if (messageData != null) {
+                        processMaintenanceMessage(messageData);
+                        
+                        return ResponseEntity.ok(Map.of(
+                            "success", true,
+                            "message", "Maintenance message processed successfully"
+                        ));
+                    }
+                }
+            }
             
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "Maintenance message processed successfully"
-            ));
+            return ResponseEntity.badRequest()
+                .body(Map.of("success", false, "message", "No valid maintenance message data found"));
             
         } catch (Exception e) {
             log.error("Error processing maintenance-message webhook: {}", e.getMessage());
@@ -344,7 +420,193 @@ public class PayPropWebhookController {
         }
     }
 
-    // ===== EXISTING UTILITY ENDPOINTS =====
+    // ===== BATCH PAYMENT WEBHOOK HANDLERS =====
+
+    /**
+     * Handle PayProp outgoing payment batch webhook
+     * This webhook is triggered when a batch of payments is processed
+     */
+    @PostMapping("/outgoing-payment-batch")
+    public ResponseEntity<Map<String, Object>> handleOutgoingPaymentBatch(@RequestBody Map<String, Object> webhookData) {
+        try {
+            log.info("Received PayProp outgoing-payment-batch webhook");
+            log.info("Full webhook data: {}", webhookData);
+            
+            List<Map<String, Object>> events = (List<Map<String, Object>>) webhookData.get("events");
+            if (events == null || events.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "No events in webhook data"));
+            }
+            
+            for (Map<String, Object> event : events) {
+                if ("outgoing_payment_batch".equals(event.get("type"))) {
+                    String action = (String) event.get("action");
+                    Map<String, Object> batchData = (Map<String, Object>) event.get("data");
+                    
+                    if (batchData != null) {
+                        String batchId = (String) batchData.get("id");
+                        log.info("Processing payment batch: ID={}, Action={}", batchId, action);
+                        log.info("Batch data fields: {}", batchData.keySet());
+                        
+                        // Process and store batch information
+                        BatchPayment batchPayment = processBatchPaymentWebhook(batchId, action, batchData);
+                        
+                        return ResponseEntity.ok(Map.of(
+                            "success", true,
+                            "message", "Batch payment processed successfully",
+                            "batchId", batchId,
+                            "action", action
+                        ));
+                    }
+                }
+            }
+            
+            return ResponseEntity.badRequest()
+                .body(Map.of("success", false, "message", "No valid batch payment data found"));
+            
+        } catch (Exception e) {
+            log.error("Error processing outgoing-payment-batch webhook: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Handle PayProp payment created webhook
+     * Individual payments might include batch ID reference
+     */
+    @PostMapping("/payment-created")
+    public ResponseEntity<Map<String, Object>> handlePaymentCreated(@RequestBody Map<String, Object> webhookData) {
+        try {
+            log.info("Received PayProp payment-created webhook");
+            
+            List<Map<String, Object>> events = (List<Map<String, Object>>) webhookData.get("events");
+            if (events == null || events.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "No events in webhook data"));
+            }
+            
+            List<String> processedPayments = new ArrayList<>();
+            
+            for (Map<String, Object> event : events) {
+                if ("payment".equals(event.get("type")) && "create".equals(event.get("action"))) {
+                    Map<String, Object> paymentData = (Map<String, Object>) event.get("data");
+                    
+                    if (paymentData != null) {
+                        String paymentId = (String) paymentData.get("id");
+                        String batchId = extractBatchId(paymentData);
+                        
+                        log.info("Processing payment: ID={}, BatchID={}", paymentId, batchId);
+                        
+                        // Store payment information
+                        processPaymentNotification(paymentData);
+                        processedPayments.add(paymentId);
+                    }
+                }
+            }
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Payments processed successfully",
+                "paymentIds", processedPayments
+            ));
+            
+        } catch (Exception e) {
+            log.error("Error processing payment-created webhook: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Handle PayProp payment updated webhook
+     */
+    @PostMapping("/payment-updated")
+    public ResponseEntity<Map<String, Object>> handlePaymentUpdated(@RequestBody Map<String, Object> webhookData) {
+        try {
+            log.info("Received PayProp payment-updated webhook");
+            
+            List<Map<String, Object>> events = (List<Map<String, Object>>) webhookData.get("events");
+            if (events == null || events.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "No events in webhook data"));
+            }
+            
+            List<String> updatedPayments = new ArrayList<>();
+            
+            for (Map<String, Object> event : events) {
+                if ("payment".equals(event.get("type")) && "update".equals(event.get("action"))) {
+                    Map<String, Object> paymentData = (Map<String, Object>) event.get("data");
+                    
+                    if (paymentData != null) {
+                        String paymentId = (String) paymentData.get("id");
+                        String batchId = extractBatchId(paymentData);
+                        String status = (String) paymentData.get("status");
+                        
+                        log.info("Updating payment: ID={}, BatchID={}, Status={}", paymentId, batchId, status);
+                        
+                        // Update payment information
+                        updatePaymentNotification(paymentData);
+                        updatedPayments.add(paymentId);
+                    }
+                }
+            }
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Payments updated successfully",
+                "paymentIds", updatedPayments
+            ));
+            
+        } catch (Exception e) {
+            log.error("Error processing payment-updated webhook: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Handle payment instruction webhooks (these become batch payments)
+     */
+    @PostMapping("/payment-instruction")
+    public ResponseEntity<Map<String, Object>> handlePaymentInstruction(@RequestBody Map<String, Object> webhookData) {
+        try {
+            log.info("Received PayProp payment-instruction webhook");
+            
+            List<Map<String, Object>> events = (List<Map<String, Object>>) webhookData.get("events");
+            if (events == null || events.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "No events in webhook data"));
+            }
+            
+            for (Map<String, Object> event : events) {
+                if ("payment_instruction".equals(event.get("type"))) {
+                    String action = (String) event.get("action");
+                    Map<String, Object> instructionData = (Map<String, Object>) event.get("data");
+                    
+                    log.info("Payment instruction action: {}", action);
+                    log.info("Instruction data fields: {}", instructionData != null ? instructionData.keySet() : "null");
+                    
+                    // Log for discovery - payment instructions may become batched payments
+                    if (instructionData != null) {
+                        logDataStructure("payment_instruction", instructionData);
+                    }
+                }
+            }
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Payment instruction webhook processed"
+            ));
+            
+        } catch (Exception e) {
+            log.error("Error processing payment-instruction webhook: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    // ===== UTILITY ENDPOINTS =====
 
     /**
      * Webhook verification endpoint (if PayProp requires it)
@@ -364,24 +626,94 @@ public class PayPropWebhookController {
         return ResponseEntity.ok(Map.of(
             "status", "healthy",
             "service", "PayProp Webhook Controller",
-            "timestamp", System.currentTimeMillis()
+            "timestamp", System.currentTimeMillis(),
+            "handlers", List.of(
+                "tag-created", "tag-updated", "tag-deleted", "tag-applied", "tag-removed",
+                "maintenance-ticket-created", "maintenance-ticket-updated", "maintenance-message",
+                "outgoing-payment-batch", "payment-created", "payment-updated", "payment-instruction",
+                "discovery"
+            )
         ));
+    }
+
+    /**
+     * List recent batch payments stored in the system
+     */
+    @GetMapping("/batch-payments")
+    public ResponseEntity<Map<String, Object>> listBatchPayments(
+            @RequestParam(required = false) Integer limit) {
+        
+        if (limit == null) limit = 10;
+        
+        try {
+            List<BatchPayment> recentBatches = batchPaymentRepository.findAll().stream()
+                .sorted((a, b) -> {
+                    LocalDateTime aTime = a.getUpdatedAt() != null ? a.getUpdatedAt() : a.getCreatedAt();
+                    LocalDateTime bTime = b.getUpdatedAt() != null ? b.getUpdatedAt() : b.getCreatedAt();
+                    return bTime.compareTo(aTime);
+                })
+                .limit(limit)
+                .collect(Collectors.toList());
+            
+            List<Map<String, Object>> batchSummaries = recentBatches.stream()
+                .map(batch -> Map.<String, Object>of(
+                    "id", batch.getId(),
+                    "payPropBatchId", batch.getPayPropBatchId(),
+                    "status", batch.getStatus(),
+                    "totalAmount", batch.getTotalAmount(),
+                    "recordCount", batch.getRecordCount(),
+                    "batchDate", batch.getBatchDate(),
+                    "lastWebhook", batch.getPayPropWebhookReceived()
+                ))
+                .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "count", batchSummaries.size(),
+                "batches", batchSummaries
+            ));
+            
+        } catch (Exception e) {
+            log.error("Error listing batch payments: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
     }
 
     /**
      * Generic webhook handler for unknown webhook types (defensive programming)
      */
     @PostMapping("/**")
-    public ResponseEntity<Map<String, Object>> handleUnknownWebhook(@RequestBody(required = false) Object payload, 
-                                                                    @RequestParam Map<String, String> params) {
+    public ResponseEntity<Map<String, Object>> handleUnknownWebhook(
+            @RequestBody(required = false) Map<String, Object> payload,
+            @RequestParam Map<String, String> params,
+            @RequestHeader Map<String, String> headers) {
+        
         try {
-            log.info("Received unknown PayProp webhook with payload type: {}", 
-                payload != null ? payload.getClass().getSimpleName() : "null");
+            String path = headers.get("x-original-uri");
+            log.info("Received unknown PayProp webhook at path: {}", path);
+            log.info("Payload type: {}", payload != null ? payload.getClass().getSimpleName() : "null");
+            
+            // Log for discovery
+            if (payload != null) {
+                log.info("Unknown webhook payload: {}", payload);
+                
+                // Try to extract event type
+                List<Map<String, Object>> events = (List<Map<String, Object>>) payload.get("events");
+                if (events != null && !events.isEmpty()) {
+                    Set<String> eventTypes = events.stream()
+                        .map(e -> (String) e.get("type"))
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+                    
+                    log.info("Event types in unknown webhook: {}", eventTypes);
+                }
+            }
             
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Webhook received but not processed (unknown type)",
-                "note", "This webhook type is not currently supported"
+                "note", "Check logs for webhook details"
             ));
             
         } catch (Exception e) {
@@ -391,134 +723,265 @@ public class PayPropWebhookController {
         }
     }
 
-        // ===== NEW: BATCH PAYMENT WEBHOOK HANDLERS =====
+    // ===== PRIVATE HELPER METHODS =====
 
     /**
-     * Handle PayProp outgoing payment batch webhook
-     * This webhook is triggered when a batch of payments is processed
+     * Process batch payment webhook data and create/update entity
      */
-    @PostMapping("/outgoing-payment-batch")
-    public ResponseEntity<Map<String, Object>> handleOutgoingPaymentBatch(@RequestBody Map<String, Object> webhookData) {
+    private BatchPayment processBatchPaymentWebhook(String batchId, String action, Map<String, Object> data) {
+        // Find existing or create new
+        BatchPayment batchPayment = batchPaymentRepository.findByPayPropBatchId(batchId);
+        if (batchPayment == null) {
+            batchPayment = new BatchPayment();
+            batchPayment.setPayPropBatchId(batchId);
+            batchPayment.setCreatedAt(LocalDateTime.now());
+            log.info("Creating new batch payment record for ID: {}", batchId);
+        } else {
+            log.info("Updating existing batch payment record for ID: {}", batchId);
+        }
+        
+        // Update with whatever fields PayProp sends
+        // Try common field names based on API patterns
+        
+        // Status
+        if (data.containsKey("status")) {
+            batchPayment.setStatus((String) data.get("status"));
+        }
+        
+        // Amounts - try various field names
+        BigDecimal totalAmount = extractBigDecimal(data, "total_amount", "amount", "total");
+        if (totalAmount != null) {
+            batchPayment.setTotalAmount(totalAmount);
+        }
+        
+        BigDecimal totalIn = extractBigDecimal(data, "total_in", "inflow", "credits");
+        if (totalIn != null) {
+            batchPayment.setTotalIn(totalIn);
+        }
+        
+        BigDecimal totalOut = extractBigDecimal(data, "total_out", "outflow", "debits");
+        if (totalOut != null) {
+            batchPayment.setTotalOut(totalOut);
+        }
+        
+        BigDecimal commission = extractBigDecimal(data, "total_commission", "commission", "fees");
+        if (commission != null) {
+            batchPayment.setTotalCommission(commission);
+        }
+        
+        // Dates - try various field names
+        LocalDate batchDate = extractDate(data, "batch_date", "date", "processing_date");
+        if (batchDate != null) {
+            batchPayment.setBatchDate(batchDate);
+        }
+        
+        LocalDateTime processedDate = extractDateTime(data, "processed_date", "processed_at", "completed_at");
+        if (processedDate != null) {
+            batchPayment.setProcessedDate(processedDate);
+        }
+        
+        // Counts
+        Integer recordCount = extractInteger(data, "record_count", "payment_count", "count", "total_payments");
+        if (recordCount != null) {
+            batchPayment.setRecordCount(recordCount);
+        }
+        
+        // Description
+        String description = extractString(data, "description", "notes", "comment");
+        if (description != null) {
+            batchPayment.setDescription(description);
+        }
+        
+        // Store raw webhook data as JSON string for debugging
         try {
-            log.info("Received PayProp outgoing-payment-batch webhook");
+            String rawData = data.toString();
+            if (rawData.length() > 255) {
+                rawData = rawData.substring(0, 252) + "...";
+            }
+            batchPayment.setDescription("Webhook " + action + ": " + rawData);
+        } catch (Exception e) {
+            log.warn("Could not store raw webhook data: {}", e.getMessage());
+        }
+        
+        batchPayment.setPayPropWebhookReceived(LocalDateTime.now());
+        batchPayment.setUpdatedAt(LocalDateTime.now());
+        
+        BatchPayment saved = batchPaymentRepository.save(batchPayment);
+        log.info("Batch payment saved: ID={}, Status={}, Amount={}", 
+            saved.getPayPropBatchId(), saved.getStatus(), saved.getTotalAmount());
+        
+        return saved;
+    }
+
+    /**
+     * Extract batch ID from payment data (try multiple field names)
+     */
+    private String extractBatchId(Map<String, Object> paymentData) {
+        // Try different possible field names
+        String[] possibleFields = {"batch_id", "payment_batch_id", "batch", "batch_reference"};
+        
+        for (String field : possibleFields) {
+            Object value = paymentData.get(field);
+            if (value != null && !value.toString().isEmpty()) {
+                return value.toString();
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Extract BigDecimal from data, trying multiple field names
+     */
+    private BigDecimal extractBigDecimal(Map<String, Object> data, String... fieldNames) {
+        for (String field : fieldNames) {
+            Object value = data.get(field);
+            if (value != null) {
+                try {
+                    if (value instanceof Number) {
+                        return new BigDecimal(value.toString());
+                    } else if (value instanceof String) {
+                        // Remove currency symbols and commas
+                        String cleanValue = value.toString().replaceAll("[^0-9.-]", "");
+                        return new BigDecimal(cleanValue);
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not parse BigDecimal from field {}: {}", field, value);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extract LocalDate from data, trying multiple field names
+     */
+    private LocalDate extractDate(Map<String, Object> data, String... fieldNames) {
+        for (String field : fieldNames) {
+            Object value = data.get(field);
+            if (value != null && value instanceof String) {
+                try {
+                    return LocalDate.parse((String) value);
+                } catch (Exception e) {
+                    try {
+                        // Try with custom formatter if needed
+                        return LocalDate.parse((String) value, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                    } catch (Exception e2) {
+                        log.warn("Could not parse LocalDate from field {}: {}", field, value);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extract LocalDateTime from data, trying multiple field names
+     */
+    private LocalDateTime extractDateTime(Map<String, Object> data, String... fieldNames) {
+        for (String field : fieldNames) {
+            Object value = data.get(field);
+            if (value != null && value instanceof String) {
+                try {
+                    return LocalDateTime.parse((String) value);
+                } catch (Exception e) {
+                    try {
+                        // Try parsing as date only
+                        LocalDate date = LocalDate.parse((String) value);
+                        return date.atStartOfDay();
+                    } catch (Exception e2) {
+                        log.warn("Could not parse LocalDateTime from field {}: {}", field, value);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extract Integer from data, trying multiple field names
+     */
+    private Integer extractInteger(Map<String, Object> data, String... fieldNames) {
+        for (String field : fieldNames) {
+            Object value = data.get(field);
+            if (value != null) {
+                try {
+                    if (value instanceof Number) {
+                        return ((Number) value).intValue();
+                    } else if (value instanceof String) {
+                        return Integer.parseInt(value.toString());
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not parse Integer from field {}: {}", field, value);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extract String from data, trying multiple field names
+     */
+    private String extractString(Map<String, Object> data, String... fieldNames) {
+        for (String field : fieldNames) {
+            Object value = data.get(field);
+            if (value != null && !value.toString().isEmpty()) {
+                return value.toString();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Process payment notification (store batch ID if present)
+     */
+    private void processPaymentNotification(Map<String, Object> paymentData) {
+        try {
+            String paymentId = (String) paymentData.get("id");
+            String batchId = extractBatchId(paymentData);
             
-            @SuppressWarnings("unchecked")
-            Map<String, Object> batchData = (Map<String, Object>) webhookData.get("data");
-            
-            if (batchData == null) {
-                return ResponseEntity.badRequest()
-                    .body(Map.of("success", false, "message", "No batch data provided"));
+            // Log discovered batch relationship
+            if (batchId != null) {
+                log.info("Payment {} is part of batch {}", paymentId, batchId);
+                
+                // Ensure batch exists
+                BatchPayment batch = batchPaymentRepository.findByPayPropBatchId(batchId);
+                if (batch == null) {
+                    log.info("Creating batch record for newly discovered batch ID: {}", batchId);
+                    batch = new BatchPayment();
+                    batch.setPayPropBatchId(batchId);
+                    batch.setCreatedAt(LocalDateTime.now());
+                    batch.setUpdatedAt(LocalDateTime.now());
+                    batch.setDescription("Created from payment webhook");
+                    batchPaymentRepository.save(batch);
+                }
             }
             
-            // Extract batch information
-            String batchId = (String) batchData.get("id");
-            String status = (String) batchData.get("status");
-            Object amount = batchData.get("amount");
-            String date = (String) batchData.get("date");
-            
-            log.info("Processing payment batch: ID={}, Status={}, Amount={}, Date={}", 
-                batchId, status, amount, date);
-            
-            // Store batch information in your system
-            processBatchPaymentNotification(batchData);
-            
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "Batch payment processed successfully",
-                "batchId", batchId
-            ));
+            // TODO: Create/update Payment entity when available
+            log.info("Would process payment notification: Payment={}, Batch={}", paymentId, batchId);
             
         } catch (Exception e) {
-            log.error("Error processing outgoing-payment-batch webhook: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("success", false, "message", e.getMessage()));
+            log.error("Error processing payment notification: {}", e.getMessage());
         }
     }
 
     /**
-     * Handle PayProp payment created webhook
-     * Individual payments within a batch might trigger this
+     * Update payment notification
      */
-    @PostMapping("/payment-created")
-    public ResponseEntity<Map<String, Object>> handlePaymentCreated(@RequestBody Map<String, Object> webhookData) {
+    private void updatePaymentNotification(Map<String, Object> paymentData) {
         try {
-            log.info("Received PayProp payment-created webhook");
-            
-            @SuppressWarnings("unchecked")
-            Map<String, Object> paymentData = (Map<String, Object>) webhookData.get("data");
-            
-            if (paymentData == null) {
-                return ResponseEntity.badRequest()
-                    .body(Map.of("success", false, "message", "No payment data provided"));
-            }
-            
-            // Extract payment information
             String paymentId = (String) paymentData.get("id");
-            String batchId = (String) paymentData.get("payment_batch_id"); // Look for this field
-            Object amount = paymentData.get("amount");
-            String propertyId = (String) paymentData.get("property_id");
-            String tenantId = (String) paymentData.get("tenant_id");
-            
-            log.info("Processing payment: ID={}, BatchID={}, Amount={}, Property={}, Tenant={}", 
-                paymentId, batchId, amount, propertyId, tenantId);
-            
-            // Store payment information
-            processPaymentNotification(paymentData);
-            
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "Payment processed successfully",
-                "paymentId", paymentId,
-                "batchId", batchId
-            ));
-            
-        } catch (Exception e) {
-            log.error("Error processing payment-created webhook: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("success", false, "message", e.getMessage()));
-        }
-    }
-
-    /**
-     * Handle PayProp payment updated webhook
-     */
-    @PostMapping("/payment-updated")
-    public ResponseEntity<Map<String, Object>> handlePaymentUpdated(@RequestBody Map<String, Object> webhookData) {
-        try {
-            log.info("Received PayProp payment-updated webhook");
-            
-            @SuppressWarnings("unchecked")
-            Map<String, Object> paymentData = (Map<String, Object>) webhookData.get("data");
-            
-            if (paymentData == null) {
-                return ResponseEntity.badRequest()
-                    .body(Map.of("success", false, "message", "No payment data provided"));
-            }
-            
-            // Extract payment information including batch ID
-            String paymentId = (String) paymentData.get("id");
-            String batchId = (String) paymentData.get("payment_batch_id");
             String status = (String) paymentData.get("status");
             
-            log.info("Updating payment: ID={}, BatchID={}, Status={}", paymentId, batchId, status);
-            
-            // Update payment information
-            updatePaymentNotification(paymentData);
-            
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "Payment update processed successfully",
-                "paymentId", paymentId
-            ));
+            // TODO: Update Payment entity when available
+            log.info("Would update payment: Payment={}, Status={}", paymentId, status);
             
         } catch (Exception e) {
-            log.error("Error processing payment-updated webhook: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("success", false, "message", e.getMessage()));
+            log.error("Error updating payment notification: {}", e.getMessage());
         }
     }
 
-    // ===== PRIVATE HELPER METHODS FOR MAINTENANCE TICKETS =====
+    // ===== MAINTENANCE TICKET HELPER METHODS =====
 
     private Ticket createTicketFromPayPropData(Map<String, Object> data) {
         String payPropTicketId = (String) data.get("id");
@@ -695,7 +1158,7 @@ public class PayPropWebhookController {
         // 3. Default assignment
         
         if (Boolean.TRUE.equals(isEmergency)) {
-            // Try to find manager for emergency handling - FIXED VERSION
+            // Try to find manager for emergency handling
             List<User> managers = userService.findAll().stream()
                 .filter(u -> u.getRoles() != null && !u.getRoles().isEmpty() && 
                             u.getRoles().stream().anyMatch(role -> 
@@ -757,91 +1220,6 @@ public class PayPropWebhookController {
         }
     }
 
-    // ===== PRIVATE HELPER METHODS FOR BATCH PAYMENTS =====
-
-    private void processBatchPaymentNotification(Map<String, Object> batchData) {
-        try {
-            String batchId = (String) batchData.get("id");
-            String status = (String) batchData.get("status");
-            
-            // TODO: Implement your batch payment storage logic here
-            // This could involve:
-            // 1. Creating a BatchPayment entity
-            // 2. Linking it to related customers/properties
-            // 3. Updating financial records
-            // 4. Sending notifications
-            
-            log.info("Stored batch payment notification for batch ID: {}", batchId);
-            
-            // If this is a completed batch, you might want to:
-            if ("completed".equals(status) || "processed".equals(status)) {
-                // Fetch full batch details from PayProp API
-                fetchAndStoreBatchDetails(batchId);
-                
-                // Send notifications to relevant stakeholders
-                sendBatchCompletionNotifications(batchId);
-            }
-            
-        } catch (Exception e) {
-            log.error("Error processing batch payment notification: {}", e.getMessage());
-        }
-    }
-
-    private void processPaymentNotification(Map<String, Object> paymentData) {
-        try {
-            String paymentId = (String) paymentData.get("id");
-            String batchId = (String) paymentData.get("payment_batch_id");
-            
-            // Find existing financial transaction or create new one
-            // Link it to the batch if batch ID is provided
-            
-            log.info("Processed payment notification: Payment={}, Batch={}", paymentId, batchId);
-            
-        } catch (Exception e) {
-            log.error("Error processing payment notification: {}", e.getMessage());
-        }
-    }
-
-    private void updatePaymentNotification(Map<String, Object> paymentData) {
-        try {
-            String paymentId = (String) paymentData.get("id");
-            String status = (String) paymentData.get("status");
-            
-            // Update existing payment record
-            // Update batch status if needed
-            
-            log.info("Updated payment notification: Payment={}, Status={}", paymentId, status);
-            
-        } catch (Exception e) {
-            log.error("Error updating payment notification: {}", e.getMessage());
-        }
-    }
-
-    private void fetchAndStoreBatchDetails(String batchId) {
-        try {
-            // Use PayProp API to get full batch details
-            String url = "/report/all-payments?payment_batch_id=" + batchId;
-            // Map<String, Object> batchDetails = payPropSyncService.makePayPropApiCall(url, Map.class);
-            
-            // Store detailed batch information
-            log.info("Would fetch detailed batch information for batch ID: {}", batchId);
-            
-        } catch (Exception e) {
-            log.error("Error fetching batch details for batch {}: {}", batchId, e.getMessage());
-        }
-    }
-
-    private void sendBatchCompletionNotifications(String batchId) {
-        try {
-            // Send notifications to property owners, managers, etc.
-            log.info("Would send batch completion notifications for batch ID: {}", batchId);
-            
-        } catch (Exception e) {
-            log.error("Error sending batch notifications for batch {}: {}", batchId, e.getMessage());
-        }
-    }
-
-    // FIXED: Single, complete property owner lookup method
     private Customer findPropertyOwnerForTicket(Ticket ticket) {
         try {
             // First, try to find property by PayProp property ID
@@ -936,7 +1314,7 @@ public class PayPropWebhookController {
         }
     }
 
-    // ===== EXISTING WEBHOOK PAYLOAD CLASSES =====
+    // ===== WEBHOOK PAYLOAD CLASSES =====
 
     public static class PayPropTagWebhookPayload {
         private String tagId;

@@ -8,10 +8,12 @@ import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService;
+import site.easy.to.build.crm.service.payprop.PayPropSyncService.PayPropExportResult;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import java.util.HashMap;
 
 /**
  * Test controller to investigate PayProp batch payment functionality
@@ -44,19 +46,18 @@ public class BatchPaymentTestController {
                 toDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
             }
 
-            log.info("Testing PayProp all-payments endpoint for date range: {} to {}", fromDate, toDate);
+            log.info("Testing PayProp payments endpoint for date range: {} to {}", fromDate, toDate);
 
-            // Call PayProp all-payments report endpoint
-            String url = "/report/all-payments?from_date=" + fromDate + "&to_date=" + toDate;
-            Map<String, Object> response = payPropSyncService.makePayPropApiCall(url, Map.class);
-
-            log.info("PayProp all-payments response structure: {}", 
-                response.keySet().toString());
+            // Use the existing exportPaymentsFromPayProp method
+            PayPropExportResult result = payPropSyncService.exportPaymentsFromPayProp(1, 25);
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "dateRange", fromDate + " to " + toDate,
-                "payPropResponse", response,
+                "payPropResponse", Map.of(
+                    "items", result.getItems(),
+                    "pagination", result.getPagination()
+                ),
                 "note", "Check the response structure for batch payment information"
             ));
 
@@ -71,40 +72,36 @@ public class BatchPaymentTestController {
     }
 
     /**
-     * Test endpoint to check payments export for batch information
+     * Test endpoint to check actual payments for batch information
      */
-    @GetMapping("/payments-export")
-    public ResponseEntity<Map<String, Object>> testPaymentsExportEndpoint(
-            @RequestParam(required = false) String fromDate,
-            @RequestParam(required = false) String toDate) {
+    @GetMapping("/actual-payments")
+    public ResponseEntity<Map<String, Object>> testActualPaymentsEndpoint(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer rows) {
         
         try {
-            // Default to recent dates if not provided
-            if (fromDate == null) {
-                fromDate = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE);
-            }
-            if (toDate == null) {
-                toDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
-            }
+            if (page == null) page = 1;
+            if (rows == null) rows = 25;
 
-            log.info("Testing PayProp payments export endpoint for date range: {} to {}", fromDate, toDate);
+            log.info("Testing PayProp actual payments endpoint - page {}, rows {}", page, rows);
 
-            // Call PayProp payments export endpoint
-            String url = "/export/payments?from_date=" + fromDate + "&to_date=" + toDate + "&rows=50";
-            Map<String, Object> response = payPropSyncService.makePayPropApiCall(url, Map.class);
-
-            log.info("PayProp payments export response structure: {}", 
-                response.keySet().toString());
+            // Use the existing exportActualPaymentsFromPayProp method
+            PayPropExportResult result = payPropSyncService.exportActualPaymentsFromPayProp(page, rows);
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
-                "dateRange", fromDate + " to " + toDate,
-                "payPropResponse", response,
-                "note", "Check the 'items' array for individual payment records and look for batch_id fields"
+                "page", page,
+                "rows", rows,
+                "payPropResponse", Map.of(
+                    "items", result.getItems(),
+                    "pagination", result.getPagination(),
+                    "itemCount", result.getItems().size()
+                ),
+                "note", "These are actual payment transactions with amounts and dates"
             ));
 
         } catch (Exception e) {
-            log.error("Error testing PayProp payments export endpoint: {}", e.getMessage());
+            log.error("Error testing PayProp actual payments endpoint: {}", e.getMessage());
             return ResponseEntity.ok(Map.of(
                 "success", false,
                 "error", e.getMessage(),
@@ -114,65 +111,147 @@ public class BatchPaymentTestController {
     }
 
     /**
-     * Test endpoint to check if we can filter by a specific batch ID
+     * Test endpoint to get all payments report for a property
      */
-    @GetMapping("/payments-by-batch")
-    public ResponseEntity<Map<String, Object>> testPaymentsByBatchId(@RequestParam String batchId) {
+    @GetMapping("/property-payments")
+    public ResponseEntity<Map<String, Object>> testPropertyPaymentsReport(
+            @RequestParam String propertyId,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
         
         try {
-            log.info("Testing PayProp payments by batch ID: {}", batchId);
+            // Default dates if not provided
+            LocalDate from = fromDate != null ? LocalDate.parse(fromDate) : LocalDate.now().minusMonths(3);
+            LocalDate to = toDate != null ? LocalDate.parse(toDate) : LocalDate.now();
 
-            // Try to call PayProp with payment_batch_id parameter
-            String url = "/report/all-payments?payment_batch_id=" + batchId;
-            Map<String, Object> response = payPropSyncService.makePayPropApiCall(url, Map.class);
+            log.info("Testing PayProp all-payments report for property {} ({} to {})", propertyId, from, to);
 
-            log.info("PayProp batch payments response structure: {}", 
-                response.keySet().toString());
+            // Use the existing exportAllPaymentsReportFromPayProp method
+            PayPropExportResult result = payPropSyncService.exportAllPaymentsReportFromPayProp(propertyId, from, to);
+
+            Map<String, Object> analysis = analyzePaymentData(result);
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
-                "batchId", batchId,
-                "payPropResponse", response,
-                "note", "This shows payments for the specific batch ID"
+                "propertyId", propertyId,
+                "dateRange", from + " to " + to,
+                "payPropResponse", Map.of(
+                    "items", result.getItems(),
+                    "pagination", result.getPagination(),
+                    "itemCount", result.getItems().size()
+                ),
+                "analysis", analysis,
+                "note", "This is the comprehensive payments report for the property"
             ));
 
         } catch (Exception e) {
-            log.error("Error testing PayProp payments by batch ID: {}", e.getMessage());
+            log.error("Error testing property payments report: {}", e.getMessage());
             return ResponseEntity.ok(Map.of(
                 "success", false,
                 "error", e.getMessage(),
-                "batchId", batchId,
-                "suggestion", "The batch ID might not exist or might have a different format"
+                "propertyId", propertyId,
+                "suggestion", "Check if the property ID exists and you have permission to access it"
             ));
         }
     }
 
     /**
-     * Analyze sample batch data from your staging environment
+     * Test endpoint to check payment categories
      */
-    @GetMapping("/analyze-staging-batch")
-    public ResponseEntity<Map<String, Object>> analyzeStagingBatch() {
+    @GetMapping("/payment-categories")
+    public ResponseEntity<Map<String, Object>> testPaymentCategories() {
         try {
-            log.info("Analyzing staging batch data from 2025-04-01 to 2025-04-15");
+            log.info("Testing PayProp payment categories sync");
 
-            // Test the exact date range from your staging batch
-            String url = "/report/all-payments?from_date=2025-04-01&to_date=2025-04-15&filter_by=reconciliation_date";
-            Map<String, Object> response = payPropSyncService.makePayPropApiCall(url, Map.class);
+            // Use the existing syncPaymentCategoriesFromPayProp method
+            var result = payPropSyncService.syncPaymentCategoriesFromPayProp();
 
             return ResponseEntity.ok(Map.of(
-                "success", true,
-                "note", "Staging batch analysis - 7 records expected",
-                "stagingExpected", Map.of(
-                    "totalRecords", 7,
-                    "totalIn", "8,396.47",
-                    "totalOut", "8,043.82",
-                    "beneficiary", "Christine Hunt"
-                ),
-                "payPropResponse", response
+                "success", result.isSuccess(),
+                "message", result.getMessage(),
+                "details", result.getDetails(),
+                "note", "Payment categories have been synced to your database"
             ));
 
         } catch (Exception e) {
-            log.error("Error analyzing staging batch: {}", e.getMessage());
+            log.error("Error testing payment categories: {}", e.getMessage());
+            return ResponseEntity.ok(Map.of(
+                "success", false,
+                "error", e.getMessage(),
+                "suggestion", "Check PayProp API connection and permissions"
+            ));
+        }
+    }
+
+    /**
+     * Analyze payment data to find batch information
+     */
+    private Map<String, Object> analyzePaymentData(PayPropExportResult result) {
+        Map<String, Object> analysis = new HashMap<>();
+        
+        if (result.getItems() == null || result.getItems().isEmpty()) {
+            analysis.put("hasData", false);
+            analysis.put("message", "No payment data found");
+            return analysis;
+        }
+
+        analysis.put("hasData", true);
+        analysis.put("totalRecords", result.getItems().size());
+
+        // Check for batch-related fields
+        Map<String, Object> firstItem = result.getItems().get(0);
+        boolean hasBatchId = firstItem.containsKey("batch_id") || 
+                            firstItem.containsKey("payment_batch_id") ||
+                            firstItem.containsKey("batch");
+        
+        analysis.put("hasBatchField", hasBatchId);
+        
+        if (hasBatchId) {
+            // Count unique batch IDs
+            Map<String, Integer> batchCounts = new HashMap<>();
+            for (Map<String, Object> item : result.getItems()) {
+                String batchId = null;
+                if (item.containsKey("batch_id")) {
+                    batchId = String.valueOf(item.get("batch_id"));
+                } else if (item.containsKey("payment_batch_id")) {
+                    batchId = String.valueOf(item.get("payment_batch_id"));
+                } else if (item.containsKey("batch")) {
+                    batchId = String.valueOf(item.get("batch"));
+                }
+                
+                if (batchId != null && !"null".equals(batchId)) {
+                    batchCounts.put(batchId, batchCounts.getOrDefault(batchId, 0) + 1);
+                }
+            }
+            
+            analysis.put("uniqueBatchIds", batchCounts.size());
+            analysis.put("batchCounts", batchCounts);
+        }
+
+        // List all fields from first item
+        analysis.put("availableFields", firstItem.keySet());
+
+        return analysis;
+    }
+
+    /**
+     * Test property statistics
+     */
+    @GetMapping("/property-stats")
+    public ResponseEntity<Map<String, Object>> testPropertyStatistics() {
+        try {
+            log.info("Getting property statistics from PayProp");
+
+            Map<String, Object> stats = payPropSyncService.getPropertyStatistics();
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "statistics", stats,
+                "note", "Comprehensive property statistics including rent and occupancy data"
+            ));
+
+        } catch (Exception e) {
+            log.error("Error getting property statistics: {}", e.getMessage());
             return ResponseEntity.ok(Map.of(
                 "success", false,
                 "error", e.getMessage()
