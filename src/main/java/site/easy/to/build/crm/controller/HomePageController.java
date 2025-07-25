@@ -137,9 +137,22 @@ public class HomePageController {
             List<EventDisplay> eventDisplays = null;
             boolean hasCalendarAccess = false;
             boolean isGoogleUser = false;
+            System.out.println("📅 DEBUG: Checking Google Calendar access...");
+            System.out.println("   Authentication type: " + authentication.getClass().getSimpleName());
+            System.out.println("   Is OAuth user: " + !(authentication instanceof UsernamePasswordAuthenticationToken));
+            System.out.println("   Google Calendar service available: " + (googleCalendarApiService != null));
+            
             if (!(authentication instanceof UsernamePasswordAuthenticationToken) && googleCalendarApiService != null) {
                 isGoogleUser = true;
+                System.out.println("✅ User is authenticated via OAuth (Google)");
+                
                 OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+                System.out.println("   OAuth user found: " + (oAuthUser != null));
+                if (oAuthUser != null) {
+                    System.out.println("   OAuth user email: " + oAuthUser.getEmail());
+                    System.out.println("   OAuth user scopes: " + oAuthUser.getGrantedScopes());
+                    System.out.println("   Has calendar scope: " + oAuthUser.getGrantedScopes().contains(GoogleAccessService.SCOPE_CALENDAR));
+                }
                 
                 // Check if user has valid OAuth tokens before attempting API calls
                 if (!oAuthUserService.hasValidTokens(oAuthUser)) {
@@ -148,11 +161,15 @@ public class HomePageController {
                     model.addAttribute("oauthTokenExpired", true);
                     model.addAttribute("oauthMessage", "Google services require authentication. Please re-authenticate to access Google calendar.");
                 } else if (oAuthUser.getGrantedScopes().contains(GoogleAccessService.SCOPE_CALENDAR)) {
+                    System.out.println("📅 Attempting to fetch Google Calendar events...");
                     try {
                         hasCalendarAccess = true;
+                        System.out.println("   Making Google Calendar API call...");
                         EventDisplayList eventDisplayList = googleCalendarApiService.getEvents("primary", oAuthUser);
                         eventDisplays = eventDisplayList.getItems();
+                        System.out.println("✅ Successfully retrieved " + (eventDisplays != null ? eventDisplays.size() : 0) + " calendar events");
                     } catch (RuntimeException e) {
+                        System.err.println("❌ RuntimeException in Google Calendar API: " + e.getMessage());
                         if (e.getMessage().contains("OAuth tokens expired")) {
                             System.err.println("🔄 OAuth tokens expired for user, calendar access disabled");
                             hasCalendarAccess = false;
@@ -165,12 +182,19 @@ public class HomePageController {
                             eventDisplays = null;
                             model.addAttribute("googleCalendarError", "Unable to load calendar events: " + e.getMessage());
                         }
+                        e.printStackTrace();
                     } catch (IOException | GeneralSecurityException e) {
-                        System.err.println("❌ Google Calendar API error: " + e.getMessage());
+                        System.err.println("❌ Google Calendar API IOException/GeneralSecurityException: " + e.getMessage());
                         hasCalendarAccess = false;
                         eventDisplays = null;
                         model.addAttribute("googleCalendarError", "Unable to load calendar events: " + e.getMessage());
+                        e.printStackTrace();
                     }
+                } else {
+                    System.out.println("⚠️ User does not have calendar scope access");
+                }
+            } else {
+                System.out.println("📅 User is not OAuth authenticated or Google Calendar service unavailable");
                 }
             }
             

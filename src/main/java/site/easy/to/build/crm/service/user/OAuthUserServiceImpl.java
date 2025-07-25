@@ -50,7 +50,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
 
     @Override
     public OAuthUser findById(Long id) {
-        return oAuthUserRepository.findById(id);
+        return oAuthUserRepository.findById(id.intValue());
     }
 
     @Override
@@ -67,42 +67,82 @@ public class OAuthUserServiceImpl implements OAuthUserService{
      * Check if the OAuth user has valid tokens for API access
      */
     public boolean hasValidTokens(OAuthUser oauthUser) {
+        System.out.println("🔍 DEBUG: Checking OAuth token validity...");
+        
         if (oauthUser == null) {
+            System.out.println("❌ OAuth user is null");
             return false;
         }
         
+        System.out.println("   OAuth user email: " + oauthUser.getEmail());
+        System.out.println("   Access token present: " + (oauthUser.getAccessToken() != null));
+        System.out.println("   Access token expiration: " + oauthUser.getAccessTokenExpiration());
+        System.out.println("   Refresh token present: " + (oauthUser.getRefreshToken() != null));
+        
         // Check if we have an access token that's still valid
         if (oauthUser.getAccessToken() != null && oauthUser.getAccessTokenExpiration() != null) {
-            if (Instant.now().isBefore(oauthUser.getAccessTokenExpiration())) {
+            boolean isValid = Instant.now().isBefore(oauthUser.getAccessTokenExpiration());
+            System.out.println("   Access token is valid: " + isValid);
+            if (isValid) {
+                System.out.println("✅ Access token is still valid, no refresh needed");
                 return true;
+            } else {
+                System.out.println("⚠️ Access token has expired");
             }
         }
         
         // Check if we have a refresh token to get a new access token
-        return oauthUser.getRefreshToken() != null && 
+        boolean hasRefreshToken = oauthUser.getRefreshToken() != null && 
                !oauthUser.getRefreshToken().isEmpty() && 
                !"N/A".equals(oauthUser.getRefreshToken());
+        
+        System.out.println("   Has valid refresh token: " + hasRefreshToken);
+        if (!hasRefreshToken) {
+            System.out.println("❌ No valid refresh token available - user needs to re-authenticate");
+        }
+        
+        return hasRefreshToken;
     }
     
     @Override
     @ConditionalOnExpression("!T(site.easy.to.build.crm.util.StringUtils).isEmpty('${spring.security.oauth2.client.registration.google.client-id:}')")
     public String refreshAccessTokenIfNeeded(OAuthUser oauthUser) {
+        System.out.println("🔄 DEBUG: Starting token refresh process...");
+        System.out.println("   OAuth user email: " + oauthUser.getEmail());
+        
         Instant now = Instant.now();
-        if (now.isBefore(oauthUser.getAccessTokenExpiration())) {
+        System.out.println("   Current time: " + now);
+        System.out.println("   Token expires at: " + oauthUser.getAccessTokenExpiration());
+        
+        if (oauthUser.getAccessTokenExpiration() != null && now.isBefore(oauthUser.getAccessTokenExpiration())) {
+            System.out.println("✅ Access token is still valid, returning existing token");
             return oauthUser.getAccessToken();
         }
+        
+        System.out.println("⚠️ Access token has expired, attempting refresh...");
 
         // FIXED: Check if refresh token is available before attempting refresh
+        System.out.println("   Refresh token value: " + (oauthUser.getRefreshToken() != null ? "[PRESENT]" : "[NULL]"));
+        System.out.println("   Refresh token length: " + (oauthUser.getRefreshToken() != null ? oauthUser.getRefreshToken().length() : 0));
+        
         if (oauthUser.getRefreshToken() == null || oauthUser.getRefreshToken().isEmpty() || "N/A".equals(oauthUser.getRefreshToken())) {
             System.err.println("❌ Cannot refresh access token - no valid refresh token available");
+            System.err.println("   Refresh token is: " + oauthUser.getRefreshToken());
+            System.err.println("   User needs to re-authenticate with Google");
             throw new RuntimeException("Cannot refresh access token - no valid refresh token available. User needs to re-authenticate.");
         }
+        
+        System.out.println("🔄 Attempting to refresh token with Google...");
 
         GsonFactory jsonFactory = GsonFactory.getDefaultInstance();
 
         // Create a new GoogleTokenResponse
         GoogleTokenResponse tokenResponse;
         try {
+            System.out.println("   Making refresh request to Google OAuth2 endpoint...");
+            System.out.println("   Client ID: " + (clientId != null ? clientId.substring(0, Math.min(10, clientId.length())) + "..." : "[NULL]"));
+            System.out.println("   Client Secret: " + (clientSecret != null ? "[PRESENT]" : "[NULL]"));
+            
             tokenResponse = new GoogleRefreshTokenRequest(
                     new NetHttpTransport(),
                     jsonFactory,
@@ -113,6 +153,11 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             String newAccessToken = tokenResponse.getAccessToken();
             long expiresIn = tokenResponse.getExpiresInSeconds();
             Instant expiresAt = Instant.now().plusSeconds(expiresIn);
+            
+            System.out.println("✅ Token refresh successful!");
+            System.out.println("   New access token received: " + (newAccessToken != null ? "[PRESENT]" : "[NULL]"));
+            System.out.println("   Token expires in: " + expiresIn + " seconds");
+            System.out.println("   Token expires at: " + expiresAt);
 
             oauthUser.setAccessToken(newAccessToken);
             oauthUser.setAccessTokenExpiration(expiresAt);
@@ -121,10 +166,13 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             if (tokenResponse.getRefreshToken() != null) {
                 oauthUser.setRefreshToken(tokenResponse.getRefreshToken());
                 System.out.println("✅ New refresh token received and stored");
+            } else {
+                System.out.println("🔄 No new refresh token provided (using existing one)");
             }
 
             oAuthUserRepository.save(oauthUser);
-            System.out.println("✅ Access token refreshed successfully");
+            System.out.println("✅ OAuth user tokens saved to database");
+            System.out.println("✅ Access token refresh process completed successfully");
             
         } catch (IOException e) {
             System.err.println("❌ Failed to refresh access token: " + e.getMessage());

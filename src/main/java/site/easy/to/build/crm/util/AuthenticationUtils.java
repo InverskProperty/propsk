@@ -36,17 +36,45 @@ public class AuthenticationUtils {
     }
 
     public OAuthUser getOAuthUserFromAuthentication(Authentication authentication) {
+        System.out.println("🔍 DEBUG: Getting OAuth user from authentication...");
+        
         if(oAuthUserService == null){
+            System.out.println("❌ OAuth user service is null");
             return null;
         }
-        String email = ((OAuth2User)authentication.getPrincipal()).getAttribute("email");
-        return oAuthUserService.findBtEmail(email);
+        
+        try {
+            String email = ((OAuth2User)authentication.getPrincipal()).getAttribute("email");
+            System.out.println("   Extracted email from OAuth principal: " + email);
+            
+            OAuthUser oAuthUser = oAuthUserService.findBtEmail(email);
+            System.out.println("   OAuth user found by email: " + (oAuthUser != null));
+            
+            if (oAuthUser != null) {
+                System.out.println("   OAuth user ID: " + oAuthUser.getId());
+                System.out.println("   OAuth user email: " + oAuthUser.getEmail());
+                System.out.println("   OAuth user has access token: " + (oAuthUser.getAccessToken() != null));
+                System.out.println("   OAuth user has refresh token: " + (oAuthUser.getRefreshToken() != null));
+            }
+            
+            return oAuthUser;
+        } catch (Exception e) {
+            System.err.println("❌ Error extracting OAuth user: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
     }
 
     public int getLoggedInUserId(Authentication authentication) {
+        System.out.println("🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called");
+        System.out.println("   Authentication type: " + authentication.getClass().getSimpleName());
+        System.out.println("   Authentication name: " + authentication.getName());
+        System.out.println("   Is authenticated: " + authentication.isAuthenticated());
+        
         User user;
         CustomerLoginInfo customerLoginInfo;
         if (authentication instanceof UsernamePasswordAuthenticationToken) {
+            System.out.println("   Processing UsernamePasswordAuthenticationToken...");
             UserDetailsService authenticatedUserDetailsService = getAuthenticatedUserDetailsService(authentication);
             String userName = authentication.getName();
             if (authenticatedUserDetailsService == crmUserDetails) {
@@ -63,13 +91,18 @@ public class AuthenticationUtils {
                 return customerLoginInfo.getId();
             }
         } else {
+            System.out.println("   Processing OAuth authentication...");
             OAuthUser oAuthUser = getOAuthUserFromAuthentication(authentication);
+            System.out.println("   OAuth user found: " + (oAuthUser != null));
             if (oAuthUser == null) {
+                System.out.println("❌ No OAuth user found, returning -1");
                 return -1;
             }
             user = oAuthUser.getUser();
-            return user.getId();
+            System.out.println("   OAuth user ID: " + (user != null ? user.getId() : "null"));
+            return user != null ? user.getId() : -1;
         }
+        System.out.println("❌ Failed to determine user ID, returning -1");
         return -1;
     }
     public boolean checkIfAppHasAccess(String serviceAccessUrl, OAuthUser oAuthUser) {

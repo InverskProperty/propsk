@@ -86,16 +86,45 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
         // Get the access and the refresh token from the OAuth2AuthorizedClient
         OAuth2AccessToken oAuth2AccessToken = authorizedClient.getAccessToken();
         OAuth2RefreshToken oAuth2RefreshToken = authorizedClient.getRefreshToken();
+        
+        System.out.println("🔐 DEBUG: OAuth tokens received from Google:");
+        System.out.println("   Access token present: " + (oAuth2AccessToken != null));
+        if (oAuth2AccessToken != null) {
+            System.out.println("   Access token expires at: " + oAuth2AccessToken.getExpiresAt());
+            System.out.println("   Access token scopes: " + oAuth2AccessToken.getScopes());
+        }
+        System.out.println("   Refresh token present: " + (oAuth2RefreshToken != null));
+        if (oAuth2RefreshToken != null) {
+            System.out.println("   Refresh token expires at: " + oAuth2RefreshToken.getExpiresAt());
+        }
 
         HttpSession session = request.getSession();
         boolean previouslyUsedRegularAccount = session.getAttribute("loggedInUserId") != null;
         int userId = (previouslyUsedRegularAccount) ? (int) session.getAttribute("loggedInUserId") : -1;
+        
+        System.out.println("🔍 DEBUG: Session analysis:");
+        System.out.println("   Previous regular account login: " + previouslyUsedRegularAccount);
+        System.out.println("   Session user ID: " + userId);
+        
         User loggedUser = null;
         if (userId != -1) {
+            System.out.println("   Attempting to find user by ID: " + userId);
             loggedUser = userService.findById(Long.valueOf(userId));
+            System.out.println("   User found by session ID: " + (loggedUser != null));
+            if (loggedUser != null) {
+                System.out.println("   User email: " + loggedUser.getEmail());
+                System.out.println("   User has OAuth user: " + (loggedUser.getOauthUser() != null));
+            }
         }
         
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+        System.out.println("🔍 DEBUG: OAuth user from authentication: " + (oAuthUser != null));
+        if (oAuthUser != null) {
+            System.out.println("   OAuth user email: " + oAuthUser.getEmail());
+            System.out.println("   OAuth user scopes: " + oAuthUser.getGrantedScopes());
+            System.out.println("   OAuth user has access token: " + (oAuthUser.getAccessToken() != null));
+            System.out.println("   OAuth user has refresh token: " + (oAuthUser.getRefreshToken() != null));
+        }
         if (loggedUser != null && loggedUser.getOauthUser() == null && oAuthUser == null) {
             oAuthUser = new OAuthUser();
             oAuthUser.getGrantedScopes().add("openid");
@@ -118,7 +147,14 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
             System.out.println("📧 Processing OAuth login for: " + email);
 
             int currUserId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(Long.valueOf(currUserId));
+            System.out.println("🔍 DEBUG: Authentication analysis:");
+            System.out.println("   Current user ID from auth: " + currUserId);
+            
+            User user = null;
+            if (currUserId != -1) {
+                user = userService.findById(Long.valueOf(currUserId));
+                System.out.println("   User found by ID: " + (user != null));
+            }
             
             // CRITICAL FIX: If user not found by OAuth method, try finding by email
             if (user == null) {
@@ -126,9 +162,17 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
                 user = userService.findByEmail(email);
                 if (user != null) {
                     System.out.println("✅ Found existing user by email: " + user.getId() + " - " + user.getEmail());
+                    System.out.println("   User status: " + user.getStatus());
+                    System.out.println("   User roles: " + user.getRoles().stream().map(r -> r.getName()).toList());
+                    System.out.println("   User has OAuth user: " + (user.getOauthUser() != null));
                 } else {
-                    System.out.println("❌ No existing user found by email");
+                    System.out.println("❌ No existing user found by email: " + email);
+                    System.out.println("   Will create new user account");
                 }
+            } else {
+                System.out.println("✅ User found via OAuth method: " + user.getId() + " - " + user.getEmail());
+                System.out.println("   User status: " + user.getStatus());
+                System.out.println("   User has OAuth user: " + (user.getOauthUser() != null));
             }
             
             OAuthUser loggedOAuthUser;

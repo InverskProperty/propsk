@@ -39,22 +39,38 @@ public class GoogleCalendarApiServiceImpl implements GoogleCalendarApiService {
     }
 
     public EventDisplayList getEvents(String calendarId, OAuthUser oauthUser) throws IOException, GeneralSecurityException {
+        System.out.println("📅 DEBUG: GoogleCalendarApiService.getEvents() called");
+        System.out.println("   Calendar ID: " + calendarId);
+        System.out.println("   OAuth user: " + (oauthUser != null ? oauthUser.getEmail() : "null"));
+        
         String accessToken = oAuthUserService.refreshAccessTokenIfNeeded(oauthUser);
+        System.out.println("   Access token obtained: " + (accessToken != null ? "[PRESENT]" : "[NULL]"));
 
         HttpRequestFactory requestFactory = GoogleApiHelper.createRequestFactory(accessToken);
+        System.out.println("   HTTP request factory created");
 
         GenericUrl eventsUrl = new GenericUrl(API_BASE_URL + calendarId + "/events");
+        System.out.println("   Calendar API URL: " + eventsUrl.toString());
 
         String nowInRfc3339 = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
+        System.out.println("   Time filter (timeMin): " + nowInRfc3339);
 
         eventsUrl.put("timeMin", nowInRfc3339);
         eventsUrl.put("singleEvents", "true");
         eventsUrl.put("orderBy", "startTime");
+        System.out.println("   Final API URL with params: " + eventsUrl.toString());
 
+        System.out.println("   Making HTTP request to Google Calendar API...");
         HttpRequest request = requestFactory.buildGetRequest(eventsUrl);
         HttpResponse response = request.execute();
+        System.out.println("   HTTP response status: " + response.getStatusCode());
+        System.out.println("   HTTP response content type: " + response.getContentType());
         String jsonResponse = response.parseAsString();
+        System.out.println("   Raw JSON response length: " + jsonResponse.length());
+        System.out.println("   Parsing JSON response to EventList...");
+        
         EventList eventList = objectMapper.readValue(jsonResponse, EventList.class);
+        System.out.println("   Parsed " + (eventList.getItems() != null ? eventList.getItems().size() : 0) + " events from API");
 
         // Convert Event objects to EventDisplay objects
         List<EventDisplay> eventDisplays = eventList.getItems().stream()
@@ -77,6 +93,9 @@ public class GoogleCalendarApiServiceImpl implements GoogleCalendarApiService {
                 })
                 .collect(Collectors.toList());
 
+        System.out.println("   Converted to " + eventDisplays.size() + " EventDisplay objects");
+        System.out.println("✅ Google Calendar API call completed successfully");
+        
         return new EventDisplayList(eventDisplays);
     }
 
