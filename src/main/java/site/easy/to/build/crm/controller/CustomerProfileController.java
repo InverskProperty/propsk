@@ -78,7 +78,7 @@ public class CustomerProfileController {
         }
 
         int customerId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
 
         CustomerLoginInfo customerLoginInfo = customerLoginInfoService.findById(customerId);
         if(user == null || !Objects.equals(customerLoginInfo.getCustomer().getUser().getId(), user.getId())) {

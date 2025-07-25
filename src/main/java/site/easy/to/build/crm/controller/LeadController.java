@@ -84,7 +84,7 @@ public class LeadController {
     @GetMapping("/show/{id}")
     public String showDetails(@PathVariable("id") int id, Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -155,7 +155,7 @@ public class LeadController {
     @GetMapping("/create")
     public String showCreatingForm(Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if(user.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -171,18 +171,18 @@ public class LeadController {
                              @RequestParam("folderId") @Nullable String folderId, Model model) throws JsonProcessingException {
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User manager = userService.findById(userId);
+        User manager = userService.findById(Long.valueOf(userId));
         if(manager.isInactiveUser()) {
             return "error/account-inactive";
         }
 
         if(bindingResult.hasErrors()) {
-            User user = userService.findById(userId);
+            User user = userService.findById(Long.valueOf(userId));
             populateModelAttributes(model, authentication, user);
             return "lead/create-lead";
         }
 
-        User employee = userService.findById(employeeId);
+        User employee = userService.findById(Long.valueOf(employeeId));
         Customer customer = customerService.findByCustomerId(customerId);
         if(AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE") && (employee.getId() != userId)) {
             return "error/500";
@@ -228,7 +228,7 @@ public class LeadController {
     public String showUpdatingForm(Model model, @PathVariable("id") int id, Authentication authentication) {
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -306,7 +306,7 @@ public class LeadController {
                              @RequestParam("allFiles") @Nullable String files, @RequestParam("folderId") @Nullable String folderId) throws JsonProcessingException {
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -316,7 +316,7 @@ public class LeadController {
         }
 
         User manager = currLead.getManager();
-        User employee = userService.findById(employeeId);
+        User employee = userService.findById(Long.valueOf(employeeId));
         Customer customer = customerService.findByCustomerId(customerId);
         if(employee == null || manager == null || customer == null) {
             return "error/500";
@@ -456,7 +456,7 @@ public class LeadController {
 
         User employee = lead.getEmployee();
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }

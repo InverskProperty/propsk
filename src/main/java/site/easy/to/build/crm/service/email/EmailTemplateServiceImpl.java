@@ -46,7 +46,7 @@ public class EmailTemplateServiceImpl implements EmailTemplateService {
         if (userId == -1) {
             throw new UsernameNotFoundException("User not found");
         }
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         emailTemplate.setUser(user);
         emailTemplateRepository.save(emailTemplate);
     }

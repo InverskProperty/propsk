@@ -92,7 +92,7 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
         int userId = (previouslyUsedRegularAccount) ? (int) session.getAttribute("loggedInUserId") : -1;
         User loggedUser = null;
         if (userId != -1) {
-            loggedUser = userService.findById(userId);
+            loggedUser = userService.findById(Long.valueOf(userId));
         }
         
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
@@ -118,7 +118,7 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
             System.out.println("📧 Processing OAuth login for: " + email);
 
             int currUserId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(currUserId);
+            User user = userService.findById(Long.valueOf(currUserId));
             
             // CRITICAL FIX: If user not found by OAuth method, try finding by email
             if (user == null) {

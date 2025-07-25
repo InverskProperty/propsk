@@ -46,7 +46,7 @@ public class GoogleSettingsController {
         }
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
 
         List<String> scopesToCheck = Arrays.asList(

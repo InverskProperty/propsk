@@ -91,7 +91,7 @@ public class EmployeeController {
 
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            User user = userService.findById(Long.valueOf(userId));
             
             // Use EXISTING method names for basic stats
             model.addAttribute("totalProperties", propertyService.getTotalProperties());
@@ -132,7 +132,7 @@ public class EmployeeController {
 
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            User user = userService.findById(Long.valueOf(userId));
             
             // Get employee's assigned tickets
             List<Ticket> assignedTickets = ticketService.getTicketsByEmployeeId(userId);
@@ -183,7 +183,7 @@ public class EmployeeController {
 
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            User user = userService.findById(Long.valueOf(userId));
             
             // Calculate performance metrics
             Map<String, Object> performanceStats = calculateEmployeePerformanceStats(userId);
@@ -278,7 +278,7 @@ public class EmployeeController {
 
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User user = userService.findById(userId);
+            User user = userService.findById(Long.valueOf(userId));
             
             Map<String, Object> stats = calculateEmployeeMaintenanceStats(userId, user);
             return ResponseEntity.ok(stats);

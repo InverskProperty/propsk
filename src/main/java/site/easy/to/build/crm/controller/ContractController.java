@@ -94,7 +94,7 @@ public class ContractController {
         }
         User employee = contract.getUser();
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -145,7 +145,7 @@ public class ContractController {
         List<Attachment> attachments = new ArrayList<>();
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if (user.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -189,7 +189,7 @@ public class ContractController {
             throws IOException, GeneralSecurityException {
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User employee = userService.findById(userId);
+        User employee = userService.findById(Long.valueOf(userId));
         if (employee.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -272,7 +272,7 @@ public class ContractController {
         }
         User employee = contract.getUser();
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if (loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -340,7 +340,7 @@ public class ContractController {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
 
         Customer customer = customerService.findByCustomerId(customerId);
-        User employee = userService.findById(userId);
+        User employee = userService.findById(Long.valueOf(userId));
         if (employee.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -450,7 +450,7 @@ public class ContractController {
 
         User employee = contract.getUser();
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if (loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }

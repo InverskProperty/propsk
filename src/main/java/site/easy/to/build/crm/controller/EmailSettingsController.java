@@ -50,7 +50,7 @@ public class EmailSettingsController {
     @GetMapping("/email/{entity}")
     public String showEntityEmailNotificationSettings(@PathVariable("entity") String entity, Model model, Authentication authentication, HttpSession session) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if(user.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -124,7 +124,7 @@ public class EmailSettingsController {
                                     @RequestParam Map<String, String> formParams, Authentication authentication) {
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if(user.isInactiveUser()) {
             return "error/account-inactive";
         }

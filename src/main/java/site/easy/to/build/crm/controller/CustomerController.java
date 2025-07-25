@@ -58,7 +58,7 @@ public class CustomerController {
     public String customerDashboard(Model model, Authentication authentication) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             // Get statistics for all customer types using the WORKING repository methods
             List<Customer> propertyOwners = customerService.findPropertyOwners();
@@ -108,7 +108,7 @@ public class CustomerController {
                                 Model model, Authentication authentication) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             List<Customer> propertyOwners = customerService.findPropertyOwners();
 
@@ -183,7 +183,7 @@ public class CustomerController {
                             RedirectAttributes redirectAttributes) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             // Set basic properties
             customer.setUser(user);
@@ -245,7 +245,7 @@ public class CustomerController {
                                     RedirectAttributes redirectAttributes) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             customer.setUser(user);
             customer.setIsPropertyOwner(true);
@@ -271,7 +271,7 @@ public class CustomerController {
     public String emailPropertyOwnersForm(Model model, Authentication authentication) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             List<Customer> propertyOwners = customerService.findPropertyOwners();
             
@@ -431,7 +431,7 @@ public class CustomerController {
                             Model model, Authentication authentication) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             List<Customer> tenants = customerService.findTenants();
 
@@ -512,7 +512,7 @@ public class CustomerController {
                             RedirectAttributes redirectAttributes) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             customer.setUser(user);
             customer.setIsTenant(true);
@@ -541,7 +541,7 @@ public class CustomerController {
     public String emailTenantsForm(Model model, Authentication authentication) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             List<Customer> tenants = customerService.findTenants();
             
@@ -672,7 +672,7 @@ public class CustomerController {
                                 Model model, Authentication authentication) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             List<Customer> contractors = customerService.findContractors();
             
@@ -722,7 +722,7 @@ public class CustomerController {
                                  RedirectAttributes redirectAttributes) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             customer.setUser(user);
             customer.setIsContractor(true);
@@ -749,7 +749,7 @@ public class CustomerController {
     public String emailContractorsForm(Model model, Authentication authentication) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             List<Customer> contractors = customerService.findContractors();
             
@@ -849,7 +849,7 @@ public class CustomerController {
             }
 
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User loggedInUser = userService.findById(userId.intValue());
+            User loggedInUser = userService.findById(userId);
             
             // Check if user can access this customer (handle NULL user relationship)
             if (customer.getUser() != null && 
@@ -947,7 +947,7 @@ public class CustomerController {
             }
 
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User loggedInUser = userService.findById(userId.intValue());
+            User loggedInUser = userService.findById(userId);
             
             // Check if user can access this customer
             if (customer.getUser() != null && 
@@ -1052,7 +1052,7 @@ public class CustomerController {
                                     Model model, Authentication authentication) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             Customer customer = new Customer();
             String displayType = "Customer";
@@ -1154,7 +1154,7 @@ public class CustomerController {
         
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             // Set basic properties
             customer.setUser(user);
@@ -1431,7 +1431,7 @@ public class CustomerController {
                                  Model model, Authentication authentication) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             List<Customer> customers;
             
@@ -1484,7 +1484,7 @@ public class CustomerController {
                                         Model model, Authentication authentication) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             // Check if user is manager
             if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
@@ -1742,7 +1742,7 @@ public class CustomerController {
                                    Model model, Authentication authentication) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId.intValue());
+            User user = userService.findById(userId);
             
             if (!emailService.isGmailApiAvailable(authentication)) {
                 model.addAttribute("gmailError", "Gmail API access required. Please log in with Google and grant Gmail permissions.");

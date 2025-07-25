@@ -74,7 +74,7 @@ public class TicketController {
     @GetMapping("/show-ticket/{id}")
     public String showTicketDetails(@PathVariable("id") int id, Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -99,7 +99,7 @@ public class TicketController {
                                       @RequestParam(value = "status", required = false) String statusFilter,
                                       Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -145,7 +145,7 @@ public class TicketController {
                                  @RequestParam(value = "status", required = false) String statusFilter,
                                  Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -202,7 +202,7 @@ public class TicketController {
             System.out.println("Property ID: " + propertyId);
             
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User loggedInUser = userService.findById(userId);
+            User loggedInUser = userService.findById(Long.valueOf(userId));
             if(loggedInUser.isInactiveUser()) {
                 return "error/account-inactive";
             }
@@ -335,7 +335,7 @@ public class TicketController {
     public String showContractorBids(@RequestParam(value = "ticketId", required = false) Integer ticketId,
                                    Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -378,7 +378,7 @@ public class TicketController {
                                     RedirectAttributes redirectAttributes) {
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User loggedInUser = userService.findById(userId);
+            User loggedInUser = userService.findById(Long.valueOf(userId));
             
             Ticket ticket = ticketService.findByTicketId(ticketId);
             if (ticket == null) {
@@ -455,7 +455,7 @@ public class TicketController {
                                   RedirectAttributes redirectAttributes) {
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            User loggedInUser = userService.findById(userId);
+            User loggedInUser = userService.findById(Long.valueOf(userId));
             
             Ticket ticket = ticketService.findByTicketId(ticketId);
             Customer contractor = customerService.findByCustomerId(contractorId);
@@ -557,7 +557,7 @@ public class TicketController {
     @GetMapping("/{ticketId}/bids")
     public String viewTicketBids(@PathVariable int ticketId, Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -717,7 +717,7 @@ public class TicketController {
     @GetMapping("/create-ticket")
     public String showTicketCreationForm(Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User user = userService.findById(userId);
+        User user = userService.findById(Long.valueOf(userId));
         if(user.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -745,7 +745,7 @@ public class TicketController {
                                @RequestParam("employeeId") int employeeId, Authentication authentication) {
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User manager = userService.findById(userId);
+        User manager = userService.findById(Long.valueOf(userId));
         if(manager == null) {
             return "error/500";
         }
@@ -769,7 +769,7 @@ public class TicketController {
             return "ticket/create-ticket";
         }
 
-        User employee = userService.findById(employeeId);
+        User employee = userService.findById(Long.valueOf(employeeId));
         Customer customer = customerService.findByCustomerId(customerId);
 
         if(employee == null || customer == null) {
@@ -794,7 +794,7 @@ public class TicketController {
     @GetMapping("/update-ticket/{id}")
     public String showTicketUpdatingForm(Model model, @PathVariable("id") int id, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -838,7 +838,7 @@ public class TicketController {
                                Authentication authentication, Model model) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
 
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -851,7 +851,7 @@ public class TicketController {
         BeanUtils.copyProperties(previousTicket, originalTicket);
 
         User manager = originalTicket.getManager();
-        User employee = userService.findById(employeeId);
+        User employee = userService.findById(Long.valueOf(employeeId));
         Customer customer = customerService.findByCustomerId(customerId);
 
         if(manager == null || employee ==null || customer == null) {
@@ -921,7 +921,7 @@ public class TicketController {
     @PostMapping("/delete-ticket/{id}")
     public String deleteTicket(@PathVariable("id") int id, Authentication authentication){
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }

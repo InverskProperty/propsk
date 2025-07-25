@@ -60,7 +60,7 @@ public class EmailTemplatesController {
 
         User employee = emailTemplate.getUser();
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if (loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -90,7 +90,7 @@ public class EmailTemplatesController {
     @GetMapping("/create")
     public String showEmailTemplate(Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if (loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -141,7 +141,7 @@ public class EmailTemplatesController {
 
         User employee = emailTemplate.getUser();
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if (loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -196,7 +196,7 @@ public class EmailTemplatesController {
 
         User employee = emailTemplate.getUser();
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if (loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }

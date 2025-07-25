@@ -60,7 +60,7 @@ public class ManagerController {
     @GetMapping("/manager/dashboard")
     public String showManagerDashboard(Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -86,7 +86,7 @@ public class ManagerController {
     public String showAllUsers(Model model, Authentication authentication) {
         List<User> profiles = userService.findAll();
         int currentUserId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(currentUserId);
+        User loggedInUser = userService.findById(Long.valueOf(currentUserId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -108,11 +108,11 @@ public class ManagerController {
     @GetMapping("/manager/show-user/{id}")
     public String showUserInfo(@PathVariable("id") int id, Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
-        User user = userService.findById(id);
+        User user = userService.findById(Long.valueOf(id));
         if(user == null) {
             return "error/not-found";
         }
@@ -135,7 +135,7 @@ public class ManagerController {
     @GetMapping("/manager/register-user")
     public String showRegistrationForm(Model model, Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -157,7 +157,7 @@ public class ManagerController {
     public String registerUser(@ModelAttribute("user") @Validated(User.ValidationGroupInclusion.class) User user, BindingResult bindingResult,
                                @RequestParam("role") int roleId, Model model, Authentication authentication){
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(userId);
+        User loggedInUser = userService.findById(Long.valueOf(userId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -206,9 +206,9 @@ public class ManagerController {
 
     @GetMapping("/manager/update-user/{id}")
     public String showUserUpdatingForm(@PathVariable("id") int id, Model model, HttpSession session, Authentication authentication) {
-        User user = userService.findById(id);
+        User user = userService.findById(Long.valueOf(id));
         int managerId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(managerId);
+        User loggedInUser = userService.findById(Long.valueOf(managerId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -225,7 +225,7 @@ public class ManagerController {
                                  @RequestParam("role") int roleId, HttpSession session, Authentication authentication, Model model) {
 
         int managerId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(managerId);
+        User loggedInUser = userService.findById(Long.valueOf(managerId));
         if(loggedInUser.isInactiveUser()) {
             return "error/account-inactive";
         }
@@ -239,7 +239,7 @@ public class ManagerController {
 
         if(bindingResult.hasErrors()) {
             List<Role> roles = roleService.getAllRoles();
-            User employee = userService.findById(employeeId);
+            User employee = userService.findById(Long.valueOf(employeeId));
             model.addAttribute("roles",roles);
             model.addAttribute("user", employee);
             return "manager/update-user";
@@ -247,7 +247,7 @@ public class ManagerController {
 
         session.removeAttribute(sessionName);
 
-        User employee = userService.findById(employeeId);
+        User employee = userService.findById(Long.valueOf(employeeId));
         employee.setStatus(user.getStatus());
         employee.setUpdatedAt(LocalDateTime.now());
         Optional<Role> role = roleService.findById(roleId);
