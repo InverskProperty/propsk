@@ -859,7 +859,7 @@ public class PayPropSyncOrchestrator {
        }
        
        // Set user_id for database constraint
-       User user = userRepository.getReferenceById(initiatedBy);
+       User user = userRepository.getReferenceById(initiatedBy.intValue());
        customer.setUser(user);
        
        return customer;
@@ -1304,7 +1304,7 @@ public class PayPropSyncOrchestrator {
        // No direct assignment to customer entity anymore
        
        // Set user_id for database constraint
-       User user = userRepository.getReferenceById(initiatedBy);
+       User user = userRepository.getReferenceById(initiatedBy.intValue());
        customer.setUser(user);
        
        return customer;
@@ -1374,7 +1374,7 @@ public class PayPropSyncOrchestrator {
        }
        
        // Set user_id for database constraint
-       User user = userRepository.getReferenceById(initiatedBy);
+       User user = userRepository.getReferenceById(initiatedBy.intValue());
        customer.setUser(user);
        
        return customer;
