@@ -56,6 +56,11 @@
             border-radius: 0.5rem;
             font-weight: bold;
         }
+        .icdn-highlight {
+            background-color: #e7f3ff;
+            border: 2px solid #0066cc;
+            border-radius: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -104,7 +109,7 @@
             <div id="paymentsResult" class="result-box d-none"></div>
         </div>
         
-        <!-- NEW: API Endpoint Discovery -->
+        <!-- API Endpoint Discovery -->
         <div class="test-section">
             <h3>4. API Endpoint Discovery</h3>
             <p class="text-muted">Discover which PayProp API endpoints are available with your current permissions</p>
@@ -112,7 +117,7 @@
             <div id="discoveryResult" class="result-box d-none"></div>
         </div>
         
-        <!-- NEW: Report All Payments Test -->
+        <!-- Report All Payments Test -->
         <div class="test-section">
             <h3>5. Test Report All-Payments (Real Transactions)</h3>
             <p class="text-muted">This endpoint should contain actual payment transactions with batch information</p>
@@ -139,7 +144,7 @@
             <div id="reportResult" class="result-box d-none"></div>
         </div>
         
-        <!-- NEW: Test Multiple Payment Endpoints -->
+        <!-- Test Multiple Payment Endpoints -->
         <div class="test-section">
             <h3>6. Test Multiple Payment Endpoints</h3>
             <p class="text-muted">Test different PayProp payment endpoints to find actual transaction data</p>
@@ -188,6 +193,53 @@
             </div>
             <button class="btn btn-primary" onclick="testCustomEndpoint()">Test Custom Endpoint</button>
             <div id="customResult" class="result-box d-none"></div>
+        </div>
+        
+        <!-- NEW: ICDN Real-time Transaction Test -->
+        <div class="test-section">
+            <h3>11. Test ICDN Real-time Transactions</h3>
+            <p class="text-muted">ICDN = "I Can Do Now" - PayProp's real-time transaction data endpoint</p>
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label>From Date:</label>
+                    <input type="date" id="icdnFromDate" class="form-control" value="2024-01-01">
+                </div>
+                <div class="col-md-3">
+                    <label>To Date:</label>
+                    <input type="date" id="icdnToDate" class="form-control" value="2024-12-31">
+                </div>
+                <div class="col-md-3">
+                    <label>Rows:</label>
+                    <input type="number" id="icdnRows" class="form-control" value="25" min="1" max="100">
+                </div>
+                <div class="col-md-3">
+                    <label>&nbsp;</label><br>
+                    <button class="btn btn-primary" onclick="testICDNEndpoint()">Test ICDN Endpoint</button>
+                    <button class="btn btn-info" onclick="testICDNRecent()">Test Recent 30 Days</button>
+                </div>
+            </div>
+            <div id="icdnResult" class="result-box d-none"></div>
+        </div>
+        
+        <!-- NEW: Comprehensive Endpoint Comparison -->
+        <div class="test-section">
+            <h3>12. Comprehensive Endpoint Comparison</h3>
+            <p class="text-muted">Compare all PayProp endpoints side-by-side including ICDN</p>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label>From Date:</label>
+                    <input type="date" id="comparisonFromDate" class="form-control" value="2024-06-01">
+                </div>
+                <div class="col-md-4">
+                    <label>To Date:</label>
+                    <input type="date" id="comparisonToDate" class="form-control" value="2024-12-31">
+                </div>
+                <div class="col-md-4">
+                    <label>&nbsp;</label><br>
+                    <button class="btn btn-primary" onclick="testEndpointComparison()">Compare All Endpoints</button>
+                </div>
+            </div>
+            <div id="comparisonResult" class="result-box d-none"></div>
         </div>
     </div>
 
@@ -261,6 +313,11 @@
                 html += `<div class="batch-found">🎉 BATCH DATA DISCOVERED! Found ${data.batchAnalysis.uniqueBatchIds.length} unique batch IDs</div>`;
             }
             
+            // Check if this is ICDN data discovery
+            if (data && data.icdnAnalysis && data.icdnAnalysis.hasData) {
+                html += `<div class="batch-found">🚀 ICDN REAL-TIME DATA FOUND! Records: ${data.icdnAnalysis.totalRecords}</div>`;
+            }
+            
             if (typeof data === 'object') {
                 html += `<pre class="json-display">${JSON.stringify(data, null, 2)}</pre>`;
             } else {
@@ -269,9 +326,15 @@
             
             element.innerHTML = html;
             
-            // Highlight successful batch discoveries
-            if (data && data.batchAnalysis && data.batchAnalysis.hasBatchData) {
+            // Highlight successful discoveries
+            if (data && ((data.batchAnalysis && data.batchAnalysis.hasBatchData) || 
+                        (data.icdnAnalysis && data.icdnAnalysis.hasData))) {
                 element.classList.add('success-highlight');
+            }
+            
+            // Special highlighting for ICDN data
+            if (data && data.icdnAnalysis && data.icdnAnalysis.hasData) {
+                element.classList.add('icdn-highlight');
             }
         }
         
@@ -347,7 +410,6 @@
             }, 'Batch Payment Search Results');
         }
         
-        // NEW: Enhanced test functions for batch payment discovery
         async function discoverEndpoints() {
             const result = await fetchWithCSRF('/api/payprop/test/discover-endpoints');
             showResult('discoveryResult', result.data, 'API Endpoint Discovery Results');
@@ -393,15 +455,17 @@
             await testReportAllPayments();
         }
         
+        // Updated testAllPaymentEndpoints function to include ICDN
         async function testAllPaymentEndpoints() {
             const monthsBack = document.getElementById('monthsBack').value;
             
-            showResult('multipleEndpointsResult', 'Testing multiple payment endpoints...', 'Multiple Endpoints Test');
+            showResult('multipleEndpointsResult', 'Testing multiple payment endpoints including ICDN...', 'Multiple Endpoints Test');
             
             const endpoints = [
                 'test/report-all-payments',
-                'test/actual-payments',
-                'test/payments'
+                'test/actual-payments', 
+                'test/payments',
+                'test/icdn-report'  // Add the new ICDN endpoint
             ];
             
             const results = {};
@@ -418,20 +482,28 @@
                     
                     results[endpoint] = {
                         success: result.success,
-                        hasData: result.success && result.data && result.data.payPropResponse && result.data.payPropResponse.items && result.data.payPropResponse.items.length > 0,
-                        itemCount: result.success && result.data && result.data.payPropResponse ? result.data.payPropResponse.items.length : 0,
-                        batchData: result.success && result.data && result.data.batchAnalysis ? result.data.batchAnalysis.hasBatchData : false,
-                        response: result.data
+                        hasData: result.success && result.data && 
+                                ((result.data.payPropResponse && result.data.payPropResponse.items && result.data.payPropResponse.items.length > 0) ||
+                                 (result.data.icdnAnalysis && result.data.icdnAnalysis.hasData)), // Handle ICDN response structure
+                        itemCount: result.success && result.data ? 
+                                  (result.data.payPropResponse ? result.data.payPropResponse.items.length : 
+                                   result.data.icdnAnalysis ? result.data.icdnAnalysis.totalRecords : 0) : 0,
+                        batchData: result.success && result.data && 
+                                  (result.data.batchAnalysis ? result.data.batchAnalysis.hasBatchData : 
+                                   result.data.icdnAnalysis ? result.data.icdnAnalysis.hasData : false),
+                        response: result.data,
+                        endpoint_type: endpoint.includes('icdn') ? 'ICDN Real-time Transactions' : 'Standard PayProp Endpoint'
                     };
                 } catch (error) {
                     results[endpoint] = {
                         success: false,
-                        error: error.message
+                        error: error.message,
+                        endpoint_type: endpoint.includes('icdn') ? 'ICDN Real-time Transactions' : 'Standard PayProp Endpoint'
                     };
                 }
             }
             
-            showResult('multipleEndpointsResult', results, 'Multiple Payment Endpoints Test Results');
+            showResult('multipleEndpointsResult', results, 'Multiple Payment Endpoints Test Results (Including ICDN)');
         }
         
         async function analyzeBatchFields() {
@@ -515,6 +587,78 @@
             
             const result = await fetchWithCSRF(`/api/payprop/${endpoint}`);
             showResult('customResult', result, `Custom Endpoint: ${endpoint}`);
+        }
+        
+        // NEW: ICDN endpoint testing functions
+        
+        /**
+         * Test the ICDN endpoint with custom parameters
+         */
+        async function testICDNEndpoint() {
+            const fromDate = document.getElementById('icdnFromDate').value;
+            const toDate = document.getElementById('icdnToDate').value;
+            const rows = document.getElementById('icdnRows').value;
+            
+            let url = `/api/payprop/test/icdn-report?fromDate=${fromDate}&toDate=${toDate}`;
+            if (rows) url += `&rows=${rows}`;
+            
+            const result = await fetchWithCSRF(url);
+            
+            if (result.success && result.data.icdnAnalysis) {
+                const analysis = result.data.icdnAnalysis;
+                if (analysis.hasData) {
+                    showResult('icdnResult', {
+                        ...result.data,
+                        summary: `🚀 ICDN DATA FOUND! Records: ${analysis.totalRecords}, Transaction Types: ${JSON.stringify(analysis.transactionTypes)}`
+                    }, 'ICDN Real-time Transactions - DATA FOUND!');
+                } else {
+                    showResult('icdnResult', result.data, 'ICDN Real-time Transactions - No Data');
+                }
+            } else {
+                showResult('icdnResult', result, 'ICDN Real-time Transactions Test');
+            }
+        }
+        
+        /**
+         * Test ICDN with recent dates (last 30 days)
+         */
+        async function testICDNRecent() {
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            document.getElementById('icdnFromDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+            document.getElementById('icdnToDate').value = today.toISOString().split('T')[0];
+            
+            // Call the main test function
+            await testICDNEndpoint();
+        }
+        
+        /**
+         * NEW: Test the comprehensive endpoint comparison
+         */
+        async function testEndpointComparison() {
+            const fromDate = document.getElementById('comparisonFromDate').value;
+            const toDate = document.getElementById('comparisonToDate').value;
+            
+            const result = await fetchWithCSRF(`/api/payprop/test/endpoint-comparison?fromDate=${fromDate}&toDate=${toDate}`);
+            
+            if (result.success && result.data.comparison) {
+                const comparison = result.data.comparison;
+                const summary = comparison.summary;
+                
+                let titleText = 'Comprehensive Endpoint Comparison Results';
+                if (summary && summary.endpointsWithBatchData && summary.endpointsWithBatchData.length > 0) {
+                    titleText += ' - BATCH DATA FOUND!';
+                }
+                if (summary && summary.endpointsWithRealAmounts && summary.endpointsWithRealAmounts.length > 0) {
+                    titleText += ' - REAL AMOUNTS FOUND!';
+                }
+                
+                showResult('comparisonResult', result.data, titleText);
+            } else {
+                showResult('comparisonResult', result, 'Comprehensive Endpoint Comparison');
+            }
         }
     </script>
 </body>

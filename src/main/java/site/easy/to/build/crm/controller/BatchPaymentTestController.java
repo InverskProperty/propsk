@@ -1,4 +1,4 @@
-// BatchPaymentTestController.java - Complete enhanced version for batch payment investigation
+// BatchPaymentTestController.java - Enhanced with ICDN and comprehensive endpoint testing
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,9 +22,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.ArrayList;
 
 /**
- * Enhanced test controller to investigate PayProp batch payment functionality
+ * Enhanced test controller to investigate ALL PayProp endpoints and data types
+ * Now includes ICDN testing and comprehensive endpoint comparison
  */
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @RestController
@@ -43,89 +45,517 @@ public class BatchPaymentTestController {
     private RestTemplate restTemplate;
 
     /**
-     * Test endpoint to check all payments for a specific date range
-     * This will help us see if batch IDs are included in the response
+     * ✅ NEW: Test ICDN endpoint specifically
+     * ICDN = "I Can Do Now" - PayProp's real-time transaction data
      */
-    @GetMapping("/payments")
-    public ResponseEntity<Map<String, Object>> testPaymentsEndpoint(
+    @GetMapping("/icdn-report")
+    public ResponseEntity<Map<String, Object>> testICDNEndpoint(
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate,
+            @RequestParam(required = false) Integer rows) {
+        
+        try {
+            // Default to recent dates if not provided
+            LocalDate from = fromDate != null ? LocalDate.parse(fromDate) : LocalDate.now().minusMonths(3);
+            LocalDate to = toDate != null ? LocalDate.parse(toDate) : LocalDate.now();
+            int pageSize = rows != null ? rows : 25;
+
+            log.info("🔍 Testing ICDN endpoint for date range: {} to {} (rows: {})", from, to, pageSize);
+
+            if (!oAuth2Service.hasValidTokens()) {
+                return ResponseEntity.ok(Map.of(
+                    "success", false,
+                    "error", "PayProp not authorized. Please authorize first.",
+                    "endpoint", "/report/icdn"
+                ));
+            }
+
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/icdn" +
+                    "?from_date=" + from.toString() +
+                    "&to_date=" + to.toString() +
+                    "&rows=" + pageSize;
+            
+            log.info("📡 Calling ICDN API: {}", url);
+            
+            ResponseEntity<Map> apiResponse = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (apiResponse.getStatusCode().is2xxSuccessful() && apiResponse.getBody() != null) {
+                Map<String, Object> responseBody = apiResponse.getBody();
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> transactions = (List<Map<String, Object>>) responseBody.get("items");
+                
+                Map<String, Object> analysis = analyzeICDNData(transactions);
+                
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "endpoint", "/report/icdn",
+                    "url", url,
+                    "totalItems", transactions != null ? transactions.size() : 0,
+                    "dateRange", from + " to " + to,
+                    "payPropResponse", responseBody,
+                    "icdnAnalysis", analysis,
+                    "note", "ICDN = Real-time transaction data from PayProp"
+                ));
+            } else {
+                return ResponseEntity.ok(Map.of(
+                    "success", false,
+                    "error", "ICDN API returned status: " + apiResponse.getStatusCode(),
+                    "endpoint", "/report/icdn",
+                    "url", url
+                ));
+            }
+
+        } catch (Exception e) {
+            log.error("❌ Error testing ICDN endpoint: {}", e.getMessage(), e);
+            return ResponseEntity.ok(Map.of(
+                "success", false,
+                "error", e.getMessage(),
+                "endpoint", "/report/icdn",
+                "suggestion", "Check if ICDN endpoint requires different permissions or parameters"
+            ));
+        }
+    }
+
+    /**
+     * ✅ NEW: Compare all three main endpoints side by side
+     */
+    @GetMapping("/endpoint-comparison")
+    public ResponseEntity<Map<String, Object>> compareAllEndpoints(
             @RequestParam(required = false) String fromDate,
             @RequestParam(required = false) String toDate) {
         
         try {
-            // Default to recent dates if not provided
-            if (fromDate == null) {
-                fromDate = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE);
-            }
-            if (toDate == null) {
-                toDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
-            }
+            LocalDate from = fromDate != null ? LocalDate.parse(fromDate) : LocalDate.now().minusMonths(1);
+            LocalDate to = toDate != null ? LocalDate.parse(toDate) : LocalDate.now();
 
-            log.info("Testing PayProp payments endpoint for date range: {} to {}", fromDate, toDate);
+            log.info("🔍 Comparing all PayProp endpoints for period: {} to {}", from, to);
 
-            // Use the existing exportPaymentsFromPayProp method
-            PayPropExportResult result = payPropSyncService.exportPaymentsFromPayProp(1, 25);
+            Map<String, Object> comparison = new HashMap<>();
+            
+            // Test 1: /export/payments (Payment Instructions)
+            comparison.put("export_payments", testEndpoint(
+                "/export/payments", 
+                "?include_beneficiary_info=true&page=1&rows=10",
+                "Payment Instructions/Templates"
+            ));
+            
+            // Test 2: /export/actual-payments (Actual Payments?)
+            comparison.put("export_actual_payments", testEndpoint(
+                "/export/actual-payments",
+                "?from_date=" + from + "&to_date=" + to + "&page=1&rows=10",
+                "Actual Payments (claimed)"
+            ));
+            
+            // Test 3: /report/all-payments (Working endpoint)
+            comparison.put("report_all_payments", testEndpoint(
+                "/report/all-payments",
+                "?from_date=" + from + "&to_date=" + to + "&filter_by=reconciliation_date&include_beneficiary_info=true&rows=10",
+                "All Payments Report (WORKING)"
+            ));
+            
+            // Test 4: /report/icdn (Real-time transactions)
+            comparison.put("report_icdn", testEndpoint(
+                "/report/icdn",
+                "?from_date=" + from + "&to_date=" + to + "&rows=10",
+                "ICDN Real-time Transactions"
+            ));
 
+            // Test 5: /export/payments with reconciliation filter
+            comparison.put("export_payments_reconciled", testEndpoint(
+                "/export/payments",
+                "?from_date=" + from + "&to_date=" + to + "&filter_by=reconciliation_date&include_beneficiary_info=true&rows=10",
+                "Payment Instructions with Reconciliation Filter"
+            ));
+            
+            comparison.put("dateRange", from + " to " + to);
+            comparison.put("comparisonTime", System.currentTimeMillis());
+            comparison.put("summary", generateEndpointSummary(comparison));
+            
             return ResponseEntity.ok(Map.of(
                 "success", true,
-                "dateRange", fromDate + " to " + toDate,
-                "payPropResponse", Map.of(
-                    "items", result.getItems(),
-                    "pagination", result.getPagination()
-                ),
-                "note", "Check the response structure for batch payment information"
+                "comparison", comparison,
+                "note", "Compare data types, amounts, and structures across all endpoints"
             ));
 
         } catch (Exception e) {
-            log.error("Error testing PayProp payments endpoint: {}", e.getMessage());
+            log.error("❌ Error in endpoint comparison: {}", e.getMessage());
             return ResponseEntity.ok(Map.of(
                 "success", false,
-                "error", e.getMessage(),
-                "suggestion", "Check PayProp API connection and permissions"
+                "error", e.getMessage()
             ));
         }
     }
 
     /**
-     * Test endpoint to check actual payments for batch information
+     * ✅ NEW: Test specific endpoint with detailed analysis
      */
-    @GetMapping("/actual-payments")
-    public ResponseEntity<Map<String, Object>> testActualPaymentsEndpoint(
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer rows) {
+    private Map<String, Object> testEndpoint(String endpoint, String parameters, String description) {
+        Map<String, Object> result = new HashMap<>();
         
         try {
-            if (page == null) page = 1;
-            if (rows == null) rows = 25;
+            if (!oAuth2Service.hasValidTokens()) {
+                result.put("accessible", false);
+                result.put("error", "Not authorized");
+                return result;
+            }
 
-            log.info("Testing PayProp actual payments endpoint - page {}, rows {}", page, rows);
-
-            // Use the existing exportActualPaymentsFromPayProp method
-            PayPropExportResult result = payPropSyncService.exportActualPaymentsFromPayProp(page, rows);
-
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "page", page,
-                "rows", rows,
-                "payPropResponse", Map.of(
-                    "items", result.getItems(),
-                    "pagination", result.getPagination(),
-                    "itemCount", result.getItems().size()
-                ),
-                "note", "These are actual payment transactions with amounts and dates"
-            ));
-
+            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1" + endpoint + parameters;
+            
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            log.info("🧪 Testing: {} - {}", description, url);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            result.put("accessible", true);
+            result.put("status", response.getStatusCode().value());
+            result.put("description", description);
+            result.put("url", url);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> items = (List<Map<String, Object>>) responseBody.get("items");
+                
+                result.put("hasData", items != null && !items.isEmpty());
+                result.put("itemCount", items != null ? items.size() : 0);
+                
+                if (items != null && !items.isEmpty()) {
+                    Map<String, Object> dataAnalysis = analyzeEndpointData(items, endpoint);
+                    result.put("dataAnalysis", dataAnalysis);
+                    result.put("sampleRecord", items.get(0)); // First record for inspection
+                }
+                
+                // Check pagination info
+                Map<String, Object> pagination = (Map<String, Object>) responseBody.get("pagination");
+                if (pagination != null) {
+                    result.put("totalRecords", pagination.get("total_rows"));
+                    result.put("totalPages", pagination.get("total_pages"));
+                }
+            } else {
+                result.put("hasData", false);
+                result.put("error", "HTTP " + response.getStatusCode());
+            }
+            
         } catch (Exception e) {
-            log.error("Error testing PayProp actual payments endpoint: {}", e.getMessage());
-            return ResponseEntity.ok(Map.of(
-                "success", false,
-                "error", e.getMessage(),
-                "suggestion", "Check PayProp API connection and permissions"
-            ));
+            result.put("accessible", false);
+            result.put("error", e.getMessage());
+            log.warn("⚠️ Endpoint {} failed: {}", endpoint, e.getMessage());
         }
+        
+        return result;
     }
 
     /**
-     * NEW: Test the /report/all-payments endpoint directly - this should contain actual transactions
+     * ✅ NEW: Analyze ICDN-specific data structure
+     */
+    private Map<String, Object> analyzeICDNData(List<Map<String, Object>> transactions) {
+        Map<String, Object> analysis = new HashMap<>();
+        
+        if (transactions == null || transactions.isEmpty()) {
+            analysis.put("hasData", false);
+            analysis.put("message", "No ICDN transaction data found");
+            return analysis;
+        }
+
+        analysis.put("hasData", true);
+        analysis.put("totalRecords", transactions.size());
+
+        // ICDN-specific field analysis
+        Set<String> allFields = new HashSet<>();
+        Map<String, Integer> fieldFrequency = new HashMap<>();
+        List<Map<String, Object>> amountAnalysis = new ArrayList<>();
+        Set<String> transactionTypes = new HashSet<>();
+        Set<String> statuses = new HashSet<>();
+        
+        for (Map<String, Object> transaction : transactions) {
+            // Collect all field names
+            for (String field : transaction.keySet()) {
+                allFields.add(field);
+                fieldFrequency.put(field, fieldFrequency.getOrDefault(field, 0) + 1);
+            }
+            
+            // Analyze amounts
+            Map<String, Object> amountInfo = new HashMap<>();
+            amountInfo.put("id", transaction.get("id"));
+            amountInfo.put("amount", transaction.get("amount"));
+            amountInfo.put("matched_amount", transaction.get("matched_amount"));
+            amountInfo.put("type", transaction.get("type"));
+            amountInfo.put("date", transaction.get("date"));
+            amountAnalysis.add(amountInfo);
+            
+            // Collect transaction types and statuses
+            if (transaction.get("type") != null) {
+                transactionTypes.add(transaction.get("type").toString());
+            }
+            if (transaction.get("status") != null) {
+                statuses.add(transaction.get("status").toString());
+            }
+        }
+        
+        analysis.put("allFields", allFields);
+        analysis.put("fieldFrequency", fieldFrequency);
+        analysis.put("amountAnalysis", amountAnalysis);
+        analysis.put("transactionTypes", transactionTypes);
+        analysis.put("statuses", statuses);
+        analysis.put("sampleTransaction", transactions.get(0));
+        
+        // ICDN-specific checks
+        analysis.put("hasPropertyInfo", transactions.stream().anyMatch(t -> t.containsKey("property")));
+        analysis.put("hasTenantInfo", transactions.stream().anyMatch(t -> t.containsKey("tenant")));
+        analysis.put("hasCategoryInfo", transactions.stream().anyMatch(t -> t.containsKey("category")));
+        analysis.put("hasDateInfo", transactions.stream().anyMatch(t -> t.containsKey("date")));
+        
+        return analysis;
+    }
+
+    /**
+     * ✅ NEW: Generic endpoint data analysis
+     */
+    private Map<String, Object> analyzeEndpointData(List<Map<String, Object>> items, String endpoint) {
+        Map<String, Object> analysis = new HashMap<>();
+        
+        if (items.isEmpty()) {
+            analysis.put("isEmpty", true);
+            return analysis;
+        }
+        
+        Map<String, Object> firstItem = items.get(0);
+        
+        // Basic structure analysis
+        analysis.put("totalItems", items.size());
+        analysis.put("fieldsInFirstItem", firstItem.keySet());
+        analysis.put("hasId", firstItem.containsKey("id"));
+        
+        // Amount analysis
+        Map<String, Object> amountAnalysis = new HashMap<>();
+        amountAnalysis.put("hasAmount", firstItem.containsKey("amount"));
+        amountAnalysis.put("hasGrossAmount", firstItem.containsKey("gross_amount"));
+        amountAnalysis.put("hasNetAmount", firstItem.containsKey("net_amount"));
+        
+        if (firstItem.containsKey("amount")) {
+            Object amount = firstItem.get("amount");
+            amountAnalysis.put("amountType", amount != null ? amount.getClass().getSimpleName() : "null");
+            amountAnalysis.put("amountValue", amount);
+            amountAnalysis.put("isZeroAmount", "0".equals(String.valueOf(amount)) || "0.00".equals(String.valueOf(amount)));
+        }
+        
+        if (firstItem.containsKey("gross_amount")) {
+            Object grossAmount = firstItem.get("gross_amount");
+            amountAnalysis.put("grossAmountValue", grossAmount);
+            amountAnalysis.put("isZeroGrossAmount", "0".equals(String.valueOf(grossAmount)) || "0.00".equals(String.valueOf(grossAmount)));
+        }
+        
+        analysis.put("amountAnalysis", amountAnalysis);
+        
+        // Batch analysis
+        Map<String, Object> batchAnalysis = analyzeBatchDataInPayments(items);
+        analysis.put("batchAnalysis", batchAnalysis);
+        
+        // Date analysis
+        Map<String, Object> dateAnalysis = new HashMap<>();
+        dateAnalysis.put("hasDate", firstItem.containsKey("date"));
+        dateAnalysis.put("hasPaymentDate", firstItem.containsKey("payment_date"));
+        dateAnalysis.put("hasReconciliationDate", firstItem.containsKey("reconciliation_date"));
+        dateAnalysis.put("hasDueDate", firstItem.containsKey("due_date"));
+        analysis.put("dateAnalysis", dateAnalysis);
+        
+        // Relationship analysis
+        Map<String, Object> relationshipAnalysis = new HashMap<>();
+        relationshipAnalysis.put("hasProperty", firstItem.containsKey("property"));
+        relationshipAnalysis.put("hasTenant", firstItem.containsKey("tenant"));
+        relationshipAnalysis.put("hasBeneficiary", firstItem.containsKey("beneficiary"));
+        relationshipAnalysis.put("hasBeneficiaryInfo", firstItem.containsKey("beneficiary_info"));
+        relationshipAnalysis.put("hasCategory", firstItem.containsKey("category"));
+        relationshipAnalysis.put("hasIncomingTransaction", firstItem.containsKey("incoming_transaction"));
+        analysis.put("relationshipAnalysis", relationshipAnalysis);
+        
+        return analysis;
+    }
+
+    /**
+     * ✅ UPDATED: Enhanced batch detection for all endpoint types
+     */
+    private Map<String, Object> analyzeBatchDataInPayments(List<Map<String, Object>> payments) {
+        Map<String, Object> analysis = new HashMap<>();
+        
+        if (payments == null || payments.isEmpty()) {
+            analysis.put("hasData", false);
+            analysis.put("message", "No payment data to analyze");
+            return analysis;
+        }
+
+        analysis.put("hasData", true);
+        analysis.put("totalRecords", payments.size());
+
+        // Enhanced batch detection
+        Set<String> batchFields = new HashSet<>();
+        Set<String> allBatchIds = new HashSet<>();
+        Map<String, Integer> batchCounts = new HashMap<>();
+        Map<String, Map<String, Object>> batchDetails = new HashMap<>();
+        
+        for (Map<String, Object> payment : payments) {
+            String batchId = null;
+            Map<String, Object> batchData = null;
+            
+            // Method 1: Check for payment_batch object (PRIMARY for /report/all-payments)
+            if (payment.containsKey("payment_batch")) {
+                Object batchObj = payment.get("payment_batch");
+                if (batchObj instanceof Map) {
+                    batchData = (Map<String, Object>) batchObj;
+                    batchId = (String) batchData.get("id");
+                    if (batchId != null && !batchId.isEmpty()) {
+                        batchFields.add("payment_batch");
+                        allBatchIds.add(batchId);
+                        batchCounts.put(batchId, batchCounts.getOrDefault(batchId, 0) + 1);
+                        
+                        // Store complete batch information
+                        Map<String, Object> details = new HashMap<>();
+                        details.put("amount", batchData.get("amount"));
+                        details.put("status", batchData.get("status"));
+                        details.put("transfer_date", batchData.get("transfer_date"));
+                        details.put("source", "payment_batch_object");
+                        batchDetails.put(batchId, details);
+                    }
+                }
+            }
+            
+            // Method 2: Check flat fields (for other endpoints)
+            if (batchId == null) {
+                String[] possibleBatchFields = {
+                    "batch_id", "payment_batch_id", "batchId", "batch", 
+                    "group_id", "groupId", "payment_group_id",
+                    "transaction_batch_id", "remittance_batch_id",
+                    "remittance_id", "batch_reference"
+                };
+                
+                for (String fieldName : possibleBatchFields) {
+                    if (payment.containsKey(fieldName)) {
+                        Object value = payment.get(fieldName);
+                        if (value != null && !"null".equals(String.valueOf(value)) && !String.valueOf(value).isEmpty()) {
+                            batchFields.add(fieldName);
+                            batchId = String.valueOf(value);
+                            allBatchIds.add(batchId);
+                            batchCounts.put(batchId, batchCounts.getOrDefault(batchId, 0) + 1);
+                            
+                            // Store basic batch information
+                            Map<String, Object> details = new HashMap<>();
+                            details.put("field_name", fieldName);
+                            details.put("source", "flat_field");
+                            batchDetails.put(batchId, details);
+                            break; // Use first found batch field
+                        }
+                    }
+                }
+            }
+        }
+        
+        analysis.put("batchFieldsFound", batchFields);
+        analysis.put("uniqueBatchIds", allBatchIds);
+        analysis.put("batchCounts", batchCounts);
+        analysis.put("batchDetails", batchDetails);
+        analysis.put("hasBatchData", !batchFields.isEmpty());
+        analysis.put("paymentBatchObjectsFound", batchFields.contains("payment_batch"));
+        analysis.put("flatBatchFieldsFound", batchFields.stream()
+            .filter(field -> !"payment_batch".equals(field))
+            .toArray());
+        
+        // Show sample payment structure
+        if (!payments.isEmpty()) {
+            analysis.put("samplePayment", payments.get(0));
+        }
+        
+        return analysis;
+    }
+
+    /**
+     * ✅ NEW: Generate summary comparison across endpoints
+     */
+    private Map<String, Object> generateEndpointSummary(Map<String, Object> comparison) {
+        Map<String, Object> summary = new HashMap<>();
+        
+        // Count accessible endpoints
+        long accessibleCount = comparison.values().stream()
+            .filter(val -> val instanceof Map)
+            .map(val -> (Map<String, Object>) val)
+            .filter(map -> Boolean.TRUE.equals(map.get("accessible")))
+            .count();
+        
+        // Count endpoints with data
+        long withDataCount = comparison.values().stream()
+            .filter(val -> val instanceof Map)
+            .map(val -> (Map<String, Object>) val)
+            .filter(map -> Boolean.TRUE.equals(map.get("hasData")))
+            .count();
+        
+        // Find endpoints with batch data
+        List<String> endpointsWithBatches = new ArrayList<>();
+        comparison.forEach((endpoint, data) -> {
+            if (data instanceof Map) {
+                Map<String, Object> endpointData = (Map<String, Object>) data;
+                Map<String, Object> dataAnalysis = (Map<String, Object>) endpointData.get("dataAnalysis");
+                if (dataAnalysis != null) {
+                    Map<String, Object> batchAnalysis = (Map<String, Object>) dataAnalysis.get("batchAnalysis");
+                    if (batchAnalysis != null && Boolean.TRUE.equals(batchAnalysis.get("hasBatchData"))) {
+                        endpointsWithBatches.add(endpoint);
+                    }
+                }
+            }
+        });
+        
+        // Find endpoints with real amounts (not zero)
+        List<String> endpointsWithRealAmounts = new ArrayList<>();
+        comparison.forEach((endpoint, data) -> {
+            if (data instanceof Map) {
+                Map<String, Object> endpointData = (Map<String, Object>) data;
+                Map<String, Object> dataAnalysis = (Map<String, Object>) endpointData.get("dataAnalysis");
+                if (dataAnalysis != null) {
+                    Map<String, Object> amountAnalysis = (Map<String, Object>) dataAnalysis.get("amountAnalysis");
+                    if (amountAnalysis != null) {
+                        boolean hasRealAmount = Boolean.TRUE.equals(amountAnalysis.get("hasAmount")) &&
+                                              !Boolean.TRUE.equals(amountAnalysis.get("isZeroAmount"));
+                        boolean hasRealGrossAmount = Boolean.TRUE.equals(amountAnalysis.get("hasGrossAmount")) &&
+                                                   !Boolean.TRUE.equals(amountAnalysis.get("isZeroGrossAmount"));
+                        if (hasRealAmount || hasRealGrossAmount) {
+                            endpointsWithRealAmounts.add(endpoint);
+                        }
+                    }
+                }
+            }
+        });
+        
+        summary.put("totalEndpointsTested", comparison.size() - 2); // Exclude non-endpoint fields
+        summary.put("accessibleEndpoints", accessibleCount);
+        summary.put("endpointsWithData", withDataCount);
+        summary.put("endpointsWithBatchData", endpointsWithBatches);
+        summary.put("endpointsWithRealAmounts", endpointsWithRealAmounts);
+        
+        // Recommendations
+        List<String> recommendations = new ArrayList<>();
+        if (endpointsWithRealAmounts.contains("report_all_payments")) {
+            recommendations.add("✅ Use /report/all-payments for actual payment amounts");
+        }
+        if (endpointsWithBatches.size() > 0) {
+            recommendations.add("✅ Batch data available in: " + String.join(", ", endpointsWithBatches));
+        }
+        if (endpointsWithRealAmounts.contains("report_icdn")) {
+            recommendations.add("✅ ICDN endpoint has real transaction data");
+        }
+        if (withDataCount == 0) {
+            recommendations.add("⚠️ No endpoints returned data - check date ranges and permissions");
+        }
+        
+        summary.put("recommendations", recommendations);
+        
+        return summary;
+    }
+
+    /**
+     * ✅ EXISTING: Keep original working methods
      */
     @GetMapping("/report-all-payments")
     public ResponseEntity<Map<String, Object>> testReportAllPaymentsEndpoint(
@@ -212,350 +642,5 @@ public class BatchPaymentTestController {
                 "suggestion", "Check if you have 'Read: All payments report' permission in PayProp"
             ));
         }
-    }
-
-    /**
-     * NEW: Test various API versions and endpoints to find the correct payment data
-     */
-    @GetMapping("/discover-endpoints")
-    public ResponseEntity<Map<String, Object>> discoverPaymentEndpoints() {
-        Map<String, Object> results = new HashMap<>();
-        
-        if (!oAuth2Service.hasValidTokens()) {
-            return ResponseEntity.ok(Map.of(
-                "success", false,
-                "error", "PayProp not authorized. Please authorize first."
-            ));
-        }
-        
-        String[] endpointsToTest = {
-            "/report/all-payments",
-            "/export/payments?filter_by=reconciliation_date",
-            "/export/actual-payments", 
-            "/payments/transactions",
-            "/payments/actual",
-            "/export/payment-transactions",
-            "/report/payment-transactions"
-        };
-        
-        String[] apiVersions = {"v1.0", "v1.1", "v1.2"};
-        
-        for (String version : apiVersions) {
-            Map<String, Object> versionResults = new HashMap<>();
-            
-            for (String endpoint : endpointsToTest) {
-                try {
-                    String testUrl = "https://ukapi.staging.payprop.com/api/agency/" + version + endpoint;
-                    if (!endpoint.contains("?")) {
-                        testUrl += "?page=1&rows=1"; // Minimal test
-                    } else {
-                        testUrl += "&page=1&rows=1";
-                    }
-                    
-                    // Quick test call
-                    HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-                    HttpEntity<String> request = new HttpEntity<>(headers);
-                    
-                    ResponseEntity<Map> response = restTemplate.exchange(testUrl, HttpMethod.GET, request, Map.class);
-                    
-                    Map<String, Object> endpointResult = new HashMap<>();
-                    endpointResult.put("status", response.getStatusCode().value());
-                    endpointResult.put("accessible", response.getStatusCode().is2xxSuccessful());
-                    
-                    if (response.getBody() != null) {
-                        @SuppressWarnings("unchecked")
-                        List<Map<String, Object>> items = (List<Map<String, Object>>) response.getBody().get("items");
-                        endpointResult.put("hasData", items != null && !items.isEmpty());
-                        endpointResult.put("itemCount", items != null ? items.size() : 0);
-                        
-                        if (items != null && !items.isEmpty()) {
-                            endpointResult.put("sampleFields", items.get(0).keySet());
-                            endpointResult.put("hasBatchFields", hasBatchFields(items.get(0)));
-                        }
-                    }
-                    
-                    versionResults.put(endpoint, endpointResult);
-                    
-                } catch (Exception e) {
-                    Map<String, Object> errorResult = new HashMap<>();
-                    errorResult.put("accessible", false);
-                    errorResult.put("error", e.getMessage());
-                    versionResults.put(endpoint, errorResult);
-                }
-            }
-            
-            results.put(version, versionResults);
-        }
-        
-        return ResponseEntity.ok(Map.of(
-            "success", true,
-            "message", "Endpoint discovery completed",
-            "results", results,
-            "note", "Check which endpoints return 200 status and have data"
-        ));
-    }
-
-    /**
-     * NEW: Test specific batch payment ID if we have one
-     */
-    @GetMapping("/test-batch-id")
-    public ResponseEntity<Map<String, Object>> testSpecificBatchId(@RequestParam String batchId) {
-        try {
-            if (!oAuth2Service.hasValidTokens()) {
-                return ResponseEntity.ok(Map.of(
-                    "success", false,
-                    "error", "PayProp not authorized. Please authorize first.",
-                    "batchId", batchId
-                ));
-            }
-
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
-                    "?payment_batch_id=" + batchId +
-                    "&include_beneficiary_info=true";
-            
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-            
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "batchId", batchId,
-                "url", url,
-                "status", response.getStatusCode().value(),
-                "response", response.getBody() != null ? response.getBody() : "No response body"
-            ));
-            
-        } catch (Exception e) {
-            return ResponseEntity.ok(Map.of(
-                "success", false,
-                "batchId", batchId,
-                "error", e.getMessage()
-            ));
-        }
-    }
-
-    /**
-     * Test endpoint to get all payments report for a property
-     */
-    @GetMapping("/property-payments")
-    public ResponseEntity<Map<String, Object>> testPropertyPaymentsReport(
-            @RequestParam String propertyId,
-            @RequestParam(required = false) String fromDate,
-            @RequestParam(required = false) String toDate) {
-        
-        try {
-            // Default dates if not provided
-            LocalDate from = fromDate != null ? LocalDate.parse(fromDate) : LocalDate.now().minusMonths(3);
-            LocalDate to = toDate != null ? LocalDate.parse(toDate) : LocalDate.now();
-
-            log.info("Testing PayProp all-payments report for property {} ({} to {})", propertyId, from, to);
-
-            // Use the existing exportAllPaymentsReportFromPayProp method
-            PayPropExportResult result = payPropSyncService.exportAllPaymentsReportFromPayProp(propertyId, from, to);
-
-            Map<String, Object> analysis = analyzePaymentData(result);
-
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "propertyId", propertyId,
-                "dateRange", from + " to " + to,
-                "payPropResponse", Map.of(
-                    "items", result.getItems(),
-                    "pagination", result.getPagination(),
-                    "itemCount", result.getItems().size()
-                ),
-                "analysis", analysis,
-                "note", "This is the comprehensive payments report for the property"
-            ));
-
-        } catch (Exception e) {
-            log.error("Error testing property payments report: {}", e.getMessage());
-            return ResponseEntity.ok(Map.of(
-                "success", false,
-                "error", e.getMessage(),
-                "propertyId", propertyId,
-                "suggestion", "Check if the property ID exists and you have permission to access it"
-            ));
-        }
-    }
-
-    /**
-     * Test endpoint to check payment categories
-     */
-    @GetMapping("/payment-categories")
-    public ResponseEntity<Map<String, Object>> testPaymentCategories() {
-        try {
-            log.info("Testing PayProp payment categories sync");
-
-            // Use the existing syncPaymentCategoriesFromPayProp method
-            var result = payPropSyncService.syncPaymentCategoriesFromPayProp();
-
-            return ResponseEntity.ok(Map.of(
-                "success", result.isSuccess(),
-                "message", result.getMessage(),
-                "details", result.getDetails(),
-                "note", "Payment categories have been synced to your database"
-            ));
-
-        } catch (Exception e) {
-            log.error("Error testing payment categories: {}", e.getMessage());
-            return ResponseEntity.ok(Map.of(
-                "success", false,
-                "error", e.getMessage(),
-                "suggestion", "Check PayProp API connection and permissions"
-            ));
-        }
-    }
-
-    /**
-     * Test property statistics
-     */
-    @GetMapping("/property-stats")
-    public ResponseEntity<Map<String, Object>> testPropertyStatistics() {
-        try {
-            log.info("Getting property statistics from PayProp");
-
-            Map<String, Object> stats = payPropSyncService.getPropertyStatistics();
-
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "statistics", stats,
-                "note", "Comprehensive property statistics including rent and occupancy data"
-            ));
-
-        } catch (Exception e) {
-            log.error("Error getting property statistics: {}", e.getMessage());
-            return ResponseEntity.ok(Map.of(
-                "success", false,
-                "error", e.getMessage()
-            ));
-        }
-    }
-
-    /**
-     * NEW: Analyze payment data specifically for batch information
-     */
-    private Map<String, Object> analyzeBatchDataInPayments(List<Map<String, Object>> payments) {
-        Map<String, Object> analysis = new HashMap<>();
-        
-        if (payments == null || payments.isEmpty()) {
-            analysis.put("hasData", false);
-            analysis.put("message", "No payment data to analyze");
-            return analysis;
-        }
-
-        analysis.put("hasData", true);
-        analysis.put("totalRecords", payments.size());
-
-        // Look for batch-related fields
-        Set<String> batchFields = new HashSet<>();
-        Set<String> allBatchIds = new HashSet<>();
-        Map<String, Integer> batchCounts = new HashMap<>();
-        
-        for (Map<String, Object> payment : payments) {
-            // Check for various batch field names
-            String[] possibleBatchFields = {
-                "batch_id", "payment_batch_id", "batchId", "batch", 
-                "group_id", "groupId", "payment_group_id",
-                "transaction_batch_id", "remittance_batch_id"
-            };
-            
-            for (String fieldName : possibleBatchFields) {
-                if (payment.containsKey(fieldName)) {
-                    Object value = payment.get(fieldName);
-                    if (value != null && !"null".equals(String.valueOf(value))) {
-                        batchFields.add(fieldName);
-                        String batchId = String.valueOf(value);
-                        allBatchIds.add(batchId);
-                        batchCounts.put(batchId, batchCounts.getOrDefault(batchId, 0) + 1);
-                    }
-                }
-            }
-        }
-        
-        analysis.put("batchFieldsFound", batchFields);
-        analysis.put("uniqueBatchIds", allBatchIds);
-        analysis.put("batchCounts", batchCounts);
-        analysis.put("hasBatchData", !batchFields.isEmpty());
-        
-        // Show all available fields from first payment
-        if (!payments.isEmpty()) {
-            analysis.put("allAvailableFields", payments.get(0).keySet());
-            analysis.put("samplePayment", payments.get(0));
-        }
-        
-        return analysis;
-    }
-
-    /**
-     * Analyze payment data to find batch information (original method)
-     */
-    private Map<String, Object> analyzePaymentData(PayPropExportResult result) {
-        Map<String, Object> analysis = new HashMap<>();
-        
-        if (result.getItems() == null || result.getItems().isEmpty()) {
-            analysis.put("hasData", false);
-            analysis.put("message", "No payment data found");
-            return analysis;
-        }
-
-        analysis.put("hasData", true);
-        analysis.put("totalRecords", result.getItems().size());
-
-        // Check for batch-related fields
-        Map<String, Object> firstItem = result.getItems().get(0);
-        boolean hasBatchId = firstItem.containsKey("batch_id") || 
-                            firstItem.containsKey("payment_batch_id") ||
-                            firstItem.containsKey("batch");
-        
-        analysis.put("hasBatchField", hasBatchId);
-        
-        if (hasBatchId) {
-            // Count unique batch IDs
-            Map<String, Integer> batchCounts = new HashMap<>();
-            for (Map<String, Object> item : result.getItems()) {
-                String batchId = null;
-                if (item.containsKey("batch_id")) {
-                    batchId = String.valueOf(item.get("batch_id"));
-                } else if (item.containsKey("payment_batch_id")) {
-                    batchId = String.valueOf(item.get("payment_batch_id"));
-                } else if (item.containsKey("batch")) {
-                    batchId = String.valueOf(item.get("batch"));
-                }
-                
-                if (batchId != null && !"null".equals(batchId)) {
-                    batchCounts.put(batchId, batchCounts.getOrDefault(batchId, 0) + 1);
-                }
-            }
-            
-            analysis.put("uniqueBatchIds", batchCounts.size());
-            analysis.put("batchCounts", batchCounts);
-        }
-
-        // List all fields from first item
-        analysis.put("availableFields", firstItem.keySet());
-
-        return analysis;
-    }
-
-    /**
-     * NEW: Helper method to check if a payment object has batch-related fields
-     */
-    private boolean hasBatchFields(Map<String, Object> payment) {
-        String[] batchFieldNames = {
-            "batch_id", "payment_batch_id", "batchId", "batch", 
-            "group_id", "groupId", "payment_group_id"
-        };
-        
-        for (String fieldName : batchFieldNames) {
-            if (payment.containsKey(fieldName)) {
-                Object value = payment.get(fieldName);
-                if (value != null && !"null".equals(String.valueOf(value))) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 }

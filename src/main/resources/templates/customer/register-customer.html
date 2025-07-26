@@ -8,6 +8,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="">
     <meta name="author" content="">
+    
+    <!-- CSRF tokens for Spring Security -->
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+    
     <!-- Favicon icon -->
     <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
     <title>Elite Admin Template - The Ultimate Multipurpose admin template</title>
@@ -18,7 +23,6 @@
     <link th:href="@{/css/style.min.css}" rel="stylesheet">
 
 </head>
-
 <body>
 <!-- ============================================================== -->
 <!-- Preloader - style you can find in spinners.css -->
