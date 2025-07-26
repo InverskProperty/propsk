@@ -42,6 +42,20 @@
             border: 1px solid #dee2e6;
             border-radius: 0.5rem;
         }
+        .success-highlight {
+            background-color: #d4edda;
+            border: 2px solid #c3e6cb;
+            border-radius: 0.5rem;
+        }
+        .batch-found {
+            background-color: #f0fff0;
+            border: 2px solid #28a745;
+            color: #155724;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-radius: 0.5rem;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -71,7 +85,7 @@
         
         <!-- Actual Payments Test -->
         <div class="test-section">
-            <h3>3. Search for Payments</h3>
+            <h3>3. Search for Payments (Payment Instructions)</h3>
             <div class="row mb-3">
                 <div class="col-md-3">
                     <label>Page:</label>
@@ -83,16 +97,68 @@
                 </div>
                 <div class="col-md-6">
                     <label>&nbsp;</label><br>
-                    <button class="btn btn-primary" onclick="searchPayments()">Search Payments</button>
-                    <button class="btn btn-warning" onclick="findBatchPayments()">Find Batch Payments</button>
+                    <button class="btn btn-primary" onclick="searchPayments()">Search Payment Instructions</button>
+                    <button class="btn btn-warning" onclick="findBatchPayments()">Find Batch Fields</button>
                 </div>
             </div>
             <div id="paymentsResult" class="result-box d-none"></div>
         </div>
         
+        <!-- NEW: API Endpoint Discovery -->
+        <div class="test-section">
+            <h3>4. API Endpoint Discovery</h3>
+            <p class="text-muted">Discover which PayProp API endpoints are available with your current permissions</p>
+            <button class="btn btn-primary" onclick="discoverEndpoints()">Discover Available Endpoints</button>
+            <div id="discoveryResult" class="result-box d-none"></div>
+        </div>
+        
+        <!-- NEW: Report All Payments Test -->
+        <div class="test-section">
+            <h3>5. Test Report All-Payments (Real Transactions)</h3>
+            <p class="text-muted">This endpoint should contain actual payment transactions with batch information</p>
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label>Property ID (optional):</label>
+                    <input type="text" id="reportPropertyId" class="form-control" placeholder="Leave empty for all">
+                </div>
+                <div class="col-md-3">
+                    <label>From Date:</label>
+                    <input type="date" id="reportFromDate" class="form-control" value="2024-01-01">
+                </div>
+                <div class="col-md-3">
+                    <label>To Date:</label>
+                    <input type="date" id="reportToDate" class="form-control" value="2024-12-31">
+                </div>
+                <div class="col-md-3">
+                    <label>Batch ID (optional):</label>
+                    <input type="text" id="reportBatchId" class="form-control" placeholder="Test specific batch">
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="testReportAllPayments()">Test Report All-Payments</button>
+            <button class="btn btn-info" onclick="testWithRecentDates()">Test with Recent Dates</button>
+            <div id="reportResult" class="result-box d-none"></div>
+        </div>
+        
+        <!-- NEW: Test Multiple Payment Endpoints -->
+        <div class="test-section">
+            <h3>6. Test Multiple Payment Endpoints</h3>
+            <p class="text-muted">Test different PayProp payment endpoints to find actual transaction data</p>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label>Date Range (months back):</label>
+                    <input type="number" id="monthsBack" class="form-control" value="3" min="1" max="12">
+                </div>
+                <div class="col-md-8">
+                    <label>&nbsp;</label><br>
+                    <button class="btn btn-primary" onclick="testAllPaymentEndpoints()">Test All Payment Endpoints</button>
+                </div>
+            </div>
+            <div id="multipleEndpointsResult" class="result-box d-none"></div>
+        </div>
+        
         <!-- Batch Payment Analysis -->
         <div class="test-section">
-            <h3>4. Batch Payment Analysis</h3>
+            <h3>7. Batch Payment Analysis</h3>
             <button class="btn btn-primary" onclick="analyzeBatchFields()">Analyze All Batch Fields</button>
             <button class="btn btn-info" onclick="checkDatabaseBatches()">Check Database Batches</button>
             <div id="batchAnalysisResult" class="result-box d-none"></div>
@@ -100,14 +166,14 @@
         
         <!-- Property Statistics -->
         <div class="test-section">
-            <h3>5. Property Statistics</h3>
+            <h3>8. Property Statistics</h3>
             <button class="btn btn-primary" onclick="getPropertyStats()">Get Property Statistics</button>
             <div id="statsResult" class="result-box d-none"></div>
         </div>
         
         <!-- Webhook Test -->
         <div class="test-section">
-            <h3>6. Webhook Test</h3>
+            <h3>9. Webhook Test</h3>
             <button class="btn btn-primary" onclick="testWebhook()">Test Discovery Webhook</button>
             <button class="btn btn-success" onclick="simulateBatchWebhook()">Simulate Batch Webhook</button>
             <div id="webhookResult" class="result-box d-none"></div>
@@ -115,10 +181,10 @@
         
         <!-- Raw Response Viewer -->
         <div class="test-section">
-            <h3>7. Raw API Response Viewer</h3>
+            <h3>10. Raw API Response Viewer</h3>
             <div class="mb-3">
                 <label>Custom Endpoint (relative to /api/payprop/):</label>
-                <input type="text" id="customEndpoint" class="form-control" placeholder="e.g., test/actual-payments?page=1">
+                <input type="text" id="customEndpoint" class="form-control" placeholder="e.g., test/report-all-payments?fromDate=2024-01-01">
             </div>
             <button class="btn btn-primary" onclick="testCustomEndpoint()">Test Custom Endpoint</button>
             <div id="customResult" class="result-box d-none"></div>
@@ -183,12 +249,17 @@
             document.querySelector('.loading').style.display = show ? 'block' : 'none';
         }
         
-        // Display results
+        // Enhanced display results function
         function showResult(elementId, data, title = '') {
             const element = document.getElementById(elementId);
             element.classList.remove('d-none');
             
             let html = title ? `<h5>${title}</h5>` : '';
+            
+            // Check if this is batch data discovery
+            if (data && data.batchAnalysis && data.batchAnalysis.hasBatchData) {
+                html += `<div class="batch-found">🎉 BATCH DATA DISCOVERED! Found ${data.batchAnalysis.uniqueBatchIds.length} unique batch IDs</div>`;
+            }
             
             if (typeof data === 'object') {
                 html += `<pre class="json-display">${JSON.stringify(data, null, 2)}</pre>`;
@@ -197,9 +268,14 @@
             }
             
             element.innerHTML = html;
+            
+            // Highlight successful batch discoveries
+            if (data && data.batchAnalysis && data.batchAnalysis.hasBatchData) {
+                element.classList.add('success-highlight');
+            }
         }
         
-        // Test functions
+        // Original test functions
         async function testConnection() {
             const result = await fetchWithCSRF('/api/payprop/webhook/health');
             showResult('connectionResult', result.data, 'Connection Test Result');
@@ -228,9 +304,9 @@
                     summary,
                     firstItem: items[0],
                     rawResponse: result.data
-                }, `Payments Search - Page ${page}`);
+                }, `Payment Instructions Search - Page ${page}`);
             } else {
-                showResult('paymentsResult', result, 'Payments Search Error');
+                showResult('paymentsResult', result, 'Payment Instructions Search Error');
             }
         }
         
@@ -266,8 +342,96 @@
             showResult('paymentsResult', {
                 found: foundBatches.length > 0,
                 batches: foundBatches,
-                message: foundBatches.length > 0 ? 'Found batch fields!' : 'No batch fields found in first 20 pages'
+                message: foundBatches.length > 0 ? 'Found batch fields!' : 'No batch fields found in first 20 pages',
+                note: 'These are payment instructions, not actual transactions'
             }, 'Batch Payment Search Results');
+        }
+        
+        // NEW: Enhanced test functions for batch payment discovery
+        async function discoverEndpoints() {
+            const result = await fetchWithCSRF('/api/payprop/test/discover-endpoints');
+            showResult('discoveryResult', result.data, 'API Endpoint Discovery Results');
+        }
+        
+        async function testReportAllPayments() {
+            const propertyId = document.getElementById('reportPropertyId').value;
+            const fromDate = document.getElementById('reportFromDate').value;
+            const toDate = document.getElementById('reportToDate').value;
+            const batchId = document.getElementById('reportBatchId').value;
+            
+            let url = `/api/payprop/test/report-all-payments?fromDate=${fromDate}&toDate=${toDate}`;
+            if (propertyId) url += `&propertyId=${propertyId}`;
+            if (batchId) url += `&paymentBatchId=${batchId}`;
+            
+            const result = await fetchWithCSRF(url);
+            
+            if (result.success && result.data.batchAnalysis) {
+                const analysis = result.data.batchAnalysis;
+                if (analysis.hasBatchData) {
+                    showResult('reportResult', {
+                        ...result.data,
+                        summary: `🎉 FOUND BATCH DATA! Fields: ${JSON.stringify(analysis.batchFieldsFound)}, Unique Batches: ${analysis.uniqueBatchIds.length}`
+                    }, 'Report All-Payments Test - BATCH DATA FOUND!');
+                } else {
+                    showResult('reportResult', result.data, 'Report All-Payments Test - No Batch Data');
+                }
+            } else {
+                showResult('reportResult', result, 'Report All-Payments Test');
+            }
+        }
+        
+        async function testWithRecentDates() {
+            // Set dates to last 30 days
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            document.getElementById('reportFromDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+            document.getElementById('reportToDate').value = today.toISOString().split('T')[0];
+            
+            // Call the main test function
+            await testReportAllPayments();
+        }
+        
+        async function testAllPaymentEndpoints() {
+            const monthsBack = document.getElementById('monthsBack').value;
+            
+            showResult('multipleEndpointsResult', 'Testing multiple payment endpoints...', 'Multiple Endpoints Test');
+            
+            const endpoints = [
+                'test/report-all-payments',
+                'test/actual-payments',
+                'test/payments'
+            ];
+            
+            const results = {};
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const fromDate = new Date();
+                    fromDate.setMonth(fromDate.getMonth() - parseInt(monthsBack));
+                    const fromDateStr = fromDate.toISOString().split('T')[0];
+                    const toDateStr = new Date().toISOString().split('T')[0];
+                    
+                    const url = `/api/payprop/${endpoint}?fromDate=${fromDateStr}&toDate=${toDateStr}&page=1&rows=10`;
+                    const result = await fetchWithCSRF(url);
+                    
+                    results[endpoint] = {
+                        success: result.success,
+                        hasData: result.success && result.data && result.data.payPropResponse && result.data.payPropResponse.items && result.data.payPropResponse.items.length > 0,
+                        itemCount: result.success && result.data && result.data.payPropResponse ? result.data.payPropResponse.items.length : 0,
+                        batchData: result.success && result.data && result.data.batchAnalysis ? result.data.batchAnalysis.hasBatchData : false,
+                        response: result.data
+                    };
+                } catch (error) {
+                    results[endpoint] = {
+                        success: false,
+                        error: error.message
+                    };
+                }
+            }
+            
+            showResult('multipleEndpointsResult', results, 'Multiple Payment Endpoints Test Results');
         }
         
         async function analyzeBatchFields() {
@@ -295,7 +459,8 @@
             showResult('batchAnalysisResult', {
                 analyzedCount: analyzed,
                 foundFields: Array.from(foundFields),
-                conclusion: foundFields.size > 0 ? 'Found potential batch fields' : 'No batch-related fields found'
+                conclusion: foundFields.size > 0 ? 'Found potential batch fields' : 'No batch-related fields found',
+                note: 'These are payment instructions, not actual transactions'
             }, 'Batch Field Analysis');
         }
         
