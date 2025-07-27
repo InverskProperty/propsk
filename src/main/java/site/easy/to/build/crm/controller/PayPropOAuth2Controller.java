@@ -17,6 +17,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service.PayPropTokens;
+import site.easy.to.build.crm.service.payprop.PayPropSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropFinancialSyncService;
 import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.BeneficiaryRepository;
@@ -36,6 +37,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -296,6 +298,128 @@ public class PayPropOAuth2Controller {
         }
         
         return ResponseEntity.ok(response);
+    }
+
+
+    @GetMapping("/test-field-locations")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testFieldLocations(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+        
+        Map<String, Object> results = new HashMap<>();
+        
+        try {
+            // Test 1: Get a property and check field locations
+            PayPropSyncService.PayPropExportResult propertyResult = 
+                payPropSyncService.exportPropertiesFromPayProp(1, 1);
+            
+            if (!propertyResult.getItems().isEmpty()) {
+                Map<String, Object> property = propertyResult.getItems().get(0);
+                
+                // Check commission location
+                results.put("commission_structure", Map.of(
+                    "has_commission_object", property.containsKey("commission"),
+                    "has_commission_percentage_field", property.containsKey("commission_percentage"),
+                    "commission_value", property.get("commission"),
+                    "commission_percentage_value", property.get("commission_percentage")
+                ));
+                
+                // Check monthly payment location
+                results.put("monthly_payment_location", Map.of(
+                    "has_monthly_payment", property.containsKey("monthly_payment"),
+                    "has_monthly_payment_required", property.containsKey("monthly_payment_required"),
+                    "monthly_payment_value", property.get("monthly_payment"),
+                    "monthly_payment_required_value", property.get("monthly_payment_required")
+                ));
+                
+                // Check if settings exists
+                if (property.containsKey("settings")) {
+                    Map<String, Object> settings = (Map<String, Object>) property.get("settings");
+                    results.put("settings_fields", settings != null ? settings.keySet() : "null");
+                }
+                
+                // Show all root fields
+                results.put("all_property_fields", property.keySet());
+            }
+            
+            // Test 2: Test ICDN date ranges
+            LocalDate today = LocalDate.now();
+            Map<String, String> dateRangeTests = new HashMap<>();
+            
+            // Test 30 days
+            try {
+                HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+                HttpEntity<String> request = new HttpEntity<>(headers);
+                String url30 = payPropApiBase + "/report/icdn?from_date=" + today.minusDays(30) + "&to_date=" + today + "&rows=1";
+                restTemplate.exchange(url30, HttpMethod.GET, request, Map.class);
+                dateRangeTests.put("30_days", "✅ SUCCESS");
+            } catch (Exception e) {
+                dateRangeTests.put("30_days", "❌ FAILED: " + e.getMessage());
+            }
+            
+            // Test 90 days
+            try {
+                HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+                HttpEntity<String> request = new HttpEntity<>(headers);
+                String url90 = payPropApiBase + "/report/icdn?from_date=" + today.minusDays(90) + "&to_date=" + today + "&rows=1";
+                restTemplate.exchange(url90, HttpMethod.GET, request, Map.class);
+                dateRangeTests.put("90_days", "✅ SUCCESS");
+            } catch (Exception e) {
+                dateRangeTests.put("90_days", "❌ FAILED: " + e.getMessage());
+            }
+            
+            // Test 120 days (should fail)
+            try {
+                HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+                HttpEntity<String> request = new HttpEntity<>(headers);
+                String url120 = payPropApiBase + "/report/icdn?from_date=" + today.minusDays(120) + "&to_date=" + today + "&rows=1";
+                restTemplate.exchange(url120, HttpMethod.GET, request, Map.class);
+                dateRangeTests.put("120_days", "✅ SUCCESS (unexpected!)");
+            } catch (Exception e) {
+                dateRangeTests.put("120_days", "❌ FAILED: " + e.getMessage());
+            }
+            
+            results.put("date_range_tests", dateRangeTests);
+            
+            // Test 3: Check payment categories endpoint
+            Map<String, String> categoryEndpoints = new HashMap<>();
+            
+            // Try direct categories endpoint
+            try {
+                HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+                HttpEntity<String> request = new HttpEntity<>(headers);
+                String catUrl = payPropApiBase + "/payments/categories";
+                ResponseEntity<Map> response = restTemplate.exchange(catUrl, HttpMethod.GET, request, Map.class);
+                categoryEndpoints.put("/payments/categories", "✅ EXISTS - Status: " + response.getStatusCode());
+            } catch (Exception e) {
+                categoryEndpoints.put("/payments/categories", "❌ NOT FOUND: " + e.getMessage());
+            }
+            
+            // Extract from payments
+            try {
+                PayPropSyncService.PayPropExportResult payments = payPropSyncService.exportPaymentsFromPayProp(1, 5);
+                Set<String> categories = new HashSet<>();
+                for (Map<String, Object> payment : payments.getItems()) {
+                    Object category = payment.get("category");
+                    if (category != null) categories.add(category.toString());
+                }
+                categoryEndpoints.put("categories_from_payments", "✅ Found " + categories.size() + " categories: " + categories);
+            } catch (Exception e) {
+                categoryEndpoints.put("categories_from_payments", "❌ FAILED: " + e.getMessage());
+            }
+            
+            results.put("category_endpoints", categoryEndpoints);
+            
+            return ResponseEntity.ok(results);
+            
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Test failed: " + e.getMessage(),
+                "stackTrace", Arrays.toString(e.getStackTrace())
+            ));
+        }
     }
 
     /**
