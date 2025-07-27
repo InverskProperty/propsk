@@ -120,8 +120,93 @@ public class BatchPaymentTestController {
     }
 
     /**
-     * ✅ NEW: Compare all three main endpoints side by side
+     * Validate date range doesn't exceed PayProp's 93-day limit
      */
+    private void validateDateRange(LocalDate from, LocalDate to) {
+        long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(from, to);
+        if (daysBetween > 93) {
+            throw new IllegalArgumentException(
+                String.format("Date range cannot exceed 93 days. Current range: %d days (%s to %s)", 
+                    daysBetween, from, to)
+            );
+        }
+    }
+
+    /**
+     * Helper to create valid date ranges
+     */
+    private Map<String, LocalDate> getValidDateRange(String fromDate, String toDate) {
+        LocalDate from = fromDate != null ? LocalDate.parse(fromDate) : LocalDate.now().minusDays(30);
+        LocalDate to = toDate != null ? LocalDate.parse(toDate) : LocalDate.now();
+        
+        // Ensure we don't exceed 93 days
+        long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(from, to);
+        if (daysBetween > 93) {
+            // Adjust the 'from' date to be exactly 93 days before 'to'
+            from = to.minusDays(93);
+            log.warn("Date range adjusted to comply with 93-day limit: {} to {}", from, to);
+        }
+        
+        return Map.of("from", from, "to", to);
+    }
+     /**
+     * Enhanced authentication check with detailed logging
+     */
+    private ResponseEntity<Map<String, Object>> checkAuthentication() {
+        try {
+            boolean hasTokens = oAuth2Service.hasValidTokens();
+            log.info("OAuth2 token check: hasValidTokens = {}", hasTokens);
+            
+            if (!hasTokens) {
+                return ResponseEntity.ok(Map.of(
+                    "success", false,
+                    "error", "PayProp not authorized or tokens expired",
+                    "action", "Please re-authorize PayProp integration",
+                    "authStatus", "TOKENS_MISSING_OR_EXPIRED"
+                ));
+            }
+            
+            // Test a simple API call to verify tokens work
+            try {
+                HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+                HttpEntity<String> request = new HttpEntity<>(headers);
+                String testUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/user/me";
+                
+                ResponseEntity<Map> testResponse = restTemplate.exchange(testUrl, HttpMethod.GET, request, Map.class);
+                
+                if (testResponse.getStatusCode().is2xxSuccessful()) {
+                    log.info("✅ Authentication verified successfully");
+                    return null; // Authentication is good
+                } else {
+                    log.warn("⚠️ Authentication test failed with status: {}", testResponse.getStatusCode());
+                    return ResponseEntity.ok(Map.of(
+                        "success", false,
+                        "error", "Authentication test failed",
+                        "authStatus", "TOKENS_INVALID",
+                        "httpStatus", testResponse.getStatusCode().value()
+                    ));
+                }
+            } catch (Exception e) {
+                log.error("❌ Authentication test exception: {}", e.getMessage());
+                return ResponseEntity.ok(Map.of(
+                    "success", false,
+                    "error", "Authentication test failed: " + e.getMessage(),
+                    "authStatus", "AUTH_TEST_FAILED"
+                ));
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ Error checking authentication: {}", e.getMessage());
+            return ResponseEntity.ok(Map.of(
+                "success", false,
+                "error", "Authentication check failed: " + e.getMessage(),
+                "authStatus", "AUTH_CHECK_ERROR"
+            ));
+        }
+    }
+
+
+
     @GetMapping("/endpoint-comparison")
     public ResponseEntity<Map<String, Object>> compareAllEndpoints(
             @RequestParam(required = false) String fromDate,
@@ -248,6 +333,138 @@ public class BatchPaymentTestController {
         }
         
         return result;
+    }
+
+    /**
+     * Test payment categories endpoint
+     */
+    @GetMapping("/payment-categories")
+    public ResponseEntity<Map<String, Object>> testPaymentCategories() {
+        try {
+            ResponseEntity<Map<String, Object>> authCheck = checkAuthentication();
+            if (authCheck != null) return authCheck;
+            
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/categories";
+            log.info("Testing payment categories: {}", url);
+            
+            ResponseEntity<Map> apiResponse = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "categories", apiResponse.getBody(),
+                "url", url
+            ));
+            
+        } catch (Exception e) {
+            log.error("Error testing payment categories: {}", e.getMessage());
+            return ResponseEntity.ok(Map.of(
+                "success", false,
+                "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Discover available API endpoints
+     */
+    @GetMapping("/discover-endpoints")
+    public ResponseEntity<Map<String, Object>> discoverEndpoints() {
+        try {
+            ResponseEntity<Map<String, Object>> authCheck = checkAuthentication();
+            if (authCheck != null) return authCheck;
+            
+            Map<String, LocalDate> dateRange = getValidDateRange(null, null);
+            LocalDate from = dateRange.get("from");
+            LocalDate to = dateRange.get("to");
+            
+            Map<String, Object> discovery = new HashMap<>();
+            
+            // Test common PayProp endpoints
+            String[] endpoints = {
+                "/user/me",
+                "/properties",
+                "/tenants", 
+                "/categories",
+                "/payment-instructions",
+                "/payment-batches",
+                "/reports",
+                "/beneficiaries"
+            };
+            
+            for (String endpoint : endpoints) {
+                try {
+                    HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+                    HttpEntity<String> request = new HttpEntity<>(headers);
+                    String url = "https://ukapi.staging.payprop.com/api/agency/v1.1" + endpoint;
+                    
+                    ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                    
+                    discovery.put(endpoint, Map.of(
+                        "accessible", true,
+                        "status", response.getStatusCode().value(),
+                        "hasData", response.getBody() != null
+                    ));
+                    
+                } catch (Exception e) {
+                    discovery.put(endpoint, Map.of(
+                        "accessible", false,
+                        "error", e.getMessage()
+                    ));
+                }
+            }
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "endpoints", discovery,
+                "dateRange", from + " to " + to
+            ));
+            
+        } catch (Exception e) {
+            log.error("Error discovering endpoints: {}", e.getMessage());
+            return ResponseEntity.ok(Map.of(
+                "success", false,
+                "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Get property statistics
+     */
+    @GetMapping("/property-stats")
+    public ResponseEntity<Map<String, Object>> getPropertyStats() {
+        try {
+            ResponseEntity<Map<String, Object>> authCheck = checkAuthentication();
+            if (authCheck != null) return authCheck;
+            
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/properties?rows=1";
+            log.info("Testing property stats: {}", url);
+            
+            ResponseEntity<Map> apiResponse = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            Map<String, Object> responseBody = apiResponse.getBody();
+            Map<String, Object> pagination = (Map<String, Object>) responseBody.get("pagination");
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "totalProperties", pagination != null ? pagination.get("total_rows") : 0,
+                "url", url,
+                "pagination", pagination
+            ));
+            
+        } catch (Exception e) {
+            log.error("Error getting property stats: {}", e.getMessage());
+            return ResponseEntity.ok(Map.of(
+                "success", false,
+                "error", e.getMessage()
+            ));
+        }
     }
 
     /**
