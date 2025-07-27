@@ -32,6 +32,10 @@ import site.easy.to.build.crm.entity.FinancialTransaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Set;
+import java.util.HashSet;
+import site.easy.to.build.crm.service.payprop.PayPropSyncService;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -66,6 +70,9 @@ public class PayPropOAuth2Controller {
     
     @Autowired
     private PaymentRepository paymentRepository;
+
+    @Autowired
+    private PayPropSyncService payPropSyncService;
     
     @Autowired
     private PaymentCategoryRepository paymentCategoryRepository;
@@ -80,6 +87,7 @@ public class PayPropOAuth2Controller {
     public PayPropOAuth2Controller(PayPropOAuth2Service oAuth2Service, RestTemplate restTemplate) {
         this.oAuth2Service = oAuth2Service;
         this.restTemplate = restTemplate;
+        this.payPropSyncService = payPropSyncService; // Add this line
     }
 
     /**
