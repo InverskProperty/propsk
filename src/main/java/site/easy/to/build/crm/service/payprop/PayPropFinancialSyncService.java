@@ -194,6 +194,7 @@ public class PayPropFinancialSyncService {
                     }
                 } else {
                     logger.debug("⚠️ No commission percentage for property {}", property.getPropertyName());
+                    property.setCommissionPercentage(BigDecimal.ZERO);
                 }
                 
                 Object amount = commission.get("amount");
@@ -203,9 +204,13 @@ public class PayPropFinancialSyncService {
                     } catch (NumberFormatException e) {
                         property.setCommissionAmount(BigDecimal.ZERO);
                     }
+                } else {
+                    property.setCommissionAmount(BigDecimal.ZERO);
                 }
             } else {
-                logger.debug("⚠️ No commission data for property {}", property.getPropertyName());
+                logger.debug("⚠️ No commission data for property {}, setting to zero", property.getPropertyName());
+                property.setCommissionPercentage(BigDecimal.ZERO);
+                property.setCommissionAmount(BigDecimal.ZERO);
             }
             
             // Address data
@@ -465,7 +470,7 @@ public class PayPropFinancialSyncService {
         
         int created = 0, skipped = 0;
         LocalDate endDate = LocalDate.now();
-        LocalDate absoluteStartDate = LocalDate.of(2024, 1, 1); // Go back to 2024
+        LocalDate absoluteStartDate = endDate.minusDays(180); // Only go back 6 months to avoid API limits
         
         // Sync in 90-day chunks (3 days buffer for API limit)
         while (endDate.isAfter(absoluteStartDate)) {
