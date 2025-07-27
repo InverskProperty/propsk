@@ -170,7 +170,7 @@ public class BatchPaymentTestController {
             try {
                 HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
                 HttpEntity<String> request = new HttpEntity<>(headers);
-                String testUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/meta/me";
+                String testUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/payments/categories";
                 
                 ResponseEntity<Map> testResponse = restTemplate.exchange(testUrl, HttpMethod.GET, request, Map.class);
                 
