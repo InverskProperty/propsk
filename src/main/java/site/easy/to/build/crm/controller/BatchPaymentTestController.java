@@ -205,7 +205,34 @@ public class BatchPaymentTestController {
         }
     }
 
-
+    @GetMapping("/custom-endpoint")
+    public ResponseEntity<Map<String, Object>> testCustomEndpoint(@RequestParam String endpoint) {
+        try {
+            ResponseEntity<Map<String, Object>> authCheck = checkAuthentication();
+            if (authCheck != null) return authCheck;
+            
+            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/" + endpoint;
+            
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            ResponseEntity<Map> apiResponse = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "endpoint", endpoint,
+                "url", url,
+                "payPropResponse", apiResponse.getBody()
+            ));
+            
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                "success", false,
+                "error", e.getMessage(),
+                "endpoint", endpoint
+            ));
+        }
+    }
 
     @GetMapping("/endpoint-comparison")
     public ResponseEntity<Map<String, Object>> compareAllEndpoints(
