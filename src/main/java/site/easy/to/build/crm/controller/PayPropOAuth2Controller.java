@@ -1358,4 +1358,19 @@ public class PayPropOAuth2Controller {
         
         return ResponseEntity.ok(diagnosis);
     }
+
+    /**
+     * Check current PayProp OAuth2 scopes and token status
+     */
+    @GetMapping("/payprop/check-scopes")
+    public ResponseEntity<?> checkPayPropScopes() {
+        if (oAuth2Service.hasValidTokens()) {
+            PayPropOAuth2Service.PayPropTokens tokens = oAuth2Service.getCurrentTokens();
+            return ResponseEntity.ok(Map.of(
+                "scopes", tokens.getScopes(),
+                "expiresAt", tokens.getExpiresAt()
+            ));
+        }
+        return ResponseEntity.ok("No valid tokens");
+    }
 }

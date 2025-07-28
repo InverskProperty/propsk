@@ -1060,24 +1060,32 @@ public class PayPropSyncOrchestrator {
                try {
                    String entityType = determinePayPropEntityType(customer);
                    if (entityType != null && customer.getPayPropEntityId() != null) {
-                       List<PayPropSyncService.PayPropAttachment> attachments = 
-                           payPropSyncService.getPayPropAttachments(entityType, customer.getPayPropEntityId());
+                       // Before attempting any attachment operations, check permissions
+                       if (payPropSyncService.hasAttachmentPermissions()) {
+                           // Existing attachment sync code
+                           List<PayPropSyncService.PayPropAttachment> attachments = 
+                               payPropSyncService.getPayPropAttachments(entityType, customer.getPayPropEntityId());
+                           
+                           log.info("📎 Found {} attachments for {} customer: {}", 
+                               attachments.size(), entityType, customer.getName());
                        
-                       log.info("📎 Found {} attachments for {} customer: {}", 
-                           attachments.size(), entityType, customer.getName());
-                       
-                       for (PayPropSyncService.PayPropAttachment attachment : attachments) {
-                           totalFiles++;
-                           try {
-                               syncCustomerFile(oAuthUser, customer, attachment, entityType);
-                               successFiles++;
-                               log.info("✅ Synced file: {} for customer: {}", 
-                                   attachment.getFileName(), customer.getName());
-                           } catch (Exception e) {
-                               errorFiles++;
-                               log.error("❌ Failed to sync file {} for customer {}: {}", 
-                                   attachment.getFileName(), customer.getName(), e.getMessage());
+                           for (PayPropSyncService.PayPropAttachment attachment : attachments) {
+                               totalFiles++;
+                               try {
+                                   syncCustomerFile(oAuthUser, customer, attachment, entityType);
+                                   successFiles++;
+                                   log.info("✅ Synced file: {} for customer: {}", 
+                                       attachment.getFileName(), customer.getName());
+                               } catch (Exception e) {
+                                   errorFiles++;
+                                   log.error("❌ Failed to sync file {} for customer {}: {}", 
+                                       attachment.getFileName(), customer.getName(), e.getMessage());
+                               }
                            }
+                       } else {
+                           // Log once that attachments are being skipped
+                           payPropSyncService.logAttachmentPermissionWarningOnce();
+                           log.debug("Skipping attachment sync for {} - insufficient permissions", customer.getName());
                        }
                    }
                } catch (Exception e) {
