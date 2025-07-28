@@ -1393,12 +1393,10 @@ public class PayPropFinancialSyncService {
             transaction.setDescription((String) paymentData.get("description"));
             transaction.setTransactionType("payment");
             
-            // Property and beneficiary info
+            // Property and beneficiary info (using property fields since there are no beneficiary fields)
             Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
-            if (beneficiary != null) {
-                transaction.setBeneficiaryName((String) beneficiary.get("name"));
-                transaction.setBeneficiaryId((String) beneficiary.get("id"));
-            }
+            // Note: FinancialTransaction doesn't have beneficiary fields, so we skip this for now
+            // This could be added to the entity in the future if needed
             
             Map<String, Object> property = (Map<String, Object>) paymentData.get("property");
             if (property != null) {
@@ -1441,7 +1439,7 @@ public class PayPropFinancialSyncService {
             }
 
             // Map batch data
-            batch.setBatchReference((String) batchData.get("reference"));
+            batch.setBankReference((String) batchData.get("reference"));
             batch.setStatus((String) batchData.get("status"));
             
             // Parse total amount

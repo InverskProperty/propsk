@@ -2193,46 +2193,6 @@ public class PayPropSyncService {
      */
     private static boolean attachmentPermissionWarningLogged = false;
 
-    /**
-     * Get PayProp attachments for a customer entity - with permission error handling
-     */
-    public List<PayPropAttachment> getPayPropAttachments(String entityType, String entityId) {
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            
-            String url = payPropApiBase + "/attachments/" + entityType + "/" + entityId;
-            
-            log.info("📎 Getting PayProp attachments for {} entity: {}", entityType, entityId);
-            
-            ResponseEntity<PayPropAttachmentResponse> response = restTemplate.exchange(
-                url, HttpMethod.GET, request, PayPropAttachmentResponse.class);
-            
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                List<PayPropAttachment> attachments = response.getBody().getData();
-                log.info("✅ Found {} attachments for {} {}", attachments.size(), entityType, entityId);
-                return attachments;
-            }
-            
-            return new ArrayList<>();
-            
-        } catch (HttpClientErrorException e) {
-            if (e.getStatusCode() == HttpStatus.FORBIDDEN) {
-                // Handle permission error gracefully
-                log.warn("⚠️ Insufficient permissions to read attachments. Skipping attachment sync. " +
-                        "Required scope: 'read:attachment:list'. Error: {}", e.getResponseBodyAsString());
-                // Return empty list instead of throwing exception
-                return new ArrayList<>();
-            } else {
-                log.error("❌ Failed to get PayProp attachments: {} - {}", 
-                         e.getStatusCode(), e.getResponseBodyAsString());
-                return new ArrayList<>();
-            }
-        } catch (Exception e) {
-            log.error("❌ Failed to get PayProp attachments: {}", e.getMessage());
-            return new ArrayList<>();
-        }
-    }
 
     /**
      * Check if we have attachment permissions
