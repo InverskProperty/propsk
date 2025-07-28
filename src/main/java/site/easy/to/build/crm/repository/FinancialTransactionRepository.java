@@ -476,4 +476,9 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
      * Find transactions by data source and transaction type
      */
     List<FinancialTransaction> findByDataSourceAndTransactionType(String dataSource, String transactionType);
+
+    /**
+     * Find transaction by PayProp ID and data source
+     */
+    FinancialTransaction findByPayPropTransactionIdAndDataSource(String payPropTransactionId, String dataSource);
 }

@@ -227,7 +227,7 @@ public class PayPropSyncOrchestrator {
    }
 
    /**
-    * Sync batch payments from PayProp
+    * ✅ FIXED: Sync batch payments from PayProp with actual payment data
     */
    private SyncResult syncBatchPayments(Long initiatedBy) {
        try {
@@ -236,9 +236,9 @@ public class PayPropSyncOrchestrator {
            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
            HttpEntity<String> request = new HttpEntity<>(headers);
            
-           int created = 0, updated = 0;
+           int created = 0, updated = 0, batchesCreated = 0, batchesUpdated = 0;
            LocalDate toDate = LocalDate.now();
-           LocalDate fromDate = toDate.minusDays(90); // ✅ Changed from 6 months to 90 days (under 93 limit)
+           LocalDate fromDate = toDate.minusDays(90);
            
            String url = payPropApiBase + "/report/all-payments" +
                "?from_date=" + fromDate +
@@ -253,21 +253,56 @@ public class PayPropSyncOrchestrator {
            log.info("📊 Found {} payments with batch data", payments.size());
            
            for (Map<String, Object> paymentData : payments) {
-               Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
-               if (paymentBatch != null) {
-                   String batchId = (String) paymentBatch.get("id");
-                   if (batchId != null) {
-                       boolean isNew = createOrUpdateBatchPayment(paymentBatch, initiatedBy);
-                       if (isNew) created++; else updated++;
+               try {
+                   // ✅ STEP 1: Create batch payment record (existing logic)
+                   Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
+                   if (paymentBatch != null) {
+                       String batchId = (String) paymentBatch.get("id");
+                       if (batchId != null) {
+                           boolean isBatchNew = createOrUpdateBatchPayment(paymentBatch, initiatedBy);
+                           if (isBatchNew) batchesCreated++; else batchesUpdated++;
+                       }
                    }
+                   
+                   // ✅ STEP 2: CREATE FINANCIAL TRANSACTION (THIS WAS MISSING!)
+                   String paymentId = (String) paymentData.get("id");
+                   if (paymentId != null) {
+                       // Check if transaction already exists
+                       if (!financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(paymentId, "BATCH_PAYMENT")) {
+                           FinancialTransaction transaction = createFinancialTransactionFromBatchPayment(paymentData);
+                           if (transaction != null) {
+                               financialTransactionRepository.save(transaction);
+                               created++;
+                               log.debug("✅ Created batch payment transaction: {} (£{})", 
+                                   paymentId, transaction.getAmount());
+                           }
+                       } else {
+                           // Update existing transaction
+                           FinancialTransaction existing = financialTransactionRepository
+                               .findByPayPropTransactionIdAndDataSource(paymentId, "BATCH_PAYMENT");
+                           if (existing != null) {
+                               updateFinancialTransactionFromBatchPayment(existing, paymentData);
+                               financialTransactionRepository.save(existing);
+                               updated++;
+                           }
+                       }
+                   }
+                   
+               } catch (Exception e) {
+                   log.error("❌ Error processing payment {}: {}", paymentData.get("id"), e.getMessage());
                }
            }
            
            Map<String, Object> details = Map.of(
-               "created", created,
-               "updated", updated,
-               "total_payments", payments.size()
+               "payments_created", created,
+               "payments_updated", updated,
+               "batches_created", batchesCreated,
+               "batches_updated", batchesUpdated,
+               "total_processed", payments.size()
            );
+           
+           log.info("✅ Batch payments sync completed: {} payments created, {} batches created", 
+               created, batchesCreated);
            
            return SyncResult.success("Batch payments synced", details);
            
@@ -318,6 +353,94 @@ public class PayPropSyncOrchestrator {
        batchPaymentRepository.save(batch);
        
        return !existingBatch.isPresent();
+   }
+
+   /**
+    * ✅ NEW: Create financial transaction from batch payment data
+    */
+   private FinancialTransaction createFinancialTransactionFromBatchPayment(Map<String, Object> paymentData) {
+       try {
+           FinancialTransaction transaction = new FinancialTransaction();
+           
+           // Basic fields
+           transaction.setPayPropTransactionId((String) paymentData.get("id"));
+           transaction.setDataSource("BATCH_PAYMENT");
+           transaction.setIsActualTransaction(true);
+           transaction.setIsInstruction(false);
+           
+           // Amount (REQUIRED)
+           Object amountObj = paymentData.get("amount");
+           if (amountObj != null) {
+               transaction.setAmount(new BigDecimal(amountObj.toString()));
+           } else {
+               log.warn("⚠️ Missing amount for payment {}", paymentData.get("id"));
+               return null;
+           }
+           
+           // Dates
+           String reconDate = (String) paymentData.get("reconciliation_date");
+           if (reconDate != null) {
+               transaction.setReconciliationDate(LocalDate.parse(reconDate));
+               transaction.setTransactionDate(LocalDate.parse(reconDate));
+           }
+           
+           // Description
+           transaction.setDescription((String) paymentData.get("description"));
+           transaction.setTransactionType("payment");
+           
+           // Property information
+           Map<String, Object> property = (Map<String, Object>) paymentData.get("property");
+           if (property != null) {
+               transaction.setPropertyName((String) property.get("property_name"));
+               transaction.setPropertyId((String) property.get("id"));
+           }
+           
+           // Batch ID
+           Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
+           if (paymentBatch != null) {
+               transaction.setPayPropBatchId((String) paymentBatch.get("id"));
+           }
+           
+           // Category
+           transaction.setCategoryName((String) paymentData.get("category"));
+           transaction.setCategoryId((String) paymentData.get("category_id"));
+           
+           // Audit fields
+           transaction.setCreatedAt(LocalDateTime.now());
+           transaction.setUpdatedAt(LocalDateTime.now());
+           
+           return transaction;
+           
+       } catch (Exception e) {
+           log.error("❌ Error creating financial transaction from batch payment: {}", e.getMessage());
+           return null;
+       }
+   }
+
+   /**
+    * ✅ NEW: Update existing financial transaction from batch payment data
+    */
+   private void updateFinancialTransactionFromBatchPayment(FinancialTransaction transaction, Map<String, Object> paymentData) {
+       try {
+           // Update amount
+           Object amountObj = paymentData.get("amount");
+           if (amountObj != null) {
+               transaction.setAmount(new BigDecimal(amountObj.toString()));
+           }
+           
+           // Update dates
+           String reconDate = (String) paymentData.get("reconciliation_date");
+           if (reconDate != null) {
+               transaction.setReconciliationDate(LocalDate.parse(reconDate));
+           }
+           
+           // Update description
+           transaction.setDescription((String) paymentData.get("description"));
+           transaction.setUpdatedAt(LocalDateTime.now());
+           
+       } catch (Exception e) {
+           log.error("❌ Error updating financial transaction: {}", e.getMessage());
+       }
    }
 
    /**
