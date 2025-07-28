@@ -238,7 +238,7 @@ public class PayPropSyncOrchestrator {
            
            int created = 0, updated = 0;
            LocalDate toDate = LocalDate.now();
-           LocalDate fromDate = toDate.minusMonths(6); // Last 6 months
+           LocalDate fromDate = toDate.minusDays(90); // ✅ Changed from 6 months to 90 days (under 93 limit)
            
            String url = payPropApiBase + "/report/all-payments" +
                "?from_date=" + fromDate +
@@ -372,18 +372,20 @@ public class PayPropSyncOrchestrator {
                }
            }
            
-           // Calculate commission for each financial transaction
+           // ✅ Use a custom query to avoid the missing column issue
            List<FinancialTransaction> rentPayments = financialTransactionRepository
-               .findByDataSource("ICDN_ACTUAL")
-               .stream()
-               .filter(tx -> "invoice".equals(tx.getTransactionType()))
-               .filter(tx -> tx.getCategoryName() == null || !tx.getCategoryName().toLowerCase().contains("deposit"))
-               .collect(Collectors.toList());
+               .findByDataSourceAndTransactionType("ICDN_ACTUAL", "invoice");
            
            int calculated = 0;
            BigDecimal totalCommission = BigDecimal.ZERO;
            
            for (FinancialTransaction payment : rentPayments) {
+               // Skip deposits
+               if (payment.getCategoryName() != null && 
+                   payment.getCategoryName().toLowerCase().contains("deposit")) {
+                   continue;
+               }
+               
                BigDecimal rate = commissionRates.get(payment.getPropertyId());
                if (rate != null && payment.getAmount() != null) {
                    BigDecimal commission = payment.getAmount()

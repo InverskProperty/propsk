@@ -471,4 +471,9 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     List<FinancialTransaction> findByPropertyAndDateRange(@Param("propertyId") String propertyId, 
                                                         @Param("fromDate") LocalDate fromDate, 
                                                         @Param("toDate") LocalDate toDate);
+
+    /**
+     * Find transactions by data source and transaction type
+     */
+    List<FinancialTransaction> findByDataSourceAndTransactionType(String dataSource, String transactionType);
 }
