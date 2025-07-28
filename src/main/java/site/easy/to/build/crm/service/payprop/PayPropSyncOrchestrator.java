@@ -227,16 +227,15 @@ public class PayPropSyncOrchestrator {
    }
 
    /**
-    * ✅ FIXED: Sync batch payments from PayProp with actual payment data
+    * ✅ DIAGNOSTIC: Log actual PayProp response structure before processing
     */
    private SyncResult syncBatchPayments(Long initiatedBy) {
        try {
-           log.info("💳 Starting batch payments sync...");
+           log.info("💳 Starting DIAGNOSTIC batch payments sync...");
            
            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
            HttpEntity<String> request = new HttpEntity<>(headers);
            
-           int created = 0, updated = 0, batchesCreated = 0, batchesUpdated = 0;
            LocalDate toDate = LocalDate.now();
            LocalDate fromDate = toDate.minusDays(90);
            
@@ -245,70 +244,95 @@ public class PayPropSyncOrchestrator {
                "&to_date=" + toDate +
                "&filter_by=reconciliation_date" +
                "&include_beneficiary_info=true" +
-               "&rows=1000";
+               "&rows=10"; // ✅ LIMIT to 10 for diagnostics
            
            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-           List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
+           Map<String, Object> responseBody = response.getBody();
+           List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
            
-           log.info("📊 Found {} payments with batch data", payments.size());
+           log.info("📊 Found {} payments. FULL RESPONSE STRUCTURE:", payments.size());
+           log.info("🔍 Response keys: {}", responseBody.keySet());
            
-           for (Map<String, Object> paymentData : payments) {
-               try {
-                   // ✅ STEP 1: Create batch payment record (existing logic)
-                   Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
-                   if (paymentBatch != null) {
-                       String batchId = (String) paymentBatch.get("id");
-                       if (batchId != null) {
-                           boolean isBatchNew = createOrUpdateBatchPayment(paymentBatch, initiatedBy);
-                           if (isBatchNew) batchesCreated++; else batchesUpdated++;
+           if (!payments.isEmpty()) {
+               Map<String, Object> firstPayment = payments.get(0);
+               log.info("🔍 FIRST PAYMENT STRUCTURE:");
+               log.info("   Payment keys: {}", firstPayment.keySet());
+               
+               // ✅ LOG EACH FIELD AND ITS TYPE
+               for (Map.Entry<String, Object> entry : firstPayment.entrySet()) {
+                   String key = entry.getKey();
+                   Object value = entry.getValue();
+                   String type = value != null ? value.getClass().getSimpleName() : "null";
+                   log.info("   {}: {} ({})", key, value, type);
+               }
+               
+               // ✅ SPECIFICALLY CHECK NESTED OBJECTS
+               Object paymentBatch = firstPayment.get("payment_batch");
+               if (paymentBatch != null) {
+                   log.info("🔍 PAYMENT_BATCH STRUCTURE:");
+                   if (paymentBatch instanceof Map) {
+                       Map<String, Object> batchMap = (Map<String, Object>) paymentBatch;
+                       for (Map.Entry<String, Object> entry : batchMap.entrySet()) {
+                           String key = entry.getKey();
+                           Object value = entry.getValue();
+                           String type = value != null ? value.getClass().getSimpleName() : "null";
+                           log.info("   batch.{}: {} ({})", key, value, type);
                        }
+                   } else {
+                       log.info("   payment_batch is not a Map: {} ({})", paymentBatch, paymentBatch.getClass().getSimpleName());
                    }
-                   
-                   // ✅ STEP 2: CREATE FINANCIAL TRANSACTION (THIS WAS MISSING!)
-                   String paymentId = (String) paymentData.get("id");
-                   if (paymentId != null) {
-                       // Check if transaction already exists
-                       if (!financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(paymentId, "BATCH_PAYMENT")) {
-                           FinancialTransaction transaction = createFinancialTransactionFromBatchPayment(paymentData);
-                           if (transaction != null) {
-                               financialTransactionRepository.save(transaction);
-                               created++;
-                               log.debug("✅ Created batch payment transaction: {} (£{})", 
-                                   paymentId, transaction.getAmount());
-                           }
-                       } else {
-                           // Update existing transaction
-                           FinancialTransaction existing = financialTransactionRepository
-                               .findByPayPropTransactionIdAndDataSource(paymentId, "BATCH_PAYMENT");
-                           if (existing != null) {
-                               updateFinancialTransactionFromBatchPayment(existing, paymentData);
-                               financialTransactionRepository.save(existing);
-                               updated++;
-                           }
+               } else {
+                   log.info("   payment_batch is NULL");
+               }
+               
+               // ✅ CHECK PROPERTY STRUCTURE
+               Object property = firstPayment.get("property");
+               if (property != null) {
+                   log.info("🔍 PROPERTY STRUCTURE:");
+                   if (property instanceof Map) {
+                       Map<String, Object> propMap = (Map<String, Object>) property;
+                       for (Map.Entry<String, Object> entry : propMap.entrySet()) {
+                           String key = entry.getKey();
+                           Object value = entry.getValue();
+                           String type = value != null ? value.getClass().getSimpleName() : "null";
+                           log.info("   property.{}: {} ({})", key, value, type);
                        }
+                   } else {
+                       log.info("   property is not a Map: {} ({})", property, property.getClass().getSimpleName());
                    }
-                   
-               } catch (Exception e) {
-                   log.error("❌ Error processing payment {}: {}", paymentData.get("id"), e.getMessage());
+               } else {
+                   log.info("   property is NULL");
+               }
+               
+               // ✅ CHECK BENEFICIARY STRUCTURE
+               Object beneficiary = firstPayment.get("beneficiary_info");
+               if (beneficiary != null) {
+                   log.info("🔍 BENEFICIARY_INFO STRUCTURE:");
+                   if (beneficiary instanceof Map) {
+                       Map<String, Object> benMap = (Map<String, Object>) beneficiary;
+                       for (Map.Entry<String, Object> entry : benMap.entrySet()) {
+                           String key = entry.getKey();
+                           Object value = entry.getValue();
+                           String type = value != null ? value.getClass().getSimpleName() : "null";
+                           log.info("   beneficiary.{}: {} ({})", key, value, type);
+                       }
+                   } else {
+                       log.info("   beneficiary_info is not a Map: {} ({})", beneficiary, beneficiary.getClass().getSimpleName());
+                   }
+               } else {
+                   log.info("   beneficiary_info is NULL");
                }
            }
            
-           Map<String, Object> details = Map.of(
-               "payments_created", created,
-               "payments_updated", updated,
-               "batches_created", batchesCreated,
-               "batches_updated", batchesUpdated,
-               "total_processed", payments.size()
-           );
-           
-           log.info("✅ Batch payments sync completed: {} payments created, {} batches created", 
-               created, batchesCreated);
-           
-           return SyncResult.success("Batch payments synced", details);
+           // ✅ DON'T PROCESS - JUST DIAGNOSE
+           return SyncResult.success("Diagnostic complete - check logs for structure", Map.of(
+               "total_payments", payments.size(),
+               "diagnostic_mode", true
+           ));
            
        } catch (Exception e) {
-           log.error("❌ Batch payments sync failed: {}", e.getMessage());
-           return SyncResult.failure("Batch payments sync failed: " + e.getMessage());
+           log.error("❌ Diagnostic batch payments sync failed: {}", e.getMessage(), e);
+           return SyncResult.failure("Diagnostic failed: " + e.getMessage());
        }
    }
 
@@ -356,54 +380,142 @@ public class PayPropSyncOrchestrator {
    }
 
    /**
-    * ✅ NEW: Create financial transaction from batch payment data
+    * ✅ SAFE: Create financial transaction with proper type checking
     */
    private FinancialTransaction createFinancialTransactionFromBatchPayment(Map<String, Object> paymentData) {
        try {
            FinancialTransaction transaction = new FinancialTransaction();
            
-           // Basic fields
-           transaction.setPayPropTransactionId((String) paymentData.get("id"));
+           // ✅ SAFE: Basic fields with null checking
+           Object idObj = paymentData.get("id");
+           if (idObj instanceof String) {
+               transaction.setPayPropTransactionId((String) idObj);
+           } else {
+               log.warn("⚠️ Payment ID is not a string: {} ({})", idObj, idObj != null ? idObj.getClass() : "null");
+               return null;
+           }
+           
            transaction.setDataSource("BATCH_PAYMENT");
            transaction.setIsActualTransaction(true);
            transaction.setIsInstruction(false);
            
-           // Amount (REQUIRED)
+           // ✅ SAFE: Amount with type checking
            Object amountObj = paymentData.get("amount");
            if (amountObj != null) {
-               transaction.setAmount(new BigDecimal(amountObj.toString()));
+               try {
+                   if (amountObj instanceof String) {
+                       transaction.setAmount(new BigDecimal((String) amountObj));
+                   } else if (amountObj instanceof Number) {
+                       transaction.setAmount(new BigDecimal(amountObj.toString()));
+                   } else {
+                       log.warn("⚠️ Amount is unexpected type: {} ({})", amountObj, amountObj.getClass());
+                       return null;
+                   }
+               } catch (NumberFormatException e) {
+                   log.warn("⚠️ Invalid amount format: {}", amountObj);
+                   return null;
+               }
            } else {
                log.warn("⚠️ Missing amount for payment {}", paymentData.get("id"));
                return null;
            }
            
-           // Dates
-           String reconDate = (String) paymentData.get("reconciliation_date");
-           if (reconDate != null) {
-               transaction.setReconciliationDate(LocalDate.parse(reconDate));
-               transaction.setTransactionDate(LocalDate.parse(reconDate));
+           // ✅ SAFE: Date fields with multiple fallbacks
+           LocalDate transactionDate = null;
+           
+           // Try reconciliation_date first
+           Object reconDateObj = paymentData.get("reconciliation_date");
+           if (reconDateObj instanceof String && !((String) reconDateObj).isEmpty()) {
+               try {
+                   transactionDate = LocalDate.parse((String) reconDateObj);
+                   transaction.setReconciliationDate(transactionDate);
+               } catch (Exception e) {
+                   log.warn("⚠️ Invalid reconciliation_date format: {}", reconDateObj);
+               }
            }
            
-           // Description
-           transaction.setDescription((String) paymentData.get("description"));
+           // Try payment_date as fallback
+           if (transactionDate == null) {
+               Object paymentDateObj = paymentData.get("payment_date");
+               if (paymentDateObj instanceof String && !((String) paymentDateObj).isEmpty()) {
+                   try {
+                       transactionDate = LocalDate.parse((String) paymentDateObj);
+                   } catch (Exception e) {
+                       log.warn("⚠️ Invalid payment_date format: {}", paymentDateObj);
+                   }
+               }
+           }
+           
+           // Try created_date as fallback
+           if (transactionDate == null) {
+               Object createdDateObj = paymentData.get("created_date");
+               if (createdDateObj instanceof String && !((String) createdDateObj).isEmpty()) {
+                   try {
+                       transactionDate = LocalDate.parse((String) createdDateObj);
+                   } catch (Exception e) {
+                       log.warn("⚠️ Invalid created_date format: {}", createdDateObj);
+                   }
+               }
+           }
+           
+           // Last resort: use today's date
+           if (transactionDate == null) {
+               log.warn("⚠️ No valid date found for payment {}, using today", paymentData.get("id"));
+               transactionDate = LocalDate.now();
+           }
+           
+           transaction.setTransactionDate(transactionDate);
+           
+           // ✅ SAFE: String fields with type checking
+           Object descObj = paymentData.get("description");
+           if (descObj instanceof String) {
+               transaction.setDescription((String) descObj);
+           }
+           
            transaction.setTransactionType("payment");
            
-           // Property information
-           Map<String, Object> property = (Map<String, Object>) paymentData.get("property");
-           if (property != null) {
-               transaction.setPropertyName((String) property.get("property_name"));
-               transaction.setPropertyId((String) property.get("id"));
+           // ✅ SAFE: Property information with proper casting
+           Object propertyObj = paymentData.get("property");
+           if (propertyObj instanceof Map) {
+               Map<String, Object> property = (Map<String, Object>) propertyObj;
+               
+               Object propIdObj = property.get("id");
+               if (propIdObj instanceof String) {
+                   transaction.setPropertyId((String) propIdObj);
+               }
+               
+               Object propNameObj = property.get("property_name");
+               if (propNameObj instanceof String) {
+                   transaction.setPropertyName((String) propNameObj);
+               } else {
+                   // Try alternative name field
+                   Object nameObj = property.get("name");
+                   if (nameObj instanceof String) {
+                       transaction.setPropertyName((String) nameObj);
+                   }
+               }
            }
            
-           // Batch ID
-           Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
-           if (paymentBatch != null) {
-               transaction.setPayPropBatchId((String) paymentBatch.get("id"));
+           // ✅ SAFE: Batch ID with proper casting
+           Object paymentBatchObj = paymentData.get("payment_batch");
+           if (paymentBatchObj instanceof Map) {
+               Map<String, Object> paymentBatch = (Map<String, Object>) paymentBatchObj;
+               Object batchIdObj = paymentBatch.get("id");
+               if (batchIdObj instanceof String) {
+                   transaction.setPayPropBatchId((String) batchIdObj);
+               }
            }
            
-           // Category
-           transaction.setCategoryName((String) paymentData.get("category"));
-           transaction.setCategoryId((String) paymentData.get("category_id"));
+           // ✅ SAFE: Category fields
+           Object categoryObj = paymentData.get("category");
+           if (categoryObj instanceof String) {
+               transaction.setCategoryName((String) categoryObj);
+           }
+           
+           Object categoryIdObj = paymentData.get("category_id");
+           if (categoryIdObj instanceof String) {
+               transaction.setCategoryId((String) categoryIdObj);
+           }
            
            // Audit fields
            transaction.setCreatedAt(LocalDateTime.now());
@@ -412,7 +524,7 @@ public class PayPropSyncOrchestrator {
            return transaction;
            
        } catch (Exception e) {
-           log.error("❌ Error creating financial transaction from batch payment: {}", e.getMessage());
+           log.error("❌ Error creating financial transaction from batch payment: {}", e.getMessage(), e);
            return null;
        }
    }
