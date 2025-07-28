@@ -34,6 +34,7 @@ public class PayPropFinancialSyncService {
     private final BeneficiaryRepository beneficiaryRepository;
     private final PaymentCategoryRepository paymentCategoryRepository;
     private final FinancialTransactionRepository financialTransactionRepository;
+    private final BatchPaymentRepository batchPaymentRepository;
     private final PropertyService propertyService;
     
     // PayProp API base URL
@@ -47,6 +48,7 @@ public class PayPropFinancialSyncService {
         BeneficiaryRepository beneficiaryRepository,
         PaymentCategoryRepository paymentCategoryRepository,
         FinancialTransactionRepository financialTransactionRepository,
+        BatchPaymentRepository batchPaymentRepository,
         PropertyService propertyService
     ) {
         this.oAuth2Service = oAuth2Service;
@@ -55,6 +57,7 @@ public class PayPropFinancialSyncService {
         this.beneficiaryRepository = beneficiaryRepository;
         this.paymentCategoryRepository = paymentCategoryRepository;
         this.financialTransactionRepository = financialTransactionRepository;
+        this.batchPaymentRepository = batchPaymentRepository;
         this.propertyService = propertyService;
     }
     
@@ -85,11 +88,15 @@ public class PayPropFinancialSyncService {
             Map<String, Object> transactionsResult = syncFinancialTransactions();
             syncResults.put("transactions", transactionsResult);
             
-            // ✅ FIXED: 5. Sync Actual Commission Payments using ICDN
+            // 5. Sync Batch Payments from /report/all-payments
+            Map<String, Object> batchPaymentsResult = syncBatchPayments();
+            syncResults.put("batch_payments", batchPaymentsResult);
+            
+            // ✅ FIXED: 6. Sync Actual Commission Payments using ICDN
             Map<String, Object> commissionPaymentsResult = syncActualCommissionPayments();
             syncResults.put("commission_payments", commissionPaymentsResult);
             
-            // 6. Calculate and store commission data (for rent payments only)
+            // 7. Calculate and store commission data (for rent payments only)
             Map<String, Object> commissionsResult = calculateAndStoreCommissions();
             syncResults.put("commissions", commissionsResult);
             
@@ -1292,5 +1299,180 @@ public class PayPropFinancialSyncService {
         }
         
         return result;
+    }
+
+    /**
+     * Sync actual payments with batch information from /report/all-payments
+     */
+    private Map<String, Object> syncBatchPayments() throws Exception {
+        logger.info("💰 Syncing batch payments from /report/all-payments...");
+        
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        int created = 0, updated = 0, batchesProcessed = 0;
+        LocalDate toDate = LocalDate.now();
+        LocalDate fromDate = toDate.minusMonths(3); // Last 3 months
+        
+        String url = payPropApiBase + "/report/all-payments" +
+            "?from_date=" + fromDate +
+            "&to_date=" + toDate +
+            "&filter_by=reconciliation_date" +
+            "&include_beneficiary_info=true" +
+            "&rows=1000";
+        
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
+            
+            logger.info("📊 Found {} payments with batch data", payments.size());
+            
+            for (Map<String, Object> paymentData : payments) {
+                try {
+                    // Extract batch information
+                    Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
+                    if (paymentBatch != null) {
+                        String batchId = (String) paymentBatch.get("id");
+                        if (batchId != null) {
+                            // Process batch
+                            BatchPayment batch = processBatchPayment(paymentBatch, null);
+                            if (batch != null) {
+                                batchesProcessed++;
+                            }
+                        }
+                    }
+                    
+                    // Create financial transaction with batch link
+                    FinancialTransaction transaction = createFinancialTransactionFromReportData(paymentData);
+                    if (paymentBatch != null) {
+                        transaction.setPayPropBatchId((String) paymentBatch.get("id"));
+                    }
+                    financialTransactionRepository.save(transaction);
+                    created++;
+                    
+                } catch (Exception e) {
+                    logger.error("❌ Error processing payment: {}", e.getMessage());
+                }
+            }
+            
+        } catch (Exception e) {
+            logger.error("❌ Failed to sync batch payments: {}", e.getMessage());
+        }
+        
+        return Map.of(
+            "payments_created", created,
+            "batches_processed", batchesProcessed
+        );
+    }
+
+    /**
+     * Create financial transaction from all-payments report data
+     */
+    private FinancialTransaction createFinancialTransactionFromReportData(Map<String, Object> paymentData) {
+        try {
+            FinancialTransaction transaction = new FinancialTransaction();
+            transaction.setPayPropTransactionId((String) paymentData.get("id"));
+            transaction.setDataSource("BATCH_PAYMENT");
+            transaction.setIsInstruction(false);
+            transaction.setIsActualTransaction(true);
+            
+            // Extract reconciliation date (when actually paid)
+            String reconDate = (String) paymentData.get("reconciliation_date");
+            if (reconDate != null) {
+                transaction.setReconciliationDate(LocalDate.parse(reconDate));
+                transaction.setTransactionDate(LocalDate.parse(reconDate)); // Use as primary date
+            }
+            
+            // Amount
+            Object amountObj = paymentData.get("amount");
+            if (amountObj != null) {
+                transaction.setAmount(new BigDecimal(amountObj.toString()));
+            }
+            
+            // Description
+            transaction.setDescription((String) paymentData.get("description"));
+            transaction.setTransactionType("payment");
+            
+            // Property and beneficiary info
+            Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
+            if (beneficiary != null) {
+                transaction.setBeneficiaryName((String) beneficiary.get("name"));
+                transaction.setBeneficiaryId((String) beneficiary.get("id"));
+            }
+            
+            Map<String, Object> property = (Map<String, Object>) paymentData.get("property");
+            if (property != null) {
+                transaction.setPropertyName((String) property.get("property_name"));
+                transaction.setPropertyId((String) property.get("id"));
+            }
+            
+            setCommonFields(transaction, paymentData);
+            transaction.setCreatedAt(LocalDateTime.now());
+            transaction.setUpdatedAt(LocalDateTime.now());
+            
+            return transaction;
+        } catch (Exception e) {
+            logger.error("Error creating financial transaction from report data: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Process batch payment data from PayProp
+     */
+    private BatchPayment processBatchPayment(Map<String, Object> batchData, Long initiatedBy) {
+        try {
+            String batchId = (String) batchData.get("id");
+            if (batchId == null) {
+                return null;
+            }
+
+            // Check if batch already exists
+            Optional<BatchPayment> existingBatch = batchPaymentRepository.findByPayPropBatchId(batchId);
+            BatchPayment batch;
+            
+            if (existingBatch.isPresent()) {
+                batch = existingBatch.get();
+                logger.debug("Updating existing batch payment: {}", batchId);
+            } else {
+                batch = new BatchPayment();
+                batch.setPayPropBatchId(batchId);
+                logger.debug("Creating new batch payment: {}", batchId);
+            }
+
+            // Map batch data
+            batch.setBatchReference((String) batchData.get("reference"));
+            batch.setStatus((String) batchData.get("status"));
+            
+            // Parse total amount
+            Object totalAmountObj = batchData.get("total_amount");
+            if (totalAmountObj != null) {
+                batch.setTotalAmount(new BigDecimal(totalAmountObj.toString()));
+            }
+            
+            // Parse payment count
+            Object paymentCountObj = batchData.get("payment_count");
+            if (paymentCountObj != null) {
+                batch.setPaymentCount(Integer.parseInt(paymentCountObj.toString()));
+            }
+            
+            // Parse processing date
+            String processingDateStr = (String) batchData.get("processing_date");
+            if (processingDateStr != null) {
+                batch.setProcessingDate(LocalDateTime.parse(processingDateStr));
+            }
+            
+            // Set audit fields
+            if (!existingBatch.isPresent()) {
+                batch.setCreatedAt(LocalDateTime.now());
+            }
+            batch.setUpdatedAt(LocalDateTime.now());
+            
+            return batchPaymentRepository.save(batch);
+            
+        } catch (Exception e) {
+            logger.error("Error processing batch payment: {}", e.getMessage());
+            return null;
+        }
     }
 }

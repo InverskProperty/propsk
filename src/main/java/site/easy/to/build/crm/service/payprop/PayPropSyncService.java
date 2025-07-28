@@ -426,13 +426,15 @@ public class PayPropSyncService {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
             
-            // Use the correct endpoint for actual payment transactions
-            // Add date range to get recent payments
-            LocalDate fromDate = LocalDate.now().minusMonths(3); // Last 3 months
-            String url = payPropApiBase + "/export/payments" +
-                        "?include_beneficiary_info=true" +
-                        "&from_date=" + fromDate.toString() +
+            LocalDate fromDate = LocalDate.now().minusMonths(3);
+            LocalDate toDate = LocalDate.now();
+            
+            // ✅ USE THE CORRECT ENDPOINT
+            String url = payPropApiBase + "/report/all-payments" +
+                        "?from_date=" + fromDate +
+                        "&to_date=" + toDate +
                         "&filter_by=reconciliation_date" +
+                        "&include_beneficiary_info=true" +
                         "&page=" + page + 
                         "&rows=" + Math.min(rows, 25);
             
@@ -448,7 +450,6 @@ public class PayPropSyncService {
                 result.setPagination((Map<String, Object>) responseBody.get("pagination"));
                 
                 log.info("✅ Exported {} ACTUAL PAYMENTS from PayProp", result.getItems().size());
-                
                 return result;
             }
             
