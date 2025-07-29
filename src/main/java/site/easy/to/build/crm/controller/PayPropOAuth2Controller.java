@@ -39,6 +39,7 @@ import site.easy.to.build.crm.service.payprop.PayPropSyncService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -53,7 +54,8 @@ import java.util.List;
 public class PayPropOAuth2Controller {
 
     private static final Logger logger = LoggerFactory.getLogger(PayPropOAuth2Controller.class);
-
+    private static final Logger log = LoggerFactory.getLogger(PayPropOAuth2Controller.class);
+    
     private final PayPropOAuth2Service oAuth2Service;
     private final RestTemplate restTemplate;
     private final String payPropApiBase = "https://ukapi.staging.payprop.com/api/agency/v1.1";
@@ -176,6 +178,129 @@ public class PayPropOAuth2Controller {
             redirectAttributes.addFlashAttribute("error", 
                 "Failed to complete PayProp authorization: " + e.getMessage());
             return "redirect:/api/payprop/oauth/status";
+        }
+    }
+
+    /**
+     * ✅ ADD THIS METHOD to your PayPropOAuth2Controller.java
+     * Test export payments endpoint to see actual PayProp data structure
+     * Also ADD this logger at the top of your class:
+     * private static final Logger log = LoggerFactory.getLogger(PayPropOAuth2Controller.class);
+     */
+    @PostMapping("/test-export-payments-detailed")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testExportPaymentsDetailed(
+            @RequestBody Map<String, Object> request, 
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied");
+            return ResponseEntity.status(403).body(response);
+        }
+
+        try {
+            if (!oAuth2Service.hasValidTokens()) {
+                response.put("success", false);
+                response.put("message", "PayProp not authorized. Please authorize first.");
+                return ResponseEntity.ok(response);
+            }
+
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> httpRequest = new HttpEntity<>(headers);
+            
+            // Build URL with optional property filter
+            StringBuilder urlBuilder = new StringBuilder(payPropApiBase + "/export/payments");
+            List<String> params = new ArrayList<>();
+            
+            String propertyId = (String) request.get("propertyId");
+            if (propertyId != null && !propertyId.trim().isEmpty()) {
+                params.add("property_id=" + propertyId);
+            }
+            
+            Boolean includeBeneficiaryInfo = (Boolean) request.getOrDefault("includeBeneficiaryInfo", true);
+            if (includeBeneficiaryInfo) {
+                params.add("include_beneficiary_info=true");
+            }
+            
+            params.add("rows=10"); // Limit for testing
+            
+            if (!params.isEmpty()) {
+                urlBuilder.append("?").append(String.join("&", params));
+            }
+            
+            String url = urlBuilder.toString();
+            log.info("🔍 Testing export payments: {}", url);
+            
+            ResponseEntity<Map> apiResponse = restTemplate.exchange(
+                url, HttpMethod.GET, httpRequest, Map.class);
+            
+            if (apiResponse.getStatusCode().is2xxSuccessful() && apiResponse.getBody() != null) {
+                Map<String, Object> paymentsData = apiResponse.getBody();
+                List<Map<String, Object>> items = (List<Map<String, Object>>) paymentsData.get("items");
+                
+                response.put("success", true);
+                response.put("url", url);
+                response.put("total_items", items != null ? items.size() : 0);
+                response.put("response", paymentsData);
+                
+                // Analyze the payment data structure
+                if (items != null && !items.isEmpty()) {
+                    Map<String, Object> samplePayment = items.get(0);
+                    Set<String> fields = samplePayment.keySet();
+                    
+                    response.put("sample_payment_fields", fields);
+                    response.put("sample_payment", samplePayment);
+                    
+                    // Check for key fields we need
+                    Map<String, Object> fieldAnalysis = new HashMap<>();
+                    fieldAnalysis.put("has_id", samplePayment.containsKey("id"));
+                    fieldAnalysis.put("has_amount", samplePayment.containsKey("amount"));
+                    fieldAnalysis.put("has_payment_date", samplePayment.containsKey("payment_date"));
+                    fieldAnalysis.put("has_batch_id", samplePayment.containsKey("batch_id"));
+                    fieldAnalysis.put("has_reconciliation_date", samplePayment.containsKey("reconciliation_date"));
+                    fieldAnalysis.put("has_beneficiary_info", samplePayment.containsKey("beneficiary_info"));
+                    fieldAnalysis.put("has_property", samplePayment.containsKey("property"));
+                    fieldAnalysis.put("has_property_id", samplePayment.containsKey("property_id"));
+                    fieldAnalysis.put("has_category", samplePayment.containsKey("category"));
+                    fieldAnalysis.put("has_status", samplePayment.containsKey("status"));
+                    
+                    response.put("field_analysis", fieldAnalysis);
+                    
+                    log.info("✅ Export payments data retrieved:");
+                    log.info("   Total items: {}", items.size());
+                    log.info("   Sample payment ID: {}", samplePayment.get("id"));
+                    log.info("   Available fields: {}", fields);
+                    log.info("   Field analysis: {}", fieldAnalysis);
+                } else {
+                    log.warn("⚠️ No payment items found in export/payments response");
+                }
+                
+                return ResponseEntity.ok(response);
+            } else {
+                response.put("success", false);
+                response.put("message", "Failed to retrieve payments data");
+                response.put("status", apiResponse.getStatusCode().value());
+                return ResponseEntity.ok(response);
+            }
+            
+        } catch (HttpClientErrorException e) {
+            log.error("❌ PayProp API error for export payments: {} - {}", 
+                e.getStatusCode(), e.getResponseBodyAsString());
+            
+            response.put("success", false);
+            response.put("message", "PayProp API error");
+            response.put("status", e.getStatusCode().value());
+            response.put("error", e.getResponseBodyAsString());
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Error testing export payments: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+            return ResponseEntity.ok(response);
         }
     }
 
@@ -307,7 +432,6 @@ public class PayPropOAuth2Controller {
         
         return ResponseEntity.ok(response);
     }
-
 
     @GetMapping("/test-field-locations")
     @ResponseBody
