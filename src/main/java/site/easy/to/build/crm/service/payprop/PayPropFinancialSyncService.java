@@ -1549,43 +1549,155 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * ✅ NEW METHOD: Determine correct transaction type based on PayProp data
-     * Only returns transaction types that are valid in your database constraint
+     * ✅ COMPLETE: Enhanced transaction type mapping with all helper methods
+     * Replace in your PayPropFinancialSyncService.java
      */
     private String determineTransactionTypeFromPayPropData(Map<String, Object> paymentData) {
         try {
-            // Get beneficiary info
+            // Get PayProp data
             Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
             String beneficiaryType = beneficiary != null ? (String) beneficiary.get("type") : null;
+            String category = (String) paymentData.get("category");
             
-            // Get incoming transaction info for deposit detection
-            Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
-            String depositId = incomingTransaction != null ? (String) incomingTransaction.get("deposit_id") : null;
-            
-            // Rule 1: If there's a deposit_id, this is a deposit-related transaction
-            if (depositId != null && !depositId.trim().isEmpty()) {
-                logger.debug("Mapped to 'deposit' due to deposit_id: {}", depositId);
+            // Rule 1: Check for deposit-related transactions
+            if (isDepositRelated(paymentData)) {
+                logger.debug("Mapped to 'deposit' - deposit-related transaction");
                 return "deposit";
             }
             
-            // Rule 2: Based on beneficiary type - all map to commission_payment for /report/all-payments
-            // Since this endpoint shows payments flowing OUT to beneficiaries
+            // Rule 2: Map by beneficiary type (primary logic)
             if (beneficiaryType != null) {
-                logger.debug("Mapped to 'commission_payment' for beneficiary type: {}", beneficiaryType);
-                return "commission_payment";
+                switch (beneficiaryType) {
+                    case "agency":
+                        logger.debug("Mapped to 'payment_to_agency' - agency beneficiary");
+                        return "payment_to_agency";
+                        
+                    case "beneficiary":
+                        // Further refine based on category
+                        if (isMaintenancePayment(category)) {
+                            logger.debug("Mapped to 'payment_to_contractor' - maintenance category");
+                            return "payment_to_contractor";
+                        } else {
+                            logger.debug("Mapped to 'payment_to_beneficiary' - regular beneficiary");
+                            return "payment_to_beneficiary";
+                        }
+                        
+                    case "global_beneficiary":
+                        logger.debug("Mapped to 'payment_to_beneficiary' - global beneficiary");
+                        return "payment_to_beneficiary";
+                        
+                    case "property_account":
+                        logger.debug("Mapped to 'payment_property_account' - property account");
+                        return "payment_property_account";
+                        
+                    case "deposit_account":
+                        logger.debug("Mapped to 'payment_deposit_account' - deposit account");
+                        return "payment_deposit_account";
+                        
+                    default:
+                        logger.debug("Unknown beneficiary type '{}', using default", beneficiaryType);
+                        break;
+                }
             }
             
-            // Rule 3: Default fallback for /report/all-payments data
-            // Since this endpoint shows payments flowing OUT, use commission_payment as default
-            logger.debug("Using default 'commission_payment' for payment data without clear beneficiary type");
-            return "commission_payment";
+            // Rule 3: Category-based mapping (fallback)
+            if (category != null) {
+                String lowerCategory = category.toLowerCase();
+                
+                if (lowerCategory.contains("commission") || lowerCategory.contains("fee")) {
+                    logger.debug("Mapped to 'payment_to_agency' - commission/fee category");
+                    return "payment_to_agency";
+                }
+                
+                if (isMaintenancePayment(category)) {
+                    logger.debug("Mapped to 'payment_to_contractor' - maintenance category");
+                    return "payment_to_contractor";
+                }
+                
+                if (lowerCategory.contains("refund")) {
+                    logger.debug("Mapped to 'refund' - refund category");
+                    return "refund";
+                }
+            }
+            
+            // Rule 4: Default for /report/all-payments (money flowing out to property owners)
+            logger.debug("Using default 'payment_to_beneficiary' for standard payment");
+            return "payment_to_beneficiary";
             
         } catch (Exception e) {
             logger.error("Error determining transaction type: {}", e.getMessage());
-            return null;
+            return "commission_payment"; // Safe fallback to existing type
         }
     }
 
+    /**
+     * ✅ NEW: Helper method to detect deposit-related transactions
+     */
+    private boolean isDepositRelated(Map<String, Object> paymentData) {
+        try {
+            // Check for deposit ID in incoming transaction
+            Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
+            if (incomingTransaction != null) {
+                String depositId = (String) incomingTransaction.get("deposit_id");
+                if (depositId != null && !depositId.trim().isEmpty()) {
+                    return true;
+                }
+            }
+            
+            // Check category for deposit keywords
+            String category = (String) paymentData.get("category");
+            if (category != null) {
+                String lowerCategory = category.toLowerCase();
+                return lowerCategory.contains("deposit") || 
+                    lowerCategory.contains("security") ||
+                    lowerCategory.contains("bond");
+            }
+            
+            // Check description for deposit keywords
+            String description = (String) paymentData.get("description");
+            if (description != null) {
+                String lowerDescription = description.toLowerCase();
+                return lowerDescription.contains("deposit") || 
+                    lowerDescription.contains("security") ||
+                    lowerDescription.contains("bond");
+            }
+            
+            return false;
+            
+        } catch (Exception e) {
+            logger.debug("Error checking deposit status: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * ✅ NEW: Helper method to detect maintenance/contractor payments
+     */
+    private boolean isMaintenancePayment(String category) {
+        if (category == null) return false;
+        
+        String lowerCategory = category.toLowerCase();
+        return lowerCategory.contains("maintenance") ||
+            lowerCategory.contains("contractor") ||
+            lowerCategory.contains("repair") ||
+            lowerCategory.contains("plumber") ||
+            lowerCategory.contains("electrician") ||
+            lowerCategory.contains("gardening") ||
+            lowerCategory.contains("cleaning") ||
+            lowerCategory.contains("handyman") ||
+            lowerCategory.contains("painting") ||
+            lowerCategory.contains("roofing") ||
+            lowerCategory.contains("heating") ||
+            lowerCategory.contains("building") ||
+            lowerCategory.contains("appliance") ||
+            lowerCategory.contains("boiler") ||
+            lowerCategory.contains("window") ||
+            lowerCategory.contains("door") ||
+            lowerCategory.contains("flooring") ||
+            lowerCategory.contains("pest") ||
+            lowerCategory.contains("gutter") ||
+            lowerCategory.contains("fence");
+    }
 
     /**
      * Helper method to extract transaction date with multiple fallbacks
