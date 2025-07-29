@@ -1422,50 +1422,180 @@ public class PayPropFinancialSyncService {
 
     /**
      * Create financial transaction from all-payments report data
+     * FIXED: Handles nested objects properly and ensures required fields
      */
     private FinancialTransaction createFinancialTransactionFromReportData(Map<String, Object> paymentData) {
         try {
             FinancialTransaction transaction = new FinancialTransaction();
-            transaction.setPayPropTransactionId((String) paymentData.get("id"));
+            
+            // Basic identification
+            String paymentId = (String) paymentData.get("id");
+            if (paymentId == null || paymentId.trim().isEmpty()) {
+                logger.warn("⚠️ Skipping payment with missing ID");
+                return null;
+            }
+            
+            transaction.setPayPropTransactionId(paymentId);
             transaction.setDataSource("BATCH_PAYMENT");
             transaction.setIsInstruction(false);
             transaction.setIsActualTransaction(true);
             
-            // Extract reconciliation date (when actually paid)
-            String reconDate = (String) paymentData.get("reconciliation_date");
-            if (reconDate != null) {
-                transaction.setReconciliationDate(LocalDate.parse(reconDate));
-                transaction.setTransactionDate(LocalDate.parse(reconDate)); // Use as primary date
-            }
-            
-            // Amount
+            // ✅ FIXED: Amount handling with proper null checking
             Object amountObj = paymentData.get("amount");
             if (amountObj != null) {
-                transaction.setAmount(new BigDecimal(amountObj.toString()));
+                try {
+                    BigDecimal amount = new BigDecimal(amountObj.toString());
+                    transaction.setAmount(amount);
+                } catch (NumberFormatException e) {
+                    logger.warn("⚠️ Invalid amount format '{}' for payment {}", amountObj, paymentId);
+                    return null;
+                }
+            } else {
+                logger.warn("⚠️ Missing amount for payment {}", paymentId);
+                return null;
             }
             
-            // Description
-            transaction.setDescription((String) paymentData.get("description"));
+            // ✅ FIXED: Date handling with multiple fallbacks and required field
+            LocalDate transactionDate = extractTransactionDate(paymentData);
+            if (transactionDate == null) {
+                logger.warn("⚠️ Could not determine transaction date for payment {}, skipping", paymentId);
+                return null;
+            }
+            transaction.setTransactionDate(transactionDate);
+            
+            // Extract reconciliation date if available
+            String reconDateStr = extractStringFromPath(paymentData, "incoming_transaction.reconciliation_date");
+            if (reconDateStr != null && !reconDateStr.isEmpty()) {
+                try {
+                    transaction.setReconciliationDate(LocalDate.parse(reconDateStr));
+                } catch (Exception e) {
+                    logger.debug("Could not parse reconciliation_date: {}", reconDateStr);
+                }
+            }
+            
+            // ✅ FIXED: Property information with proper nested object handling
+            Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
+            if (incomingTransaction != null) {
+                Map<String, Object> property = (Map<String, Object>) incomingTransaction.get("property");
+                if (property != null) {
+                    transaction.setPropertyId((String) property.get("id"));
+                    transaction.setPropertyName((String) property.get("name"));
+                }
+                
+                // Extract tenant information
+                Map<String, Object> tenant = (Map<String, Object>) incomingTransaction.get("tenant");
+                if (tenant != null) {
+                    transaction.setTenantId((String) tenant.get("id"));
+                    transaction.setTenantName((String) tenant.get("name"));
+                }
+                
+                // Extract deposit ID
+                transaction.setDepositId((String) incomingTransaction.get("deposit_id"));
+            }
+            
+            // ✅ FIXED: Beneficiary information (stored as description since no beneficiary fields in entity)
+            Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
+            if (beneficiary != null) {
+                String beneficiaryName = (String) beneficiary.get("name");
+                String beneficiaryType = (String) beneficiary.get("type");
+                if (beneficiaryName != null || beneficiaryType != null) {
+                    String description = "Beneficiary: " + 
+                        (beneficiaryName != null ? beneficiaryName : "Unknown") + 
+                        " (" + (beneficiaryType != null ? beneficiaryType : "Unknown type") + ")";
+                    transaction.setDescription(description);
+                }
+            }
+            
+            // Set transaction type
             transaction.setTransactionType("payment");
             
-            // Property and beneficiary info (using property fields since there are no beneficiary fields)
-            Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
-            // Note: FinancialTransaction doesn't have beneficiary fields, so we skip this for now
-            // This could be added to the entity in the future if needed
-            
-            Map<String, Object> property = (Map<String, Object>) paymentData.get("property");
-            if (property != null) {
-                transaction.setPropertyName((String) property.get("property_name"));
-                transaction.setPropertyId((String) property.get("id"));
+            // Extract fees
+            Object serviceFeeObj = paymentData.get("service_fee");
+            if (serviceFeeObj != null) {
+                try {
+                    transaction.setServiceFeeAmount(new BigDecimal(serviceFeeObj.toString()));
+                } catch (NumberFormatException e) {
+                    logger.debug("Invalid service_fee format: {}", serviceFeeObj);
+                }
             }
             
-            setCommonFields(transaction, paymentData);
+            Object transactionFeeObj = paymentData.get("transaction_fee");
+            if (transactionFeeObj != null) {
+                try {
+                    // Store transaction fee in tax_amount field (reusing existing field)
+                    transaction.setTaxAmount(new BigDecimal(transactionFeeObj.toString()));
+                } catch (NumberFormatException e) {
+                    logger.debug("Invalid transaction_fee format: {}", transactionFeeObj);
+                }
+            }
+            
+            // Set audit fields
             transaction.setCreatedAt(LocalDateTime.now());
             transaction.setUpdatedAt(LocalDateTime.now());
             
             return transaction;
+            
         } catch (Exception e) {
-            logger.error("Error creating financial transaction from report data: {}", e.getMessage());
+            logger.error("❌ Error creating financial transaction from report data: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Helper method to extract transaction date with multiple fallbacks
+     */
+    private LocalDate extractTransactionDate(Map<String, Object> paymentData) {
+        // Try incoming_transaction.reconciliation_date first
+        String reconDate = extractStringFromPath(paymentData, "incoming_transaction.reconciliation_date");
+        if (reconDate != null && !reconDate.isEmpty()) {
+            try {
+                return LocalDate.parse(reconDate);
+            } catch (Exception e) {
+                logger.debug("Could not parse reconciliation_date: {}", reconDate);
+            }
+        }
+        
+        // Try due_date as fallback
+        String dueDate = (String) paymentData.get("due_date");
+        if (dueDate != null && !dueDate.isEmpty()) {
+            try {
+                return LocalDate.parse(dueDate);
+            } catch (Exception e) {
+                logger.debug("Could not parse due_date: {}", dueDate);
+            }
+        }
+        
+        // Try payment_batch.transfer_date as fallback
+        String transferDate = extractStringFromPath(paymentData, "payment_batch.transfer_date");
+        if (transferDate != null && !transferDate.isEmpty()) {
+            try {
+                return LocalDate.parse(transferDate);
+            } catch (Exception e) {
+                logger.debug("Could not parse transfer_date: {}", transferDate);
+            }
+        }
+        
+        return null; // Will cause the transaction to be skipped
+    }
+
+    /**
+     * Helper method to safely extract string from nested object path
+     */
+    private String extractStringFromPath(Map<String, Object> data, String path) {
+        try {
+            String[] parts = path.split("\\.");
+            Object current = data;
+            
+            for (String part : parts) {
+                if (current instanceof Map) {
+                    current = ((Map<String, Object>) current).get(part);
+                } else {
+                    return null;
+                }
+            }
+            
+            return current instanceof String ? (String) current : null;
+        } catch (Exception e) {
             return null;
         }
     }
