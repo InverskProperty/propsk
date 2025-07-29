@@ -1182,6 +1182,7 @@ public class PayPropFinancialSyncService {
         transaction.setActualCommissionAmount(BigDecimal.ZERO);
     }
 
+    // ✅ FIXED: setCommonFields method - removed the problematic "payment" transaction type
     private void setCommonFields(FinancialTransaction transaction, Map<String, Object> data) {
         // Extract common fields like property, tenant, category
         Map<String, Object> property = (Map<String, Object>) data.get("property");
@@ -1200,14 +1201,15 @@ public class PayPropFinancialSyncService {
             transaction.setDescription(description);
         }
         
-        // Set transaction type based on category
+        // ✅ FIXED: Set transaction type based on category using VALID constraint values
         if ("Rent".equalsIgnoreCase(category)) {
             transaction.setTransactionType("invoice");
         } else if (category != null && category.toLowerCase().contains("deposit")) {
             transaction.setTransactionType("deposit");
             transaction.setDepositId((String) data.get("id")); // Mark as deposit
         } else {
-            transaction.setTransactionType("payment");
+            // ✅ CHANGED: Use "commission_payment" instead of "payment"
+            transaction.setTransactionType("commission_payment");
         }
     }
 
@@ -1422,7 +1424,7 @@ public class PayPropFinancialSyncService {
 
     /**
      * Create financial transaction from all-payments report data
-     * FIXED: Handles nested objects properly and ensures required fields
+     * ✅ FIXED: Now uses valid transaction types only
      */
     private FinancialTransaction createFinancialTransactionFromReportData(Map<String, Object> paymentData) {
         try {
@@ -1440,7 +1442,7 @@ public class PayPropFinancialSyncService {
             transaction.setIsInstruction(false);
             transaction.setIsActualTransaction(true);
             
-            // ✅ FIXED: Amount handling with proper null checking
+            // Amount handling with proper null checking
             Object amountObj = paymentData.get("amount");
             if (amountObj != null) {
                 try {
@@ -1455,7 +1457,7 @@ public class PayPropFinancialSyncService {
                 return null;
             }
             
-            // ✅ FIXED: Date handling with multiple fallbacks and required field
+            // Date handling with multiple fallbacks and required field
             LocalDate transactionDate = extractTransactionDate(paymentData);
             if (transactionDate == null) {
                 logger.warn("⚠️ Could not determine transaction date for payment {}, skipping", paymentId);
@@ -1473,7 +1475,7 @@ public class PayPropFinancialSyncService {
                 }
             }
             
-            // ✅ FIXED: Property information with proper nested object handling
+            // Property information with proper nested object handling
             Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
             if (incomingTransaction != null) {
                 Map<String, Object> property = (Map<String, Object>) incomingTransaction.get("property");
@@ -1493,7 +1495,7 @@ public class PayPropFinancialSyncService {
                 transaction.setDepositId((String) incomingTransaction.get("deposit_id"));
             }
             
-            // ✅ FIXED: Beneficiary information (stored as description since no beneficiary fields in entity)
+            // Beneficiary information (stored as description since no beneficiary fields in entity)
             Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
             if (beneficiary != null) {
                 String beneficiaryName = (String) beneficiary.get("name");
@@ -1506,8 +1508,13 @@ public class PayPropFinancialSyncService {
                 }
             }
             
-            // Set transaction type
-            transaction.setTransactionType("payment");
+            // ✅ FIXED: Set transaction type using intelligent mapping
+            String transactionType = determineTransactionTypeFromPayPropData(paymentData);
+            if (transactionType == null) {
+                logger.warn("⚠️ Could not determine valid transaction type for payment {}, skipping", paymentId);
+                return null;
+            }
+            transaction.setTransactionType(transactionType);
             
             // Extract fees
             Object serviceFeeObj = paymentData.get("service_fee");
@@ -1540,6 +1547,45 @@ public class PayPropFinancialSyncService {
             return null;
         }
     }
+
+    /**
+     * ✅ NEW METHOD: Determine correct transaction type based on PayProp data
+     * Only returns transaction types that are valid in your database constraint
+     */
+    private String determineTransactionTypeFromPayPropData(Map<String, Object> paymentData) {
+        try {
+            // Get beneficiary info
+            Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
+            String beneficiaryType = beneficiary != null ? (String) beneficiary.get("type") : null;
+            
+            // Get incoming transaction info for deposit detection
+            Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
+            String depositId = incomingTransaction != null ? (String) incomingTransaction.get("deposit_id") : null;
+            
+            // Rule 1: If there's a deposit_id, this is a deposit-related transaction
+            if (depositId != null && !depositId.trim().isEmpty()) {
+                logger.debug("Mapped to 'deposit' due to deposit_id: {}", depositId);
+                return "deposit";
+            }
+            
+            // Rule 2: Based on beneficiary type - all map to commission_payment for /report/all-payments
+            // Since this endpoint shows payments flowing OUT to beneficiaries
+            if (beneficiaryType != null) {
+                logger.debug("Mapped to 'commission_payment' for beneficiary type: {}", beneficiaryType);
+                return "commission_payment";
+            }
+            
+            // Rule 3: Default fallback for /report/all-payments data
+            // Since this endpoint shows payments flowing OUT, use commission_payment as default
+            logger.debug("Using default 'commission_payment' for payment data without clear beneficiary type");
+            return "commission_payment";
+            
+        } catch (Exception e) {
+            logger.error("Error determining transaction type: {}", e.getMessage());
+            return null;
+        }
+    }
+
 
     /**
      * Helper method to extract transaction date with multiple fallbacks
