@@ -20,6 +20,7 @@ import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service.PayPropTokens
 import site.easy.to.build.crm.service.payprop.PayPropSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropFinancialSyncService;
 import site.easy.to.build.crm.repository.PropertyRepository;
+import site.easy.to.build.crm.repository.BatchPaymentRepository;
 import site.easy.to.build.crm.repository.BeneficiaryRepository;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.util.AuthorizationUtil;
@@ -78,6 +79,9 @@ public class PayPropOAuth2Controller {
     
     @Autowired
     private PaymentCategoryRepository paymentCategoryRepository;
+
+    @Autowired
+    private BatchPaymentRepository batchPaymentRepository;
     
     @Autowired
     private PropertyService propertyService;
@@ -362,6 +366,239 @@ public class PayPropOAuth2Controller {
             
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Add this to PayPropOAuth2Controller.java to test batch payments
+     * No database dependencies needed for this test
+     */
+    @PostMapping("/test-batch-payments-api-only")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testBatchPaymentsApiOnly(Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied");
+            return ResponseEntity.status(403).body(response);
+        }
+
+        try {
+            if (!oAuth2Service.hasValidTokens()) {
+                response.put("success", false);
+                response.put("message", "PayProp not authorized");
+                return ResponseEntity.ok(response);
+            }
+
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            // Test with last 30 days
+            LocalDate fromDate = LocalDate.now().minusDays(30);
+            LocalDate toDate = LocalDate.now();
+            
+            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
+                "?from_date=" + fromDate +
+                "&to_date=" + toDate +
+                "&filter_by=reconciliation_date" +
+                "&include_beneficiary_info=true" +
+                "&rows=5";
+            
+            log.info("🔍 Testing: {}", url);
+            
+            ResponseEntity<Map> apiResponse = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (apiResponse.getStatusCode().is2xxSuccessful() && apiResponse.getBody() != null) {
+                Map<String, Object> responseBody = apiResponse.getBody();
+                List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
+                
+                response.put("success", true);
+                response.put("total_items", payments != null ? payments.size() : 0);
+                response.put("date_range", fromDate + " to " + toDate);
+                response.put("response_keys", responseBody.keySet());
+                
+                if (payments != null && !payments.isEmpty()) {
+                    // Check first payment for batch structure
+                    Map<String, Object> firstPayment = payments.get(0);
+                    log.info("📊 First payment keys: {}", firstPayment.keySet());
+                    
+                    Object paymentBatch = firstPayment.get("payment_batch");
+                    response.put("has_payment_batch_field", paymentBatch != null);
+                    response.put("payment_batch_type", paymentBatch != null ? paymentBatch.getClass().getSimpleName() : "null");
+                    
+                    if (paymentBatch instanceof Map) {
+                        Map<String, Object> batchMap = (Map<String, Object>) paymentBatch;
+                        response.put("batch_keys", batchMap.keySet());
+                        response.put("batch_id", batchMap.get("id"));
+                        response.put("batch_sample", batchMap);
+                        
+                        log.info("✅ Found batch data: ID={}, Keys={}", batchMap.get("id"), batchMap.keySet());
+                    } else {
+                        log.warn("⚠️ payment_batch is not a Map: {}", paymentBatch);
+                    }
+                    
+                    response.put("sample_payment", firstPayment);
+                    
+                } else {
+                    response.put("message", "No payments found in date range");
+                    
+                    // Try longer date range
+                    LocalDate longerFromDate = LocalDate.now().minusDays(90);
+                    String longerUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
+                        "?from_date=" + longerFromDate +
+                        "&to_date=" + toDate +
+                        "&filter_by=reconciliation_date" +
+                        "&rows=1";
+                    
+                    try {
+                        ResponseEntity<Map> longerResponse = restTemplate.exchange(longerUrl, HttpMethod.GET, request, Map.class);
+                        List<Map<String, Object>> longerPayments = (List<Map<String, Object>>) longerResponse.getBody().get("items");
+                        response.put("longer_range_count", longerPayments != null ? longerPayments.size() : 0);
+                        response.put("longer_range", longerFromDate + " to " + toDate);
+                        
+                        if (longerPayments != null && !longerPayments.isEmpty()) {
+                            Map<String, Object> longerSample = longerPayments.get(0);
+                            Object longerBatch = longerSample.get("payment_batch");
+                            response.put("longer_range_has_batch", longerBatch != null);
+                            
+                            if (longerBatch instanceof Map) {
+                                Map<String, Object> longerBatchMap = (Map<String, Object>) longerBatch;
+                                response.put("longer_range_batch_sample", longerBatchMap);
+                            }
+                        }
+                        
+                    } catch (Exception e) {
+                        response.put("longer_range_error", e.getMessage());
+                    }
+                }
+                
+            } else {
+                response.put("success", false);
+                response.put("http_status", apiResponse.getStatusCode().value());
+                response.put("message", "API call failed");
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (HttpClientErrorException e) {
+            log.error("❌ PayProp API error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            response.put("success", false);
+            response.put("api_error", e.getResponseBodyAsString());
+            response.put("status_code", e.getStatusCode().value());
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Batch test failed: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.ok(response);
+        }
+    }
+    /**
+     * Add this to PayPropOAuth2Controller.java to test batch payments
+     */
+    @PostMapping("/test-simple-batch-payments")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testSimpleBatchPayments(Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied");
+            return ResponseEntity.status(403).body(response);
+        }
+
+        try {
+            if (!oAuth2Service.hasValidTokens()) {
+                response.put("success", false);
+                response.put("message", "PayProp not authorized");
+                return ResponseEntity.ok(response);
+            }
+
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            // Test with last 30 days
+            LocalDate fromDate = LocalDate.now().minusDays(30);
+            LocalDate toDate = LocalDate.now();
+            
+            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
+                "?from_date=" + fromDate +
+                "&to_date=" + toDate +
+                "&filter_by=reconciliation_date" +
+                "&include_beneficiary_info=true" +
+                "&rows=5";
+            
+            log.info("🔍 Testing: {}", url);
+            
+            ResponseEntity<Map> apiResponse = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (apiResponse.getStatusCode().is2xxSuccessful() && apiResponse.getBody() != null) {
+                Map<String, Object> responseBody = apiResponse.getBody();
+                List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
+                
+                response.put("success", true);
+                response.put("total_items", payments != null ? payments.size() : 0);
+                response.put("date_range", fromDate + " to " + toDate);
+                
+                if (payments != null && !payments.isEmpty()) {
+                    // Check first payment for batch structure
+                    Map<String, Object> firstPayment = payments.get(0);
+                    log.info("📊 First payment keys: {}", firstPayment.keySet());
+                    
+                    Object paymentBatch = firstPayment.get("payment_batch");
+                    response.put("has_payment_batch_field", paymentBatch != null);
+                    response.put("payment_batch_type", paymentBatch != null ? paymentBatch.getClass().getSimpleName() : "null");
+                    
+                    if (paymentBatch instanceof Map) {
+                        Map<String, Object> batchMap = (Map<String, Object>) paymentBatch;
+                        response.put("batch_keys", batchMap.keySet());
+                        response.put("batch_id", batchMap.get("id"));
+                        response.put("batch_sample", batchMap);
+                    }
+                    
+                    response.put("sample_payment", firstPayment);
+                    
+                    // Check database
+                    long currentBatchCount = batchPaymentRepository.count();
+                    response.put("current_db_batch_count", currentBatchCount);
+                    
+                } else {
+                    response.put("message", "No payments found in date range");
+                    
+                    // Try longer date range
+                    LocalDate longerFromDate = LocalDate.now().minusDays(90);
+                    String longerUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
+                        "?from_date=" + longerFromDate +
+                        "&to_date=" + toDate +
+                        "&filter_by=reconciliation_date" +
+                        "&rows=1";
+                    
+                    try {
+                        ResponseEntity<Map> longerResponse = restTemplate.exchange(longerUrl, HttpMethod.GET, request, Map.class);
+                        List<Map<String, Object>> longerPayments = (List<Map<String, Object>>) longerResponse.getBody().get("items");
+                        response.put("longer_range_count", longerPayments != null ? longerPayments.size() : 0);
+                        response.put("longer_range", longerFromDate + " to " + toDate);
+                    } catch (Exception e) {
+                        response.put("longer_range_error", e.getMessage());
+                    }
+                }
+                
+            } else {
+                response.put("success", false);
+                response.put("http_status", apiResponse.getStatusCode().value());
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Batch test failed: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.ok(response);
         }
     }
 

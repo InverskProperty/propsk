@@ -1,4 +1,4 @@
-// PayPropSyncOrchestrator.java - Updated with Complete Financial Sync Integration
+// PayPropSyncOrchestrator.java - Fixed with Complete Financial Sync Integration
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,6 +60,10 @@ public class PayPropSyncOrchestrator {
    @Value("${payprop.sync.batch-size:25}")
    private int batchSize;
 
+   // ✅ 1. Add this field to inject the working financial sync service
+   @Autowired
+   private PayPropFinancialSyncService payPropFinancialSyncService;
+
    @Autowired
    public PayPropSyncOrchestrator(PayPropSyncService payPropSyncService,
                                  PayPropSyncLogger syncLogger,
@@ -89,81 +93,125 @@ public class PayPropSyncOrchestrator {
        this.oAuth2Service = oAuth2Service;
    }
 
-   // ===== MAIN SYNC ORCHESTRATION =====
-
+   // ✅ 2. Replace the duplicate syncBatchPayments methods with this working version:
    /**
-    * Complete two-way synchronization using unified Customer entity with COMPLETE FINANCIAL SYNC
+    * Sync batch payments using the working FinancialSyncService implementation
     */
-   public UnifiedSyncResult performUnifiedSync(OAuthUser oAuthUser, Long initiatedBy) {
-       // Just delegate to enhanced version - no need for two versions
-       return performEnhancedUnifiedSync(oAuthUser, initiatedBy);
-   }
-
-   public UnifiedSyncResult performEnhancedUnifiedSync(OAuthUser oAuthUser, Long initiatedBy) {
-       UnifiedSyncResult result = new UnifiedSyncResult();
-       syncLogger.logSyncStart("ENHANCED_UNIFIED_SYNC", initiatedBy);
-       
+   private SyncResult syncBatchPayments(Long initiatedBy) {
        try {
-           // Step 1: Enhanced Properties sync with rent data
-           result.setPropertiesResult(syncPropertiesFromPayPropEnhanced(initiatedBy));
+           log.info("💰 Starting batch payments sync using FinancialSyncService...");
            
-           // Step 2: Get payment relationships 
-           Map<String, PropertyRelationship> relationships = extractRelationshipsFromPayments();
+           // Call the WORKING comprehensive sync (which includes batch payments)
+           Map<String, Object> result = payPropFinancialSyncService.syncComprehensiveFinancialData();
            
-           // Step 3: Sync Property Owners as Customers
-           result.setPropertyOwnersResult(syncPropertyOwnersAsCustomers(initiatedBy, relationships));
-           
-           // Step 4: Sync Tenants as Customers  
-           result.setTenantsResult(syncTenantsAsCustomers(initiatedBy));
-
-           // Step 5: Sync Contractors as Customers
-           result.setContractorsResult(syncContractorsAsCustomers(initiatedBy));
-
-           // Step 6: Establish property assignments
-           result.setRelationshipsResult(establishPropertyAssignments(relationships));
-
-           // Step 7: Establish tenant relationships
-           result.setTenantRelationshipsResult(establishTenantPropertyRelationships());
-
-           // ✅ STEP 8: COMPLETE PAYMENT SYNC - ALL TYPES
-           log.info("💰 Starting comprehensive payment data sync...");
-           
-           // 8.1: Payment categories
-           result.setPaymentCategoriesResult(syncPaymentCategories(initiatedBy));
-           
-           // 8.2: Payment instructions (what should be paid)
-           result.setPaymentsResult(syncPayments(initiatedBy));
-           
-           // 8.3: Reconciled payments (what was actually paid)
-           result.setReconciledPaymentsResult(syncReconciledPayments(initiatedBy));
-           
-           // 8.4: Batch payments from all-payments report
-           result.setBatchPaymentsResult(syncBatchPayments(initiatedBy));
-           
-           // 8.5: Financial transactions from ICDN (detailed records)
-           result.setFinancialTransactionsResult(syncFinancialTransactions(initiatedBy));
-           
-           // 8.6: Beneficiary balances
-           result.setBeneficiaryBalancesResult(syncBeneficiaryBalances(initiatedBy));
-           
-           // 8.7: Calculate commission from actual payments
-           result.setCommissionCalculationResult(calculateCommissionsFromPayments(initiatedBy));
-
-           // Step 9: Enhanced occupancy detection
-           result.setOccupancyResult(detectOccupancyFromTenancies(initiatedBy));
-
-           // Step 10: Sync PayProp files
-           if (oAuthUser != null) {
-               result.setFilesResult(syncPayPropFiles(oAuthUser, initiatedBy));
+           // Convert to SyncResult format
+           if ("SUCCESS".equals(result.get("status"))) {
+               return SyncResult.success("Batch payments synced successfully", result);
            } else {
-               log.warn("⚠️ No OAuthUser provided - skipping file sync");
-               result.setFilesResult(SyncResult.partial("File sync skipped - no OAuth user", Map.of()));
+               return SyncResult.failure("Batch payments sync failed: " + result.get("error"));
            }
            
-           syncLogger.logSyncComplete("ENHANCED_UNIFIED_SYNC", result.isOverallSuccess(), result.getSummary());
+       } catch (Exception e) {
+           log.error("❌ Batch payments sync failed: {}", e.getMessage(), e);
+           return SyncResult.failure("Batch payments sync failed: " + e.getMessage());
+       }
+   }
+
+   // ✅ 3. Fixed: Single comprehensive method with complete implementation
+   /**
+    * Enhanced unified sync with working financial integration
+    */
+   public UnifiedSyncResult performEnhancedUnifiedSyncWithWorkingFinancials(OAuthUser oAuthUser, Long initiatedBy) {
+       UnifiedSyncResult result = new UnifiedSyncResult();
+       syncLogger.logSyncStart("ENHANCED_UNIFIED_SYNC_WITH_FINANCIALS", initiatedBy);
+       
+       try {
+           // STEP 1: Sync Properties
+           log.info("🏠 Step 1: Syncing properties...");
+           result.setPropertiesResult(syncPropertiesFromPayPropEnhanced(initiatedBy));
+           
+           // STEP 2: Extract property-owner relationships from payments
+           log.info("🔗 Step 2: Extracting property relationships...");
+           Map<String, PropertyRelationship> relationships = extractRelationshipsFromPayments();
+           
+           // STEP 3: Sync Property Owners as Customers
+           log.info("👥 Step 3: Syncing property owners...");
+           result.setPropertyOwnersResult(syncPropertyOwnersAsCustomers(initiatedBy, relationships));
+           
+           // STEP 4: Sync Tenants as Customers
+           log.info("🏡 Step 4: Syncing tenants...");
+           result.setTenantsResult(syncTenantsAsCustomers(initiatedBy));
+           
+           // STEP 5: Sync Contractors as Customers
+           log.info("🔧 Step 5: Syncing contractors...");
+           result.setContractorsResult(syncContractorsAsCustomers(initiatedBy));
+           
+           // STEP 6: Establish Property Assignments
+           log.info("🏠 Step 6: Establishing property assignments...");
+           result.setRelationshipsResult(establishPropertyAssignments(relationships));
+           
+           // STEP 7: Establish Tenant Relationships
+           log.info("🏡 Step 7: Establishing tenant relationships...");
+           result.setTenantRelationshipsResult(establishTenantPropertyRelationships());
+           
+           // ✅ STEP 8: Call the WORKING comprehensive financial sync
+           log.info("💰 Step 8: Starting comprehensive financial sync (includes working batch payments)...");
+           
+           try {
+               Map<String, Object> financialResults = payPropFinancialSyncService.syncComprehensiveFinancialData();
+               
+               if ("SUCCESS".equals(financialResults.get("status"))) {
+                   // Extract individual results from comprehensive sync
+                   Map<String, Object> batchResults = (Map<String, Object>) financialResults.get("batch_payments");
+                   if (batchResults != null) {
+                       result.setBatchPaymentsResult(SyncResult.success("Batch payments synced", batchResults));
+                   }
+                   
+                   Map<String, Object> transactionResults = (Map<String, Object>) financialResults.get("transactions");
+                   if (transactionResults != null) {
+                       result.setFinancialTransactionsResult(SyncResult.success("Financial transactions synced", transactionResults));
+                   }
+                   
+                   Map<String, Object> paymentResults = (Map<String, Object>) financialResults.get("payments");
+                   if (paymentResults != null) {
+                       result.setPaymentsResult(SyncResult.success("Payments synced", paymentResults));
+                   }
+                   
+                   Map<String, Object> balanceResults = (Map<String, Object>) financialResults.get("balances");
+                   if (balanceResults != null) {
+                       result.setBeneficiaryBalancesResult(SyncResult.success("Beneficiary balances synced", balanceResults));
+                   }
+                   
+               } else {
+                   String error = "Financial sync failed: " + financialResults.get("error");
+                   result.setBatchPaymentsResult(SyncResult.failure(error));
+                   result.setFinancialTransactionsResult(SyncResult.failure(error));
+                   result.setPaymentsResult(SyncResult.failure(error));
+                   result.setBeneficiaryBalancesResult(SyncResult.failure(error));
+               }
+               
+           } catch (Exception e) {
+               log.error("❌ Comprehensive financial sync failed: {}", e.getMessage(), e);
+               String errorMsg = "Financial sync failed: " + e.getMessage();
+               result.setBatchPaymentsResult(SyncResult.failure(errorMsg));
+               result.setFinancialTransactionsResult(SyncResult.failure(errorMsg));
+               result.setPaymentsResult(SyncResult.failure(errorMsg));
+               result.setBeneficiaryBalancesResult(SyncResult.failure(errorMsg));
+           }
+           
+           // STEP 9: Sync PayProp Files
+           log.info("📁 Step 9: Syncing PayProp files...");
+           result.setFilesResult(syncPayPropFiles(oAuthUser, initiatedBy));
+           
+           // STEP 10: Detect occupancy from tenancies
+           log.info("🏠 Step 10: Detecting occupancy...");
+           result.setOccupancyResult(detectOccupancyFromTenancies(initiatedBy));
+           
+           syncLogger.logSyncComplete("ENHANCED_UNIFIED_SYNC_WITH_FINANCIALS", result.isOverallSuccess(), result.getSummary());
            
        } catch (Exception e) {
-           syncLogger.logSyncError("ENHANCED_UNIFIED_SYNC", e);
+           log.error("❌ Enhanced unified sync failed: {}", e.getMessage(), e);
+           syncLogger.logSyncError("ENHANCED_UNIFIED_SYNC_WITH_FINANCIALS", e);
            result.setOverallError(e.getMessage());
        }
        
@@ -223,116 +271,6 @@ public class PayPropSyncOrchestrator {
        } catch (Exception e) {
            log.error("❌ Financial transactions sync failed: {}", e.getMessage());
            return SyncResult.failure("Financial transactions sync failed: " + e.getMessage());
-       }
-   }
-
-   /**
-    * ✅ DIAGNOSTIC: Log actual PayProp response structure before processing
-    */
-   private SyncResult syncBatchPayments(Long initiatedBy) {
-       try {
-           log.info("💳 Starting DIAGNOSTIC batch payments sync...");
-           
-           HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-           HttpEntity<String> request = new HttpEntity<>(headers);
-           
-           LocalDate toDate = LocalDate.now();
-           LocalDate fromDate = toDate.minusDays(90);
-           
-           String url = payPropApiBase + "/report/all-payments" +
-               "?from_date=" + fromDate +
-               "&to_date=" + toDate +
-               "&filter_by=reconciliation_date" +
-               "&include_beneficiary_info=true" +
-               "&rows=10"; // ✅ LIMIT to 10 for diagnostics
-           
-           ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-           Map<String, Object> responseBody = response.getBody();
-           List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
-           
-           log.info("📊 Found {} payments. FULL RESPONSE STRUCTURE:", payments.size());
-           log.info("🔍 Response keys: {}", responseBody.keySet());
-           
-           if (!payments.isEmpty()) {
-               Map<String, Object> firstPayment = payments.get(0);
-               log.info("🔍 FIRST PAYMENT STRUCTURE:");
-               log.info("   Payment keys: {}", firstPayment.keySet());
-               
-               // ✅ LOG EACH FIELD AND ITS TYPE
-               for (Map.Entry<String, Object> entry : firstPayment.entrySet()) {
-                   String key = entry.getKey();
-                   Object value = entry.getValue();
-                   String type = value != null ? value.getClass().getSimpleName() : "null";
-                   log.info("   {}: {} ({})", key, value, type);
-               }
-               
-               // ✅ SPECIFICALLY CHECK NESTED OBJECTS
-               Object paymentBatch = firstPayment.get("payment_batch");
-               if (paymentBatch != null) {
-                   log.info("🔍 PAYMENT_BATCH STRUCTURE:");
-                   if (paymentBatch instanceof Map) {
-                       Map<String, Object> batchMap = (Map<String, Object>) paymentBatch;
-                       for (Map.Entry<String, Object> entry : batchMap.entrySet()) {
-                           String key = entry.getKey();
-                           Object value = entry.getValue();
-                           String type = value != null ? value.getClass().getSimpleName() : "null";
-                           log.info("   batch.{}: {} ({})", key, value, type);
-                       }
-                   } else {
-                       log.info("   payment_batch is not a Map: {} ({})", paymentBatch, paymentBatch.getClass().getSimpleName());
-                   }
-               } else {
-                   log.info("   payment_batch is NULL");
-               }
-               
-               // ✅ CHECK PROPERTY STRUCTURE
-               Object property = firstPayment.get("property");
-               if (property != null) {
-                   log.info("🔍 PROPERTY STRUCTURE:");
-                   if (property instanceof Map) {
-                       Map<String, Object> propMap = (Map<String, Object>) property;
-                       for (Map.Entry<String, Object> entry : propMap.entrySet()) {
-                           String key = entry.getKey();
-                           Object value = entry.getValue();
-                           String type = value != null ? value.getClass().getSimpleName() : "null";
-                           log.info("   property.{}: {} ({})", key, value, type);
-                       }
-                   } else {
-                       log.info("   property is not a Map: {} ({})", property, property.getClass().getSimpleName());
-                   }
-               } else {
-                   log.info("   property is NULL");
-               }
-               
-               // ✅ CHECK BENEFICIARY STRUCTURE
-               Object beneficiary = firstPayment.get("beneficiary_info");
-               if (beneficiary != null) {
-                   log.info("🔍 BENEFICIARY_INFO STRUCTURE:");
-                   if (beneficiary instanceof Map) {
-                       Map<String, Object> benMap = (Map<String, Object>) beneficiary;
-                       for (Map.Entry<String, Object> entry : benMap.entrySet()) {
-                           String key = entry.getKey();
-                           Object value = entry.getValue();
-                           String type = value != null ? value.getClass().getSimpleName() : "null";
-                           log.info("   beneficiary.{}: {} ({})", key, value, type);
-                       }
-                   } else {
-                       log.info("   beneficiary_info is not a Map: {} ({})", beneficiary, beneficiary.getClass().getSimpleName());
-                   }
-               } else {
-                   log.info("   beneficiary_info is NULL");
-               }
-           }
-           
-           // ✅ DON'T PROCESS - JUST DIAGNOSE
-           return SyncResult.success("Diagnostic complete - check logs for structure", Map.of(
-               "total_payments", payments.size(),
-               "diagnostic_mode", true
-           ));
-           
-       } catch (Exception e) {
-           log.error("❌ Diagnostic batch payments sync failed: {}", e.getMessage(), e);
-           return SyncResult.failure("Diagnostic failed: " + e.getMessage());
        }
    }
 
