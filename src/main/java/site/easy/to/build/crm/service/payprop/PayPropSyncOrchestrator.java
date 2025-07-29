@@ -117,6 +117,24 @@ public class PayPropSyncOrchestrator {
        }
    }
 
+   // ===== PUBLIC API METHODS =====
+
+   /**
+    * Legacy method: Basic unified sync (for backward compatibility)
+    */
+   public UnifiedSyncResult performUnifiedSync(OAuthUser oAuthUser, Long initiatedBy) {
+       log.info("🔄 Legacy performUnifiedSync called - delegating to enhanced sync with financials");
+       return performEnhancedUnifiedSyncWithWorkingFinancials(oAuthUser, initiatedBy);
+   }
+
+   /**
+    * Legacy method: Enhanced unified sync (for backward compatibility)
+    */
+   public UnifiedSyncResult performEnhancedUnifiedSync(OAuthUser oAuthUser, Long initiatedBy) {
+       log.info("🔄 Legacy performEnhancedUnifiedSync called - delegating to enhanced sync with financials");
+       return performEnhancedUnifiedSyncWithWorkingFinancials(oAuthUser, initiatedBy);
+   }
+
    // ✅ 3. Fixed: Single comprehensive method with complete implementation
    /**
     * Enhanced unified sync with working financial integration
