@@ -1303,65 +1303,120 @@ public class PayPropFinancialSyncService {
 
     /**
      * Sync actual payments with batch information from /report/all-payments
+     * FIXED: Handles 93-day API limit by breaking into 90-day chunks
      */
     private Map<String, Object> syncBatchPayments() throws Exception {
-        logger.info("💰 Syncing batch payments from /report/all-payments...");
+        logger.info("💰 Syncing batch payments from /report/all-payments with 90-day chunks...");
         
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
-        int created = 0, updated = 0, batchesProcessed = 0;
-        LocalDate toDate = LocalDate.now();
-        LocalDate fromDate = toDate.minusMonths(3); // Last 3 months
+        int created = 0, updated = 0, batchesProcessed = 0, totalChunks = 0;
+        LocalDate endDate = LocalDate.now();
+        LocalDate absoluteStartDate = endDate.minusYears(2); // Go back 2 years
         
-        String url = payPropApiBase + "/report/all-payments" +
-            "?from_date=" + fromDate +
-            "&to_date=" + toDate +
-            "&filter_by=reconciliation_date" +
-            "&include_beneficiary_info=true" +
-            "&rows=1000";
+        logger.info("📅 Syncing batch payments from {} to {} in 90-day chunks", absoluteStartDate, endDate);
         
-        try {
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-            List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
-            
-            logger.info("📊 Found {} payments with batch data", payments.size());
-            
-            for (Map<String, Object> paymentData : payments) {
-                try {
-                    // Extract batch information
-                    Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
-                    if (paymentBatch != null) {
-                        String batchId = (String) paymentBatch.get("id");
-                        if (batchId != null) {
-                            // Process batch
-                            BatchPayment batch = processBatchPayment(paymentBatch, null);
-                            if (batch != null) {
-                                batchesProcessed++;
-                            }
-                        }
-                    }
-                    
-                    // Create financial transaction with batch link
-                    FinancialTransaction transaction = createFinancialTransactionFromReportData(paymentData);
-                    if (paymentBatch != null) {
-                        transaction.setPayPropBatchId((String) paymentBatch.get("id"));
-                    }
-                    financialTransactionRepository.save(transaction);
-                    created++;
-                    
-                } catch (Exception e) {
-                    logger.error("❌ Error processing payment: {}", e.getMessage());
-                }
+        // Process in 90-day chunks (3 days buffer for API limit)
+        while (endDate.isAfter(absoluteStartDate)) {
+            LocalDate startDate = endDate.minusDays(90);
+            if (startDate.isBefore(absoluteStartDate)) {
+                startDate = absoluteStartDate;
             }
             
-        } catch (Exception e) {
-            logger.error("❌ Failed to sync batch payments: {}", e.getMessage());
+            totalChunks++;
+            logger.info("📊 Processing chunk {}: {} to {}", totalChunks, startDate, endDate);
+            
+            String url = payPropApiBase + "/report/all-payments" +
+                "?from_date=" + startDate +
+                "&to_date=" + endDate +
+                "&filter_by=reconciliation_date" +
+                "&include_beneficiary_info=true" +
+                "&rows=1000";
+            
+            try {
+                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
+                
+                logger.info("📈 Chunk {}: Found {} payments from {} to {}", 
+                    totalChunks, payments.size(), startDate, endDate);
+                
+                Set<String> processedBatches = new HashSet<>();
+                
+                for (Map<String, Object> paymentData : payments) {
+                    try {
+                        // Extract and process batch information
+                        Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
+                        if (paymentBatch != null) {
+                            String batchId = (String) paymentBatch.get("id");
+                            if (batchId != null && !processedBatches.contains(batchId)) {
+                                // Process each unique batch only once per chunk
+                                BatchPayment batch = processBatchPayment(paymentBatch, null);
+                                if (batch != null) {
+                                    batchesProcessed++;
+                                    processedBatches.add(batchId);
+                                    logger.debug("✅ Processed batch: {} (£{})", 
+                                        batchId, paymentBatch.get("amount"));
+                                }
+                            }
+                        }
+                        
+                        // Create financial transaction with batch link
+                        FinancialTransaction transaction = createFinancialTransactionFromReportData(paymentData);
+                        if (transaction != null) {
+                            if (paymentBatch != null) {
+                                transaction.setPayPropBatchId((String) paymentBatch.get("id"));
+                            }
+                            
+                            // Check if transaction already exists to avoid duplicates
+                            String transactionId = (String) paymentData.get("id");
+                            if (!financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(
+                                    transactionId, "BATCH_PAYMENT")) {
+                                financialTransactionRepository.save(transaction);
+                                created++;
+                                logger.debug("✅ Created transaction: {} (£{})", 
+                                    transactionId, transaction.getAmount());
+                            } else {
+                                updated++;
+                                logger.debug("ℹ️ Transaction already exists: {}", transactionId);
+                            }
+                        }
+                        
+                    } catch (Exception e) {
+                        logger.error("❌ Error processing payment in chunk {}: {}", totalChunks, e.getMessage());
+                    }
+                }
+                
+                logger.info("✅ Chunk {} completed: {} payments, {} unique batches", 
+                    totalChunks, payments.size(), processedBatches.size());
+                
+            } catch (Exception e) {
+                logger.error("❌ Failed to process chunk {} ({} to {}): {}", 
+                    totalChunks, startDate, endDate, e.getMessage());
+                // Continue with next chunk instead of failing completely
+            }
+            
+            // Move to next chunk (go backwards in time)
+            endDate = startDate.minusDays(1);
+            
+            // Add small delay to avoid hitting rate limits
+            try {
+                Thread.sleep(100); // 100ms delay between API calls
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
         }
+        
+        logger.info("💰 Batch payments sync completed: {} chunks processed, {} transactions created, {} updated, {} batches processed", 
+            totalChunks, created, updated, batchesProcessed);
         
         return Map.of(
             "payments_created", created,
-            "batches_processed", batchesProcessed
+            "payments_updated", updated,
+            "batches_processed", batchesProcessed,
+            "chunks_processed", totalChunks,
+            "date_range", absoluteStartDate + " to " + LocalDate.now()
         );
     }
 
