@@ -467,194 +467,302 @@ public class PayPropFinancialSyncService {
         return Map.of("categories_processed", processed);
     }
     
+    /**
+     * ✅ FIXED ICDN SYNC: Apply same pagination and isolation fixes as batch payments
+     * Replace the syncFinancialTransactions() method in PayPropFinancialSyncService.java
+     */
+
     private Map<String, Object> syncFinancialTransactions() throws Exception {
-        logger.info("💰 Syncing financial transactions (ICDN) with multiple date ranges...");
+        logger.info("💰 Starting FIXED ICDN transactions sync with pagination and isolation...");
         
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
-        int created = 0, skipped = 0;
-        LocalDate endDate = LocalDate.now();
-        LocalDate absoluteStartDate = endDate.minusDays(180); // Only go back 6 months to avoid API limits
+        // Counters with detailed breakdown (same as batch payments)
+        int totalApiCalls = 0, totalChunks = 0, totalPagesProcessed = 0;
+        int successfulSaves = 0, skippedDuplicates = 0, skippedNegative = 0;
+        int skippedInvalidType = 0, skippedMissingData = 0, constraintViolations = 0;
+        int otherErrors = 0;
         
-        // Sync in 90-day chunks (3 days buffer for API limit)
+        // ✅ FIXED: Same date range as batch payments (2 years back)
+        LocalDate endDate = LocalDate.now().plusDays(7);
+        LocalDate absoluteStartDate = endDate.minusYears(2); // Same as batch payments
+        
+        logger.info("🔍 FIXED: Processing 14-day chunks from {} to {} (extended from 180 days)", 
+            absoluteStartDate, endDate);
+        
+        // ✅ FIXED: Same 14-day chunks as batch payments
         while (endDate.isAfter(absoluteStartDate)) {
-            LocalDate startDate = endDate.minusDays(90);
+            LocalDate startDate = endDate.minusDays(14); // Same chunk size as batch payments
             if (startDate.isBefore(absoluteStartDate)) {
                 startDate = absoluteStartDate;
             }
             
-            logger.info("📅 Syncing ICDN transactions from {} to {}", startDate, endDate);
+            totalChunks++;
+            logger.info("🔍 ICDN CHUNK {}: Processing {} to {}", totalChunks, startDate, endDate);
             
-            String url = payPropApiBase + "/report/icdn" +
-                "?from_date=" + startDate +
-                "&to_date=" + endDate +
-                "&rows=1000";
+            // ✅ NEW: Add pagination loop (was missing!)
+            int page = 1;
+            int chunkTransactions = 0;
+            
+            while (true) {
+                String url = payPropApiBase + "/report/icdn" +
+                    "?from_date=" + startDate +
+                    "&to_date=" + endDate +
+                    "&page=" + page +           // ✅ NEW: Add pagination
+                    "&rows=25";                 // ✅ FIXED: Use PayProp's actual limit
                 
-            try {
-                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-                List<Map<String, Object>> transactions = (List<Map<String, Object>>) response.getBody().get("items");
+                logger.info("📞 ICDN API Call {}: Chunk {} Page {}", totalApiCalls + 1, totalChunks, page);
                 
-                logger.info("📊 Found {} transactions in period {} to {}", transactions.size(), startDate, endDate);
-                
-                for (Map<String, Object> ppTransaction : transactions) {
-                    try {
-                        String payPropId = (String) ppTransaction.get("id");
-                        
-                        // Skip if missing essential data
-                        if (payPropId == null || payPropId.trim().isEmpty()) {
-                            logger.warn("⚠️ Skipping transaction with missing PayProp ID");
-                            skipped++;
-                            continue;
-                        }
-                        
-                        // Check if transaction already exists
-                        if (financialTransactionRepository.existsByPayPropTransactionId(payPropId)) {
-                            skipped++;
-                            continue;
-                        }
-                        
-                        // Create new transaction
-                        FinancialTransaction transaction = new FinancialTransaction();
-                        transaction.setPayPropTransactionId(payPropId);
-                        transaction.setDataSource("ICDN_ACTUAL");  // Mark as ICDN data
-                        transaction.setIsActualTransaction(true);
-                        transaction.setIsInstruction(false);
-                        
-                        // Handle amount (REQUIRED FIELD)
-                        Object amount = ppTransaction.get("amount");
-                        if (amount != null) {
-                            try {
-                                BigDecimal amountValue = new BigDecimal(amount.toString());
-                                if (amountValue.compareTo(BigDecimal.ZERO) >= 0) {
-                                    transaction.setAmount(amountValue);
-                                } else {
-                                    logger.warn("⚠️ Negative amount {} for transaction {}, skipping", amount, payPropId);
-                                    skipped++;
-                                    continue;
-                                }
-                            } catch (NumberFormatException e) {
-                                logger.warn("⚠️ Invalid amount format '{}' for transaction {}, skipping", amount, payPropId);
-                                skipped++;
-                                continue;
-                            }
-                        } else {
-                            logger.warn("⚠️ Missing amount for transaction {}, skipping", payPropId);
-                            skipped++;
-                            continue;
-                        }
-                        
-                        // Handle matched amount (optional)
-                        Object matchedAmount = ppTransaction.get("matched_amount");
-                        if (matchedAmount instanceof String && !((String) matchedAmount).isEmpty()) {
-                            try {
-                                transaction.setMatchedAmount(new BigDecimal((String) matchedAmount));
-                            } catch (NumberFormatException e) {
-                                logger.warn("⚠️ Invalid matched_amount format '{}' for transaction {}", matchedAmount, payPropId);
-                            }
-                        }
-                        
-                        // Handle date (REQUIRED FIELD)
-                        String dateStr = (String) ppTransaction.get("date");
-                        if (dateStr != null && !dateStr.trim().isEmpty()) {
-                            try {
-                                transaction.setTransactionDate(LocalDate.parse(dateStr));
-                            } catch (Exception e) {
-                                logger.warn("⚠️ Invalid date format '{}' for transaction {}, skipping", dateStr, payPropId);
-                                skipped++;
-                                continue;
-                            }
-                        } else {
-                            logger.warn("⚠️ Missing transaction date for transaction {}, skipping", payPropId);
-                            skipped++;
-                            continue;
-                        }
-                        
-                        // Set transaction type
-                        String transactionType = (String) ppTransaction.get("type");
-                        if (transactionType != null) {
-                            String normalizedType = transactionType.toLowerCase().replace(" ", "_");
-                            if (Arrays.asList("invoice", "credit_note", "debit_note").contains(normalizedType)) {
-                                transaction.setTransactionType(normalizedType);
-                            } else {
-                                logger.warn("⚠️ Invalid transaction type '{}' for transaction {}, skipping", transactionType, payPropId);
-                                skipped++;
-                                continue;
-                            }
-                        } else {
-                            logger.warn("⚠️ Missing transaction type for transaction {}, skipping", payPropId);
-                            skipped++;
-                            continue;
-                        }
-                        
-                        // Set optional fields
-                        transaction.setDescription((String) ppTransaction.get("description"));
-                        transaction.setHasTax((Boolean) ppTransaction.getOrDefault("has_tax", false));
-                        transaction.setDepositId((String) ppTransaction.get("deposit_id"));
-                        
-                        // Tax amount (optional)
-                        Object taxAmount = ppTransaction.get("tax_amount");
-                        if (taxAmount instanceof String && !((String) taxAmount).isEmpty()) {
-                            try {
-                                transaction.setTaxAmount(new BigDecimal((String) taxAmount));
-                            } catch (NumberFormatException e) {
-                                transaction.setTaxAmount(BigDecimal.ZERO);
-                            }
-                        }
-                        
-                        // Property info
-                        Map<String, Object> property = (Map<String, Object>) ppTransaction.get("property");
-                        if (property != null) {
-                            transaction.setPropertyId((String) property.get("id"));        // ✅ This should work now
-                            transaction.setPropertyName((String) property.get("name"));    // ✅ This works
-                        }
-                        
-                        // Tenant info
-                        Map<String, Object> tenant = (Map<String, Object>) ppTransaction.get("tenant");
-                        if (tenant != null) {
-                            transaction.setTenantId((String) tenant.get("id"));
-                            transaction.setTenantName((String) tenant.get("name"));
-                        }
-                        
-                        // Category info
-                        Map<String, Object> category = (Map<String, Object>) ppTransaction.get("category");
-                        if (category != null) {
-                            transaction.setCategoryId((String) category.get("id"));
-                            transaction.setCategoryName((String) category.get("name"));
-                        }
-                        
-                        transaction.setCreatedAt(LocalDateTime.now());
-                        transaction.setUpdatedAt(LocalDateTime.now());
-                        
-                        financialTransactionRepository.save(transaction);
-                        created++;
-                        
-                        logger.debug("✅ Created financial transaction: {} (£{})", payPropId, transaction.getAmount());
-                        
-                    } catch (Exception e) {
-                        logger.error("❌ Error processing transaction: {}", e.getMessage(), e);
-                        skipped++;
+                try {
+                    // ✅ Rate limiting (same as batch payments)
+                    if (totalApiCalls > 0) {
+                        Thread.sleep(250);
                     }
+                    
+                    ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                    totalApiCalls++;
+                    
+                    Map<String, Object> responseBody = response.getBody();
+                    List<Map<String, Object>> transactions = (List<Map<String, Object>>) responseBody.get("items");
+                    
+                    if (transactions.isEmpty()) {
+                        logger.info("📄 No ICDN transactions on page {} for chunk {}", page, totalChunks);
+                        break;
+                    }
+                    
+                    logger.info("📊 Processing {} ICDN transactions on page {} of chunk {}", 
+                        transactions.size(), page, totalChunks);
+                    
+                    // ✅ ISOLATED PROCESSING: Each transaction processed independently  
+                    for (Map<String, Object> ppTransaction : transactions) {
+                        try {
+                            FinancialTransaction transaction = createICDNFinancialTransactionSafe(ppTransaction);
+                            if (transaction != null) {
+                                // ✅ ISOLATED SAVE: Each save in its own transaction
+                                boolean saved = saveFinancialTransactionIsolated(transaction);
+                                if (saved) {
+                                    successfulSaves++;
+                                } else {
+                                    // Categorize the failure reason
+                                    if (transaction.getAmount() != null && transaction.getAmount().compareTo(BigDecimal.ZERO) < 0) {
+                                        skippedNegative++;
+                                    } else if (financialTransactionRepository.existsByPayPropTransactionId(transaction.getPayPropTransactionId())) {
+                                        skippedDuplicates++;
+                                    } else if (!isValidTransactionType(transaction.getTransactionType())) {
+                                        skippedInvalidType++;
+                                    } else {
+                                        skippedMissingData++;
+                                    }
+                                }
+                            } else {
+                                skippedMissingData++;
+                            }
+                            
+                            chunkTransactions++;
+                            
+                        } catch (Exception e) {
+                            otherErrors++;
+                            logger.error("❌ Error processing ICDN transaction: {}", e.getMessage());
+                        }
+                    }
+                    
+                    // ✅ NEW: Check pagination (same logic as batch payments)
+                    Map<String, Object> pagination = (Map<String, Object>) responseBody.get("pagination");
+                    if (pagination != null) {
+                        Integer currentPage = (Integer) pagination.get("page");
+                        Integer totalPages = (Integer) pagination.get("total_pages");
+                        
+                        if (currentPage != null && totalPages != null && currentPage >= totalPages) {
+                            logger.info("📄 Reached last ICDN page ({}) for chunk {}", totalPages, totalChunks);
+                            break;
+                        }
+                    } else if (transactions.size() < 25) {
+                        logger.info("📄 Got {} ICDN transactions (< 25), last page for chunk {}", 
+                            transactions.size(), totalChunks);
+                        break;
+                    }
+                    
+                    page++;
+                    totalPagesProcessed++;
+                    
+                    if (page > 50) { // Safety break
+                        logger.warn("⚠️ Safety break: ICDN page 50 reached for chunk {}", totalChunks);
+                        break;
+                    }
+                    
+                } catch (Exception e) {
+                    logger.error("❌ ICDN API call failed for chunk {} page {}: {}", totalChunks, page, e.getMessage());
+                    if (e.getMessage().contains("429")) {
+                        Thread.sleep(30000); // Wait for rate limit
+                        continue;
+                    }
+                    break;
                 }
-                
-            } catch (Exception e) {
-                logger.error("❌ Failed to sync period {} to {}: {}", startDate, endDate, e.getMessage());
             }
             
-            // Move to next period
+            logger.info("✅ ICDN Chunk {} completed: {} transactions processed", totalChunks, chunkTransactions);
             endDate = startDate.minusDays(1);
         }
         
-        logger.info("💰 Financial transactions sync completed: {} created, {} skipped", created, skipped);
+        // ✅ COMPREHENSIVE REPORTING (same as batch payments)
+        logger.info("💰 ICDN TRANSACTIONS SYNC COMPLETED:");
+        logger.info("📊 Total API calls: {}", totalApiCalls);
+        logger.info("📊 Chunks processed: {}", totalChunks);
+        logger.info("📊 Pages processed: {}", totalPagesProcessed);
+        logger.info("✅ Successful saves: {}", successfulSaves);
+        logger.info("⏭️ Skipped duplicates: {}", skippedDuplicates);
+        logger.info("⚠️ Skipped negative amounts: {}", skippedNegative);
+        logger.info("⚠️ Skipped invalid types: {}", skippedInvalidType);
+        logger.info("⚠️ Skipped missing data: {}", skippedMissingData);
+        logger.info("❌ Constraint violations: {}", constraintViolations);
+        logger.info("❌ Other errors: {}", otherErrors);
         
-        return Map.of(
-            "total_processed", created + skipped,
-            "created", created,
-            "skipped_existing", skipped,
-            "date_range", absoluteStartDate + " to " + LocalDate.now()
-        );
+        // In the batch payments method, replace Map.of() with:
+        Map<String, Object> result = new HashMap<>();
+        result.put("payments_created", successfulSaves);
+        result.put("skipped_duplicates", skippedDuplicates);
+        result.put("skipped_negative", skippedNegative);
+        result.put("skipped_invalid_type", skippedInvalidType);
+        result.put("skipped_missing_data", skippedMissingData);
+        result.put("constraint_violations", constraintViolations);
+        result.put("other_errors", otherErrors);
+        result.put("total_processed", successfulSaves + skippedDuplicates + skippedNegative + skippedInvalidType + skippedMissingData + constraintViolations + otherErrors);
+        result.put("api_calls", totalApiCalls);
+        result.put("chunks_processed", totalChunks);
+        return result;
     }
-    
+
+    /**
+     * ✅ NEW: Safe ICDN transaction creation with proper validation
+     * Add this method to PayPropFinancialSyncService.java
+     */
+    private FinancialTransaction createICDNFinancialTransactionSafe(Map<String, Object> ppTransaction) {
+        try {
+            String payPropId = (String) ppTransaction.get("id");
+            
+            // Validate essential fields
+            if (payPropId == null || payPropId.trim().isEmpty()) {
+                logger.warn("⚠️ ICDN: Missing PayProp ID");
+                return null;
+            }
+            
+            // Check amount
+            Object amount = ppTransaction.get("amount");
+            if (amount == null) {
+                logger.warn("⚠️ ICDN: Missing amount for transaction {}", payPropId);
+                return null;
+            }
+            
+            BigDecimal amountValue;
+            try {
+                amountValue = new BigDecimal(amount.toString());
+                if (amountValue.compareTo(BigDecimal.ZERO) < 0) {
+                    logger.warn("⚠️ ICDN: Negative amount £{} for transaction {}", amountValue, payPropId);
+                    return null;
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("⚠️ ICDN: Invalid amount format '{}' for transaction {}", amount, payPropId);
+                return null;
+            }
+            
+            // Check date
+            String dateStr = (String) ppTransaction.get("date");
+            LocalDate transactionDate;
+            if (dateStr != null && !dateStr.trim().isEmpty()) {
+                try {
+                    transactionDate = LocalDate.parse(dateStr);
+                } catch (Exception e) {
+                    logger.warn("⚠️ ICDN: Invalid date format '{}' for transaction {}", dateStr, payPropId);
+                    return null;
+                }
+            } else {
+                logger.warn("⚠️ ICDN: Missing transaction date for transaction {}", payPropId);
+                return null;
+            }
+            
+            // Validate transaction type
+            String transactionType = (String) ppTransaction.get("type");
+            if (transactionType != null) {
+                String normalizedType = transactionType.toLowerCase().replace(" ", "_");
+                if (!Arrays.asList("invoice", "credit_note", "debit_note").contains(normalizedType)) {
+                    logger.warn("⚠️ ICDN: Invalid transaction type '{}' for transaction {}", transactionType, payPropId);
+                    return null;
+                }
+                transactionType = normalizedType;
+            } else {
+                logger.warn("⚠️ ICDN: Missing transaction type for transaction {}", payPropId);
+                return null;
+            }
+            
+            // Create transaction
+            FinancialTransaction transaction = new FinancialTransaction();
+            transaction.setPayPropTransactionId(payPropId);
+            transaction.setDataSource("ICDN_ACTUAL");
+            transaction.setIsActualTransaction(true);
+            transaction.setIsInstruction(false);
+            
+            transaction.setAmount(amountValue);
+            transaction.setTransactionDate(transactionDate);
+            transaction.setTransactionType(transactionType);
+            
+            // Optional fields with safe extraction
+            transaction.setDescription((String) ppTransaction.get("description"));
+            transaction.setHasTax((Boolean) ppTransaction.getOrDefault("has_tax", false));
+            transaction.setDepositId((String) ppTransaction.get("deposit_id"));
+            
+            // Matched amount (optional)
+            Object matchedAmount = ppTransaction.get("matched_amount");
+            if (matchedAmount instanceof String && !((String) matchedAmount).isEmpty()) {
+                try {
+                    transaction.setMatchedAmount(new BigDecimal((String) matchedAmount));
+                } catch (NumberFormatException e) {
+                    // Ignore invalid matched amounts
+                }
+            }
+            
+            // Tax amount (optional)
+            Object taxAmount = ppTransaction.get("tax_amount");
+            if (taxAmount instanceof String && !((String) taxAmount).isEmpty()) {
+                try {
+                    transaction.setTaxAmount(new BigDecimal((String) taxAmount));
+                } catch (NumberFormatException e) {
+                    transaction.setTaxAmount(BigDecimal.ZERO);
+                }
+            }
+            
+            // Property info (safe nested extraction)
+            Map<String, Object> property = (Map<String, Object>) ppTransaction.get("property");
+            if (property != null) {
+                transaction.setPropertyId((String) property.get("id"));
+                transaction.setPropertyName((String) property.get("name"));
+            }
+            
+            // Tenant info (safe nested extraction)
+            Map<String, Object> tenant = (Map<String, Object>) ppTransaction.get("tenant");
+            if (tenant != null) {
+                transaction.setTenantId((String) tenant.get("id"));
+                transaction.setTenantName((String) tenant.get("name"));
+            }
+            
+            // Category info (safe nested extraction)
+            Map<String, Object> category = (Map<String, Object>) ppTransaction.get("category");
+            if (category != null) {
+                transaction.setCategoryId((String) category.get("id"));
+                transaction.setCategoryName((String) category.get("name"));
+            }
+            
+            // Audit fields
+            transaction.setCreatedAt(LocalDateTime.now());
+            transaction.setUpdatedAt(LocalDateTime.now());
+            
+            return transaction;
+            
+        } catch (Exception e) {
+            logger.error("❌ Error creating ICDN financial transaction: {}", e.getMessage(), e);
+            return null;
+        }
+    }
     /**
      * ✅ FAST: Get commission rates from PayProp and calculate commission
      */
@@ -1301,11 +1409,6 @@ public class PayPropFinancialSyncService {
         return result;
     }
 
-    /**
-     * ✅ CRITICAL FIX: Transaction isolation with comprehensive error handling
-     * Replace these methods in your PayPropFinancialSyncService.java
-     */
-
     // 1. ADD this new isolated save method
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean saveFinancialTransactionIsolated(FinancialTransaction transaction) {
@@ -1387,7 +1490,7 @@ public class PayPropFinancialSyncService {
         return validTypes.contains(transactionType);
     }
 
-    // 3. REPLACE the main syncBatchPayments method with this isolated version
+
     private Map<String, Object> syncBatchPayments() throws Exception {
         logger.info("💰 Starting ISOLATED batch payments sync...");
         
