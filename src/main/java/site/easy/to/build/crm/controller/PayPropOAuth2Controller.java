@@ -927,6 +927,192 @@ public class PayPropOAuth2Controller {
         }
     }
 
+    @PostMapping("/test-sync-single-property-with-save")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testSyncSinglePropertyWithSave(
+            @RequestBody Map<String, String> requestBody,
+            Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            String propertyId = requestBody.getOrDefault("propertyId", "K3Jwqg8W1E");
+            String fromDate = requestBody.getOrDefault("fromDate", "2025-04-01");
+            String toDate = requestBody.getOrDefault("toDate", "2025-07-01");
+            boolean actuallySync = Boolean.parseBoolean(requestBody.getOrDefault("actuallySync", "false"));
+            
+            log.info("🔍 SYNC WITH SAVE TEST: property {} ({} to {}) - actuallySync: {}", 
+                propertyId, fromDate, toDate, actuallySync);
+            
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> httpRequest = new HttpEntity<>(headers);
+            
+            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
+                "?from_date=" + fromDate +
+                "&to_date=" + toDate +
+                "&filter_by=reconciliation_date" +
+                "&include_beneficiary_info=true" +
+                "&rows=1000&property_id=" + propertyId;
+            
+            log.info("📞 API URL: {}", url);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, httpRequest, Map.class);
+            List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
+            
+            log.info("📈 Found {} payments", payments.size());
+            
+            result.put("api_response", Map.of(
+                "payments_found", payments.size(),
+                "actually_sync", actuallySync
+            ));
+            
+            if (payments.isEmpty()) {
+                result.put("conclusion", "NO PAYMENTS FOUND");
+                return ResponseEntity.ok(result);
+            }
+            
+            // Process and optionally save
+            List<Map<String, Object>> processingResults = new ArrayList<>();
+            int created = 0, failed = 0, skipped = 0;
+            
+            for (Map<String, Object> paymentData : payments) {
+                Map<String, Object> processingResult = new HashMap<>();
+                
+                try {
+                    String transactionId = (String) paymentData.get("id");
+                    Object amountObj = paymentData.get("amount");
+                    
+                    processingResult.put("transaction_id", transactionId);
+                    processingResult.put("amount", amountObj);
+                    
+                    // Check if already exists
+                    boolean exists = financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(
+                        transactionId, "BATCH_PAYMENT");
+                    
+                    if (exists) {
+                        processingResult.put("status", "SKIPPED - Already exists");
+                        skipped++;
+                        processingResults.add(processingResult);
+                        continue;
+                    }
+                    
+                    // Create transaction
+                    FinancialTransaction transaction = new FinancialTransaction();
+                    transaction.setPayPropTransactionId(transactionId);
+                    transaction.setDataSource("BATCH_PAYMENT");
+                    transaction.setIsActualTransaction(true);
+                    transaction.setIsInstruction(false);
+                    
+                    // Set amount
+                    if (amountObj != null) {
+                        transaction.setAmount(new BigDecimal(amountObj.toString()));
+                    } else {
+                        processingResult.put("status", "FAILED - No amount");
+                        failed++;
+                        processingResults.add(processingResult);
+                        continue;
+                    }
+                    
+                    // Set date
+                    String dueDate = (String) paymentData.get("due_date");
+                    if (dueDate != null) {
+                        transaction.setTransactionDate(LocalDate.parse(dueDate));
+                    } else {
+                        processingResult.put("status", "FAILED - No due_date");
+                        failed++;
+                        processingResults.add(processingResult);
+                        continue;
+                    }
+                    
+                    // Set property info
+                    Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
+                    if (incomingTransaction != null) {
+                        Map<String, Object> property = (Map<String, Object>) incomingTransaction.get("property");
+                        if (property != null) {
+                            transaction.setPropertyId((String) property.get("id"));
+                            transaction.setPropertyName((String) property.get("name"));
+                        }
+                    }
+                    
+                    // Set batch ID
+                    Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
+                    if (paymentBatch != null) {
+                        transaction.setPayPropBatchId((String) paymentBatch.get("id"));
+                    }
+                    
+                    // Set beneficiary info as description
+                    Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
+                    if (beneficiary != null) {
+                        String beneficiaryName = (String) beneficiary.get("name");
+                        String beneficiaryType = (String) beneficiary.get("type");
+                        transaction.setDescription("Beneficiary: " + beneficiaryName + " (" + beneficiaryType + ")");
+                    }
+                    
+                    // Set transaction type
+                    transaction.setTransactionType("payment_to_beneficiary");
+                    
+                    // Set timestamps
+                    transaction.setCreatedAt(LocalDateTime.now());
+                    transaction.setUpdatedAt(LocalDateTime.now());
+                    
+                    // SAVE OR JUST TEST
+                    if (actuallySync) {
+                        try {
+                            financialTransactionRepository.save(transaction);
+                            processingResult.put("status", "CREATED AND SAVED");
+                            created++;
+                            log.info("✅ SAVED: {} - £{} to {}", transactionId, transaction.getAmount(), 
+                                beneficiary != null ? beneficiary.get("name") : "Unknown");
+                        } catch (Exception saveError) {
+                            processingResult.put("status", "SAVE FAILED");
+                            processingResult.put("save_error", saveError.getMessage());
+                            failed++;
+                            log.error("❌ SAVE FAILED for {}: {}", transactionId, saveError.getMessage());
+                        }
+                    } else {
+                        processingResult.put("status", "WOULD CREATE (not saved)");
+                        created++;
+                    }
+                    
+                    processingResult.put("final_transaction", Map.of(
+                        "amount", transaction.getAmount(),
+                        "property_name", transaction.getPropertyName(),
+                        "batch_id", transaction.getPayPropBatchId(),
+                        "transaction_type", transaction.getTransactionType(),
+                        "data_source", transaction.getDataSource()
+                    ));
+                    
+                } catch (Exception e) {
+                    processingResult.put("status", "ERROR");
+                    processingResult.put("error", e.getMessage());
+                    failed++;
+                    log.error("❌ Processing error: {}", e.getMessage());
+                }
+                
+                processingResults.add(processingResult);
+            }
+            
+            result.put("summary", Map.of(
+                "payments_processed", payments.size(),
+                "created", created,
+                "failed", failed,
+                "skipped", skipped
+            ));
+            
+            result.put("detailed_results", processingResults);
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            log.error("❌ Test failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @PostMapping("/test-detailed-transactions")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> testDetailedTransactions(Authentication authentication) {
