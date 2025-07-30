@@ -734,6 +734,51 @@ public class PayPropOAuth2Controller {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/test-detailed-transactions")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testDetailedTransactions(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            // Test with your specific property that has the transaction data
+            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
+                "?property_id=K3Jwqg8W1E" +  // Your Croydon property
+                "&from_date=2025-04-01" +
+                "&to_date=2025-07-01" +
+                "&filter_by=reconciliation_date" +
+                "&include_beneficiary_info=true" +
+                "&rows=10";
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            if (response.getBody() != null) {
+                List<Map<String, Object>> items = (List<Map<String, Object>>) response.getBody().get("items");
+                
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "total_items", items.size(),
+                    "sample_transaction", items.isEmpty() ? "No data" : items.get(0),
+                    "all_fields", items.isEmpty() ? "No data" : items.get(0).keySet(),
+                    "commission_fields", items.isEmpty() ? "No data" : 
+                        items.get(0).keySet().stream()
+                            .filter(key -> key.toString().toLowerCase().contains("commission"))
+                            .collect(Collectors.toList()),
+                    "full_response", response.getBody()
+                ));
+            }
+            
+            return ResponseEntity.ok(Map.of("error", "No response body"));
+            
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping("/test-field-locations")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> testFieldLocations(Authentication authentication) {
