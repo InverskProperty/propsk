@@ -1549,15 +1549,17 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * ✅ COMPLETE: Enhanced transaction type mapping with all helper methods
+     * ✅ FIXED: Enhanced transaction type mapping with safe type casting
      * Replace in your PayPropFinancialSyncService.java
      */
     private String determineTransactionTypeFromPayPropData(Map<String, Object> paymentData) {
         try {
-            // Get PayProp data
+            // Get PayProp data with safe casting
             Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
             String beneficiaryType = beneficiary != null ? (String) beneficiary.get("type") : null;
-            String category = (String) paymentData.get("category");
+            
+            // ✅ FIXED: Safe category extraction (handles both String and Map)
+            String category = extractCategorySafely(paymentData);
             
             // Rule 1: Check for deposit-related transactions
             if (isDepositRelated(paymentData)) {
@@ -1631,7 +1633,55 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * ✅ NEW: Helper method to detect deposit-related transactions
+     * ✅ NEW: Safe category extraction - handles both String and Map objects
+     */
+    private String extractCategorySafely(Map<String, Object> paymentData) {
+        try {
+            Object categoryObj = paymentData.get("category");
+            
+            if (categoryObj == null) {
+                return null;
+            }
+            
+            // If it's already a String, return it
+            if (categoryObj instanceof String) {
+                return (String) categoryObj;
+            }
+            
+            // If it's a Map (LinkedHashMap), extract the name or id field
+            if (categoryObj instanceof Map) {
+                Map<String, Object> categoryMap = (Map<String, Object>) categoryObj;
+                
+                // Try common field names for category
+                String name = (String) categoryMap.get("name");
+                if (name != null) {
+                    logger.debug("Extracted category name from Map: {}", name);
+                    return name;
+                }
+                
+                String id = (String) categoryMap.get("id");
+                if (id != null) {
+                    logger.debug("Extracted category id from Map: {}", id);
+                    return id;
+                }
+                
+                // Log the structure for debugging
+                logger.debug("Category Map structure: {}", categoryMap.keySet());
+                return categoryMap.toString(); // Fallback
+            }
+            
+            // For any other type, convert to string
+            logger.debug("Category is {} type, converting to string", categoryObj.getClass().getSimpleName());
+            return categoryObj.toString();
+            
+        } catch (Exception e) {
+            logger.error("Error extracting category: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * ✅ FIXED: Helper method to detect deposit-related transactions with safe casting
      */
     private boolean isDepositRelated(Map<String, Object> paymentData) {
         try {
@@ -1644,8 +1694,8 @@ public class PayPropFinancialSyncService {
                 }
             }
             
-            // Check category for deposit keywords
-            String category = (String) paymentData.get("category");
+            // Check category for deposit keywords (using safe extraction)
+            String category = extractCategorySafely(paymentData);
             if (category != null) {
                 String lowerCategory = category.toLowerCase();
                 return lowerCategory.contains("deposit") || 
@@ -1671,7 +1721,7 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * ✅ NEW: Helper method to detect maintenance/contractor payments
+     * ✅ UNCHANGED: Helper method to detect maintenance/contractor payments
      */
     private boolean isMaintenancePayment(String category) {
         if (category == null) return false;
