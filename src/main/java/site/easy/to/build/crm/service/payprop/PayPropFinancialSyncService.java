@@ -1681,35 +1681,54 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * ✅ FIXED: Helper method to detect deposit-related transactions with safe casting
+     * ✅ FIXED: Helper method to detect deposit-related transactions
+     * Now checks category first, then deposit_id as secondary indicator
      */
     private boolean isDepositRelated(Map<String, Object> paymentData) {
         try {
-            // Check for deposit ID in incoming transaction
-            Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
-            if (incomingTransaction != null) {
-                String depositId = (String) incomingTransaction.get("deposit_id");
-                if (depositId != null && !depositId.trim().isEmpty()) {
+            // Rule 1: Check category for deposit keywords FIRST (most reliable)
+            String category = extractCategorySafely(paymentData);
+            if (category != null) {
+                String lowerCategory = category.toLowerCase();
+                boolean isCategoryDeposit = lowerCategory.contains("deposit") || 
+                                        lowerCategory.contains("security") ||
+                                        lowerCategory.contains("bond");
+                
+                if (isCategoryDeposit) {
+                    logger.debug("Detected deposit via category: {}", category);
                     return true;
                 }
             }
             
-            // Check category for deposit keywords (using safe extraction)
-            String category = extractCategorySafely(paymentData);
-            if (category != null) {
-                String lowerCategory = category.toLowerCase();
-                return lowerCategory.contains("deposit") || 
-                    lowerCategory.contains("security") ||
-                    lowerCategory.contains("bond");
-            }
-            
-            // Check description for deposit keywords
+            // Rule 2: Check description for deposit keywords
             String description = (String) paymentData.get("description");
             if (description != null) {
                 String lowerDescription = description.toLowerCase();
-                return lowerDescription.contains("deposit") || 
-                    lowerDescription.contains("security") ||
-                    lowerDescription.contains("bond");
+                boolean isDescriptionDeposit = lowerDescription.contains("deposit") || 
+                                            lowerDescription.contains("security") ||
+                                            lowerDescription.contains("bond");
+                
+                if (isDescriptionDeposit) {
+                    logger.debug("Detected deposit via description: {}", description);
+                    return true;
+                }
+            }
+            
+            // Rule 3: ONLY check deposit_id if category/description suggest it's a deposit
+            // (Don't use deposit_id alone as it might be present on all transactions)
+            Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
+            if (incomingTransaction != null && (category != null || description != null)) {
+                String depositId = (String) incomingTransaction.get("deposit_id");
+                if (depositId != null && !depositId.trim().isEmpty()) {
+                    // Only return true if we ALSO have deposit indicators in text
+                    boolean hasDepositText = (category != null && category.toLowerCase().contains("deposit")) ||
+                                            (description != null && description.toLowerCase().contains("deposit"));
+                    
+                    if (hasDepositText) {
+                        logger.debug("Confirmed deposit via deposit_id: {} with text indicators", depositId);
+                        return true;
+                    }
+                }
             }
             
             return false;
