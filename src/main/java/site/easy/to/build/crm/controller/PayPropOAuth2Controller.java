@@ -602,6 +602,70 @@ public class PayPropOAuth2Controller {
         }
     }
 
+    @PostMapping("/test-commission-data-sources")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testCommissionDataSources(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> results = new HashMap<>();
+        
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
+            
+            // Test 1: Properties with commission data
+            String propertiesUrl = baseUrl + "/export/properties?include_commission=true&rows=3";
+            ResponseEntity<Map> propertiesResponse = restTemplate.exchange(propertiesUrl, HttpMethod.GET, request, Map.class);
+            List<Map<String, Object>> properties = (List<Map<String, Object>>) propertiesResponse.getBody().get("items");
+            
+            results.put("properties_commission", Map.of(
+                "count", properties.size(),
+                "sample_property", properties.isEmpty() ? "No data" : properties.get(0),
+                "commission_fields_found", properties.isEmpty() ? "No data" : 
+                    properties.get(0).keySet().stream()
+                        .filter(key -> key.toString().toLowerCase().contains("commission"))
+                        .collect(Collectors.toList())
+            ));
+            
+            // Test 2: All-payments report (check for commission fields)
+            LocalDate fromDate = LocalDate.now().minusMonths(1);
+            String paymentsUrl = baseUrl + "/report/all-payments?from_date=" + fromDate + "&rows=3&include_beneficiary_info=true";
+            ResponseEntity<Map> paymentsResponse = restTemplate.exchange(paymentsUrl, HttpMethod.GET, request, Map.class);
+            List<Map<String, Object>> payments = (List<Map<String, Object>>) paymentsResponse.getBody().get("items");
+            
+            results.put("all_payments_commission", Map.of(
+                "count", payments.size(),
+                "sample_payment", payments.isEmpty() ? "No data" : payments.get(0),
+                "commission_fields_found", payments.isEmpty() ? "No data" :
+                    payments.get(0).keySet().stream()
+                        .filter(key -> key.toString().toLowerCase().contains("commission"))
+                        .collect(Collectors.toList())
+            ));
+            
+            // Test 3: ICDN report (check for commission fields)
+            String icdnUrl = baseUrl + "/report/icdn?from_date=" + fromDate + "&rows=3";
+            ResponseEntity<Map> icdnResponse = restTemplate.exchange(icdnUrl, HttpMethod.GET, request, Map.class);
+            List<Map<String, Object>> transactions = (List<Map<String, Object>>) icdnResponse.getBody().get("items");
+            
+            results.put("icdn_commission", Map.of(
+                "count", transactions.size(),
+                "sample_transaction", transactions.isEmpty() ? "No data" : transactions.get(0),
+                "commission_fields_found", transactions.isEmpty() ? "No data" :
+                    transactions.get(0).keySet().stream()
+                        .filter(key -> key.toString().toLowerCase().contains("commission"))
+                        .collect(Collectors.toList())
+            ));
+            
+            return ResponseEntity.ok(results);
+            
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
     /**
      * Test available payment endpoints with current scopes
      */
