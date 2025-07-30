@@ -1300,134 +1300,177 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * Sync actual payments with batch information from /report/all-payments
-     * FIXED: Handles 93-day API limit by breaking into 90-day chunks
+     * ✅ FIXED: Sync batch payments with proper pagination and rate limiting
+     * Handles PayProp's 25-record pagination limit and 5 req/sec rate limit
      */
     private Map<String, Object> syncBatchPayments() throws Exception {
-        logger.info("💰 Syncing batch payments from /report/all-payments with 90-day chunks...");
+        logger.info("💰 Starting batch payments sync with FIXED pagination...");
         
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
-        int created = 0, updated = 0, batchesProcessed = 0, totalChunks = 0;
-        LocalDate endDate = LocalDate.now().plusDays(30);  // FIXED: Go 30 days into future to catch all data
-        LocalDate absoluteStartDate = endDate.minusYears(2); // Go back 2 years from the extended end date
+        int created = 0, updated = 0, batchesProcessed = 0, totalChunks = 0, totalApiCalls = 0;
         
-        logger.info("🔍 FIXED DATE RANGE: Syncing from {} to {} (covers future-dated transactions)", absoluteStartDate, endDate);
-        logger.info("📅 Syncing batch payments from {} to {} in 90-day chunks", absoluteStartDate, endDate);
+        // ✅ FIXED: Reduced chunk size from 90 to 30 days
+        LocalDate endDate = LocalDate.now().plusDays(30);  
+        LocalDate absoluteStartDate = endDate.minusYears(2); 
         
-        // Process in 90-day chunks (3 days buffer for API limit)
+        logger.info("🔍 FIXED: Processing 30-day chunks from {} to {}", absoluteStartDate, endDate);
+        
+        // Process in 30-day chunks (was 90 days)
         while (endDate.isAfter(absoluteStartDate)) {
-            LocalDate startDate = endDate.minusDays(90);
+            LocalDate startDate = endDate.minusDays(30);
             if (startDate.isBefore(absoluteStartDate)) {
                 startDate = absoluteStartDate;
             }
             
             totalChunks++;
-            logger.info("🔍 CHUNK DEBUG: Processing chunk {} from {} to {}", totalChunks, startDate, endDate);
+            logger.info("🔍 CHUNK {}: Processing {} to {}", totalChunks, startDate, endDate);
             
-            String url = payPropApiBase + "/report/all-payments" +
-                "?from_date=" + startDate +
-                "&to_date=" + endDate +
-                "&filter_by=reconciliation_date" +
-                "&include_beneficiary_info=true" +
-                "&rows=1000";
+            // ✅ NEW: Paginate through ALL pages for this date chunk
+            int page = 1;
+            int chunkPayments = 0;
+            Set<String> chunkBatches = new HashSet<>();
             
-            logger.info("📞 API URL: {}", url);
-            
-            try {
-                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-                List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
+            while (true) {
+                String url = payPropApiBase + "/report/all-payments" +
+                    "?from_date=" + startDate +
+                    "&to_date=" + endDate +
+                    "&filter_by=reconciliation_date" +
+                    "&include_beneficiary_info=true" +
+                    "&page=" + page +
+                    "&rows=25";  // ✅ FIXED: Use PayProp's actual limit
                 
-                logger.info("📊 API returned {} payments for chunk {}", payments.size(), totalChunks);
-                logger.info("📈 Chunk {}: Found {} payments from {} to {}", 
-                    totalChunks, payments.size(), startDate, endDate);
+                logger.info("📞 API Call {}: {} (page {})", totalApiCalls + 1, url, page);
                 
-                if (payments.size() > 0) {
-                    logger.info("📋 Sample payment dates in chunk {}:", totalChunks);
-                    payments.stream().limit(3).forEach(p -> 
-                        logger.info("   - Payment {}: due_date={}, amount={}", p.get("id"), p.get("due_date"), p.get("amount"))
-                    );
-                }
-                
-                Set<String> processedBatches = new HashSet<>();
-                
-                for (Map<String, Object> paymentData : payments) {
-                    try {
-                        // Extract and process batch information
-                        Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
-                        if (paymentBatch != null) {
-                            String batchId = (String) paymentBatch.get("id");
-                            if (batchId != null && !processedBatches.contains(batchId)) {
-                                // Process each unique batch only once per chunk
-                                BatchPayment batch = processBatchPayment(paymentBatch, null);
-                                if (batch != null) {
-                                    batchesProcessed++;
-                                    processedBatches.add(batchId);
-                                    logger.debug("✅ Processed batch: {} (£{})", 
-                                        batchId, paymentBatch.get("amount"));
+                try {
+                    // ✅ NEW: Rate limiting - 4 requests/second (250ms delay)
+                    if (totalApiCalls > 0) {
+                        Thread.sleep(250);
+                    }
+                    
+                    ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                    totalApiCalls++;
+                    
+                    Map<String, Object> responseBody = response.getBody();
+                    List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
+                    
+                    logger.info("📊 Page {}: Found {} payments", page, payments.size());
+                    
+                    // ✅ FIXED: Check if we've reached the end of this chunk
+                    if (payments.isEmpty()) {
+                        logger.info("📄 No more payments on page {} for chunk {}", page, totalChunks);
+                        break;
+                    }
+                    
+                    // Process payments in this page
+                    for (Map<String, Object> paymentData : payments) {
+                        try {
+                            // Extract and process batch information
+                            Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
+                            if (paymentBatch != null) {
+                                String batchId = (String) paymentBatch.get("id");
+                                if (batchId != null && !chunkBatches.contains(batchId)) {
+                                    BatchPayment batch = processBatchPayment(paymentBatch, null);
+                                    if (batch != null) {
+                                        batchesProcessed++;
+                                        chunkBatches.add(batchId);
+                                        logger.debug("✅ Processed batch: {}", batchId);
+                                    }
                                 }
                             }
-                        }
-                        
-                        // Create financial transaction with batch link
-                        FinancialTransaction transaction = createFinancialTransactionFromReportData(paymentData);
-                        if (transaction != null) {
-                            if (paymentBatch != null) {
-                                transaction.setPayPropBatchId((String) paymentBatch.get("id"));
+                            
+                            // Create financial transaction
+                            FinancialTransaction transaction = createFinancialTransactionFromReportData(paymentData);
+                            if (transaction != null) {
+                                if (paymentBatch != null) {
+                                    transaction.setPayPropBatchId((String) paymentBatch.get("id"));
+                                }
+                                
+                                String transactionId = (String) paymentData.get("id");
+                                if (!financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(
+                                        transactionId, "BATCH_PAYMENT")) {
+                                    financialTransactionRepository.save(transaction);
+                                    created++;
+                                    logger.debug("✅ Created transaction: {} (£{})", 
+                                        transactionId, transaction.getAmount());
+                                } else {
+                                    updated++;
+                                    logger.debug("ℹ️ Transaction already exists: {}", transactionId);
+                                }
                             }
                             
-                            // Check if transaction already exists to avoid duplicates
-                            String transactionId = (String) paymentData.get("id");
-                            if (!financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(
-                                    transactionId, "BATCH_PAYMENT")) {
-                                financialTransactionRepository.save(transaction);
-                                created++;
-                                logger.debug("✅ Created transaction: {} (£{})", 
-                                    transactionId, transaction.getAmount());
-                            } else {
-                                updated++;
-                                logger.debug("ℹ️ Transaction already exists: {}", transactionId);
-                            }
-                        } else {
-                            logger.warn("⚠️ createFinancialTransactionFromReportData returned null for payment: {}", paymentData.get("id"));
+                            chunkPayments++;
+                            
+                        } catch (Exception e) {
+                            logger.error("❌ Error processing payment in chunk {} page {}: {}", 
+                                totalChunks, page, e.getMessage());
                         }
-                        
-                    } catch (Exception e) {
-                        logger.error("❌ Error processing payment in chunk {}: {}", totalChunks, e.getMessage());
                     }
+                    
+                    // ✅ NEW: Check pagination to see if more pages exist
+                    Map<String, Object> pagination = (Map<String, Object>) responseBody.get("pagination");
+                    if (pagination != null) {
+                        Integer currentPage = (Integer) pagination.get("page");
+                        Integer totalPages = (Integer) pagination.get("total_pages");
+                        
+                        logger.info("📊 Pagination: page {} of {} for chunk {}", 
+                            currentPage, totalPages, totalChunks);
+                        
+                        if (currentPage != null && totalPages != null && currentPage >= totalPages) {
+                            logger.info("📄 Reached last page ({}) for chunk {}", totalPages, totalChunks);
+                            break;
+                        }
+                    } else {
+                        // ✅ FALLBACK: If no pagination object, check if we got less than requested
+                        if (payments.size() < 25) {
+                            logger.info("📄 Got {} payments (< 25), assuming last page for chunk {}", 
+                                payments.size(), totalChunks);
+                            break;
+                        }
+                    }
+                    
+                    page++;
+                    
+                    // ✅ SAFETY: Prevent infinite loops
+                    if (page > 100) {
+                        logger.warn("⚠️ Safety break: Reached page 100 for chunk {}", totalChunks);
+                        break;
+                    }
+                    
+                } catch (Exception e) {
+                    logger.error("❌ Failed to process page {} of chunk {} ({} to {}): {}", 
+                        page, totalChunks, startDate, endDate, e.getMessage());
+                    
+                    // ✅ NEW: Handle rate limiting errors
+                    if (e.getMessage().contains("Too many requests") || e.getMessage().contains("429")) {
+                        logger.warn("⚠️ Rate limit hit, waiting 30 seconds...");
+                        Thread.sleep(30000);
+                        continue; // Retry the same page
+                    }
+                    
+                    break; // Move to next chunk on other errors
                 }
-                
-                logger.info("✅ Chunk {} completed: {} payments, {} unique batches", 
-                    totalChunks, payments.size(), processedBatches.size());
-                
-            } catch (Exception e) {
-                logger.error("❌ Failed to process chunk {} ({} to {}): {}", 
-                    totalChunks, startDate, endDate, e.getMessage());
-                // Continue with next chunk instead of failing completely
             }
+            
+            logger.info("✅ Chunk {} completed: {} payments across {} pages, {} unique batches", 
+                totalChunks, chunkPayments, page - 1, chunkBatches.size());
             
             // Move to next chunk (go backwards in time)
             endDate = startDate.minusDays(1);
-            
-            // Add small delay to avoid hitting rate limits
-            try {
-                Thread.sleep(100); // 100ms delay between API calls
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
         }
         
-        logger.info("💰 Batch payments sync completed: {} chunks processed, {} transactions created, {} updated, {} batches processed", 
-            totalChunks, created, updated, batchesProcessed);
+        logger.info("💰 FIXED batch payments sync completed: {} chunks, {} API calls, {} transactions created, {} updated, {} batches processed", 
+            totalChunks, totalApiCalls, created, updated, batchesProcessed);
         
         return Map.of(
             "payments_created", created,
             "payments_updated", updated,
             "batches_processed", batchesProcessed,
             "chunks_processed", totalChunks,
-            "date_range", absoluteStartDate + " to " + LocalDate.now().plusDays(30)
+            "api_calls_made", totalApiCalls,
+            "date_range", absoluteStartDate + " to " + LocalDate.now().plusDays(30),
+            "improvement", "Now processes ALL pages in each chunk instead of just page 1"
         );
     }
 
