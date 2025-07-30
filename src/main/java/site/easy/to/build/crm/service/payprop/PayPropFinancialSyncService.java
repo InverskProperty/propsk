@@ -1310,9 +1310,10 @@ public class PayPropFinancialSyncService {
         HttpEntity<String> request = new HttpEntity<>(headers);
         
         int created = 0, updated = 0, batchesProcessed = 0, totalChunks = 0;
-        LocalDate endDate = LocalDate.now();
-        LocalDate absoluteStartDate = endDate.minusYears(2); // Go back 2 years
+        LocalDate endDate = LocalDate.now().plusDays(30);  // FIXED: Go 30 days into future to catch all data
+        LocalDate absoluteStartDate = endDate.minusYears(2); // Go back 2 years from the extended end date
         
+        logger.info("🔍 FIXED DATE RANGE: Syncing from {} to {} (covers future-dated transactions)", absoluteStartDate, endDate);
         logger.info("📅 Syncing batch payments from {} to {} in 90-day chunks", absoluteStartDate, endDate);
         
         // Process in 90-day chunks (3 days buffer for API limit)
@@ -1323,7 +1324,7 @@ public class PayPropFinancialSyncService {
             }
             
             totalChunks++;
-            logger.info("📊 Processing chunk {}: {} to {}", totalChunks, startDate, endDate);
+            logger.info("🔍 CHUNK DEBUG: Processing chunk {} from {} to {}", totalChunks, startDate, endDate);
             
             String url = payPropApiBase + "/report/all-payments" +
                 "?from_date=" + startDate +
@@ -1332,12 +1333,22 @@ public class PayPropFinancialSyncService {
                 "&include_beneficiary_info=true" +
                 "&rows=1000";
             
+            logger.info("📞 API URL: {}", url);
+            
             try {
                 ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
                 List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
                 
+                logger.info("📊 API returned {} payments for chunk {}", payments.size(), totalChunks);
                 logger.info("📈 Chunk {}: Found {} payments from {} to {}", 
                     totalChunks, payments.size(), startDate, endDate);
+                
+                if (payments.size() > 0) {
+                    logger.info("📋 Sample payment dates in chunk {}:", totalChunks);
+                    payments.stream().limit(3).forEach(p -> 
+                        logger.info("   - Payment {}: due_date={}, amount={}", p.get("id"), p.get("due_date"), p.get("amount"))
+                    );
+                }
                 
                 Set<String> processedBatches = new HashSet<>();
                 
@@ -1378,6 +1389,8 @@ public class PayPropFinancialSyncService {
                                 updated++;
                                 logger.debug("ℹ️ Transaction already exists: {}", transactionId);
                             }
+                        } else {
+                            logger.warn("⚠️ createFinancialTransactionFromReportData returned null for payment: {}", paymentData.get("id"));
                         }
                         
                     } catch (Exception e) {
@@ -1414,7 +1427,7 @@ public class PayPropFinancialSyncService {
             "payments_updated", updated,
             "batches_processed", batchesProcessed,
             "chunks_processed", totalChunks,
-            "date_range", absoluteStartDate + " to " + LocalDate.now()
+            "date_range", absoluteStartDate + " to " + LocalDate.now().plusDays(30)
         );
     }
 
