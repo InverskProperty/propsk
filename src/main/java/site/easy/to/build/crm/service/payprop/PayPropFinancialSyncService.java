@@ -5,9 +5,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.web.client.RestTemplate;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
@@ -1300,26 +1302,112 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * ✅ FIXED: Sync batch payments with proper pagination and rate limiting
-     * Handles PayProp's 25-record pagination limit and 5 req/sec rate limit
+     * ✅ CRITICAL FIX: Transaction isolation with comprehensive error handling
+     * Replace these methods in your PayPropFinancialSyncService.java
      */
+
+    // 1. ADD this new isolated save method
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean saveFinancialTransactionIsolated(FinancialTransaction transaction) {
+        try {
+            // Validate required fields before attempting save
+            if (transaction.getPayPropTransactionId() == null || transaction.getPayPropTransactionId().trim().isEmpty()) {
+                logger.warn("⚠️ SKIPPED: Missing PayProp transaction ID");
+                return false;
+            }
+            
+            if (transaction.getAmount() == null) {
+                logger.warn("⚠️ SKIPPED: Missing amount for transaction {}", transaction.getPayPropTransactionId());
+                return false;
+            }
+            
+            if (transaction.getTransactionDate() == null) {
+                logger.warn("⚠️ SKIPPED: Missing transaction date for transaction {}", transaction.getPayPropTransactionId());
+                return false;
+            }
+            
+            // ✅ CRITICAL: Handle negative amounts (constraint violation fix)
+            if (transaction.getAmount().compareTo(BigDecimal.ZERO) < 0) {
+                logger.warn("⚠️ SKIPPED: Negative amount £{} for transaction {} (refund/adjustment)", 
+                    transaction.getAmount(), transaction.getPayPropTransactionId());
+                return false;
+            }
+            
+            // Check for duplicate before attempting save
+            if (financialTransactionRepository.existsByPayPropTransactionId(transaction.getPayPropTransactionId())) {
+                logger.debug("ℹ️ SKIPPED: Transaction {} already exists", transaction.getPayPropTransactionId());
+                return false;
+            }
+            
+            // Validate transaction type against constraint
+            if (transaction.getTransactionType() == null || !isValidTransactionType(transaction.getTransactionType())) {
+                logger.warn("⚠️ SKIPPED: Invalid transaction type '{}' for transaction {}", 
+                    transaction.getTransactionType(), transaction.getPayPropTransactionId());
+                return false;
+            }
+            
+            // Set audit fields if not already set
+            if (transaction.getCreatedAt() == null) {
+                transaction.setCreatedAt(LocalDateTime.now());
+            }
+            if (transaction.getUpdatedAt() == null) {
+                transaction.setUpdatedAt(LocalDateTime.now());
+            }
+            
+            // ✅ ISOLATED SAVE: Each transaction in its own transaction scope
+            financialTransactionRepository.save(transaction);
+            
+            logger.debug("✅ SAVED: Transaction {} (£{}, {}, {})", 
+                transaction.getPayPropTransactionId(), 
+                transaction.getAmount(), 
+                transaction.getTransactionType(),
+                transaction.getPropertyName());
+            
+            return true;
+            
+        } catch (DataIntegrityViolationException e) {
+            logger.error("❌ CONSTRAINT VIOLATION: Transaction {} failed constraint check: {}", 
+                transaction.getPayPropTransactionId(), e.getMessage());
+            return false;
+        } catch (Exception e) {
+            logger.error("❌ SAVE FAILED: Transaction {} failed to save: {}", 
+                transaction.getPayPropTransactionId(), e.getMessage());
+            return false;
+        }
+    }
+
+    // 2. ADD this validation helper method
+    private boolean isValidTransactionType(String transactionType) {
+        Set<String> validTypes = Set.of(
+            "invoice", "credit_note", "debit_note", "deposit", "commission_payment",
+            "payment_to_beneficiary", "payment_to_agency", "payment_to_contractor", 
+            "payment_property_account", "payment_deposit_account", "refund", 
+            "adjustment", "transfer"
+        );
+        return validTypes.contains(transactionType);
+    }
+
+    // 3. REPLACE the main syncBatchPayments method with this isolated version
     private Map<String, Object> syncBatchPayments() throws Exception {
-        logger.info("💰 Starting batch payments sync with FIXED pagination...");
+        logger.info("💰 Starting ISOLATED batch payments sync...");
         
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
-        int created = 0, updated = 0, batchesProcessed = 0, totalChunks = 0, totalApiCalls = 0;
+        // Counters with detailed breakdown
+        int totalApiCalls = 0, totalChunks = 0, totalPagesProcessed = 0;
+        int successfulSaves = 0, skippedDuplicates = 0, skippedNegative = 0;
+        int skippedInvalidType = 0, skippedMissingData = 0, constraintViolations = 0;
+        int otherErrors = 0;
         
-        // ✅ FIXED: Reduced chunk size from 90 to 30 days
-        LocalDate endDate = LocalDate.now().plusDays(30);  
+        // Reduce chunk size to 14 days to stay well under API limits
+        LocalDate endDate = LocalDate.now().plusDays(7);  
         LocalDate absoluteStartDate = endDate.minusYears(2); 
         
-        logger.info("🔍 FIXED: Processing 30-day chunks from {} to {}", absoluteStartDate, endDate);
+        logger.info("🔍 Processing 14-day chunks from {} to {}", absoluteStartDate, endDate);
         
-        // Process in 30-day chunks (was 90 days)
         while (endDate.isAfter(absoluteStartDate)) {
-            LocalDate startDate = endDate.minusDays(30);
+            LocalDate startDate = endDate.minusDays(14);  // Smaller chunks
             if (startDate.isBefore(absoluteStartDate)) {
                 startDate = absoluteStartDate;
             }
@@ -1327,10 +1415,8 @@ public class PayPropFinancialSyncService {
             totalChunks++;
             logger.info("🔍 CHUNK {}: Processing {} to {}", totalChunks, startDate, endDate);
             
-            // ✅ NEW: Paginate through ALL pages for this date chunk
             int page = 1;
             int chunkPayments = 0;
-            Set<String> chunkBatches = new HashSet<>();
             
             while (true) {
                 String url = payPropApiBase + "/report/all-payments" +
@@ -1339,14 +1425,13 @@ public class PayPropFinancialSyncService {
                     "&filter_by=reconciliation_date" +
                     "&include_beneficiary_info=true" +
                     "&page=" + page +
-                    "&rows=25";  // ✅ FIXED: Use PayProp's actual limit
+                    "&rows=25";
                 
-                logger.info("📞 API Call {}: {} (page {})", totalApiCalls + 1, url, page);
+                logger.info("📞 API Call {}: Chunk {} Page {}", totalApiCalls + 1, totalChunks, page);
                 
                 try {
-                    // ✅ NEW: Rate limiting - 4 requests/second (250ms delay)
                     if (totalApiCalls > 0) {
-                        Thread.sleep(250);
+                        Thread.sleep(250); // Rate limiting
                     }
                     
                     ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
@@ -1355,122 +1440,107 @@ public class PayPropFinancialSyncService {
                     Map<String, Object> responseBody = response.getBody();
                     List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
                     
-                    logger.info("📊 Page {}: Found {} payments", page, payments.size());
-                    
-                    // ✅ FIXED: Check if we've reached the end of this chunk
                     if (payments.isEmpty()) {
-                        logger.info("📄 No more payments on page {} for chunk {}", page, totalChunks);
+                        logger.info("📄 No payments on page {} for chunk {}", page, totalChunks);
                         break;
                     }
                     
-                    // Process payments in this page
+                    logger.info("📊 Processing {} payments on page {} of chunk {}", payments.size(), page, totalChunks);
+                    
+                    // ✅ ISOLATED PROCESSING: Each payment processed independently
                     for (Map<String, Object> paymentData : payments) {
                         try {
-                            // Extract and process batch information
-                            Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
-                            if (paymentBatch != null) {
-                                String batchId = (String) paymentBatch.get("id");
-                                if (batchId != null && !chunkBatches.contains(batchId)) {
-                                    BatchPayment batch = processBatchPayment(paymentBatch, null);
-                                    if (batch != null) {
-                                        batchesProcessed++;
-                                        chunkBatches.add(batchId);
-                                        logger.debug("✅ Processed batch: {}", batchId);
-                                    }
-                                }
-                            }
-                            
-                            // Create financial transaction
                             FinancialTransaction transaction = createFinancialTransactionFromReportData(paymentData);
                             if (transaction != null) {
-                                if (paymentBatch != null) {
-                                    transaction.setPayPropBatchId((String) paymentBatch.get("id"));
-                                }
-                                
-                                String transactionId = (String) paymentData.get("id");
-                                if (!financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(
-                                        transactionId, "BATCH_PAYMENT")) {
-                                    financialTransactionRepository.save(transaction);
-                                    created++;
-                                    logger.debug("✅ Created transaction: {} (£{})", 
-                                        transactionId, transaction.getAmount());
+                                // ✅ ISOLATED SAVE: Each save in its own transaction
+                                boolean saved = saveFinancialTransactionIsolated(transaction);
+                                if (saved) {
+                                    successfulSaves++;
                                 } else {
-                                    updated++;
-                                    logger.debug("ℹ️ Transaction already exists: {}", transactionId);
+                                    // Categorize the failure reason for reporting
+                                    if (transaction.getAmount() != null && transaction.getAmount().compareTo(BigDecimal.ZERO) < 0) {
+                                        skippedNegative++;
+                                    } else if (financialTransactionRepository.existsByPayPropTransactionId(transaction.getPayPropTransactionId())) {
+                                        skippedDuplicates++;
+                                    } else if (!isValidTransactionType(transaction.getTransactionType())) {
+                                        skippedInvalidType++;
+                                    } else {
+                                        skippedMissingData++;
+                                    }
                                 }
+                            } else {
+                                skippedMissingData++;
                             }
                             
                             chunkPayments++;
                             
                         } catch (Exception e) {
-                            logger.error("❌ Error processing payment in chunk {} page {}: {}", 
-                                totalChunks, page, e.getMessage());
+                            otherErrors++;
+                            logger.error("❌ Error processing payment: {}", e.getMessage());
                         }
                     }
                     
-                    // ✅ NEW: Check pagination to see if more pages exist
+                    // Check pagination
                     Map<String, Object> pagination = (Map<String, Object>) responseBody.get("pagination");
                     if (pagination != null) {
                         Integer currentPage = (Integer) pagination.get("page");
                         Integer totalPages = (Integer) pagination.get("total_pages");
                         
-                        logger.info("📊 Pagination: page {} of {} for chunk {}", 
-                            currentPage, totalPages, totalChunks);
-                        
                         if (currentPage != null && totalPages != null && currentPage >= totalPages) {
                             logger.info("📄 Reached last page ({}) for chunk {}", totalPages, totalChunks);
                             break;
                         }
-                    } else {
-                        // ✅ FALLBACK: If no pagination object, check if we got less than requested
-                        if (payments.size() < 25) {
-                            logger.info("📄 Got {} payments (< 25), assuming last page for chunk {}", 
-                                payments.size(), totalChunks);
-                            break;
-                        }
+                    } else if (payments.size() < 25) {
+                        logger.info("📄 Got {} payments (< 25), last page for chunk {}", payments.size(), totalChunks);
+                        break;
                     }
                     
                     page++;
+                    totalPagesProcessed++;
                     
-                    // ✅ SAFETY: Prevent infinite loops
-                    if (page > 100) {
-                        logger.warn("⚠️ Safety break: Reached page 100 for chunk {}", totalChunks);
+                    if (page > 50) { // Safety break
+                        logger.warn("⚠️ Safety break: Page 50 reached for chunk {}", totalChunks);
                         break;
                     }
                     
                 } catch (Exception e) {
-                    logger.error("❌ Failed to process page {} of chunk {} ({} to {}): {}", 
-                        page, totalChunks, startDate, endDate, e.getMessage());
-                    
-                    // ✅ NEW: Handle rate limiting errors
-                    if (e.getMessage().contains("Too many requests") || e.getMessage().contains("429")) {
-                        logger.warn("⚠️ Rate limit hit, waiting 30 seconds...");
-                        Thread.sleep(30000);
-                        continue; // Retry the same page
+                    logger.error("❌ API call failed for chunk {} page {}: {}", totalChunks, page, e.getMessage());
+                    if (e.getMessage().contains("429")) {
+                        Thread.sleep(30000); // Wait for rate limit
+                        continue;
                     }
-                    
-                    break; // Move to next chunk on other errors
+                    break;
                 }
             }
             
-            logger.info("✅ Chunk {} completed: {} payments across {} pages, {} unique batches", 
-                totalChunks, chunkPayments, page - 1, chunkBatches.size());
-            
-            // Move to next chunk (go backwards in time)
+            logger.info("✅ Chunk {} completed: {} payments processed", totalChunks, chunkPayments);
             endDate = startDate.minusDays(1);
         }
         
-        logger.info("💰 FIXED batch payments sync completed: {} chunks, {} API calls, {} transactions created, {} updated, {} batches processed", 
-            totalChunks, totalApiCalls, created, updated, batchesProcessed);
+        // ✅ COMPREHENSIVE REPORTING
+        logger.info("💰 BATCH PAYMENTS SYNC COMPLETED:");
+        logger.info("📊 Total API calls: {}", totalApiCalls);
+        logger.info("📊 Chunks processed: {}", totalChunks);  
+        logger.info("📊 Pages processed: {}", totalPagesProcessed);
+        logger.info("✅ Successful saves: {}", successfulSaves);
+        logger.info("⏭️ Skipped duplicates: {}", skippedDuplicates);
+        logger.info("⚠️ Skipped negative amounts: {}", skippedNegative);
+        logger.info("⚠️ Skipped invalid types: {}", skippedInvalidType);
+        logger.info("⚠️ Skipped missing data: {}", skippedMissingData);
+        logger.info("❌ Constraint violations: {}", constraintViolations);
+        logger.info("❌ Other errors: {}", otherErrors);
         
         return Map.of(
-            "payments_created", created,
-            "payments_updated", updated,
-            "batches_processed", batchesProcessed,
-            "chunks_processed", totalChunks,
-            "api_calls_made", totalApiCalls,
-            "date_range", absoluteStartDate + " to " + LocalDate.now().plusDays(30),
-            "improvement", "Now processes ALL pages in each chunk instead of just page 1"
+            "payments_created", successfulSaves,
+            "skipped_duplicates", skippedDuplicates,
+            "skipped_negative", skippedNegative,
+            "skipped_invalid_type", skippedInvalidType,
+            "skipped_missing_data", skippedMissingData,
+            "constraint_violations", constraintViolations,
+            "other_errors", otherErrors,
+            "total_processed", successfulSaves + skippedDuplicates + skippedNegative + skippedInvalidType + skippedMissingData + constraintViolations + otherErrors,
+            "api_calls", totalApiCalls,
+            "chunks_processed", totalChunks
         );
     }
 
