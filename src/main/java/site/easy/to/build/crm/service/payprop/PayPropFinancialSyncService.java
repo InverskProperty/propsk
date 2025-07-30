@@ -92,10 +92,6 @@ public class PayPropFinancialSyncService {
             Map<String, Object> batchPaymentsResult = syncBatchPayments();
             syncResults.put("batch_payments", batchPaymentsResult);
             
-            // ✅ FIXED: 6. Sync Actual Commission Payments using ICDN
-            Map<String, Object> commissionPaymentsResult = syncActualCommissionPayments();
-            syncResults.put("commission_payments", commissionPaymentsResult);
-            
             // 7. Calculate and store commission data (for rent payments only)
             Map<String, Object> commissionsResult = calculateAndStoreCommissions();
             syncResults.put("commissions", commissionsResult);

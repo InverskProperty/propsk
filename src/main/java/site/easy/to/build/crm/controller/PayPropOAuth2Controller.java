@@ -734,6 +734,151 @@ public class PayPropOAuth2Controller {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/test-sync-single-property-exact-match")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testSyncSinglePropertyExactMatch(
+            @RequestBody Map<String, String> request,
+            Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            String propertyId = request.getOrDefault("propertyId", "K3Jwqg8W1E");
+            String fromDate = request.getOrDefault("fromDate", "2025-04-01");
+            String toDate = request.getOrDefault("toDate", "2025-07-01");
+            
+            log.info("🔍 EXACT MATCH TEST: Syncing batch payments for property {} ({} to {})", propertyId, fromDate, toDate);
+            
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            // EXACT SAME URL as your production code
+            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
+                "?from_date=" + fromDate +
+                "&to_date=" + toDate +
+                "&filter_by=reconciliation_date" +
+                "&include_beneficiary_info=true" +
+                "&rows=1000";
+            
+            // ADD property filter if specified (your production code doesn't filter by property)
+            if (!propertyId.equals("ALL")) {
+                url += "&property_id=" + propertyId;
+            }
+            
+            log.info("📞 EXACT API URL: {}", url);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
+            
+            log.info("📈 EXACT API RESULT: Found {} payments from {} to {}", payments.size(), fromDate, toDate);
+            
+            result.put("api_response", Map.of(
+                "url", url,
+                "payments_found", payments.size(),
+                "status_code", response.getStatusCode().value()
+            ));
+            
+            if (payments.isEmpty()) {
+                result.put("conclusion", "NO PAYMENTS FOUND - This explains why no BATCH_PAYMENT records exist");
+                return ResponseEntity.ok(result);
+            }
+            
+            // Process payments EXACTLY like your production code
+            Set<String> processedBatches = new HashSet<>();
+            List<Map<String, Object>> processingResults = new ArrayList<>();
+            int created = 0, updated = 0, batchesProcessed = 0;
+            
+            for (Map<String, Object> paymentData : payments) {
+                Map<String, Object> processingResult = new HashMap<>();
+                
+                try {
+                    // EXACT SAME batch processing logic
+                    Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
+                    if (paymentBatch != null) {
+                        String batchId = (String) paymentBatch.get("id");
+                        processingResult.put("batch_id", batchId);
+                        
+                        if (batchId != null && !processedBatches.contains(batchId)) {
+                            processedBatches.add(batchId);
+                            batchesProcessed++;
+                            log.info("✅ EXACT BATCH PROCESSING: {} (£{})", batchId, paymentBatch.get("amount"));
+                        }
+                    }
+                    
+                    // EXACT SAME transaction creation logic
+                    String transactionId = (String) paymentData.get("id");
+                    processingResult.put("transaction_id", transactionId);
+                    processingResult.put("amount", paymentData.get("amount"));
+                    
+                    // Check if exists EXACTLY like production
+                    boolean exists = financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(
+                        transactionId, "BATCH_PAYMENT");
+                    processingResult.put("already_exists", exists);
+                    
+                    if (exists) {
+                        processingResult.put("status", "UPDATED (already exists)");
+                        updated++;
+                    } else {
+                        // Call EXACT SAME method as production
+                        FinancialTransaction transaction = payPropFinancialSyncService.createFinancialTransactionFromReportData(paymentData);
+                        
+                        if (transaction != null) {
+                            // Add batch ID EXACTLY like production
+                            if (paymentBatch != null) {
+                                transaction.setPayPropBatchId((String) paymentBatch.get("id"));
+                            }
+                            
+                            // DON'T ACTUALLY SAVE - just show what would happen
+                            processingResult.put("status", "WOULD CREATE");
+                            processingResult.put("transaction_type", transaction.getTransactionType());
+                            processingResult.put("data_source", transaction.getDataSource());
+                            processingResult.put("final_amount", transaction.getAmount());
+                            processingResult.put("final_property_name", transaction.getPropertyName());
+                            processingResult.put("final_batch_id", transaction.getPayPropBatchId());
+                            created++;
+                            
+                            log.info("✅ EXACT TRANSACTION CREATION: {} (£{})", transactionId, transaction.getAmount());
+                        } else {
+                            processingResult.put("status", "FAILED - createFinancialTransactionFromReportData returned null");
+                            log.error("❌ EXACT TRANSACTION FAILED: createFinancialTransactionFromReportData returned null for {}", transactionId);
+                        }
+                    }
+                    
+                } catch (Exception e) {
+                    processingResult.put("status", "ERROR");
+                    processingResult.put("error", e.getMessage());
+                    log.error("❌ EXACT PROCESSING ERROR: {}", e.getMessage());
+                }
+                
+                processingResults.add(processingResult);
+            }
+            
+            result.put("processing_summary", Map.of(
+                "payments_processed", payments.size(),
+                "would_create", created,
+                "would_update", updated,
+                "batches_found", batchesProcessed,
+                "unique_batches", processedBatches.size()
+            ));
+            
+            result.put("detailed_processing", processingResults);
+            result.put("sample_payment_data", payments.get(0));
+            
+            log.info("💰 EXACT MATCH TEST COMPLETED: {} payments, {} would create, {} would update, {} batches", 
+                payments.size(), created, updated, batchesProcessed);
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            log.error("❌ EXACT MATCH TEST FAILED: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @PostMapping("/test-detailed-transactions")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> testDetailedTransactions(Authentication authentication) {
