@@ -922,6 +922,30 @@ public class PayPropFinancialSyncService {
         }
     }
 
+    /**
+     * ✅ FIXED: Get commission rates from already-synced properties table
+     * This avoids the 25-row pagination issue entirely
+     */
+    private Map<String, BigDecimal> getCommissionRatesFromDatabase() {
+        Map<String, BigDecimal> rates = new HashMap<>();
+        
+        try {
+            List<Property> properties = propertyService.findAll();
+            
+            for (Property property : properties) {
+                if (property.getPayPropId() != null && property.getCommissionPercentage() != null) {
+                    rates.put(property.getPayPropId(), property.getCommissionPercentage());
+                }
+            }
+            
+            logger.info("✅ Loaded {} commission rates from synced properties", rates.size());
+            
+        } catch (Exception e) {
+            logger.error("❌ Failed to load commission rates from database: {}", e.getMessage());
+        }
+        
+        return rates;
+    }
 
     /**
      * ✅ NEW: Link actual commission payments to their corresponding rent transactions
@@ -977,7 +1001,7 @@ public class PayPropFinancialSyncService {
         logger.info("💰 Getting commission rates from PayProp and calculating commission...");
         
         // Step 1: Get commission rates from PayProp
-        Map<String, BigDecimal> commissionRates = getCommissionRatesFromPayProp();
+        Map<String, BigDecimal> commissionRates = getCommissionRatesFromDatabase();
         logger.info("📊 Found {} properties with commission rates", commissionRates.size());
         
         int created = 0;
