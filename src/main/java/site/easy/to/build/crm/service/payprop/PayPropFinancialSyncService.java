@@ -122,42 +122,127 @@ public class PayPropFinancialSyncService {
     }
 
     private Map<String, Object> syncOwnerBeneficiaries() throws Exception {
-        logger.info("👥 Syncing owner beneficiaries...");
+        logger.info("👥 Syncing owner beneficiaries with pagination...");
         
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
-        String url = payPropApiBase + "/export/beneficiaries?owners=true&rows=1000";
-        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+        // Counters with detailed breakdown (same pattern as other methods)
+        int totalApiCalls = 0, totalPagesProcessed = 0;
+        int updated = 0, created = 0, skipped = 0, errors = 0;
         
-        List<Map<String, Object>> payPropBeneficiaries = (List<Map<String, Object>>) response.getBody().get("items");
+        int page = 1;
         
-        int updated = 0, created = 0, skipped = 0;
+        logger.info("🔍 Processing beneficiaries with pagination...");
         
-        for (Map<String, Object> ppBeneficiary : payPropBeneficiaries) {
+        while (true) {
+            String url = payPropApiBase + "/export/beneficiaries?owners=true&page=" + page + "&rows=25";
+            
+            logger.info("📞 Beneficiaries API Call {}: Page {}", totalApiCalls + 1, page);
+            
             try {
-                // Process each beneficiary in its own transaction
-                boolean result = processBeneficiaryInNewTransaction(ppBeneficiary);
-                if (result) {
-                    created++;
-                } else {
-                    updated++;
+                // ✅ Rate limiting (same as other methods)
+                if (totalApiCalls > 0) {
+                    Thread.sleep(250);
                 }
+                
+                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                totalApiCalls++;
+                
+                if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
+                    logger.error("❌ Beneficiaries API failed: HTTP {}", response.getStatusCode());
+                    break;
+                }
+                
+                Map<String, Object> responseBody = response.getBody();
+                List<Map<String, Object>> payPropBeneficiaries = (List<Map<String, Object>>) responseBody.get("items");
+                
+                if (payPropBeneficiaries == null || payPropBeneficiaries.isEmpty()) {
+                    logger.info("📄 No beneficiaries on page {}, sync complete", page);
+                    break;
+                }
+                
+                logger.info("📊 Processing {} beneficiaries on page {}", payPropBeneficiaries.size(), page);
+                
+                // Process each beneficiary INDIVIDUALLY
+                for (Map<String, Object> ppBeneficiary : payPropBeneficiaries) {
+                    try {
+                        // Process each beneficiary in its own transaction
+                        boolean result = processBeneficiaryInNewTransaction(ppBeneficiary);
+                        if (result) {
+                            created++;
+                        } else {
+                            updated++;
+                        }
+                    } catch (Exception e) {
+                        logger.error("❌ Error processing beneficiary: {}", e.getMessage());
+                        skipped++;
+                        // Continue with next beneficiary!
+                    }
+                }
+                
+                totalPagesProcessed++;
+                
+                // ✅ CHECK PAGINATION: Same logic as other methods
+                Map<String, Object> pagination = (Map<String, Object>) responseBody.get("pagination");
+                if (pagination != null) {
+                    Integer currentPage = (Integer) pagination.get("page");
+                    Integer totalPages = (Integer) pagination.get("total_pages");
+                    
+                    logger.info("📊 Beneficiaries Pagination: page {} of {}", currentPage, totalPages);
+                    
+                    if (currentPage != null && totalPages != null && currentPage >= totalPages) {
+                        logger.info("📄 Reached last beneficiaries page ({} of {})", currentPage, totalPages);
+                        break;
+                    }
+                } else if (payPropBeneficiaries.size() < 25) {
+                    logger.info("📄 Got {} beneficiaries (< 25), assuming last page", payPropBeneficiaries.size());
+                    break;
+                }
+                
+                page++;
+                
+                // ✅ SAFETY BREAK: Prevent infinite loops
+                if (page > 100) {
+                    logger.warn("⚠️ Safety break: Reached page 100 for beneficiaries sync");
+                    break;
+                }
+                
+            } catch (HttpClientErrorException e) {
+                logger.error("❌ Beneficiaries API error on page {}: {} - {}", 
+                    page, e.getStatusCode(), e.getResponseBodyAsString());
+                
+                if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                    logger.warn("⚠️ Rate limit hit, waiting 30 seconds...");
+                    Thread.sleep(30000);
+                    continue; // Retry same page
+                }
+                break;
+                
             } catch (Exception e) {
-                logger.error("❌ Error processing beneficiary: {}", e.getMessage());
-                skipped++;
-                // Continue with next beneficiary!
+                logger.error("❌ Beneficiaries API error on page {}: {}", page, e.getMessage());
+                break;
             }
         }
         
-        logger.info("👥 Owner beneficiaries sync completed: {} created, {} updated, {} skipped", 
-                    created, updated, skipped);
+        // ✅ COMPREHENSIVE REPORTING
+        logger.info("👥 BENEFICIARIES SYNC COMPLETED:");
+        logger.info("📊 Total API calls: {}", totalApiCalls);
+        logger.info("📊 Pages processed: {}", totalPagesProcessed);
+        logger.info("✅ Beneficiaries created: {}", created);
+        logger.info("✅ Beneficiaries updated: {}", updated);
+        logger.info("⚠️ Beneficiaries skipped: {}", skipped);
+        logger.info("❌ Processing errors: {}", errors);
         
         Map<String, Object> result = new HashMap<>();
-        result.put("total_processed", payPropBeneficiaries.size());
+        result.put("total_processed", created + updated + skipped);
         result.put("created", created);
         result.put("updated", updated);
         result.put("skipped", skipped);
+        result.put("errors", errors);
+        result.put("api_calls", totalApiCalls);
+        result.put("pages_processed", totalPagesProcessed);
+        result.put("improvement", "Added comprehensive pagination - should get all beneficiaries instead of just 25");
         
         return result;
     }
