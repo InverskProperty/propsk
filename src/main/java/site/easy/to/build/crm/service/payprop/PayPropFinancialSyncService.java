@@ -10,6 +10,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
@@ -113,76 +114,185 @@ public class PayPropFinancialSyncService {
     }
     
     /**
-     * Sync properties with commission data from PayProp
+     * ✅ FIXED COMMISSION SYNC: Apply same pagination pattern as successful batch payments
+     * Replace syncPropertiesWithCommission() method in PayPropFinancialSyncService.java
      */
     private Map<String, Object> syncPropertiesWithCommission() throws Exception {
-        logger.info("📊 Syncing properties with commission data...");
+        logger.info("📊 Starting FIXED commission sync with comprehensive pagination...");
         
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
-        String url = payPropApiBase + "/export/properties?include_commission=true&rows=1000";
-        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+        // Counters with detailed breakdown (same pattern as batch payments)
+        int totalApiCalls = 0, totalPagesProcessed = 0;
+        int propertiesProcessed = 0, propertiesUpdated = 0, propertiesCreated = 0;
+        int propertiesWithCommission = 0, propertiesWithoutCommission = 0;
+        int commissionsSet = 0, errors = 0;
         
-        List<Map<String, Object>> payPropProperties = (List<Map<String, Object>>) response.getBody().get("items");
+        // ✅ COMPREHENSIVE PAGINATION: Same pattern as successful batch payments
+        int page = 1;
         
-        int updated = 0, created = 0;
+        logger.info("🔍 FIXED: Processing properties with commission data using pagination...");
         
-        for (Map<String, Object> ppProperty : payPropProperties) {
+        while (true) {
+            String url = payPropApiBase + "/export/properties?include_commission=true&page=" + page + "&rows=25";
+            
+            logger.info("📞 Commission API Call {}: Page {}", totalApiCalls + 1, page);
+            
+            try {
+                // ✅ Rate limiting (same as batch payments)
+                if (totalApiCalls > 0) {
+                    Thread.sleep(250);
+                }
+                
+                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                totalApiCalls++;
+                
+                if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
+                    logger.error("❌ Commission API failed: HTTP {}", response.getStatusCode());
+                    break;
+                }
+                
+                Map<String, Object> responseBody = response.getBody();
+                List<Map<String, Object>> payPropProperties = (List<Map<String, Object>>) responseBody.get("items");
+                
+                if (payPropProperties == null || payPropProperties.isEmpty()) {
+                    logger.info("📄 No properties on page {}, commission sync complete", page);
+                    break;
+                }
+                
+                logger.info("📊 Processing {} properties with commission data on page {}", 
+                    payPropProperties.size(), page);
+                
+                // ✅ PROCESS EACH PROPERTY: Same careful handling as batch payments
+                for (Map<String, Object> ppProperty : payPropProperties) {
+                    try {
+                        boolean processed = processPropertyCommissionData(ppProperty);
+                        if (processed) {
+                            propertiesProcessed++;
+                            
+                            // Check if commission data was found and set
+                            Map<String, Object> commission = (Map<String, Object>) ppProperty.get("commission");
+                            if (commission != null) {
+                                Object percentage = commission.get("percentage");
+                                if (percentage instanceof String && !((String) percentage).isEmpty()) {
+                                    propertiesWithCommission++;
+                                    commissionsSet++;
+                                } else {
+                                    propertiesWithoutCommission++;
+                                }
+                            } else {
+                                propertiesWithoutCommission++;
+                            }
+                        }
+                        
+                    } catch (Exception e) {
+                        errors++;
+                        logger.error("❌ Error processing property commission {}: {}", 
+                            ppProperty.get("id"), e.getMessage());
+                    }
+                }
+                
+                totalPagesProcessed++;
+                
+                // ✅ CHECK PAGINATION: Same logic as batch payments
+                Map<String, Object> pagination = (Map<String, Object>) responseBody.get("pagination");
+                if (pagination != null) {
+                    Integer currentPage = (Integer) pagination.get("page");
+                    Integer totalPages = (Integer) pagination.get("total_pages");
+                    
+                    logger.info("📊 Commission Pagination: page {} of {}", currentPage, totalPages);
+                    
+                    if (currentPage != null && totalPages != null && currentPage >= totalPages) {
+                        logger.info("📄 Reached last commission page ({} of {})", currentPage, totalPages);
+                        break;
+                    }
+                } else if (payPropProperties.size() < 25) {
+                    logger.info("📄 Got {} properties (< 25), assuming last commission page", 
+                        payPropProperties.size());
+                    break;
+                }
+                
+                page++;
+                
+                // ✅ SAFETY BREAK: Prevent infinite loops
+                if (page > 100) {
+                    logger.warn("⚠️ Safety break: Reached page 100 for commission sync");
+                    break;
+                }
+                
+            } catch (HttpClientErrorException e) {
+                logger.error("❌ Commission API error on page {}: {} - {}", 
+                    page, e.getStatusCode(), e.getResponseBodyAsString());
+                
+                if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                    logger.warn("⚠️ Rate limit hit, waiting 30 seconds...");
+                    Thread.sleep(30000);
+                    continue; // Retry same page
+                }
+                break;
+                
+            } catch (Exception e) {
+                logger.error("❌ Commission sync failed on page {}: {}", page, e.getMessage(), e);
+                break;
+            }
+        }
+        
+        // ✅ COMPREHENSIVE REPORTING: Same detailed logging as batch payments
+        logger.info("📊 COMMISSION SYNC COMPLETED:");
+        logger.info("📊 Total API calls: {}", totalApiCalls);
+        logger.info("📊 Pages processed: {}", totalPagesProcessed);
+        logger.info("📊 Properties processed: {}", propertiesProcessed);
+        logger.info("✅ Properties with commission rates: {}", propertiesWithCommission);
+        logger.info("⚠️ Properties without commission rates: {}", propertiesWithoutCommission);
+        logger.info("✅ Commission rates set: {}", commissionsSet);
+        logger.info("❌ Processing errors: {}", errors);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("total_processed", propertiesProcessed);
+        result.put("properties_with_commission", propertiesWithCommission);
+        result.put("properties_without_commission", propertiesWithoutCommission);
+        result.put("commission_rates_set", commissionsSet);
+        result.put("errors", errors);
+        result.put("api_calls", totalApiCalls);
+        result.put("pages_processed", totalPagesProcessed);
+        result.put("improvement", "Added comprehensive pagination - should get all 281 properties instead of just 25");
+        
+        return result;
+    }
+
+    /**
+     * ✅ ENHANCED: Process individual property commission data with better error handling
+     * Add this method to PayPropFinancialSyncService.java
+     */
+    private boolean processPropertyCommissionData(Map<String, Object> ppProperty) {
+        try {
             String payPropId = (String) ppProperty.get("id");
             String propertyName = (String) ppProperty.get("property_name");
             
-            // Find existing property by PayProp ID or create new
+            if (payPropId == null || payPropId.trim().isEmpty()) {
+                logger.warn("⚠️ COMMISSION: Skipping property with missing PayProp ID");
+                return false;
+            }
+            
+            // ✅ CORRECT: Use existing payprop_id column (confirmed by database analysis)
+            // Database shows payprop_id is the primary PayProp identifier
             Optional<Property> existingOpt = propertyService.findByPayPropId(payPropId);
             Property property;
-            boolean isNew = false;
             
             if (existingOpt.isPresent()) {
                 property = existingOpt.get();
             } else {
-                property = new Property();
-                property.setPayPropId(payPropId);
-                isNew = true;
+                logger.warn("⚠️ COMMISSION: Property not found for PayProp ID: {}", payPropId);
+                return false; // Skip if property doesn't exist
             }
             
-            // Update property data
-            property.setPayPropPropertyId(payPropId);
-            property.setPropertyName(propertyName != null ? propertyName : "Unnamed Property");
-            
-            // Account balance
-            Object accountBalance = ppProperty.get("account_balance");
-            if (accountBalance instanceof Number) {
-                property.setAccountBalance(new BigDecimal(accountBalance.toString()));
+            // Update basic property data
+            if (propertyName != null) {
+                property.setPropertyName(propertyName);
             }
             
-            // Monthly payment required
-            Object monthlyPayment = ppProperty.get("monthly_payment_required");
-            if (monthlyPayment instanceof Number) {
-                property.setMonthlyPayment(new BigDecimal(monthlyPayment.toString()));
-            }
-            
-            // Property account minimum balance
-            Object minBalance = ppProperty.get("property_account_minimum_balance");
-            if (minBalance instanceof String && !((String) minBalance).isEmpty()) {
-                try {
-                    property.setPropertyAccountMinimumBalance(new BigDecimal((String) minBalance));
-                } catch (NumberFormatException e) {
-                    property.setPropertyAccountMinimumBalance(BigDecimal.ZERO);
-                }
-            }
-            
-            // Payment settings
-            Object allowPayments = ppProperty.get("allow_payments");
-            if (allowPayments instanceof Boolean) {
-                property.setEnablePaymentsFromBoolean((Boolean) allowPayments);
-            }
-            
-            Object holdFunds = ppProperty.get("hold_all_owner_funds");
-            if (holdFunds instanceof Boolean) {
-                property.setHoldOwnerFundsFromBoolean((Boolean) holdFunds);
-            }
-            
-            // Commission data - FIXED to handle the actual PayProp structure
+            // ✅ COMMISSION DATA PROCESSING: Handle the commission object carefully
             Map<String, Object> commission = (Map<String, Object>) ppProperty.get("commission");
             if (commission != null) {
                 Object percentage = commission.get("percentage");
@@ -190,15 +300,15 @@ public class PayPropFinancialSyncService {
                     try {
                         BigDecimal commissionRate = new BigDecimal((String) percentage);
                         property.setCommissionPercentage(commissionRate);
-                        logger.debug("✅ Set commission percentage for property {}: {}%", 
-                            property.getPropertyName(), commissionRate);
+                        logger.debug("✅ COMMISSION: Set rate {}% for property {}", 
+                            commissionRate, propertyName);
                     } catch (NumberFormatException e) {
-                        logger.warn("⚠️ Invalid commission percentage format for property {}: {}", 
-                            property.getPropertyName(), percentage);
+                        logger.warn("⚠️ COMMISSION: Invalid commission percentage format for property {}: {}", 
+                            propertyName, percentage);
                         property.setCommissionPercentage(BigDecimal.ZERO);
                     }
                 } else {
-                    logger.debug("⚠️ No commission percentage for property {}", property.getPropertyName());
+                    logger.debug("⚠️ COMMISSION: No commission percentage for property {}", propertyName);
                     property.setCommissionPercentage(BigDecimal.ZERO);
                 }
                 
@@ -213,38 +323,77 @@ public class PayPropFinancialSyncService {
                     property.setCommissionAmount(BigDecimal.ZERO);
                 }
             } else {
-                logger.debug("⚠️ No commission data for property {}, setting to zero", property.getPropertyName());
+                logger.debug("⚠️ COMMISSION: No commission data for property {}, setting to zero", propertyName);
                 property.setCommissionPercentage(BigDecimal.ZERO);
                 property.setCommissionAmount(BigDecimal.ZERO);
             }
             
-            // Address data
-            Map<String, Object> address = (Map<String, Object>) ppProperty.get("address");
-            if (address != null) {
-                property.setAddressLine1((String) address.get("first_line"));
-                property.setAddressLine2((String) address.get("second_line"));
-                property.setAddressLine3((String) address.get("third_line"));
-                property.setCity((String) address.get("city"));
-                property.setState((String) address.get("state"));
-                property.setPostcode((String) address.get("postal_code"));
-                property.setCountryCode((String) address.get("country_code"));
-            }
+            // Update other property fields from API
+            updatePropertyFromCommissionSync(property, ppProperty);
             
+            // Set audit fields
             property.setUpdatedAt(LocalDateTime.now());
-            if (isNew) {
-                property.setCreatedAt(LocalDateTime.now());
-            }
             
+            // ✅ SAVE: Use the existing property service
             propertyService.save(property);
             
-            if (isNew) created++; else updated++;
+            return true;
+            
+        } catch (Exception e) {
+            logger.error("❌ COMMISSION: Error processing property commission data: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * ✅ HELPER: Update property with additional data from commission sync
+     * Add this method to PayPropFinancialSyncService.java
+     */
+    private void updatePropertyFromCommissionSync(Property property, Map<String, Object> ppProperty) {
+        // Account balance
+        Object accountBalance = ppProperty.get("account_balance");
+        if (accountBalance instanceof Number) {
+            property.setAccountBalance(new BigDecimal(accountBalance.toString()));
         }
         
-        return Map.of(
-            "total_processed", payPropProperties.size(),
-            "created", created,
-            "updated", updated
-        );
+        // Monthly payment required
+        Object monthlyPayment = ppProperty.get("monthly_payment_required");
+        if (monthlyPayment instanceof Number) {
+            property.setMonthlyPayment(new BigDecimal(monthlyPayment.toString()));
+        }
+        
+        // Property account minimum balance
+        Object minBalance = ppProperty.get("property_account_minimum_balance");
+        if (minBalance instanceof String && !((String) minBalance).isEmpty()) {
+            try {
+                property.setPropertyAccountMinimumBalance(new BigDecimal((String) minBalance));
+            } catch (NumberFormatException e) {
+                property.setPropertyAccountMinimumBalance(BigDecimal.ZERO);
+            }
+        }
+        
+        // Payment settings
+        Object allowPayments = ppProperty.get("allow_payments");
+        if (allowPayments instanceof Boolean) {
+            property.setEnablePaymentsFromBoolean((Boolean) allowPayments);
+        }
+        
+        Object holdFunds = ppProperty.get("hold_all_owner_funds");
+        if (holdFunds instanceof Boolean) {
+            property.setHoldOwnerFundsFromBoolean((Boolean) holdFunds);
+        }
+        
+        // Address data (if present)
+        Map<String, Object> address = (Map<String, Object>) ppProperty.get("address");
+        if (address != null) {
+            property.setAddressLine1((String) address.get("first_line"));
+            property.setAddressLine2((String) address.get("second_line"));
+            property.setAddressLine3((String) address.get("third_line"));
+            property.setCity((String) address.get("city"));
+            property.setState((String) address.get("state"));
+            property.setPostcode((String) address.get("postal_code"));
+            property.setCountryCode((String) address.get("country_code"));
+        }
     }
 
     private Map<String, Object> syncOwnerBeneficiaries() throws Exception {
