@@ -481,4 +481,14 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
      * Find transaction by PayProp ID and data source
      */
     FinancialTransaction findByPayPropTransactionIdAndDataSource(String payPropTransactionId, String dataSource);
+
+    /**
+    * ✅ NEW: Find transactions by property, transaction type and date range
+    */
+    @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.propertyId = :propertyId AND ft.transactionType = :transactionType AND ft.transactionDate BETWEEN :startDate AND :endDate")
+    List<FinancialTransaction> findByPropertyIdAndTransactionTypeAndTransactionDateBetween(@Param("propertyId") String propertyId, @Param("transactionType") String transactionType, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+    /**
+    * ✅ NEW: Find transactions by property, transaction type and specific date
+    */
+    List<FinancialTransaction> findByPropertyIdAndTransactionTypeAndTransactionDate(String propertyId, String transactionType, LocalDate transactionDate);
 }

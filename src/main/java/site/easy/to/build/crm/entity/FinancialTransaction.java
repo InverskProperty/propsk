@@ -304,14 +304,6 @@ public class FinancialTransaction {
     }
     
     /**
-     * Check if this is a deposit transaction
-     */
-    public boolean isDeposit() {
-        return depositId != null || 
-               (categoryName != null && categoryName.toLowerCase().contains("deposit"));
-    }
-    
-    /**
      * Check if this is an actual transaction (not instruction)
      */
     public boolean isActual() {
@@ -325,6 +317,39 @@ public class FinancialTransaction {
         return Boolean.TRUE.equals(isInstruction);
     }
     
+    /**
+     * ✅ ENHANCED: Check if this is a deposit transaction with comprehensive detection
+     */
+    public boolean isDeposit() {
+        // Method 1: Check if deposit_id is set
+        if (depositId != null && !depositId.trim().isEmpty()) {
+            return true;
+        }
+        
+        // Method 2: Check category name for deposit keywords
+        if (categoryName != null) {
+            String lowerCategory = categoryName.toLowerCase();
+            if (lowerCategory.contains("deposit") || 
+                lowerCategory.contains("security") || 
+                lowerCategory.contains("bond")) {
+                return true;
+            }
+        }
+        
+        // Method 3: Check description for deposit keywords
+        if (description != null) {
+            String lowerDescription = description.toLowerCase();
+            if (lowerDescription.contains("deposit") || 
+                lowerDescription.contains("security") || 
+                lowerDescription.contains("bond")) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+
     @Override
     public String toString() {
         return "FinancialTransaction{" +

@@ -98,9 +98,17 @@ public class PayPropFinancialSyncService {
             // 7. Calculate and store commission data (for rent payments only)
             Map<String, Object> commissionsResult = calculateAndStoreCommissions();
             syncResults.put("commissions", commissionsResult);
-            
+
+            // 8. Sync actual commission payments
+            Map<String, Object> actualCommissionsResult = syncActualCommissionPayments();
+            syncResults.put("actual_commissions", actualCommissionsResult);
+
+            // 9. Link actual commission payments to rent transactions
+            Map<String, Object> linkingResult = linkActualCommissionToTransactions();
+            syncResults.put("commission_linking", linkingResult);
+
             syncResults.put("status", "SUCCESS");
-            syncResults.put("sync_time", LocalDateTime.now());
+                        syncResults.put("sync_time", LocalDateTime.now());
             
             logger.info("✅ Comprehensive financial sync completed successfully");
             
@@ -278,6 +286,7 @@ public class PayPropFinancialSyncService {
             // ✅ CORRECT: Use existing payprop_id column (confirmed by database analysis)
             // Database shows payprop_id is the primary PayProp identifier
             Optional<Property> existingOpt = propertyService.findByPayPropId(payPropId);
+
             Property property;
             
             if (existingOpt.isPresent()) {
@@ -912,6 +921,55 @@ public class PayPropFinancialSyncService {
             return null;
         }
     }
+
+
+    /**
+     * ✅ NEW: Link actual commission payments to their corresponding rent transactions
+     */
+    private Map<String, Object> linkActualCommissionToTransactions() throws Exception {
+        logger.info("🔗 Linking actual commission payments to rent transactions...");
+        
+        // Find all commission payment transactions
+        List<FinancialTransaction> commissionPayments = financialTransactionRepository
+            .findByDataSourceAndTransactionType("COMMISSION_PAYMENT", "commission_payment");
+        
+        int linked = 0;
+        
+        for (FinancialTransaction commissionPayment : commissionPayments) {
+            // Find corresponding rent payments for the same property and approximate date
+            LocalDate startDate = commissionPayment.getTransactionDate().minusDays(7);
+            LocalDate endDate = commissionPayment.getTransactionDate().plusDays(7);
+            
+            List<FinancialTransaction> rentPayments = financialTransactionRepository
+                .findByPropertyIdAndTransactionDateBetween(commissionPayment.getPropertyId(), startDate, endDate)
+                .stream()
+                .filter(t -> "invoice".equals(t.getTransactionType()))
+                .filter(t -> "ICDN_ACTUAL".equals(t.getDataSource()))
+                .collect(Collectors.toList());
+            
+            for (FinancialTransaction rentPayment : rentPayments) {
+                // Only link if actual commission amount is not already set
+                if (rentPayment.getActualCommissionAmount() == null) {
+                    rentPayment.setActualCommissionAmount(commissionPayment.getAmount());
+                    rentPayment.setUpdatedAt(LocalDateTime.now());
+                    financialTransactionRepository.save(rentPayment);
+                    linked++;
+                    
+                    logger.debug("✅ Linked actual commission £{} to rent payment £{} for property {}", 
+                        commissionPayment.getAmount(), rentPayment.getAmount(), rentPayment.getPropertyName());
+                }
+            }
+        }
+        
+        logger.info("🔗 Commission linking completed: {} rent transactions linked to actual commission", linked);
+        
+        return Map.of(
+            "commission_payments_found", commissionPayments.size(),
+            "rent_transactions_linked", linked
+        );
+    }
+
+    
     /**
      * ✅ FAST: Get commission rates from PayProp and calculate commission
      */
@@ -1053,25 +1111,26 @@ public class PayPropFinancialSyncService {
 
     
     /**
-     * Calculate and store commission data for financial transactions
+     * ✅ FIXED: Calculate and store commission data for financial transactions
      */
     private Map<String, Object> calculateAndStoreCommissions() throws Exception {
         logger.info("🧮 Calculating and storing commission data...");
         
-        // Get all recent transactions without commission calculations
+        // Get all ICDN invoice transactions without commission calculations
         List<FinancialTransaction> transactions = financialTransactionRepository
-            .findByCommissionAmountIsNull();
+            .findByDataSourceAndTransactionType("ICDN_ACTUAL", "invoice")
+            .stream()
+            .filter(t -> t.getCommissionAmount() == null)
+            .collect(Collectors.toList());
         
         int commissionsCalculated = 0;
         
         for (FinancialTransaction transaction : transactions) {
-            if (!"invoice".equals(transaction.getTransactionType())) {
-                continue; // Only calculate commissions for invoices (rent payments)
-            }
-            
-            // Skip deposits - they should not have commission
-            if (transaction.isDeposit()) {
-                logger.debug("⚠️ Skipping commission calculation for deposit transaction {}", transaction.getPayPropTransactionId());
+            // Skip deposits - check category name for deposit keywords
+            if (transaction.getCategoryName() != null && 
+                transaction.getCategoryName().toLowerCase().contains("deposit")) {
+                logger.debug("⚠️ Skipping commission calculation for deposit transaction {}", 
+                    transaction.getPayPropTransactionId());
                 continue;
             }
             
@@ -1102,8 +1161,8 @@ public class PayPropFinancialSyncService {
                             .subtract(serviceFee);
                         
                         // Update transaction
-                        transaction.setCalculatedCommissionAmount(commissionAmount); // What should be charged
-                        transaction.setCommissionAmount(commissionAmount); // Keep for backward compatibility
+                        transaction.setCalculatedCommissionAmount(commissionAmount);
+                        transaction.setCommissionAmount(commissionAmount);
                         transaction.setServiceFeeAmount(serviceFee);
                         transaction.setNetToOwnerAmount(netToOwner);
                         transaction.setCommissionRate(commissionRate);
@@ -1111,10 +1170,15 @@ public class PayPropFinancialSyncService {
                         
                         financialTransactionRepository.save(transaction);
                         commissionsCalculated++;
+                        
+                        logger.debug("✅ Commission calculated: {} £{} at {}%", 
+                            property.getPropertyName(), commissionAmount, commissionRate);
                     }
                 }
             }
         }
+        
+        logger.info("💰 Commission calculation completed: {} transactions processed", commissionsCalculated);
         
         return Map.of(
             "transactions_processed", transactions.size(),
@@ -1194,7 +1258,96 @@ public class PayPropFinancialSyncService {
     }
     
     /**
-     * ✅ NEW: Get commission payment summary for comparison with calculated commissions
+     * ✅ ENHANCED: Get complete commission variance analysis (Expected vs Actual)
+     */
+    public Map<String, Object> getCommissionVarianceAnalysis(String propertyId, LocalDate fromDate, LocalDate toDate) {
+        try {
+            // Get rent transactions with both expected and actual commission data
+            List<FinancialTransaction> rentTransactions = financialTransactionRepository
+                .findByPropertyIdAndTransactionDateBetween(propertyId, fromDate, toDate)
+                .stream()
+                .filter(t -> "invoice".equals(t.getTransactionType()))
+                .filter(t -> "ICDN_ACTUAL".equals(t.getDataSource()))
+                .collect(Collectors.toList());
+            
+            BigDecimal totalRent = BigDecimal.ZERO;
+            BigDecimal totalExpectedCommission = BigDecimal.ZERO;
+            BigDecimal totalActualCommission = BigDecimal.ZERO;
+            int transactionsWithExpected = 0;
+            int transactionsWithActual = 0;
+            
+            List<Map<String, Object>> transactionDetails = new ArrayList<>();
+            
+            for (FinancialTransaction transaction : rentTransactions) {
+                Map<String, Object> detail = new HashMap<>();
+                detail.put("transaction_id", transaction.getPayPropTransactionId());
+                detail.put("property_name", transaction.getPropertyName());
+                detail.put("tenant_name", transaction.getTenantName());
+                detail.put("transaction_date", transaction.getTransactionDate());
+                detail.put("rent_amount", transaction.getAmount());
+                detail.put("expected_commission", transaction.getCalculatedCommissionAmount());
+                detail.put("actual_commission", transaction.getActualCommissionAmount());
+                
+                if (transaction.getAmount() != null) {
+                    totalRent = totalRent.add(transaction.getAmount());
+                }
+                
+                if (transaction.getCalculatedCommissionAmount() != null) {
+                    totalExpectedCommission = totalExpectedCommission.add(transaction.getCalculatedCommissionAmount());
+                    transactionsWithExpected++;
+                }
+                
+                if (transaction.getActualCommissionAmount() != null) {
+                    totalActualCommission = totalActualCommission.add(transaction.getActualCommissionAmount());
+                    transactionsWithActual++;
+                }
+                
+                // Calculate variance for this transaction
+                BigDecimal variance = BigDecimal.ZERO;
+                if (transaction.getCalculatedCommissionAmount() != null && transaction.getActualCommissionAmount() != null) {
+                    variance = transaction.getActualCommissionAmount().subtract(transaction.getCalculatedCommissionAmount());
+                }
+                detail.put("commission_variance", variance);
+                
+                transactionDetails.add(detail);
+            }
+            
+            BigDecimal totalVariance = totalActualCommission.subtract(totalExpectedCommission);
+            
+            return Map.of(
+                "summary", Map.of(
+                    "total_rent", totalRent,
+                    "total_expected_commission", totalExpectedCommission,
+                    "total_actual_commission", totalActualCommission,
+                    "total_variance", totalVariance,
+                    "variance_percentage", totalRent.compareTo(BigDecimal.ZERO) > 0 ? 
+                        totalVariance.divide(totalRent, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)) : BigDecimal.ZERO
+                ),
+                "coverage", Map.of(
+                    "total_transactions", rentTransactions.size(),
+                    "transactions_with_expected", transactionsWithExpected,
+                    "transactions_with_actual", transactionsWithActual,
+                    "expected_coverage_percent", rentTransactions.size() > 0 ? 
+                        (transactionsWithExpected * 100.0 / rentTransactions.size()) : 0,
+                    "actual_coverage_percent", rentTransactions.size() > 0 ? 
+                        (transactionsWithActual * 100.0 / rentTransactions.size()) : 0
+                ),
+                "transactions", transactionDetails,
+                "period", fromDate + " to " + toDate,
+                "status", "SUCCESS"
+            );
+            
+        } catch (Exception e) {
+            logger.error("❌ Commission variance analysis failed: {}", e.getMessage());
+            return Map.of(
+                "status", "ERROR",
+                "error", e.getMessage()
+            );
+        }
+    }
+
+    /**
+     * ✅ LEGACY: Keep old method for backward compatibility
      */
     public Map<String, Object> getCommissionPaymentSummary(String propertyId, LocalDate fromDate, LocalDate toDate) {
         try {
@@ -1258,13 +1411,17 @@ public class PayPropFinancialSyncService {
             Map<String, Object> icdnResult = Map.of("status", "Already synced in main method");
             results.put("icdn_transactions", icdnResult);
             
-            // 4. Sync actual commission payments - already done above
-            Map<String, Object> commissionResult = Map.of("status", "Already synced in main method");
+            // 5. Sync actual commission payments and link to expected
+            Map<String, Object> commissionResult = syncActualCommissionPayments();
             results.put("commission_payments", commissionResult);
-            
-            // 5. Link instructions to actual payments
-            Map<String, Object> linkingResult = linkInstructionsToActuals();
-            results.put("linking", linkingResult);
+
+            // 6. Link actual commission payments to rent transactions
+            Map<String, Object> commissionLinkingResult = linkActualCommissionToTransactions();
+            results.put("commission_linking", commissionLinkingResult);
+                        
+            // 7. Link instructions to actual payments
+            Map<String, Object> instructionLinkingResult = linkInstructionsToActuals();
+            results.put("linking", instructionLinkingResult);
             
             results.put("status", "SUCCESS");
             results.put("sync_time", LocalDateTime.now());
