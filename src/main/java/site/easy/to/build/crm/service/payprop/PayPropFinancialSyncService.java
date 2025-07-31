@@ -68,7 +68,7 @@ public class PayPropFinancialSyncService {
      * Main method to sync all comprehensive financial data from PayProp
      * ✅ UPDATED: Now includes actual commission payment sync
      */
-    @Transactional
+
     public Map<String, Object> syncComprehensiveFinancialData() {
         Map<String, Object> syncResults = new HashMap<>();
         
@@ -136,142 +136,17 @@ public class PayPropFinancialSyncService {
         
         for (Map<String, Object> ppBeneficiary : payPropBeneficiaries) {
             try {
-                String payPropId = (String) ppBeneficiary.get("id");
-                
-                // 🔧 VALIDATION: Skip if missing essential data
-                if (payPropId == null || payPropId.trim().isEmpty()) {
-                    logger.warn("⚠️ Skipping beneficiary with missing PayProp ID");
-                    skipped++;
-                    continue;
-                }
-                
-                // Find or create beneficiary
-                Beneficiary beneficiary = beneficiaryRepository.findByPayPropBeneficiaryId(payPropId);
-                boolean isNew = beneficiary == null;
-                
-                if (isNew) {
-                    beneficiary = new Beneficiary();
-                    beneficiary.setPayPropBeneficiaryId(payPropId);
-                    beneficiary.setCreatedAt(LocalDateTime.now());
-                }
-                
-                // 🔧 FIX: Handle account_type with safe defaults
-                String accountTypeStr = (String) ppBeneficiary.get("account_type");
-                if (accountTypeStr == null || "undefined".equals(accountTypeStr) || accountTypeStr.trim().isEmpty()) {
-                    // Default to individual if not specified
-                    beneficiary.setAccountType(AccountType.individual);
-                    logger.debug("🔧 Defaulted account_type to 'individual' for beneficiary {}", payPropId);
+                // Process each beneficiary in its own transaction
+                boolean result = processBeneficiaryInNewTransaction(ppBeneficiary);
+                if (result) {
+                    created++;
                 } else {
-                    try {
-                        beneficiary.setAccountType(AccountType.valueOf(accountTypeStr.toLowerCase()));
-                    } catch (IllegalArgumentException e) {
-                        logger.warn("⚠️ Invalid account_type '{}' for beneficiary {}, defaulting to 'individual'", 
-                                accountTypeStr, payPropId);
-                        beneficiary.setAccountType(AccountType.individual);
-                    }
+                    updated++;
                 }
-                
-                // 🔧 FIX: Handle payment_method with safe defaults
-                String paymentMethodStr = (String) ppBeneficiary.get("payment_method");
-                if (paymentMethodStr == null || "undefined".equals(paymentMethodStr) || paymentMethodStr.trim().isEmpty()) {
-                    // Default to local payment method
-                    beneficiary.setPaymentMethod(PaymentMethod.local);
-                    logger.debug("🔧 Defaulted payment_method to 'local' for beneficiary {}", payPropId);
-                } else {
-                    try {
-                        beneficiary.setPaymentMethod(PaymentMethod.valueOf(paymentMethodStr.toLowerCase()));
-                    } catch (IllegalArgumentException e) {
-                        logger.warn("⚠️ Invalid payment_method '{}' for beneficiary {}, defaulting to 'local'", 
-                                paymentMethodStr, payPropId);
-                        beneficiary.setPaymentMethod(PaymentMethod.local);
-                    }
-                }
-                
-                // 🔧 FIX: Set BeneficiaryType using the correct enum values
-                beneficiary.setBeneficiaryType(BeneficiaryType.BENEFICIARY);
-                logger.debug("🔧 Set beneficiary_type to 'BENEFICIARY' for beneficiary {}", payPropId);
-                
-                // 🔧 FIX: Set name field safely (required field)
-                String firstName = (String) ppBeneficiary.get("first_name");
-                String lastName = (String) ppBeneficiary.get("last_name");
-                String businessName = (String) ppBeneficiary.get("business_name");
-                
-                // Clean up empty strings to null
-                if (firstName != null && firstName.trim().isEmpty()) firstName = null;
-                if (lastName != null && lastName.trim().isEmpty()) lastName = null;
-                if (businessName != null && businessName.trim().isEmpty()) businessName = null;
-                
-                beneficiary.setFirstName(firstName);
-                beneficiary.setLastName(lastName);
-                beneficiary.setBusinessName(businessName);
-                
-                // Set the name field (required, non-null)
-                String calculatedName = null;
-                if (beneficiary.getAccountType() == AccountType.business && businessName != null) {
-                    calculatedName = businessName;
-                } else if (firstName != null && lastName != null) {
-                    calculatedName = firstName + " " + lastName;
-                } else if (firstName != null) {
-                    calculatedName = firstName;
-                } else if (lastName != null) {
-                    calculatedName = lastName;
-                } else if (businessName != null) {
-                    calculatedName = businessName;
-                }
-                
-                // Fallback if still no name
-                if (calculatedName == null || calculatedName.trim().isEmpty()) {
-                    calculatedName = "Beneficiary " + payPropId;
-                    logger.warn("⚠️ No name available for beneficiary {}, using fallback: '{}'", 
-                            payPropId, calculatedName);
-                }
-                
-                beneficiary.setName(calculatedName.trim());
-                
-                // Set other fields
-                String email = (String) ppBeneficiary.get("email_address");
-                if (email != null && !email.trim().isEmpty()) {
-                    beneficiary.setEmail(email.trim());
-                }
-                
-                beneficiary.setMobileNumber((String) ppBeneficiary.get("mobile"));
-                beneficiary.setPhone((String) ppBeneficiary.get("phone"));
-                beneficiary.setIsActiveOwner((Boolean) ppBeneficiary.getOrDefault("is_active_owner", false));
-                beneficiary.setVatNumber((String) ppBeneficiary.get("vat_number"));
-                beneficiary.setCustomerReference((String) ppBeneficiary.get("customer_reference"));
-                
-                // Properties this beneficiary owns
-                List<Map<String, Object>> properties = (List<Map<String, Object>>) ppBeneficiary.get("properties");
-                if (properties != null && !properties.isEmpty()) {
-                    Map<String, Object> property = properties.get(0);
-                    String propertyName = (String) property.get("property_name");
-                    beneficiary.setPrimaryPropertyName(propertyName);
-                    
-                    Object accountBalance = property.get("account_balance");
-                    if (accountBalance instanceof Number) {
-                        beneficiary.setEnhancedAccountBalance(new BigDecimal(accountBalance.toString()));
-                    }
-                }
-                
-                beneficiary.setUpdatedAt(LocalDateTime.now());
-                
-                try {
-                    beneficiaryRepository.save(beneficiary);
-                    if (isNew) {
-                        created++;
-                        logger.info("✅ Created beneficiary: {} ({})", calculatedName, payPropId);
-                    } else {
-                        updated++;
-                        logger.debug("✅ Updated beneficiary: {} ({})", calculatedName, payPropId);
-                    }
-                } catch (Exception saveException) {
-                    logger.error("❌ Failed to save beneficiary {}: {}", payPropId, saveException.getMessage());
-                    skipped++;
-                }
-                
             } catch (Exception e) {
-                logger.error("❌ Error processing beneficiary: {}", e.getMessage(), e);
+                logger.error("❌ Error processing beneficiary: {}", e.getMessage());
                 skipped++;
+                // Continue with next beneficiary!
             }
         }
         
@@ -287,19 +162,161 @@ public class PayPropFinancialSyncService {
         return result;
     }
 
+    /**
+     * ✅ NEW: Simple wrapper to process beneficiary data in a new transaction
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean processBeneficiaryInNewTransaction(Map<String, Object> beneficiaryData) {
+        try {
+            String payPropId = (String) beneficiaryData.get("id");
+            
+            // 🔧 VALIDATION: Skip if missing essential data
+            if (payPropId == null || payPropId.trim().isEmpty()) {
+                logger.warn("⚠️ Skipping beneficiary with missing PayProp ID");
+                return false; // Treat as skipped, not created or updated
+            }
+            
+            // Find or create beneficiary
+            Beneficiary beneficiary = beneficiaryRepository.findByPayPropBeneficiaryId(payPropId);
+            boolean isNew = beneficiary == null;
+            
+            if (isNew) {
+                beneficiary = new Beneficiary();
+                beneficiary.setPayPropBeneficiaryId(payPropId);
+                beneficiary.setCreatedAt(LocalDateTime.now());
+            }
+            
+            // 🔧 FIX: Handle account_type with safe defaults
+            String accountTypeStr = (String) beneficiaryData.get("account_type");
+            if (accountTypeStr == null || "undefined".equals(accountTypeStr) || accountTypeStr.trim().isEmpty()) {
+                // Default to individual if not specified
+                beneficiary.setAccountType(AccountType.individual);
+                logger.debug("🔧 Defaulted account_type to 'individual' for beneficiary {}", payPropId);
+            } else {
+                try {
+                    beneficiary.setAccountType(AccountType.valueOf(accountTypeStr.toLowerCase()));
+                } catch (IllegalArgumentException e) {
+                    logger.warn("⚠️ Invalid account_type '{}' for beneficiary {}, defaulting to 'individual'", 
+                            accountTypeStr, payPropId);
+                    beneficiary.setAccountType(AccountType.individual);
+                }
+            }
+            
+            // 🔧 FIX: Handle payment_method with safe defaults
+            String paymentMethodStr = (String) beneficiaryData.get("payment_method");
+            if (paymentMethodStr == null || "undefined".equals(paymentMethodStr) || paymentMethodStr.trim().isEmpty()) {
+                // Default to local payment method
+                beneficiary.setPaymentMethod(PaymentMethod.local);
+                logger.debug("🔧 Defaulted payment_method to 'local' for beneficiary {}", payPropId);
+            } else {
+                try {
+                    beneficiary.setPaymentMethod(PaymentMethod.valueOf(paymentMethodStr.toLowerCase()));
+                } catch (IllegalArgumentException e) {
+                    logger.warn("⚠️ Invalid payment_method '{}' for beneficiary {}, defaulting to 'local'", 
+                            paymentMethodStr, payPropId);
+                    beneficiary.setPaymentMethod(PaymentMethod.local);
+                }
+            }
+            
+            // 🔧 FIX: Set BeneficiaryType using the correct enum values
+            beneficiary.setBeneficiaryType(BeneficiaryType.BENEFICIARY);
+            logger.debug("🔧 Set beneficiary_type to 'BENEFICIARY' for beneficiary {}", payPropId);
+            
+            // 🔧 FIX: Set name field safely (required field)
+            String firstName = (String) beneficiaryData.get("first_name");
+            String lastName = (String) beneficiaryData.get("last_name");
+            String businessName = (String) beneficiaryData.get("business_name");
+            
+            // Clean up empty strings to null
+            if (firstName != null && firstName.trim().isEmpty()) firstName = null;
+            if (lastName != null && lastName.trim().isEmpty()) lastName = null;
+            if (businessName != null && businessName.trim().isEmpty()) businessName = null;
+            
+            beneficiary.setFirstName(firstName);
+            beneficiary.setLastName(lastName);
+            beneficiary.setBusinessName(businessName);
+            
+            // Set the name field (required, non-null)
+            String calculatedName = null;
+            if (beneficiary.getAccountType() == AccountType.business && businessName != null) {
+                calculatedName = businessName;
+            } else if (firstName != null && lastName != null) {
+                calculatedName = firstName + " " + lastName;
+            } else if (firstName != null) {
+                calculatedName = firstName;
+            } else if (lastName != null) {
+                calculatedName = lastName;
+            } else if (businessName != null) {
+                calculatedName = businessName;
+            }
+            
+            // Fallback if still no name
+            if (calculatedName == null || calculatedName.trim().isEmpty()) {
+                calculatedName = "Beneficiary " + payPropId;
+                logger.warn("⚠️ No name available for beneficiary {}, using fallback: '{}'", 
+                        payPropId, calculatedName);
+            }
+            
+            beneficiary.setName(calculatedName.trim());
+            
+            // Set other fields
+            String email = (String) beneficiaryData.get("email_address");
+            if (email != null && !email.trim().isEmpty()) {
+                beneficiary.setEmail(email.trim());
+            }
+            
+            beneficiary.setMobileNumber((String) beneficiaryData.get("mobile"));
+            beneficiary.setPhone((String) beneficiaryData.get("phone"));
+            beneficiary.setIsActiveOwner((Boolean) beneficiaryData.getOrDefault("is_active_owner", false));
+            beneficiary.setVatNumber((String) beneficiaryData.get("vat_number"));
+            beneficiary.setCustomerReference((String) beneficiaryData.get("customer_reference"));
+            
+            // Properties this beneficiary owns
+            List<Map<String, Object>> properties = (List<Map<String, Object>>) beneficiaryData.get("properties");
+            if (properties != null && !properties.isEmpty()) {
+                Map<String, Object> property = properties.get(0);
+                String propertyName = (String) property.get("property_name");
+                beneficiary.setPrimaryPropertyName(propertyName);
+                
+                Object accountBalance = property.get("account_balance");
+                if (accountBalance instanceof Number) {
+                    beneficiary.setEnhancedAccountBalance(new BigDecimal(accountBalance.toString()));
+                }
+            }
+            
+            beneficiary.setUpdatedAt(LocalDateTime.now());
+            
+            try {
+                beneficiaryRepository.save(beneficiary);
+                if (isNew) {
+                    logger.info("✅ Created beneficiary: {} ({})", calculatedName, payPropId);
+                } else {
+                    logger.debug("✅ Updated beneficiary: {} ({})", calculatedName, payPropId);
+                }
+                return isNew; // Return true if created, false if updated
+            } catch (Exception saveException) {
+                logger.error("❌ Failed to save beneficiary {}: {}", payPropId, saveException.getMessage());
+                return false; // Will be counted as skipped in the main method
+            }
+            
+        } catch (Exception e) {
+            logger.error("❌ Error processing beneficiary data: {}", e.getMessage(), e);
+            return false; // Will be counted as skipped in the main method
+        }
+    }
+
     private Map<String, Object> syncPropertiesWithCommission() throws Exception {
         logger.info("📊 Starting FIXED commission sync with comprehensive pagination...");
         
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
-        // Counters with detailed breakdown (same pattern as batch payments)
+        // Counters
         int totalApiCalls = 0, totalPagesProcessed = 0;
-        int propertiesProcessed = 0, propertiesUpdated = 0, propertiesCreated = 0;
+        int propertiesProcessed = 0, propertiesUpdated = 0;
         int propertiesWithCommission = 0, propertiesWithoutCommission = 0;
-        int commissionsSet = 0, errors = 0;
+        int commissionsSet = 0, errors = 0, validationErrors = 0;
         
-        // ✅ COMPREHENSIVE PAGINATION: Same pattern as successful batch payments
         int page = 1;
         
         logger.info("🔍 FIXED: Processing properties with commission data using pagination...");
@@ -334,10 +351,11 @@ public class PayPropFinancialSyncService {
                 logger.info("📊 Processing {} properties with commission data on page {}", 
                     payPropProperties.size(), page);
                 
-                // ✅ PROCESS EACH PROPERTY: Same careful handling as batch payments
+                // Process each property INDIVIDUALLY
                 for (Map<String, Object> ppProperty : payPropProperties) {
                     try {
-                        boolean processed = processPropertyCommissionData(ppProperty);
+                        // Each property is processed in its own transaction
+                        boolean processed = processPropertyCommissionDataInNewTransaction(ppProperty);
                         if (processed) {
                             propertiesProcessed++;
                             
@@ -354,12 +372,14 @@ public class PayPropFinancialSyncService {
                             } else {
                                 propertiesWithoutCommission++;
                             }
+                            
+                            propertiesUpdated++;
                         }
-                        
                     } catch (Exception e) {
                         errors++;
                         logger.error("❌ Error processing property commission {}: {}", 
                             ppProperty.get("id"), e.getMessage());
+                        // Continue processing other properties!
                     }
                 }
                 
@@ -403,7 +423,8 @@ public class PayPropFinancialSyncService {
                 break;
                 
             } catch (Exception e) {
-                logger.error("❌ Commission sync failed on page {}: {}", page, e.getMessage(), e);
+                logger.error("❌ API error on page {}: {}", page, e.getMessage());
+                // Continue with next page or break based on error type
                 break;
             }
         }
@@ -413,22 +434,111 @@ public class PayPropFinancialSyncService {
         logger.info("📊 Total API calls: {}", totalApiCalls);
         logger.info("📊 Pages processed: {}", totalPagesProcessed);
         logger.info("📊 Properties processed: {}", propertiesProcessed);
+        logger.info("✅ Properties updated: {}", propertiesUpdated);
         logger.info("✅ Properties with commission rates: {}", propertiesWithCommission);
         logger.info("⚠️ Properties without commission rates: {}", propertiesWithoutCommission);
         logger.info("✅ Commission rates set: {}", commissionsSet);
         logger.info("❌ Processing errors: {}", errors);
+        logger.info("❌ Validation errors: {}", validationErrors);
         
         Map<String, Object> result = new HashMap<>();
         result.put("total_processed", propertiesProcessed);
+        result.put("properties_updated", propertiesUpdated);
         result.put("properties_with_commission", propertiesWithCommission);
         result.put("properties_without_commission", propertiesWithoutCommission);
         result.put("commission_rates_set", commissionsSet);
         result.put("errors", errors);
+        result.put("validation_errors", validationErrors);
         result.put("api_calls", totalApiCalls);
         result.put("pages_processed", totalPagesProcessed);
-        result.put("improvement", "Added comprehensive pagination - should get all 281 properties instead of just 25");
+        result.put("improvement", "Added comprehensive pagination with individual transaction processing - should get all properties instead of just 25");
         
         return result;
+    }
+
+    /**
+     * ✅ NEW: Process property commission data in a new transaction to isolate failures
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    private boolean processPropertyCommissionDataInNewTransaction(Map<String, Object> ppProperty) {
+        try {
+            String payPropId = (String) ppProperty.get("id");
+            String propertyName = (String) ppProperty.get("property_name");
+            
+            // ✅ DEFENSIVE LOGGING
+            logger.info("🔍 Processing property: ID='{}', Name='{}'", payPropId, propertyName);
+            
+            if (payPropId == null || payPropId.trim().isEmpty()) {
+                logger.warn("⚠️ COMMISSION: Skipping property with missing PayProp ID");
+                return false;
+            }
+            
+            Optional<Property> existingOpt = propertyService.findByPayPropId(payPropId);
+            if (!existingOpt.isPresent()) {
+                logger.warn("⚠️ COMMISSION: Property not found for PayProp ID: {}", payPropId);
+                return false;
+            }
+            
+            Property property = existingOpt.get();
+            
+            // ✅ DEFENSIVE PROPERTY NAME HANDLING
+            if (propertyName != null && !propertyName.trim().isEmpty()) {
+                // Only update if we have a valid name
+                if (propertyName.matches("^.*\\S.*$")) {
+                    property.setPropertyName(propertyName.trim());
+                    logger.debug("✅ Updated property name: {}", propertyName.trim());
+                } else {
+                    logger.warn("⚠️ Invalid property name pattern from PayProp: '{}', keeping existing: '{}'", 
+                        propertyName, property.getPropertyName());
+                }
+            } else {
+                logger.warn("⚠️ Blank property name from PayProp for ID: {}, keeping existing: '{}'", 
+                    payPropId, property.getPropertyName());
+            }
+            
+            // ✅ DEFENSIVE COMMISSION HANDLING
+            Map<String, Object> commission = (Map<String, Object>) ppProperty.get("commission");
+            if (commission != null) {
+                Object percentage = commission.get("percentage");
+                if (percentage instanceof String && !((String) percentage).trim().isEmpty()) {
+                    try {
+                        BigDecimal commissionRate = new BigDecimal(((String) percentage).trim());
+                        // ✅ VALIDATE RANGE BEFORE SETTING
+                        if (commissionRate.compareTo(BigDecimal.ZERO) >= 0 && 
+                            commissionRate.compareTo(BigDecimal.valueOf(100)) <= 0) {
+                            property.setCommissionPercentage(commissionRate);
+                            logger.debug("✅ Set commission rate: {}%", commissionRate);
+                        } else {
+                            logger.warn("⚠️ Commission rate out of range (0-100): {}%, skipping", commissionRate);
+                        }
+                    } catch (NumberFormatException e) {
+                        logger.warn("⚠️ Invalid commission percentage format: '{}', skipping", percentage);
+                    }
+                }
+            }
+            
+            // Update additional property data
+            updatePropertyFromCommissionSync(property, ppProperty);
+            
+            // ✅ SAFE SAVE WITH SPECIFIC ERROR LOGGING
+            try {
+                propertyService.save(property);
+                logger.debug("✅ Successfully saved property: {}", property.getPropertyName());
+                return true;
+            } catch (jakarta.validation.ConstraintViolationException e) {
+                logger.error("❌ VALIDATION FAILED for property {} ({}): {}", 
+                    property.getPayPropId(), 
+                    property.getPropertyName(),
+                    e.getConstraintViolations().stream()
+                        .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage() + " (value: '" + cv.getInvalidValue() + "')")
+                        .collect(Collectors.joining("; ")));
+                return false;
+            }
+            
+        } catch (Exception e) {
+            logger.error("❌ Error processing property commission data: {}", e.getMessage());
+            return false;
+        }
     }
 
     private boolean processPropertyCommissionData(Map<String, Object> ppProperty) {
