@@ -120,11 +120,173 @@ public class PayPropFinancialSyncService {
         
         return syncResults;
     }
-    
-    /**
-     * ✅ FIXED COMMISSION SYNC: Apply same pagination pattern as successful batch payments
-     * Replace syncPropertiesWithCommission() method in PayPropFinancialSyncService.java
-     */
+
+    private Map<String, Object> syncOwnerBeneficiaries() throws Exception {
+        logger.info("👥 Syncing owner beneficiaries...");
+        
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        String url = payPropApiBase + "/export/beneficiaries?owners=true&rows=1000";
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+        
+        List<Map<String, Object>> payPropBeneficiaries = (List<Map<String, Object>>) response.getBody().get("items");
+        
+        int updated = 0, created = 0, skipped = 0;
+        
+        for (Map<String, Object> ppBeneficiary : payPropBeneficiaries) {
+            try {
+                String payPropId = (String) ppBeneficiary.get("id");
+                
+                // 🔧 VALIDATION: Skip if missing essential data
+                if (payPropId == null || payPropId.trim().isEmpty()) {
+                    logger.warn("⚠️ Skipping beneficiary with missing PayProp ID");
+                    skipped++;
+                    continue;
+                }
+                
+                // Find or create beneficiary
+                Beneficiary beneficiary = beneficiaryRepository.findByPayPropBeneficiaryId(payPropId);
+                boolean isNew = beneficiary == null;
+                
+                if (isNew) {
+                    beneficiary = new Beneficiary();
+                    beneficiary.setPayPropBeneficiaryId(payPropId);
+                    beneficiary.setCreatedAt(LocalDateTime.now());
+                }
+                
+                // 🔧 FIX: Handle account_type with safe defaults
+                String accountTypeStr = (String) ppBeneficiary.get("account_type");
+                if (accountTypeStr == null || "undefined".equals(accountTypeStr) || accountTypeStr.trim().isEmpty()) {
+                    // Default to individual if not specified
+                    beneficiary.setAccountType(AccountType.individual);
+                    logger.debug("🔧 Defaulted account_type to 'individual' for beneficiary {}", payPropId);
+                } else {
+                    try {
+                        beneficiary.setAccountType(AccountType.valueOf(accountTypeStr.toLowerCase()));
+                    } catch (IllegalArgumentException e) {
+                        logger.warn("⚠️ Invalid account_type '{}' for beneficiary {}, defaulting to 'individual'", 
+                                accountTypeStr, payPropId);
+                        beneficiary.setAccountType(AccountType.individual);
+                    }
+                }
+                
+                // 🔧 FIX: Handle payment_method with safe defaults
+                String paymentMethodStr = (String) ppBeneficiary.get("payment_method");
+                if (paymentMethodStr == null || "undefined".equals(paymentMethodStr) || paymentMethodStr.trim().isEmpty()) {
+                    // Default to local payment method
+                    beneficiary.setPaymentMethod(PaymentMethod.local);
+                    logger.debug("🔧 Defaulted payment_method to 'local' for beneficiary {}", payPropId);
+                } else {
+                    try {
+                        beneficiary.setPaymentMethod(PaymentMethod.valueOf(paymentMethodStr.toLowerCase()));
+                    } catch (IllegalArgumentException e) {
+                        logger.warn("⚠️ Invalid payment_method '{}' for beneficiary {}, defaulting to 'local'", 
+                                paymentMethodStr, payPropId);
+                        beneficiary.setPaymentMethod(PaymentMethod.local);
+                    }
+                }
+                
+                // 🔧 FIX: Set BeneficiaryType using the correct enum values
+                beneficiary.setBeneficiaryType(BeneficiaryType.BENEFICIARY);
+                logger.debug("🔧 Set beneficiary_type to 'BENEFICIARY' for beneficiary {}", payPropId);
+                
+                // 🔧 FIX: Set name field safely (required field)
+                String firstName = (String) ppBeneficiary.get("first_name");
+                String lastName = (String) ppBeneficiary.get("last_name");
+                String businessName = (String) ppBeneficiary.get("business_name");
+                
+                // Clean up empty strings to null
+                if (firstName != null && firstName.trim().isEmpty()) firstName = null;
+                if (lastName != null && lastName.trim().isEmpty()) lastName = null;
+                if (businessName != null && businessName.trim().isEmpty()) businessName = null;
+                
+                beneficiary.setFirstName(firstName);
+                beneficiary.setLastName(lastName);
+                beneficiary.setBusinessName(businessName);
+                
+                // Set the name field (required, non-null)
+                String calculatedName = null;
+                if (beneficiary.getAccountType() == AccountType.business && businessName != null) {
+                    calculatedName = businessName;
+                } else if (firstName != null && lastName != null) {
+                    calculatedName = firstName + " " + lastName;
+                } else if (firstName != null) {
+                    calculatedName = firstName;
+                } else if (lastName != null) {
+                    calculatedName = lastName;
+                } else if (businessName != null) {
+                    calculatedName = businessName;
+                }
+                
+                // Fallback if still no name
+                if (calculatedName == null || calculatedName.trim().isEmpty()) {
+                    calculatedName = "Beneficiary " + payPropId;
+                    logger.warn("⚠️ No name available for beneficiary {}, using fallback: '{}'", 
+                            payPropId, calculatedName);
+                }
+                
+                beneficiary.setName(calculatedName.trim());
+                
+                // Set other fields
+                String email = (String) ppBeneficiary.get("email_address");
+                if (email != null && !email.trim().isEmpty()) {
+                    beneficiary.setEmail(email.trim());
+                }
+                
+                beneficiary.setMobileNumber((String) ppBeneficiary.get("mobile"));
+                beneficiary.setPhone((String) ppBeneficiary.get("phone"));
+                beneficiary.setIsActiveOwner((Boolean) ppBeneficiary.getOrDefault("is_active_owner", false));
+                beneficiary.setVatNumber((String) ppBeneficiary.get("vat_number"));
+                beneficiary.setCustomerReference((String) ppBeneficiary.get("customer_reference"));
+                
+                // Properties this beneficiary owns
+                List<Map<String, Object>> properties = (List<Map<String, Object>>) ppBeneficiary.get("properties");
+                if (properties != null && !properties.isEmpty()) {
+                    Map<String, Object> property = properties.get(0);
+                    String propertyName = (String) property.get("property_name");
+                    beneficiary.setPrimaryPropertyName(propertyName);
+                    
+                    Object accountBalance = property.get("account_balance");
+                    if (accountBalance instanceof Number) {
+                        beneficiary.setEnhancedAccountBalance(new BigDecimal(accountBalance.toString()));
+                    }
+                }
+                
+                beneficiary.setUpdatedAt(LocalDateTime.now());
+                
+                try {
+                    beneficiaryRepository.save(beneficiary);
+                    if (isNew) {
+                        created++;
+                        logger.info("✅ Created beneficiary: {} ({})", calculatedName, payPropId);
+                    } else {
+                        updated++;
+                        logger.debug("✅ Updated beneficiary: {} ({})", calculatedName, payPropId);
+                    }
+                } catch (Exception saveException) {
+                    logger.error("❌ Failed to save beneficiary {}: {}", payPropId, saveException.getMessage());
+                    skipped++;
+                }
+                
+            } catch (Exception e) {
+                logger.error("❌ Error processing beneficiary: {}", e.getMessage(), e);
+                skipped++;
+            }
+        }
+        
+        logger.info("👥 Owner beneficiaries sync completed: {} created, {} updated, {} skipped", 
+                    created, updated, skipped);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("total_processed", payPropBeneficiaries.size());
+        result.put("created", created);
+        result.put("updated", updated);
+        result.put("skipped", skipped);
+        
+        return result;
+    }
+
     private Map<String, Object> syncPropertiesWithCommission() throws Exception {
         logger.info("📊 Starting FIXED commission sync with comprehensive pagination...");
         
@@ -397,174 +559,7 @@ public class PayPropFinancialSyncService {
             property.setCountryCode((String) address.get("country_code"));
         }
     }
-
-    private Map<String, Object> syncOwnerBeneficiaries() throws Exception {
-        logger.info("👥 Syncing owner beneficiaries...");
         
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<String> request = new HttpEntity<>(headers);
-        
-        String url = payPropApiBase + "/export/beneficiaries?owners=true&rows=1000";
-        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-        
-        List<Map<String, Object>> payPropBeneficiaries = (List<Map<String, Object>>) response.getBody().get("items");
-        
-        int updated = 0, created = 0, skipped = 0;
-        
-        for (Map<String, Object> ppBeneficiary : payPropBeneficiaries) {
-            try {
-                String payPropId = (String) ppBeneficiary.get("id");
-                
-                // 🔧 VALIDATION: Skip if missing essential data
-                if (payPropId == null || payPropId.trim().isEmpty()) {
-                    logger.warn("⚠️ Skipping beneficiary with missing PayProp ID");
-                    skipped++;
-                    continue;
-                }
-                
-                // Find or create beneficiary
-                Beneficiary beneficiary = beneficiaryRepository.findByPayPropBeneficiaryId(payPropId);
-                boolean isNew = beneficiary == null;
-                
-                if (isNew) {
-                    beneficiary = new Beneficiary();
-                    beneficiary.setPayPropBeneficiaryId(payPropId);
-                    beneficiary.setCreatedAt(LocalDateTime.now());
-                }
-                
-                // 🔧 FIX: Handle account_type with safe defaults
-                String accountTypeStr = (String) ppBeneficiary.get("account_type");
-                if (accountTypeStr == null || "undefined".equals(accountTypeStr) || accountTypeStr.trim().isEmpty()) {
-                    // Default to individual if not specified
-                    beneficiary.setAccountType(AccountType.individual);
-                    logger.debug("🔧 Defaulted account_type to 'individual' for beneficiary {}", payPropId);
-                } else {
-                    try {
-                        beneficiary.setAccountType(AccountType.valueOf(accountTypeStr.toLowerCase()));
-                    } catch (IllegalArgumentException e) {
-                        logger.warn("⚠️ Invalid account_type '{}' for beneficiary {}, defaulting to 'individual'", 
-                                accountTypeStr, payPropId);
-                        beneficiary.setAccountType(AccountType.individual);
-                    }
-                }
-                
-                // 🔧 FIX: Handle payment_method with safe defaults
-                String paymentMethodStr = (String) ppBeneficiary.get("payment_method");
-                if (paymentMethodStr == null || "undefined".equals(paymentMethodStr) || paymentMethodStr.trim().isEmpty()) {
-                    // Default to local payment method
-                    beneficiary.setPaymentMethod(PaymentMethod.local);
-                    logger.debug("🔧 Defaulted payment_method to 'local' for beneficiary {}", payPropId);
-                } else {
-                    try {
-                        beneficiary.setPaymentMethod(PaymentMethod.valueOf(paymentMethodStr.toLowerCase()));
-                    } catch (IllegalArgumentException e) {
-                        logger.warn("⚠️ Invalid payment_method '{}' for beneficiary {}, defaulting to 'local'", 
-                                paymentMethodStr, payPropId);
-                        beneficiary.setPaymentMethod(PaymentMethod.local);
-                    }
-                }
-                
-                // 🔧 FIX: Set BeneficiaryType using the correct enum values
-                // These are property owners, so they should be BENEFICIARY
-                // Java enum: AGENCY, BENEFICIARY, GLOBAL_BENEFICIARY, PROPERTY_ACCOUNT, DEPOSIT_ACCOUNT
-                beneficiary.setBeneficiaryType(BeneficiaryType.BENEFICIARY);
-                logger.debug("🔧 Set beneficiary_type to 'BENEFICIARY' for beneficiary {}", payPropId);
-                
-                // 🔧 FIX: Set name field safely (required field)
-                String firstName = (String) ppBeneficiary.get("first_name");
-                String lastName = (String) ppBeneficiary.get("last_name");
-                String businessName = (String) ppBeneficiary.get("business_name");
-                
-                // Clean up empty strings to null
-                if (firstName != null && firstName.trim().isEmpty()) firstName = null;
-                if (lastName != null && lastName.trim().isEmpty()) lastName = null;
-                if (businessName != null && businessName.trim().isEmpty()) businessName = null;
-                
-                beneficiary.setFirstName(firstName);
-                beneficiary.setLastName(lastName);
-                beneficiary.setBusinessName(businessName);
-                
-                // Set the name field (required, non-null)
-                String calculatedName = null;
-                if (beneficiary.getAccountType() == AccountType.business && businessName != null) {
-                    calculatedName = businessName;
-                } else if (firstName != null && lastName != null) {
-                    calculatedName = firstName + " " + lastName;
-                } else if (firstName != null) {
-                    calculatedName = firstName;
-                } else if (lastName != null) {
-                    calculatedName = lastName;
-                } else if (businessName != null) {
-                    calculatedName = businessName;
-                }
-                
-                // Fallback if still no name
-                if (calculatedName == null || calculatedName.trim().isEmpty()) {
-                    calculatedName = "Beneficiary " + payPropId;
-                    logger.warn("⚠️ No name available for beneficiary {}, using fallback: '{}'", 
-                            payPropId, calculatedName);
-                }
-                
-                beneficiary.setName(calculatedName.trim());
-                
-                // Set other fields
-                String email = (String) ppBeneficiary.get("email_address");
-                if (email != null && !email.trim().isEmpty()) {
-                    beneficiary.setEmail(email.trim());
-                }
-                
-                beneficiary.setMobileNumber((String) ppBeneficiary.get("mobile"));
-                beneficiary.setPhone((String) ppBeneficiary.get("phone"));
-                beneficiary.setIsActiveOwner((Boolean) ppBeneficiary.getOrDefault("is_active_owner", false));
-                beneficiary.setVatNumber((String) ppBeneficiary.get("vat_number"));
-                beneficiary.setCustomerReference((String) ppBeneficiary.get("customer_reference"));
-                
-                // Properties this beneficiary owns
-                List<Map<String, Object>> properties = (List<Map<String, Object>>) ppBeneficiary.get("properties");
-                if (properties != null && !properties.isEmpty()) {
-                    Map<String, Object> property = properties.get(0);
-                    String propertyName = (String) property.get("property_name");
-                    beneficiary.setPrimaryPropertyName(propertyName);
-                    
-                    Object accountBalance = property.get("account_balance");
-                    if (accountBalance instanceof Number) {
-                        beneficiary.setEnhancedAccountBalance(new BigDecimal(accountBalance.toString()));
-                    }
-                }
-                
-                beneficiary.setUpdatedAt(LocalDateTime.now());
-                
-                try {
-                    beneficiaryRepository.save(beneficiary);
-                    if (isNew) {
-                        created++;
-                        logger.info("✅ Created beneficiary: {} ({})", calculatedName, payPropId);
-                    } else {
-                        updated++;
-                        logger.debug("✅ Updated beneficiary: {} ({})", calculatedName, payPropId);
-                    }
-                } catch (Exception saveException) {
-                    logger.error("❌ Failed to save beneficiary {}: {}", payPropId, saveException.getMessage());
-                    skipped++;
-                }
-                
-            } catch (Exception e) {
-                logger.error("❌ Error processing beneficiary: {}", e.getMessage(), e);
-                skipped++;
-            }
-        }
-        
-        logger.info("👥 Owner beneficiaries sync completed: {} created, {} updated, {} skipped", 
-                    created, updated, skipped);
-        
-        return Map.of(
-            "total_processed", payPropBeneficiaries.size(),
-            "created", created,
-            "updated", updated,
-            "skipped", skipped
-        );
-    }
-    
     /**
      * Sync payment categories from PayProp
      */
