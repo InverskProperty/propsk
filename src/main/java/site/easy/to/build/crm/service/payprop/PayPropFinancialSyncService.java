@@ -1668,17 +1668,30 @@ public class PayPropFinancialSyncService {
         Map<String, Object> result = new HashMap<>();
         
         try {
-            // Get instructed amounts
+            // ✅ FIXED: Use existing working repository methods instead of the problematic one
+            
+            // Get instructed amounts using existing method
             List<FinancialTransaction> instructions = financialTransactionRepository
-                .findByPropertyIdAndDataSourceAndDateRange(propertyId, "PAYMENT_INSTRUCTION", fromDate, toDate);
+                .findByPropertyIdAndDataSource(propertyId, "PAYMENT_INSTRUCTION")
+                .stream()
+                .filter(t -> t.getTransactionDate() != null)
+                .filter(t -> !t.getTransactionDate().isBefore(fromDate) && !t.getTransactionDate().isAfter(toDate))
+                .collect(Collectors.toList());
             
-            // Get actual amounts  
+            // Get actual amounts using existing method
             List<FinancialTransaction> actuals = financialTransactionRepository
-                .findByPropertyIdAndDataSourceAndDateRange(propertyId, "ACTUAL_PAYMENT", fromDate, toDate);
+                .findByPropertyIdAndDataSource(propertyId, "ACTUAL_PAYMENT")
+                .stream()
+                .filter(t -> t.getTransactionDate() != null)
+                .filter(t -> !t.getTransactionDate().isBefore(fromDate) && !t.getTransactionDate().isAfter(toDate))
+                .collect(Collectors.toList());
             
-            // Get ICDN data
+            // Get ICDN data using existing method
             List<FinancialTransaction> icdnData = financialTransactionRepository
-                .findByPropertyIdAndDataSourceAndDateRange(propertyId, "ICDN_ACTUAL", fromDate, toDate);
+                .findByPropertyIdAndTransactionDateBetween(propertyId, fromDate, toDate)
+                .stream()
+                .filter(t -> "ICDN_ACTUAL".equals(t.getDataSource()))
+                .collect(Collectors.toList());
             
             BigDecimal instructedTotal = instructions.stream()
                 .map(FinancialTransaction::getAmount)
