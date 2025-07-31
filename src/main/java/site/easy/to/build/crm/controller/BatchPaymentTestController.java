@@ -321,7 +321,7 @@ private List<String> getPropertiesForDebugSync(int limit) {
 }
 
 /**
- * ✅ FOCUSED: Debug sync properties with detailed validation logging
+ * ✅ FIXED: Debug sync properties using bulk endpoint (PayProp doesn't support individual property lookups)
  */
 private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPropIds, boolean includeValidationDetails) {
     Map<String, Object> result = new HashMap<>();
@@ -334,45 +334,81 @@ private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPr
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
-        for (String payPropId : payPropIds) {
+        // ✅ FIXED: Use bulk endpoint to get all properties, then filter for our target IDs
+        String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&rows=1000";
+        
+        log.info("🔍 DEBUG: Getting properties from bulk endpoint, will filter for IDs: {}", payPropIds);
+        
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+        List<Map<String, Object>> allProperties = (List<Map<String, Object>>) response.getBody().get("items");
+        
+        if (allProperties == null || allProperties.isEmpty()) {
+            result.put("error", "No properties returned from PayProp API");
+            return result;
+        }
+        
+        log.info("📊 DEBUG: Got {} total properties from PayProp, filtering for target IDs", allProperties.size());
+        
+        // Filter for our target properties
+        List<Map<String, Object>> targetProperties = allProperties.stream()
+            .filter(p -> {
+                String id = (String) p.get("id");
+                return id != null && payPropIds.contains(id);
+            })
+            .collect(Collectors.toList());
+        
+        log.info("🎯 DEBUG: Found {} target properties out of {} requested", targetProperties.size(), payPropIds.size());
+        
+        // Track which IDs we found vs missing
+        Set<String> foundIds = targetProperties.stream()
+            .map(p -> (String) p.get("id"))
+            .collect(Collectors.toSet());
+        
+        List<String> missingIds = payPropIds.stream()
+            .filter(id -> !foundIds.contains(id))
+            .collect(Collectors.toList());
+        
+        if (!missingIds.isEmpty()) {
+            log.warn("⚠️ DEBUG: Missing properties from PayProp API: {}", missingIds);
+        }
+        
+        // Process each target property
+        for (Map<String, Object> ppProperty : targetProperties) {
             try {
-                // Get single property with commission data
-                String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties/" + payPropId + "?include_commission=true";
+                Map<String, Object> propertyResult = debugProcessSingleProperty(ppProperty, includeValidationDetails);
+                processedProperties.add(propertyResult);
                 
-                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-                Map<String, Object> ppProperty = response.getBody();
-                
-                if (ppProperty != null) {
-                    Map<String, Object> propertyResult = debugProcessSingleProperty(ppProperty, includeValidationDetails);
-                    processedProperties.add(propertyResult);
-                    
-                    if ("SUCCESS".equals(propertyResult.get("status"))) {
-                        updated++;
-                    } else {
-                        failed++;
-                        if (propertyResult.containsKey("validation_details")) {
-                            validationFailures.add(propertyResult);
-                        }
+                if ("SUCCESS".equals(propertyResult.get("status"))) {
+                    updated++;
+                } else {
+                    failed++;
+                    if (propertyResult.containsKey("validation_details")) {
+                        validationFailures.add(propertyResult);
                     }
                 }
                 
                 processed++;
                 
-                // Rate limiting
-                if (processed > 1) {
-                    Thread.sleep(200);
-                }
-                
             } catch (Exception e) {
                 failed++;
                 Map<String, Object> errorResult = new HashMap<>();
-                errorResult.put("payprop_id", payPropId);
-                errorResult.put("status", "API_ERROR");
+                errorResult.put("payprop_id", ppProperty.get("id"));
+                errorResult.put("status", "PROCESSING_ERROR");
                 errorResult.put("error", e.getMessage());
                 processedProperties.add(errorResult);
                 
-                log.error("❌ Failed to sync property {}: {}", payPropId, e.getMessage());
+                log.error("❌ Failed to process property {}: {}", ppProperty.get("id"), e.getMessage());
             }
+        }
+        
+        // Add missing properties to results
+        for (String missingId : missingIds) {
+            Map<String, Object> missingResult = new HashMap<>();
+            missingResult.put("payprop_id", missingId);
+            missingResult.put("status", "NOT_FOUND_IN_PAYPROP");
+            missingResult.put("error", "Property not found in PayProp API response");
+            processedProperties.add(missingResult);
+            failed++;
         }
         
     } catch (Exception e) {
@@ -386,6 +422,7 @@ private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPr
     result.put("properties", processedProperties);
     result.put("validation_failures", validationFailures);
     result.put("success_rate", processed > 0 ? (updated * 100.0 / processed) : 0);
+    result.put("requested_ids", payPropIds);
     
     return result;
 }
