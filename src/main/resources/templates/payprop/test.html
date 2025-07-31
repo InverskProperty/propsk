@@ -243,6 +243,40 @@
         </div>
     </div>
 
+    <!-- NEW: Fast Debug Sync for Development -->
+    <div class="test-section">
+        <h3>13. 🚀 Fast Debug Sync (Quick Iteration)</h3>
+        <p class="text-muted">Sync just a few properties with all related data for fast debugging - completes in 30 seconds</p>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label>Specific Property IDs (comma-separated, optional):</label>
+                <input type="text" id="debugPropertyIds" class="form-control" 
+                        placeholder="5AJ5KQjE1M,KAXNNaG9Xk or leave empty for auto-select">
+            </div>
+            <div class="col-md-3">
+                <label>Number of Properties:</label>
+                <input type="number" id="debugLimit" class="form-control" value="5" min="1" max="20">
+            </div>
+            <div class="col-md-3">
+                <label>Options:</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="includeFinancials" checked>
+                    <label class="form-check-label" for="includeFinancials">Include Financials</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="includeValidationDetails" checked>
+                    <label class="form-check-label" for="includeValidationDetails">Detailed Validation</label>
+                </div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <button class="btn btn-success btn-lg" onclick="debugSyncFast()">🚀 Debug Sync (Fast)</button>
+            <button class="btn btn-warning" onclick="debugSyncProblemProperties()">🎯 Sync Problem Properties</button>
+            <button class="btn btn-info" onclick="debugSyncSingleProperty()">🔍 Sync Single Property</button>
+        </div>
+        <div id="debugSyncResult" class="result-box d-none"></div>
+    </div>
+
     <!-- Loading spinner -->
     <div class="loading position-fixed top-50 start-50 translate-middle">
         <div class="spinner-border text-primary" role="status">
@@ -659,6 +693,81 @@
             } else {
                 showResult('comparisonResult', result, 'Comprehensive Endpoint Comparison');
             }
+        }
+
+            async function debugSyncFast() {
+            const propertyIds = document.getElementById('debugPropertyIds').value;
+            const limit = document.getElementById('debugLimit').value;
+            const includeFinancials = document.getElementById('includeFinancials').checked;
+            const includeValidationDetails = document.getElementById('includeValidationDetails').checked;
+            
+            let url = `/api/payprop/test/debug-sync?limit=${limit}&includeFinancials=${includeFinancials}&includeValidationDetails=${includeValidationDetails}`;
+            
+            if (propertyIds && propertyIds.trim()) {
+                url += `&propertyIds=${encodeURIComponent(propertyIds.trim())}`;
+            }
+            
+            showResult('debugSyncResult', 'Starting fast debug sync...', '🚀 Debug Sync Running');
+            
+            const result = await fetchWithCSRF(url);
+            
+            if (result.success && result.data) {
+                const data = result.data;
+                
+                // Enhanced result display
+                let title = `🚀 Debug Sync Complete (${data.duration_seconds}s)`;
+                
+                if (data.properties && data.properties.failed > 0) {
+                    title += ' - VALIDATION FAILURES FOUND!';
+                }
+                
+                // Add summary to the top
+                const summary = {
+                    duration: `${data.duration_seconds}s`,
+                    properties_processed: data.properties?.processed || 0,
+                    success_rate: `${data.properties?.success_rate || 0}%`,
+                    validation_failures: data.properties?.validation_failures?.length || 0,
+                    ...data
+                };
+                
+                showResult('debugSyncResult', summary, title);
+                
+                // Auto-scroll to validation failures if any
+                if (data.properties?.validation_failures?.length > 0) {
+                    setTimeout(() => {
+                        const element = document.getElementById('debugSyncResult');
+                        element.scrollIntoView({ behavior: 'smooth' });
+                    }, 500);
+                }
+                
+            } else {
+                showResult('debugSyncResult', result, '❌ Debug Sync Failed');
+            }
+        }
+        
+        /**
+         * Sync properties most likely to have validation issues
+         */
+        async function debugSyncProblemProperties() {
+            // Use properties that might have validation issues
+            const problemIds = '5AJ5KQjE1M,KAXNNaG9Xk,K3Jwqg8W1E'; // Known properties from your database
+            
+            document.getElementById('debugPropertyIds').value = problemIds;
+            document.getElementById('includeValidationDetails').checked = true;
+            
+            await debugSyncFast();
+        }
+        
+        /**
+         * Sync just one property with full detail
+         */
+        async function debugSyncSingleProperty() {
+            document.getElementById('debugPropertyIds').value = '5AJ5KQjE1M'; // The property that was updated during errors
+            document.getElementById('debugLimit').value = '1';
+            document.getElementById('includeFinancials').checked = true;
+            document.getElementById('includeValidationDetails').checked = true;
+            
+            await debugSyncFast();
         }
     </script>
 </body>

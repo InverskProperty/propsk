@@ -269,87 +269,80 @@ public class PayPropFinancialSyncService {
         return result;
     }
 
-    /**
-     * ✅ ENHANCED: Process individual property commission data with better error handling
-     * Add this method to PayPropFinancialSyncService.java
-     */
     private boolean processPropertyCommissionData(Map<String, Object> ppProperty) {
         try {
             String payPropId = (String) ppProperty.get("id");
             String propertyName = (String) ppProperty.get("property_name");
+            
+            // ✅ DEFENSIVE LOGGING
+            logger.info("🔍 Processing property: ID='{}', Name='{}'", payPropId, propertyName);
             
             if (payPropId == null || payPropId.trim().isEmpty()) {
                 logger.warn("⚠️ COMMISSION: Skipping property with missing PayProp ID");
                 return false;
             }
             
-            // ✅ CORRECT: Use existing payprop_id column (confirmed by database analysis)
-            // Database shows payprop_id is the primary PayProp identifier
             Optional<Property> existingOpt = propertyService.findByPayPropId(payPropId);
-
-            Property property;
-            
-            if (existingOpt.isPresent()) {
-                property = existingOpt.get();
-            } else {
+            if (!existingOpt.isPresent()) {
                 logger.warn("⚠️ COMMISSION: Property not found for PayProp ID: {}", payPropId);
-                return false; // Skip if property doesn't exist
+                return false;
             }
             
-            // Update basic property data
-            if (propertyName != null) {
-                property.setPropertyName(propertyName);
+            Property property = existingOpt.get();
+            
+            // ✅ DEFENSIVE PROPERTY NAME HANDLING
+            if (propertyName != null && !propertyName.trim().isEmpty()) {
+                // Only update if we have a valid name
+                if (propertyName.matches("^.*\\S.*$")) {
+                    property.setPropertyName(propertyName.trim());
+                    logger.debug("✅ Updated property name: {}", propertyName.trim());
+                } else {
+                    logger.warn("⚠️ Invalid property name pattern from PayProp: '{}', keeping existing: '{}'", 
+                        propertyName, property.getPropertyName());
+                }
+            } else {
+                logger.warn("⚠️ Blank property name from PayProp for ID: {}, keeping existing: '{}'", 
+                    payPropId, property.getPropertyName());
             }
             
-            // ✅ COMMISSION DATA PROCESSING: Handle the commission object carefully
+            // ✅ DEFENSIVE COMMISSION HANDLING
             Map<String, Object> commission = (Map<String, Object>) ppProperty.get("commission");
             if (commission != null) {
                 Object percentage = commission.get("percentage");
-                if (percentage instanceof String && !((String) percentage).isEmpty()) {
+                if (percentage instanceof String && !((String) percentage).trim().isEmpty()) {
                     try {
-                        BigDecimal commissionRate = new BigDecimal((String) percentage);
-                        property.setCommissionPercentage(commissionRate);
-                        logger.debug("✅ COMMISSION: Set rate {}% for property {}", 
-                            commissionRate, propertyName);
+                        BigDecimal commissionRate = new BigDecimal(((String) percentage).trim());
+                        // ✅ VALIDATE RANGE BEFORE SETTING
+                        if (commissionRate.compareTo(BigDecimal.ZERO) >= 0 && 
+                            commissionRate.compareTo(BigDecimal.valueOf(100)) <= 0) {
+                            property.setCommissionPercentage(commissionRate);
+                            logger.debug("✅ Set commission rate: {}%", commissionRate);
+                        } else {
+                            logger.warn("⚠️ Commission rate out of range (0-100): {}%, skipping", commissionRate);
+                        }
                     } catch (NumberFormatException e) {
-                        logger.warn("⚠️ COMMISSION: Invalid commission percentage format for property {}: {}", 
-                            propertyName, percentage);
-                        property.setCommissionPercentage(BigDecimal.ZERO);
+                        logger.warn("⚠️ Invalid commission percentage format: '{}', skipping", percentage);
                     }
-                } else {
-                    logger.debug("⚠️ COMMISSION: No commission percentage for property {}", propertyName);
-                    property.setCommissionPercentage(BigDecimal.ZERO);
                 }
-                
-                Object amount = commission.get("amount");
-                if (amount instanceof String && !((String) amount).isEmpty()) {
-                    try {
-                        property.setCommissionAmount(new BigDecimal((String) amount));
-                    } catch (NumberFormatException e) {
-                        property.setCommissionAmount(BigDecimal.ZERO);
-                    }
-                } else {
-                    property.setCommissionAmount(BigDecimal.ZERO);
-                }
-            } else {
-                logger.debug("⚠️ COMMISSION: No commission data for property {}, setting to zero", propertyName);
-                property.setCommissionPercentage(BigDecimal.ZERO);
-                property.setCommissionAmount(BigDecimal.ZERO);
             }
             
-            // Update other property fields from API
-            updatePropertyFromCommissionSync(property, ppProperty);
-            
-            // Set audit fields
-            property.setUpdatedAt(LocalDateTime.now());
-            
-            // ✅ SAVE: Use the existing property service
-            propertyService.save(property);
-            
-            return true;
+            // ✅ SAFE SAVE WITH SPECIFIC ERROR LOGGING
+            try {
+                propertyService.save(property);
+                logger.debug("✅ Successfully saved property: {}", property.getPropertyName());
+                return true;
+            } catch (jakarta.validation.ConstraintViolationException e) {
+                logger.error("❌ VALIDATION FAILED for property {} ({}): {}", 
+                    property.getPayPropId(), 
+                    property.getPropertyName(),
+                    e.getConstraintViolations().stream()
+                        .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage() + " (value: '" + cv.getInvalidValue() + "')")
+                        .collect(Collectors.joining("; ")));
+                return false;
+            }
             
         } catch (Exception e) {
-            logger.error("❌ COMMISSION: Error processing property commission data: {}", e.getMessage(), e);
+            logger.error("❌ Error processing property commission data: {}", e.getMessage());
             return false;
         }
     }

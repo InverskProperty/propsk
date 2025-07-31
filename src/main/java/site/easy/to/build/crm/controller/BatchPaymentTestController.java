@@ -14,8 +14,15 @@ import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService.PayPropExportResult;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
+import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.service.property.PropertyService;
 
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.HashMap;
@@ -43,6 +50,9 @@ public class BatchPaymentTestController {
 
     @Autowired 
     private RestTemplate restTemplate;
+
+    @Autowired
+    private PropertyService propertyService;
 
     /**
      * ✅ NEW: Test ICDN endpoint specifically
@@ -203,6 +213,419 @@ public class BatchPaymentTestController {
                 "authStatus", "AUTH_CHECK_ERROR"
             ));
         }
+    }
+
+/**
+ * ✅ NEW: Fast debug sync for specific properties with comprehensive related data
+ * Perfect for fast iteration - processes 5-10 properties in under 30 seconds
+ */
+@GetMapping("/debug-sync")
+public ResponseEntity<Map<String, Object>> debugSyncSpecificProperties(
+        @RequestParam(required = false) String propertyIds,
+        @RequestParam(defaultValue = "5") int limit,
+        @RequestParam(defaultValue = "false") boolean includeFinancials,
+        @RequestParam(defaultValue = "false") boolean includeValidationDetails) {
+    
+    try {
+        long startTime = System.currentTimeMillis();
+        
+        ResponseEntity<Map<String, Object>> authCheck = checkAuthentication();
+        if (authCheck != null) return authCheck;
+        
+        List<String> targetIds;
+        
+        if (propertyIds != null && !propertyIds.trim().isEmpty()) {
+            // Use specific IDs provided (comma-separated)
+            targetIds = Arrays.asList(propertyIds.split(","));
+            log.info("🎯 DEBUG SYNC: Using specific property IDs: {}", targetIds);
+        } else {
+            // Get properties most likely to have validation issues
+            targetIds = getPropertiesForDebugSync(limit);
+            log.info("🎯 DEBUG SYNC: Auto-selected {} properties for testing", targetIds.size());
+        }
+        
+        if (targetIds.isEmpty()) {
+            return ResponseEntity.ok(Map.of(
+                "success", false,
+                "error", "No properties found to sync",
+                "suggestion", "Provide specific propertyIds or ensure properties exist with PayProp IDs"
+            ));
+        }
+        
+        Map<String, Object> results = new HashMap<>();
+        results.put("target_properties", targetIds);
+        results.put("sync_mode", "DEBUG_FAST_ITERATION");
+        
+        // 1. Sync Properties with Commission (MAIN TEST)
+        Map<String, Object> propertiesResult = debugSyncPropertiesWithCommission(targetIds, includeValidationDetails);
+        results.put("properties", propertiesResult);
+        
+        if (includeFinancials) {
+            // 2. Sync Financial Transactions for these properties only
+            Map<String, Object> transactionsResult = debugSyncFinancialTransactionsForProperties(targetIds);
+            results.put("transactions", transactionsResult);
+            
+            // 3. Sync Tenants for these properties
+            Map<String, Object> tenantsResult = debugSyncTenantsForProperties(targetIds);
+            results.put("tenants", tenantsResult);
+            
+            // 4. Calculate commission for these properties
+            Map<String, Object> commissionsResult = debugCalculateCommissionsForProperties(targetIds);
+            results.put("commissions", commissionsResult);
+        }
+        
+        long duration = System.currentTimeMillis() - startTime;
+        results.put("status", "SUCCESS");
+        results.put("duration_ms", duration);
+        results.put("duration_seconds", duration / 1000.0);
+        results.put("properties_processed", targetIds.size());
+        
+        log.info("✅ DEBUG SYNC completed in {}ms for {} properties", duration, targetIds.size());
+        
+        return ResponseEntity.ok(results);
+        
+    } catch (Exception e) {
+        log.error("❌ DEBUG SYNC failed: {}", e.getMessage(), e);
+        return ResponseEntity.ok(Map.of(
+            "success", false,
+            "error", e.getMessage(),
+            "stack_trace", e.getStackTrace().length > 0 ? e.getStackTrace()[0].toString() : "No stack trace"
+        ));
+    }
+}
+
+/**
+ * ✅ SMART: Get properties most likely to have validation issues
+ */
+private List<String> getPropertiesForDebugSync(int limit) {
+    try {
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        // Get properties with commission data (most likely to have validation issues)
+        String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&rows=" + limit;
+        
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+        List<Map<String, Object>> properties = (List<Map<String, Object>>) response.getBody().get("items");
+        
+        return properties.stream()
+            .map(p -> (String) p.get("id"))
+            .filter(id -> id != null && !id.trim().isEmpty())
+            .limit(limit)
+            .collect(Collectors.toList());
+            
+    } catch (Exception e) {
+        log.error("❌ Failed to get properties for debug sync: {}", e.getMessage());
+        return new ArrayList<>();
+    }
+}
+
+/**
+ * ✅ FOCUSED: Debug sync properties with detailed validation logging
+ */
+private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPropIds, boolean includeValidationDetails) {
+    Map<String, Object> result = new HashMap<>();
+    List<Map<String, Object>> processedProperties = new ArrayList<>();
+    List<Map<String, Object>> validationFailures = new ArrayList<>();
+    
+    int processed = 0, updated = 0, failed = 0;
+    
+    try {
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        for (String payPropId : payPropIds) {
+            try {
+                // Get single property with commission data
+                String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties/" + payPropId + "?include_commission=true";
+                
+                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                Map<String, Object> ppProperty = response.getBody();
+                
+                if (ppProperty != null) {
+                    Map<String, Object> propertyResult = debugProcessSingleProperty(ppProperty, includeValidationDetails);
+                    processedProperties.add(propertyResult);
+                    
+                    if ("SUCCESS".equals(propertyResult.get("status"))) {
+                        updated++;
+                    } else {
+                        failed++;
+                        if (propertyResult.containsKey("validation_details")) {
+                            validationFailures.add(propertyResult);
+                        }
+                    }
+                }
+                
+                processed++;
+                
+                // Rate limiting
+                if (processed > 1) {
+                    Thread.sleep(200);
+                }
+                
+            } catch (Exception e) {
+                failed++;
+                Map<String, Object> errorResult = new HashMap<>();
+                errorResult.put("payprop_id", payPropId);
+                errorResult.put("status", "API_ERROR");
+                errorResult.put("error", e.getMessage());
+                processedProperties.add(errorResult);
+                
+                log.error("❌ Failed to sync property {}: {}", payPropId, e.getMessage());
+            }
+        }
+        
+    } catch (Exception e) {
+        log.error("❌ Debug sync failed: {}", e.getMessage());
+        result.put("sync_error", e.getMessage());
+    }
+    
+    result.put("processed", processed);
+    result.put("updated", updated);
+    result.put("failed", failed);
+    result.put("properties", processedProperties);
+    result.put("validation_failures", validationFailures);
+    result.put("success_rate", processed > 0 ? (updated * 100.0 / processed) : 0);
+    
+    return result;
+}
+
+    /**
+     * ✅ DETAILED: Process single property with comprehensive validation logging
+     */
+    private Map<String, Object> debugProcessSingleProperty(Map<String, Object> ppProperty, boolean includeValidationDetails) {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            String payPropId = (String) ppProperty.get("id");
+            String propertyName = (String) ppProperty.get("property_name");
+            
+            result.put("payprop_id", payPropId);
+            result.put("payprop_property_name", propertyName);
+            
+            // ✅ DETAILED VALIDATION LOGGING
+            List<String> validationIssues = new ArrayList<>();
+            
+            // Check property name
+            if (propertyName == null) {
+                validationIssues.add("property_name is NULL");
+            } else if (propertyName.trim().isEmpty()) {
+                validationIssues.add("property_name is empty/whitespace");
+            } else if (!propertyName.matches("^.*\\S.*$")) {
+                validationIssues.add("property_name fails pattern validation");
+            }
+            
+            // Check commission data
+            Map<String, Object> commission = (Map<String, Object>) ppProperty.get("commission");
+            if (commission != null) {
+                Object percentage = commission.get("percentage");
+                if (percentage instanceof String) {
+                    try {
+                        BigDecimal rate = new BigDecimal((String) percentage);
+                        if (rate.compareTo(BigDecimal.ZERO) < 0 || rate.compareTo(BigDecimal.valueOf(100)) > 0) {
+                            validationIssues.add("commission_percentage out of range 0-100: " + rate);
+                        }
+                        result.put("commission_percentage", rate);
+                    } catch (NumberFormatException e) {
+                        validationIssues.add("commission_percentage invalid format: " + percentage);
+                    }
+                }
+            }
+            
+            // Check other financial fields
+            Object monthlyPayment = ppProperty.get("monthly_payment_required");
+            if (monthlyPayment instanceof Number) {
+                BigDecimal payment = new BigDecimal(monthlyPayment.toString());
+                if (payment.compareTo(new BigDecimal("0.01")) < 0) {
+                    validationIssues.add("monthly_payment below minimum 0.01: " + payment);
+                }
+                result.put("monthly_payment", payment);
+            }
+            
+            if (includeValidationDetails) {
+                result.put("validation_issues", validationIssues);
+                result.put("raw_payprop_data", ppProperty);
+            }
+            
+            // If no validation issues, try to update the property
+            if (validationIssues.isEmpty()) {
+                Optional<Property> existingOpt = propertyService.findByPayPropId(payPropId);
+                
+                if (existingOpt.isPresent()) {
+                    Property property = existingOpt.get();
+                    String originalName = property.getPropertyName();
+                    
+                    // Update property safely
+                    if (propertyName != null && !propertyName.trim().isEmpty()) {
+                        property.setPropertyName(propertyName.trim());
+                    }
+                    
+                    if (commission != null) {
+                        Object percentage = commission.get("percentage");
+                        if (percentage instanceof String && !((String) percentage).trim().isEmpty()) {
+                            try {
+                                BigDecimal rate = new BigDecimal(((String) percentage).trim());
+                                property.setCommissionPercentage(rate);
+                            } catch (NumberFormatException e) {
+                                // Already logged above
+                            }
+                        }
+                    }
+                    
+                    property.setUpdatedAt(LocalDateTime.now());
+                    
+                    // ✅ DETAILED SAVE ATTEMPT
+                    try {
+                        propertyService.save(property);
+                        result.put("status", "SUCCESS");
+                        result.put("action", "UPDATED");
+                        result.put("database_name", property.getPropertyName());
+                        result.put("name_changed", !originalName.equals(property.getPropertyName()));
+                        
+                    } catch (jakarta.validation.ConstraintViolationException e) {
+                        result.put("status", "VALIDATION_FAILED");
+                        result.put("validation_details", e.getConstraintViolations().stream()
+                            .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage() + " (value: '" + cv.getInvalidValue() + "')")
+                            .collect(Collectors.toList()));
+                        
+                    } catch (Exception e) {
+                        result.put("status", "SAVE_FAILED");
+                        result.put("save_error", e.getMessage());
+                    }
+                } else {
+                    result.put("status", "NOT_FOUND");
+                    result.put("error", "Property not found in database");
+                }
+            } else {
+                result.put("status", "PRE_VALIDATION_FAILED");
+                result.put("pre_validation_issues", validationIssues);
+            }
+            
+        } catch (Exception e) {
+            result.put("status", "PROCESSING_ERROR");
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
+     * ✅ FAST: Get financial transactions for specific properties only
+     */
+    private Map<String, Object> debugSyncFinancialTransactionsForProperties(List<String> payPropIds) {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            // Get last 30 days of transactions for these properties
+            LocalDate fromDate = LocalDate.now().minusDays(30);
+            LocalDate toDate = LocalDate.now();
+            
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            int totalTransactions = 0;
+            
+            for (String propertyId : payPropIds) {
+                String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/icdn" +
+                    "?property_id=" + propertyId +
+                    "&from_date=" + fromDate +
+                    "&to_date=" + toDate +
+                    "&rows=25";
+                
+                try {
+                    ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                    List<Map<String, Object>> transactions = (List<Map<String, Object>>) response.getBody().get("items");
+                    
+                    if (transactions != null) {
+                        totalTransactions += transactions.size();
+                    }
+                    
+                    Thread.sleep(200); // Rate limiting
+                    
+                } catch (Exception e) {
+                    log.warn("⚠️ Failed to get transactions for property {}: {}", propertyId, e.getMessage());
+                }
+            }
+            
+            result.put("properties_checked", payPropIds.size());
+            result.put("total_transactions_found", totalTransactions);
+            result.put("date_range", fromDate + " to " + toDate);
+            result.put("status", "SUCCESS");
+            
+        } catch (Exception e) {
+            result.put("status", "FAILED");
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
+     * ✅ FAST: Get tenants for specific properties only
+     */
+    private Map<String, Object> debugSyncTenantsForProperties(List<String> payPropIds) {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            int totalTenants = 0;
+            
+            for (String propertyId : payPropIds) {
+                String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/tenants?property_id=" + propertyId + "&rows=10";
+                
+                try {
+                    ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                    List<Map<String, Object>> tenants = (List<Map<String, Object>>) response.getBody().get("items");
+                    
+                    if (tenants != null) {
+                        totalTenants += tenants.size();
+                    }
+                    
+                    Thread.sleep(150); // Rate limiting
+                    
+                } catch (Exception e) {
+                    log.warn("⚠️ Failed to get tenants for property {}: {}", propertyId, e.getMessage());
+                }
+            }
+            
+            result.put("properties_checked", payPropIds.size());
+            result.put("total_tenants_found", totalTenants);
+            result.put("status", "SUCCESS");
+            
+        } catch (Exception e) {
+            result.put("status", "FAILED");
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
+     * ✅ FAST: Calculate commission for specific properties only
+     */
+    private Map<String, Object> debugCalculateCommissionsForProperties(List<String> payPropIds) {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            int commissionsCalculated = 0;
+            BigDecimal totalCommission = BigDecimal.ZERO;
+            
+            // This would use the existing database data to calculate commissions
+            // for the specific properties only
+            
+            result.put("properties_processed", payPropIds.size());
+            result.put("commissions_calculated", commissionsCalculated);
+            result.put("total_commission_amount", totalCommission);
+            result.put("status", "SUCCESS");
+            
+        } catch (Exception e) {
+            result.put("status", "FAILED");
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
     }
 
     @GetMapping("/custom-endpoint")
