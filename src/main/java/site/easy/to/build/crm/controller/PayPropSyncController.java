@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import site.easy.to.build.crm.service.payprop.*;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.util.AuthenticationUtils;
+import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator.UnifiedSyncResult;
 import site.easy.to.build.crm.service.payprop.PayPropSyncLogger.SyncStatistics;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService.PayPropExportResult;
@@ -115,6 +116,37 @@ public class PayPropSyncController {
             return ResponseEntity.internalServerError().body(Map.of(
                 "error", "Unified sync failed: " + e.getMessage()
             ));
+        }
+    }
+
+    @Controller
+    public class PayPropPageController {
+        
+        @GetMapping("/payprop/sync-dashboard")
+        public String syncDashboard(Model model, Authentication authentication) {
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                return "redirect:/access-denied";
+            }
+            model.addAttribute("pageTitle", "PayProp Sync Dashboard");
+            return "payprop/sync-dashboard";
+        }
+        
+        @GetMapping("/payprop/maintenance")
+        public String maintenanceDashboard(Model model, Authentication authentication) {
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                return "redirect:/access-denied";
+            }
+            model.addAttribute("pageTitle", "PayProp Maintenance Dashboard");
+            return "payprop/maintenance-dashboard";
+        }
+        
+        @GetMapping("/payprop/test")
+        public String testPage(Model model, Authentication authentication) {
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                return "redirect:/access-denied";
+            }
+            model.addAttribute("pageTitle", "PayProp Test");
+            return "payprop/test";
         }
     }
 

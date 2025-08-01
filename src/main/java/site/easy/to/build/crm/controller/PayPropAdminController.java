@@ -111,6 +111,13 @@ public class PayPropAdminController {
         return "admin/payprop-dashboard";
     }
 
+    // Add this method to PayPropAdminController.java
+    @GetMapping("/admin/payprop-dashboard")
+    public String legacyDashboard(Model model, Authentication authentication) {
+        // Just redirect to the existing dashboard method
+        return adminDashboard(model, authentication);
+    }
+
     /**
      * Sync single property to PayProp
      */

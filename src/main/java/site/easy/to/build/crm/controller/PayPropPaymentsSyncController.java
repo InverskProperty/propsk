@@ -153,6 +153,13 @@ public class PayPropPaymentsSyncController {
         }
     }
 
+    // Add this method to PayPropPaymentsSyncController.java  
+    @GetMapping("/admin/payprop-payments-dashboard")
+    public String paymentsLegacyDashboard(Model model, Authentication authentication) {
+        // Just redirect to the existing dashboard method
+        return paymentsDashboard(model, authentication);
+    }
+
     /**
      * Sync payments only
      */
