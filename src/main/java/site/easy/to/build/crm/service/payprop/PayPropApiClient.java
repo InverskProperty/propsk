@@ -1,4 +1,4 @@
-import org.springframework.http.MediaType;package site.easy.to.build.crm.service.payprop;
+package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -6,6 +6,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -175,6 +176,9 @@ public class PayPropApiClient {
         } catch (HttpClientErrorException e) {
             log.error("PayProp API error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
             throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error("Error creating authorized headers or making API call: {}", e.getMessage());
+            throw new RuntimeException("Failed to fetch page: " + e.getMessage(), e);
         }
     }
     
@@ -213,6 +217,9 @@ public class PayPropApiClient {
         } catch (HttpClientErrorException e) {
             log.error("PayProp API error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
             throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error("Error creating authorized headers or making API call: {}", e.getMessage());
+            throw new RuntimeException("Failed to fetch with params: " + e.getMessage(), e);
         }
     }
     
@@ -242,6 +249,9 @@ public class PayPropApiClient {
         } catch (HttpClientErrorException e) {
             log.error("PayProp API error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
             throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error("Error creating authorized headers or making API call: {}", e.getMessage());
+            throw new RuntimeException("Failed to execute GET request: " + e.getMessage(), e);
         }
     }
     
@@ -271,6 +281,152 @@ public class PayPropApiClient {
         } catch (HttpClientErrorException e) {
             log.error("PayProp API error downloading binary: {} - {}", e.getStatusCode(), e.getMessage());
             throw new RuntimeException("Failed to download binary content", e);
+        } catch (Exception e) {
+            log.error("Error creating authorized headers or downloading binary: {}", e.getMessage());
+            throw new RuntimeException("Failed to download binary content: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Execute a DELETE request to PayProp API
+     */
+    public Map<String, Object> delete(String endpoint) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            String url = payPropApiBase + endpoint;
+            
+            log.debug("Executing DELETE request to: {}", url);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
+                url, 
+                HttpMethod.DELETE, 
+                request, 
+                Map.class
+            );
+            
+            if (response.getStatusCode() == HttpStatus.OK || 
+                response.getStatusCode() == HttpStatus.NO_CONTENT) {
+                return response.getBody() != null ? response.getBody() : new HashMap<>();
+            } else {
+                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
+            }
+            
+        } catch (HttpClientErrorException e) {
+            log.error("PayProp API DELETE error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error("Error creating authorized headers or executing DELETE: {}", e.getMessage());
+            throw new RuntimeException("Failed to execute DELETE request: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Execute a POST request to PayProp API
+     */
+    public <T> Map<String, Object> post(String endpoint, T body) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<T> request = new HttpEntity<>(body, headers);
+            
+            String url = payPropApiBase + endpoint;
+            
+            log.debug("Executing POST request to: {}", url);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
+                url, 
+                HttpMethod.POST, 
+                request, 
+                Map.class
+            );
+            
+            if (response.getStatusCode() == HttpStatus.OK || 
+                response.getStatusCode() == HttpStatus.CREATED) {
+                return response.getBody() != null ? response.getBody() : new HashMap<>();
+            } else {
+                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
+            }
+            
+        } catch (HttpClientErrorException e) {
+            log.error("PayProp API POST error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error("Error creating authorized headers or executing POST: {}", e.getMessage());
+            throw new RuntimeException("Failed to execute POST request: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Execute a PUT request to PayProp API
+     */
+    public <T> Map<String, Object> put(String endpoint, T body) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<T> request = new HttpEntity<>(body, headers);
+            
+            String url = payPropApiBase + endpoint;
+            
+            log.debug("Executing PUT request to: {}", url);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
+                url, 
+                HttpMethod.PUT, 
+                request, 
+                Map.class
+            );
+            
+            if (response.getStatusCode() == HttpStatus.OK || 
+                response.getStatusCode() == HttpStatus.NO_CONTENT) {
+                return response.getBody() != null ? response.getBody() : new HashMap<>();
+            } else {
+                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
+            }
+            
+        } catch (HttpClientErrorException e) {
+            log.error("PayProp API PUT error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error("Error creating authorized headers or executing PUT: {}", e.getMessage());
+            throw new RuntimeException("Failed to execute PUT request: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Execute a PATCH request to PayProp API
+     */
+    public <T> Map<String, Object> patch(String endpoint, T body) {
+        try {
+            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<T> request = new HttpEntity<>(body, headers);
+            
+            String url = payPropApiBase + endpoint;
+            
+            log.debug("Executing PATCH request to: {}", url);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
+                url, 
+                HttpMethod.PATCH, 
+                request, 
+                Map.class
+            );
+            
+            if (response.getStatusCode() == HttpStatus.OK || 
+                response.getStatusCode() == HttpStatus.NO_CONTENT) {
+                return response.getBody() != null ? response.getBody() : new HashMap<>();
+            } else {
+                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
+            }
+            
+        } catch (HttpClientErrorException e) {
+            log.error("PayProp API PATCH error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error("Error creating authorized headers or executing PATCH: {}", e.getMessage());
+            throw new RuntimeException("Failed to execute PATCH request: " + e.getMessage(), e);
         }
     }
     
@@ -400,137 +556,6 @@ public class PayPropApiClient {
             return Integer.parseInt(value.toString());
         } catch (NumberFormatException e) {
             return null;
-        }
-    }
-    
-    /**
-     * Execute a DELETE request to PayProp API
-     */
-    public Map<String, Object> delete(String endpoint) {
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            
-            String url = payPropApiBase + endpoint;
-            
-            log.debug("Executing DELETE request to: {}", url);
-            
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, 
-                HttpMethod.DELETE, 
-                request, 
-                Map.class
-            );
-            
-            if (response.getStatusCode() == HttpStatus.OK || 
-                response.getStatusCode() == HttpStatus.NO_CONTENT) {
-                return response.getBody() != null ? response.getBody() : new HashMap<>();
-            } else {
-                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
-            }
-            
-        } catch (HttpClientErrorException e) {
-            log.error("PayProp API DELETE error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
-        }
-    }
-
-    /**
-     * Execute a POST request to PayProp API
-     */
-    public <T> Map<String, Object> post(String endpoint, T body) {
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<T> request = new HttpEntity<>(body, headers);
-            
-            String url = payPropApiBase + endpoint;
-            
-            log.debug("Executing POST request to: {}", url);
-            
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, 
-                HttpMethod.POST, 
-                request, 
-                Map.class
-            );
-            
-            if (response.getStatusCode() == HttpStatus.OK || 
-                response.getStatusCode() == HttpStatus.CREATED) {
-                return response.getBody() != null ? response.getBody() : new HashMap<>();
-            } else {
-                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
-            }
-            
-        } catch (HttpClientErrorException e) {
-            log.error("PayProp API POST error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
-        }
-    }
-
-    /**
-     * Execute a PUT request to PayProp API
-     */
-    public <T> Map<String, Object> put(String endpoint, T body) {
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<T> request = new HttpEntity<>(body, headers);
-            
-            String url = payPropApiBase + endpoint;
-            
-            log.debug("Executing PUT request to: {}", url);
-            
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, 
-                HttpMethod.PUT, 
-                request, 
-                Map.class
-            );
-            
-            if (response.getStatusCode() == HttpStatus.OK || 
-                response.getStatusCode() == HttpStatus.NO_CONTENT) {
-                return response.getBody() != null ? response.getBody() : new HashMap<>();
-            } else {
-                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
-            }
-            
-        } catch (HttpClientErrorException e) {
-            log.error("PayProp API PUT error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
-        }
-    }
-
-    /**
-     * Execute a PATCH request to PayProp API
-     */
-    public <T> Map<String, Object> patch(String endpoint, T body) {
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<T> request = new HttpEntity<>(body, headers);
-            
-            String url = payPropApiBase + endpoint;
-            
-            log.debug("Executing PATCH request to: {}", url);
-            
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, 
-                HttpMethod.PATCH, 
-                request, 
-                Map.class
-            );
-            
-            if (response.getStatusCode() == HttpStatus.OK || 
-                response.getStatusCode() == HttpStatus.NO_CONTENT) {
-                return response.getBody() != null ? response.getBody() : new HashMap<>();
-            } else {
-                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
-            }
-            
-        } catch (HttpClientErrorException e) {
-            log.error("PayProp API PATCH error: {} - {}", e.getResponseBodyAsString());
-            throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
         }
     }
     
