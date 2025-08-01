@@ -10,10 +10,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.AccountType;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
+import java.util.function.Function;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -455,7 +458,7 @@ public class PayPropEntityResolutionService {
         if (settings != null) {
             Object monthlyPayment = settings.get("monthly_payment");
             if (monthlyPayment != null) {
-                property.setMonthlyPayment(Double.parseDouble(monthlyPayment.toString()));
+                property.setMonthlyPayment(new BigDecimal(monthlyPayment.toString()));
             }
         }
         
@@ -478,9 +481,10 @@ public class PayPropEntityResolutionService {
         if ("individual".equalsIgnoreCase(accountType)) {
             customer.setFirstName((String) data.get("first_name"));
             customer.setLastName((String) data.get("last_name"));
+            customer.setAccountType(AccountType.individual);  // Set account type
         } else {
             customer.setBusinessName((String) data.get("business_name"));
-            customer.setIsCompany(true);
+            customer.setAccountType(AccountType.business);  // Instead of setIsCompany
         }
         
         customer.setEmail((String) data.get("email_address"));
@@ -488,11 +492,11 @@ public class PayPropEntityResolutionService {
         customer.setCustomerReference((String) data.get("customer_reference"));
         
         customer.setCreatedAt(LocalDateTime.now());
-        customer.setUpdatedAt(LocalDateTime.now());
+        // Remove setUpdatedAt - Customer entity doesn't have this field
         
         return customer;
     }
-    
+
     /**
      * Create Customer entity from PayProp beneficiary data
      */
@@ -506,9 +510,10 @@ public class PayPropEntityResolutionService {
         if ("individual".equalsIgnoreCase(accountType)) {
             customer.setFirstName((String) data.get("first_name"));
             customer.setLastName((String) data.get("last_name"));
+            customer.setAccountType(AccountType.individual);  // Set account type
         } else {
             customer.setBusinessName((String) data.get("business_name"));
-            customer.setIsCompany(true);
+            customer.setAccountType(AccountType.business);  // Instead of setIsCompany
         }
         
         customer.setEmail((String) data.get("email_address"));
@@ -516,10 +521,11 @@ public class PayPropEntityResolutionService {
         customer.setCustomerReference((String) data.get("customer_reference"));
         
         customer.setCreatedAt(LocalDateTime.now());
-        customer.setUpdatedAt(LocalDateTime.now());
+        // Remove setUpdatedAt - Customer entity doesn't have this field
         
         return customer;
     }
+
     
     /**
      * Log resolution summary

@@ -33,6 +33,8 @@ public class PayPropSyncService {
     
     @Value("${payprop.api.base-url:https://ukapi.staging.payprop.com/api/agency/v1.1}")
     private String payPropApiBase;
+
+    private static final Logger logger = LoggerFactory.getLogger(PayPropSyncService.class);
     
     // ===== EXPORT METHODS (Using PayPropApiClient) =====
     
@@ -130,6 +132,44 @@ public class PayPropSyncService {
         
         log.info("✅ Exported {} tenants from PayProp", result.getItems().size());
         return result;
+    }
+
+    // Add these methods to PayPropSyncService.java
+
+    public SyncResult syncPaymentsToDatabase(Long initiatedBy) {
+        // Delegate to PayPropFinancialSyncService or implement
+        logger.warn("syncPaymentsToDatabase called - not implemented");
+        return SyncResult.failure("Method not implemented - use PayPropFinancialSyncService");
+    }
+
+    public SyncResult syncBeneficiaryBalancesToDatabase(Long initiatedBy) {
+        logger.warn("syncBeneficiaryBalancesToDatabase called - not implemented");
+        return SyncResult.failure("Method not implemented - use PayPropFinancialSyncService");
+    }
+
+    public SyncResult syncPropertyToPayProp(Long propertyId) {
+        logger.warn("syncPropertyToPayProp called - not implemented");
+        return SyncResult.failure("Method not implemented");
+    }
+
+    public SyncResult syncBeneficiaryToPayProp(Long beneficiaryId) {
+        logger.warn("syncBeneficiaryToPayProp called - not implemented");
+        return SyncResult.failure("Method not implemented");
+    }
+
+    public SyncResult syncAllReadyProperties() {
+        logger.warn("syncAllReadyProperties called - not implemented");
+        return SyncResult.failure("Method not implemented");
+    }
+
+    public SyncResult syncAllReadyBeneficiaries() {
+        logger.warn("syncAllReadyBeneficiaries called - not implemented");
+        return SyncResult.failure("Method not implemented");
+    }
+
+    public Map<String, Object> getPropertyStatistics() {
+        logger.warn("getPropertyStatistics called - not implemented");
+        return Map.of("error", "Method not implemented");
     }
     
     /**
