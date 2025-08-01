@@ -16,8 +16,5 @@ public interface OAuthUserRepository extends JpaRepository<OAuthUser,Integer> {
 
     public OAuthUser findByEmail(String email);
 
-    @Query("SELECT o FROM OAuthUser o WHERE o.user.id = :userId AND o.provider = :provider")
-    OAuthUser findByUserIdAndProvider(@Param("userId") int userId, @Param("provider") String provider);
-
     public void deleteById(int id);
 }
