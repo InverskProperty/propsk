@@ -1955,13 +1955,14 @@ public class PayPropFinancialSyncService {
                 return false;
             }
             
-            // ✅ CRITICAL: Handle negative amounts (constraint violation fix)
+            // ✅ NEW: Log negative amounts but store them
             if (transaction.getAmount().compareTo(BigDecimal.ZERO) < 0) {
-                logger.warn("⚠️ SKIPPED: Negative amount £{} for transaction {} (refund/adjustment)", 
-                    transaction.getAmount(), transaction.getPayPropTransactionId());
-                return false;
+                logger.info("💰 STORING: Negative amount £{} for transaction {} - {} ({})", 
+                    transaction.getAmount(), 
+                    transaction.getPayPropTransactionId(),
+                    transaction.getTransactionType(),
+                    transaction.getCategoryName());
             }
-            
             // Check for duplicate before attempting save
             if (financialTransactionRepository.existsByPayPropTransactionId(transaction.getPayPropTransactionId())) {
                 logger.debug("ℹ️ SKIPPED: Transaction {} already exists", transaction.getPayPropTransactionId());
