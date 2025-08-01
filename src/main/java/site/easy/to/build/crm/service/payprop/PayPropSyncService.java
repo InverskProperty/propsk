@@ -65,6 +65,57 @@ public class PayPropSyncService {
         return apiClient.fetchAllPages("/export/properties", item -> item);
     }
 
+    // Add these methods to PayPropSyncService.java
+
+    public String syncPropertyToPayProp(Long propertyId) {
+        logger.warn("syncPropertyToPayProp called - not implemented");
+        return "{\"success\": false, \"message\": \"Method not implemented - use PayPropFinancialSyncService\"}";
+    }
+
+    public String syncBeneficiaryToPayProp(Long beneficiaryId) {
+        logger.warn("syncBeneficiaryToPayProp called - not implemented");
+        return "{\"success\": false, \"message\": \"Method not implemented - use PayPropFinancialSyncService\"}";
+    }
+
+    public Map<String, Object> syncAllReadyProperties() {
+        logger.warn("syncAllReadyProperties called - not implemented");
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", false);
+        result.put("message", "Method not implemented");
+        return result;
+    }
+
+    public Map<String, Object> syncAllReadyBeneficiaries() {
+        logger.warn("syncAllReadyBeneficiaries called - not implemented");
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", false);
+        result.put("message", "Method not implemented");
+        return result;
+    }
+
+    public Map<String, Object> syncPaymentsToDatabase(Long initiatedBy) {
+        logger.warn("syncPaymentsToDatabase called - not implemented");
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", false);
+        result.put("message", "Method not implemented - use PayPropFinancialSyncService");
+        return result;
+    }
+
+    public Map<String, Object> syncBeneficiaryBalancesToDatabase(Long initiatedBy) {
+        logger.warn("syncBeneficiaryBalancesToDatabase called - not implemented");
+        Map<String, Object> result = new HashMap<>();
+        result.put("success", false);
+        result.put("message", "Method not implemented - use PayPropFinancialSyncService");
+        return result;
+    }
+
+    public Map<String, Object> getPropertyStatistics() {
+        logger.warn("getPropertyStatistics called - not implemented");
+        Map<String, Object> result = new HashMap<>();
+        result.put("error", "Method not implemented");
+        return result;
+    }
+
     /**
      * Export properties with enhanced data (settings, tenancies, commission, etc.)
      * @deprecated Use exportAllPropertiesEnhanced() for complete data
@@ -132,44 +183,6 @@ public class PayPropSyncService {
         
         log.info("✅ Exported {} tenants from PayProp", result.getItems().size());
         return result;
-    }
-
-    // Add these methods to PayPropSyncService.java
-
-    public SyncResult syncPaymentsToDatabase(Long initiatedBy) {
-        // Delegate to PayPropFinancialSyncService or implement
-        logger.warn("syncPaymentsToDatabase called - not implemented");
-        return SyncResult.failure("Method not implemented - use PayPropFinancialSyncService");
-    }
-
-    public SyncResult syncBeneficiaryBalancesToDatabase(Long initiatedBy) {
-        logger.warn("syncBeneficiaryBalancesToDatabase called - not implemented");
-        return SyncResult.failure("Method not implemented - use PayPropFinancialSyncService");
-    }
-
-    public SyncResult syncPropertyToPayProp(Long propertyId) {
-        logger.warn("syncPropertyToPayProp called - not implemented");
-        return SyncResult.failure("Method not implemented");
-    }
-
-    public SyncResult syncBeneficiaryToPayProp(Long beneficiaryId) {
-        logger.warn("syncBeneficiaryToPayProp called - not implemented");
-        return SyncResult.failure("Method not implemented");
-    }
-
-    public SyncResult syncAllReadyProperties() {
-        logger.warn("syncAllReadyProperties called - not implemented");
-        return SyncResult.failure("Method not implemented");
-    }
-
-    public SyncResult syncAllReadyBeneficiaries() {
-        logger.warn("syncAllReadyBeneficiaries called - not implemented");
-        return SyncResult.failure("Method not implemented");
-    }
-
-    public Map<String, Object> getPropertyStatistics() {
-        logger.warn("getPropertyStatistics called - not implemented");
-        return Map.of("error", "Method not implemented");
     }
     
     /**
