@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayProp Maintenance Dashboard</title>
+    
+    <!-- CSRF Protection -->
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .dashboard-card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .metric-card {
+            border-left: 5px solid;
+            padding: 20px;
+        }
+        .metric-card.success { border-left-color: #28a745; }
+        .metric-card.warning { border-left-color: #ffc107; }
+        .metric-card.danger { border-left-color: #dc3545; }
+        .metric-card.info { border-left-color: #17a2b8; }
+        
+        .health-score-circle {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            font-weight: bold;
+            color: white;
+            margin: 0 auto;
+        }
+        .health-excellent { background: linear-gradient(135deg, #28a745, #20c997); }
+        .health-good { background: linear-gradient(135deg, #17a2b8, #007bff); }
+        .health-fair { background: linear-gradient(135deg, #ffc107, #fd7e14); }
+        .health-poor { background: linear-gradient(135deg, #dc3545, #e83e8c); }
+        
+        .action-button {
+            border-radius: 25px;
+            padding: 12px 30px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
+            color: white;
+        }
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .btn-resolve-orphans {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+        .btn-full-sync {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+        }
+        .btn-check-health {
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+        }
+        
+        .sync-log {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .orphan-badge {
+            font-size: 1.2rem;
+            padding: 8px 16px;
+            border-radius: 20px;
+        }
+        
+        .sync-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .loading-spinner {
+            display: none;
+        }
+        .loading-spinner.active {
+            display: inline-block;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-indicator.online { background-color: #28a745; }
+        .status-indicator.offline { background-color: #dc3545; }
+        .status-indicator.unknown { background-color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid p-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h2 mb-1">
+                            <i class="fas fa-tools text-primary"></i>
+                            PayProp Maintenance Dashboard
+                        </h1>
+                        <p class="text-muted mb-0">Monitor and maintain PayProp synchronization health</p>
+                    </div>
+                    <div>
+                        <span class="status-indicator online" id="connectionStatus"></span>
+                        <span id="connectionText">Connected</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Health Score Card -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card dashboard-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title mb-3">System Health Score</h5>
+                        <div id="healthScoreCircle" class="health-score-circle health-good">
+                            <span id="healthScoreValue">--</span>
+                        </div>
+                        <h4 id="healthStatus" class="mt-3 mb-2">Checking...</h4>
+                        <p id="healthDescription" class="text-muted small">Loading health status...</p>
+                        <button class="btn btn-check-health action-button mt-3" onclick="dashboard.checkHealth()">
+                            <i class="fas fa-sync-alt"></i> Refresh Health
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Orphaned Entities Card -->
+            <div class="col-md-4">
+                <div class="card dashboard-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-4">
+                            <i class="fas fa-exclamation-triangle text-warning"></i>
+                            Orphaned Entities
+                        </h5>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>Properties</span>
+                                <span class="badge bg-warning orphan-badge" id="orphanedProperties">--</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>Tenants</span>
+                                <span class="badge bg-warning orphan-badge" id="orphanedTenants">--</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>Beneficiaries</span>
+                                <span class="badge bg-warning orphan-badge" id="orphanedBeneficiaries">--</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+                                <strong>Total Orphans</strong>
+                                <span class="badge bg-danger orphan-badge" id="totalOrphans">--</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-resolve-orphans action-button w-100 mt-3" onclick="dashboard.resolveOrphans()">
+                            <i class="fas fa-magic"></i> Resolve Orphans
+                            <span class="loading-spinner spinner-border spinner-border-sm ms-2" role="status"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quick Actions Card -->
+            <div class="col-md-4">
+                <div class="card dashboard-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-4">
+                            <i class="fas fa-bolt text-primary"></i>
+                            Quick Actions
+                        </h5>
+                        <div class="d-grid gap-3">
+                            <button class="btn btn-full-sync action-button" onclick="dashboard.runFullSync()">
+                                <i class="fas fa-sync-alt"></i> Run Full Sync
+                                <span class="loading-spinner spinner-border spinner-border-sm ms-2" role="status"></span>
+                            </button>
+                            <button class="btn btn-info action-button" onclick="dashboard.checkOrphanStatus()">
+                                <i class="fas fa-search"></i> Check Orphan Status
+                            </button>
+                            <button class="btn btn-secondary action-button" onclick="dashboard.getSyncStats()">
+                                <i class="fas fa-chart-bar"></i> View Sync Stats
+                            </button>
+                            <a href="/api/payprop/oauth/status" class="btn btn-outline-primary">
+                                <i class="fas fa-link"></i> OAuth Status
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sync Statistics -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card dashboard-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-4">
+                            <i class="fas fa-chart-line text-success"></i>
+                            Sync Statistics
+                        </h5>
+                        <div id="syncStatsContainer" class="sync-stats-grid">
+                            <!-- Stats will be populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card dashboard-card">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-terminal"></i>
+                            Activity Log
+                        </h5>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="dashboard.clearLog()">
+                            <i class="fas fa-trash"></i> Clear Log
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="activityLog" class="sync-log">
+                            <div class="log-entry text-muted">
+                                <i class="fas fa-info-circle"></i> Dashboard initialized. Ready for operations.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        class PayPropMaintenanceDashboard {
+            constructor() {
+                this.csrfToken = document.querySelector('meta[name="_csrf"]')?.getAttribute('content');
+                this.csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.getAttribute('content');
+                
+                // Initialize dashboard
+                this.init();
+            }
+
+            async init() {
+                this.log('Dashboard initialized', 'info');
+                await this.checkHealth();
+                await this.checkOrphanStatus();
+            }
+
+            // Utility method for authenticated fetch
+            async fetchWithAuth(url, options = {}) {
+                const defaultOptions = {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        [this.csrfHeader]: this.csrfToken
+                    },
+                    credentials: 'include'
+                };
+
+                const mergedOptions = {
+                    ...defaultOptions,
+                    ...options,
+                    headers: {
+                        ...defaultOptions.headers,
+                        ...options.headers
+                    }
+                };
+
+                try {
+                    const response = await fetch(url, mergedOptions);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    this.log(`Request failed: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            // Show/hide loading spinner for a button
+            setButtonLoading(buttonClass, loading) {
+                const button = document.querySelector(`.${buttonClass}`);
+                const spinner = button.querySelector('.loading-spinner');
+                
+                if (loading) {
+                    button.disabled = true;
+                    spinner.classList.add('active');
+                } else {
+                    button.disabled = false;
+                    spinner.classList.remove('active');
+                }
+            }
+
+            // Add log entry
+            log(message, type = 'info') {
+                const logContainer = document.getElementById('activityLog');
+                const timestamp = new Date().toLocaleTimeString();
+                const icons = {
+                    'info': 'fas fa-info-circle text-info',
+                    'success': 'fas fa-check-circle text-success',
+                    'warning': 'fas fa-exclamation-triangle text-warning',
+                    'error': 'fas fa-times-circle text-danger'
+                };
+                
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.innerHTML = `
+                    <span class="text-muted">[${timestamp}]</span>
+                    <i class="${icons[type] || icons.info}"></i>
+                    ${message}
+                `;
+                
+                logContainer.appendChild(entry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+
+            // Clear activity log
+            clearLog() {
+                document.getElementById('activityLog').innerHTML = `
+                    <div class="log-entry text-muted">
+                        <i class="fas fa-info-circle"></i> Log cleared.
+                    </div>
+                `;
+            }
+
+            // Check system health
+            async checkHealth() {
+                this.log('Checking system health...', 'info');
+                
+                try {
+                    const data = await this.fetchWithAuth('/api/payprop/maintenance/health');
+                    
+                    // Update health score
+                    const score = data.healthScore || 0;
+                    document.getElementById('healthScoreValue').textContent = score;
+                    document.getElementById('healthStatus').textContent = data.healthStatus || 'Unknown';
+                    document.getElementById('healthDescription').textContent = data.healthStatusDescription || '';
+                    
+                    // Update health score circle color
+                    const circle = document.getElementById('healthScoreCircle');
+                    circle.className = 'health-score-circle';
+                    if (score >= 90) circle.classList.add('health-excellent');
+                    else if (score >= 70) circle.classList.add('health-good');
+                    else if (score >= 50) circle.classList.add('health-fair');
+                    else circle.classList.add('health-poor');
+                    
+                    // Update other health metrics if available
+                    if (data.details) {
+                        this.updateHealthDetails(data.details);
+                    }
+                    
+                    this.log('Health check completed', 'success');
+                } catch (error) {
+                    this.log('Health check failed', 'error');
+                }
+            }
+
+            // Update health details
+            updateHealthDetails(details) {
+                // Update orphan counts if available
+                if (details.orphanedProperties !== undefined) {
+                    document.getElementById('orphanedProperties').textContent = details.orphanedProperties;
+                }
+                if (details.orphanedTenants !== undefined) {
+                    document.getElementById('orphanedTenants').textContent = details.orphanedTenants;
+                }
+                if (details.orphanedBeneficiaries !== undefined) {
+                    document.getElementById('orphanedBeneficiaries').textContent = details.orphanedBeneficiaries;
+                }
+                
+                const totalOrphans = (details.orphanedProperties || 0) + 
+                                   (details.orphanedTenants || 0) + 
+                                   (details.orphanedBeneficiaries || 0);
+                document.getElementById('totalOrphans').textContent = totalOrphans;
+            }
+
+            // Check orphan status
+            async checkOrphanStatus() {
+                this.log('Checking orphan status...', 'info');
+                
+                try {
+                    const data = await this.fetchWithAuth('/api/payprop/maintenance/orphan-status');
+                    
+                    document.getElementById('orphanedProperties').textContent = data.orphanedProperties || 0;
+                    document.getElementById('orphanedTenants').textContent = data.orphanedTenants || 0;
+                    document.getElementById('orphanedBeneficiaries').textContent = data.orphanedBeneficiaries || 0;
+                    document.getElementById('totalOrphans').textContent = data.totalOrphans || 0;
+                    
+                    if (data.needsResolution) {
+                        this.log(`Found ${data.totalOrphans} orphaned entities that need resolution`, 'warning');
+                    } else {
+                        this.log('No orphaned entities found', 'success');
+                    }
+                } catch (error) {
+                    this.log('Failed to check orphan status', 'error');
+                }
+            }
+
+            // Resolve orphaned entities
+            async resolveOrphans() {
+                if (!confirm('This will attempt to resolve all orphaned entities. Continue?')) {
+                    return;
+                }
+                
+                this.setButtonLoading('btn-resolve-orphans', true);
+                this.log('Starting orphan resolution...', 'info');
+                
+                try {
+                    const data = await this.fetchWithAuth('/api/payprop/maintenance/resolve-orphans', {
+                        method: 'POST'
+                    });
+                    
+                    if (data.success) {
+                        this.log('Orphan resolution completed successfully', 'success');
+                        
+                        // Update status
+                        if (data.status) {
+                            this.updateHealthDetails(data.status);
+                        }
+                        
+                        // Refresh health check
+                        await this.checkHealth();
+                    } else {
+                        this.log(`Orphan resolution failed: ${data.error}`, 'error');
+                    }
+                } catch (error) {
+                    this.log(`Orphan resolution error: ${error.message}`, 'error');
+                } finally {
+                    this.setButtonLoading('btn-resolve-orphans', false);
+                }
+            }
+
+            // Run full sync
+            async runFullSync() {
+                if (!confirm('This will run a complete PayProp sync. This may take several minutes. Continue?')) {
+                    return;
+                }
+                
+                this.setButtonLoading('btn-full-sync', true);
+                this.log('Starting full sync...', 'info');
+                
+                try {
+                    const data = await this.fetchWithAuth('/api/payprop/maintenance/full-sync', {
+                        method: 'POST'
+                    });
+                    
+                    if (data.success) {
+                        this.log('Full sync completed successfully', 'success');
+                        this.log(`Summary: ${data.summary}`, 'info');
+                        
+                        // Log details if available
+                        if (data.details) {
+                            Object.entries(data.details).forEach(([key, value]) => {
+                                if (value && typeof value === 'object') {
+                                    this.log(`${key}: ${JSON.stringify(value)}`, 'info');
+                                }
+                            });
+                        }
+                        
+                        // Refresh dashboard
+                        await this.checkHealth();
+                        await this.checkOrphanStatus();
+                    } else {
+                        this.log(`Full sync failed: ${data.error}`, 'error');
+                    }
+                } catch (error) {
+                    this.log(`Full sync error: ${error.message}`, 'error');
+                } finally {
+                    this.setButtonLoading('btn-full-sync', false);
+                }
+            }
+
+            // Get sync statistics
+            async getSyncStats() {
+                this.log('Fetching sync statistics...', 'info');
+                
+                try {
+                    const data = await this.fetchWithAuth('/api/payprop/maintenance/sync-stats');
+                    
+                    // Display entity stats
+                    if (data.entityStats) {
+                        this.displaySyncStats(data.entityStats);
+                    }
+                    
+                    // Log financial stats
+                    if (data.financialStats) {
+                        this.log(`Financial transactions: ${data.financialStats.total_transactions}`, 'info');
+                        this.log(`Total batches: ${data.financialStats.total_batches}`, 'info');
+                    }
+                    
+                    this.log('Sync statistics loaded', 'success');
+                } catch (error) {
+                    this.log('Failed to load sync statistics', 'error');
+                }
+            }
+
+            // Display sync statistics
+            displaySyncStats(stats) {
+                const container = document.getElementById('syncStatsContainer');
+                container.innerHTML = '';
+                
+                stats.forEach(stat => {
+                    const statCard = document.createElement('div');
+                    statCard.className = 'metric-card dashboard-card p-3';
+                    
+                    const syncRate = parseFloat(stat.sync_rate) || 0;
+                    let colorClass = 'success';
+                    if (syncRate < 50) colorClass = 'danger';
+                    else if (syncRate < 80) colorClass = 'warning';
+                    
+                    statCard.classList.add(colorClass);
+                    
+                    statCard.innerHTML = `
+                        <h6 class="text-muted mb-2">${stat.entity_type}</h6>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="h4 mb-0">${stat.synced} / ${stat.total}</div>
+                                <small class="text-muted">Synced / Total</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="h3 mb-0">${syncRate.toFixed(1)}%</div>
+                                <small class="text-muted">Sync Rate</small>
+                            </div>
+                        </div>
+                    `;
+                    
+                    container.appendChild(statCard);
+                });
+            }
+        }
+
+        // Initialize dashboard on page load
+        const dashboard = new PayPropMaintenanceDashboard();
+    </script>
+</body>
+</html>

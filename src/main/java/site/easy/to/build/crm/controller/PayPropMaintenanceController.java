@@ -4,12 +4,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
 import site.easy.to.build.crm.entity.OAuthUser;
+import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.repository.OAuthUserRepository;
+import site.easy.to.build.crm.repository.UserRepository;
 import site.easy.to.build.crm.service.payprop.PayPropEntityResolutionService;
 import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator;
 import site.easy.to.build.crm.service.payprop.PayPropSyncMonitoringService;
-import site.easy.to.build.crm.service.user.OAuthUserService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.time.LocalDateTime;
@@ -35,7 +40,10 @@ public class PayPropMaintenanceController {
     private PayPropSyncMonitoringService monitoringService;
     
     @Autowired
-    private OAuthUserService oAuthUserService;
+    private OAuthUserRepository oAuthUserRepository;
+    
+    @Autowired
+    private UserRepository userRepository;
     
     @Autowired
     private AuthenticationUtils authenticationUtils;
@@ -69,6 +77,7 @@ public class PayPropMaintenanceController {
         }
     }
     
+
     /**
      * Run a full sync manually
      */
@@ -77,11 +86,42 @@ public class PayPropMaintenanceController {
         try {
             // Use current user if userId not provided
             if (userId == null) {
-                userId = authenticationUtils.getCurrentUserId();
+                // Get current authenticated user ID directly
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                int currentUserId = authenticationUtils.getLoggedInUserId(authentication);
+                
+                if (currentUserId == -1) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "error", "No authenticated user found",
+                        "timestamp", LocalDateTime.now()
+                    ));
+                }
+                
+                userId = Long.valueOf(currentUserId);
             }
             
             // Get OAuth user for the current session
-            OAuthUser oAuthUser = oAuthUserService.getCurrentUserOAuth("google");
+            // Since we don't have findByUserIdAndProvider, we'll use a different approach
+            OAuthUser oAuthUser = null;
+            
+            // First try to get from authentication if it's OAuth
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getPrincipal() instanceof OAuth2User) {
+                oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(auth);
+            }
+            
+            // If not OAuth authentication, try to find by user
+            if (oAuthUser == null) {
+                // Get the user first
+                User user = userRepository.findById(userId.intValue());
+                
+                if (user != null) {
+                    // Now get the OAuth user for this user
+                    oAuthUser = oAuthUserRepository.getOAuthUserByUser(user);
+                }
+            }
+            
             if (oAuthUser == null) {
                 return ResponseEntity.badRequest().body(Map.of(
                     "success", false,

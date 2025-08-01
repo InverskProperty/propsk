@@ -235,17 +235,30 @@
                     </ul>
                 </li>
 
-                <!-- NEW: PayProp Admin Section (Manager only) -->
+                <!-- Replace the PayProp Admin Section (around line 246-256) with this updated version -->
+
+                <!-- PayProp Admin Section (Manager only) -->
                 <li th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">
                     <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
                         <i class="fas fa-sync-alt"></i>
                         <span class="hide-menu">PayProp Admin</span>
                     </a>
                     <ul class="collapse">
-                        <li><a th:href="${home + 'admin/payprop-dashboard'}"><i class="fas fa-tachometer-alt"></i> PayProp Dashboard</a></li>
-                        <li><a th:href="${home + 'admin/payprop-payments-dashboard'}"><i class="fas fa-credit-card"></i> Payments Dashboard</a></li>
-                        <li><a th:href="${home + 'payprop/oauth-status'}"><i class="fas fa-key"></i> OAuth Status</a></li>
+                        <!-- OAuth Status and Setup -->
+                        <li><a th:href="${home + 'api/payprop/oauth/status'}"><i class="fas fa-key"></i> OAuth Setup</a></li>
+                        
+                        <!-- Main Sync Dashboard -->
                         <li><a th:href="${home + 'payprop/sync-dashboard'}"><i class="fas fa-exchange-alt"></i> Sync Dashboard</a></li>
+                        
+                        <!-- NEW: Maintenance Dashboard -->
+                        <li><a th:href="${home + 'payprop/maintenance'}"><i class="fas fa-tools"></i> Maintenance Dashboard</a></li>
+                        
+                        <!-- Test Page -->
+                        <li><a th:href="${home + 'payprop/test'}"><i class="fas fa-vial"></i> PayProp Test</a></li>
+                        
+                        <!-- Legacy dashboards (if you still need them) -->
+                        <li><a th:href="${home + 'admin/payprop-dashboard'}"><i class="fas fa-tachometer-alt"></i> Legacy Dashboard</a></li>
+                        <li><a th:href="${home + 'admin/payprop-payments-dashboard'}"><i class="fas fa-credit-card"></i> Payments Dashboard</a></li>
                     </ul>
                 </li>
                 

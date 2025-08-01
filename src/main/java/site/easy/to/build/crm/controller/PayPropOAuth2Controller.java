@@ -927,6 +927,34 @@ public class PayPropOAuth2Controller {
         }
     }
 
+    // In PayPropOAuth2Controller.java (around line 1600, after your other methods)
+
+    /**
+     * Show PayProp Maintenance Dashboard
+     */
+    @GetMapping("/maintenance")
+    public String showMaintenanceDashboard(Model model, Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return "redirect:/access-denied";
+        }
+        
+        model.addAttribute("pageTitle", "PayProp Maintenance Dashboard");
+        return "payprop/maintenance-dashboard";
+    }
+
+    /**
+     * Show PayProp Test Page (if you don't already have this)
+     */
+    @GetMapping("/test")
+    public String showTestPage(Model model, Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return "redirect:/access-denied";
+        }
+        
+        model.addAttribute("pageTitle", "PayProp Test");
+        return "payprop/test";
+    }
+
     @PostMapping("/test-sync-single-property-with-save")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> testSyncSinglePropertyWithSave(
