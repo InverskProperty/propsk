@@ -1,4 +1,4 @@
-// PayPropFinancialSyncService.java - Comprehensive financial data sync service
+// PayPropFinancialSyncService.java - Revised with reduced redundancy
 package site.easy.to.build.crm.service.payprop;
 
 import org.slf4j.Logger;
@@ -21,6 +21,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
@@ -31,6 +32,7 @@ public class PayPropFinancialSyncService {
     
     private final PayPropOAuth2Service oAuth2Service;
     private final RestTemplate restTemplate;
+    private final PayPropApiClient apiClient;
     
     // Database repositories
     private final PropertyRepository propertyRepository;
@@ -47,6 +49,7 @@ public class PayPropFinancialSyncService {
     public PayPropFinancialSyncService(
         PayPropOAuth2Service oAuth2Service,
         RestTemplate restTemplate,
+        PayPropApiClient apiClient,
         PropertyRepository propertyRepository,
         BeneficiaryRepository beneficiaryRepository,
         PaymentCategoryRepository paymentCategoryRepository,
@@ -56,6 +59,7 @@ public class PayPropFinancialSyncService {
     ) {
         this.oAuth2Service = oAuth2Service;
         this.restTemplate = restTemplate;
+        this.apiClient = apiClient;
         this.propertyRepository = propertyRepository;
         this.beneficiaryRepository = beneficiaryRepository;
         this.paymentCategoryRepository = paymentCategoryRepository;
@@ -66,9 +70,7 @@ public class PayPropFinancialSyncService {
     
     /**
      * Main method to sync all comprehensive financial data from PayProp
-     * ✅ UPDATED: Now includes actual commission payment sync
      */
-
     public Map<String, Object> syncComprehensiveFinancialData() {
         Map<String, Object> syncResults = new HashMap<>();
         
@@ -87,15 +89,15 @@ public class PayPropFinancialSyncService {
             Map<String, Object> categoriesResult = syncPaymentCategories();
             syncResults.put("categories", categoriesResult);
             
-            // 4. Sync Financial Transactions (ICDN) - Rent payments and deposits
+            // 4. Sync Financial Transactions (ICDN) - Different API pattern
             Map<String, Object> transactionsResult = syncFinancialTransactions();
             syncResults.put("transactions", transactionsResult);
             
-            // 5. Sync Batch Payments from /report/all-payments
+            // 5. Sync Batch Payments - Different API pattern with date chunks
             Map<String, Object> batchPaymentsResult = syncBatchPayments();
             syncResults.put("batch_payments", batchPaymentsResult);
             
-            // 7. Calculate and store commission data (for rent payments only)
+            // 7. Calculate and store commission data
             Map<String, Object> commissionsResult = calculateAndStoreCommissions();
             syncResults.put("commissions", commissionsResult);
 
@@ -108,7 +110,7 @@ public class PayPropFinancialSyncService {
             syncResults.put("commission_linking", linkingResult);
 
             syncResults.put("status", "SUCCESS");
-                        syncResults.put("sync_time", LocalDateTime.now());
+            syncResults.put("sync_time", LocalDateTime.now());
             
             logger.info("✅ Comprehensive financial sync completed successfully");
             
@@ -121,144 +123,104 @@ public class PayPropFinancialSyncService {
         return syncResults;
     }
 
-    private Map<String, Object> syncOwnerBeneficiaries() throws Exception {
-        logger.info("👥 Syncing owner beneficiaries with pagination...");
+    /**
+     * Generic paginated sync handler using PayPropApiClient
+     */
+    private Map<String, Object> syncPaginatedData(
+            String endpoint, 
+            Function<Map<String, Object>, SyncItemResult> processor,
+            String dataType) {
         
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<String> request = new HttpEntity<>(headers);
+        logger.info("📥 Syncing {} with pagination...", dataType);
         
-        // Counters with detailed breakdown (same pattern as other methods)
-        int totalApiCalls = 0, totalPagesProcessed = 0;
-        int updated = 0, created = 0, skipped = 0, errors = 0;
+        int created = 0, updated = 0, skipped = 0, errors = 0;
         
-        int page = 1;
-        
-        logger.info("🔍 Processing beneficiaries with pagination...");
-        
-        while (true) {
-            String url = payPropApiBase + "/export/beneficiaries?owners=true&page=" + page + "&rows=25";
+        try {
+            // Use PayPropApiClient to handle ALL pagination complexity
+            List<Map<String, Object>> allItems = apiClient.fetchAllPages(endpoint, item -> item);
             
-            logger.info("📞 Beneficiaries API Call {}: Page {}", totalApiCalls + 1, page);
+            logger.info("📊 Processing {} {}s", allItems.size(), dataType);
             
-            try {
-                // ✅ Rate limiting (same as other methods)
-                if (totalApiCalls > 0) {
-                    Thread.sleep(250);
-                }
-                
-                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-                totalApiCalls++;
-                
-                if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
-                    logger.error("❌ Beneficiaries API failed: HTTP {}", response.getStatusCode());
-                    break;
-                }
-                
-                Map<String, Object> responseBody = response.getBody();
-                List<Map<String, Object>> payPropBeneficiaries = (List<Map<String, Object>>) responseBody.get("items");
-                
-                if (payPropBeneficiaries == null || payPropBeneficiaries.isEmpty()) {
-                    logger.info("📄 No beneficiaries on page {}, sync complete", page);
-                    break;
-                }
-                
-                logger.info("📊 Processing {} beneficiaries on page {}", payPropBeneficiaries.size(), page);
-                
-                // Process each beneficiary INDIVIDUALLY
-                for (Map<String, Object> ppBeneficiary : payPropBeneficiaries) {
-                    try {
-                        // Process each beneficiary in its own transaction
-                        boolean result = processBeneficiaryInNewTransaction(ppBeneficiary);
-                        if (result) {
-                            created++;
-                        } else {
-                            updated++;
-                        }
-                    } catch (Exception e) {
-                        logger.error("❌ Error processing beneficiary: {}", e.getMessage());
-                        skipped++;
-                        // Continue with next beneficiary!
+            for (Map<String, Object> item : allItems) {
+                try {
+                    SyncItemResult result = processor.apply(item);
+                    switch (result) {
+                        case CREATED: created++; break;
+                        case UPDATED: updated++; break;
+                        case SKIPPED: skipped++; break;
+                        case ERROR: errors++; break;
                     }
+                } catch (Exception e) {
+                    errors++;
+                    logger.error("❌ Error processing {}: {}", dataType, e.getMessage());
                 }
-                
-                totalPagesProcessed++;
-                
-                // ✅ CHECK PAGINATION: Same logic as other methods
-                Map<String, Object> pagination = (Map<String, Object>) responseBody.get("pagination");
-                if (pagination != null) {
-                    Integer currentPage = (Integer) pagination.get("page");
-                    Integer totalPages = (Integer) pagination.get("total_pages");
-                    
-                    logger.info("📊 Beneficiaries Pagination: page {} of {}", currentPage, totalPages);
-                    
-                    if (currentPage != null && totalPages != null && currentPage >= totalPages) {
-                        logger.info("📄 Reached last beneficiaries page ({} of {})", currentPage, totalPages);
-                        break;
-                    }
-                } else if (payPropBeneficiaries.size() < 25) {
-                    logger.info("📄 Got {} beneficiaries (< 25), assuming last page", payPropBeneficiaries.size());
-                    break;
-                }
-                
-                page++;
-                
-                // ✅ SAFETY BREAK: Prevent infinite loops
-                if (page > 100) {
-                    logger.warn("⚠️ Safety break: Reached page 100 for beneficiaries sync");
-                    break;
-                }
-                
-            } catch (HttpClientErrorException e) {
-                logger.error("❌ Beneficiaries API error on page {}: {} - {}", 
-                    page, e.getStatusCode(), e.getResponseBodyAsString());
-                
-                if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
-                    logger.warn("⚠️ Rate limit hit, waiting 30 seconds...");
-                    Thread.sleep(30000);
-                    continue; // Retry same page
-                }
-                break;
-                
-            } catch (Exception e) {
-                logger.error("❌ Beneficiaries API error on page {}: {}", page, e.getMessage());
-                break;
             }
+            
+            // Comprehensive reporting
+            logger.info("📊 {} SYNC COMPLETED:", dataType.toUpperCase());
+            logger.info("✅ Created: {}", created);
+            logger.info("✅ Updated: {}", updated);
+            logger.info("⚠️ Skipped: {}", skipped);
+            logger.info("❌ Errors: {}", errors);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("total_processed", allItems.size());
+            result.put("created", created);
+            result.put("updated", updated);
+            result.put("skipped", skipped);
+            result.put("errors", errors);
+            result.put("api_calls", "handled_by_apiClient");
+            result.put("improvement", "Using PayPropApiClient for pagination");
+            
+            return result;
+            
+        } catch (Exception e) {
+            logger.error("❌ {} sync failed: {}", dataType, e.getMessage());
+            Map<String, Object> errorResult = new HashMap<>();
+            errorResult.put("error", e.getMessage());
+            errorResult.put("status", "FAILED");
+            return errorResult;
         }
-        
-        // ✅ COMPREHENSIVE REPORTING
-        logger.info("👥 BENEFICIARIES SYNC COMPLETED:");
-        logger.info("📊 Total API calls: {}", totalApiCalls);
-        logger.info("📊 Pages processed: {}", totalPagesProcessed);
-        logger.info("✅ Beneficiaries created: {}", created);
-        logger.info("✅ Beneficiaries updated: {}", updated);
-        logger.info("⚠️ Beneficiaries skipped: {}", skipped);
-        logger.info("❌ Processing errors: {}", errors);
-        
-        Map<String, Object> result = new HashMap<>();
-        result.put("total_processed", created + updated + skipped);
-        result.put("created", created);
-        result.put("updated", updated);
-        result.put("skipped", skipped);
-        result.put("errors", errors);
-        result.put("api_calls", totalApiCalls);
-        result.put("pages_processed", totalPagesProcessed);
-        result.put("improvement", "Added comprehensive pagination - should get all beneficiaries instead of just 25");
-        
-        return result;
     }
 
     /**
-     * ✅ NEW: Simple wrapper to process beneficiary data in a new transaction
+     * Sync owner beneficiaries - SIMPLIFIED
+     */
+    private Map<String, Object> syncOwnerBeneficiaries() throws Exception {
+        return syncPaginatedData(
+            "/export/beneficiaries?owners=true",
+            this::processBeneficiaryWrapper,
+            "beneficiary"
+        );
+    }
+    
+    /**
+     * Wrapper to convert boolean result to enum
+     */
+    private SyncItemResult processBeneficiaryWrapper(Map<String, Object> beneficiaryData) {
+        try {
+            boolean isNew = processBeneficiaryInNewTransaction(beneficiaryData);
+            return isNew ? SyncItemResult.CREATED : SyncItemResult.UPDATED;
+        } catch (Exception e) {
+            if (e.getMessage() != null && e.getMessage().contains("missing PayProp ID")) {
+                return SyncItemResult.SKIPPED;
+            }
+            return SyncItemResult.ERROR;
+        }
+    }
+
+    /**
+     * Process beneficiary data in a new transaction - UNCHANGED
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean processBeneficiaryInNewTransaction(Map<String, Object> beneficiaryData) {
         try {
             String payPropId = (String) beneficiaryData.get("id");
             
-            // 🔧 VALIDATION: Skip if missing essential data
+            // VALIDATION: Skip if missing essential data
             if (payPropId == null || payPropId.trim().isEmpty()) {
                 logger.warn("⚠️ Skipping beneficiary with missing PayProp ID");
-                return false; // Treat as skipped, not created or updated
+                return false;
             }
             
             // Find or create beneficiary
@@ -271,10 +233,9 @@ public class PayPropFinancialSyncService {
                 beneficiary.setCreatedAt(LocalDateTime.now());
             }
             
-            // 🔧 FIX: Handle account_type with safe defaults
+            // Handle account_type with safe defaults
             String accountTypeStr = (String) beneficiaryData.get("account_type");
             if (accountTypeStr == null || "undefined".equals(accountTypeStr) || accountTypeStr.trim().isEmpty()) {
-                // Default to individual if not specified
                 beneficiary.setAccountType(AccountType.individual);
                 logger.debug("🔧 Defaulted account_type to 'individual' for beneficiary {}", payPropId);
             } else {
@@ -287,10 +248,9 @@ public class PayPropFinancialSyncService {
                 }
             }
             
-            // 🔧 FIX: Handle payment_method with safe defaults
+            // Handle payment_method with safe defaults
             String paymentMethodStr = (String) beneficiaryData.get("payment_method");
             if (paymentMethodStr == null || "undefined".equals(paymentMethodStr) || paymentMethodStr.trim().isEmpty()) {
-                // Default to local payment method
                 beneficiary.setPaymentMethod(PaymentMethod.local);
                 logger.debug("🔧 Defaulted payment_method to 'local' for beneficiary {}", payPropId);
             } else {
@@ -303,16 +263,15 @@ public class PayPropFinancialSyncService {
                 }
             }
             
-            // 🔧 FIX: Set BeneficiaryType using the correct enum values
+            // Set BeneficiaryType
             beneficiary.setBeneficiaryType(BeneficiaryType.BENEFICIARY);
-            logger.debug("🔧 Set beneficiary_type to 'BENEFICIARY' for beneficiary {}", payPropId);
             
-            // 🔧 FIX: Set name field safely (required field)
+            // Set name field safely
             String firstName = (String) beneficiaryData.get("first_name");
             String lastName = (String) beneficiaryData.get("last_name");
             String businessName = (String) beneficiaryData.get("business_name");
             
-            // Clean up empty strings to null
+            // Clean up empty strings
             if (firstName != null && firstName.trim().isEmpty()) firstName = null;
             if (lastName != null && lastName.trim().isEmpty()) lastName = null;
             if (businessName != null && businessName.trim().isEmpty()) businessName = null;
@@ -321,7 +280,7 @@ public class PayPropFinancialSyncService {
             beneficiary.setLastName(lastName);
             beneficiary.setBusinessName(businessName);
             
-            // Set the name field (required, non-null)
+            // Calculate name
             String calculatedName = null;
             if (beneficiary.getAccountType() == AccountType.business && businessName != null) {
                 calculatedName = businessName;
@@ -335,7 +294,6 @@ public class PayPropFinancialSyncService {
                 calculatedName = businessName;
             }
             
-            // Fallback if still no name
             if (calculatedName == null || calculatedName.trim().isEmpty()) {
                 calculatedName = "Beneficiary " + payPropId;
                 logger.warn("⚠️ No name available for beneficiary {}, using fallback: '{}'", 
@@ -378,171 +336,52 @@ public class PayPropFinancialSyncService {
                 } else {
                     logger.debug("✅ Updated beneficiary: {} ({})", calculatedName, payPropId);
                 }
-                return isNew; // Return true if created, false if updated
+                return isNew;
             } catch (Exception saveException) {
                 logger.error("❌ Failed to save beneficiary {}: {}", payPropId, saveException.getMessage());
-                return false; // Will be counted as skipped in the main method
+                return false;
             }
             
         } catch (Exception e) {
             logger.error("❌ Error processing beneficiary data: {}", e.getMessage(), e);
-            return false; // Will be counted as skipped in the main method
+            return false;
         }
-    }
-
-    private Map<String, Object> syncPropertiesWithCommission() throws Exception {
-        logger.info("📊 Starting FIXED commission sync with comprehensive pagination...");
-        
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<String> request = new HttpEntity<>(headers);
-        
-        // Counters
-        int totalApiCalls = 0, totalPagesProcessed = 0;
-        int propertiesProcessed = 0, propertiesUpdated = 0;
-        int propertiesWithCommission = 0, propertiesWithoutCommission = 0;
-        int commissionsSet = 0, errors = 0, validationErrors = 0;
-        
-        int page = 1;
-        
-        logger.info("🔍 FIXED: Processing properties with commission data using pagination...");
-        
-        while (true) {
-            String url = payPropApiBase + "/export/properties?include_commission=true&page=" + page + "&rows=25";
-            
-            logger.info("📞 Commission API Call {}: Page {}", totalApiCalls + 1, page);
-            
-            try {
-                // ✅ Rate limiting (same as batch payments)
-                if (totalApiCalls > 0) {
-                    Thread.sleep(250);
-                }
-                
-                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-                totalApiCalls++;
-                
-                if (response.getStatusCode() != HttpStatus.OK || response.getBody() == null) {
-                    logger.error("❌ Commission API failed: HTTP {}", response.getStatusCode());
-                    break;
-                }
-                
-                Map<String, Object> responseBody = response.getBody();
-                List<Map<String, Object>> payPropProperties = (List<Map<String, Object>>) responseBody.get("items");
-                
-                if (payPropProperties == null || payPropProperties.isEmpty()) {
-                    logger.info("📄 No properties on page {}, commission sync complete", page);
-                    break;
-                }
-                
-                logger.info("📊 Processing {} properties with commission data on page {}", 
-                    payPropProperties.size(), page);
-                
-                // Process each property INDIVIDUALLY
-                for (Map<String, Object> ppProperty : payPropProperties) {
-                    try {
-                        // Each property is processed in its own transaction
-                        boolean processed = processPropertyCommissionDataInNewTransaction(ppProperty);
-                        if (processed) {
-                            propertiesProcessed++;
-                            
-                            // Check if commission data was found and set
-                            Map<String, Object> commission = (Map<String, Object>) ppProperty.get("commission");
-                            if (commission != null) {
-                                Object percentage = commission.get("percentage");
-                                if (percentage instanceof String && !((String) percentage).isEmpty()) {
-                                    propertiesWithCommission++;
-                                    commissionsSet++;
-                                } else {
-                                    propertiesWithoutCommission++;
-                                }
-                            } else {
-                                propertiesWithoutCommission++;
-                            }
-                            
-                            propertiesUpdated++;
-                        }
-                    } catch (Exception e) {
-                        errors++;
-                        logger.error("❌ Error processing property commission {}: {}", 
-                            ppProperty.get("id"), e.getMessage());
-                        // Continue processing other properties!
-                    }
-                }
-                
-                totalPagesProcessed++;
-                
-                // ✅ CHECK PAGINATION: Same logic as batch payments
-                Map<String, Object> pagination = (Map<String, Object>) responseBody.get("pagination");
-                if (pagination != null) {
-                    Integer currentPage = (Integer) pagination.get("page");
-                    Integer totalPages = (Integer) pagination.get("total_pages");
-                    
-                    logger.info("📊 Commission Pagination: page {} of {}", currentPage, totalPages);
-                    
-                    if (currentPage != null && totalPages != null && currentPage >= totalPages) {
-                        logger.info("📄 Reached last commission page ({} of {})", currentPage, totalPages);
-                        break;
-                    }
-                } else if (payPropProperties.size() < 25) {
-                    logger.info("📄 Got {} properties (< 25), assuming last commission page", 
-                        payPropProperties.size());
-                    break;
-                }
-                
-                page++;
-                
-                // ✅ SAFETY BREAK: Prevent infinite loops
-                if (page > 100) {
-                    logger.warn("⚠️ Safety break: Reached page 100 for commission sync");
-                    break;
-                }
-                
-            } catch (HttpClientErrorException e) {
-                logger.error("❌ Commission API error on page {}: {} - {}", 
-                    page, e.getStatusCode(), e.getResponseBodyAsString());
-                
-                if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
-                    logger.warn("⚠️ Rate limit hit, waiting 30 seconds...");
-                    Thread.sleep(30000);
-                    continue; // Retry same page
-                }
-                break;
-                
-            } catch (Exception e) {
-                logger.error("❌ API error on page {}: {}", page, e.getMessage());
-                // Continue with next page or break based on error type
-                break;
-            }
-        }
-        
-        // ✅ COMPREHENSIVE REPORTING: Same detailed logging as batch payments
-        logger.info("📊 COMMISSION SYNC COMPLETED:");
-        logger.info("📊 Total API calls: {}", totalApiCalls);
-        logger.info("📊 Pages processed: {}", totalPagesProcessed);
-        logger.info("📊 Properties processed: {}", propertiesProcessed);
-        logger.info("✅ Properties updated: {}", propertiesUpdated);
-        logger.info("✅ Properties with commission rates: {}", propertiesWithCommission);
-        logger.info("⚠️ Properties without commission rates: {}", propertiesWithoutCommission);
-        logger.info("✅ Commission rates set: {}", commissionsSet);
-        logger.info("❌ Processing errors: {}", errors);
-        logger.info("❌ Validation errors: {}", validationErrors);
-        
-        Map<String, Object> result = new HashMap<>();
-        result.put("total_processed", propertiesProcessed);
-        result.put("properties_updated", propertiesUpdated);
-        result.put("properties_with_commission", propertiesWithCommission);
-        result.put("properties_without_commission", propertiesWithoutCommission);
-        result.put("commission_rates_set", commissionsSet);
-        result.put("errors", errors);
-        result.put("validation_errors", validationErrors);
-        result.put("api_calls", totalApiCalls);
-        result.put("pages_processed", totalPagesProcessed);
-        result.put("improvement", "Added comprehensive pagination with individual transaction processing - should get all properties instead of just 25");
-        
-        return result;
     }
 
     /**
-     * ✅ NEW: Process property commission data in a new transaction to isolate failures
+     * Sync properties with commission - SIMPLIFIED
+     */
+    private Map<String, Object> syncPropertiesWithCommission() throws Exception {
+        return syncPaginatedData(
+            "/export/properties?include_commission=true",
+            this::processPropertyCommissionWrapper,
+            "property"
+        );
+    }
+    
+    /**
+     * Wrapper for property commission processing
+     */
+    private SyncItemResult processPropertyCommissionWrapper(Map<String, Object> propertyData) {
+        try {
+            boolean processed = processPropertyCommissionDataInNewTransaction(propertyData);
+            if (!processed) {
+                return SyncItemResult.SKIPPED;
+            }
+            
+            // Check if commission was found
+            Map<String, Object> commission = (Map<String, Object>) propertyData.get("commission");
+            if (commission != null && commission.get("percentage") != null) {
+                return SyncItemResult.UPDATED; // Properties are pre-existing, just updating commission
+            }
+            return SyncItemResult.UPDATED;
+        } catch (Exception e) {
+            return SyncItemResult.ERROR;
+        }
+    }
+
+    /**
+     * Process property commission data - UNCHANGED
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     private boolean processPropertyCommissionDataInNewTransaction(Map<String, Object> ppProperty) {
@@ -550,7 +389,6 @@ public class PayPropFinancialSyncService {
             String payPropId = (String) ppProperty.get("id");
             String propertyName = (String) ppProperty.get("property_name");
             
-            // ✅ DEFENSIVE LOGGING
             logger.info("🔍 Processing property: ID='{}', Name='{}'", payPropId, propertyName);
             
             if (payPropId == null || payPropId.trim().isEmpty()) {
@@ -566,9 +404,8 @@ public class PayPropFinancialSyncService {
             
             Property property = existingOpt.get();
             
-            // ✅ DEFENSIVE PROPERTY NAME HANDLING
+            // Update property name if valid
             if (propertyName != null && !propertyName.trim().isEmpty()) {
-                // Only update if we have a valid name
                 if (propertyName.matches("^.*\\S.*$")) {
                     property.setPropertyName(propertyName.trim());
                     logger.debug("✅ Updated property name: {}", propertyName.trim());
@@ -581,14 +418,13 @@ public class PayPropFinancialSyncService {
                     payPropId, property.getPropertyName());
             }
             
-            // ✅ DEFENSIVE COMMISSION HANDLING
+            // Handle commission
             Map<String, Object> commission = (Map<String, Object>) ppProperty.get("commission");
             if (commission != null) {
                 Object percentage = commission.get("percentage");
                 if (percentage instanceof String && !((String) percentage).trim().isEmpty()) {
                     try {
                         BigDecimal commissionRate = new BigDecimal(((String) percentage).trim());
-                        // ✅ VALIDATE RANGE BEFORE SETTING
                         if (commissionRate.compareTo(BigDecimal.ZERO) >= 0 && 
                             commissionRate.compareTo(BigDecimal.valueOf(100)) <= 0) {
                             property.setCommissionPercentage(commissionRate);
@@ -605,85 +441,6 @@ public class PayPropFinancialSyncService {
             // Update additional property data
             updatePropertyFromCommissionSync(property, ppProperty);
             
-            // ✅ SAFE SAVE WITH SPECIFIC ERROR LOGGING
-            try {
-                propertyService.save(property);
-                logger.debug("✅ Successfully saved property: {}", property.getPropertyName());
-                return true;
-            } catch (jakarta.validation.ConstraintViolationException e) {
-                logger.error("❌ VALIDATION FAILED for property {} ({}): {}", 
-                    property.getPayPropId(), 
-                    property.getPropertyName(),
-                    e.getConstraintViolations().stream()
-                        .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage() + " (value: '" + cv.getInvalidValue() + "')")
-                        .collect(Collectors.joining("; ")));
-                return false;
-            }
-            
-        } catch (Exception e) {
-            logger.error("❌ Error processing property commission data: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    private boolean processPropertyCommissionData(Map<String, Object> ppProperty) {
-        try {
-            String payPropId = (String) ppProperty.get("id");
-            String propertyName = (String) ppProperty.get("property_name");
-            
-            // ✅ DEFENSIVE LOGGING
-            logger.info("🔍 Processing property: ID='{}', Name='{}'", payPropId, propertyName);
-            
-            if (payPropId == null || payPropId.trim().isEmpty()) {
-                logger.warn("⚠️ COMMISSION: Skipping property with missing PayProp ID");
-                return false;
-            }
-            
-            Optional<Property> existingOpt = propertyService.findByPayPropId(payPropId);
-            if (!existingOpt.isPresent()) {
-                logger.warn("⚠️ COMMISSION: Property not found for PayProp ID: {}", payPropId);
-                return false;
-            }
-            
-            Property property = existingOpt.get();
-            
-            // ✅ DEFENSIVE PROPERTY NAME HANDLING
-            if (propertyName != null && !propertyName.trim().isEmpty()) {
-                // Only update if we have a valid name
-                if (propertyName.matches("^.*\\S.*$")) {
-                    property.setPropertyName(propertyName.trim());
-                    logger.debug("✅ Updated property name: {}", propertyName.trim());
-                } else {
-                    logger.warn("⚠️ Invalid property name pattern from PayProp: '{}', keeping existing: '{}'", 
-                        propertyName, property.getPropertyName());
-                }
-            } else {
-                logger.warn("⚠️ Blank property name from PayProp for ID: {}, keeping existing: '{}'", 
-                    payPropId, property.getPropertyName());
-            }
-            
-            // ✅ DEFENSIVE COMMISSION HANDLING
-            Map<String, Object> commission = (Map<String, Object>) ppProperty.get("commission");
-            if (commission != null) {
-                Object percentage = commission.get("percentage");
-                if (percentage instanceof String && !((String) percentage).trim().isEmpty()) {
-                    try {
-                        BigDecimal commissionRate = new BigDecimal(((String) percentage).trim());
-                        // ✅ VALIDATE RANGE BEFORE SETTING
-                        if (commissionRate.compareTo(BigDecimal.ZERO) >= 0 && 
-                            commissionRate.compareTo(BigDecimal.valueOf(100)) <= 0) {
-                            property.setCommissionPercentage(commissionRate);
-                            logger.debug("✅ Set commission rate: {}%", commissionRate);
-                        } else {
-                            logger.warn("⚠️ Commission rate out of range (0-100): {}%, skipping", commissionRate);
-                        }
-                    } catch (NumberFormatException e) {
-                        logger.warn("⚠️ Invalid commission percentage format: '{}', skipping", percentage);
-                    }
-                }
-            }
-            
-            // ✅ SAFE SAVE WITH SPECIFIC ERROR LOGGING
             try {
                 propertyService.save(property);
                 logger.debug("✅ Successfully saved property: {}", property.getPropertyName());
@@ -705,8 +462,7 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * ✅ HELPER: Update property with additional data from commission sync
-     * Add this method to PayPropFinancialSyncService.java
+     * Update property with additional data - UNCHANGED
      */
     private void updatePropertyFromCommissionSync(Property property, Map<String, Object> ppProperty) {
         // Account balance
@@ -742,7 +498,7 @@ public class PayPropFinancialSyncService {
             property.setHoldOwnerFundsFromBoolean((Boolean) holdFunds);
         }
         
-        // Address data (if present)
+        // Address data
         Map<String, Object> address = (Map<String, Object>) ppProperty.get("address");
         if (address != null) {
             property.setAddressLine1((String) address.get("first_line"));
@@ -756,7 +512,7 @@ public class PayPropFinancialSyncService {
     }
         
     /**
-     * Sync payment categories from PayProp
+     * Sync payment categories - UNCHANGED (not paginated)
      */
     private Map<String, Object> syncPaymentCategories() throws Exception {
         logger.info("🏷️ Syncing payment categories...");
@@ -764,8 +520,6 @@ public class PayPropFinancialSyncService {
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
-        // Note: The exact endpoint for categories may vary
-        // Using export/payments to get category information
         String url = payPropApiBase + "/export/payments?rows=100";
         ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
         
@@ -809,32 +563,26 @@ public class PayPropFinancialSyncService {
     }
     
     /**
-     * ✅ FIXED ICDN SYNC: Apply same pagination and isolation fixes as batch payments
-     * Replace the syncFinancialTransactions() method in PayPropFinancialSyncService.java
+     * Sync financial transactions (ICDN) - SPECIAL CASE: Uses date chunking
      */
-
     private Map<String, Object> syncFinancialTransactions() throws Exception {
-        logger.info("💰 Starting FIXED ICDN transactions sync with pagination and isolation...");
+        logger.info("💰 Starting ICDN transactions sync with date chunking...");
         
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<String> request = new HttpEntity<>(headers);
+        // This one is different - it uses date chunks instead of simple pagination
+        // So we keep the original implementation but extract the common parts
         
-        // Counters with detailed breakdown (same as batch payments)
-        int totalApiCalls = 0, totalChunks = 0, totalPagesProcessed = 0;
         int successfulSaves = 0, skippedDuplicates = 0, skippedNegative = 0;
-        int skippedInvalidType = 0, skippedMissingData = 0, constraintViolations = 0;
-        int otherErrors = 0;
+        int skippedInvalidType = 0, skippedMissingData = 0, otherErrors = 0;
         
-        // ✅ FIXED: Same date range as batch payments (2 years back)
         LocalDate endDate = LocalDate.now().plusDays(7);
-        LocalDate absoluteStartDate = endDate.minusYears(2); // Same as batch payments
+        LocalDate absoluteStartDate = endDate.minusYears(2);
         
-        logger.info("🔍 FIXED: Processing 14-day chunks from {} to {} (extended from 180 days)", 
-            absoluteStartDate, endDate);
+        logger.info("🔍 Processing 14-day chunks from {} to {}", absoluteStartDate, endDate);
         
-        // ✅ FIXED: Same 14-day chunks as batch payments
+        int totalChunks = 0;
+        
         while (endDate.isAfter(absoluteStartDate)) {
-            LocalDate startDate = endDate.minusDays(14); // Same chunk size as batch payments
+            LocalDate startDate = endDate.minusDays(14);
             if (startDate.isBefore(absoluteStartDate)) {
                 startDate = absoluteStartDate;
             }
@@ -842,141 +590,67 @@ public class PayPropFinancialSyncService {
             totalChunks++;
             logger.info("🔍 ICDN CHUNK {}: Processing {} to {}", totalChunks, startDate, endDate);
             
-            // ✅ NEW: Add pagination loop (was missing!)
-            int page = 1;
-            int chunkTransactions = 0;
+            // Use apiClient for pagination within each date chunk
+            String endpoint = "/report/icdn?from_date=" + startDate + "&to_date=" + endDate;
+            List<Map<String, Object>> transactions = apiClient.fetchAllPages(endpoint, item -> item);
             
-            while (true) {
-                String url = payPropApiBase + "/report/icdn" +
-                    "?from_date=" + startDate +
-                    "&to_date=" + endDate +
-                    "&page=" + page +           // ✅ NEW: Add pagination
-                    "&rows=25";                 // ✅ FIXED: Use PayProp's actual limit
-                
-                logger.info("📞 ICDN API Call {}: Chunk {} Page {}", totalApiCalls + 1, totalChunks, page);
-                
+            logger.info("📊 Processing {} ICDN transactions for chunk {}", transactions.size(), totalChunks);
+            
+            for (Map<String, Object> ppTransaction : transactions) {
                 try {
-                    // ✅ Rate limiting (same as batch payments)
-                    if (totalApiCalls > 0) {
-                        Thread.sleep(250);
-                    }
-                    
-                    ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-                    totalApiCalls++;
-                    
-                    Map<String, Object> responseBody = response.getBody();
-                    List<Map<String, Object>> transactions = (List<Map<String, Object>>) responseBody.get("items");
-                    
-                    if (transactions.isEmpty()) {
-                        logger.info("📄 No ICDN transactions on page {} for chunk {}", page, totalChunks);
-                        break;
-                    }
-                    
-                    logger.info("📊 Processing {} ICDN transactions on page {} of chunk {}", 
-                        transactions.size(), page, totalChunks);
-                    
-                    // ✅ ISOLATED PROCESSING: Each transaction processed independently  
-                    for (Map<String, Object> ppTransaction : transactions) {
-                        try {
-                            FinancialTransaction transaction = createICDNFinancialTransactionSafe(ppTransaction);
-                            if (transaction != null) {
-                                // ✅ ISOLATED SAVE: Each save in its own transaction
-                                boolean saved = saveFinancialTransactionIsolated(transaction);
-                                if (saved) {
-                                    successfulSaves++;
-                                } else {
-                                    // Categorize the failure reason
-                                    if (transaction.getAmount() != null && transaction.getAmount().compareTo(BigDecimal.ZERO) < 0) {
-                                        skippedNegative++;
-                                    } else if (financialTransactionRepository.existsByPayPropTransactionId(transaction.getPayPropTransactionId())) {
-                                        skippedDuplicates++;
-                                    } else if (!isValidTransactionType(transaction.getTransactionType())) {
-                                        skippedInvalidType++;
-                                    } else {
-                                        skippedMissingData++;
-                                    }
-                                }
+                    FinancialTransaction transaction = createICDNFinancialTransactionSafe(ppTransaction);
+                    if (transaction != null) {
+                        boolean saved = saveFinancialTransactionIsolated(transaction);
+                        if (saved) {
+                            successfulSaves++;
+                        } else {
+                            // Categorize the failure
+                            if (transaction.getAmount() != null && transaction.getAmount().compareTo(BigDecimal.ZERO) < 0) {
+                                skippedNegative++;
+                            } else if (financialTransactionRepository.existsByPayPropTransactionId(transaction.getPayPropTransactionId())) {
+                                skippedDuplicates++;
+                            } else if (!isValidTransactionType(transaction.getTransactionType())) {
+                                skippedInvalidType++;
                             } else {
                                 skippedMissingData++;
                             }
-                            
-                            chunkTransactions++;
-                            
-                        } catch (Exception e) {
-                            otherErrors++;
-                            logger.error("❌ Error processing ICDN transaction: {}", e.getMessage());
                         }
+                    } else {
+                        skippedMissingData++;
                     }
-                    
-                    // ✅ NEW: Check pagination (same logic as batch payments)
-                    Map<String, Object> pagination = (Map<String, Object>) responseBody.get("pagination");
-                    if (pagination != null) {
-                        Integer currentPage = (Integer) pagination.get("page");
-                        Integer totalPages = (Integer) pagination.get("total_pages");
-                        
-                        if (currentPage != null && totalPages != null && currentPage >= totalPages) {
-                            logger.info("📄 Reached last ICDN page ({}) for chunk {}", totalPages, totalChunks);
-                            break;
-                        }
-                    } else if (transactions.size() < 25) {
-                        logger.info("📄 Got {} ICDN transactions (< 25), last page for chunk {}", 
-                            transactions.size(), totalChunks);
-                        break;
-                    }
-                    
-                    page++;
-                    totalPagesProcessed++;
-                    
-                    if (page > 50) { // Safety break
-                        logger.warn("⚠️ Safety break: ICDN page 50 reached for chunk {}", totalChunks);
-                        break;
-                    }
-                    
                 } catch (Exception e) {
-                    logger.error("❌ ICDN API call failed for chunk {} page {}: {}", totalChunks, page, e.getMessage());
-                    if (e.getMessage().contains("429")) {
-                        Thread.sleep(30000); // Wait for rate limit
-                        continue;
-                    }
-                    break;
+                    otherErrors++;
+                    logger.error("❌ Error processing ICDN transaction: {}", e.getMessage());
                 }
             }
             
-            logger.info("✅ ICDN Chunk {} completed: {} transactions processed", totalChunks, chunkTransactions);
             endDate = startDate.minusDays(1);
         }
         
-        // ✅ COMPREHENSIVE REPORTING (same as batch payments)
+        // Comprehensive reporting
         logger.info("💰 ICDN TRANSACTIONS SYNC COMPLETED:");
-        logger.info("📊 Total API calls: {}", totalApiCalls);
         logger.info("📊 Chunks processed: {}", totalChunks);
-        logger.info("📊 Pages processed: {}", totalPagesProcessed);
         logger.info("✅ Successful saves: {}", successfulSaves);
         logger.info("⏭️ Skipped duplicates: {}", skippedDuplicates);
         logger.info("⚠️ Skipped negative amounts: {}", skippedNegative);
         logger.info("⚠️ Skipped invalid types: {}", skippedInvalidType);
         logger.info("⚠️ Skipped missing data: {}", skippedMissingData);
-        logger.info("❌ Constraint violations: {}", constraintViolations);
         logger.info("❌ Other errors: {}", otherErrors);
         
-        // In the batch payments method, replace Map.of() with:
         Map<String, Object> result = new HashMap<>();
         result.put("payments_created", successfulSaves);
         result.put("skipped_duplicates", skippedDuplicates);
         result.put("skipped_negative", skippedNegative);
         result.put("skipped_invalid_type", skippedInvalidType);
         result.put("skipped_missing_data", skippedMissingData);
-        result.put("constraint_violations", constraintViolations);
         result.put("other_errors", otherErrors);
-        result.put("total_processed", successfulSaves + skippedDuplicates + skippedNegative + skippedInvalidType + skippedMissingData + constraintViolations + otherErrors);
-        result.put("api_calls", totalApiCalls);
+        result.put("total_processed", successfulSaves + skippedDuplicates + skippedNegative + skippedInvalidType + skippedMissingData + otherErrors);
         result.put("chunks_processed", totalChunks);
         return result;
     }
 
     /**
-     * ✅ NEW: Safe ICDN transaction creation with proper validation
-     * Add this method to PayPropFinancialSyncService.java
+     * Create ICDN transaction safely - UNCHANGED
      */
     private FinancialTransaction createICDNFinancialTransactionSafe(Map<String, Object> ppTransaction) {
         try {
@@ -1047,22 +721,22 @@ public class PayPropFinancialSyncService {
             transaction.setTransactionDate(transactionDate);
             transaction.setTransactionType(transactionType);
             
-            // Optional fields with safe extraction
+            // Optional fields
             transaction.setDescription((String) ppTransaction.get("description"));
             transaction.setHasTax((Boolean) ppTransaction.getOrDefault("has_tax", false));
             transaction.setDepositId((String) ppTransaction.get("deposit_id"));
             
-            // Matched amount (optional)
+            // Matched amount
             Object matchedAmount = ppTransaction.get("matched_amount");
             if (matchedAmount instanceof String && !((String) matchedAmount).isEmpty()) {
                 try {
                     transaction.setMatchedAmount(new BigDecimal((String) matchedAmount));
                 } catch (NumberFormatException e) {
-                    // Ignore invalid matched amounts
+                    // Ignore
                 }
             }
             
-            // Tax amount (optional)
+            // Tax amount
             Object taxAmount = ppTransaction.get("tax_amount");
             if (taxAmount instanceof String && !((String) taxAmount).isEmpty()) {
                 try {
@@ -1072,21 +746,21 @@ public class PayPropFinancialSyncService {
                 }
             }
             
-            // Property info (safe nested extraction)
+            // Property info
             Map<String, Object> property = (Map<String, Object>) ppTransaction.get("property");
             if (property != null) {
                 transaction.setPropertyId((String) property.get("id"));
                 transaction.setPropertyName((String) property.get("name"));
             }
             
-            // Tenant info (safe nested extraction)
+            // Tenant info
             Map<String, Object> tenant = (Map<String, Object>) ppTransaction.get("tenant");
             if (tenant != null) {
                 transaction.setTenantId((String) tenant.get("id"));
                 transaction.setTenantName((String) tenant.get("name"));
             }
             
-            // Category info (safe nested extraction)
+            // Category info
             Map<String, Object> category = (Map<String, Object>) ppTransaction.get("category");
             if (category != null) {
                 transaction.setCategoryId((String) category.get("id"));
@@ -1106,8 +780,575 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * ✅ FIXED: Get commission rates from already-synced properties table
-     * This avoids the 25-row pagination issue entirely
+     * Sync batch payments - SPECIAL CASE: Uses date chunking + pagination
+     */
+    private Map<String, Object> syncBatchPayments() throws Exception {
+        logger.info("💰 Starting batch payments sync with date chunking...");
+        
+        int successfulSaves = 0, skippedDuplicates = 0, skippedNegative = 0;
+        int skippedInvalidType = 0, skippedMissingData = 0, otherErrors = 0;
+        
+        LocalDate endDate = LocalDate.now().plusDays(7);  
+        LocalDate absoluteStartDate = endDate.minusYears(2); 
+        
+        logger.info("🔍 Processing 14-day chunks from {} to {}", absoluteStartDate, endDate);
+        
+        int totalChunks = 0;
+        
+        while (endDate.isAfter(absoluteStartDate)) {
+            LocalDate startDate = endDate.minusDays(14);
+            if (startDate.isBefore(absoluteStartDate)) {
+                startDate = absoluteStartDate;
+            }
+            
+            totalChunks++;
+            logger.info("🔍 BATCH CHUNK {}: Processing {} to {}", totalChunks, startDate, endDate);
+            
+            // Use apiClient for pagination within each date chunk
+            String endpoint = "/report/all-payments" +
+                "?from_date=" + startDate +
+                "&to_date=" + endDate +
+                "&filter_by=reconciliation_date" +
+                "&include_beneficiary_info=true";
+                
+            List<Map<String, Object>> payments = apiClient.fetchAllPages(endpoint, item -> item);
+            
+            logger.info("📊 Processing {} batch payments for chunk {}", payments.size(), totalChunks);
+            
+            for (Map<String, Object> paymentData : payments) {
+                try {
+                    FinancialTransaction transaction = createFinancialTransactionFromReportData(paymentData);
+                    if (transaction != null) {
+                        boolean saved = saveFinancialTransactionIsolated(transaction);
+                        if (saved) {
+                            successfulSaves++;
+                        } else {
+                            // Categorize the failure
+                            if (transaction.getAmount() != null && transaction.getAmount().compareTo(BigDecimal.ZERO) < 0) {
+                                skippedNegative++;
+                            } else if (financialTransactionRepository.existsByPayPropTransactionId(transaction.getPayPropTransactionId())) {
+                                skippedDuplicates++;
+                            } else if (!isValidTransactionType(transaction.getTransactionType())) {
+                                skippedInvalidType++;
+                            } else {
+                                skippedMissingData++;
+                            }
+                        }
+                    } else {
+                        skippedMissingData++;
+                    }
+                } catch (Exception e) {
+                    otherErrors++;
+                    logger.error("❌ Error processing payment: {}", e.getMessage());
+                }
+            }
+            
+            endDate = startDate.minusDays(1);
+        }
+        
+        // Comprehensive reporting
+        logger.info("💰 BATCH PAYMENTS SYNC COMPLETED:");
+        logger.info("📊 Chunks processed: {}", totalChunks);
+        logger.info("✅ Successful saves: {}", successfulSaves);
+        logger.info("⏭️ Skipped duplicates: {}", skippedDuplicates);
+        logger.info("⚠️ Skipped negative amounts: {}", skippedNegative);
+        logger.info("⚠️ Skipped invalid types: {}", skippedInvalidType);
+        logger.info("⚠️ Skipped missing data: {}", skippedMissingData);
+        logger.info("❌ Other errors: {}", otherErrors);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("payments_created", successfulSaves);
+        result.put("skipped_duplicates", skippedDuplicates);
+        result.put("skipped_negative", skippedNegative);
+        result.put("skipped_invalid_type", skippedInvalidType);
+        result.put("skipped_missing_data", skippedMissingData);
+        result.put("other_errors", otherErrors);
+        result.put("total_processed", successfulSaves + skippedDuplicates + skippedNegative + skippedInvalidType + skippedMissingData + otherErrors);
+        result.put("chunks_processed", totalChunks);
+        return result;
+    }
+
+    /**
+     * Save financial transaction in isolation - UNCHANGED
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean saveFinancialTransactionIsolated(FinancialTransaction transaction) {
+        try {
+            // Validate required fields
+            if (transaction.getPayPropTransactionId() == null || transaction.getPayPropTransactionId().trim().isEmpty()) {
+                logger.warn("⚠️ SKIPPED: Missing PayProp transaction ID");
+                return false;
+            }
+            
+            if (transaction.getAmount() == null) {
+                logger.warn("⚠️ SKIPPED: Missing amount for transaction {}", transaction.getPayPropTransactionId());
+                return false;
+            }
+            
+            if (transaction.getTransactionDate() == null) {
+                logger.warn("⚠️ SKIPPED: Missing transaction date for transaction {}", transaction.getPayPropTransactionId());
+                return false;
+            }
+            
+            // Log negative amounts but store them
+            if (transaction.getAmount().compareTo(BigDecimal.ZERO) < 0) {
+                logger.info("💰 STORING: Negative amount £{} for transaction {} - {} ({})", 
+                    transaction.getAmount(), 
+                    transaction.getPayPropTransactionId(),
+                    transaction.getTransactionType(),
+                    transaction.getCategoryName());
+            }
+            
+            // Check for duplicate
+            if (financialTransactionRepository.existsByPayPropTransactionId(transaction.getPayPropTransactionId())) {
+                logger.debug("ℹ️ SKIPPED: Transaction {} already exists", transaction.getPayPropTransactionId());
+                return false;
+            }
+            
+            // Validate transaction type
+            if (transaction.getTransactionType() == null || !isValidTransactionType(transaction.getTransactionType())) {
+                logger.warn("⚠️ SKIPPED: Invalid transaction type '{}' for transaction {}", 
+                    transaction.getTransactionType(), transaction.getPayPropTransactionId());
+                return false;
+            }
+            
+            // Set audit fields
+            if (transaction.getCreatedAt() == null) {
+                transaction.setCreatedAt(LocalDateTime.now());
+            }
+            if (transaction.getUpdatedAt() == null) {
+                transaction.setUpdatedAt(LocalDateTime.now());
+            }
+            
+            // Save
+            financialTransactionRepository.save(transaction);
+            
+            logger.debug("✅ SAVED: Transaction {} (£{}, {}, {})", 
+                transaction.getPayPropTransactionId(), 
+                transaction.getAmount(), 
+                transaction.getTransactionType(),
+                transaction.getPropertyName());
+            
+            return true;
+            
+        } catch (DataIntegrityViolationException e) {
+            logger.error("❌ CONSTRAINT VIOLATION: Transaction {} failed constraint check: {}", 
+                transaction.getPayPropTransactionId(), e.getMessage());
+            return false;
+        } catch (Exception e) {
+            logger.error("❌ SAVE FAILED: Transaction {} failed to save: {}", 
+                transaction.getPayPropTransactionId(), e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Check if transaction type is valid - UNCHANGED
+     */
+    private boolean isValidTransactionType(String transactionType) {
+        Set<String> validTypes = Set.of(
+            "invoice", "credit_note", "debit_note", "deposit", "commission_payment",
+            "payment_to_beneficiary", "payment_to_agency", "payment_to_contractor", 
+            "payment_property_account", "payment_deposit_account", "refund", 
+            "adjustment", "transfer"
+        );
+        return validTypes.contains(transactionType);
+    }
+
+    /**
+     * Create financial transaction from report data - UNCHANGED (keeping all specific logic)
+     */
+    private FinancialTransaction createFinancialTransactionFromReportData(Map<String, Object> paymentData) {
+        try {
+            FinancialTransaction transaction = new FinancialTransaction();
+            
+            // Basic identification
+            String paymentId = (String) paymentData.get("id");
+            if (paymentId == null || paymentId.trim().isEmpty()) {
+                logger.warn("⚠️ Skipping payment with missing ID");
+                return null;
+            }
+            
+            transaction.setPayPropTransactionId(paymentId);
+            transaction.setDataSource("BATCH_PAYMENT");
+            transaction.setIsInstruction(false);
+            transaction.setIsActualTransaction(true);
+            
+            // Amount handling
+            Object amountObj = paymentData.get("amount");
+            if (amountObj != null) {
+                try {
+                    BigDecimal amount = new BigDecimal(amountObj.toString());
+                    transaction.setAmount(amount);
+                } catch (NumberFormatException e) {
+                    logger.warn("⚠️ Invalid amount format '{}' for payment {}", amountObj, paymentId);
+                    return null;
+                }
+            } else {
+                logger.warn("⚠️ Missing amount for payment {}", paymentId);
+                return null;
+            }
+            
+            // Date handling
+            LocalDate transactionDate = extractTransactionDate(paymentData);
+            if (transactionDate == null) {
+                logger.warn("⚠️ Could not determine transaction date for payment {}, skipping", paymentId);
+                return null;
+            }
+            transaction.setTransactionDate(transactionDate);
+            
+            // Extract reconciliation date
+            String reconDateStr = extractStringFromPath(paymentData, "incoming_transaction.reconciliation_date");
+            if (reconDateStr != null && !reconDateStr.isEmpty()) {
+                try {
+                    transaction.setReconciliationDate(LocalDate.parse(reconDateStr));
+                } catch (Exception e) {
+                    logger.debug("Could not parse reconciliation_date: {}", reconDateStr);
+                }
+            }
+            
+            // Property information
+            Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
+            if (incomingTransaction != null) {
+                Map<String, Object> property = (Map<String, Object>) incomingTransaction.get("property");
+                if (property != null) {
+                    transaction.setPropertyId((String) property.get("id"));
+                    transaction.setPropertyName((String) property.get("name"));
+                }
+                
+                // Extract tenant information
+                Map<String, Object> tenant = (Map<String, Object>) incomingTransaction.get("tenant");
+                if (tenant != null) {
+                    transaction.setTenantId((String) tenant.get("id"));
+                    transaction.setTenantName((String) tenant.get("name"));
+                }
+                
+                // Extract deposit ID
+                transaction.setDepositId((String) incomingTransaction.get("deposit_id"));
+            }
+            
+            // Beneficiary information
+            Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
+            if (beneficiary != null) {
+                String beneficiaryName = (String) beneficiary.get("name");
+                String beneficiaryType = (String) beneficiary.get("type");
+                if (beneficiaryName != null || beneficiaryType != null) {
+                    String description = "Beneficiary: " + 
+                        (beneficiaryName != null ? beneficiaryName : "Unknown") + 
+                        " (" + (beneficiaryType != null ? beneficiaryType : "Unknown type") + ")";
+                    transaction.setDescription(description);
+                }
+            }
+            
+            // Set transaction type
+            String transactionType = determineTransactionTypeFromPayPropData(paymentData);
+            if (transactionType == null) {
+                logger.warn("⚠️ Could not determine valid transaction type for payment {}, skipping", paymentId);
+                return null;
+            }
+            transaction.setTransactionType(transactionType);
+            
+            // Extract fees
+            Object serviceFeeObj = paymentData.get("service_fee");
+            if (serviceFeeObj != null) {
+                try {
+                    transaction.setServiceFeeAmount(new BigDecimal(serviceFeeObj.toString()));
+                } catch (NumberFormatException e) {
+                    logger.debug("Invalid service_fee format: {}", serviceFeeObj);
+                }
+            }
+            
+            Object transactionFeeObj = paymentData.get("transaction_fee");
+            if (transactionFeeObj != null) {
+                try {
+                    transaction.setTaxAmount(new BigDecimal(transactionFeeObj.toString()));
+                } catch (NumberFormatException e) {
+                    logger.debug("Invalid transaction_fee format: {}", transactionFeeObj);
+                }
+            }
+            
+            // Set audit fields
+            transaction.setCreatedAt(LocalDateTime.now());
+            transaction.setUpdatedAt(LocalDateTime.now());
+            
+            return transaction;
+            
+        } catch (Exception e) {
+            logger.error("❌ Error creating financial transaction from report data: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Determine transaction type - UNCHANGED (complex business logic)
+     */
+    private String determineTransactionTypeFromPayPropData(Map<String, Object> paymentData) {
+        try {
+            // Get PayProp data
+            Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
+            String beneficiaryType = beneficiary != null ? (String) beneficiary.get("type") : null;
+            
+            String category = extractCategorySafely(paymentData);
+            
+            // Check for deposit-related transactions
+            if (isDepositRelated(paymentData)) {
+                logger.debug("Mapped to 'deposit' - deposit-related transaction");
+                return "deposit";
+            }
+            
+            // Map by beneficiary type
+            if (beneficiaryType != null) {
+                switch (beneficiaryType) {
+                    case "agency":
+                        logger.debug("Mapped to 'payment_to_agency' - agency beneficiary");
+                        return "payment_to_agency";
+                        
+                    case "beneficiary":
+                        if (isMaintenancePayment(category)) {
+                            logger.debug("Mapped to 'payment_to_contractor' - maintenance category");
+                            return "payment_to_contractor";
+                        } else {
+                            logger.debug("Mapped to 'payment_to_beneficiary' - regular beneficiary");
+                            return "payment_to_beneficiary";
+                        }
+                        
+                    case "global_beneficiary":
+                        logger.debug("Mapped to 'payment_to_beneficiary' - global beneficiary");
+                        return "payment_to_beneficiary";
+                        
+                    case "property_account":
+                        logger.debug("Mapped to 'payment_property_account' - property account");
+                        return "payment_property_account";
+                        
+                    case "deposit_account":
+                        logger.debug("Mapped to 'payment_deposit_account' - deposit account");
+                        return "payment_deposit_account";
+                        
+                    default:
+                        logger.debug("Unknown beneficiary type '{}', using default", beneficiaryType);
+                        break;
+                }
+            }
+            
+            // Category-based mapping
+            if (category != null) {
+                String lowerCategory = category.toLowerCase();
+                
+                if (lowerCategory.contains("commission") || lowerCategory.contains("fee")) {
+                    logger.debug("Mapped to 'payment_to_agency' - commission/fee category");
+                    return "payment_to_agency";
+                }
+                
+                if (isMaintenancePayment(category)) {
+                    logger.debug("Mapped to 'payment_to_contractor' - maintenance category");
+                    return "payment_to_contractor";
+                }
+                
+                if (lowerCategory.contains("refund")) {
+                    logger.debug("Mapped to 'refund' - refund category");
+                    return "refund";
+                }
+            }
+            
+            // Default
+            logger.debug("Using default 'payment_to_beneficiary' for standard payment");
+            return "payment_to_beneficiary";
+            
+        } catch (Exception e) {
+            logger.error("Error determining transaction type: {}", e.getMessage());
+            return "commission_payment";
+        }
+    }
+
+    /**
+     * Extract category safely - UNCHANGED
+     */
+    private String extractCategorySafely(Map<String, Object> paymentData) {
+        try {
+            Object categoryObj = paymentData.get("category");
+            
+            if (categoryObj == null) {
+                return null;
+            }
+            
+            if (categoryObj instanceof String) {
+                return (String) categoryObj;
+            }
+            
+            if (categoryObj instanceof Map) {
+                Map<String, Object> categoryMap = (Map<String, Object>) categoryObj;
+                
+                String name = (String) categoryMap.get("name");
+                if (name != null) {
+                    logger.debug("Extracted category name from Map: {}", name);
+                    return name;
+                }
+                
+                String id = (String) categoryMap.get("id");
+                if (id != null) {
+                    logger.debug("Extracted category id from Map: {}", id);
+                    return id;
+                }
+                
+                logger.debug("Category Map structure: {}", categoryMap.keySet());
+                return categoryMap.toString();
+            }
+            
+            logger.debug("Category is {} type, converting to string", categoryObj.getClass().getSimpleName());
+            return categoryObj.toString();
+            
+        } catch (Exception e) {
+            logger.error("Error extracting category: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Check if deposit related - UNCHANGED
+     */
+    private boolean isDepositRelated(Map<String, Object> paymentData) {
+        try {
+            // Check category
+            String category = extractCategorySafely(paymentData);
+            if (category != null) {
+                String lowerCategory = category.toLowerCase();
+                boolean isCategoryDeposit = lowerCategory.contains("deposit") || 
+                                        lowerCategory.contains("security") ||
+                                        lowerCategory.contains("bond");
+                
+                if (isCategoryDeposit) {
+                    logger.debug("Detected deposit via category: {}", category);
+                    return true;
+                }
+            }
+            
+            // Check description
+            String description = (String) paymentData.get("description");
+            if (description != null) {
+                String lowerDescription = description.toLowerCase();
+                boolean isDescriptionDeposit = lowerDescription.contains("deposit") || 
+                                            lowerDescription.contains("security") ||
+                                            lowerDescription.contains("bond");
+                
+                if (isDescriptionDeposit) {
+                    logger.debug("Detected deposit via description: {}", description);
+                    return true;
+                }
+            }
+            
+            // Check deposit_id with context
+            Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
+            if (incomingTransaction != null && (category != null || description != null)) {
+                String depositId = (String) incomingTransaction.get("deposit_id");
+                if (depositId != null && !depositId.trim().isEmpty()) {
+                    boolean hasDepositText = (category != null && category.toLowerCase().contains("deposit")) ||
+                                            (description != null && description.toLowerCase().contains("deposit"));
+                    
+                    if (hasDepositText) {
+                        logger.debug("Confirmed deposit via deposit_id: {} with text indicators", depositId);
+                        return true;
+                    }
+                }
+            }
+            
+            return false;
+            
+        } catch (Exception e) {
+            logger.debug("Error checking deposit status: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Check if maintenance payment - UNCHANGED
+     */
+    private boolean isMaintenancePayment(String category) {
+        if (category == null) return false;
+        
+        String lowerCategory = category.toLowerCase();
+        return lowerCategory.contains("maintenance") ||
+            lowerCategory.contains("contractor") ||
+            lowerCategory.contains("repair") ||
+            lowerCategory.contains("plumber") ||
+            lowerCategory.contains("electrician") ||
+            lowerCategory.contains("gardening") ||
+            lowerCategory.contains("cleaning") ||
+            lowerCategory.contains("handyman") ||
+            lowerCategory.contains("painting") ||
+            lowerCategory.contains("roofing") ||
+            lowerCategory.contains("heating") ||
+            lowerCategory.contains("building") ||
+            lowerCategory.contains("appliance") ||
+            lowerCategory.contains("boiler") ||
+            lowerCategory.contains("window") ||
+            lowerCategory.contains("door") ||
+            lowerCategory.contains("flooring") ||
+            lowerCategory.contains("pest") ||
+            lowerCategory.contains("gutter") ||
+            lowerCategory.contains("fence");
+    }
+
+    /**
+     * Extract transaction date - UNCHANGED
+     */
+    private LocalDate extractTransactionDate(Map<String, Object> paymentData) {
+        // Try incoming_transaction.reconciliation_date first
+        String reconDate = extractStringFromPath(paymentData, "incoming_transaction.reconciliation_date");
+        if (reconDate != null && !reconDate.isEmpty()) {
+            try {
+                return LocalDate.parse(reconDate);
+            } catch (Exception e) {
+                logger.debug("Could not parse reconciliation_date: {}", reconDate);
+            }
+        }
+        
+        // Try due_date
+        String dueDate = (String) paymentData.get("due_date");
+        if (dueDate != null && !dueDate.isEmpty()) {
+            try {
+                return LocalDate.parse(dueDate);
+            } catch (Exception e) {
+                logger.debug("Could not parse due_date: {}", dueDate);
+            }
+        }
+        
+        // Try payment_batch.transfer_date
+        String transferDate = extractStringFromPath(paymentData, "payment_batch.transfer_date");
+        if (transferDate != null && !transferDate.isEmpty()) {
+            try {
+                return LocalDate.parse(transferDate);
+            } catch (Exception e) {
+                logger.debug("Could not parse transfer_date: {}", transferDate);
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Extract string from path - UNCHANGED
+     */
+    private String extractStringFromPath(Map<String, Object> data, String path) {
+        try {
+            String[] parts = path.split("\\.");
+            Object current = data;
+            
+            for (String part : parts) {
+                if (current instanceof Map) {
+                    current = ((Map<String, Object>) current).get(part);
+                } else {
+                    return null;
+                }
+            }
+            
+            return current instanceof String ? (String) current : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Get commission rates from database - SIMPLIFIED
      */
     private Map<String, BigDecimal> getCommissionRatesFromDatabase() {
         Map<String, BigDecimal> rates = new HashMap<>();
@@ -1131,59 +1372,87 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * ✅ NEW: Link actual commission payments to their corresponding rent transactions
+     * Calculate and store commissions - UNCHANGED (business logic)
      */
-    private Map<String, Object> linkActualCommissionToTransactions() throws Exception {
-        logger.info("🔗 Linking actual commission payments to rent transactions...");
+    private Map<String, Object> calculateAndStoreCommissions() throws Exception {
+        logger.info("🧮 Calculating and storing commission data...");
         
-        // Find all commission payment transactions
-        List<FinancialTransaction> commissionPayments = financialTransactionRepository
-            .findByDataSourceAndTransactionType("COMMISSION_PAYMENT", "commission_payment");
+        // Get all ICDN invoice transactions without commission calculations
+        List<FinancialTransaction> transactions = financialTransactionRepository
+            .findByDataSourceAndTransactionType("ICDN_ACTUAL", "invoice")
+            .stream()
+            .filter(t -> t.getCommissionAmount() == null)
+            .collect(Collectors.toList());
         
-        int linked = 0;
+        int commissionsCalculated = 0;
         
-        for (FinancialTransaction commissionPayment : commissionPayments) {
-            // Find corresponding rent payments for the same property and approximate date
-            LocalDate startDate = commissionPayment.getTransactionDate().minusDays(7);
-            LocalDate endDate = commissionPayment.getTransactionDate().plusDays(7);
+        for (FinancialTransaction transaction : transactions) {
+            // Skip deposits
+            if (transaction.getCategoryName() != null && 
+                transaction.getCategoryName().toLowerCase().contains("deposit")) {
+                logger.debug("⚠️ Skipping commission calculation for deposit transaction {}", 
+                    transaction.getPayPropTransactionId());
+                continue;
+            }
             
-            List<FinancialTransaction> rentPayments = financialTransactionRepository
-                .findByPropertyIdAndTransactionDateBetween(commissionPayment.getPropertyId(), startDate, endDate)
-                .stream()
-                .filter(t -> "invoice".equals(t.getTransactionType()))
-                .filter(t -> "ICDN_ACTUAL".equals(t.getDataSource()))
-                .collect(Collectors.toList());
-            
-            for (FinancialTransaction rentPayment : rentPayments) {
-                // Only link if actual commission amount is not already set
-                if (rentPayment.getActualCommissionAmount() == null) {
-                    rentPayment.setActualCommissionAmount(commissionPayment.getAmount());
-                    rentPayment.setUpdatedAt(LocalDateTime.now());
-                    financialTransactionRepository.save(rentPayment);
-                    linked++;
+            // Find property to get commission rate
+            if (transaction.getPropertyId() != null) {
+                Optional<Property> propertyOpt = propertyService.findByPayPropId(transaction.getPropertyId());
+                
+                if (propertyOpt.isPresent()) {
+                    Property property = propertyOpt.get();
                     
-                    logger.debug("✅ Linked actual commission £{} to rent payment £{} for property {}", 
-                        commissionPayment.getAmount(), rentPayment.getAmount(), rentPayment.getPropertyName());
+                    if (property.getCommissionPercentage() != null && transaction.getAmount() != null) {
+                        BigDecimal commissionRate = property.getCommissionPercentage();
+                        BigDecimal rentAmount = transaction.getAmount();
+                        
+                        // Calculate commission
+                        BigDecimal commissionAmount = rentAmount
+                            .multiply(commissionRate)
+                            .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                        
+                        // Calculate service fee (5%)
+                        BigDecimal serviceFee = rentAmount
+                            .multiply(BigDecimal.valueOf(5))
+                            .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                        
+                        // Calculate net to owner
+                        BigDecimal netToOwner = rentAmount
+                            .subtract(commissionAmount)
+                            .subtract(serviceFee);
+                        
+                        // Update transaction
+                        transaction.setCalculatedCommissionAmount(commissionAmount);
+                        transaction.setCommissionAmount(commissionAmount);
+                        transaction.setServiceFeeAmount(serviceFee);
+                        transaction.setNetToOwnerAmount(netToOwner);
+                        transaction.setCommissionRate(commissionRate);
+                        transaction.setUpdatedAt(LocalDateTime.now());
+                        
+                        financialTransactionRepository.save(transaction);
+                        commissionsCalculated++;
+                        
+                        logger.debug("✅ Commission calculated: {} £{} at {}%", 
+                            property.getPropertyName(), commissionAmount, commissionRate);
+                    }
                 }
             }
         }
         
-        logger.info("🔗 Commission linking completed: {} rent transactions linked to actual commission", linked);
+        logger.info("💰 Commission calculation completed: {} transactions processed", commissionsCalculated);
         
         return Map.of(
-            "commission_payments_found", commissionPayments.size(),
-            "rent_transactions_linked", linked
+            "transactions_processed", transactions.size(),
+            "commissions_calculated", commissionsCalculated
         );
     }
 
-    
     /**
-     * ✅ FAST: Get commission rates from PayProp and calculate commission
+     * Sync actual commission payments - UNCHANGED
      */
     private Map<String, Object> syncActualCommissionPayments() throws Exception {
         logger.info("💰 Getting commission rates from PayProp and calculating commission...");
         
-        // Step 1: Get commission rates from PayProp
         Map<String, BigDecimal> commissionRates = getCommissionRatesFromDatabase();
         logger.info("📊 Found {} properties with commission rates", commissionRates.size());
         
@@ -1191,13 +1460,11 @@ public class PayPropFinancialSyncService {
         BigDecimal totalCommission = BigDecimal.ZERO;
         
         try {
-            // Step 2: Get all rent payments and calculate commission
             List<FinancialTransaction> rentPayments = financialTransactionRepository
                 .findByDataSource("ICDN_ACTUAL")
                 .stream()
                 .filter(tx -> "invoice".equals(tx.getTransactionType()))
                 .filter(tx -> {
-                    // Only exclude if category explicitly says "deposit"
                     String categoryName = tx.getCategoryName();
                     return !(categoryName != null && categoryName.toLowerCase().contains("deposit"));
                 })
@@ -1272,129 +1539,55 @@ public class PayPropFinancialSyncService {
             "commission_rates_found", commissionRates.size()
         );
     }
-    
-    /**
-     * ✅ FAST: Get commission rates directly from PayProp
-     */
-    private Map<String, BigDecimal> getCommissionRatesFromPayProp() throws Exception {
-        Map<String, BigDecimal> rates = new HashMap<>();
-        
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            
-            // Get properties with commission data
-            String url = payPropApiBase + "/export/properties?include_commission=true&rows=1000";
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-            
-            List<Map<String, Object>> properties = (List<Map<String, Object>>) response.getBody().get("items");
-            
-            for (Map<String, Object> property : properties) {
-                String propertyId = (String) property.get("id");
-                Map<String, Object> commission = (Map<String, Object>) property.get("commission");
-                
-                if (propertyId != null && commission != null) {
-                    Object percentage = commission.get("percentage");
-                    if (percentage instanceof String && !((String) percentage).isEmpty()) {
-                        try {
-                            BigDecimal rate = new BigDecimal((String) percentage);
-                            rates.put(propertyId, rate);
-                            logger.debug("✅ Commission rate: {} = {}%", 
-                                property.get("property_name"), rate);
-                        } catch (NumberFormatException e) {
-                            logger.warn("⚠️ Invalid commission rate: {}", percentage);
-                        }
-                    }
-                }
-            }
-            
-        } catch (Exception e) {
-            logger.error("❌ Failed to get commission rates: {}", e.getMessage());
-        }
-        
-        return rates;
-    }
 
-
-    
     /**
-     * ✅ FIXED: Calculate and store commission data for financial transactions
+     * Link actual commission payments to rent transactions - UNCHANGED
      */
-    private Map<String, Object> calculateAndStoreCommissions() throws Exception {
-        logger.info("🧮 Calculating and storing commission data...");
+    private Map<String, Object> linkActualCommissionToTransactions() throws Exception {
+        logger.info("🔗 Linking actual commission payments to rent transactions...");
         
-        // Get all ICDN invoice transactions without commission calculations
-        List<FinancialTransaction> transactions = financialTransactionRepository
-            .findByDataSourceAndTransactionType("ICDN_ACTUAL", "invoice")
-            .stream()
-            .filter(t -> t.getCommissionAmount() == null)
-            .collect(Collectors.toList());
+        // Find all commission payment transactions
+        List<FinancialTransaction> commissionPayments = financialTransactionRepository
+            .findByDataSourceAndTransactionType("COMMISSION_PAYMENT", "commission_payment");
         
-        int commissionsCalculated = 0;
+        int linked = 0;
         
-        for (FinancialTransaction transaction : transactions) {
-            // Skip deposits - check category name for deposit keywords
-            if (transaction.getCategoryName() != null && 
-                transaction.getCategoryName().toLowerCase().contains("deposit")) {
-                logger.debug("⚠️ Skipping commission calculation for deposit transaction {}", 
-                    transaction.getPayPropTransactionId());
-                continue;
-            }
+        for (FinancialTransaction commissionPayment : commissionPayments) {
+            // Find corresponding rent payments for the same property and approximate date
+            LocalDate startDate = commissionPayment.getTransactionDate().minusDays(7);
+            LocalDate endDate = commissionPayment.getTransactionDate().plusDays(7);
             
-            // Find property to get commission rate
-            if (transaction.getPropertyId() != null) {
-                Optional<Property> propertyOpt = propertyService.findByPayPropId(transaction.getPropertyId());
-                
-                if (propertyOpt.isPresent()) {
-                    Property property = propertyOpt.get();
+            List<FinancialTransaction> rentPayments = financialTransactionRepository
+                .findByPropertyIdAndTransactionDateBetween(commissionPayment.getPropertyId(), startDate, endDate)
+                .stream()
+                .filter(t -> "invoice".equals(t.getTransactionType()))
+                .filter(t -> "ICDN_ACTUAL".equals(t.getDataSource()))
+                .collect(Collectors.toList());
+            
+            for (FinancialTransaction rentPayment : rentPayments) {
+                // Only link if actual commission amount is not already set
+                if (rentPayment.getActualCommissionAmount() == null) {
+                    rentPayment.setActualCommissionAmount(commissionPayment.getAmount());
+                    rentPayment.setUpdatedAt(LocalDateTime.now());
+                    financialTransactionRepository.save(rentPayment);
+                    linked++;
                     
-                    if (property.getCommissionPercentage() != null && transaction.getAmount() != null) {
-                        BigDecimal commissionRate = property.getCommissionPercentage();
-                        BigDecimal rentAmount = transaction.getAmount();
-                        
-                        // Calculate commission
-                        BigDecimal commissionAmount = rentAmount
-                            .multiply(commissionRate)
-                            .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-                        
-                        // Calculate service fee (5%)
-                        BigDecimal serviceFee = rentAmount
-                            .multiply(BigDecimal.valueOf(5))
-                            .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-                        
-                        // Calculate net to owner
-                        BigDecimal netToOwner = rentAmount
-                            .subtract(commissionAmount)
-                            .subtract(serviceFee);
-                        
-                        // Update transaction
-                        transaction.setCalculatedCommissionAmount(commissionAmount);
-                        transaction.setCommissionAmount(commissionAmount);
-                        transaction.setServiceFeeAmount(serviceFee);
-                        transaction.setNetToOwnerAmount(netToOwner);
-                        transaction.setCommissionRate(commissionRate);
-                        transaction.setUpdatedAt(LocalDateTime.now());
-                        
-                        financialTransactionRepository.save(transaction);
-                        commissionsCalculated++;
-                        
-                        logger.debug("✅ Commission calculated: {} £{} at {}%", 
-                            property.getPropertyName(), commissionAmount, commissionRate);
-                    }
+                    logger.debug("✅ Linked actual commission £{} to rent payment £{} for property {}", 
+                        commissionPayment.getAmount(), rentPayment.getAmount(), rentPayment.getPropertyName());
                 }
             }
         }
         
-        logger.info("💰 Commission calculation completed: {} transactions processed", commissionsCalculated);
+        logger.info("🔗 Commission linking completed: {} rent transactions linked to actual commission", linked);
         
         return Map.of(
-            "transactions_processed", transactions.size(),
-            "commissions_calculated", commissionsCalculated
+            "commission_payments_found", commissionPayments.size(),
+            "rent_transactions_linked", linked
         );
     }
-    
+
     /**
-     * Get financial summary from stored data
+     * Get stored financial summary - UNCHANGED (reporting method)
      */
     public Map<String, Object> getStoredFinancialSummary(String propertyId, LocalDate fromDate, LocalDate toDate) {
         try {
@@ -1463,9 +1656,9 @@ public class PayPropFinancialSyncService {
             );
         }
     }
-    
+
     /**
-     * ✅ ENHANCED: Get complete commission variance analysis (Expected vs Actual)
+     * Get commission variance analysis - UNCHANGED (reporting method)
      */
     public Map<String, Object> getCommissionVarianceAnalysis(String propertyId, LocalDate fromDate, LocalDate toDate) {
         try {
@@ -1554,7 +1747,7 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * ✅ LEGACY: Keep old method for backward compatibility
+     * Get commission payment summary - UNCHANGED (reporting method)
      */
     public Map<String, Object> getCommissionPaymentSummary(String propertyId, LocalDate fromDate, LocalDate toDate) {
         try {
@@ -1594,10 +1787,10 @@ public class PayPropFinancialSyncService {
         }
     }
 
-    // ===== NEW DUAL DATA SYNC METHODS =====
+    // ===== DUAL DATA SYNC METHODS (Instructions vs Actuals) =====
 
     /**
-     * NEW: Sync both instruction and actual data using confirmed working endpoints
+     * Sync dual financial data - UNCHANGED (orchestration method)
      */
     @Transactional
     public Map<String, Object> syncDualFinancialData() {
@@ -1614,7 +1807,7 @@ public class PayPropFinancialSyncService {
             Map<String, Object> actualResult = syncActualReconciledPayments();
             results.put("actual_payments", actualResult);
             
-            // 3. Sync ICDN transactions (detailed financial records) - already done above
+            // 3. Sync ICDN transactions (detailed financial records)
             Map<String, Object> icdnResult = Map.of("status", "Already synced in main method");
             results.put("icdn_transactions", icdnResult);
             
@@ -1644,17 +1837,17 @@ public class PayPropFinancialSyncService {
         return results;
     }
 
+    /**
+     * Sync payment instructions - SIMPLIFIED using apiClient
+     */
     private Map<String, Object> syncPaymentInstructions() throws Exception {
         logger.info("📋 Syncing payment instructions (what SHOULD be paid)...");
         
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<String> request = new HttpEntity<>(headers);
-        
-        // Use confirmed working endpoint
-        String url = payPropApiBase + "/export/payments?include_beneficiary_info=true&rows=1000";
-        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-        
-        List<Map<String, Object>> instructions = (List<Map<String, Object>>) response.getBody().get("items");
+        // Use apiClient for pagination
+        List<Map<String, Object>> instructions = apiClient.fetchAllPages(
+            "/export/payments?include_beneficiary_info=true", 
+            item -> item
+        );
         
         int created = 0;
         for (Map<String, Object> instruction : instructions) {
@@ -1674,17 +1867,17 @@ public class PayPropFinancialSyncService {
         return Map.of("instructions_created", created);
     }
 
+    /**
+     * Sync actual reconciled payments - SIMPLIFIED using apiClient
+     */
     private Map<String, Object> syncActualReconciledPayments() throws Exception {
         logger.info("💳 Syncing actual reconciled payments (what WAS paid)...");
         
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<String> request = new HttpEntity<>(headers);
-        
-        // Use confirmed working endpoint with reconciliation filter
-        String url = payPropApiBase + "/export/payments?filter_by=reconciliation_date&include_beneficiary_info=true&rows=1000";
-        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-        
-        List<Map<String, Object>> actualPayments = (List<Map<String, Object>>) response.getBody().get("items");
+        // Use apiClient for pagination
+        List<Map<String, Object>> actualPayments = apiClient.fetchAllPages(
+            "/export/payments?filter_by=reconciliation_date&include_beneficiary_info=true",
+            item -> item
+        );
         
         int created = 0;
         for (Map<String, Object> payment : actualPayments) {
@@ -1704,6 +1897,9 @@ public class PayPropFinancialSyncService {
         return Map.of("actual_payments_created", created);
     }
 
+    /**
+     * Create transaction from payment instruction - UNCHANGED
+     */
     private FinancialTransaction createFromPaymentInstruction(Map<String, Object> instruction) {
         try {
             FinancialTransaction transaction = new FinancialTransaction();
@@ -1716,7 +1912,7 @@ public class PayPropFinancialSyncService {
             String fromDate = (String) instruction.get("from_date");
             if (fromDate != null) {
                 transaction.setInstructionDate(LocalDate.parse(fromDate));
-                transaction.setTransactionDate(LocalDate.parse(fromDate)); // Use as primary date
+                transaction.setTransactionDate(LocalDate.parse(fromDate));
             }
             
             // Extract calculated amounts
@@ -1739,6 +1935,9 @@ public class PayPropFinancialSyncService {
         }
     }
 
+    /**
+     * Create transaction from actual payment - UNCHANGED
+     */
     private FinancialTransaction createFromActualPayment(Map<String, Object> payment) {
         try {
             FinancialTransaction transaction = new FinancialTransaction();
@@ -1747,11 +1946,11 @@ public class PayPropFinancialSyncService {
             transaction.setIsInstruction(false);
             transaction.setIsActualTransaction(true);
             
-            // Extract reconciliation date (when actually paid)
+            // Extract reconciliation date
             String reconDate = (String) payment.get("reconciliation_date");
             if (reconDate != null) {
                 transaction.setReconciliationDate(LocalDate.parse(reconDate));
-                transaction.setTransactionDate(LocalDate.parse(reconDate)); // Use as primary date
+                transaction.setTransactionDate(LocalDate.parse(reconDate));
             }
             
             // Extract actual amounts paid
@@ -1760,7 +1959,7 @@ public class PayPropFinancialSyncService {
                 transaction.setAmount(new BigDecimal(amount.toString()));
             }
             
-            // Get actual commission amount from commission payments
+            // Get actual commission amount
             extractActualCommissionAmount(transaction, payment);
             
             setCommonFields(transaction, payment);
@@ -1774,6 +1973,9 @@ public class PayPropFinancialSyncService {
         }
     }
 
+    /**
+     * Calculate expected commission - UNCHANGED
+     */
     private void calculateExpectedCommission(FinancialTransaction transaction, Map<String, Object> instruction) {
         // Get property commission rate and calculate expected commission
         String propertyId = null;
@@ -1796,12 +1998,17 @@ public class PayPropFinancialSyncService {
         }
     }
 
+    /**
+     * Extract actual commission amount - UNCHANGED
+     */
     private void extractActualCommissionAmount(FinancialTransaction transaction, Map<String, Object> payment) {
         // For now, we'll set this to zero and update it when we link to actual commission payments
         transaction.setActualCommissionAmount(BigDecimal.ZERO);
     }
 
-    // ✅ FIXED: setCommonFields method - removed the problematic "payment" transaction type
+    /**
+     * Set common fields - UNCHANGED
+     */
     private void setCommonFields(FinancialTransaction transaction, Map<String, Object> data) {
         // Extract common fields like property, tenant, category
         Map<String, Object> property = (Map<String, Object>) data.get("property");
@@ -1820,18 +2027,20 @@ public class PayPropFinancialSyncService {
             transaction.setDescription(description);
         }
         
-        // ✅ FIXED: Set transaction type based on category using VALID constraint values
+        // Set transaction type based on category
         if ("Rent".equalsIgnoreCase(category)) {
             transaction.setTransactionType("invoice");
         } else if (category != null && category.toLowerCase().contains("deposit")) {
             transaction.setTransactionType("deposit");
-            transaction.setDepositId((String) data.get("id")); // Mark as deposit
+            transaction.setDepositId((String) data.get("id"));
         } else {
-            // ✅ CHANGED: Use "commission_payment" instead of "payment"
             transaction.setTransactionType("commission_payment");
         }
     }
 
+    /**
+     * Link instructions to actuals - UNCHANGED
+     */
     private Map<String, Object> linkInstructionsToActuals() {
         logger.info("🔗 Linking payment instructions to actual payments...");
         
@@ -1845,15 +2054,13 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * NEW: Dashboard comparison data between instructions and actuals
+     * Get dashboard financial comparison - UNCHANGED (reporting method)
      */
     public Map<String, Object> getDashboardFinancialComparison(String propertyId, LocalDate fromDate, LocalDate toDate) {
         Map<String, Object> result = new HashMap<>();
         
         try {
-            // ✅ FIXED: Use existing working repository methods instead of the problematic one
-            
-            // Get instructed amounts using existing method
+            // Get instructed amounts
             List<FinancialTransaction> instructions = financialTransactionRepository
                 .findByPropertyIdAndDataSource(propertyId, "PAYMENT_INSTRUCTION")
                 .stream()
@@ -1861,7 +2068,7 @@ public class PayPropFinancialSyncService {
                 .filter(t -> !t.getTransactionDate().isBefore(fromDate) && !t.getTransactionDate().isAfter(toDate))
                 .collect(Collectors.toList());
             
-            // Get actual amounts using existing method
+            // Get actual amounts
             List<FinancialTransaction> actuals = financialTransactionRepository
                 .findByPropertyIdAndDataSource(propertyId, "ACTUAL_PAYMENT")
                 .stream()
@@ -1869,7 +2076,7 @@ public class PayPropFinancialSyncService {
                 .filter(t -> !t.getTransactionDate().isBefore(fromDate) && !t.getTransactionDate().isAfter(toDate))
                 .collect(Collectors.toList());
             
-            // Get ICDN data using existing method
+            // Get ICDN data
             List<FinancialTransaction> icdnData = financialTransactionRepository
                 .findByPropertyIdAndTransactionDateBetween(propertyId, fromDate, toDate)
                 .stream()
@@ -1935,706 +2142,13 @@ public class PayPropFinancialSyncService {
         return result;
     }
 
-    // 1. ADD this new isolated save method
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public boolean saveFinancialTransactionIsolated(FinancialTransaction transaction) {
-        try {
-            // Validate required fields before attempting save
-            if (transaction.getPayPropTransactionId() == null || transaction.getPayPropTransactionId().trim().isEmpty()) {
-                logger.warn("⚠️ SKIPPED: Missing PayProp transaction ID");
-                return false;
-            }
-            
-            if (transaction.getAmount() == null) {
-                logger.warn("⚠️ SKIPPED: Missing amount for transaction {}", transaction.getPayPropTransactionId());
-                return false;
-            }
-            
-            if (transaction.getTransactionDate() == null) {
-                logger.warn("⚠️ SKIPPED: Missing transaction date for transaction {}", transaction.getPayPropTransactionId());
-                return false;
-            }
-            
-            // ✅ NEW: Log negative amounts but store them
-            if (transaction.getAmount().compareTo(BigDecimal.ZERO) < 0) {
-                logger.info("💰 STORING: Negative amount £{} for transaction {} - {} ({})", 
-                    transaction.getAmount(), 
-                    transaction.getPayPropTransactionId(),
-                    transaction.getTransactionType(),
-                    transaction.getCategoryName());
-            }
-            // Check for duplicate before attempting save
-            if (financialTransactionRepository.existsByPayPropTransactionId(transaction.getPayPropTransactionId())) {
-                logger.debug("ℹ️ SKIPPED: Transaction {} already exists", transaction.getPayPropTransactionId());
-                return false;
-            }
-            
-            // Validate transaction type against constraint
-            if (transaction.getTransactionType() == null || !isValidTransactionType(transaction.getTransactionType())) {
-                logger.warn("⚠️ SKIPPED: Invalid transaction type '{}' for transaction {}", 
-                    transaction.getTransactionType(), transaction.getPayPropTransactionId());
-                return false;
-            }
-            
-            // Set audit fields if not already set
-            if (transaction.getCreatedAt() == null) {
-                transaction.setCreatedAt(LocalDateTime.now());
-            }
-            if (transaction.getUpdatedAt() == null) {
-                transaction.setUpdatedAt(LocalDateTime.now());
-            }
-            
-            // ✅ ISOLATED SAVE: Each transaction in its own transaction scope
-            financialTransactionRepository.save(transaction);
-            
-            logger.debug("✅ SAVED: Transaction {} (£{}, {}, {})", 
-                transaction.getPayPropTransactionId(), 
-                transaction.getAmount(), 
-                transaction.getTransactionType(),
-                transaction.getPropertyName());
-            
-            return true;
-            
-        } catch (DataIntegrityViolationException e) {
-            logger.error("❌ CONSTRAINT VIOLATION: Transaction {} failed constraint check: {}", 
-                transaction.getPayPropTransactionId(), e.getMessage());
-            return false;
-        } catch (Exception e) {
-            logger.error("❌ SAVE FAILED: Transaction {} failed to save: {}", 
-                transaction.getPayPropTransactionId(), e.getMessage());
-            return false;
-        }
-    }
-
-    // 2. ADD this validation helper method
-    private boolean isValidTransactionType(String transactionType) {
-        Set<String> validTypes = Set.of(
-            "invoice", "credit_note", "debit_note", "deposit", "commission_payment",
-            "payment_to_beneficiary", "payment_to_agency", "payment_to_contractor", 
-            "payment_property_account", "payment_deposit_account", "refund", 
-            "adjustment", "transfer"
-        );
-        return validTypes.contains(transactionType);
-    }
-
-
-    private Map<String, Object> syncBatchPayments() throws Exception {
-        logger.info("💰 Starting ISOLATED batch payments sync...");
-        
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<String> request = new HttpEntity<>(headers);
-        
-        // Counters with detailed breakdown
-        int totalApiCalls = 0, totalChunks = 0, totalPagesProcessed = 0;
-        int successfulSaves = 0, skippedDuplicates = 0, skippedNegative = 0;
-        int skippedInvalidType = 0, skippedMissingData = 0, constraintViolations = 0;
-        int otherErrors = 0;
-        
-        // Reduce chunk size to 14 days to stay well under API limits
-        LocalDate endDate = LocalDate.now().plusDays(7);  
-        LocalDate absoluteStartDate = endDate.minusYears(2); 
-        
-        logger.info("🔍 Processing 14-day chunks from {} to {}", absoluteStartDate, endDate);
-        
-        while (endDate.isAfter(absoluteStartDate)) {
-            LocalDate startDate = endDate.minusDays(14);  // Smaller chunks
-            if (startDate.isBefore(absoluteStartDate)) {
-                startDate = absoluteStartDate;
-            }
-            
-            totalChunks++;
-            logger.info("🔍 CHUNK {}: Processing {} to {}", totalChunks, startDate, endDate);
-            
-            int page = 1;
-            int chunkPayments = 0;
-            
-            while (true) {
-                String url = payPropApiBase + "/report/all-payments" +
-                    "?from_date=" + startDate +
-                    "&to_date=" + endDate +
-                    "&filter_by=reconciliation_date" +
-                    "&include_beneficiary_info=true" +
-                    "&page=" + page +
-                    "&rows=25";
-                
-                logger.info("📞 API Call {}: Chunk {} Page {}", totalApiCalls + 1, totalChunks, page);
-                
-                try {
-                    if (totalApiCalls > 0) {
-                        Thread.sleep(250); // Rate limiting
-                    }
-                    
-                    ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-                    totalApiCalls++;
-                    
-                    Map<String, Object> responseBody = response.getBody();
-                    List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
-                    
-                    if (payments.isEmpty()) {
-                        logger.info("📄 No payments on page {} for chunk {}", page, totalChunks);
-                        break;
-                    }
-                    
-                    logger.info("📊 Processing {} payments on page {} of chunk {}", payments.size(), page, totalChunks);
-                    
-                    // ✅ ISOLATED PROCESSING: Each payment processed independently
-                    for (Map<String, Object> paymentData : payments) {
-                        try {
-                            FinancialTransaction transaction = createFinancialTransactionFromReportData(paymentData);
-                            if (transaction != null) {
-                                // ✅ ISOLATED SAVE: Each save in its own transaction
-                                boolean saved = saveFinancialTransactionIsolated(transaction);
-                                if (saved) {
-                                    successfulSaves++;
-                                } else {
-                                    // Categorize the failure reason for reporting
-                                    if (transaction.getAmount() != null && transaction.getAmount().compareTo(BigDecimal.ZERO) < 0) {
-                                        skippedNegative++;
-                                    } else if (financialTransactionRepository.existsByPayPropTransactionId(transaction.getPayPropTransactionId())) {
-                                        skippedDuplicates++;
-                                    } else if (!isValidTransactionType(transaction.getTransactionType())) {
-                                        skippedInvalidType++;
-                                    } else {
-                                        skippedMissingData++;
-                                    }
-                                }
-                            } else {
-                                skippedMissingData++;
-                            }
-                            
-                            chunkPayments++;
-                            
-                        } catch (Exception e) {
-                            otherErrors++;
-                            logger.error("❌ Error processing payment: {}", e.getMessage());
-                        }
-                    }
-                    
-                    // Check pagination
-                    Map<String, Object> pagination = (Map<String, Object>) responseBody.get("pagination");
-                    if (pagination != null) {
-                        Integer currentPage = (Integer) pagination.get("page");
-                        Integer totalPages = (Integer) pagination.get("total_pages");
-                        
-                        if (currentPage != null && totalPages != null && currentPage >= totalPages) {
-                            logger.info("📄 Reached last page ({}) for chunk {}", totalPages, totalChunks);
-                            break;
-                        }
-                    } else if (payments.size() < 25) {
-                        logger.info("📄 Got {} payments (< 25), last page for chunk {}", payments.size(), totalChunks);
-                        break;
-                    }
-                    
-                    page++;
-                    totalPagesProcessed++;
-                    
-                    if (page > 50) { // Safety break
-                        logger.warn("⚠️ Safety break: Page 50 reached for chunk {}", totalChunks);
-                        break;
-                    }
-                    
-                } catch (Exception e) {
-                    logger.error("❌ API call failed for chunk {} page {}: {}", totalChunks, page, e.getMessage());
-                    if (e.getMessage().contains("429")) {
-                        Thread.sleep(30000); // Wait for rate limit
-                        continue;
-                    }
-                    break;
-                }
-            }
-            
-            logger.info("✅ Chunk {} completed: {} payments processed", totalChunks, chunkPayments);
-            endDate = startDate.minusDays(1);
-        }
-        
-        // ✅ COMPREHENSIVE REPORTING
-        logger.info("💰 BATCH PAYMENTS SYNC COMPLETED:");
-        logger.info("📊 Total API calls: {}", totalApiCalls);
-        logger.info("📊 Chunks processed: {}", totalChunks);  
-        logger.info("📊 Pages processed: {}", totalPagesProcessed);
-        logger.info("✅ Successful saves: {}", successfulSaves);
-        logger.info("⏭️ Skipped duplicates: {}", skippedDuplicates);
-        logger.info("⚠️ Skipped negative amounts: {}", skippedNegative);
-        logger.info("⚠️ Skipped invalid types: {}", skippedInvalidType);
-        logger.info("⚠️ Skipped missing data: {}", skippedMissingData);
-        logger.info("❌ Constraint violations: {}", constraintViolations);
-        logger.info("❌ Other errors: {}", otherErrors);
-        
-        return Map.of(
-            "payments_created", successfulSaves,
-            "skipped_duplicates", skippedDuplicates,
-            "skipped_negative", skippedNegative,
-            "skipped_invalid_type", skippedInvalidType,
-            "skipped_missing_data", skippedMissingData,
-            "constraint_violations", constraintViolations,
-            "other_errors", otherErrors,
-            "total_processed", successfulSaves + skippedDuplicates + skippedNegative + skippedInvalidType + skippedMissingData + constraintViolations + otherErrors,
-            "api_calls", totalApiCalls,
-            "chunks_processed", totalChunks
-        );
-    }
-
     /**
-     * Create financial transaction from all-payments report data
-     * ✅ FIXED: Now uses valid transaction types only
+     * Enum for sync item results
      */
-    private FinancialTransaction createFinancialTransactionFromReportData(Map<String, Object> paymentData) {
-        try {
-            FinancialTransaction transaction = new FinancialTransaction();
-            
-            // Basic identification
-            String paymentId = (String) paymentData.get("id");
-            if (paymentId == null || paymentId.trim().isEmpty()) {
-                logger.warn("⚠️ Skipping payment with missing ID");
-                return null;
-            }
-            
-            transaction.setPayPropTransactionId(paymentId);
-            transaction.setDataSource("BATCH_PAYMENT");
-            transaction.setIsInstruction(false);
-            transaction.setIsActualTransaction(true);
-            
-            // Amount handling with proper null checking
-            Object amountObj = paymentData.get("amount");
-            if (amountObj != null) {
-                try {
-                    BigDecimal amount = new BigDecimal(amountObj.toString());
-                    transaction.setAmount(amount);
-                } catch (NumberFormatException e) {
-                    logger.warn("⚠️ Invalid amount format '{}' for payment {}", amountObj, paymentId);
-                    return null;
-                }
-            } else {
-                logger.warn("⚠️ Missing amount for payment {}", paymentId);
-                return null;
-            }
-            
-            // Date handling with multiple fallbacks and required field
-            LocalDate transactionDate = extractTransactionDate(paymentData);
-            if (transactionDate == null) {
-                logger.warn("⚠️ Could not determine transaction date for payment {}, skipping", paymentId);
-                return null;
-            }
-            transaction.setTransactionDate(transactionDate);
-            
-            // Extract reconciliation date if available
-            String reconDateStr = extractStringFromPath(paymentData, "incoming_transaction.reconciliation_date");
-            if (reconDateStr != null && !reconDateStr.isEmpty()) {
-                try {
-                    transaction.setReconciliationDate(LocalDate.parse(reconDateStr));
-                } catch (Exception e) {
-                    logger.debug("Could not parse reconciliation_date: {}", reconDateStr);
-                }
-            }
-            
-            // Property information with proper nested object handling
-            Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
-            if (incomingTransaction != null) {
-                Map<String, Object> property = (Map<String, Object>) incomingTransaction.get("property");
-                if (property != null) {
-                    transaction.setPropertyId((String) property.get("id"));
-                    transaction.setPropertyName((String) property.get("name"));
-                }
-                
-                // Extract tenant information
-                Map<String, Object> tenant = (Map<String, Object>) incomingTransaction.get("tenant");
-                if (tenant != null) {
-                    transaction.setTenantId((String) tenant.get("id"));
-                    transaction.setTenantName((String) tenant.get("name"));
-                }
-                
-                // Extract deposit ID
-                transaction.setDepositId((String) incomingTransaction.get("deposit_id"));
-            }
-            
-            // Beneficiary information (stored as description since no beneficiary fields in entity)
-            Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
-            if (beneficiary != null) {
-                String beneficiaryName = (String) beneficiary.get("name");
-                String beneficiaryType = (String) beneficiary.get("type");
-                if (beneficiaryName != null || beneficiaryType != null) {
-                    String description = "Beneficiary: " + 
-                        (beneficiaryName != null ? beneficiaryName : "Unknown") + 
-                        " (" + (beneficiaryType != null ? beneficiaryType : "Unknown type") + ")";
-                    transaction.setDescription(description);
-                }
-            }
-            
-            // ✅ FIXED: Set transaction type using intelligent mapping
-            String transactionType = determineTransactionTypeFromPayPropData(paymentData);
-            if (transactionType == null) {
-                logger.warn("⚠️ Could not determine valid transaction type for payment {}, skipping", paymentId);
-                return null;
-            }
-            transaction.setTransactionType(transactionType);
-            
-            // Extract fees
-            Object serviceFeeObj = paymentData.get("service_fee");
-            if (serviceFeeObj != null) {
-                try {
-                    transaction.setServiceFeeAmount(new BigDecimal(serviceFeeObj.toString()));
-                } catch (NumberFormatException e) {
-                    logger.debug("Invalid service_fee format: {}", serviceFeeObj);
-                }
-            }
-            
-            Object transactionFeeObj = paymentData.get("transaction_fee");
-            if (transactionFeeObj != null) {
-                try {
-                    // Store transaction fee in tax_amount field (reusing existing field)
-                    transaction.setTaxAmount(new BigDecimal(transactionFeeObj.toString()));
-                } catch (NumberFormatException e) {
-                    logger.debug("Invalid transaction_fee format: {}", transactionFeeObj);
-                }
-            }
-            
-            // Set audit fields
-            transaction.setCreatedAt(LocalDateTime.now());
-            transaction.setUpdatedAt(LocalDateTime.now());
-            
-            return transaction;
-            
-        } catch (Exception e) {
-            logger.error("❌ Error creating financial transaction from report data: {}", e.getMessage(), e);
-            return null;
-        }
-    }
-
-    /**
-     * ✅ FIXED: Enhanced transaction type mapping with safe type casting
-     * Replace in your PayPropFinancialSyncService.java
-     */
-    private String determineTransactionTypeFromPayPropData(Map<String, Object> paymentData) {
-        try {
-            // Get PayProp data with safe casting
-            Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
-            String beneficiaryType = beneficiary != null ? (String) beneficiary.get("type") : null;
-            
-            // ✅ FIXED: Safe category extraction (handles both String and Map)
-            String category = extractCategorySafely(paymentData);
-            
-            // Rule 1: Check for deposit-related transactions
-            if (isDepositRelated(paymentData)) {
-                logger.debug("Mapped to 'deposit' - deposit-related transaction");
-                return "deposit";
-            }
-            
-            // Rule 2: Map by beneficiary type (primary logic)
-            if (beneficiaryType != null) {
-                switch (beneficiaryType) {
-                    case "agency":
-                        logger.debug("Mapped to 'payment_to_agency' - agency beneficiary");
-                        return "payment_to_agency";
-                        
-                    case "beneficiary":
-                        // Further refine based on category
-                        if (isMaintenancePayment(category)) {
-                            logger.debug("Mapped to 'payment_to_contractor' - maintenance category");
-                            return "payment_to_contractor";
-                        } else {
-                            logger.debug("Mapped to 'payment_to_beneficiary' - regular beneficiary");
-                            return "payment_to_beneficiary";
-                        }
-                        
-                    case "global_beneficiary":
-                        logger.debug("Mapped to 'payment_to_beneficiary' - global beneficiary");
-                        return "payment_to_beneficiary";
-                        
-                    case "property_account":
-                        logger.debug("Mapped to 'payment_property_account' - property account");
-                        return "payment_property_account";
-                        
-                    case "deposit_account":
-                        logger.debug("Mapped to 'payment_deposit_account' - deposit account");
-                        return "payment_deposit_account";
-                        
-                    default:
-                        logger.debug("Unknown beneficiary type '{}', using default", beneficiaryType);
-                        break;
-                }
-            }
-            
-            // Rule 3: Category-based mapping (fallback)
-            if (category != null) {
-                String lowerCategory = category.toLowerCase();
-                
-                if (lowerCategory.contains("commission") || lowerCategory.contains("fee")) {
-                    logger.debug("Mapped to 'payment_to_agency' - commission/fee category");
-                    return "payment_to_agency";
-                }
-                
-                if (isMaintenancePayment(category)) {
-                    logger.debug("Mapped to 'payment_to_contractor' - maintenance category");
-                    return "payment_to_contractor";
-                }
-                
-                if (lowerCategory.contains("refund")) {
-                    logger.debug("Mapped to 'refund' - refund category");
-                    return "refund";
-                }
-            }
-            
-            // Rule 4: Default for /report/all-payments (money flowing out to property owners)
-            logger.debug("Using default 'payment_to_beneficiary' for standard payment");
-            return "payment_to_beneficiary";
-            
-        } catch (Exception e) {
-            logger.error("Error determining transaction type: {}", e.getMessage());
-            return "commission_payment"; // Safe fallback to existing type
-        }
-    }
-
-    /**
-     * ✅ NEW: Safe category extraction - handles both String and Map objects
-     */
-    private String extractCategorySafely(Map<String, Object> paymentData) {
-        try {
-            Object categoryObj = paymentData.get("category");
-            
-            if (categoryObj == null) {
-                return null;
-            }
-            
-            // If it's already a String, return it
-            if (categoryObj instanceof String) {
-                return (String) categoryObj;
-            }
-            
-            // If it's a Map (LinkedHashMap), extract the name or id field
-            if (categoryObj instanceof Map) {
-                Map<String, Object> categoryMap = (Map<String, Object>) categoryObj;
-                
-                // Try common field names for category
-                String name = (String) categoryMap.get("name");
-                if (name != null) {
-                    logger.debug("Extracted category name from Map: {}", name);
-                    return name;
-                }
-                
-                String id = (String) categoryMap.get("id");
-                if (id != null) {
-                    logger.debug("Extracted category id from Map: {}", id);
-                    return id;
-                }
-                
-                // Log the structure for debugging
-                logger.debug("Category Map structure: {}", categoryMap.keySet());
-                return categoryMap.toString(); // Fallback
-            }
-            
-            // For any other type, convert to string
-            logger.debug("Category is {} type, converting to string", categoryObj.getClass().getSimpleName());
-            return categoryObj.toString();
-            
-        } catch (Exception e) {
-            logger.error("Error extracting category: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * ✅ FIXED: Helper method to detect deposit-related transactions
-     * Now checks category first, then deposit_id as secondary indicator
-     */
-    private boolean isDepositRelated(Map<String, Object> paymentData) {
-        try {
-            // Rule 1: Check category for deposit keywords FIRST (most reliable)
-            String category = extractCategorySafely(paymentData);
-            if (category != null) {
-                String lowerCategory = category.toLowerCase();
-                boolean isCategoryDeposit = lowerCategory.contains("deposit") || 
-                                        lowerCategory.contains("security") ||
-                                        lowerCategory.contains("bond");
-                
-                if (isCategoryDeposit) {
-                    logger.debug("Detected deposit via category: {}", category);
-                    return true;
-                }
-            }
-            
-            // Rule 2: Check description for deposit keywords
-            String description = (String) paymentData.get("description");
-            if (description != null) {
-                String lowerDescription = description.toLowerCase();
-                boolean isDescriptionDeposit = lowerDescription.contains("deposit") || 
-                                            lowerDescription.contains("security") ||
-                                            lowerDescription.contains("bond");
-                
-                if (isDescriptionDeposit) {
-                    logger.debug("Detected deposit via description: {}", description);
-                    return true;
-                }
-            }
-            
-            // Rule 3: ONLY check deposit_id if category/description suggest it's a deposit
-            // (Don't use deposit_id alone as it might be present on all transactions)
-            Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
-            if (incomingTransaction != null && (category != null || description != null)) {
-                String depositId = (String) incomingTransaction.get("deposit_id");
-                if (depositId != null && !depositId.trim().isEmpty()) {
-                    // Only return true if we ALSO have deposit indicators in text
-                    boolean hasDepositText = (category != null && category.toLowerCase().contains("deposit")) ||
-                                            (description != null && description.toLowerCase().contains("deposit"));
-                    
-                    if (hasDepositText) {
-                        logger.debug("Confirmed deposit via deposit_id: {} with text indicators", depositId);
-                        return true;
-                    }
-                }
-            }
-            
-            return false;
-            
-        } catch (Exception e) {
-            logger.debug("Error checking deposit status: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * ✅ UNCHANGED: Helper method to detect maintenance/contractor payments
-     */
-    private boolean isMaintenancePayment(String category) {
-        if (category == null) return false;
-        
-        String lowerCategory = category.toLowerCase();
-        return lowerCategory.contains("maintenance") ||
-            lowerCategory.contains("contractor") ||
-            lowerCategory.contains("repair") ||
-            lowerCategory.contains("plumber") ||
-            lowerCategory.contains("electrician") ||
-            lowerCategory.contains("gardening") ||
-            lowerCategory.contains("cleaning") ||
-            lowerCategory.contains("handyman") ||
-            lowerCategory.contains("painting") ||
-            lowerCategory.contains("roofing") ||
-            lowerCategory.contains("heating") ||
-            lowerCategory.contains("building") ||
-            lowerCategory.contains("appliance") ||
-            lowerCategory.contains("boiler") ||
-            lowerCategory.contains("window") ||
-            lowerCategory.contains("door") ||
-            lowerCategory.contains("flooring") ||
-            lowerCategory.contains("pest") ||
-            lowerCategory.contains("gutter") ||
-            lowerCategory.contains("fence");
-    }
-
-    /**
-     * Helper method to extract transaction date with multiple fallbacks
-     */
-    private LocalDate extractTransactionDate(Map<String, Object> paymentData) {
-        // Try incoming_transaction.reconciliation_date first
-        String reconDate = extractStringFromPath(paymentData, "incoming_transaction.reconciliation_date");
-        if (reconDate != null && !reconDate.isEmpty()) {
-            try {
-                return LocalDate.parse(reconDate);
-            } catch (Exception e) {
-                logger.debug("Could not parse reconciliation_date: {}", reconDate);
-            }
-        }
-        
-        // Try due_date as fallback
-        String dueDate = (String) paymentData.get("due_date");
-        if (dueDate != null && !dueDate.isEmpty()) {
-            try {
-                return LocalDate.parse(dueDate);
-            } catch (Exception e) {
-                logger.debug("Could not parse due_date: {}", dueDate);
-            }
-        }
-        
-        // Try payment_batch.transfer_date as fallback
-        String transferDate = extractStringFromPath(paymentData, "payment_batch.transfer_date");
-        if (transferDate != null && !transferDate.isEmpty()) {
-            try {
-                return LocalDate.parse(transferDate);
-            } catch (Exception e) {
-                logger.debug("Could not parse transfer_date: {}", transferDate);
-            }
-        }
-        
-        return null; // Will cause the transaction to be skipped
-    }
-
-    /**
-     * Helper method to safely extract string from nested object path
-     */
-    private String extractStringFromPath(Map<String, Object> data, String path) {
-        try {
-            String[] parts = path.split("\\.");
-            Object current = data;
-            
-            for (String part : parts) {
-                if (current instanceof Map) {
-                    current = ((Map<String, Object>) current).get(part);
-                } else {
-                    return null;
-                }
-            }
-            
-            return current instanceof String ? (String) current : null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
-     * Process batch payment data from PayProp
-     */
-    private BatchPayment processBatchPayment(Map<String, Object> batchData, Long initiatedBy) {
-        try {
-            String batchId = (String) batchData.get("id");
-            if (batchId == null) {
-                return null;
-            }
-
-            // Check if batch already exists
-            Optional<BatchPayment> existingBatch = batchPaymentRepository.findByPayPropBatchId(batchId);
-            BatchPayment batch;
-            
-            if (existingBatch.isPresent()) {
-                batch = existingBatch.get();
-                logger.debug("Updating existing batch payment: {}", batchId);
-            } else {
-                batch = new BatchPayment();
-                batch.setPayPropBatchId(batchId);
-                logger.debug("Creating new batch payment: {}", batchId);
-            }
-
-            // Map batch data
-            batch.setBankReference((String) batchData.get("reference"));
-            batch.setStatus((String) batchData.get("status"));
-            
-            // Parse total amount
-            Object totalAmountObj = batchData.get("total_amount");
-            if (totalAmountObj != null) {
-                batch.setTotalAmount(new BigDecimal(totalAmountObj.toString()));
-            }
-            
-            // Parse payment count
-            Object paymentCountObj = batchData.get("payment_count");
-            if (paymentCountObj != null) {
-                batch.setPaymentCount(Integer.parseInt(paymentCountObj.toString()));
-            }
-            
-            // Parse processing date
-            String processingDateStr = (String) batchData.get("processing_date");
-            if (processingDateStr != null) {
-                batch.setProcessingDate(LocalDateTime.parse(processingDateStr));
-            }
-            
-            // Set audit fields
-            if (!existingBatch.isPresent()) {
-                batch.setCreatedAt(LocalDateTime.now());
-            }
-            batch.setUpdatedAt(LocalDateTime.now());
-            
-            return batchPaymentRepository.save(batch);
-            
-        } catch (Exception e) {
-            logger.error("Error processing batch payment: {}", e.getMessage());
-            return null;
-        }
+    private enum SyncItemResult {
+        CREATED,
+        UPDATED,
+        SKIPPED,
+        ERROR
     }
 }
