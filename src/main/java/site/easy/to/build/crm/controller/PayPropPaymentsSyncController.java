@@ -113,6 +113,8 @@ public class PayPropPaymentsSyncController {
         return "admin/payprop-payments-dashboard";
     }
 
+    // Replace the problematic methods in PayPropPaymentsSyncController.java with these:
+
     /**
      * Sync payment categories only
      */
@@ -134,7 +136,7 @@ public class PayPropPaymentsSyncController {
         }
 
         try {
-            Long initiatedBy = getCurrentUserId(authentication);
+            // The actual method returns SyncResult
             SyncResult result = syncService.syncPaymentCategoriesFromPayProp();
             
             response.put("success", result.isSuccess());
@@ -173,11 +175,13 @@ public class PayPropPaymentsSyncController {
 
         try {
             Long initiatedBy = getCurrentUserId(authentication);
-            SyncResult result = syncService.syncPaymentsToDatabase(initiatedBy);
             
-            response.put("success", result.isSuccess());
-            response.put("message", result.getMessage());
-            response.put("details", result.getDetails());
+            // This method returns Map<String, Object> based on the stub
+            Map<String, Object> result = syncService.syncPaymentsToDatabase(initiatedBy);
+            
+            response.put("success", result.getOrDefault("success", false));
+            response.put("message", result.getOrDefault("message", "Payments sync completed"));
+            response.put("details", result);
             
             return ResponseEntity.ok(response);
 
@@ -211,11 +215,13 @@ public class PayPropPaymentsSyncController {
 
         try {
             Long initiatedBy = getCurrentUserId(authentication);
-            SyncResult result = syncService.syncBeneficiaryBalancesToDatabase(initiatedBy);
             
-            response.put("success", result.isSuccess());
-            response.put("message", result.getMessage());
-            response.put("details", result.getDetails());
+            // This method returns Map<String, Object> based on the stub
+            Map<String, Object> result = syncService.syncBeneficiaryBalancesToDatabase(initiatedBy);
+            
+            response.put("success", result.getOrDefault("success", false));
+            response.put("message", result.getOrDefault("message", "Beneficiary balances sync completed"));
+            response.put("details", result);
             
             return ResponseEntity.ok(response);
 
@@ -250,24 +256,26 @@ public class PayPropPaymentsSyncController {
         try {
             Long initiatedBy = getCurrentUserId(authentication);
             
-            // Step 1: Sync payment categories
+            // Step 1: Sync payment categories - returns SyncResult
             SyncResult categoriesResult = syncService.syncPaymentCategoriesFromPayProp();
             
-            // Step 2: Sync payments
-            SyncResult paymentsResult = syncService.syncPaymentsToDatabase(initiatedBy);
+            // Step 2: Sync payments - returns Map<String, Object>
+            Map<String, Object> paymentsResult = syncService.syncPaymentsToDatabase(initiatedBy);
             
-            // Step 3: Sync beneficiary balances
-            SyncResult balancesResult = syncService.syncBeneficiaryBalancesToDatabase(initiatedBy);
+            // Step 3: Sync beneficiary balances - returns Map<String, Object>
+            Map<String, Object> balancesResult = syncService.syncBeneficiaryBalancesToDatabase(initiatedBy);
             
             // Combine results
-            boolean overallSuccess = categoriesResult.isSuccess() && 
-                                   paymentsResult.isSuccess() && 
-                                   balancesResult.isSuccess();
+            boolean categoriesSuccess = categoriesResult.isSuccess();
+            boolean paymentsSuccess = (Boolean) paymentsResult.getOrDefault("success", false);
+            boolean balancesSuccess = (Boolean) balancesResult.getOrDefault("success", false);
+            
+            boolean overallSuccess = categoriesSuccess && paymentsSuccess && balancesSuccess;
             
             Map<String, Object> details = new HashMap<>();
             details.put("categories", categoriesResult.getDetails());
-            details.put("payments", paymentsResult.getDetails());
-            details.put("balances", balancesResult.getDetails());
+            details.put("payments", paymentsResult);
+            details.put("balances", balancesResult);
             
             response.put("success", overallSuccess);
             response.put("message", overallSuccess ? 
@@ -275,8 +283,8 @@ public class PayPropPaymentsSyncController {
                 "Payment data sync completed with some issues");
             response.put("details", details);
             response.put("categoriesResult", categoriesResult.getMessage());
-            response.put("paymentsResult", paymentsResult.getMessage());
-            response.put("balancesResult", balancesResult.getMessage());
+            response.put("paymentsResult", paymentsResult.getOrDefault("message", "Payments sync completed"));
+            response.put("balancesResult", balancesResult.getOrDefault("message", "Balances sync completed"));
             
             return ResponseEntity.ok(response);
 
