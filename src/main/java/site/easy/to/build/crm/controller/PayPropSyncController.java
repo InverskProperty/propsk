@@ -139,15 +139,6 @@ public class PayPropSyncController {
             model.addAttribute("pageTitle", "PayProp Maintenance Dashboard");
             return "payprop/maintenance-dashboard";
         }
-        
-        @GetMapping("/payprop/test")
-        public String testPage(Model model, Authentication authentication) {
-            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                return "redirect:/access-denied";
-            }
-            model.addAttribute("pageTitle", "PayProp Test");
-            return "payprop/test";
-        }
     }
 
     /**
