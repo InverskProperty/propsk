@@ -1,4 +1,4 @@
-// PayPropMaintenanceSyncService.java - Bidirectional Maintenance Ticket Sync
+// PayPropMaintenanceSyncService.java - Fixed version
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +49,9 @@ public class PayPropMaintenanceSyncService {
     
     @Autowired
     private CustomerRepository customerRepository;
+    
+    @Autowired
+    private PaymentCategoryRepository paymentCategoryRepository;
     
     // ===== IMPORT FROM PAYPROP =====
     
@@ -102,9 +105,6 @@ public class PayPropMaintenanceSyncService {
             return SyncResult.failure("Failed to sync maintenance categories: " + e.getMessage());
         }
     }
-    
-    @Autowired
-    private PaymentCategoryRepository paymentCategoryRepository;
     
     /**
      * Import all maintenance tickets from PayProp
@@ -172,11 +172,11 @@ public class PayPropMaintenanceSyncService {
                 return MaintenanceTicketSyncResult.SKIPPED;
             }
             
-            // Check if ticket already exists
-            List<Ticket> existingTickets = ticketRepository.findByPayPropExternalId(payPropTicketId);
+            // Check if ticket already exists - FIXED: use the actual field name
+            Ticket existingTicket = ticketService.findByPayPropTicketId(payPropTicketId);
             
             Ticket ticket;
-            boolean isNew = existingTickets.isEmpty();
+            boolean isNew = (existingTicket == null);
             
             if (isNew) {
                 ticket = createTicketFromPayPropData(ticketData);
@@ -184,7 +184,7 @@ public class PayPropMaintenanceSyncService {
                     return MaintenanceTicketSyncResult.SKIPPED;
                 }
             } else {
-                ticket = existingTickets.get(0);
+                ticket = existingTicket;
                 updateTicketFromPayPropData(ticket, ticketData);
             }
             
@@ -229,11 +229,11 @@ public class PayPropMaintenanceSyncService {
             
             Ticket ticket = new Ticket();
             
-            // Basic ticket information
-            ticket.setPayPropExternalId(payPropTicketId);
+            // Basic ticket information - FIXED: use actual field names
+            ticket.setPayPropTicketId(payPropTicketId);
             ticket.setSubject((String) ticketData.getOrDefault("subject", "Maintenance Request"));
             ticket.setDescription((String) ticketData.get("description"));
-            ticket.setTicketType("maintenance");
+            ticket.setType("maintenance"); // FIXED: use setType not setTicketType
             
             // Map PayProp status to CRM status
             String payPropStatus = (String) ticketData.get("status");
@@ -249,10 +249,12 @@ public class PayPropMaintenanceSyncService {
                 ticket.setUrgencyLevel("routine");
             }
             
-            // PayProp integration fields
+            // PayProp integration fields - FIXED: use actual field names
             ticket.setPayPropCategoryId(payPropCategoryId);
+            ticket.setPayPropPropertyId(payPropPropertyId);
+            ticket.setPayPropTenantId(payPropTenantId);
             ticket.setPayPropLastSync(LocalDateTime.now());
-            ticket.setPayPropSyncStatus(SyncStatus.synced);
+            ticket.setPayPropSynced(true);
             
             // Map category
             if (payPropCategoryId != null) {
@@ -314,6 +316,7 @@ public class PayPropMaintenanceSyncService {
         
         // Update sync timestamp
         ticket.setPayPropLastSync(LocalDateTime.now());
+        ticket.setPayPropSynced(true);
     }
     
     /**
@@ -330,11 +333,9 @@ public class PayPropMaintenanceSyncService {
         
         // Fall back to property owner
         if (payPropPropertyId != null) {
-            // Find property and then its owner
-            Optional<Property> propertyOpt = propertyService.findByPayPropId(payPropPropertyId);
-            if (propertyOpt.isPresent()) {
-                Property property = propertyOpt.get();
-                
+            // Find property and then its owner - FIXED: handle Optional properly
+            Property property = propertyService.findByPayPropId(payPropPropertyId);
+            if (property != null) {
                 // Find owner through assignments
                 List<Customer> owners = customerService.findByEntityTypeAndEntityId("Property", property.getId());
                 Optional<Customer> propertyOwner = owners.stream()
@@ -455,15 +456,14 @@ public class PayPropMaintenanceSyncService {
         log.info("📤 Exporting maintenance tickets to PayProp...");
         
         try {
-            // Find tickets that need to be synced to PayProp
-            List<Ticket> ticketsToSync = ticketRepository.findByTicketTypeAndPayPropSyncStatus(
-                "maintenance", SyncStatus.pending);
+            // Find tickets that need to be synced to PayProp - FIXED: use actual repository methods
+            List<Ticket> ticketsToSync = ticketRepository.findByTypeAndPayPropSynced("maintenance", false);
             
             int created = 0, updated = 0, errors = 0;
             
             for (Ticket ticket : ticketsToSync) {
                 try {
-                    if (ticket.getPayPropExternalId() == null) {
+                    if (ticket.getPayPropTicketId() == null) {
                         // Create new ticket in PayProp
                         createTicketInPayProp(ticket);
                         created++;
@@ -478,7 +478,7 @@ public class PayPropMaintenanceSyncService {
                         ticket.getTicketId(), e.getMessage());
                     
                     // Mark as failed
-                    ticket.setPayPropSyncStatus(SyncStatus.failed);
+                    ticket.setPayPropSynced(false);
                     ticketService.save(ticket);
                 }
             }
@@ -510,8 +510,8 @@ public class PayPropMaintenanceSyncService {
         
         String payPropTicketId = (String) response.get("id");
         if (payPropTicketId != null) {
-            ticket.setPayPropExternalId(payPropTicketId);
-            ticket.setPayPropSyncStatus(SyncStatus.synced);
+            ticket.setPayPropTicketId(payPropTicketId);
+            ticket.setPayPropSynced(true);
             ticket.setPayPropLastSync(LocalDateTime.now());
             ticketService.save(ticket);
             
@@ -528,15 +528,15 @@ public class PayPropMaintenanceSyncService {
     private void updateTicketInPayProp(Ticket ticket) throws Exception {
         Map<String, Object> ticketPayload = buildPayPropTicketPayload(ticket);
         
-        String endpoint = "/maintenance/tickets/" + ticket.getPayPropExternalId();
+        String endpoint = "/maintenance/tickets/" + ticket.getPayPropTicketId();
         apiClient.put(endpoint, ticketPayload);
         
-        ticket.setPayPropSyncStatus(SyncStatus.synced);
+        ticket.setPayPropSynced(true);
         ticket.setPayPropLastSync(LocalDateTime.now());
         ticketService.save(ticket);
         
         log.info("✅ Updated maintenance ticket in PayProp: {} ({})", 
-            ticket.getTicketId(), ticket.getPayPropExternalId());
+            ticket.getTicketId(), ticket.getPayPropTicketId());
     }
     
     /**
@@ -552,193 +552,4 @@ public class PayPropMaintenanceSyncService {
         }
         
         // Find PayProp tenant ID
-        String payPropTenantId = findPayPropTenantId(ticket);
-        if (payPropTenantId != null) {
-            payload.put("tenant_id", payPropTenantId);
-        }
-        
-        // Basic ticket data
-        payload.put("subject", ticket.getSubject());
-        payload.put("description", ticket.getDescription());
-        payload.put("status", mapCrmStatusToPayPropStatus(ticket.getStatus()));
-        payload.put("is_emergency", "emergency".equals(ticket.getUrgencyLevel()));
-        
-        // Category
-        if (ticket.getPayPropCategoryId() != null) {
-            payload.put("category_id", ticket.getPayPropCategoryId());
-        } else if (ticket.getMaintenanceCategory() != null) {
-            // Try to find category by name
-            PaymentCategory category = paymentCategoryRepository.findByCategoryName(ticket.getMaintenanceCategory());
-            if (category != null && category.getPayPropCategoryId() != null) {
-                payload.put("category_id", category.getPayPropCategoryId());
-            }
-        }
-        
-        return payload;
-    }
-    
-    // ===== UTILITY METHODS =====
-    
-    /**
-     * Map PayProp status to CRM status
-     */
-    private String mapPayPropStatusToCrmStatus(String payPropStatus) {
-        if (payPropStatus == null) return "open";
-        
-        switch (payPropStatus.toLowerCase()) {
-            case "new": return "open";
-            case "in_progress": return "in-progress";
-            case "on_hold": return "on-hold";
-            case "resolved": return "resolved";
-            case "rejected": return "closed";
-            default: return "open";
-        }
-    }
-    
-    /**
-     * Map CRM status to PayProp status
-     */
-    private String mapCrmStatusToPayPropStatus(String crmStatus) {
-        if (crmStatus == null) return "new";
-        
-        switch (crmStatus.toLowerCase()) {
-            case "open": return "new";
-            case "in-progress": return "in_progress";
-            case "on-hold": return "on_hold";
-            case "resolved": return "resolved";
-            case "closed": return "rejected";
-            default: return "new";
-        }
-    }
-    
-    /**
-     * Find PayProp property ID for ticket
-     */
-    private String findPayPropPropertyId(Ticket ticket) {
-        try {
-            if (ticket.getCustomer() != null) {
-                // Check if customer has assigned properties
-                List<Customer> owners = customerService.findByEntityTypeAndEntityId(
-                    "Property", ticket.getCustomer().getCustomerId().longValue());
-                
-                if (!owners.isEmpty()) {
-                    // Get first property (you might want to be more specific)
-                    Customer owner = owners.get(0);
-                    if (owner.getAssignedPropertyId() != null) {
-                        Optional<Property> propertyOpt = propertyService.findById(owner.getAssignedPropertyId());
-                        if (propertyOpt.isPresent()) {
-                            return propertyOpt.get().getPayPropId();
-                        }
-                    }
-                }
-                
-                // Check if customer itself has a PayProp property reference
-                if (ticket.getCustomer().getPayPropEntityId() != null) {
-                    // This might be a property ID if customer was created from property
-                    Optional<Property> propertyOpt = propertyService.findByPayPropId(
-                        ticket.getCustomer().getPayPropEntityId());
-                    if (propertyOpt.isPresent()) {
-                        return ticket.getCustomer().getPayPropEntityId();
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("❌ Error finding PayProp property ID: {}", e.getMessage());
-        }
-        
-        return null;
-    }
-    
-    /**
-     * Find PayProp tenant ID for ticket
-     */
-    private String findPayPropTenantId(Ticket ticket) {
-        try {
-            if (ticket.getCustomer() != null && 
-                Boolean.TRUE.equals(ticket.getCustomer().getIsTenant()) &&
-                ticket.getCustomer().getPayPropEntityId() != null) {
-                return ticket.getCustomer().getPayPropEntityId();
-            }
-        } catch (Exception e) {
-            log.error("❌ Error finding PayProp tenant ID: {}", e.getMessage());
-        }
-        
-        return null;
-    }
-    
-    /**
-     * Extract categories from PayProp response
-     */
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> extractCategoriesFromResponse(Map<String, Object> response) {
-        // Try different possible response structures
-        if (response.containsKey("categories")) {
-            Object categories = response.get("categories");
-            if (categories instanceof List) {
-                return (List<Map<String, Object>>) categories;
-            }
-        }
-        
-        if (response.containsKey("data")) {
-            Object data = response.get("data");
-            if (data instanceof List) {
-                return (List<Map<String, Object>>) data;
-            }
-        }
-        
-        if (response.containsKey("items")) {
-            Object items = response.get("items");
-            if (items instanceof List) {
-                return (List<Map<String, Object>>) items;
-            }
-        }
-        
-        return new ArrayList<>();
-    }
-    
-    /**
-     * Find default user for assignment
-     */
-    private User findDefaultUser() {
-        try {
-            // You might want to make this configurable
-            return customerRepository.findAll().stream()
-                .map(Customer::getUser)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElse(null);
-        } catch (Exception e) {
-            log.error("❌ Error finding default user: {}", e.getMessage());
-            return null;
-        }
-    }
-    
-    /**
-     * Find manager user for emergency assignments
-     */
-    private User findManagerUser() {
-        try {
-            // Find user with MANAGER role
-            return customerRepository.findAll().stream()
-                .map(Customer::getUser)
-                .filter(Objects::nonNull)
-                .filter(user -> user.getRoles() != null && 
-                              user.getRoles().stream().anyMatch(role -> 
-                                  "ROLE_MANAGER".equals(role.getName())))
-                .findFirst()
-                .orElse(findDefaultUser());
-        } catch (Exception e) {
-            log.error("❌ Error finding manager user: {}", e.getMessage());
-            return findDefaultUser();
-        }
-    }
-    
-    // ===== ENUMS =====
-    
-    public enum MaintenanceTicketSyncResult {
-        CREATED,
-        UPDATED,
-        SKIPPED,
-        ERROR
-    }
-}
+        String payPropTenantId = findPayPropTe
