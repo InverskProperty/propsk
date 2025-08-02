@@ -578,9 +578,6 @@ public class PayPropMaintenanceController {
         return status;
     }
     
-    /**
-     * Extract detailed sync results
-     */
     private Map<String, Object> extractSyncDetails(PayPropSyncOrchestrator.UnifiedSyncResult result) {
         Map<String, Object> details = new HashMap<>();
         
@@ -601,6 +598,9 @@ public class PayPropMaintenanceController {
         }
         if (result.getOrphanResolutionResult() != null) {
             details.put("orphanResolution", result.getOrphanResolutionResult().getDetails());
+        }
+        if (result.getMaintenanceResult() != null) { // ADD THIS BLOCK
+            details.put("maintenance", result.getMaintenanceResult().getDetails());
         }
         
         return details;

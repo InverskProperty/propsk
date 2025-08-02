@@ -79,6 +79,9 @@ public class PayPropSyncOrchestrator {
         this.userRepository = userRepository;
     }
 
+    @Autowired
+    private PayPropMaintenanceSyncService payPropMaintenanceSyncService;
+
     // ===== PUBLIC API METHODS =====
 
     /**
@@ -163,15 +166,52 @@ public class PayPropSyncOrchestrator {
                 log.error("❌ Orphaned entity resolution failed: {}", e.getMessage());
                 result.setOrphanResolutionResult(SyncResult.failure("Orphaned entity resolution failed: " + e.getMessage()));
             }
-            
+
+            // STEP 12: Sync Maintenance Categories and Tickets
+            log.info("🎫 Step 12: Syncing maintenance categories and tickets...");
+            try {
+                // First sync categories
+                SyncResult categoriesResult = payPropMaintenanceSyncService.syncMaintenanceCategories();
+                log.info("Categories sync: {}", categoriesResult.getMessage());
+                
+                // Then import tickets from PayProp
+                SyncResult importResult = payPropMaintenanceSyncService.importMaintenanceTickets();
+                log.info("Import tickets: {}", importResult.getMessage());
+                
+                // Finally export any pending CRM tickets to PayProp
+                SyncResult exportResult = payPropMaintenanceSyncService.exportMaintenanceTicketsToPayProp();
+                log.info("Export tickets: {}", exportResult.getMessage());
+                
+                // Combine results for reporting
+                Map<String, Object> maintenanceDetails = new HashMap<>();
+                maintenanceDetails.put("categories", categoriesResult.getDetails());
+                maintenanceDetails.put("imported", importResult.getDetails());
+                maintenanceDetails.put("exported", exportResult.getDetails());
+                
+                boolean allSuccessful = categoriesResult.isSuccess() && 
+                                       importResult.isSuccess() && 
+                                       exportResult.isSuccess();
+                
+                if (allSuccessful) {
+                    result.setMaintenanceResult(SyncResult.success("Maintenance sync completed", maintenanceDetails));
+                } else {
+                    result.setMaintenanceResult(SyncResult.partial("Maintenance sync completed with some issues", maintenanceDetails));
+                }
+                
+            } catch (Exception e) {
+                log.error("❌ Maintenance sync failed: {}", e.getMessage(), e);
+                result.setMaintenanceResult(SyncResult.failure("Maintenance sync failed: " + e.getMessage()));
+            }
+
+            // NOW log completion (after all steps including maintenance)
             syncLogger.logSyncComplete("ENHANCED_UNIFIED_SYNC_WITH_FINANCIALS", result.isOverallSuccess(), result.getSummary());
-            
+
         } catch (Exception e) {
             log.error("❌ Enhanced unified sync failed: {}", e.getMessage(), e);
             syncLogger.logSyncError("ENHANCED_UNIFIED_SYNC_WITH_FINANCIALS", e);
             result.setOverallError(e.getMessage());
         }
-        
+
         return result;
     }
 
@@ -1305,6 +1345,7 @@ public class PayPropSyncOrchestrator {
         private SyncResult occupancyResult;
         private SyncResult financialSyncResult;
         private SyncResult orphanResolutionResult;
+        private SyncResult maintenanceResult;
         private String overallError;
 
         public boolean isOverallSuccess() {
@@ -1318,7 +1359,8 @@ public class PayPropSyncOrchestrator {
                 (filesResult == null || filesResult.isSuccess()) &&
                 (occupancyResult == null || occupancyResult.isSuccess()) &&
                 (financialSyncResult == null || financialSyncResult.isSuccess()) &&
-                (orphanResolutionResult == null || orphanResolutionResult.isSuccess());
+                (orphanResolutionResult == null || orphanResolutionResult.isSuccess()) &&
+                (maintenanceResult == null || maintenanceResult.isSuccess());
         }
 
         public String getSummary() {
@@ -1334,7 +1376,8 @@ public class PayPropSyncOrchestrator {
             summary.append("Financial Sync: ").append(financialSyncResult != null ? financialSyncResult.getMessage() : "skipped").append("; ");
             summary.append("Files: ").append(filesResult != null ? filesResult.getMessage() : "skipped").append("; ");
             summary.append("Occupancy: ").append(occupancyResult != null ? occupancyResult.getMessage() : "skipped").append("; ");
-            summary.append("Orphan Resolution: ").append(orphanResolutionResult != null ? orphanResolutionResult.getMessage() : "skipped");
+            summary.append("Orphan Resolution: ").append(orphanResolutionResult != null ? orphanResolutionResult.getMessage() : "skipped").append("; ");
+            summary.append("Maintenance: ").append(maintenanceResult != null ? maintenanceResult.getMessage() : "skipped");
             return summary.toString();
         }
 
@@ -1368,6 +1411,9 @@ public class PayPropSyncOrchestrator {
         
         public SyncResult getOrphanResolutionResult() { return orphanResolutionResult; }
         public void setOrphanResolutionResult(SyncResult orphanResolutionResult) { this.orphanResolutionResult = orphanResolutionResult; }
+        
+        public SyncResult getMaintenanceResult() { return maintenanceResult; }
+        public void setMaintenanceResult(SyncResult maintenanceResult) { this.maintenanceResult = maintenanceResult; }
         
         public String getOverallError() { return overallError; }
         public void setOverallError(String overallError) { this.overallError = overallError; }
