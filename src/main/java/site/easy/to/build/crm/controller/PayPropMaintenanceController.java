@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -13,12 +14,18 @@ import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.repository.OAuthUserRepository;
 import site.easy.to.build.crm.repository.UserRepository;
 import site.easy.to.build.crm.service.payprop.PayPropEntityResolutionService;
+import site.easy.to.build.crm.service.payprop.PayPropMaintenanceSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator;
+import site.easy.to.build.crm.service.payprop.SyncResult;
 import site.easy.to.build.crm.service.payprop.PayPropSyncMonitoringService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
+import site.easy.to.build.crm.util.AuthorizationUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,6 +37,8 @@ import java.util.Map;
 @PreAuthorize("hasRole('MANAGER') or hasRole('ADMIN')")
 public class PayPropMaintenanceController {
     
+    private static final Logger log = LoggerFactory.getLogger(PayPropMaintenanceController.class);
+    
     @Autowired
     private PayPropEntityResolutionService resolutionService;
     
@@ -38,6 +47,9 @@ public class PayPropMaintenanceController {
     
     @Autowired
     private PayPropSyncMonitoringService monitoringService;
+    
+    @Autowired
+    private PayPropMaintenanceSyncService payPropMaintenanceSyncService;
     
     @Autowired
     private OAuthUserRepository oAuthUserRepository;
@@ -263,6 +275,256 @@ public class PayPropMaintenanceController {
                 "error", e.getMessage(),
                 "timestamp", LocalDateTime.now()
             ));
+        }
+    }
+    
+    /**
+     * Sync maintenance categories from PayProp
+     */
+    @PostMapping("/sync/categories")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> syncMaintenanceCategories(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied");
+            return ResponseEntity.status(403).body(response);
+        }
+        
+        try {
+            SyncResult result = payPropMaintenanceSyncService.syncMaintenanceCategories();
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("details", result.getDetails());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error syncing maintenance categories: {}", e.getMessage());
+            response.put("success", false);
+            response.put("message", "Category sync failed: " + e.getMessage());
+            return ResponseEntity.ok(response);
+        }
+    }
+
+    /**
+     * Import maintenance tickets from PayProp
+     */
+    @PostMapping("/sync/import-tickets")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> importMaintenanceTickets(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied");
+            return ResponseEntity.status(403).body(response);
+        }
+        
+        try {
+            SyncResult result = payPropMaintenanceSyncService.importMaintenanceTickets();
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("details", result.getDetails());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error importing maintenance tickets: {}", e.getMessage());
+            response.put("success", false);
+            response.put("message", "Import failed: " + e.getMessage());
+            return ResponseEntity.ok(response);
+        }
+    }
+
+    /**
+     * Export CRM tickets to PayProp
+     */
+    @PostMapping("/sync/export-tickets")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> exportMaintenanceTickets(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied");
+            return ResponseEntity.status(403).body(response);
+        }
+        
+        try {
+            SyncResult result = payPropMaintenanceSyncService.exportMaintenanceTicketsToPayProp();
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("details", result.getDetails());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error exporting maintenance tickets: {}", e.getMessage());
+            response.put("success", false);
+            response.put("message", "Export failed: " + e.getMessage());
+            return ResponseEntity.ok(response);
+        }
+    }
+
+    /**
+     * Full bidirectional sync
+     */
+    @PostMapping("/sync/bidirectional")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> bidirectionalMaintenanceSync(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied");
+            return ResponseEntity.status(403).body(response);
+        }
+        
+        try {
+            // Import from PayProp first
+            SyncResult importResult = payPropMaintenanceSyncService.importMaintenanceTickets();
+            
+            // Then export pending CRM tickets
+            SyncResult exportResult = payPropMaintenanceSyncService.exportMaintenanceTicketsToPayProp();
+            
+            response.put("success", importResult.isSuccess() && exportResult.isSuccess());
+            response.put("import", Map.of(
+                "success", importResult.isSuccess(),
+                "message", importResult.getMessage(),
+                "details", importResult.getDetails()
+            ));
+            response.put("export", Map.of(
+                "success", exportResult.isSuccess(),
+                "message", exportResult.getMessage(),
+                "details", exportResult.getDetails()
+            ));
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error in bidirectional sync: {}", e.getMessage());
+            response.put("success", false);
+            response.put("message", "Bidirectional sync failed: " + e.getMessage());
+            return ResponseEntity.ok(response);
+        }
+    }
+
+    /**
+     * Enhanced maintenance ticket created webhook
+     */
+    @PostMapping("/maintenance-ticket-created")
+    public ResponseEntity<Map<String, Object>> handleMaintenanceTicketCreated(@RequestBody Map<String, Object> webhookData) {
+        try {
+            log.info("🎫 Received PayProp maintenance-ticket-created webhook");
+            
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> events = (List<Map<String, Object>>) webhookData.get("events");
+            if (events == null || events.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "No events in webhook data"));
+            }
+            
+            int processed = 0;
+            int errors = 0;
+            
+            for (Map<String, Object> event : events) {
+                if ("maintenance_ticket".equals(event.get("type")) && "create".equals(event.get("action"))) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> ticketData = (Map<String, Object>) event.get("data");
+                    
+                    if (ticketData != null) {
+                        try {
+                            // Use the new sync service with proper enum reference
+                            PayPropMaintenanceSyncService.MaintenanceTicketSyncResult result = 
+                                payPropMaintenanceSyncService.syncMaintenanceTicketFromPayProp(ticketData);
+                            
+                            if (result != PayPropMaintenanceSyncService.MaintenanceTicketSyncResult.ERROR) {
+                                processed++;
+                            } else {
+                                errors++;
+                            }
+                            
+                        } catch (Exception e) {
+                            errors++;
+                            log.error("❌ Failed to process maintenance ticket webhook: {}", e.getMessage());
+                        }
+                    }
+                }
+            }
+            
+            return ResponseEntity.ok(Map.of(
+                "success", errors == 0,
+                "message", String.format("Processed %d tickets, %d errors", processed, errors),
+                "processed", processed,
+                "errors", errors
+            ));
+            
+        } catch (Exception e) {
+            log.error("❌ Error processing maintenance-ticket-created webhook: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Enhanced maintenance ticket updated webhook
+     */
+    @PostMapping("/maintenance-ticket-updated")
+    public ResponseEntity<Map<String, Object>> handleMaintenanceTicketUpdated(@RequestBody Map<String, Object> webhookData) {
+        try {
+            log.info("🎫 Received PayProp maintenance-ticket-updated webhook");
+            
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> events = (List<Map<String, Object>>) webhookData.get("events");
+            if (events == null || events.isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "No events in webhook data"));
+            }
+            
+            int processed = 0;
+            int errors = 0;
+            
+            for (Map<String, Object> event : events) {
+                if ("maintenance_ticket".equals(event.get("type")) && "update".equals(event.get("action"))) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> ticketData = (Map<String, Object>) event.get("data");
+                    
+                    if (ticketData != null) {
+                        try {
+                            // Use the new sync service with proper enum reference
+                            PayPropMaintenanceSyncService.MaintenanceTicketSyncResult result = 
+                                payPropMaintenanceSyncService.syncMaintenanceTicketFromPayProp(ticketData);
+                            
+                            if (result != PayPropMaintenanceSyncService.MaintenanceTicketSyncResult.ERROR) {
+                                processed++;
+                            } else {
+                                errors++;
+                            }
+                            
+                        } catch (Exception e) {
+                            errors++;
+                            log.error("❌ Failed to process maintenance ticket update webhook: {}", e.getMessage());
+                        }
+                    }
+                }
+            }
+            
+            return ResponseEntity.ok(Map.of(
+                "success", errors == 0,
+                "message", String.format("Updated %d tickets, %d errors", processed, errors),
+                "processed", processed,
+                "errors", errors
+            ));
+            
+        } catch (Exception e) {
+            log.error("❌ Error processing maintenance-ticket-updated webhook: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
         }
     }
     
