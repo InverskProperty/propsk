@@ -23,10 +23,6 @@ public class TicketServiceImpl implements TicketService{
         this.propertyService = propertyService;
     }
 
-    public Ticket findByPayPropTicketId(String payPropTicketId) {
-        return ticketRepository.findByPayPropTicketId(payPropTicketId);
-    }
-
     @Override
     public Ticket findByTicketId(int id) {
         // FIXED: Use the new method that eagerly loads relationships
@@ -157,6 +153,11 @@ public class TicketServiceImpl implements TicketService{
             return ticketRepository.findByPayPropPropertyId(payPropPropertyId);
         }
         return new ArrayList<>();
+    }
+
+    @Override
+    public Ticket findByPayPropTicketId(String payPropTicketId) {
+        return ticketRepository.findByPayPropTicketId(payPropTicketId);
     }
 
     @Override

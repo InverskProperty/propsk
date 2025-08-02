@@ -57,6 +57,8 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
     // Employee and type filtering
     List<Ticket> findByEmployee_IdAndType(int employeeId, String type);
 
+    List<Ticket> findByTypeAndPayPropSynced(String type, Boolean payPropSynced);
+
     // Customer and type filtering
     List<Ticket> findByCustomerCustomerIdAndType(int customerId, String type);
 
@@ -66,4 +68,5 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
     List<Ticket> findByPayPropPropertyIdAndType(String payPropPropertyId, String type);
 
     Ticket findByPayPropTicketId(String payPropTicketId);
+
 }

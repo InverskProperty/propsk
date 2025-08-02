@@ -55,4 +55,7 @@ public interface TicketService {
     // BRIDGE METHODS: For controller compatibility (Long propertyId -> String payPropPropertyId)
     List<Ticket> getTicketsByPropertyId(Long propertyId);
     List<Ticket> getTicketsByPropertyIdAndType(Long propertyId, String type);
+
+    // Add this method to your TicketService interface
+    Ticket findByPayPropTicketId(String payPropTicketId);
 }
