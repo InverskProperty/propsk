@@ -468,30 +468,43 @@ public class PayPropApiClient {
     
     /**
      * Extract items from various PayProp response structures
+     * Updated to handle maintenance endpoints that use different field names
      */
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> extractItems(Map<String, Object> responseBody) {
-        // Try different common field names used by PayProp
+        // Try maintenance tickets field first (per API docs)
+        Object tickets = responseBody.get("tickets");
+        if (tickets instanceof List) {
+            log.debug("✅ Found 'tickets' field with {} items", ((List<?>) tickets).size());
+            return (List<Map<String, Object>>) tickets;
+        }
+        
+        // Try maintenance categories field (per API docs)
+        Object categories = responseBody.get("categories");
+        if (categories instanceof List) {
+            log.debug("✅ Found 'categories' field with {} items", ((List<?>) categories).size());
+            return (List<Map<String, Object>>) categories;
+        }
+        
+        // Try standard items field (for other endpoints)
         Object items = responseBody.get("items");
         if (items instanceof List) {
+            log.debug("✅ Found 'items' field with {} items", ((List<?>) items).size());
             return (List<Map<String, Object>>) items;
         }
         
+        // Try data field (alternative structure)
         items = responseBody.get("data");
         if (items instanceof List) {
+            log.debug("✅ Found 'data' field with {} items", ((List<?>) items).size());
             return (List<Map<String, Object>>) items;
         }
         
-        items = responseBody.get("results");
-        if (items instanceof List) {
-            return (List<Map<String, Object>>) items;
-        }
-        
-        // If no standard field found, log warning and return empty list
-        log.warn("No standard items field found in response. Available fields: {}", responseBody.keySet());
+        // If no recognized field found, log available fields for debugging
+        log.warn("❌ No recognized data field found. Available fields: {}", responseBody.keySet());
         return new ArrayList<>();
     }
-    
+        
     /**
      * Extract pagination info from response
      */

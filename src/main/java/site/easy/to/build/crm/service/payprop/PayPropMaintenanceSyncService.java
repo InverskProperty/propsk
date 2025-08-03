@@ -733,6 +733,20 @@ public class PayPropMaintenanceSyncService {
             return findDefaultUser();
         }
     }
+
+    /**
+     * Fetch maintenance tickets with proper field handling
+     */
+    public List<Map<String, Object>> fetchMaintenanceTickets() {
+        return apiClient.fetchAllPages("/maintenance/tickets", Function.identity());
+    }
+
+    /**
+     * Fetch maintenance categories with proper field handling  
+     */
+    public List<Map<String, Object>> fetchMaintenanceCategories() {
+        return apiClient.fetchAllPages("/maintenance/categories", Function.identity());
+    }
     
     // ===== ENUMS =====
     
