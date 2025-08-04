@@ -160,7 +160,8 @@ public class PayPropMaintenanceSyncService {
     }
     
     /**
-     * Sync individual maintenance ticket from PayProp
+     * Sync maintenance ticket from PayProp - CRM-PRIMARY VERSION
+     * Only creates new tickets, never updates existing ones
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public MaintenanceTicketSyncResult syncMaintenanceTicketFromPayProp(Map<String, Object> ticketData) {
@@ -172,34 +173,29 @@ public class PayPropMaintenanceSyncService {
                 return MaintenanceTicketSyncResult.SKIPPED;
             }
             
-            // Check if ticket already exists - FIXED: use the actual field name
+            // Check if ticket already exists in CRM
             Ticket existingTicket = ticketService.findByPayPropTicketId(payPropTicketId);
             
-            Ticket ticket;
-            boolean isNew = (existingTicket == null);
-            
-            if (isNew) {
-                ticket = createTicketFromPayPropData(ticketData);
-                if (ticket == null) {
-                    return MaintenanceTicketSyncResult.SKIPPED;
-                }
-            } else {
-                ticket = existingTicket;
-                updateTicketFromPayPropData(ticket, ticketData);
+            if (existingTicket != null) {
+                // CRM IS PRIMARY: Skip updates from PayProp
+                log.info("🏆 CRM Primary: Skipping PayProp update for ticket {} - CRM is source of truth", 
+                    payPropTicketId);
+                return MaintenanceTicketSyncResult.SKIPPED;
             }
             
-            // Save ticket
+            // Only create NEW tickets from PayProp
+            Ticket ticket = createTicketFromPayPropData(ticketData);
+            if (ticket == null) {
+                return MaintenanceTicketSyncResult.SKIPPED;
+            }
+            
+            // Save new ticket
             ticketService.save(ticket);
             
-            // Sync ticket messages
-            syncTicketMessages(ticket, payPropTicketId);
+            log.info("✅ Created NEW maintenance ticket from PayProp: {} ({})", 
+                ticket.getSubject(), payPropTicketId);
             
-            log.info("✅ {} maintenance ticket: {} ({})", 
-                isNew ? "Created" : "Updated", 
-                ticket.getSubject(), 
-                payPropTicketId);
-            
-            return isNew ? MaintenanceTicketSyncResult.CREATED : MaintenanceTicketSyncResult.UPDATED;
+            return MaintenanceTicketSyncResult.CREATED;
             
         } catch (DataIntegrityViolationException e) {
             log.warn("⚠️ Duplicate ticket detected, treating as skipped: {}", e.getMessage());

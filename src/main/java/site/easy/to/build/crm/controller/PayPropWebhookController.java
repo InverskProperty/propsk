@@ -13,9 +13,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.BatchPaymentRepository;
+import site.easy.to.build.crm.repository.TicketRepository;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.email.EmailService;
 import site.easy.to.build.crm.service.payprop.PayPropPortfolioSyncService;
+import site.easy.to.build.crm.service.payprop.PayPropRealTimeSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
 import site.easy.to.build.crm.service.payprop.SyncResult;
 import site.easy.to.build.crm.service.ticket.TicketService;
@@ -27,6 +29,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -47,6 +50,10 @@ public class PayPropWebhookController {
     private final EmailService emailService;
     private final PropertyService propertyService;
     private final BatchPaymentRepository batchPaymentRepository;
+    private final TicketRepository ticketRepository;
+    
+    @Autowired(required = false)
+    private PayPropRealTimeSyncService realTimeSyncService;
 
     @Autowired
     public PayPropWebhookController(PayPropPortfolioSyncService syncService,
@@ -55,7 +62,8 @@ public class PayPropWebhookController {
                                    UserService userService,
                                    EmailService emailService,
                                    PropertyService propertyService,
-                                   BatchPaymentRepository batchPaymentRepository) {
+                                   BatchPaymentRepository batchPaymentRepository,
+                                   TicketRepository ticketRepository) {
         this.syncService = syncService;
         this.ticketService = ticketService;
         this.customerService = customerService;
@@ -63,6 +71,7 @@ public class PayPropWebhookController {
         this.emailService = emailService;
         this.propertyService = propertyService;
         this.batchPaymentRepository = batchPaymentRepository;
+        this.ticketRepository = ticketRepository;
     }
 
     // ===== DISCOVERY MODE WEBHOOK HANDLER =====
@@ -606,6 +615,213 @@ public class PayPropWebhookController {
         }
     }
 
+    // ===== REAL-TIME SYNC TEST METHODS =====
+
+    /**
+     * Handle CRM-initiated updates that should trigger real-time sync
+     */
+    @PostMapping("/trigger-realtime-sync-test")
+    public ResponseEntity<Map<String, Object>> triggerRealtimeSyncTest(
+            @RequestBody Map<String, Object> request) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            String ticketIdStr = (String) request.get("ticketId");
+            String newStatus = (String) request.getOrDefault("newStatus", "resolved");
+            
+            if (ticketIdStr == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "ticketId required"));
+            }
+            
+            int ticketId = Integer.parseInt(ticketIdStr);
+            Ticket ticket = ticketService.findByTicketId(ticketId);
+            
+            if (ticket == null) {
+                return ResponseEntity.ok(Map.of("error", "Ticket not found"));
+            }
+            
+            // Simulate a CRM user updating the ticket (this should trigger real-time sync)
+            String originalStatus = ticket.getStatus();
+            ticket.setStatus(newStatus);
+            
+            // ✅ Use ticketService.save() to trigger real-time sync
+            Ticket updatedTicket = ticketService.save(ticket);
+            
+            response.put("success", true);
+            response.put("message", "Ticket updated via CRM - should trigger real-time sync");
+            response.put("ticketId", ticketId);
+            response.put("originalStatus", originalStatus);
+            response.put("newStatus", updatedTicket.getStatus());
+            response.put("payPropSynced", updatedTicket.getPayPropSynced());
+            response.put("lastSync", updatedTicket.getPayPropLastSync());
+            
+            // Check if real-time sync was triggered
+            if (realTimeSyncService != null) {
+                response.put("realtimeSyncEnabled", true);
+                response.put("shouldHaveTriggeredSync", realTimeSyncService.shouldPushImmediately(updatedTicket));
+            } else {
+                response.put("realtimeSyncEnabled", false);
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                "error", e.getMessage(),
+                "status", "ERROR"
+            ));
+        }
+    }
+
+    /**
+     * Get webhook statistics with real-time sync integration
+     */
+    @GetMapping("/webhook-statistics")
+    public ResponseEntity<Map<String, Object>> getWebhookStatistics() {
+        try {
+            Map<String, Object> stats = new HashMap<>();
+            
+            // Count maintenance tickets from PayProp
+            List<Ticket> allMaintenanceTickets = ticketService.findByType("maintenance");
+            long payPropTickets = allMaintenanceTickets.stream()
+                .filter(t -> t.getPayPropTicketId() != null)
+                .count();
+            
+            long recentWebhookTickets = allMaintenanceTickets.stream()
+                .filter(t -> t.getPayPropTicketId() != null)
+                .filter(t -> t.getCreatedAt() != null && 
+                            t.getCreatedAt().isAfter(LocalDateTime.now().minusHours(24)))
+                .count();
+            
+            stats.put("maintenance_tickets", Map.of(
+                "total", allMaintenanceTickets.size(),
+                "from_payprop", payPropTickets,
+                "recent_webhook_created", recentWebhookTickets,
+                "webhook_percentage", allMaintenanceTickets.size() > 0 ? 
+                    (payPropTickets * 100.0 / allMaintenanceTickets.size()) : 0
+            ));
+            
+            // Real-time sync statistics
+            if (realTimeSyncService != null) {
+                stats.put("realtime_sync", realTimeSyncService.getSyncStatistics());
+            } else {
+                stats.put("realtime_sync", Map.of("enabled", false));
+            }
+            
+            // Batch payment statistics
+            long totalBatches = batchPaymentRepository.count();
+            List<BatchPayment> recentBatches = batchPaymentRepository.findAll().stream()
+                .filter(b -> b.getPayPropWebhookReceived() != null && 
+                            b.getPayPropWebhookReceived().isAfter(LocalDateTime.now().minusHours(24)))
+                .collect(Collectors.toList());
+            
+            stats.put("batch_payments", Map.of(
+                "total_batches", totalBatches,
+                "recent_webhook_batches", recentBatches.size()
+            ));
+            
+            return ResponseEntity.ok(stats);
+            
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                "error", e.getMessage(),
+                "status", "ERROR"
+            ));
+        }
+    }
+
+    /**
+     * Test webhook + real-time sync flow
+     */
+    @PostMapping("/test-webhook-sync-flow")
+    public ResponseEntity<Map<String, Object>> testWebhookSyncFlow(
+            @RequestBody Map<String, Object> request) {
+        
+        try {
+            // Simulate a PayProp webhook creating a ticket
+            Map<String, Object> mockWebhookData = Map.of(
+                "events", List.of(Map.of(
+                    "type", "maintenance_ticket",
+                    "action", "create",
+                    "data", Map.of(
+                        "id", "test_webhook_" + System.currentTimeMillis(),
+                        "subject", "Test Webhook Ticket",
+                        "description", "This ticket was created to test webhook → real-time sync flow",
+                        "property_id", request.getOrDefault("propertyId", "test_property"),
+                        "tenant_id", request.getOrDefault("tenantId", "test_tenant"),
+                        "category", "plumbing",
+                        "is_emergency", false
+                    )
+                ))
+            );
+            
+            // Create ticket via webhook (should NOT trigger real-time sync)
+            ResponseEntity<Map<String, Object>> webhookResponse = handleMaintenanceTicketCreated(mockWebhookData);
+            
+            if (!webhookResponse.getStatusCode().is2xxSuccessful()) {
+                return ResponseEntity.ok(Map.of(
+                    "error", "Webhook creation failed",
+                    "webhookResponse", webhookResponse.getBody()
+                ));
+            }
+            
+            // Find the ticket that was just created
+            List<Ticket> recentTickets = ticketService.findAll().stream()
+                .filter(t -> t.getCreatedAt() != null && 
+                            t.getCreatedAt().isAfter(LocalDateTime.now().minusMinutes(1)))
+                .filter(t -> "Test Webhook Ticket".equals(t.getSubject()))
+                .collect(Collectors.toList());
+            
+            if (recentTickets.isEmpty()) {
+                return ResponseEntity.ok(Map.of(
+                    "error", "Could not find created ticket",
+                    "webhookResponse", webhookResponse.getBody()
+                ));
+            }
+            
+            Ticket createdTicket = recentTickets.get(0);
+            
+            // Now simulate a CRM update (should trigger real-time sync)
+            String originalStatus = createdTicket.getStatus();
+            createdTicket.setStatus("resolved");
+            
+            // This should trigger real-time sync because it's a CRM-initiated change
+            Ticket updatedTicket = ticketService.save(createdTicket);
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("success", true);
+            result.put("flow_test", Map.of(
+                "step1_webhook_creation", "SUCCESS",
+                "step2_crm_update", "SUCCESS",
+                "ticket_id", updatedTicket.getTicketId(),
+                "original_status", originalStatus,
+                "updated_status", updatedTicket.getStatus(),
+                "payprop_synced", updatedTicket.getPayPropSynced(),
+                "webhook_created_at", createdTicket.getCreatedAt(),
+                "crm_updated_at", updatedTicket.getPayPropLastSync()
+            ));
+            
+            if (realTimeSyncService != null) {
+                result.put("realtime_sync_analysis", Map.of(
+                    "enabled", true,
+                    "should_sync_after_update", realTimeSyncService.shouldPushImmediately(updatedTicket),
+                    "sync_stats", realTimeSyncService.getSyncStatistics()
+                ));
+            } else {
+                result.put("realtime_sync_analysis", Map.of("enabled", false));
+            }
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                "error", e.getMessage(),
+                "status", "ERROR"
+            ));
+        }
+    }
+
     // ===== UTILITY ENDPOINTS =====
 
     /**
@@ -1033,7 +1249,9 @@ public class PayPropWebhookController {
         // Auto-assign based on emergency status or category
         assignTicketToEmployee(ticket, customer, isEmergency);
 
-        return ticketService.save(ticket);
+        // ✅ IMPORTANT: Use direct repository save to bypass real-time sync
+        // We don't want to sync back to PayProp immediately since this came FROM PayProp
+        return ticketRepository.save(ticket);
     }
 
     private void updateTicketFromPayPropData(Map<String, Object> data) {
@@ -1066,9 +1284,11 @@ public class PayPropWebhookController {
         }
 
         ticket.setPayPropLastSync(LocalDateTime.now());
-        ticketService.save(ticket);
+        
+        // ✅ IMPORTANT: Use direct repository save to bypass real-time sync
+        ticketRepository.save(ticket);
 
-        log.info("Updated ticket {} from PayProp", ticket.getTicketId());
+        log.info("Updated ticket {} from PayProp webhook", ticket.getTicketId());
     }
 
     private void processMaintenanceMessage(Map<String, Object> data) {

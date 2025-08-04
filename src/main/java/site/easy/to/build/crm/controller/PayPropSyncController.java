@@ -10,18 +10,23 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import site.easy.to.build.crm.service.payprop.*;
 import site.easy.to.build.crm.entity.OAuthUser;
+import site.easy.to.build.crm.entity.Ticket;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator.UnifiedSyncResult;
 import site.easy.to.build.crm.service.payprop.PayPropSyncLogger.SyncStatistics;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService.PayPropExportResult;
-import site.easy.to.build.crm.service.payprop.*;
+import site.easy.to.build.crm.service.payprop.PayPropRealTimeSyncService;
+import site.easy.to.build.crm.service.payprop.PayPropSyncMonitoringService;
+import site.easy.to.build.crm.service.ticket.TicketService;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Controller
@@ -33,6 +38,15 @@ public class PayPropSyncController {
     private final PayPropSyncLogger syncLogger;
     private final PayPropSyncService payPropSyncService;
     private final AuthenticationUtils authenticationUtils;
+    
+    @Autowired(required = false)
+    private PayPropRealTimeSyncService realTimeSyncService;
+
+    @Autowired(required = false) 
+    private PayPropSyncMonitoringService monitoringService;
+
+    @Autowired(required = false)
+    private TicketService ticketService;
 
     @Autowired
     public PayPropSyncController(PayPropSyncOrchestrator syncOrchestrator,
@@ -73,6 +87,66 @@ public class PayPropSyncController {
         ));
         
         status.put("systemHealth", "healthy");
+
+        return ResponseEntity.ok(status);
+    }
+
+    /**
+     * Get comprehensive sync status including real-time
+     */
+    @GetMapping("/status-comprehensive")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getComprehensiveSyncStatus(Authentication authentication) {
+        Map<String, Object> status = new HashMap<>();
+        
+        // Existing status
+        status.put("oauthConnected", oAuth2Service.hasValidTokens());
+        
+        SyncStatistics stats = syncLogger.getSyncStatistics(LocalDateTime.now().minusHours(24));
+        status.put("batchSync", Map.of(
+            "totalSyncs", stats.getTotalSyncs(),
+            "successRate", stats.getSuccessRate(),
+            "conflictsDetected", stats.getConflictsDetected(),
+            "conflictsResolved", stats.getConflictsResolved()
+        ));
+        
+        // Real-time sync status
+        if (realTimeSyncService != null) {
+            Map<String, Object> realtimeStatus = new HashMap<>();
+            realtimeStatus.put("enabled", true);
+            realtimeStatus.put("healthy", realTimeSyncService.isHealthy());
+            realtimeStatus.put("statistics", realTimeSyncService.getSyncStatistics());
+            
+            // Add detailed monitoring if available
+            if (monitoringService != null) {
+                try {
+                    PayPropSyncMonitoringService.RealTimeSyncReport report = 
+                        monitoringService.generateRealTimeSyncReport();
+                    
+                    realtimeStatus.put("healthStatus", report.getHealthStatus());
+                    realtimeStatus.put("healthDescription", report.getHealthDescription());
+                    realtimeStatus.put("syncRate", report.getRealtimeSyncRate());
+                    realtimeStatus.put("fallbackRate", report.getBatchFallbackRate());
+                    realtimeStatus.put("recentCriticalUpdates", report.getRecentCriticalUpdates());
+                    realtimeStatus.put("recentUpdates", report.getRecentTicketUpdates());
+                    
+                } catch (Exception e) {
+                    realtimeStatus.put("monitoringError", e.getMessage());
+                }
+            }
+            
+            status.put("realtimeSync", realtimeStatus);
+        } else {
+            status.put("realtimeSync", Map.of(
+                "enabled", false,
+                "reason", "Real-time sync service not available"
+            ));
+        }
+        
+        // Overall system health
+        boolean overallHealthy = oAuth2Service.hasValidTokens() && 
+                               (realTimeSyncService == null || realTimeSyncService.isHealthy());
+        status.put("systemHealth", overallHealthy ? "healthy" : "degraded");
 
         return ResponseEntity.ok(status);
     }
@@ -385,6 +459,215 @@ public class PayPropSyncController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of(
                 "error", "Debug export failed: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Test real-time sync with maintenance tickets
+     */
+    @PostMapping("/test-maintenance-realtime-sync")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testMaintenanceRealtimeSync(
+            @RequestBody Map<String, Object> request,
+            Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Check if real-time sync is available
+            if (realTimeSyncService == null) {
+                response.put("status", "DISABLED");
+                response.put("message", "Real-time sync is not enabled");
+                return ResponseEntity.ok(response);
+            }
+            
+            if (ticketService == null) {
+                response.put("error", "Ticket service not available");
+                return ResponseEntity.ok(response);
+            }
+            
+            // Find maintenance tickets with PayProp IDs
+            List<Ticket> maintenanceTickets = ticketService.findByType("maintenance")
+                .stream()
+                .filter(t -> t.getPayPropTicketId() != null)
+                .limit(5)
+                .collect(Collectors.toList());
+            
+            if (maintenanceTickets.isEmpty()) {
+                response.put("message", "No maintenance tickets with PayProp IDs found");
+                return ResponseEntity.ok(response);
+            }
+            
+            // Test sync decision for each ticket
+            List<Map<String, Object>> ticketTests = new ArrayList<>();
+            
+            for (Ticket ticket : maintenanceTickets) {
+                Map<String, Object> ticketTest = new HashMap<>();
+                ticketTest.put("ticketId", ticket.getTicketId());
+                ticketTest.put("subject", ticket.getSubject());
+                ticketTest.put("status", ticket.getStatus());
+                ticketTest.put("urgencyLevel", ticket.getUrgencyLevel());
+                ticketTest.put("payPropTicketId", ticket.getPayPropTicketId());
+                ticketTest.put("shouldPushImmediately", realTimeSyncService.shouldPushImmediately(ticket));
+                ticketTest.put("lastSync", ticket.getPayPropLastSync());
+                ticketTest.put("synced", ticket.getPayPropSynced());
+                
+                ticketTests.add(ticketTest);
+            }
+            
+            response.put("status", "SUCCESS");
+            response.put("totalMaintenanceTickets", maintenanceTickets.size());
+            response.put("ticketTests", ticketTests);
+            response.put("realtimeSyncStats", realTimeSyncService.getSyncStatistics());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("status", "ERROR");
+            response.put("error", e.getMessage());
+            return ResponseEntity.ok(response);
+        }
+    }
+
+    /**
+     * Force sync a specific maintenance ticket for testing
+     */
+    @PostMapping("/force-sync-maintenance-ticket")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> forceSyncMaintenanceTicket(
+            @RequestBody Map<String, Object> request,
+            Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+        
+        try {
+            String ticketIdStr = (String) request.get("ticketId");
+            String method = (String) request.getOrDefault("method", "realtime");
+            
+            if (ticketIdStr == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "ticketId required"));
+            }
+            
+            int ticketId = Integer.parseInt(ticketIdStr);
+            Ticket ticket = ticketService.findByTicketId(ticketId);
+            
+            if (ticket == null) {
+                return ResponseEntity.ok(Map.of("error", "Ticket not found"));
+            }
+            
+            if (!"maintenance".equals(ticket.getType())) {
+                return ResponseEntity.ok(Map.of("error", "Not a maintenance ticket"));
+            }
+            
+            if (ticket.getPayPropTicketId() == null) {
+                return ResponseEntity.ok(Map.of("error", "Ticket not linked to PayProp"));
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("ticketInfo", Map.of(
+                "id", ticket.getTicketId(),
+                "subject", ticket.getSubject(),
+                "status", ticket.getStatus(),
+                "payPropId", ticket.getPayPropTicketId()
+            ));
+            
+            if ("realtime".equals(method) && realTimeSyncService != null) {
+                // Force real-time sync
+                CompletableFuture<Boolean> syncResult = realTimeSyncService.pushUpdateAsync(ticket);
+                
+                // Wait briefly for result (for testing)
+                Thread.sleep(1000);
+                
+                boolean success = syncResult.isDone() && syncResult.get();
+                
+                response.put("syncMethod", "realtime");
+                response.put("syncAttempted", true);
+                response.put("syncSuccess", success);
+                response.put("syncStats", realTimeSyncService.getSyncStatistics());
+                
+            } else {
+                // Mark for batch sync
+                ticket.setPayPropSynced(false);
+                ticketService.save(ticket);
+                
+                response.put("syncMethod", "batch");
+                response.put("syncAttempted", false);
+                response.put("message", "Ticket marked for batch sync");
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                "error", e.getMessage(),
+                "status", "ERROR"
+            ));
+        }
+    }
+
+    /**
+     * Get maintenance ticket sync statistics
+     */
+    @GetMapping("/maintenance-sync-stats")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getMaintenanceSyncStats(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+        
+        try {
+            Map<String, Object> stats = new HashMap<>();
+            
+            if (ticketService != null) {
+                List<Ticket> allMaintenanceTickets = ticketService.findByType("maintenance");
+                
+                long totalTickets = allMaintenanceTickets.size();
+                long payPropLinked = allMaintenanceTickets.stream()
+                    .filter(t -> t.getPayPropTicketId() != null)
+                    .count();
+                long syncedTickets = allMaintenanceTickets.stream()
+                    .filter(t -> Boolean.TRUE.equals(t.getPayPropSynced()))
+                    .count();
+                long unsyncedTickets = allMaintenanceTickets.stream()
+                    .filter(t -> t.getPayPropTicketId() != null && !Boolean.TRUE.equals(t.getPayPropSynced()))
+                    .count();
+                
+                stats.put("totalMaintenanceTickets", totalTickets);
+                stats.put("payPropLinkedTickets", payPropLinked);
+                stats.put("syncedTickets", syncedTickets);
+                stats.put("unsyncedTickets", unsyncedTickets);
+                stats.put("linkageRate", totalTickets > 0 ? (payPropLinked * 100.0 / totalTickets) : 0);
+                stats.put("syncRate", payPropLinked > 0 ? (syncedTickets * 100.0 / payPropLinked) : 100);
+                
+                // Recent activity
+                LocalDateTime oneHourAgo = LocalDateTime.now().minusHours(1);
+                long recentUpdates = allMaintenanceTickets.stream()
+                    .filter(t -> t.getPayPropLastSync() != null && t.getPayPropLastSync().isAfter(oneHourAgo))
+                    .count();
+                
+                stats.put("recentSyncActivity", recentUpdates);
+            }
+            
+            // Real-time sync stats
+            if (realTimeSyncService != null) {
+                stats.put("realtimeSync", realTimeSyncService.getSyncStatistics());
+            } else {
+                stats.put("realtimeSync", Map.of("enabled", false));
+            }
+            
+            return ResponseEntity.ok(stats);
+            
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of(
+                "error", e.getMessage(),
+                "status", "ERROR"
             ));
         }
     }

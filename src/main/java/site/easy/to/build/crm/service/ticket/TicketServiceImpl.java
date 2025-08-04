@@ -8,6 +8,10 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.repository.TicketRepository;
 import site.easy.to.build.crm.entity.Ticket;
 import site.easy.to.build.crm.service.property.PropertyService;
+import org.springframework.beans.factory.annotation.Autowired;
+import site.easy.to.build.crm.service.payprop.PayPropRealTimeSyncService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,8 +19,13 @@ import java.util.List;
 @Service
 public class TicketServiceImpl implements TicketService{
 
+    private static final Logger log = LoggerFactory.getLogger(TicketServiceImpl.class);
+
     private final TicketRepository ticketRepository;
     private final PropertyService propertyService;
+
+    @Autowired(required = false)
+    private PayPropRealTimeSyncService realTimeSyncService;
 
     public TicketServiceImpl(TicketRepository ticketRepository, PropertyService propertyService) {
         this.ticketRepository = ticketRepository;
@@ -36,7 +45,19 @@ public class TicketServiceImpl implements TicketService{
 
     @Override
     public Ticket save(Ticket ticket) {
-        return ticketRepository.save(ticket);
+        // Always save to CRM first (source of truth)
+        Ticket savedTicket = ticketRepository.save(ticket);
+        
+        // Optional real-time sync for critical updates
+        if (realTimeSyncService != null && shouldPushImmediately(savedTicket)) {
+            log.info("⚡ Triggering real-time sync for ticket {} ({})", 
+                savedTicket.getTicketId(), savedTicket.getStatus());
+            
+            // Async push - doesn't block the save operation
+            realTimeSyncService.pushUpdateAsync(savedTicket);
+        }
+        
+        return savedTicket;
     }
 
     @Override
@@ -186,5 +207,13 @@ public class TicketServiceImpl implements TicketService{
             System.err.println("Error looking up property " + propertyId + ": " + e.getMessage());
         }
         return null;
+    }
+
+    private boolean shouldPushImmediately(Ticket ticket) {
+        if (realTimeSyncService == null) {
+            return false;
+        }
+        
+        return realTimeSyncService.shouldPushImmediately(ticket);
     }
 }

@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import site.easy.to.build.crm.repository.*;
+import site.easy.to.build.crm.service.payprop.PayPropRealTimeSyncService;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -36,6 +37,9 @@ public class PayPropSyncMonitoringService {
     
     @Autowired
     private FinancialTransactionRepository financialTransactionRepository;
+    
+    @Autowired(required = false)
+    private PayPropRealTimeSyncService realTimeSyncService;
     
     /**
      * Generate comprehensive health report
@@ -81,6 +85,132 @@ public class PayPropSyncMonitoringService {
         }
         
         return report;
+    }
+    
+    /**
+     * Generate real-time sync health report
+     */
+    public RealTimeSyncReport generateRealTimeSyncReport() {
+        RealTimeSyncReport report = new RealTimeSyncReport();
+        
+        try {
+            // Check if real-time sync is enabled and healthy
+            if (realTimeSyncService != null) {
+                report.setEnabled(true);
+                report.setHealthy(realTimeSyncService.isHealthy());
+                
+                // Get sync statistics
+                Map<String, Object> stats = realTimeSyncService.getSyncStatistics();
+                report.setCircuitBreakerOpen((Boolean) stats.get("circuit_breaker_open"));
+                report.setConsecutiveFailures((Integer) stats.get("consecutive_failures"));
+                report.setActiveSyncOperations((Integer) stats.get("active_sync_operations"));
+                report.setRateLimitPerSecond((Double) stats.get("rate_limit_permits_per_second"));
+                
+                // Calculate real-time sync efficiency
+                report.setRealtimeSyncRate(calculateRealtimeSyncRate());
+                report.setBatchFallbackRate(calculateBatchFallbackRate());
+                
+            } else {
+                report.setEnabled(false);
+                report.setHealthy(false);
+            }
+            
+            // Check recent ticket updates
+            report.setRecentCriticalUpdates(countRecentCriticalUpdates());
+            report.setRecentTicketUpdates(countRecentTicketUpdates());
+            
+        } catch (Exception e) {
+            log.error("Error generating real-time sync report: {}", e.getMessage(), e);
+            report.setHealthy(false);
+            report.addError("Failed to generate real-time sync report: " + e.getMessage());
+        }
+        
+        return report;
+    }
+    
+    /**
+     * Calculate real-time sync success rate
+     */
+    private double calculateRealtimeSyncRate() {
+        String sql = """
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN pay_prop_synced = 1 THEN 1 ELSE 0 END) as synced
+            FROM trigger_ticket 
+            WHERE type = 'maintenance' 
+            AND pay_prop_ticket_id IS NOT NULL
+            AND updated_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+            AND status IN ('resolved', 'in-progress')
+        """;
+        
+        try {
+            Map<String, Object> result = jdbcTemplate.queryForMap(sql);
+            int total = ((Number) result.get("total")).intValue();
+            int synced = ((Number) result.get("synced")).intValue();
+            
+            return total > 0 ? (synced * 100.0 / total) : 100.0;
+        } catch (Exception e) {
+            log.warn("Could not calculate real-time sync rate: {}", e.getMessage());
+            return 0.0;
+        }
+    }
+    
+    /**
+     * Calculate batch fallback rate
+     */
+    private double calculateBatchFallbackRate() {
+        String sql = """
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN pay_prop_synced = 0 THEN 1 ELSE 0 END) as unsynced
+            FROM trigger_ticket 
+            WHERE type = 'maintenance' 
+            AND pay_prop_ticket_id IS NOT NULL
+            AND updated_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+            AND status IN ('resolved', 'in-progress')
+        """;
+        
+        try {
+            Map<String, Object> result = jdbcTemplate.queryForMap(sql);
+            int total = ((Number) result.get("total")).intValue();
+            int unsynced = ((Number) result.get("unsynced")).intValue();
+            
+            return total > 0 ? (unsynced * 100.0 / total) : 0.0;
+        } catch (Exception e) {
+            log.warn("Could not calculate batch fallback rate: {}", e.getMessage());
+            return 0.0;
+        }
+    }
+    
+    /**
+     * Count recent critical ticket updates
+     */
+    private int countRecentCriticalUpdates() {
+        String sql = """
+            SELECT COUNT(*) 
+            FROM trigger_ticket 
+            WHERE type = 'maintenance' 
+            AND updated_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+            AND (status IN ('resolved', 'in-progress') OR urgency_level = 'emergency')
+        """;
+        
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
+        return count != null ? count : 0;
+    }
+    
+    /**
+     * Count recent ticket updates
+     */
+    private int countRecentTicketUpdates() {
+        String sql = """
+            SELECT COUNT(*) 
+            FROM trigger_ticket 
+            WHERE type = 'maintenance' 
+            AND updated_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+        """;
+        
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
+        return count != null ? count : 0;
     }
     
     /**
@@ -335,6 +465,90 @@ public class PayPropSyncMonitoringService {
         
         Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
         return count != null ? count : 0;
+    }
+    
+    /**
+     * Real-Time Sync Report DTO
+     */
+    public static class RealTimeSyncReport {
+        private boolean enabled;
+        private boolean healthy;
+        private boolean circuitBreakerOpen;
+        private int consecutiveFailures;
+        private int activeSyncOperations;
+        private double rateLimitPerSecond;
+        private double realtimeSyncRate;
+        private double batchFallbackRate;
+        private int recentCriticalUpdates;
+        private int recentTicketUpdates;
+        private List<String> errors = new ArrayList<>();
+        
+        public String getHealthStatus() {
+            if (!enabled) return "DISABLED";
+            if (!healthy) return "UNHEALTHY";
+            if (circuitBreakerOpen) return "CIRCUIT_OPEN";
+            if (realtimeSyncRate < 80) return "DEGRADED";
+            return "HEALTHY";
+        }
+        
+        public String getHealthDescription() {
+            String status = getHealthStatus();
+            switch (status) {
+                case "DISABLED":
+                    return "Real-time sync is disabled - only batch sync active";
+                case "UNHEALTHY":
+                    return "Real-time sync is experiencing issues";
+                case "CIRCUIT_OPEN":
+                    return "Circuit breaker is open - all updates falling back to batch";
+                case "DEGRADED":
+                    return "Real-time sync is working but with reduced efficiency";
+                case "HEALTHY":
+                    return "Real-time sync is operating normally";
+                default:
+                    return "Unknown status";
+            }
+        }
+        
+        public void addError(String error) {
+            if (errors == null) {
+                errors = new ArrayList<>();
+            }
+            errors.add(error);
+        }
+        
+        // Getters and setters
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        
+        public boolean isHealthy() { return healthy; }
+        public void setHealthy(boolean healthy) { this.healthy = healthy; }
+        
+        public boolean isCircuitBreakerOpen() { return circuitBreakerOpen; }
+        public void setCircuitBreakerOpen(boolean circuitBreakerOpen) { this.circuitBreakerOpen = circuitBreakerOpen; }
+        
+        public int getConsecutiveFailures() { return consecutiveFailures; }
+        public void setConsecutiveFailures(int consecutiveFailures) { this.consecutiveFailures = consecutiveFailures; }
+        
+        public int getActiveSyncOperations() { return activeSyncOperations; }
+        public void setActiveSyncOperations(int activeSyncOperations) { this.activeSyncOperations = activeSyncOperations; }
+        
+        public double getRateLimitPerSecond() { return rateLimitPerSecond; }
+        public void setRateLimitPerSecond(double rateLimitPerSecond) { this.rateLimitPerSecond = rateLimitPerSecond; }
+        
+        public double getRealtimeSyncRate() { return realtimeSyncRate; }
+        public void setRealtimeSyncRate(double realtimeSyncRate) { this.realtimeSyncRate = realtimeSyncRate; }
+        
+        public double getBatchFallbackRate() { return batchFallbackRate; }
+        public void setBatchFallbackRate(double batchFallbackRate) { this.batchFallbackRate = batchFallbackRate; }
+        
+        public int getRecentCriticalUpdates() { return recentCriticalUpdates; }
+        public void setRecentCriticalUpdates(int recentCriticalUpdates) { this.recentCriticalUpdates = recentCriticalUpdates; }
+        
+        public int getRecentTicketUpdates() { return recentTicketUpdates; }
+        public void setRecentTicketUpdates(int recentTicketUpdates) { this.recentTicketUpdates = recentTicketUpdates; }
+        
+        public List<String> getErrors() { return errors; }
+        public void setErrors(List<String> errors) { this.errors = errors; }
     }
     
     /**
