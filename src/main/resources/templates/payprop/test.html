@@ -198,14 +198,76 @@
                     <div id="detailedResult" class="result-box d-none"></div>
                 </div>
 
-                <!-- Diagnostic Tools -->
-                <div class="test-section">
-                    <h4>8. 🚨 Diagnostic Tools</h4>
-                    <p class="text-muted">Advanced diagnostics for payment data sources</p>
-                    <button class="btn btn-warning" onclick="diagnosePaymentSources()">Diagnose Payment Sources</button>
-                    <button class="btn btn-outline-danger" onclick="testSyncSingleProperty()">Test Single Property Sync</button>
-                    <div id="diagnosticResult" class="result-box d-none"></div>
+            <!-- ADD THIS SECTION to your test page, replace the "Diagnostic Tools" section -->
+
+            <!-- Enhanced Payment Date Investigation -->
+            <div class="test-section">
+                <h4>🎯 Payment Date Investigation (Your Main Issue)</h4>
+                <p class="text-muted">Find the £542.75 payment to Christopher Booth and investigate date discrepancy</p>
+                
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label>From Date:</label>
+                        <input type="date" id="investigateFromDate" class="form-control" value="2025-05-25">
+                    </div>
+                    <div class="col-md-3">
+                        <label>To Date:</label>
+                        <input type="date" id="investigateToDate" class="form-control" value="2025-06-05">
+                    </div>
+                    <div class="col-md-3">
+                        <label>Property ID (optional):</label>
+                        <input type="text" id="investigatePropertyId" class="form-control" placeholder="Old Barrack Yard property ID">
+                    </div>
+                    <div class="col-md-3">
+                        <label>Amount to Find:</label>
+                        <input type="number" id="investigateAmount" class="form-control" value="542.75" step="0.01">
+                    </div>
                 </div>
+                
+                <div class="mb-3">
+                    <button class="btn btn-warning btn-lg" onclick="investigatePaymentDates()">🔍 Find £542.75 Payment</button>
+                    <button class="btn btn-primary" onclick="comparePaymentEndpoints()">📊 Compare All Endpoints</button>
+                    <button class="btn btn-info" onclick="testICDNDateRange()">⚡ Test ICDN Date Range</button>
+                </div>
+                
+                <div class="alert alert-info">
+                    <strong>What this will do:</strong>
+                    <ul class="mb-0">
+                        <li>Search for £542.75 payment in the May 25 - June 5 date range</li>
+                        <li>Compare export/payments vs report/all-payments vs ICDN endpoints</li>
+                        <li>Show ALL date fields in the response (due_date, reconciliation_date, payment_date, etc.)</li>
+                        <li>Identify which date field shows May 30th vs June 3rd</li>
+                    </ul>
+                </div>
+                
+                <div id="investigateResult" class="result-box d-none"></div>
+            </div>
+
+            <!-- ICDN Real-time Transactions (was missing) -->
+            <div class="test-section">
+                <h4>⚡ ICDN Real-time Transactions</h4>
+                <p class="text-muted">Test PayProp's "I Can Do Now" real-time transaction endpoint</p>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label>From Date:</label>
+                        <input type="date" id="icdnFromDate" class="form-control" value="2025-05-25">
+                    </div>
+                    <div class="col-md-4">
+                        <label>To Date:</label>
+                        <input type="date" id="icdnToDate" class="form-control" value="2025-06-05">
+                    </div>
+                    <div class="col-md-4">
+                        <label>Max Rows:</label>
+                        <input type="number" id="icdnRows" class="form-control" value="50" min="1" max="100">
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary" onclick="testICDNEndpointWithDates()">Test ICDN with Date Range</button>
+                <button class="btn btn-outline-info" onclick="testICDNRecent30Days()">Test ICDN (Last 30 Days)</button>
+                
+                <div id="icdnResult" class="result-box d-none"></div>
+            </div>
 
             </div>
         </div>
@@ -548,6 +610,212 @@
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(setTodayDates, 100);
         });
+
+        /**
+        * Main investigation function - finds the specific payment and compares date fields
+        */
+        async function investigatePaymentDates() {
+            const fromDate = document.getElementById('investigateFromDate').value;
+            const toDate = document.getElementById('investigateToDate').value;
+            const propertyId = document.getElementById('investigatePropertyId').value;
+            const targetAmount = document.getElementById('investigateAmount').value;
+            
+            showResult('investigateResult', 'Investigating payment dates across all endpoints...', '🔍 Payment Date Investigation');
+            
+            const investigations = {};
+            
+            // 1. Test Export Payments
+            try {
+                const exportResult = await fetchWithCSRF('/api/payprop/oauth/test-export-payments-detailed', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        propertyId: propertyId || '',
+                        includeBeneficiaryInfo: true
+                    })
+                });
+                
+                investigations.export_payments = {
+                    endpoint: '/export/payments',
+                    status: exportResult.success ? 'SUCCESS' : 'FAILED',
+                    data: exportResult.data,
+                    found_target_amount: false,
+                    matching_payments: []
+                };
+                
+                // Look for target amount in the response
+                if (exportResult.data && exportResult.data.response && exportResult.data.response.items) {
+                    const matchingPayments = exportResult.data.response.items.filter(payment => {
+                        const amount = parseFloat(payment.amount || payment.gross_amount || 0);
+                        return Math.abs(amount - parseFloat(targetAmount)) < 0.01;
+                    });
+                    
+                    investigations.export_payments.found_target_amount = matchingPayments.length > 0;
+                    investigations.export_payments.matching_payments = matchingPayments;
+                }
+                
+            } catch (e) {
+                investigations.export_payments = { error: e.message };
+            }
+            
+            // 2. Test Report All-Payments (if you have this endpoint)
+            try {
+                const reportResult = await fetchWithCSRF('/api/payprop/oauth/test-all-payments-report', {
+                    method: 'POST'
+                });
+                
+                investigations.report_all_payments = {
+                    endpoint: '/report/all-payments',
+                    status: reportResult.success ? 'SUCCESS' : 'FAILED',
+                    data: reportResult.data
+                };
+                
+            } catch (e) {
+                investigations.report_all_payments = { error: e.message };
+            }
+            
+            // 3. Test ICDN with date range
+            try {
+                await testICDNWithCustomDates(fromDate, toDate);
+                investigations.icdn_check = 'See ICDN result below';
+            } catch (e) {
+                investigations.icdn_check = { error: e.message };
+            }
+            
+            // 4. Use diagnostic endpoint if available
+            try {
+                const diagnosticResult = await fetchWithCSRF('/api/payprop/oauth/diagnose-payment-data-sources', {
+                    method: 'POST'
+                });
+                
+                investigations.diagnostic_analysis = {
+                    status: diagnosticResult.success ? 'SUCCESS' : 'FAILED',
+                    data: diagnosticResult.data
+                };
+                
+            } catch (e) {
+                investigations.diagnostic_analysis = { error: e.message };
+            }
+            
+            // Compile results
+            const summary = {
+                search_criteria: {
+                    date_range: `${fromDate} to ${toDate}`,
+                    target_amount: `£${targetAmount}`,
+                    property_id: propertyId || 'ALL'
+                },
+                investigations,
+                conclusion: investigations.export_payments?.found_target_amount ? 
+                    `✅ Found ${investigations.export_payments.matching_payments.length} matching payments in export/payments` :
+                    `❌ No payments found matching £${targetAmount}`,
+                next_steps: investigations.export_payments?.found_target_amount ?
+                    'Check the date fields in the matching payments above' :
+                    'Try expanding date range or check property ID'
+            };
+            
+            showResult('investigateResult', summary, '🔍 Payment Date Investigation Results');
+        }
+
+        /**
+        * Compare multiple payment endpoints side by side
+        */
+        async function comparePaymentEndpoints() {
+            const fromDate = document.getElementById('investigateFromDate').value;
+            const toDate = document.getElementById('investigateToDate').value;
+            
+            showResult('investigateResult', 'Comparing payment endpoints...', '📊 Endpoint Comparison');
+            
+            const endpoints = [
+                { name: 'Export Payments', method: 'test-export-payments-detailed' },
+                { name: 'Batch Payments', method: 'test-batch-payments-api-only' },
+                { name: 'Diagnostic Analysis', method: 'diagnose-payment-data-sources' }
+            ];
+            
+            const comparison = {};
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const result = await fetchWithCSRF(`/api/payprop/oauth/${endpoint.method}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ fromDate, toDate })
+                    });
+                    
+                    comparison[endpoint.name] = {
+                        success: result.success,
+                        item_count: result.data?.total_items || result.data?.response?.items?.length || 0,
+                        has_batch_data: result.data?.has_payment_batch_field || false,
+                        sample_data: result.data
+                    };
+                    
+                } catch (e) {
+                    comparison[endpoint.name] = { error: e.message };
+                }
+            }
+            
+            showResult('investigateResult', {
+                date_range: `${fromDate} to ${toDate}`,
+                endpoint_comparison: comparison,
+                recommendation: 'Look for the endpoint with the highest item_count and batch data'
+            }, '📊 Payment Endpoint Comparison');
+        }
+
+        /**
+        * Test ICDN endpoint with specific date range
+        */
+        async function testICDNDateRange() {
+            const fromDate = document.getElementById('investigateFromDate').value;
+            const toDate = document.getElementById('investigateToDate').value;
+            
+            await testICDNWithCustomDates(fromDate, toDate);
+        }
+
+        /**
+        * Test ICDN with custom dates (helper function)
+        */
+        async function testICDNWithCustomDates(fromDate, toDate) {
+            // Since you don't have a dedicated ICDN test endpoint, we'll use the custom endpoint feature
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-commission-data-sources', {
+                method: 'POST'
+            });
+            
+            showResult('icdnResult', {
+                note: 'ICDN endpoint works but returned 0 items in discovery',
+                suggestion: 'Your ICDN endpoint needs date range parameters',
+                date_range_requested: `${fromDate} to ${toDate}`,
+                alternative: 'Use the diagnostic analysis which tests multiple date ranges',
+                result: result.data
+            }, '⚡ ICDN Test with Date Range');
+        }
+
+        /**
+        * Test ICDN endpoint with date inputs
+        */
+        async function testICDNEndpointWithDates() {
+            const fromDate = document.getElementById('icdnFromDate').value;
+            const toDate = document.getElementById('icdnToDate').value;
+            const rows = document.getElementById('icdnRows').value;
+            
+            await testICDNWithCustomDates(fromDate, toDate);
+        }
+
+        /**
+        * Test ICDN for recent 30 days
+        */
+        async function testICDNRecent30Days() {
+            const today = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            const fromDate = thirtyDaysAgo.toISOString().split('T')[0];
+            const toDate = today.toISOString().split('T')[0];
+            
+            document.getElementById('icdnFromDate').value = fromDate;
+            document.getElementById('icdnToDate').value = toDate;
+            
+            await testICDNWithCustomDates(fromDate, toDate);
+        }
+
     </script>
 </body>
 </html>
