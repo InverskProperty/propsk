@@ -22,7 +22,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     /**
      * Find transaction by PayProp transaction ID (for sync deduplication)
      */
-    Optional<FinancialTransaction> findByPayPropTransactionId(String payPropTransactionId);
+    FinancialTransaction findByPayPropTransactionId(String payPropTransactionId);
     
     /**
      * Check if transaction exists by PayProp ID

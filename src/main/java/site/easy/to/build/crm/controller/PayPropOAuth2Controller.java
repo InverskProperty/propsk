@@ -1,4 +1,4 @@
-// PayPropOAuth2Controller.java - OAuth2 Authorization Flow with Test Endpoints
+// PayPropOAuth2Controller.java - Enhanced Testing & Investigation Dashboard - FIXED VERSION
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,26 +32,16 @@ import site.easy.to.build.crm.repository.PaymentRepository;
 import site.easy.to.build.crm.repository.PaymentCategoryRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.entity.Payment;
-import site.easy.to.build.crm.entity.Property;  // ✅ ADDED: Missing import fix
+import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.FinancialTransaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Set;
-import java.util.HashSet;
-import site.easy.to.build.crm.service.payprop.PayPropSyncService;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
@@ -60,59 +50,51 @@ import java.util.concurrent.CompletableFuture;
 public class PayPropOAuth2Controller {
 
     private static final Logger logger = LoggerFactory.getLogger(PayPropOAuth2Controller.class);
-    private static final Logger log = LoggerFactory.getLogger(PayPropOAuth2Controller.class);
     
     private final PayPropOAuth2Service oAuth2Service;
     private final RestTemplate restTemplate;
     private final String payPropApiBase = "https://ukapi.staging.payprop.com/api/agency/v1.1";
     
-    // NEW: Financial sync service injection
+    // Services
     @Autowired
     private PayPropFinancialSyncService payPropFinancialSyncService;
-    
-    @Autowired
-    private PropertyRepository propertyRepository;
-    
-    @Autowired
-    private BeneficiaryRepository beneficiaryRepository;
-    
-    @Autowired
-    private PaymentRepository paymentRepository;
-
     @Autowired
     private PayPropSyncService payPropSyncService;
-    
-    @Autowired
-    private PaymentCategoryRepository paymentCategoryRepository;
-
-    @Autowired
-    private BatchPaymentRepository batchPaymentRepository;
-    
-    @Autowired
-    private PropertyService propertyService;
-
-    @Autowired
-    private FinancialTransactionRepository financialTransactionRepository;
-
     @Autowired(required = false)
+    @SuppressWarnings("unused")
     private PayPropRealTimeSyncService realTimeSyncService;
-
-    @Autowired
-    private TicketService ticketService;
-
     @Autowired(required = false)
     private PayPropSyncMonitoringService payPropSyncMonitoringService;
+    @Autowired
+    @SuppressWarnings("unused")
+    private TicketService ticketService;
+    
+    // Repositories
+    @Autowired
+    private PropertyRepository propertyRepository;
+    @Autowired
+    private BeneficiaryRepository beneficiaryRepository;
+    @Autowired
+    @SuppressWarnings("unused")
+    private PaymentRepository paymentRepository;
+    @Autowired
+    private PaymentCategoryRepository paymentCategoryRepository;
+    @Autowired
+    private BatchPaymentRepository batchPaymentRepository;
+    @Autowired
+    @SuppressWarnings("unused")
+    private PropertyService propertyService;
+    @Autowired
+    private FinancialTransactionRepository financialTransactionRepository;
 
     @Autowired
     public PayPropOAuth2Controller(PayPropOAuth2Service oAuth2Service, RestTemplate restTemplate) {
         this.oAuth2Service = oAuth2Service;
         this.restTemplate = restTemplate;
-        this.payPropSyncService = payPropSyncService; // Add this line
     }
 
-    /**
-     * Show PayProp OAuth2 status and initiate authorization
-     */
+    // ===== BASIC OAUTH FLOW (Unchanged) =====
+    
     @GetMapping("/status")
     public String showOAuthStatus(Model model, Authentication authentication) {
         if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
@@ -123,35 +105,21 @@ public class PayPropOAuth2Controller {
         model.addAttribute("hasTokens", tokens != null);
         model.addAttribute("tokens", tokens);
         model.addAttribute("pageTitle", "PayProp Integration Setup");
-
         return "payprop/oauth-status";
     }
 
-    /**
-     * Initiate OAuth2 authorization flow
-     */
     @GetMapping("/authorize")
     public String initiateAuthorization(Authentication authentication) {
         if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
             return "redirect:/access-denied";
         }
 
-        // Generate state parameter for security
         String state = UUID.randomUUID().toString();
-        
-        // In production, store state in session for verification
-        // session.setAttribute("oauth_state", state);
-        
         String authorizationUrl = oAuth2Service.getAuthorizationUrl(state);
-        
-        System.out.println("🔐 Redirecting to PayProp authorization: " + authorizationUrl);
-        
+        logger.info("🔐 Redirecting to PayProp authorization: {}", authorizationUrl);
         return "redirect:" + authorizationUrl;
     }
 
-    /**
-     * Handle OAuth2 callback from PayProp
-     */
     @GetMapping("/callback")
     public String handleCallback(@RequestParam(required = false) String code,
                                 @RequestParam(required = false) String error,
@@ -160,1189 +128,2072 @@ public class PayPropOAuth2Controller {
                                 Model model,
                                 RedirectAttributes redirectAttributes) {
         
-        System.out.println("📞 PayProp OAuth2 callback received");
-        System.out.println("Code: " + (code != null ? code.substring(0, Math.min(20, code.length())) + "..." : "null"));
-        System.out.println("Error: " + error);
-        System.out.println("State: " + state);
+        logger.info("📞 PayProp OAuth2 callback received - Code: {}, Error: {}", 
+            code != null ? code.substring(0, Math.min(20, code.length())) + "..." : "null", error);
 
         if (error != null) {
-            System.err.println("❌ OAuth2 authorization failed: " + error);
+            logger.error("❌ OAuth2 authorization failed: {}", error);
             redirectAttributes.addFlashAttribute("error", 
                 "PayProp authorization failed: " + (error_description != null ? error_description : error));
             return "redirect:/api/payprop/oauth/status";
         }
 
         if (code == null) {
-            System.err.println("❌ No authorization code received");
+            logger.error("❌ No authorization code received");
             redirectAttributes.addFlashAttribute("error", "No authorization code received from PayProp");
             return "redirect:/api/payprop/oauth/status";
         }
 
         try {
-            // Exchange code for tokens
             PayPropTokens tokens = oAuth2Service.exchangeCodeForToken(code);
-            
-            System.out.println("✅ PayProp OAuth2 setup completed successfully!");
-            
+            logger.info("✅ PayProp OAuth2 setup completed successfully!");
             redirectAttributes.addFlashAttribute("successMessage", 
                 "PayProp integration authorized successfully! You can now sync data with PayProp.");
-            
             return "redirect:/api/payprop/oauth/status";
             
         } catch (Exception e) {
-            System.err.println("❌ Failed to exchange authorization code: " + e.getMessage());
-            e.printStackTrace();
-            
+            logger.error("❌ Failed to exchange authorization code: {}", e.getMessage(), e);
             redirectAttributes.addFlashAttribute("error", 
                 "Failed to complete PayProp authorization: " + e.getMessage());
             return "redirect:/api/payprop/oauth/status";
         }
     }
 
+    // ===== ENHANCED TESTING ENDPOINTS =====
+
     /**
-     * ✅ ADD THIS METHOD to your PayPropOAuth2Controller.java
-     * Test export payments endpoint to see actual PayProp data structure
-     * Also ADD this logger at the top of your class:
-     * private static final Logger log = LoggerFactory.getLogger(PayPropOAuth2Controller.class);
+     * 🔍 PAYMENT INVESTIGATION - Find specific payments with flexible search
      */
-    @PostMapping("/test-export-payments-detailed")
+    @PostMapping("/investigate-payment")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> testExportPaymentsDetailed(
-            @RequestBody Map<String, Object> request, 
+    public ResponseEntity<Map<String, Object>> investigatePayment(
+            @RequestParam(required = false) String amount,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate toDate,
+            @RequestParam(required = false) String propertyId,
+            @RequestParam(required = false) String beneficiaryName,
+            @RequestParam(required = false) String batchId,
+            @RequestParam(required = false) String transactionId,
             Authentication authentication) {
         
-        Map<String, Object> response = new HashMap<>();
-        
         if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            response.put("success", false);
-            response.put("message", "Access denied");
-            return ResponseEntity.status(403).body(response);
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
         }
 
+        Map<String, Object> investigation = new HashMap<>();
+        
         try {
-            if (!oAuth2Service.hasValidTokens()) {
-                response.put("success", false);
-                response.put("message", "PayProp not authorized. Please authorize first.");
-                return ResponseEntity.ok(response);
-            }
-
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> httpRequest = new HttpEntity<>(headers);
+            // Default date range if not provided
+            if (fromDate == null) fromDate = LocalDate.now().minusDays(30);
+            if (toDate == null) toDate = LocalDate.now();
             
-            // Build URL with optional property filter
-            StringBuilder urlBuilder = new StringBuilder(payPropApiBase + "/export/payments");
+            investigation.put("search_criteria", Map.of(
+                "amount", amount != null ? amount : "Any",
+                "date_range", fromDate + " to " + toDate,
+                "property_id", propertyId != null ? propertyId : "Any",
+                "beneficiary_name", beneficiaryName != null ? beneficiaryName : "Any",
+                "batch_id", batchId != null ? batchId : "Any",
+                "transaction_id", transactionId != null ? transactionId : "Any"
+            ));
+            
+            // 1. Search in multiple PayProp endpoints
+            Map<String, Object> apiResults = searchPayPropEndpoints(amount, fromDate, toDate, propertyId, beneficiaryName, batchId, transactionId);
+            investigation.put("payprop_api_results", apiResults);
+            
+            // 2. Search in local database
+            Map<String, Object> databaseResults = searchLocalDatabase(amount, fromDate, toDate, propertyId, beneficiaryName, batchId, transactionId);
+            investigation.put("local_database_results", databaseResults);
+            
+            // 3. Compare and identify discrepancies
+            Map<String, Object> comparison = compareApiVsDatabase(apiResults, databaseResults);
+            investigation.put("comparison_analysis", comparison);
+            
+            investigation.put("status", "SUCCESS");
+            investigation.put("timestamp", LocalDateTime.now());
+            
+            return ResponseEntity.ok(investigation);
+            
+        } catch (Exception e) {
+            logger.error("❌ Payment investigation failed: {}", e.getMessage(), e);
+            investigation.put("status", "ERROR");
+            investigation.put("error", e.getMessage());
+            return ResponseEntity.ok(investigation);
+        }
+    }
+
+    /**
+     * 📊 ENDPOINT COMPARISON - Test multiple endpoints with same criteria
+     */
+    @PostMapping("/compare-endpoints")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> compareEndpoints(
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate toDate,
+            @RequestParam(required = false) String propertyId,
+            @RequestParam(required = false) String filterBy,
+            @RequestParam(required = false, defaultValue = "10") int maxRows,
+            Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> comparison = new HashMap<>();
+        
+        try {
+            if (fromDate == null) fromDate = LocalDate.now().minusDays(30);
+            if (toDate == null) toDate = LocalDate.now();
+            
+            comparison.put("test_parameters", Map.of(
+                "from_date", fromDate,
+                "to_date", toDate,
+                "property_id", propertyId != null ? propertyId : "ALL",
+                "filter_by", filterBy != null ? filterBy : "DEFAULT",
+                "max_rows", maxRows
+            ));
+            
+            HttpHeaders headers = createAuthorizedHeadersSafe();
+            
+            // Test different endpoint combinations
+            Map<String, Map<String, Object>> endpointResults = new HashMap<>();
+            
+            // 1. Export Payments (Payment Instructions)
+            endpointResults.put("export_payments_instructions", 
+                testSingleEndpoint("/export/payments", fromDate, toDate, propertyId, null, maxRows, headers));
+            
+            // 2. Export Payments with Reconciliation Filter
+            endpointResults.put("export_payments_reconciled", 
+                testSingleEndpoint("/export/payments", fromDate, toDate, propertyId, "reconciliation_date", maxRows, headers));
+            
+            // 3. Report All-Payments (Actual Payments)
+            endpointResults.put("report_all_payments", 
+                testSingleEndpoint("/report/all-payments", fromDate, toDate, propertyId, "reconciliation_date", maxRows, headers));
+            
+            // 4. ICDN Transactions
+            endpointResults.put("report_icdn", 
+                testSingleEndpoint("/report/icdn", fromDate, toDate, propertyId, null, maxRows, headers));
+            
+            // 5. Export Invoices
+            endpointResults.put("export_invoices", 
+                testSingleEndpoint("/export/invoices", fromDate, toDate, propertyId, null, maxRows, headers));
+            
+            comparison.put("endpoint_results", endpointResults);
+            
+            // Analyze results
+            Map<String, Object> analysis = analyzeEndpointComparison(endpointResults);
+            comparison.put("analysis", analysis);
+            
+            comparison.put("status", "SUCCESS");
+            
+            return ResponseEntity.ok(comparison);
+            
+        } catch (Exception e) {
+            logger.error("❌ Endpoint comparison failed: {}", e.getMessage(), e);
+            comparison.put("status", "ERROR");
+            comparison.put("error", e.getMessage());
+            return ResponseEntity.ok(comparison);
+        }
+    }
+
+    /**
+     * 🔬 DETAILED TRANSACTION ANALYSIS - Deep dive into specific transaction
+     */
+    @PostMapping("/analyze-transaction")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> analyzeTransaction(
+            @RequestParam String transactionId,
+            @RequestParam(required = false) String endpoint,
+            Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> analysis = new HashMap<>();
+        
+        try {
+            analysis.put("transaction_id", transactionId);
+            analysis.put("search_endpoint", endpoint != null ? endpoint : "ALL");
+            
+            // 1. Find in PayProp API
+            Map<String, Object> payPropData = findTransactionInPayProp(transactionId, endpoint);
+            analysis.put("payprop_data", payPropData);
+            
+            // 2. Find in local database
+            Map<String, Object> databaseData = findTransactionInDatabase(transactionId);
+            analysis.put("database_data", databaseData);
+            
+            // 3. Analyze all date fields from PayProp
+            if (payPropData.containsKey("found") && (Boolean) payPropData.get("found")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> transactionData = (Map<String, Object>) payPropData.get("transaction_data");
+                Map<String, Object> dateAnalysis = analyzeAllDateFields(transactionData);
+                analysis.put("date_field_analysis", dateAnalysis);
+            }
+            
+            // 4. Compare API vs Database
+            Map<String, Object> comparison = detailedComparison(payPropData, databaseData);
+            analysis.put("detailed_comparison", comparison);
+            
+            analysis.put("status", "SUCCESS");
+            return ResponseEntity.ok(analysis);
+            
+        } catch (Exception e) {
+            logger.error("❌ Transaction analysis failed: {}", e.getMessage(), e);
+            analysis.put("status", "ERROR");
+            analysis.put("error", e.getMessage());
+            return ResponseEntity.ok(analysis);
+        }
+    }
+
+    /**
+     * 🚀 TRIGGER EXISTING SYNC - Test your existing sync services
+     */
+    @PostMapping("/trigger-sync")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> triggerSync(
+            @RequestParam String syncType,
+            @RequestParam(required = false, defaultValue = "false") boolean dryRun,
+            Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            result.put("sync_type", syncType);
+            result.put("dry_run", dryRun);
+            result.put("started_at", LocalDateTime.now());
+            
+            Map<String, Object> syncResult;
+            
+            switch (syncType.toUpperCase()) {
+                case "COMPREHENSIVE_FINANCIAL":
+                    logger.info("🚀 Triggering comprehensive financial sync...");
+                    syncResult = payPropFinancialSyncService.syncComprehensiveFinancialData();
+                    break;
+                    
+                case "DUAL_FINANCIAL":
+                    logger.info("🚀 Triggering dual financial sync...");
+                    syncResult = payPropFinancialSyncService.syncDualFinancialData();
+                    break;
+                    
+                case "PROPERTIES_ONLY":
+                    logger.info("🚀 Triggering properties sync...");
+                    List<Map<String, Object>> properties = payPropSyncService.exportAllProperties();
+                    syncResult = Map.of(
+                        "properties_found", properties.size(),
+                        "status", "SUCCESS",
+                        "note", "Properties exported but not processed (dry run mode)"
+                    );
+                    break;
+                    
+                case "BENEFICIARIES_ONLY":
+                    logger.info("🚀 Triggering beneficiaries sync...");
+                    List<Map<String, Object>> beneficiaries = payPropSyncService.exportAllBeneficiaries();
+                    syncResult = Map.of(
+                        "beneficiaries_found", beneficiaries.size(),
+                        "status", "SUCCESS",
+                        "note", "Beneficiaries exported but not processed (dry run mode)"
+                    );
+                    break;
+                    
+                default:
+                    syncResult = Map.of(
+                        "status", "ERROR",
+                        "error", "Unknown sync type: " + syncType + ". Available: COMPREHENSIVE_FINANCIAL, DUAL_FINANCIAL, PROPERTIES_ONLY, BENEFICIARIES_ONLY"
+                    );
+            }
+            
+            result.put("sync_result", syncResult);
+            result.put("completed_at", LocalDateTime.now());
+            result.put("status", "SUCCESS");
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            logger.error("❌ Sync trigger failed: {}", e.getMessage(), e);
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
+            result.put("completed_at", LocalDateTime.now());
+            return ResponseEntity.ok(result);
+        }
+    }
+
+    /**
+     * 📋 ENDPOINT DISCOVERY - Test all available endpoints with current scopes
+     */
+    @PostMapping("/discover-endpoints")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> discoverEndpoints(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> discovery = new HashMap<>();
+        
+        try {
+            HttpHeaders headers = createAuthorizedHeadersSafe();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            // Test endpoints based on your known scopes
+            String[] testEndpoints = {
+                "/export/payments",
+                "/export/invoices", 
+                "/export/properties",
+                "/export/beneficiaries",
+                "/export/tenants",
+                "/report/all-payments",
+                "/report/icdn",
+                "/report/beneficiary/balances",
+                "/report/tenant/balances",
+                "/report/processing-summary",
+                "/report/agency/income",
+                "/meta/me",
+                "/payments/categories",
+                "/maintenance/tickets",
+                "/maintenance/categories"
+            };
+            
+            Map<String, Map<String, Object>> endpointResults = new HashMap<>();
+            int workingEndpoints = 0;
+            
+            for (String endpoint : testEndpoints) {
+                Map<String, Object> endpointResult = new HashMap<>();
+                
+                try {
+                    String testUrl = payPropApiBase + endpoint + "?rows=1&page=1";
+                    @SuppressWarnings("unchecked")
+                                    ResponseEntity<Map> response = restTemplate.exchange(testUrl, HttpMethod.GET, request, Map.class);
+                    
+                    endpointResult.put("status", "✅ WORKS");
+                    endpointResult.put("status_code", response.getStatusCode().value());
+                    endpointResult.put("has_data", response.getBody() != null);
+                    endpointResult.put("item_count", getItemCount(response.getBody()));
+                    endpointResult.put("response_keys", response.getBody() != null ? response.getBody().keySet() : Collections.emptySet());
+                    workingEndpoints++;
+                    
+                } catch (HttpClientErrorException e) {
+                    endpointResult.put("status", "❌ " + e.getStatusCode());
+                    endpointResult.put("error", e.getResponseBodyAsString());
+                    if (e.getStatusCode().value() == 403) {
+                        endpointResult.put("reason", "Insufficient OAuth scope");
+                    }
+                } catch (Exception e) {
+                    endpointResult.put("status", "❌ ERROR");
+                    endpointResult.put("error", e.getMessage());
+                }
+                
+                endpointResults.put(endpoint, endpointResult);
+            }
+            
+            discovery.put("endpoints_tested", testEndpoints.length);
+            discovery.put("working_endpoints", workingEndpoints);
+            discovery.put("success_rate", String.format("%.1f%%", (workingEndpoints * 100.0 / testEndpoints.length)));
+            discovery.put("endpoint_results", endpointResults);
+            
+            // Get current token info
+            PayPropTokens tokens = oAuth2Service.getCurrentTokens();
+            if (tokens != null) {
+                discovery.put("current_scopes", tokens.getScopes());
+                discovery.put("token_expires", tokens.getExpiresAt());
+            }
+            
+            discovery.put("status", "SUCCESS");
+            return ResponseEntity.ok(discovery);
+            
+        } catch (Exception e) {
+            logger.error("❌ Endpoint discovery failed: {}", e.getMessage(), e);
+            discovery.put("status", "ERROR");
+            discovery.put("error", e.getMessage());
+            return ResponseEntity.ok(discovery);
+        }
+    }
+
+    /**
+     * 🎯 SMART SEARCH - Multi-criteria search across PayProp and database
+     */
+    @PostMapping("/smart-search")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> smartSearch(
+            @RequestBody Map<String, Object> searchCriteria,
+            Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> searchResults = new HashMap<>();
+        
+        try {
+            // Extract search criteria
+            String amount = (String) searchCriteria.get("amount");
+            String fromDateStr = (String) searchCriteria.get("fromDate");
+            String toDateStr = (String) searchCriteria.get("toDate");
+            String propertyId = (String) searchCriteria.get("propertyId");
+            @SuppressWarnings("unused")
+            String beneficiaryName = (String) searchCriteria.get("beneficiaryName");
+            String batchId = (String) searchCriteria.get("batchId");
+            String endpoint = (String) searchCriteria.get("endpoint");
+            Boolean includeBeneficiaryInfo = (Boolean) searchCriteria.getOrDefault("includeBeneficiaryInfo", true);
+            
+            LocalDate fromDate = fromDateStr != null ? LocalDate.parse(fromDateStr) : LocalDate.now().minusDays(30);
+            LocalDate toDate = toDateStr != null ? LocalDate.parse(toDateStr) : LocalDate.now();
+            
+            searchResults.put("search_criteria", searchCriteria);
+            
+            HttpHeaders headers = createAuthorizedHeadersSafe();
+            
+            // If specific endpoint requested, test only that one
+            if (endpoint != null && !endpoint.trim().isEmpty()) {
+                Map<String, Object> specificResult = testSpecificEndpointWithCriteria(
+                    endpoint, fromDate, toDate, propertyId, batchId, amount, includeBeneficiaryInfo, headers);
+                searchResults.put("specific_endpoint_result", specificResult);
+            } else {
+                // Test all relevant endpoints
+                Map<String, Object> allEndpointResults = searchAllRelevantEndpoints(
+                    fromDate, toDate, propertyId, batchId, amount, includeBeneficiaryInfo, headers);
+                searchResults.put("all_endpoint_results", allEndpointResults);
+            }
+            
+            // Search local database with same criteria
+            Map<String, Object> databaseResults = searchDatabaseWithCriteria(searchCriteria);
+            searchResults.put("database_results", databaseResults);
+            
+            searchResults.put("status", "SUCCESS");
+            return ResponseEntity.ok(searchResults);
+            
+        } catch (Exception e) {
+            logger.error("❌ Smart search failed: {}", e.getMessage(), e);
+            searchResults.put("status", "ERROR");
+            searchResults.put("error", e.getMessage());
+            return ResponseEntity.ok(searchResults);
+        }
+    }
+
+    /**
+     * 📈 DATABASE VS API COMPARISON - Compare specific records
+     */
+    @PostMapping("/compare-specific-record")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> compareSpecificRecord(
+            @RequestParam String payPropTransactionId,
+            Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> comparison = new HashMap<>();
+        
+        try {
+            // 1. Find in database
+            FinancialTransaction dbTransaction = financialTransactionRepository
+                .findByPayPropTransactionId(payPropTransactionId);
+            
+            Map<String, Object> databaseRecord = new HashMap<>();
+            if (dbTransaction != null) {
+                databaseRecord.put("found", true);
+                databaseRecord.put("amount", dbTransaction.getAmount());
+                databaseRecord.put("transaction_date", dbTransaction.getTransactionDate());
+                databaseRecord.put("reconciliation_date", dbTransaction.getReconciliationDate());
+                databaseRecord.put("property_name", dbTransaction.getPropertyName());
+                databaseRecord.put("property_id", dbTransaction.getPropertyId());
+                databaseRecord.put("data_source", dbTransaction.getDataSource());
+                databaseRecord.put("transaction_type", dbTransaction.getTransactionType());
+                databaseRecord.put("batch_id", dbTransaction.getPayPropBatchId());
+                databaseRecord.put("created_at", dbTransaction.getCreatedAt());
+                databaseRecord.put("full_record", dbTransaction);
+            } else {
+                databaseRecord.put("found", false);
+                databaseRecord.put("message", "Transaction not found in database");
+            }
+            
+            // 2. Search in PayProp API (multiple endpoints)
+            Map<String, Object> apiSearch = findInMultiplePayPropEndpoints(payPropTransactionId);
+            
+            comparison.put("database_record", databaseRecord);
+            comparison.put("payprop_search", apiSearch);
+            
+            // 3. Field-by-field comparison if found in both
+            if (databaseRecord.containsKey("found") && (Boolean) databaseRecord.get("found") && 
+                apiSearch.containsKey("found") && (Boolean) apiSearch.get("found")) {
+                
+                @SuppressWarnings("unchecked")
+                Map<String, Object> apiTransactionData = (Map<String, Object>) apiSearch.get("transaction_data");
+                Map<String, Object> fieldComparison = compareTransactionFields(apiTransactionData, dbTransaction);
+                comparison.put("field_comparison", fieldComparison);
+            }
+            
+            comparison.put("status", "SUCCESS");
+            return ResponseEntity.ok(comparison);
+            
+        } catch (Exception e) {
+            logger.error("❌ Record comparison failed: {}", e.getMessage(), e);
+            comparison.put("status", "ERROR");
+            comparison.put("error", e.getMessage());
+            return ResponseEntity.ok(comparison);
+        }
+    }
+
+    /**
+     * ⚡ BATCH ANALYSIS - Analyze batch payments and groupings
+     */
+    @PostMapping("/analyze-batch")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> analyzeBatch(
+            @RequestParam(required = false) String batchId,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate toDate,
+            @RequestParam(required = false) String propertyId,
+            Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> batchAnalysis = new HashMap<>();
+        
+        try {
+            if (fromDate == null) fromDate = LocalDate.now().minusDays(30);
+            if (toDate == null) toDate = LocalDate.now();
+            
+            batchAnalysis.put("analysis_criteria", Map.of(
+                "batch_id", batchId != null ? batchId : "ALL",
+                "date_range", fromDate + " to " + toDate,
+                "property_id", propertyId != null ? propertyId : "ALL"
+            ));
+            
+            // 1. Search PayProp for batch data
+            Map<String, Object> payPropBatches = searchPayPropBatches(batchId, fromDate, toDate, propertyId);
+            batchAnalysis.put("payprop_batches", payPropBatches);
+            
+            // 2. Search database for batch data
+            Map<String, Object> databaseBatches = searchDatabaseBatches(batchId, fromDate, toDate, propertyId);
+            batchAnalysis.put("database_batches", databaseBatches);
+            
+            // 3. Compare batch integrity
+            Map<String, Object> batchIntegrity = analyzeBatchIntegrity(payPropBatches, databaseBatches);
+            batchAnalysis.put("batch_integrity", batchIntegrity);
+            
+            batchAnalysis.put("status", "SUCCESS");
+            return ResponseEntity.ok(batchAnalysis);
+            
+        } catch (Exception e) {
+            logger.error("❌ Batch analysis failed: {}", e.getMessage(), e);
+            batchAnalysis.put("status", "ERROR");
+            batchAnalysis.put("error", e.getMessage());
+            return ResponseEntity.ok(batchAnalysis);
+        }
+    }
+
+    /**
+     * 🔧 RAW API CALL - Make custom API calls with full control
+     */
+    @PostMapping("/raw-api-call")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> rawApiCall(
+            @RequestParam String endpoint,
+            @RequestParam(required = false) String method,
+            @RequestParam(required = false) String parameters,
+            Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            HttpMethod httpMethod = HttpMethod.valueOf(method != null ? method.toUpperCase() : "GET");
+            String fullUrl = payPropApiBase + (endpoint.startsWith("/") ? endpoint : "/" + endpoint);
+            
+            if (parameters != null && !parameters.trim().isEmpty()) {
+                fullUrl += (endpoint.contains("?") ? "&" : "?") + parameters;
+            }
+            
+            result.put("request_details", Map.of(
+                "method", httpMethod.toString(),
+                "full_url", fullUrl,
+                "endpoint", endpoint,
+                "parameters", parameters != null ? parameters : "None"
+            ));
+            
+            HttpHeaders headers = createAuthorizedHeadersSafe();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(fullUrl, httpMethod, request, Map.class);
+            
+            result.put("response", Map.of(
+                "status_code", response.getStatusCode().value(),
+                "headers", response.getHeaders(),
+                "body", response.getBody(),
+                "item_count", getItemCount(response.getBody())
+            ));
+            
+            result.put("status", "SUCCESS");
+            return ResponseEntity.ok(result);
+            
+        } catch (HttpClientErrorException e) {
+            logger.error("❌ Raw API call failed: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            result.put("status", "API_ERROR");
+            result.put("http_status", e.getStatusCode().value());
+            result.put("error_body", e.getResponseBodyAsString());
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            logger.error("❌ Raw API call failed: {}", e.getMessage(), e);
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
+            return ResponseEntity.ok(result);
+        }
+    }
+
+    /**
+     * 📊 SYNC STATUS DASHBOARD - Overall sync health and statistics
+     */
+    @GetMapping("/sync-dashboard")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getSyncDashboard(Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> dashboard = new HashMap<>();
+        
+        try {
+            // 1. OAuth Status
+            PayPropTokens tokens = oAuth2Service.getCurrentTokens();
+            dashboard.put("oauth_status", Map.of(
+                "has_tokens", tokens != null,
+                "is_valid", oAuth2Service.hasValidTokens(),
+                "expires_at", tokens != null ? tokens.getExpiresAt() : null,
+                "scopes", tokens != null ? tokens.getScopes() : null
+            ));
+            
+            // 2. Database Statistics
+            dashboard.put("database_stats", Map.of(
+                "total_properties", propertyRepository.count(),
+                "payprop_synced_properties", propertyRepository.findByPayPropIdIsNotNull().size(),
+                "total_beneficiaries", beneficiaryRepository.count(),
+                "payprop_synced_beneficiaries", beneficiaryRepository.findByPayPropBeneficiaryIdIsNotNull().size(),
+                "total_financial_transactions", financialTransactionRepository.count(),
+                "batch_payments", batchPaymentRepository.count(),
+                "payment_categories", paymentCategoryRepository.count()
+            ));
+            
+            // 3. Recent Sync Activity (if sync monitoring is available)
+            if (payPropSyncMonitoringService != null) {
+                try {
+                    PayPropSyncMonitoringService.RealTimeSyncReport syncReport = 
+                        payPropSyncMonitoringService.generateRealTimeSyncReport();
+                    dashboard.put("sync_monitoring", Map.of(
+                        "health_status", syncReport.getHealthStatus(),
+                        "realtime_sync_rate", syncReport.getRealtimeSyncRate(),
+                        "batch_fallback_rate", syncReport.getBatchFallbackRate(),
+                        "recent_updates", syncReport.getRecentTicketUpdates()
+                    ));
+                } catch (Exception e) {
+                    dashboard.put("sync_monitoring", Map.of("error", e.getMessage()));
+                }
+            }
+            
+            // 4. Financial Data Summary
+            LocalDate last30Days = LocalDate.now().minusDays(30);
+            List<FinancialTransaction> recentTransactions = financialTransactionRepository
+                .findByTransactionDateBetween(last30Days, LocalDate.now());
+            
+            Map<String, Long> transactionsByType = recentTransactions.stream()
+                .collect(Collectors.groupingBy(
+                    FinancialTransaction::getTransactionType,
+                    Collectors.counting()
+                ));
+            
+            Map<String, Long> transactionsBySource = recentTransactions.stream()
+                .collect(Collectors.groupingBy(
+                    FinancialTransaction::getDataSource,
+                    Collectors.counting()
+                ));
+            
+            dashboard.put("recent_financial_activity", Map.of(
+                "last_30_days_transactions", recentTransactions.size(),
+                "by_transaction_type", transactionsByType,
+                "by_data_source", transactionsBySource
+            ));
+            
+            dashboard.put("status", "SUCCESS");
+            dashboard.put("generated_at", LocalDateTime.now());
+            
+            return ResponseEntity.ok(dashboard);
+            
+        } catch (Exception e) {
+            logger.error("❌ Sync dashboard failed: {}", e.getMessage(), e);
+            dashboard.put("status", "ERROR");
+            dashboard.put("error", e.getMessage());
+            return ResponseEntity.ok(dashboard);
+        }
+    }
+
+    // ===== HELPER METHODS =====
+
+    /**
+     * Create authorized HTTP headers - SAFE VERSION
+     */
+    private HttpHeaders createAuthorizedHeadersSafe() {
+        try {
+            return oAuth2Service.createAuthorizedHeaders();
+        } catch (Exception e) {
+            logger.error("Failed to create authorized headers: {}", e.getMessage());
+            throw new RuntimeException("OAuth header creation error: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Find transaction in multiple PayProp endpoints - FIXED VERSION
+     */
+    private Map<String, Object> findTransactionInPayProp(String transactionId, String endpoint) {
+        Map<String, Object> searchResults = new HashMap<>();
+        
+        try {
+            HttpHeaders headers = createAuthorizedHeadersSafe();
+            
+            if (endpoint != null && !endpoint.trim().isEmpty()) {
+                // Search specific endpoint
+                searchResults = searchSpecificEndpointForTransaction(endpoint, transactionId, headers);
+            } else {
+                // Search all endpoints
+                String[] endpoints = {"/export/payments", "/report/all-payments", "/report/icdn", "/export/invoices"};
+                
+                for (String ep : endpoints) {
+                    try {
+                        Map<String, Object> result = searchSpecificEndpointForTransaction(ep, transactionId, headers);
+                        if (result.containsKey("found") && (Boolean) result.get("found")) {
+                            searchResults = result;
+                            searchResults.put("found_in_endpoint", ep);
+                            break;
+                        }
+                    } catch (Exception e) {
+                        logger.debug("Could not search endpoint {}: {}", ep, e.getMessage());
+                    }
+                }
+                
+                if (!searchResults.containsKey("found")) {
+                    searchResults.put("found", false);
+                    searchResults.put("searched_endpoints", Arrays.asList(endpoints));
+                }
+            }
+            
+            return searchResults;
+            
+        } catch (Exception e) {
+            logger.error("Error finding transaction in PayProp: {}", e.getMessage(), e);
+            searchResults.put("found", false);
+            searchResults.put("error", e.getMessage());
+            return searchResults;
+        }
+    }
+
+    /**
+     * Search specific endpoint for transaction
+     */
+    private Map<String, Object> searchSpecificEndpointForTransaction(String endpoint, String transactionId, HttpHeaders headers) {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            String url = payPropApiBase + endpoint + "?rows=1000&include_beneficiary_info=true";
+            
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+            
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> items = (List<Map<String, Object>>) response.getBody().get("items");
+            
+            for (Map<String, Object> item : items) {
+                if (transactionId.equals(item.get("id"))) {
+                    result.put("found", true);
+                    result.put("transaction_data", item);
+                    result.put("all_date_fields", extractAllDateFields(item));
+                    return result;
+                }
+            }
+            
+            result.put("found", false);
+            return result;
+            
+        } catch (Exception e) {
+            result.put("found", false);
+            result.put("error", e.getMessage());
+            return result;
+        }
+    }
+
+    /**
+     * Detailed comparison between API and database data - FIXED VERSION
+     */
+    private Map<String, Object> detailedComparison(Map<String, Object> payPropData, Map<String, Object> databaseData) {
+        Map<String, Object> comparison = new HashMap<>();
+        
+        try {
+            comparison.put("payprop_found", payPropData.containsKey("found") && (Boolean) payPropData.get("found"));
+            comparison.put("database_found", databaseData.containsKey("found") && (Boolean) databaseData.get("found"));
+            
+            if (comparison.get("payprop_found").equals(true) && comparison.get("database_found").equals(true)) {
+                // Both found - do detailed field comparison
+                @SuppressWarnings("unchecked")
+                Map<String, Object> apiTransactionData = (Map<String, Object>) payPropData.get("transaction_data");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> dbTransactionData = (Map<String, Object>) databaseData.get("transaction_data");
+                
+                comparison.put("field_comparison", compareTransactionFieldsDetailed(apiTransactionData, dbTransactionData));
+                comparison.put("sync_status", "BOTH_FOUND");
+                
+            } else if (comparison.get("payprop_found").equals(true)) {
+                comparison.put("sync_status", "MISSING_FROM_DATABASE");
+                comparison.put("recommendation", "Transaction exists in PayProp but not in database - sync needed");
+                
+            } else if (comparison.get("database_found").equals(true)) {
+                comparison.put("sync_status", "MISSING_FROM_PAYPROP");
+                comparison.put("recommendation", "Transaction exists in database but not in PayProp - data inconsistency");
+                
+            } else {
+                comparison.put("sync_status", "NOT_FOUND_ANYWHERE");
+                comparison.put("recommendation", "Transaction ID not found in either system");
+            }
+            
+            return comparison;
+            
+        } catch (Exception e) {
+            logger.error("Error in detailed comparison: {}", e.getMessage(), e);
+            comparison.put("error", e.getMessage());
+            return comparison;
+        }
+    }
+
+    /**
+     * Compare transaction fields in detail
+     */
+    private Map<String, Object> compareTransactionFieldsDetailed(Map<String, Object> apiData, Map<String, Object> dbData) {
+        Map<String, Object> fieldComparison = new HashMap<>();
+        
+        // Amount comparison
+        Object apiAmount = apiData.get("amount");
+        Object dbAmount = dbData.get("amount");
+        fieldComparison.put("amount", Map.of(
+            "api_value", apiAmount,
+            "database_value", dbAmount,
+            "matches", Objects.equals(apiAmount, dbAmount)
+        ));
+        
+        // Date comparison
+        Map<String, Object> apiDates = extractAllDateFields(apiData);
+        Object dbTransactionDate = dbData.get("transaction_date");
+        Object dbReconciliationDate = dbData.get("reconciliation_date");
+        
+        fieldComparison.put("dates", Map.of(
+            "api_dates", apiDates,
+            "database_transaction_date", dbTransactionDate,
+            "database_reconciliation_date", dbReconciliationDate
+        ));
+        
+        // Property comparison
+        @SuppressWarnings("unchecked")
+        Map<String, Object> apiProperty = (Map<String, Object>) apiData.get("property");
+        Object dbPropertyId = dbData.get("property_id");
+        Object dbPropertyName = dbData.get("property_name");
+        
+        fieldComparison.put("property", Map.of(
+            "api_property_id", apiProperty != null ? apiProperty.get("id") : null,
+            "api_property_name", apiProperty != null ? apiProperty.get("name") : null,
+            "database_property_id", dbPropertyId,
+            "database_property_name", dbPropertyName,
+            "property_id_matches", apiProperty != null && Objects.equals(apiProperty.get("id"), dbPropertyId)
+        ));
+        
+        return fieldComparison;
+    }
+
+    /**
+     * Search PayProp endpoints for transaction data
+     */
+    private Map<String, Object> searchPayPropEndpoints(String amount, LocalDate fromDate, LocalDate toDate, 
+            String propertyId, String beneficiaryName, String batchId, String transactionId) {
+        
+        Map<String, Object> results = new HashMap<>();
+        HttpHeaders headers = createAuthorizedHeadersSafe();
+        
+        try {
+            // Search in export/payments
+            Map<String, Object> exportPayments = searchInExportPayments(
+                amount, fromDate, toDate, propertyId, beneficiaryName, transactionId, headers);
+            results.put("export_payments", exportPayments);
+            
+            // Search in report/all-payments
+            Map<String, Object> reportPayments = searchInReportAllPayments(
+                amount, fromDate, toDate, propertyId, batchId, transactionId, headers);
+            results.put("report_all_payments", reportPayments);
+            
+            // Search in ICDN
+            Map<String, Object> icdnResults = searchInICDN(
+                amount, fromDate, toDate, propertyId, transactionId, headers);
+            results.put("report_icdn", icdnResults);
+            
+        } catch (Exception e) {
+            results.put("error", e.getMessage());
+        }
+        
+        return results;
+    }
+
+    /**
+     * Search in export/payments endpoint
+     */
+    private Map<String, Object> searchInExportPayments(String amount, LocalDate fromDate, LocalDate toDate,
+            String propertyId, String beneficiaryName, String transactionId, HttpHeaders headers) {
+        
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            StringBuilder url = new StringBuilder(payPropApiBase + "/export/payments?include_beneficiary_info=true&rows=100");
+            
+            if (propertyId != null && !propertyId.trim().isEmpty()) {
+                url.append("&property_id=").append(propertyId);
+            }
+            
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            ResponseEntity<Map> response = restTemplate.exchange(url.toString(), HttpMethod.GET, request, Map.class);
+            
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
+            List<Map<String, Object>> matches = new ArrayList<>();
+            
+            for (Map<String, Object> payment : payments) {
+                if (matchesSearchCriteria(payment, amount, fromDate, toDate, beneficiaryName, transactionId)) {
+                    // Add all date fields for analysis
+                    Map<String, Object> enrichedPayment = new HashMap<>(payment);
+                    enrichedPayment.put("all_date_fields", extractAllDateFields(payment));
+                    matches.add(enrichedPayment);
+                }
+            }
+            
+            result.put("endpoint", "/export/payments");
+            result.put("total_items_returned", payments.size());
+            result.put("matches_found", matches.size());
+            result.put("matching_payments", matches);
+            result.put("status", "SUCCESS");
+            
+        } catch (Exception e) {
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
+     * Search in report/all-payments endpoint
+     */
+    private Map<String, Object> searchInReportAllPayments(String amount, LocalDate fromDate, LocalDate toDate,
+            String propertyId, String batchId, String transactionId, HttpHeaders headers) {
+        
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            StringBuilder url = new StringBuilder(payPropApiBase + "/report/all-payments");
+            url.append("?from_date=").append(fromDate);
+            url.append("&to_date=").append(toDate);
+            url.append("&filter_by=reconciliation_date");
+            url.append("&include_beneficiary_info=true");
+            url.append("&rows=1000");
+            
+            if (propertyId != null && !propertyId.trim().isEmpty()) {
+                url.append("&property_id=").append(propertyId);
+            }
+            
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            ResponseEntity<Map> response = restTemplate.exchange(url.toString(), HttpMethod.GET, request, Map.class);
+            
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
+            List<Map<String, Object>> matches = new ArrayList<>();
+            
+            for (Map<String, Object> payment : payments) {
+                if (matchesSearchCriteria(payment, amount, fromDate, toDate, null, transactionId) ||
+                    matchesBatchCriteria(payment, batchId)) {
+                    
+                    Map<String, Object> enrichedPayment = new HashMap<>(payment);
+                    enrichedPayment.put("all_date_fields", extractAllDateFields(payment));
+                    enrichedPayment.put("batch_info", extractBatchInfo(payment));
+                    matches.add(enrichedPayment);
+                }
+            }
+            
+            result.put("endpoint", "/report/all-payments");
+            result.put("url_used", url.toString());
+            result.put("total_items_returned", payments.size());
+            result.put("matches_found", matches.size());
+            result.put("matching_payments", matches);
+            result.put("status", "SUCCESS");
+            
+        } catch (Exception e) {
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
+     * Search in ICDN endpoint
+     */
+    private Map<String, Object> searchInICDN(String amount, LocalDate fromDate, LocalDate toDate,
+            String propertyId, String transactionId, HttpHeaders headers) {
+        
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            StringBuilder url = new StringBuilder(payPropApiBase + "/report/icdn");
+            url.append("?from_date=").append(fromDate);
+            url.append("&to_date=").append(toDate);
+            url.append("&rows=1000");
+            
+            if (propertyId != null && !propertyId.trim().isEmpty()) {
+                url.append("&property_id=").append(propertyId);
+            }
+            
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            ResponseEntity<Map> response = restTemplate.exchange(url.toString(), HttpMethod.GET, request, Map.class);
+            
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> transactions = (List<Map<String, Object>>) response.getBody().get("items");
+            List<Map<String, Object>> matches = new ArrayList<>();
+            
+            for (Map<String, Object> transaction : transactions) {
+                if (matchesSearchCriteria(transaction, amount, fromDate, toDate, null, transactionId)) {
+                    Map<String, Object> enrichedTransaction = new HashMap<>(transaction);
+                    enrichedTransaction.put("all_date_fields", extractAllDateFields(transaction));
+                    matches.add(enrichedTransaction);
+                }
+            }
+            
+            result.put("endpoint", "/report/icdn");
+            result.put("url_used", url.toString());
+            result.put("total_items_returned", transactions.size());
+            result.put("matches_found", matches.size());
+            result.put("matching_transactions", matches);
+            result.put("status", "SUCCESS");
+            
+        } catch (Exception e) {
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
+     * Search local database with criteria
+     */
+    private Map<String, Object> searchLocalDatabase(String amount, LocalDate fromDate, LocalDate toDate,
+            String propertyId, String beneficiaryName, String batchId, String transactionId) {
+        
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            List<FinancialTransaction> transactions = financialTransactionRepository.findAll().stream()
+                .filter(t -> matchesDatabaseCriteria(t, amount, fromDate, toDate, propertyId, beneficiaryName, batchId, transactionId))
+                .collect(Collectors.toList());
+            
+            result.put("matches_found", transactions.size());
+            result.put("matching_transactions", transactions.stream()
+                .map(this::transactionToMap)
+                .collect(Collectors.toList()));
+            
+            // Group by data source
+            Map<String, Long> byDataSource = transactions.stream()
+                .collect(Collectors.groupingBy(FinancialTransaction::getDataSource, Collectors.counting()));
+            result.put("matches_by_data_source", byDataSource);
+            
+            result.put("status", "SUCCESS");
+            
+        } catch (Exception e) {
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
+     * Find transaction in database - FIXED VERSION
+     */
+    private Map<String, Object> findTransactionInDatabase(String transactionId) {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            FinancialTransaction transaction = financialTransactionRepository.findByPayPropTransactionId(transactionId);
+            
+            if (transaction != null) {
+                result.put("found", true);
+                result.put("transaction_data", transactionToMap(transaction));
+                result.put("database_dates", Map.of(
+                    "transaction_date", transaction.getTransactionDate(),
+                    "reconciliation_date", transaction.getReconciliationDate(),
+                    "created_at", transaction.getCreatedAt(),
+                    "updated_at", transaction.getUpdatedAt()
+                ));
+            } else {
+                result.put("found", false);
+                result.put("message", "Transaction not found in database");
+            }
+            
+        } catch (Exception e) {
+            result.put("found", false);
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
+     * Find in multiple PayProp endpoints
+     */
+    private Map<String, Object> findInMultiplePayPropEndpoints(String transactionId) {
+        Map<String, Object> searchResults = new HashMap<>();
+        
+        HttpHeaders headers = createAuthorizedHeadersSafe();
+        String[] endpoints = {"/export/payments", "/report/all-payments", "/report/icdn", "/export/invoices"};
+        
+        for (String endpoint : endpoints) {
+            try {
+                String url = payPropApiBase + endpoint + "?rows=1000&include_beneficiary_info=true";
+                
+                HttpEntity<String> request = new HttpEntity<>(headers);
+                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+                
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> items = (List<Map<String, Object>>) response.getBody().get("items");
+                
+                for (Map<String, Object> item : items) {
+                    if (transactionId.equals(item.get("id"))) {
+                        searchResults.put("found", true);
+                        searchResults.put("found_in_endpoint", endpoint);
+                        searchResults.put("transaction_data", item);
+                        searchResults.put("all_date_fields", extractAllDateFields(item));
+                        return searchResults;
+                    }
+                }
+                
+            } catch (Exception e) {
+                logger.debug("Could not search endpoint {}: {}", endpoint, e.getMessage());
+            }
+        }
+        
+        searchResults.put("found", false);
+        searchResults.put("searched_endpoints", Arrays.asList(endpoints));
+        return searchResults;
+    }
+
+    /**
+     * Test single endpoint with parameters
+     */
+    private Map<String, Object> testSingleEndpoint(String endpoint, LocalDate fromDate, LocalDate toDate,
+            String propertyId, String filterBy, int maxRows, HttpHeaders headers) {
+        
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            StringBuilder url = new StringBuilder(payPropApiBase + endpoint);
             List<String> params = new ArrayList<>();
             
-            String propertyId = (String) request.get("propertyId");
+            // Add date parameters based on endpoint
+            if (endpoint.contains("/report/")) {
+                params.add("from_date=" + fromDate);
+                params.add("to_date=" + toDate);
+            }
+            
+            if (filterBy != null) {
+                params.add("filter_by=" + filterBy);
+            }
+            
             if (propertyId != null && !propertyId.trim().isEmpty()) {
                 params.add("property_id=" + propertyId);
             }
             
-            Boolean includeBeneficiaryInfo = (Boolean) request.getOrDefault("includeBeneficiaryInfo", true);
+            params.add("rows=" + maxRows);
+            params.add("include_beneficiary_info=true");
+            
+            if (!params.isEmpty()) {
+                url.append("?").append(String.join("&", params));
+            }
+            
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            ResponseEntity<Map> response = restTemplate.exchange(url.toString(), HttpMethod.GET, request, Map.class);
+            
+            result.put("status", "SUCCESS");
+            result.put("url", url.toString());
+            result.put("status_code", response.getStatusCode().value());
+            result.put("item_count", getItemCount(response.getBody()));
+            result.put("response_body", response.getBody());
+            
+        } catch (HttpClientErrorException e) {
+            result.put("status", "HTTP_ERROR");
+            result.put("status_code", e.getStatusCode().value());
+            result.put("error", e.getResponseBodyAsString());
+        } catch (Exception e) {
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
+     * Test all relevant endpoints
+     */
+    private Map<String, Object> searchAllRelevantEndpoints(LocalDate fromDate, LocalDate toDate, String propertyId,
+            String batchId, String amount, Boolean includeBeneficiaryInfo, HttpHeaders headers) {
+        
+        Map<String, Object> results = new HashMap<>();
+        
+        String[] endpoints = {
+            "/export/payments",
+            "/report/all-payments", 
+            "/report/icdn",
+            "/export/invoices"
+        };
+        
+        for (String endpoint : endpoints) {
+            Map<String, Object> endpointResult = testSpecificEndpointWithCriteria(
+                endpoint, fromDate, toDate, propertyId, batchId, amount, includeBeneficiaryInfo, headers);
+            results.put(endpoint.replace("/", "_"), endpointResult);
+        }
+        
+        return results;
+    }
+
+    /**
+     * Test specific endpoint with search criteria
+     */
+    private Map<String, Object> testSpecificEndpointWithCriteria(String endpoint, LocalDate fromDate, LocalDate toDate,
+            String propertyId, String batchId, String amount, Boolean includeBeneficiaryInfo, HttpHeaders headers) {
+        
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            StringBuilder url = new StringBuilder(payPropApiBase + endpoint);
+            List<String> params = new ArrayList<>();
+            
+            // Handle different endpoint patterns
+            if (endpoint.startsWith("/report/")) {
+                params.add("from_date=" + fromDate);
+                params.add("to_date=" + toDate);
+                if (endpoint.contains("/all-payments")) {
+                    params.add("filter_by=reconciliation_date");
+                }
+            }
+            
+            if (propertyId != null && !propertyId.trim().isEmpty()) {
+                params.add("property_id=" + propertyId);
+            }
+            
             if (includeBeneficiaryInfo) {
                 params.add("include_beneficiary_info=true");
             }
             
-            params.add("rows=10"); // Limit for testing
+            params.add("rows=1000");
             
             if (!params.isEmpty()) {
-                urlBuilder.append("?").append(String.join("&", params));
+                url.append("?").append(String.join("&", params));
             }
             
-            String url = urlBuilder.toString();
-            log.info("🔍 Testing export payments: {}", url);
-            
-            ResponseEntity<Map> apiResponse = restTemplate.exchange(
-                url, HttpMethod.GET, httpRequest, Map.class);
-            
-            if (apiResponse.getStatusCode().is2xxSuccessful() && apiResponse.getBody() != null) {
-                Map<String, Object> paymentsData = apiResponse.getBody();
-                List<Map<String, Object>> items = (List<Map<String, Object>>) paymentsData.get("items");
-                
-                response.put("success", true);
-                response.put("url", url);
-                response.put("total_items", items != null ? items.size() : 0);
-                response.put("response", paymentsData);
-                
-                // Analyze the payment data structure
-                if (items != null && !items.isEmpty()) {
-                    Map<String, Object> samplePayment = items.get(0);
-                    Set<String> fields = samplePayment.keySet();
-                    
-                    response.put("sample_payment_fields", fields);
-                    response.put("sample_payment", samplePayment);
-                    
-                    // Check for key fields we need
-                    Map<String, Object> fieldAnalysis = new HashMap<>();
-                    fieldAnalysis.put("has_id", samplePayment.containsKey("id"));
-                    fieldAnalysis.put("has_amount", samplePayment.containsKey("amount"));
-                    fieldAnalysis.put("has_payment_date", samplePayment.containsKey("payment_date"));
-                    fieldAnalysis.put("has_batch_id", samplePayment.containsKey("batch_id"));
-                    fieldAnalysis.put("has_reconciliation_date", samplePayment.containsKey("reconciliation_date"));
-                    fieldAnalysis.put("has_beneficiary_info", samplePayment.containsKey("beneficiary_info"));
-                    fieldAnalysis.put("has_property", samplePayment.containsKey("property"));
-                    fieldAnalysis.put("has_property_id", samplePayment.containsKey("property_id"));
-                    fieldAnalysis.put("has_category", samplePayment.containsKey("category"));
-                    fieldAnalysis.put("has_status", samplePayment.containsKey("status"));
-                    
-                    response.put("field_analysis", fieldAnalysis);
-                    
-                    log.info("✅ Export payments data retrieved:");
-                    log.info("   Total items: {}", items.size());
-                    log.info("   Sample payment ID: {}", samplePayment.get("id"));
-                    log.info("   Available fields: {}", fields);
-                    log.info("   Field analysis: {}", fieldAnalysis);
-                } else {
-                    log.warn("⚠️ No payment items found in export/payments response");
-                }
-                
-                return ResponseEntity.ok(response);
-            } else {
-                response.put("success", false);
-                response.put("message", "Failed to retrieve payments data");
-                response.put("status", apiResponse.getStatusCode().value());
-                return ResponseEntity.ok(response);
-            }
-            
-        } catch (HttpClientErrorException e) {
-            log.error("❌ PayProp API error for export payments: {} - {}", 
-                e.getStatusCode(), e.getResponseBodyAsString());
-            
-            response.put("success", false);
-            response.put("message", "PayProp API error");
-            response.put("status", e.getStatusCode().value());
-            response.put("error", e.getResponseBodyAsString());
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            log.error("❌ Error testing export payments: {}", e.getMessage(), e);
-            response.put("success", false);
-            response.put("message", "Error: " + e.getMessage());
-            return ResponseEntity.ok(response);
-        }
-    }
-
-    @PostMapping("/test-all-payments-report")
-    public ResponseEntity<Map<String, Object>> testAllPaymentsReport() {
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
+            ResponseEntity<Map> response = restTemplate.exchange(url.toString(), HttpMethod.GET, request, Map.class);
             
-            // Get last 30 days of actual payments
-            LocalDate endDate = LocalDate.now();
-            LocalDate startDate = endDate.minusDays(30);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> items = (List<Map<String, Object>>) response.getBody().get("items");
+            List<Map<String, Object>> matches = new ArrayList<>();
             
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
-                "?from_date=" + startDate +
-                "&to_date=" + endDate +
-                "&filter_by=reconciliation_date";
+            // Filter results based on criteria
+            for (Map<String, Object> item : items) {
+                if (matchesAdvancedCriteria(item, amount, batchId)) {
+                    Map<String, Object> enrichedItem = new HashMap<>(item);
+                    enrichedItem.put("all_date_fields", extractAllDateFields(item));
+                    enrichedItem.put("batch_info", extractBatchInfo(item));
+                    matches.add(enrichedItem);
+                }
+            }
             
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("url", url);
-            result.put("response", response.getBody());
-            
-            return ResponseEntity.ok(result);
-            
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    @PostMapping("/test-property-payments")
-    public ResponseEntity<Map<String, Object>> testPropertyPayments(@RequestBody Map<String, String> request) {
-        try {
-            String propertyId = request.get("propertyId");
-            
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> httpRequest = new HttpEntity<>(headers);
-            
-            // Get last 90 days of payments for this property
-            LocalDate endDate = LocalDate.now();
-            LocalDate startDate = endDate.minusDays(90);
-            
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/payments" +
-                "?property_id=" + propertyId +
-                "&from_date=" + startDate +
-                "&to_date=" + endDate +
-                "&include_beneficiary_info=true" +
-                "&rows=100";
-            
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, httpRequest, Map.class);
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("url", url);
-            result.put("property_id", propertyId);
-            result.put("response", response.getBody());
-            
-            return ResponseEntity.ok(result);
+            result.put("endpoint", endpoint);
+            result.put("url_used", url.toString());
+            result.put("total_items", items.size());
+            result.put("matches_found", matches.size());
+            result.put("matching_items", matches);
+            result.put("status", "SUCCESS");
             
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
         }
+        
+        return result;
     }
 
     /**
-     * Add this to PayPropOAuth2Controller.java to test batch payments
-     * No database dependencies needed for this test
+     * Search database with comprehensive criteria
      */
-    @PostMapping("/test-batch-payments-api-only")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testBatchPaymentsApiOnly(Authentication authentication) {
-        
-        Map<String, Object> response = new HashMap<>();
-        
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            response.put("success", false);
-            response.put("message", "Access denied");
-            return ResponseEntity.status(403).body(response);
-        }
-
-        try {
-            if (!oAuth2Service.hasValidTokens()) {
-                response.put("success", false);
-                response.put("message", "PayProp not authorized");
-                return ResponseEntity.ok(response);
-            }
-
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            
-            // Test with last 30 days
-            LocalDate fromDate = LocalDate.now().minusDays(30);
-            LocalDate toDate = LocalDate.now();
-            
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
-                "?from_date=" + fromDate +
-                "&to_date=" + toDate +
-                "&filter_by=reconciliation_date" +
-                "&include_beneficiary_info=true" +
-                "&rows=5";
-            
-            log.info("🔍 Testing: {}", url);
-            
-            ResponseEntity<Map> apiResponse = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-            
-            if (apiResponse.getStatusCode().is2xxSuccessful() && apiResponse.getBody() != null) {
-                Map<String, Object> responseBody = apiResponse.getBody();
-                List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
-                
-                response.put("success", true);
-                response.put("total_items", payments != null ? payments.size() : 0);
-                response.put("date_range", fromDate + " to " + toDate);
-                response.put("response_keys", responseBody.keySet());
-                
-                if (payments != null && !payments.isEmpty()) {
-                    // Check first payment for batch structure
-                    Map<String, Object> firstPayment = payments.get(0);
-                    log.info("📊 First payment keys: {}", firstPayment.keySet());
-                    
-                    Object paymentBatch = firstPayment.get("payment_batch");
-                    response.put("has_payment_batch_field", paymentBatch != null);
-                    response.put("payment_batch_type", paymentBatch != null ? paymentBatch.getClass().getSimpleName() : "null");
-                    
-                    if (paymentBatch instanceof Map) {
-                        Map<String, Object> batchMap = (Map<String, Object>) paymentBatch;
-                        response.put("batch_keys", batchMap.keySet());
-                        response.put("batch_id", batchMap.get("id"));
-                        response.put("batch_sample", batchMap);
-                        
-                        log.info("✅ Found batch data: ID={}, Keys={}", batchMap.get("id"), batchMap.keySet());
-                    } else {
-                        log.warn("⚠️ payment_batch is not a Map: {}", paymentBatch);
-                    }
-                    
-                    response.put("sample_payment", firstPayment);
-                    
-                } else {
-                    response.put("message", "No payments found in date range");
-                    
-                    // Try longer date range
-                    LocalDate longerFromDate = LocalDate.now().minusDays(90);
-                    String longerUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
-                        "?from_date=" + longerFromDate +
-                        "&to_date=" + toDate +
-                        "&filter_by=reconciliation_date" +
-                        "&rows=1";
-                    
-                    try {
-                        ResponseEntity<Map> longerResponse = restTemplate.exchange(longerUrl, HttpMethod.GET, request, Map.class);
-                        List<Map<String, Object>> longerPayments = (List<Map<String, Object>>) longerResponse.getBody().get("items");
-                        response.put("longer_range_count", longerPayments != null ? longerPayments.size() : 0);
-                        response.put("longer_range", longerFromDate + " to " + toDate);
-                        
-                        if (longerPayments != null && !longerPayments.isEmpty()) {
-                            Map<String, Object> longerSample = longerPayments.get(0);
-                            Object longerBatch = longerSample.get("payment_batch");
-                            response.put("longer_range_has_batch", longerBatch != null);
-                            
-                            if (longerBatch instanceof Map) {
-                                Map<String, Object> longerBatchMap = (Map<String, Object>) longerBatch;
-                                response.put("longer_range_batch_sample", longerBatchMap);
-                            }
-                        }
-                        
-                    } catch (Exception e) {
-                        response.put("longer_range_error", e.getMessage());
-                    }
-                }
-                
-            } else {
-                response.put("success", false);
-                response.put("http_status", apiResponse.getStatusCode().value());
-                response.put("message", "API call failed");
-            }
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (HttpClientErrorException e) {
-            log.error("❌ PayProp API error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            response.put("success", false);
-            response.put("api_error", e.getResponseBodyAsString());
-            response.put("status_code", e.getStatusCode().value());
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            log.error("❌ Batch test failed: {}", e.getMessage(), e);
-            response.put("success", false);
-            response.put("error", e.getMessage());
-            return ResponseEntity.ok(response);
-        }
-    }
-    /**
-     * Add this to PayPropOAuth2Controller.java to test batch payments
-     */
-    @PostMapping("/test-simple-batch-payments")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testSimpleBatchPayments(Authentication authentication) {
-        
-        Map<String, Object> response = new HashMap<>();
-        
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            response.put("success", false);
-            response.put("message", "Access denied");
-            return ResponseEntity.status(403).body(response);
-        }
-
-        try {
-            if (!oAuth2Service.hasValidTokens()) {
-                response.put("success", false);
-                response.put("message", "PayProp not authorized");
-                return ResponseEntity.ok(response);
-            }
-
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            
-            // Test with last 30 days
-            LocalDate fromDate = LocalDate.now().minusDays(30);
-            LocalDate toDate = LocalDate.now();
-            
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
-                "?from_date=" + fromDate +
-                "&to_date=" + toDate +
-                "&filter_by=reconciliation_date" +
-                "&include_beneficiary_info=true" +
-                "&rows=5";
-            
-            log.info("🔍 Testing: {}", url);
-            
-            ResponseEntity<Map> apiResponse = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-            
-            if (apiResponse.getStatusCode().is2xxSuccessful() && apiResponse.getBody() != null) {
-                Map<String, Object> responseBody = apiResponse.getBody();
-                List<Map<String, Object>> payments = (List<Map<String, Object>>) responseBody.get("items");
-                
-                response.put("success", true);
-                response.put("total_items", payments != null ? payments.size() : 0);
-                response.put("date_range", fromDate + " to " + toDate);
-                
-                if (payments != null && !payments.isEmpty()) {
-                    // Check first payment for batch structure
-                    Map<String, Object> firstPayment = payments.get(0);
-                    log.info("📊 First payment keys: {}", firstPayment.keySet());
-                    
-                    Object paymentBatch = firstPayment.get("payment_batch");
-                    response.put("has_payment_batch_field", paymentBatch != null);
-                    response.put("payment_batch_type", paymentBatch != null ? paymentBatch.getClass().getSimpleName() : "null");
-                    
-                    if (paymentBatch instanceof Map) {
-                        Map<String, Object> batchMap = (Map<String, Object>) paymentBatch;
-                        response.put("batch_keys", batchMap.keySet());
-                        response.put("batch_id", batchMap.get("id"));
-                        response.put("batch_sample", batchMap);
-                    }
-                    
-                    response.put("sample_payment", firstPayment);
-                    
-                    // Check database
-                    long currentBatchCount = batchPaymentRepository.count();
-                    response.put("current_db_batch_count", currentBatchCount);
-                    
-                } else {
-                    response.put("message", "No payments found in date range");
-                    
-                    // Try longer date range
-                    LocalDate longerFromDate = LocalDate.now().minusDays(90);
-                    String longerUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
-                        "?from_date=" + longerFromDate +
-                        "&to_date=" + toDate +
-                        "&filter_by=reconciliation_date" +
-                        "&rows=1";
-                    
-                    try {
-                        ResponseEntity<Map> longerResponse = restTemplate.exchange(longerUrl, HttpMethod.GET, request, Map.class);
-                        List<Map<String, Object>> longerPayments = (List<Map<String, Object>>) longerResponse.getBody().get("items");
-                        response.put("longer_range_count", longerPayments != null ? longerPayments.size() : 0);
-                        response.put("longer_range", longerFromDate + " to " + toDate);
-                    } catch (Exception e) {
-                        response.put("longer_range_error", e.getMessage());
-                    }
-                }
-                
-            } else {
-                response.put("success", false);
-                response.put("http_status", apiResponse.getStatusCode().value());
-            }
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            log.error("❌ Batch test failed: {}", e.getMessage(), e);
-            response.put("success", false);
-            response.put("error", e.getMessage());
-            return ResponseEntity.ok(response);
-        }
-    }
-
-    @PostMapping("/test-commission-data-sources")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testCommissionDataSources(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        Map<String, Object> results = new HashMap<>();
-        
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
-            
-            // Test 1: Properties with commission data
-            String propertiesUrl = baseUrl + "/export/properties?include_commission=true&rows=3";
-            ResponseEntity<Map> propertiesResponse = restTemplate.exchange(propertiesUrl, HttpMethod.GET, request, Map.class);
-            List<Map<String, Object>> properties = (List<Map<String, Object>>) propertiesResponse.getBody().get("items");
-            
-            results.put("properties_commission", Map.of(
-                "count", properties.size(),
-                "sample_property", properties.isEmpty() ? "No data" : properties.get(0),
-                "commission_fields_found", properties.isEmpty() ? "No data" : 
-                    properties.get(0).keySet().stream()
-                        .filter(key -> key.toString().toLowerCase().contains("commission"))
-                        .collect(Collectors.toList())
-            ));
-            
-            // Test 2: All-payments report (check for commission fields)
-            LocalDate fromDate = LocalDate.now().minusMonths(1);
-            String paymentsUrl = baseUrl + "/report/all-payments?from_date=" + fromDate + "&rows=3&include_beneficiary_info=true";
-            ResponseEntity<Map> paymentsResponse = restTemplate.exchange(paymentsUrl, HttpMethod.GET, request, Map.class);
-            List<Map<String, Object>> payments = (List<Map<String, Object>>) paymentsResponse.getBody().get("items");
-            
-            results.put("all_payments_commission", Map.of(
-                "count", payments.size(),
-                "sample_payment", payments.isEmpty() ? "No data" : payments.get(0),
-                "commission_fields_found", payments.isEmpty() ? "No data" :
-                    payments.get(0).keySet().stream()
-                        .filter(key -> key.toString().toLowerCase().contains("commission"))
-                        .collect(Collectors.toList())
-            ));
-            
-            // Test 3: ICDN report (check for commission fields)
-            String icdnUrl = baseUrl + "/report/icdn?from_date=" + fromDate + "&rows=3";
-            ResponseEntity<Map> icdnResponse = restTemplate.exchange(icdnUrl, HttpMethod.GET, request, Map.class);
-            List<Map<String, Object>> transactions = (List<Map<String, Object>>) icdnResponse.getBody().get("items");
-            
-            results.put("icdn_commission", Map.of(
-                "count", transactions.size(),
-                "sample_transaction", transactions.isEmpty() ? "No data" : transactions.get(0),
-                "commission_fields_found", transactions.isEmpty() ? "No data" :
-                    transactions.get(0).keySet().stream()
-                        .filter(key -> key.toString().toLowerCase().contains("commission"))
-                        .collect(Collectors.toList())
-            ));
-            
-            return ResponseEntity.ok(results);
-            
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    /**
-     * Test available payment endpoints with current scopes
-     */
-    @PostMapping("/test-available-payment-endpoints")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testAvailablePaymentEndpoints(Authentication authentication) {
-        Map<String, Object> response = new HashMap<>();
-        
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            response.put("success", false);
-            response.put("message", "Access denied");
-            return ResponseEntity.status(403).body(response);
-        }
-
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            
-            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
-            Map<String, Object> results = new HashMap<>();
-            
-            // Test different payment-related endpoints
-            String[] endpoints = {
-                "/export/payments",
-                "/export/invoices", 
-                "/report/icdn",
-                "/report/tenant/balances",
-                "/report/processing-summary",
-                "/export/invoice-instructions"
-            };
-            
-            for (String endpoint : endpoints) {
-                try {
-                    ResponseEntity<Map> apiResponse = restTemplate.exchange(
-                        baseUrl + endpoint + "?page=1&rows=5", 
-                        HttpMethod.GET, request, Map.class);
-                    
-                    results.put(endpoint, Map.of(
-                        "status", "✅ WORKS",
-                        "statusCode", apiResponse.getStatusCode().value(),
-                        "hasData", apiResponse.getBody() != null,
-                        "itemCount", getItemCount(apiResponse.getBody())
-                    ));
-                } catch (HttpClientErrorException e) {
-                    results.put(endpoint, Map.of(
-                        "status", "❌ " + e.getStatusCode(),
-                        "error", e.getResponseBodyAsString()
-                    ));
-                } catch (Exception e) {
-                    results.put(endpoint, Map.of(
-                        "status", "❌ ERROR", 
-                        "error", e.getMessage()
-                    ));
-                }
-            }
-            
-            response.put("success", true);
-            response.put("endpointTests", results);
-            response.put("message", "Endpoint availability test completed");
-            
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "Error: " + e.getMessage());
-        }
-        
-        return ResponseEntity.ok(response);
-    }
-
-    @PostMapping("/test-sync-single-property-exact-match")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testSyncSinglePropertyExactMatch(
-            @RequestBody Map<String, String> requestBody,  // FIXED: Renamed to avoid conflict
-            Authentication authentication) {
-        
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
+    private Map<String, Object> searchDatabaseWithCriteria(Map<String, Object> searchCriteria) {
         Map<String, Object> result = new HashMap<>();
         
         try {
-            String propertyId = requestBody.getOrDefault("propertyId", "K3Jwqg8W1E");
-            String fromDate = requestBody.getOrDefault("fromDate", "2025-04-01");
-            String toDate = requestBody.getOrDefault("toDate", "2025-07-01");
+            String amount = (String) searchCriteria.get("amount");
+            String fromDateStr = (String) searchCriteria.get("fromDate");
+            String toDateStr = (String) searchCriteria.get("toDate");
+            String propertyId = (String) searchCriteria.get("propertyId");
+            String batchId = (String) searchCriteria.get("batchId");
+            String transactionId = (String) searchCriteria.get("transactionId");
+            String beneficiaryName = (String) searchCriteria.get("beneficiaryName");
             
-            log.info("🔍 EXACT MATCH TEST: Syncing batch payments for property {} ({} to {})", propertyId, fromDate, toDate);
+            LocalDate fromDate = fromDateStr != null ? LocalDate.parse(fromDateStr) : LocalDate.now().minusDays(30);
+            LocalDate toDate = toDateStr != null ? LocalDate.parse(toDateStr) : LocalDate.now();
             
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> httpRequest = new HttpEntity<>(headers);  // FIXED: Renamed to httpRequest
+            List<FinancialTransaction> allTransactions = financialTransactionRepository.findAll();
+            List<FinancialTransaction> matches = allTransactions.stream()
+                .filter(t -> matchesDatabaseCriteria(t, amount, fromDate, toDate, propertyId, beneficiaryName, batchId, transactionId))
+                .collect(Collectors.toList());
             
-            // EXACT SAME URL as your production code
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
-                "?from_date=" + fromDate +
-                "&to_date=" + toDate +
-                "&filter_by=reconciliation_date" +
-                "&include_beneficiary_info=true" +
-                "&rows=1000";
+            // Group by data source
+            Map<String, Long> byDataSource = matches.stream()
+                .collect(Collectors.groupingBy(FinancialTransaction::getDataSource, Collectors.counting()));
             
-            if (!propertyId.equals("ALL")) {
-                url += "&property_id=" + propertyId;
-            }
+            // Group by transaction type
+            Map<String, Long> byTransactionType = matches.stream()
+                .collect(Collectors.groupingBy(FinancialTransaction::getTransactionType, Collectors.counting()));
             
-            log.info("📞 EXACT API URL: {}", url);
-            
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, httpRequest, Map.class);
-            List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
-            
-            log.info("📈 EXACT API RESULT: Found {} payments from {} to {}", payments.size(), fromDate, toDate);
-            
-            result.put("api_response", Map.of(
-                "url", url,
-                "payments_found", payments.size(),
-                "status_code", response.getStatusCode().value()
-            ));
-            
-            if (payments.isEmpty()) {
-                result.put("conclusion", "NO PAYMENTS FOUND - This explains why no BATCH_PAYMENT records exist");
-                return ResponseEntity.ok(result);
-            }
-            
-            // Process payments EXACTLY like your production code
-            Set<String> processedBatches = new HashSet<>();
-            List<Map<String, Object>> processingResults = new ArrayList<>();
-            int created = 0, updated = 0, batchesProcessed = 0;
-            
-            for (Map<String, Object> paymentData : payments) {
-                Map<String, Object> processingResult = new HashMap<>();
-                
-                try {
-                    // EXACT SAME batch processing logic
-                    Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
-                    if (paymentBatch != null) {
-                        String batchId = (String) paymentBatch.get("id");
-                        processingResult.put("batch_id", batchId);
-                        
-                        if (batchId != null && !processedBatches.contains(batchId)) {
-                            processedBatches.add(batchId);
-                            batchesProcessed++;
-                            log.info("✅ EXACT BATCH PROCESSING: {} (£{})", batchId, paymentBatch.get("amount"));
-                        }
-                    }
-                    
-                    // EXACT SAME transaction creation logic
-                    String transactionId = (String) paymentData.get("id");
-                    processingResult.put("transaction_id", transactionId);
-                    processingResult.put("amount", paymentData.get("amount"));
-                    
-                    // Check if exists EXACTLY like production
-                    boolean exists = financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(
-                        transactionId, "BATCH_PAYMENT");
-                    processingResult.put("already_exists", exists);
-                    
-                    if (exists) {
-                        processingResult.put("status", "UPDATED (already exists)");
-                        updated++;
-                    } else {
-                        // FIXED: Create transaction using simple logic since method is private
-                        FinancialTransaction transaction = createSimpleTestTransaction(paymentData);
-                        
-                        if (transaction != null) {
-                            // Add batch ID EXACTLY like production
-                            if (paymentBatch != null) {
-                                transaction.setPayPropBatchId((String) paymentBatch.get("id"));
-                            }
-                            
-                            // DON'T ACTUALLY SAVE - just show what would happen
-                            processingResult.put("status", "WOULD CREATE");
-                            processingResult.put("transaction_type", transaction.getTransactionType());
-                            processingResult.put("data_source", transaction.getDataSource());
-                            processingResult.put("final_amount", transaction.getAmount());
-                            processingResult.put("final_property_name", transaction.getPropertyName());
-                            processingResult.put("final_batch_id", transaction.getPayPropBatchId());
-                            created++;
-                            
-                            log.info("✅ EXACT TRANSACTION CREATION: {} (£{})", transactionId, transaction.getAmount());
-                        } else {
-                            processingResult.put("status", "FAILED - createSimpleTestTransaction returned null");
-                            log.error("❌ EXACT TRANSACTION FAILED: createSimpleTestTransaction returned null for {}", transactionId);
-                        }
-                    }
-                    
-                } catch (Exception e) {
-                    processingResult.put("status", "ERROR");
-                    processingResult.put("error", e.getMessage());
-                    log.error("❌ EXACT PROCESSING ERROR: {}", e.getMessage());
-                }
-                
-                processingResults.add(processingResult);
-            }
-            
-            result.put("processing_summary", Map.of(
-                "payments_processed", payments.size(),
-                "would_create", created,
-                "would_update", updated,
-                "batches_found", batchesProcessed,
-                "unique_batches", processedBatches.size()
-            ));
-            
-            result.put("detailed_processing", processingResults);
-            result.put("sample_payment_data", payments.get(0));
-            
-            log.info("💰 EXACT MATCH TEST COMPLETED: {} payments, {} would create, {} would update, {} batches", 
-                payments.size(), created, updated, batchesProcessed);
-            
-            return ResponseEntity.ok(result);
+            result.put("total_matches", matches.size());
+            result.put("matches_by_data_source", byDataSource);
+            result.put("matches_by_transaction_type", byTransactionType);
+            result.put("matching_transactions", matches.stream()
+                .limit(50) // Limit to prevent huge responses
+                .map(this::transactionToMap)
+                .collect(Collectors.toList()));
+            result.put("status", "SUCCESS");
             
         } catch (Exception e) {
-            log.error("❌ EXACT MATCH TEST FAILED: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    // FIXED: Simple transaction creation method (since the service method is private)
-    private FinancialTransaction createSimpleTestTransaction(Map<String, Object> paymentData) {
-        try {
-            FinancialTransaction transaction = new FinancialTransaction();
-            
-            String paymentId = (String) paymentData.get("id");
-            if (paymentId == null) return null;
-            
-            transaction.setPayPropTransactionId(paymentId);
-            transaction.setDataSource("BATCH_PAYMENT");
-            transaction.setIsActualTransaction(true);
-            
-            // Amount
-            Object amountObj = paymentData.get("amount");
-            if (amountObj != null) {
-                transaction.setAmount(new BigDecimal(amountObj.toString()));
-            } else {
-                return null;
-            }
-            
-            // Date
-            String dueDate = (String) paymentData.get("due_date");
-            if (dueDate != null) {
-                transaction.setTransactionDate(LocalDate.parse(dueDate));
-            } else {
-                return null;
-            }
-            
-            // Property
-            Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
-            if (incomingTransaction != null) {
-                Map<String, Object> property = (Map<String, Object>) incomingTransaction.get("property");
-                if (property != null) {
-                    transaction.setPropertyId((String) property.get("id"));
-                    transaction.setPropertyName((String) property.get("name"));
-                }
-            }
-            
-            // Transaction type
-            transaction.setTransactionType("payment_to_beneficiary");
-            
-            return transaction;
-            
-        } catch (Exception e) {
-            log.error("Error creating test transaction: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    // In PayPropOAuth2Controller.java (around line 1600, after your other methods)
-
-    /**
-     * Show PayProp Maintenance Dashboard
-     */
-    @GetMapping("/maintenance")
-    public String showMaintenanceDashboard(Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return "redirect:/access-denied";
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
         }
         
-        model.addAttribute("pageTitle", "PayProp Maintenance Dashboard");
-        return "payprop/maintenance-dashboard";
+        return result;
     }
 
     /**
-     * Show PayProp Test Page (if you don't already have this)
+     * Search PayProp batches
      */
-    @GetMapping("/test")
-    public String showTestPage(Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return "redirect:/access-denied";
-        }
-        
-        model.addAttribute("pageTitle", "PayProp Test");
-        return "payprop/test";
-    }
-
-    @PostMapping("/test-sync-single-property-with-save")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testSyncSinglePropertyWithSave(
-            @RequestBody Map<String, String> requestBody,
-            Authentication authentication) {
-        
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
+    private Map<String, Object> searchPayPropBatches(String batchId, LocalDate fromDate, LocalDate toDate, String propertyId) {
         Map<String, Object> result = new HashMap<>();
         
         try {
-            String propertyId = requestBody.getOrDefault("propertyId", "K3Jwqg8W1E");
-            String fromDate = requestBody.getOrDefault("fromDate", "2025-04-01");
-            String toDate = requestBody.getOrDefault("toDate", "2025-07-01");
-            boolean actuallySync = Boolean.parseBoolean(requestBody.getOrDefault("actuallySync", "false"));
-            
-            log.info("🔍 SYNC WITH SAVE TEST: property {} ({} to {}) - actuallySync: {}", 
-                propertyId, fromDate, toDate, actuallySync);
-            
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> httpRequest = new HttpEntity<>(headers);
-            
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
-                "?from_date=" + fromDate +
-                "&to_date=" + toDate +
-                "&filter_by=reconciliation_date" +
-                "&include_beneficiary_info=true" +
-                "&rows=1000&property_id=" + propertyId;
-            
-            log.info("📞 API URL: {}", url);
-            
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, httpRequest, Map.class);
-            List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
-            
-            log.info("📈 Found {} payments", payments.size());
-            
-            result.put("api_response", Map.of(
-                "payments_found", payments.size(),
-                "actually_sync", actuallySync
-            ));
-            
-            if (payments.isEmpty()) {
-                result.put("conclusion", "NO PAYMENTS FOUND");
-                return ResponseEntity.ok(result);
-            }
-            
-            // Process and optionally save
-            List<Map<String, Object>> processingResults = new ArrayList<>();
-            int created = 0, failed = 0, skipped = 0;
-            
-            for (Map<String, Object> paymentData : payments) {
-                Map<String, Object> processingResult = new HashMap<>();
-                
-                try {
-                    String transactionId = (String) paymentData.get("id");
-                    Object amountObj = paymentData.get("amount");
-                    
-                    processingResult.put("transaction_id", transactionId);
-                    processingResult.put("amount", amountObj);
-                    
-                    // Check if already exists
-                    boolean exists = financialTransactionRepository.existsByPayPropTransactionIdAndDataSource(
-                        transactionId, "BATCH_PAYMENT");
-                    
-                    if (exists) {
-                        processingResult.put("status", "SKIPPED - Already exists");
-                        skipped++;
-                        processingResults.add(processingResult);
-                        continue;
-                    }
-                    
-                    // Create transaction
-                    FinancialTransaction transaction = new FinancialTransaction();
-                    transaction.setPayPropTransactionId(transactionId);
-                    transaction.setDataSource("BATCH_PAYMENT");
-                    transaction.setIsActualTransaction(true);
-                    transaction.setIsInstruction(false);
-                    
-                    // Set amount
-                    if (amountObj != null) {
-                        transaction.setAmount(new BigDecimal(amountObj.toString()));
-                    } else {
-                        processingResult.put("status", "FAILED - No amount");
-                        failed++;
-                        processingResults.add(processingResult);
-                        continue;
-                    }
-                    
-                    // Set date
-                    String dueDate = (String) paymentData.get("due_date");
-                    if (dueDate != null) {
-                        transaction.setTransactionDate(LocalDate.parse(dueDate));
-                    } else {
-                        processingResult.put("status", "FAILED - No due_date");
-                        failed++;
-                        processingResults.add(processingResult);
-                        continue;
-                    }
-                    
-                    // Set property info
-                    Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
-                    if (incomingTransaction != null) {
-                        Map<String, Object> property = (Map<String, Object>) incomingTransaction.get("property");
-                        if (property != null) {
-                            transaction.setPropertyId((String) property.get("id"));
-                            transaction.setPropertyName((String) property.get("name"));
-                        }
-                    }
-                    
-                    // Set batch ID
-                    Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
-                    if (paymentBatch != null) {
-                        transaction.setPayPropBatchId((String) paymentBatch.get("id"));
-                    }
-                    
-                    // Set beneficiary info as description
-                    Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
-                    if (beneficiary != null) {
-                        String beneficiaryName = (String) beneficiary.get("name");
-                        String beneficiaryType = (String) beneficiary.get("type");
-                        transaction.setDescription("Beneficiary: " + beneficiaryName + " (" + beneficiaryType + ")");
-                    }
-                    
-                    // Set transaction type
-                    transaction.setTransactionType("payment_to_beneficiary");
-                    
-                    // Set timestamps
-                    transaction.setCreatedAt(LocalDateTime.now());
-                    transaction.setUpdatedAt(LocalDateTime.now());
-                    
-                    // SAVE OR JUST TEST
-                    if (actuallySync) {
-                        try {
-                            financialTransactionRepository.save(transaction);
-                            processingResult.put("status", "CREATED AND SAVED");
-                            created++;
-                            log.info("✅ SAVED: {} - £{} to {}", transactionId, transaction.getAmount(), 
-                                beneficiary != null ? beneficiary.get("name") : "Unknown");
-                        } catch (Exception saveError) {
-                            processingResult.put("status", "SAVE FAILED");
-                            processingResult.put("save_error", saveError.getMessage());
-                            failed++;
-                            log.error("❌ SAVE FAILED for {}: {}", transactionId, saveError.getMessage());
-                        }
-                    } else {
-                        processingResult.put("status", "WOULD CREATE (not saved)");
-                        created++;
-                    }
-                    
-                    processingResult.put("final_transaction", Map.of(
-                        "amount", transaction.getAmount(),
-                        "property_name", transaction.getPropertyName(),
-                        "batch_id", transaction.getPayPropBatchId(),
-                        "transaction_type", transaction.getTransactionType(),
-                        "data_source", transaction.getDataSource()
-                    ));
-                    
-                } catch (Exception e) {
-                    processingResult.put("status", "ERROR");
-                    processingResult.put("error", e.getMessage());
-                    failed++;
-                    log.error("❌ Processing error: {}", e.getMessage());
-                }
-                
-                processingResults.add(processingResult);
-            }
-            
-            result.put("summary", Map.of(
-                "payments_processed", payments.size(),
-                "created", created,
-                "failed", failed,
-                "skipped", skipped
-            ));
-            
-            result.put("detailed_results", processingResults);
-            
-            return ResponseEntity.ok(result);
-            
-        } catch (Exception e) {
-            log.error("❌ Test failed: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    @PostMapping("/test-detailed-transactions")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testDetailedTransactions(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+            HttpHeaders headers = createAuthorizedHeadersSafe();
             HttpEntity<String> request = new HttpEntity<>(headers);
             
-            // Test with your specific property that has the transaction data
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
-                "?property_id=K3Jwqg8W1E" +  // Your Croydon property
-                "&from_date=2025-04-01" +
-                "&to_date=2025-07-01" +
-                "&filter_by=reconciliation_date" +
-                "&include_beneficiary_info=true" +
-                "&rows=10";
+            StringBuilder url = new StringBuilder(payPropApiBase + "/report/all-payments");
+            url.append("?from_date=").append(fromDate);
+            url.append("&to_date=").append(toDate);
+            url.append("&filter_by=reconciliation_date");
+            url.append("&include_beneficiary_info=true");
+            url.append("&rows=1000");
             
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-            
-            if (response.getBody() != null) {
-                List<Map<String, Object>> items = (List<Map<String, Object>>) response.getBody().get("items");
-                
-                return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "total_items", items.size(),
-                    "sample_transaction", items.isEmpty() ? "No data" : items.get(0),
-                    "all_fields", items.isEmpty() ? "No data" : items.get(0).keySet(),
-                    "commission_fields", items.isEmpty() ? "No data" : 
-                        items.get(0).keySet().stream()
-                            .filter(key -> key.toString().toLowerCase().contains("commission"))
-                            .collect(Collectors.toList()),
-                    "full_response", response.getBody()
-                ));
+            if (propertyId != null && !propertyId.trim().isEmpty()) {
+                url.append("&property_id=").append(propertyId);
             }
             
-            return ResponseEntity.ok(Map.of("error", "No response body"));
+            ResponseEntity<Map> response = restTemplate.exchange(url.toString(), HttpMethod.GET, request, Map.class);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
+            
+            // Group by batch ID
+            Map<String, List<Map<String, Object>>> batchGroups = new HashMap<>();
+            int paymentsWithBatches = 0;
+            
+            for (Map<String, Object> payment : payments) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> paymentBatch = (Map<String, Object>) payment.get("payment_batch");
+                if (paymentBatch != null) {
+                    String paymentBatchId = (String) paymentBatch.get("id");
+                    if (paymentBatchId != null) {
+                        if (batchId == null || batchId.equals(paymentBatchId)) {
+                            batchGroups.computeIfAbsent(paymentBatchId, k -> new ArrayList<>()).add(payment);
+                            paymentsWithBatches++;
+                        }
+                    }
+                }
+            }
+            
+            result.put("total_payments_searched", payments.size());
+            result.put("payments_with_batches", paymentsWithBatches);
+            result.put("unique_batches_found", batchGroups.size());
+            result.put("batch_groups", batchGroups);
+            result.put("status", "SUCCESS");
             
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    @GetMapping("/test-field-locations")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testFieldLocations(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
         }
         
-        Map<String, Object> results = new HashMap<>();
-        
-        try {
-            // Test 1: Get a property and check field locations
-            PayPropSyncService.PayPropExportResult propertyResult = 
-                payPropSyncService.exportPropertiesFromPayProp(1, 1);
-            
-            if (!propertyResult.getItems().isEmpty()) {
-                Map<String, Object> property = propertyResult.getItems().get(0);
-                
-                // Check commission location
-                results.put("commission_structure", Map.of(
-                    "has_commission_object", property.containsKey("commission"),
-                    "has_commission_percentage_field", property.containsKey("commission_percentage"),
-                    "commission_value", property.get("commission"),
-                    "commission_percentage_value", property.get("commission_percentage")
-                ));
-                
-                // Check monthly payment location
-                results.put("monthly_payment_location", Map.of(
-                    "has_monthly_payment", property.containsKey("monthly_payment"),
-                    "has_monthly_payment_required", property.containsKey("monthly_payment_required"),
-                    "monthly_payment_value", property.get("monthly_payment"),
-                    "monthly_payment_required_value", property.get("monthly_payment_required")
-                ));
-                
-                // Check if settings exists
-                if (property.containsKey("settings")) {
-                    Map<String, Object> settings = (Map<String, Object>) property.get("settings");
-                    results.put("settings_fields", settings != null ? settings.keySet() : "null");
-                }
-                
-                // Show all root fields
-                results.put("all_property_fields", property.keySet());
-            }
-            
-            // Test 2: Test ICDN date ranges
-            LocalDate today = LocalDate.now();
-            Map<String, String> dateRangeTests = new HashMap<>();
-            
-            // Test 30 days
-            try {
-                HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-                HttpEntity<String> request = new HttpEntity<>(headers);
-                String url30 = payPropApiBase + "/report/icdn?from_date=" + today.minusDays(30) + "&to_date=" + today + "&rows=1";
-                restTemplate.exchange(url30, HttpMethod.GET, request, Map.class);
-                dateRangeTests.put("30_days", "✅ SUCCESS");
-            } catch (Exception e) {
-                dateRangeTests.put("30_days", "❌ FAILED: " + e.getMessage());
-            }
-            
-            // Test 90 days
-            try {
-                HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-                HttpEntity<String> request = new HttpEntity<>(headers);
-                String url90 = payPropApiBase + "/report/icdn?from_date=" + today.minusDays(90) + "&to_date=" + today + "&rows=1";
-                restTemplate.exchange(url90, HttpMethod.GET, request, Map.class);
-                dateRangeTests.put("90_days", "✅ SUCCESS");
-            } catch (Exception e) {
-                dateRangeTests.put("90_days", "❌ FAILED: " + e.getMessage());
-            }
-            
-            // Test 120 days (should fail)
-            try {
-                HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-                HttpEntity<String> request = new HttpEntity<>(headers);
-                String url120 = payPropApiBase + "/report/icdn?from_date=" + today.minusDays(120) + "&to_date=" + today + "&rows=1";
-                restTemplate.exchange(url120, HttpMethod.GET, request, Map.class);
-                dateRangeTests.put("120_days", "✅ SUCCESS (unexpected!)");
-            } catch (Exception e) {
-                dateRangeTests.put("120_days", "❌ FAILED: " + e.getMessage());
-            }
-            
-            results.put("date_range_tests", dateRangeTests);
-            
-            // Test 3: Check payment categories endpoint
-            Map<String, String> categoryEndpoints = new HashMap<>();
-            
-            // Try direct categories endpoint
-            try {
-                HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-                HttpEntity<String> request = new HttpEntity<>(headers);
-                String catUrl = payPropApiBase + "/payments/categories";
-                ResponseEntity<Map> response = restTemplate.exchange(catUrl, HttpMethod.GET, request, Map.class);
-                categoryEndpoints.put("/payments/categories", "✅ EXISTS - Status: " + response.getStatusCode());
-            } catch (Exception e) {
-                categoryEndpoints.put("/payments/categories", "❌ NOT FOUND: " + e.getMessage());
-            }
-            
-            // Extract from payments
-            try {
-                PayPropSyncService.PayPropExportResult payments = payPropSyncService.exportPaymentsFromPayProp(1, 5);
-                Set<String> categories = new HashSet<>();
-                for (Map<String, Object> payment : payments.getItems()) {
-                    Object category = payment.get("category");
-                    if (category != null) categories.add(category.toString());
-                }
-                categoryEndpoints.put("categories_from_payments", "✅ Found " + categories.size() + " categories: " + categories);
-            } catch (Exception e) {
-                categoryEndpoints.put("categories_from_payments", "❌ FAILED: " + e.getMessage());
-            }
-            
-            results.put("category_endpoints", categoryEndpoints);
-            
-            return ResponseEntity.ok(results);
-            
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of(
-                "error", "Test failed: " + e.getMessage(),
-                "stackTrace", Arrays.toString(e.getStackTrace())
-            ));
-        }
+        return result;
     }
 
     /**
-     * Helper method to count items in API response
+     * Search database batches
+     */
+    private Map<String, Object> searchDatabaseBatches(String batchId, LocalDate fromDate, LocalDate toDate, String propertyId) {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            List<FinancialTransaction> transactions = financialTransactionRepository
+                .findByTransactionDateBetween(fromDate, toDate)
+                .stream()
+                .filter(t -> batchId == null || batchId.equals(t.getPayPropBatchId()))
+                .filter(t -> propertyId == null || propertyId.equals(t.getPropertyId()))
+                .collect(Collectors.toList());
+            
+            // Group by batch ID
+            Map<String, List<FinancialTransaction>> batchGroups = transactions.stream()
+                .filter(t -> t.getPayPropBatchId() != null)
+                .collect(Collectors.groupingBy(FinancialTransaction::getPayPropBatchId));
+            
+            result.put("total_transactions_searched", transactions.size());
+            result.put("transactions_with_batches", batchGroups.values().stream().mapToInt(List::size).sum());
+            result.put("unique_batches_found", batchGroups.size());
+            result.put("batch_groups", batchGroups.entrySet().stream()
+                .collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> entry.getValue().stream().map(this::transactionToMap).collect(Collectors.toList())
+                )));
+            result.put("status", "SUCCESS");
+            
+        } catch (Exception e) {
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
+    }
+
+    /**
+     * Analyze batch integrity
+     */
+    private Map<String, Object> analyzeBatchIntegrity(Map<String, Object> payPropBatches, Map<String, Object> databaseBatches) {
+        Map<String, Object> integrity = new HashMap<>();
+        
+        Integer payPropBatchCount = (Integer) payPropBatches.get("unique_batches_found");
+        Integer dbBatchCount = (Integer) databaseBatches.get("unique_batches_found");
+        
+        integrity.put("batch_count_comparison", Map.of(
+            "payprop_batches", payPropBatchCount != null ? payPropBatchCount : 0,
+            "database_batches", dbBatchCount != null ? dbBatchCount : 0,
+            "difference", Math.abs((payPropBatchCount != null ? payPropBatchCount : 0) - 
+                                 (dbBatchCount != null ? dbBatchCount : 0))
+        ));
+        
+        // Compare specific batches
+        @SuppressWarnings("unchecked")
+        Map<String, Object> payPropBatchGroups = (Map<String, Object>) payPropBatches.get("batch_groups");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> dbBatchGroups = (Map<String, Object>) databaseBatches.get("batch_groups");
+        
+        if (payPropBatchGroups != null && dbBatchGroups != null) {
+            Set<String> payPropBatchIds = payPropBatchGroups.keySet();
+            Set<String> dbBatchIds = dbBatchGroups.keySet();
+            
+            Set<String> missingInDb = new HashSet<>(payPropBatchIds);
+            missingInDb.removeAll(dbBatchIds);
+            
+            Set<String> extraInDb = new HashSet<>(dbBatchIds);
+            extraInDb.removeAll(payPropBatchIds);
+            
+            integrity.put("batch_id_analysis", Map.of(
+                "missing_in_database", missingInDb,
+                "extra_in_database", extraInDb,
+                "common_batches", payPropBatchIds.stream()
+                    .filter(dbBatchIds::contains)
+                    .collect(Collectors.toSet())
+            ));
+        }
+        
+        return integrity;
+    }
+
+    /**
+     * Analyze endpoint comparison results
+     */
+    private Map<String, Object> analyzeEndpointComparison(Map<String, Map<String, Object>> endpointResults) {
+        Map<String, Object> analysis = new HashMap<>();
+        
+        int totalWorkingEndpoints = 0;
+        int totalFailedEndpoints = 0;
+        Map<String, Integer> itemCounts = new HashMap<>();
+        
+        for (Map.Entry<String, Map<String, Object>> entry : endpointResults.entrySet()) {
+            String endpointName = entry.getKey();
+            Map<String, Object> endpointResult = entry.getValue();
+            
+            String status = (String) endpointResult.get("status");
+            if ("SUCCESS".equals(status)) {
+                totalWorkingEndpoints++;
+                Integer itemCount = (Integer) endpointResult.get("item_count");
+                if (itemCount != null) {
+                    itemCounts.put(endpointName, itemCount);
+                }
+            } else {
+                totalFailedEndpoints++;
+            }
+        }
+        
+        analysis.put("endpoint_health", Map.of(
+            "working_endpoints", totalWorkingEndpoints,
+            "failed_endpoints", totalFailedEndpoints,
+            "success_rate", String.format("%.1f%%", 
+                totalWorkingEndpoints * 100.0 / (totalWorkingEndpoints + totalFailedEndpoints))
+        ));
+        
+        analysis.put("data_availability", itemCounts);
+        
+        // Recommend best endpoint for data
+        String bestEndpoint = itemCounts.entrySet().stream()
+            .max(Map.Entry.comparingByValue())
+            .map(Map.Entry::getKey)
+            .orElse("None");
+        
+        analysis.put("recommendations", Map.of(
+            "best_endpoint_for_data", bestEndpoint,
+            "highest_item_count", itemCounts.getOrDefault(bestEndpoint, 0)
+        ));
+        
+        return analysis;
+    }
+
+    /**
+     * Compare API results vs Database results
+     */
+    private Map<String, Object> compareApiVsDatabase(Map<String, Object> apiResults, Map<String, Object> databaseResults) {
+        Map<String, Object> comparison = new HashMap<>();
+        
+        // Count matches in each source
+        int apiMatches = 0;
+        int dbMatches = 0;
+        
+        if (apiResults.containsKey("export_payments")) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> exportResults = (Map<String, Object>) apiResults.get("export_payments");
+            if (exportResults.containsKey("matches_found")) {
+                apiMatches += (Integer) exportResults.get("matches_found");
+            }
+        }
+        
+        if (apiResults.containsKey("report_all_payments")) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> reportResults = (Map<String, Object>) apiResults.get("report_all_payments");
+            if (reportResults.containsKey("matches_found")) {
+                apiMatches += (Integer) reportResults.get("matches_found");
+            }
+        }
+        
+        if (databaseResults.containsKey("matches_found")) {
+            dbMatches = (Integer) databaseResults.get("matches_found");
+        }
+        
+        comparison.put("summary", Map.of(
+            "api_matches_total", apiMatches,
+            "database_matches", dbMatches,
+            "difference", Math.abs(apiMatches - dbMatches),
+            "sync_health", apiMatches == dbMatches ? "PERFECT" : "DISCREPANCY_DETECTED"
+        ));
+        
+        // Detailed analysis
+        List<String> issues = new ArrayList<>();
+        List<String> recommendations = new ArrayList<>();
+        
+        if (apiMatches > dbMatches) {
+            issues.add("PayProp has more records than database - possible sync gap");
+            recommendations.add("Run a targeted sync for the missing records");
+        } else if (dbMatches > apiMatches) {
+            issues.add("Database has more records than PayProp - possible duplicate entries");
+            recommendations.add("Check for duplicate transaction IDs in database");
+        }
+        
+        if (apiMatches == 0 && dbMatches == 0) {
+            issues.add("No records found in either source");
+            recommendations.add("Check search criteria - dates, amounts, property IDs");
+        }
+        
+        comparison.put("issues_identified", issues);
+        comparison.put("recommendations", recommendations);
+        
+        return comparison;
+    }
+
+    /**
+     * Compare transaction fields between API and database
+     */
+    private Map<String, Object> compareTransactionFields(Map<String, Object> apiData, FinancialTransaction dbTransaction) {
+        Map<String, Object> fieldComparison = new HashMap<>();
+        
+        // Amount comparison
+        Object apiAmount = apiData.get("amount");
+        BigDecimal dbAmount = dbTransaction.getAmount();
+        fieldComparison.put("amount", Map.of(
+            "api_value", apiAmount,
+            "database_value", dbAmount,
+            "matches", apiAmount != null && dbAmount != null && 
+                new BigDecimal(apiAmount.toString()).compareTo(dbAmount) == 0
+        ));
+        
+        // Date comparison
+        Map<String, Object> apiDates = extractAllDateFields(apiData);
+        Map<String, Object> dbDates = Map.of(
+            "transaction_date", dbTransaction.getTransactionDate(),
+            "reconciliation_date", dbTransaction.getReconciliationDate(),
+            "instruction_date", dbTransaction.getInstructionDate()
+        );
+        fieldComparison.put("dates", Map.of(
+            "api_dates", apiDates,
+            "database_dates", dbDates,
+            "date_mapping_analysis", analyzeDateMapping(apiDates, dbDates)
+        ));
+        
+        // Property comparison
+        Map<String, Object> apiProperty = null;
+        if (apiData.get("property") instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> propertyMap = (Map<String, Object>) apiData.get("property");
+            apiProperty = propertyMap;
+        }
+        
+        if (apiProperty == null && apiData.get("incoming_transaction") instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> incomingTransaction = (Map<String, Object>) apiData.get("incoming_transaction");
+            if (incomingTransaction.get("property") instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> propertyMap = (Map<String, Object>) incomingTransaction.get("property");
+                apiProperty = propertyMap;
+            }
+        }
+        
+        fieldComparison.put("property", Map.of(
+            "api_property_id", apiProperty != null ? apiProperty.get("id") : null,
+            "api_property_name", apiProperty != null ? apiProperty.get("name") : null,
+            "database_property_id", dbTransaction.getPropertyId(),
+            "database_property_name", dbTransaction.getPropertyName(),
+            "property_id_matches", apiProperty != null && 
+                Objects.equals(apiProperty.get("id"), dbTransaction.getPropertyId()),
+            "property_name_matches", apiProperty != null && 
+                Objects.equals(apiProperty.get("name"), dbTransaction.getPropertyName())
+        ));
+        
+        // Batch comparison
+        Map<String, Object> batchInfo = extractBatchInfo(apiData);
+        fieldComparison.put("batch", Map.of(
+            "api_batch_id", batchInfo.get("batch_id"),
+            "database_batch_id", dbTransaction.getPayPropBatchId(),
+            "batch_id_matches", Objects.equals(batchInfo.get("batch_id"), dbTransaction.getPayPropBatchId())
+        ));
+        
+        return fieldComparison;
+    }
+
+    /**
+     * Analyze date mapping between API and database
+     */
+    private Map<String, Object> analyzeDateMapping(Map<String, Object> apiDates, Map<String, Object> dbDates) {
+        Map<String, Object> mapping = new HashMap<>();
+        
+        LocalDate dbTransactionDate = (LocalDate) dbDates.get("transaction_date");
+        LocalDate dbReconciliationDate = (LocalDate) dbDates.get("reconciliation_date");
+        
+        if (dbTransactionDate != null) {
+            for (Map.Entry<String, Object> apiDate : apiDates.entrySet()) {
+                if (apiDate.getValue() instanceof String) {
+                    try {
+                        LocalDate apiDateParsed = LocalDate.parse((String) apiDate.getValue());
+                        if (apiDateParsed.equals(dbTransactionDate)) {
+                            mapping.put("transaction_date_source", apiDate.getKey());
+                        }
+                        if (dbReconciliationDate != null && apiDateParsed.equals(dbReconciliationDate)) {
+                            mapping.put("reconciliation_date_source", apiDate.getKey());
+                        }
+                    } catch (Exception e) {
+                        // Ignore invalid dates
+                    }
+                }
+            }
+        }
+        
+        return mapping;
+    }
+
+    /**
+     * Analyze all date fields in a transaction
+     */
+    private Map<String, Object> analyzeAllDateFields(Map<String, Object> transactionData) {
+        Map<String, Object> analysis = new HashMap<>();
+        
+        Map<String, Object> allDates = extractAllDateFields(transactionData);
+        analysis.put("all_date_fields", allDates);
+        
+        // Parse dates and analyze differences
+        Map<String, LocalDate> parsedDates = new HashMap<>();
+        for (Map.Entry<String, Object> entry : allDates.entrySet()) {
+            if (entry.getValue() instanceof String) {
+                try {
+                    LocalDate date = LocalDate.parse((String) entry.getValue());
+                    parsedDates.put(entry.getKey(), date);
+                } catch (Exception e) {
+                    // Ignore unparseable dates
+                }
+            }
+        }
+        
+        analysis.put("parsed_dates", parsedDates);
+        
+        if (parsedDates.size() > 1) {
+            LocalDate earliest = parsedDates.values().stream().min(LocalDate::compareTo).orElse(null);
+            LocalDate latest = parsedDates.values().stream().max(LocalDate::compareTo).orElse(null);
+            
+            analysis.put("date_range_span", Map.of(
+                "earliest_date", earliest,
+                "latest_date", latest,
+                "days_difference", earliest != null && latest != null ? 
+                    java.time.temporal.ChronoUnit.DAYS.between(earliest, latest) : 0
+            ));
+        }
+        
+        return analysis;
+    }
+
+    /**
+     * Extract all date fields from PayProp response
+     */
+    private Map<String, Object> extractAllDateFields(Map<String, Object> paymentData) {
+        Map<String, Object> dates = new HashMap<>();
+        
+        // Direct date fields
+        dates.put("due_date", paymentData.get("due_date"));
+        dates.put("payment_date", paymentData.get("payment_date"));
+        dates.put("reconciliation_date", paymentData.get("reconciliation_date"));
+        dates.put("remittance_date", paymentData.get("remittance_date"));
+        dates.put("date", paymentData.get("date"));
+        dates.put("from_date", paymentData.get("from_date"));
+        dates.put("to_date", paymentData.get("to_date"));
+        
+        // Nested date fields
+        @SuppressWarnings("unchecked")
+        Map<String, Object> incomingTransaction = (Map<String, Object>) paymentData.get("incoming_transaction");
+        if (incomingTransaction != null) {
+            dates.put("incoming_transaction.reconciliation_date", incomingTransaction.get("reconciliation_date"));
+            dates.put("incoming_transaction.date", incomingTransaction.get("date"));
+        }
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
+        if (paymentBatch != null) {
+            dates.put("payment_batch.transfer_date", paymentBatch.get("transfer_date"));
+            dates.put("payment_batch.created_date", paymentBatch.get("created_date"));
+        }
+        
+        // Remove null values
+        dates.entrySet().removeIf(entry -> entry.getValue() == null || 
+            (entry.getValue() instanceof String && ((String) entry.getValue()).trim().isEmpty()));
+        
+        return dates;
+    }
+
+    /**
+     * Extract batch information from PayProp response
+     */
+    private Map<String, Object> extractBatchInfo(Map<String, Object> paymentData) {
+        Map<String, Object> batchInfo = new HashMap<>();
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
+        if (paymentBatch != null) {
+            batchInfo.put("batch_id", paymentBatch.get("id"));
+            batchInfo.put("batch_amount", paymentBatch.get("amount"));
+            batchInfo.put("transfer_date", paymentBatch.get("transfer_date"));
+            batchInfo.put("payment_count", paymentBatch.get("payment_count"));
+            batchInfo.put("status", paymentBatch.get("status"));
+        } else {
+            batchInfo.put("has_batch", false);
+        }
+        
+        return batchInfo;
+    }
+
+    /**
+     * Check if PayProp payment matches search criteria
+     */
+    private boolean matchesSearchCriteria(Map<String, Object> payment, String amount, LocalDate fromDate, LocalDate toDate,
+            String beneficiaryName, String transactionId) {
+        
+        // Check transaction ID
+        if (transactionId != null && !transactionId.trim().isEmpty()) {
+            String paymentId = (String) payment.get("id");
+            return transactionId.equals(paymentId);
+        }
+        
+        // Check amount
+        if (amount != null && !amount.trim().isEmpty()) {
+            try {
+                BigDecimal searchAmount = new BigDecimal(amount);
+                Object paymentAmount = payment.get("amount");
+                if (paymentAmount != null) {
+                    BigDecimal paymentAmountBD = new BigDecimal(paymentAmount.toString());
+                    if (paymentAmountBD.compareTo(searchAmount) != 0) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        
+        // Check beneficiary name
+        if (beneficiaryName != null && !beneficiaryName.trim().isEmpty()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> beneficiary = (Map<String, Object>) payment.get("beneficiary");
+            if (beneficiary != null) {
+                String name = (String) beneficiary.get("name");
+                if (name == null || !name.toLowerCase().contains(beneficiaryName.toLowerCase())) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        
+        // Check date range (try multiple date fields)
+        if (fromDate != null && toDate != null) {
+            Map<String, Object> allDates = extractAllDateFields(payment);
+            boolean dateMatches = false;
+            
+            for (Object dateValue : allDates.values()) {
+                if (dateValue instanceof String) {
+                    try {
+                        LocalDate date = LocalDate.parse((String) dateValue);
+                        if (!date.isBefore(fromDate) && !date.isAfter(toDate)) {
+                            dateMatches = true;
+                            break;
+                        }
+                    } catch (Exception e) {
+                        // Continue trying other dates
+                    }
+                }
+            }
+            
+            if (!dateMatches) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    /**
+     * Check if payment matches batch criteria
+     */
+    private boolean matchesBatchCriteria(Map<String, Object> payment, String batchId) {
+        if (batchId == null || batchId.trim().isEmpty()) {
+            return false;
+        }
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> paymentBatch = (Map<String, Object>) payment.get("payment_batch");
+        if (paymentBatch != null) {
+            String paymentBatchId = (String) paymentBatch.get("id");
+            return batchId.equals(paymentBatchId);
+        }
+        
+        return false;
+    }
+
+    /**
+     * Check advanced matching criteria
+     */
+    private boolean matchesAdvancedCriteria(Map<String, Object> item, String amount, String batchId) {
+        // Check amount
+        if (amount != null && !amount.trim().isEmpty()) {
+            try {
+                BigDecimal searchAmount = new BigDecimal(amount);
+                Object itemAmount = item.get("amount");
+                if (itemAmount != null) {
+                    BigDecimal itemAmountBD = new BigDecimal(itemAmount.toString());
+                    if (itemAmountBD.compareTo(searchAmount) != 0) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        
+        // Check batch ID
+        if (batchId != null && !batchId.trim().isEmpty()) {
+            return matchesBatchCriteria(item, batchId);
+        }
+        
+        return true;
+    }
+
+    /**
+     * Check if database transaction matches criteria
+     */
+    private boolean matchesDatabaseCriteria(FinancialTransaction transaction, String amount, LocalDate fromDate, LocalDate toDate,
+            String propertyId, String beneficiaryName, String batchId, String transactionId) {
+        
+        // Check transaction ID
+        if (transactionId != null && !transactionId.trim().isEmpty()) {
+            return transactionId.equals(transaction.getPayPropTransactionId());
+        }
+        
+        // Check amount
+        if (amount != null && !amount.trim().isEmpty()) {
+            try {
+                BigDecimal searchAmount = new BigDecimal(amount);
+                if (transaction.getAmount() == null || transaction.getAmount().compareTo(searchAmount) != 0) {
+                    return false;
+                }
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        
+        // Check date range
+        if (fromDate != null && toDate != null && transaction.getTransactionDate() != null) {
+            if (transaction.getTransactionDate().isBefore(fromDate) || transaction.getTransactionDate().isAfter(toDate)) {
+                return false;
+            }
+        }
+        
+        // Check property ID
+        if (propertyId != null && !propertyId.trim().isEmpty()) {
+            if (!propertyId.equals(transaction.getPropertyId())) {
+                return false;
+            }
+        }
+        
+        // Check batch ID - handle both null cases properly
+        if (batchId != null && !batchId.trim().isEmpty()) {
+            String transactionBatchId = transaction.getPayPropBatchId();
+            if (!batchId.equals(transactionBatchId)) {
+                return false;
+            }
+        }
+        
+        // Check beneficiary name (in description)
+        if (beneficiaryName != null && !beneficiaryName.trim().isEmpty()) {
+            String description = transaction.getDescription();
+            if (description == null || !description.toLowerCase().contains(beneficiaryName.toLowerCase())) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    /**
+     * Convert FinancialTransaction to Map for JSON response
+     */
+    private Map<String, Object> transactionToMap(FinancialTransaction transaction) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", transaction.getId());
+        map.put("payprop_transaction_id", transaction.getPayPropTransactionId());
+        map.put("amount", transaction.getAmount());
+        map.put("transaction_date", transaction.getTransactionDate());
+        map.put("reconciliation_date", transaction.getReconciliationDate());
+        map.put("property_id", transaction.getPropertyId());
+        map.put("property_name", transaction.getPropertyName());
+        map.put("transaction_type", transaction.getTransactionType());
+        map.put("data_source", transaction.getDataSource());
+        map.put("batch_id", transaction.getPayPropBatchId());
+        map.put("description", transaction.getDescription());
+        map.put("created_at", transaction.getCreatedAt());
+        map.put("updated_at", transaction.getUpdatedAt());
+        
+        // Add optional fields if they exist in your entity
+        try {
+            map.put("is_actual_transaction", transaction.getIsActualTransaction());
+        } catch (Exception e) {
+            // Field might not exist in your entity
+        }
+        
+        try {
+            map.put("is_instruction", transaction.getIsInstruction());
+        } catch (Exception e) {
+            // Field might not exist in your entity
+        }
+        
+        try {
+            map.put("commission_amount", transaction.getCommissionAmount());
+        } catch (Exception e) {
+            // Field might not exist in your entity
+        }
+        
+        try {
+            map.put("service_fee_amount", transaction.getServiceFeeAmount());
+        } catch (Exception e) {
+            // Field might not exist in your entity
+        }
+        
+        return map;
+    }
+
+    /**
+     * Helper: Get item count from API response
      */
     private int getItemCount(Map<String, Object> responseBody) {
         if (responseBody == null) return 0;
         
         Object items = responseBody.get("items");
-        if (items instanceof java.util.List) {
-            return ((java.util.List<?>) items).size();
+        if (items instanceof List) {
+            return ((List<?>) items).size();
         }
         
         Object data = responseBody.get("data");
-        if (data instanceof java.util.List) {
-            return ((java.util.List<?>) data).size();
+        if (data instanceof List) {
+            return ((List<?>) data).size();
         }
         
         return 0;
     }
 
-    /**
-     * Test API connection with current tokens
-     */
+    // ===== PAGE ROUTES =====
+
+    @GetMapping("/maintenance")
+    public String showMaintenanceDashboard(Model model, Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return "redirect:/access-denied";
+        }
+        model.addAttribute("pageTitle", "PayProp Maintenance Dashboard");
+        return "payprop/maintenance-dashboard";
+    }
+
+    @GetMapping("/test")
+    public String showTestPage(Model model, Authentication authentication) {
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return "redirect:/access-denied";
+        }
+        model.addAttribute("pageTitle", "PayProp Enhanced Test Dashboard");
+        return "payprop/test";
+    }
+
+    // ===== BASIC OAUTH UTILITIES =====
+
     @PostMapping("/test-connection")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> testConnection(Authentication authentication) {
@@ -1361,12 +2212,6 @@ public class PayPropOAuth2Controller {
                 return ResponseEntity.ok(response);
             }
 
-            // Test API call to PayProp
-            String accessToken = oAuth2Service.getValidAccessToken();
-            
-            // You can add a simple API test here, like fetching properties count
-            // For now, just verify we have a valid token
-            
             response.put("success", true);
             response.put("message", "PayProp API connection successful!");
             response.put("tokenStatus", "Valid");
@@ -1380,17 +2225,13 @@ public class PayPropOAuth2Controller {
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            System.err.println("❌ PayProp API test failed: " + e.getMessage());
-            
+            logger.error("❌ PayProp API test failed: {}", e.getMessage());
             response.put("success", false);
             response.put("message", "API test failed: " + e.getMessage());
             return ResponseEntity.ok(response);
         }
     }
 
-    /**
-     * Refresh OAuth2 tokens
-     */
     @PostMapping("/refresh")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> refreshTokens(Authentication authentication) {
@@ -1404,13 +2245,10 @@ public class PayPropOAuth2Controller {
 
         try {
             PayPropTokens tokens = oAuth2Service.refreshToken();
-            
             response.put("success", true);
             response.put("message", "Tokens refreshed successfully");
             response.put("expiresAt", tokens.getExpiresAt());
-            
             return ResponseEntity.ok(response);
-            
         } catch (Exception e) {
             response.put("success", false);
             response.put("message", "Failed to refresh tokens: " + e.getMessage());
@@ -1418,9 +2256,6 @@ public class PayPropOAuth2Controller {
         }
     }
 
-    /**
-     * Clear stored tokens (logout)
-     */
     @PostMapping("/disconnect")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> disconnect(Authentication authentication) {
@@ -1433,16 +2268,11 @@ public class PayPropOAuth2Controller {
         }
 
         oAuth2Service.clearTokens();
-        
         response.put("success", true);
         response.put("message", "PayProp integration disconnected");
-        
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Get current token status
-     */
     @GetMapping("/token-status")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getTokenStatus(Authentication authentication) {
@@ -1468,1018 +2298,5 @@ public class PayPropOAuth2Controller {
         }
         
         return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Simple OAuth test endpoint for JavaScript testing
-     */
-    @GetMapping("/test-oauth")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testOAuth(Authentication authentication) {
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            // Check authorization
-            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                response.put("success", false);
-                response.put("message", "Access denied - MANAGER role required");
-                response.put("tokenValid", false);
-                return ResponseEntity.status(403).body(response);
-            }
-
-            // Check if we have tokens
-            PayPropTokens tokens = oAuth2Service.getCurrentTokens();
-            boolean hasTokens = tokens != null;
-            boolean isValid = oAuth2Service.hasValidTokens();
-            
-            response.put("success", true);
-            response.put("hasTokens", hasTokens);
-            response.put("tokenValid", isValid);
-            
-            if (hasTokens) {
-                response.put("tokenType", tokens.getTokenType());
-                response.put("scopes", tokens.getScopes());
-                response.put("expiresAt", tokens.getExpiresAt());
-                response.put("isExpired", tokens.isExpired());
-                response.put("isExpiringSoon", tokens.isExpiringSoon());
-                
-                if (isValid) {
-                    response.put("message", "OAuth2 tokens are valid and ready for use");
-                    
-                    // Test a simple API call
-                    try {
-                        String accessToken = oAuth2Service.getValidAccessToken();
-                        response.put("accessTokenLength", accessToken.length());
-                        response.put("apiCallTest", "Token retrieved successfully");
-                    } catch (Exception e) {
-                        response.put("apiCallTest", "Failed to get access token: " + e.getMessage());
-                    }
-                } else {
-                    response.put("message", "OAuth2 tokens exist but are invalid/expired");
-                }
-            } else {
-                response.put("message", "No OAuth2 tokens found - authorization required");
-            }
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "OAuth test failed: " + e.getMessage());
-            response.put("tokenValid", false);
-            return ResponseEntity.ok(response);
-        }
-    }
-
-    @PostMapping("/test-financial-data")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testFinancialData(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        Map<String, Object> results = new HashMap<>();
-        
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
-            
-            // Test 1: Export Payments (actual transactions?)
-            String paymentsUrl = baseUrl + "/export/payments?rows=5&include_beneficiary_info=true";
-            ResponseEntity<Map> paymentsResponse = restTemplate.exchange(paymentsUrl, HttpMethod.GET, request, Map.class);
-            results.put("export_payments", Map.of(
-                "status", "SUCCESS",
-                "count", getItemCount(paymentsResponse.getBody()),
-                "sample_data", getSampleData(paymentsResponse.getBody(), 2)
-            ));
-            
-            // Test 2: Export Invoices
-            String invoicesUrl = baseUrl + "/export/invoices?rows=5";
-            ResponseEntity<Map> invoicesResponse = restTemplate.exchange(invoicesUrl, HttpMethod.GET, request, Map.class);
-            results.put("export_invoices", Map.of(
-                "status", "SUCCESS", 
-                "count", getItemCount(invoicesResponse.getBody()),
-                "sample_data", getSampleData(invoicesResponse.getBody(), 2)
-            ));
-            
-            // Test 3: ICDN Report (financial transactions)
-            String icdnUrl = baseUrl + "/report/icdn?rows=5&from_date=2024-01-01";
-            ResponseEntity<Map> icdnResponse = restTemplate.exchange(icdnUrl, HttpMethod.GET, request, Map.class);
-            results.put("report_icdn", Map.of(
-                "status", "SUCCESS",
-                "count", getItemCount(icdnResponse.getBody()),
-                "sample_data", getSampleData(icdnResponse.getBody(), 2)
-            ));
-            
-            // Test 4: Specific property payments (using your most active property)
-            String propPaymentsUrl = baseUrl + "/export/payments?property_id=116&rows=5&include_beneficiary_info=true";
-            ResponseEntity<Map> propResponse = restTemplate.exchange(propPaymentsUrl, HttpMethod.GET, request, Map.class);
-            results.put("property_116_payments", Map.of(
-                "status", "SUCCESS",
-                "property_name", "Havelock Place 87, Hartley",
-                "count", getItemCount(propResponse.getBody()),
-                "sample_data", getSampleData(propResponse.getBody(), 2)
-            ));
-            
-        } catch (Exception e) {
-            results.put("error", e.getMessage());
-        }
-        
-        return ResponseEntity.ok(results);
-    }
-
-    @PostMapping("/test-icdn-financial-types")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testICDNFinancialTypes(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        Map<String, Object> results = new HashMap<>();
-        
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/icdn";
-            
-            // Test different transaction types
-            String[] types = {"invoice", "credit_note", "debit_note"};
-            
-            for (String type : types) {
-                String url = baseUrl + "?type=" + type + "&rows=10&from_date=2024-01-01";
-                
-                try {
-                    ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
-                    List<?> items = (List<?>) response.getBody().get("items");
-                    
-                    results.put(type, Map.of(
-                        "count", items.size(),
-                        "sample_data", items.stream().limit(3).collect(Collectors.toList())
-                    ));
-                } catch (Exception e) {
-                    results.put(type, Map.of("error", e.getMessage()));
-                }
-            }
-            
-            // Test date range summary
-            String summaryUrl = baseUrl + "?from_date=2024-01-01&to_date=2024-12-31&rows=100";
-            ResponseEntity<Map> summaryResponse = restTemplate.exchange(summaryUrl, HttpMethod.GET, request, Map.class);
-            List<?> allItems = (List<?>) summaryResponse.getBody().get("items");
-            
-            // Calculate totals by type
-            Map<String, Double> totals = new HashMap<>();
-            for (Object item : allItems) {
-                Map<String, Object> transaction = (Map<String, Object>) item;
-                String transactionType = (String) transaction.get("type");
-                Double amount = Double.parseDouble((String) transaction.get("amount"));
-                totals.put(transactionType, totals.getOrDefault(transactionType, 0.0) + amount);
-            }
-            
-            results.put("summary_2024", Map.of(
-                "total_transactions", allItems.size(),
-                "totals_by_type", totals
-            ));
-            
-        } catch (Exception e) {
-            results.put("error", e.getMessage());
-        }
-        
-        return ResponseEntity.ok(results);
-    }
-
-    @PostMapping("/test-enhanced-payment-data")
-    @ResponseBody  
-    public ResponseEntity<Map<String, Object>> testEnhancedPaymentData(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        Map<String, Object> results = new HashMap<>();
-        
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
-            
-            // Test 1: Enhanced payments export with more parameters
-            String enhancedPaymentsUrl = baseUrl + "/export/payments?include_beneficiary_info=true&rows=10&modified_from_time=2024-01-01T00:00:00";
-            ResponseEntity<Map> enhancedPayments = restTemplate.exchange(enhancedPaymentsUrl, HttpMethod.GET, request, Map.class);
-            results.put("enhanced_payments", Map.of(
-                "count", getItemCount(enhancedPayments.getBody()),
-                "sample_data", getSampleData(enhancedPayments.getBody(), 3)
-            ));
-            
-            // Test 2: Properties with commission data
-            String propertiesCommissionUrl = baseUrl + "/export/properties?include_commission=true&rows=5";
-            ResponseEntity<Map> propertiesCommission = restTemplate.exchange(propertiesCommissionUrl, HttpMethod.GET, request, Map.class);
-            results.put("properties_commission", Map.of(
-                "count", getItemCount(propertiesCommission.getBody()),
-                "sample_data", getSampleData(propertiesCommission.getBody(), 2)
-            ));
-            
-            // Test 3: Beneficiaries export (owners who receive payments)
-            String beneficiariesUrl = baseUrl + "/export/beneficiaries?owners=true&rows=5";
-            ResponseEntity<Map> beneficiaries = restTemplate.exchange(beneficiariesUrl, HttpMethod.GET, request, Map.class);
-            results.put("owner_beneficiaries", Map.of(
-                "count", getItemCount(beneficiaries.getBody()),
-                "sample_data", getSampleData(beneficiaries.getBody(), 2)
-            ));
-            
-            // Test 4: ICDN with more recent data and larger range (within 93 days)
-            String recentICDNUrl = baseUrl + "/report/icdn?from_date=2024-06-01&to_date=2024-08-31&rows=20";
-            ResponseEntity<Map> recentICDN = restTemplate.exchange(recentICDNUrl, HttpMethod.GET, request, Map.class);
-            results.put("recent_icdn", Map.of(
-                "count", getItemCount(recentICDN.getBody()),
-                "sample_data", getSampleData(recentICDN.getBody(), 3)
-            ));
-            
-        } catch (Exception e) {
-            results.put("error", e.getMessage());
-        }
-        
-        return ResponseEntity.ok(results);
-    }
-
-    @PostMapping("/test-agency-income")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testAgencyIncome(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        Map<String, Object> results = new HashMap<>();
-        
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
-            
-            // Test agency income report (commission/fees)
-            String agencyIncomeUrl = baseUrl + "/report/agency/income?year=2024&month=01";
-            ResponseEntity<Map> agencyResponse = restTemplate.exchange(agencyIncomeUrl, HttpMethod.GET, request, Map.class);
-            results.put("agency_income", agencyResponse.getBody());
-            
-            // Test enhanced properties export with commission
-            String propertiesUrl = baseUrl + "/export/properties?include_commission=true&rows=3";
-            ResponseEntity<Map> propertiesResponse = restTemplate.exchange(propertiesUrl, HttpMethod.GET, request, Map.class);
-            results.put("properties_with_commission", propertiesResponse.getBody());
-            
-        } catch (Exception e) {
-            results.put("error", e.getMessage());
-        }
-        
-        return ResponseEntity.ok(results);
-    }
-
-    private Object getSampleData(Map<String, Object> response, int maxItems) {
-        if (response != null && response.containsKey("items")) {
-            List<?> items = (List<?>) response.get("items");
-            return items.stream().limit(maxItems).collect(Collectors.toList());
-        }
-        return "No data";
-    }
-
-    /**
-     * Test endpoint for tags functionality
-     */
-    @GetMapping("/test-tags")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testTags(Authentication authentication) {
-        Map<String, Object> response = new HashMap<>();
-        
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            response.put("success", false);
-            response.put("message", "Access denied");
-            return ResponseEntity.status(403).body(response);
-        }
-
-        try {
-            if (!oAuth2Service.hasValidTokens()) {
-                response.put("success", false);
-                response.put("message", "No valid OAuth2 tokens. Please authorize first.");
-                return ResponseEntity.ok(response);
-            }
-
-            // Note: Your system uses PayPropPortfolioSyncService for tag operations
-            // This is just a test endpoint to verify the OAuth connection for tags
-            
-            response.put("success", true);
-            response.put("message", "OAuth ready for tag operations");
-            response.put("note", "Tag operations are handled via PayPropPortfolioSyncService");
-            response.put("availableOperations", Arrays.asList(
-                "getAllPayPropTags()",
-                "createPayPropTag()",
-                "syncPortfolioToPayProp()",
-                "handlePayPropTagChange()"
-            ));
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "Tag test failed: " + e.getMessage());
-            return ResponseEntity.ok(response);
-        }
-    }
-
-    // ===== NEW FINANCIAL SYNC ENDPOINTS =====
-
-    /**
-     * Comprehensive financial data sync - syncs all financial data from PayProp
-     */
-    @PostMapping("/sync-comprehensive-financial-data")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> syncComprehensiveFinancialData(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        try {
-            Map<String, Object> syncResults = payPropFinancialSyncService.syncComprehensiveFinancialData();
-            return ResponseEntity.ok(syncResults);
-            
-        } catch (Exception e) {
-            logger.error("❌ Comprehensive financial sync failed: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of(
-                "status", "FAILED",
-                "error", e.getMessage()
-            ));
-        }
-    }
-
-    /**
-     * NEW: Sync dual financial data (instructions vs actuals)
-     */
-    @PostMapping("/sync-dual-financial-data")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> syncDualFinancialData(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        try {
-            Map<String, Object> syncResults = payPropFinancialSyncService.syncDualFinancialData();
-            return ResponseEntity.ok(syncResults);
-            
-        } catch (Exception e) {
-            logger.error("❌ Dual financial sync failed: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of(
-                "status", "FAILED",
-                "error", e.getMessage()
-            ));
-        }
-    }
-
-    /**
-     * Get financial summary from stored local data
-     */
-    @GetMapping("/financial-summary")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> getFinancialSummary(
-        @RequestParam(required = false) String propertyId,
-        @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fromDate,
-        @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate toDate,
-        Authentication authentication
-    ) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        try {
-            Map<String, Object> summary = payPropFinancialSyncService.getStoredFinancialSummary(
-                propertyId, fromDate, toDate);
-            return ResponseEntity.ok(summary);
-            
-        } catch (Exception e) {
-            logger.error("❌ Financial summary failed: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of(
-                "status", "ERROR",
-                "error", e.getMessage()
-            ));
-        }
-    }
-
-    /**
-     * NEW: Get dashboard financial comparison (instructions vs actuals)
-     */
-    @GetMapping("/dashboard-financial-comparison")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> getDashboardFinancialComparison(
-        @RequestParam(required = false) String propertyId,
-        @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate fromDate,
-        @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate toDate,
-        Authentication authentication
-    ) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        try {
-            // Default to last 30 days if no dates provided
-            if (fromDate == null) fromDate = LocalDate.now().minusDays(30);
-            if (toDate == null) toDate = LocalDate.now();
-            
-            Map<String, Object> comparison = payPropFinancialSyncService.getDashboardFinancialComparison(
-                propertyId, fromDate, toDate);
-            return ResponseEntity.ok(comparison);
-            
-        } catch (Exception e) {
-            logger.error("❌ Dashboard financial comparison failed: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of(
-                "status", "ERROR",
-                "error", e.getMessage()
-            ));
-        }
-    }
-
-    /**
-     * Test financial sync on a small dataset
-     */
-    @PostMapping("/test-financial-sync")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testFinancialSync(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        try {
-            Map<String, Object> testResults = new HashMap<>();
-            
-            // Test 1: Check OAuth connection
-            testResults.put("oauth_status", oAuth2Service.hasValidTokens() ? "VALID" : "INVALID");
-            
-            // Test 2: Check existing database counts
-            long totalProperties = propertyService.findAll().size();
-            long totalBeneficiaries = beneficiaryRepository.count();
-            long totalPayments = paymentRepository.count();
-            long totalCategories = paymentCategoryRepository.count();
-            
-            testResults.put("database_status", Map.of(
-                "total_properties", totalProperties,
-                "total_beneficiaries", totalBeneficiaries,
-                "total_payments", totalPayments,
-                "total_categories", totalCategories
-            ));
-            
-            // Test 3: Test PayProp API access with small data
-            if (oAuth2Service.hasValidTokens()) {
-                HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-                HttpEntity<String> request = new HttpEntity<>(headers);
-                
-                // Test properties endpoint
-                String propertiesUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&rows=2";
-                ResponseEntity<Map> propertiesResponse = restTemplate.exchange(propertiesUrl, HttpMethod.GET, request, Map.class);
-                
-                List<Map<String, Object>> properties = (List<Map<String, Object>>) propertiesResponse.getBody().get("items");
-                testResults.put("payprop_properties_test", Map.of(
-                    "count", properties.size(),
-                    "status", "SUCCESS"
-                ));
-                
-                // Test ICDN endpoint
-                LocalDate testDate = LocalDate.now().minusDays(30);
-                String icdnUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/icdn?from_date=" + testDate + "&rows=2";
-                ResponseEntity<Map> icdnResponse = restTemplate.exchange(icdnUrl, HttpMethod.GET, request, Map.class);
-                
-                List<Map<String, Object>> transactions = (List<Map<String, Object>>) icdnResponse.getBody().get("items");
-                testResults.put("payprop_transactions_test", Map.of(
-                    "count", transactions.size(),
-                    "status", "SUCCESS"
-                ));
-            } else {
-                testResults.put("payprop_api_test", "SKIPPED - No valid OAuth tokens");
-            }
-            
-            testResults.put("status", "SUCCESS");
-            testResults.put("test_time", LocalDateTime.now());
-            
-            return ResponseEntity.ok(testResults);
-            
-        } catch (Exception e) {
-            logger.error("❌ Financial sync test failed: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of(
-                "status", "FAILED",
-                "error", e.getMessage()
-            ));
-        }
-    }
-
-    /**
-     * Get financial sync status and statistics
-     */
-    @GetMapping("/financial-sync-status")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> getFinancialSyncStatus(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        try {
-            Map<String, Object> status = new HashMap<>();
-            
-            // Check database counts using existing repositories
-            long totalProperties = propertyService.findAll().size();
-            long totalBeneficiaries = beneficiaryRepository.count();
-            long totalPayments = paymentRepository.count();
-            long totalCategories = paymentCategoryRepository.count();
-            
-            // Count PayProp synced entities
-            long payPropProperties = propertyRepository.findByPayPropIdIsNotNull().size();
-            long payPropBeneficiaries = beneficiaryRepository.findByPayPropBeneficiaryIdIsNotNull().size();
-            long payPropPayments = paymentRepository.findByPayPropPaymentIdIsNotNull().size();
-            long payPropCategories = paymentCategoryRepository.findByPayPropCategoryIdIsNotNull().size();
-            
-            status.put("database_status", Map.of(
-                "total_properties", totalProperties,
-                "payprop_synced_properties", payPropProperties,
-                "property_sync_coverage", totalProperties > 0 ? (payPropProperties * 100.0 / totalProperties) : 0,
-                "total_beneficiaries", totalBeneficiaries,
-                "payprop_synced_beneficiaries", payPropBeneficiaries,
-                "total_payments", totalPayments,
-                "payprop_synced_payments", payPropPayments,
-                "total_categories", totalCategories,
-                "payprop_synced_categories", payPropCategories
-            ));
-            
-            // Check recent payment activity (last 30 days)
-            LocalDate thirtyDaysAgo = LocalDate.now().minusDays(30);
-            List<Payment> recentPayments = paymentRepository.findByPaymentDateBetween(thirtyDaysAgo, LocalDate.now());
-            
-            status.put("recent_activity", Map.of(
-                "payments_last_30_days", recentPayments.size(),
-                "date_range", thirtyDaysAgo + " to " + LocalDate.now()
-            ));
-            
-            // Check OAuth status
-            status.put("oauth_status", Map.of(
-                "has_valid_tokens", oAuth2Service.hasValidTokens(),
-                "ready_for_sync", oAuth2Service.hasValidTokens()
-            ));
-            
-            status.put("status", "SUCCESS");
-            status.put("checked_at", LocalDateTime.now());
-            
-            return ResponseEntity.ok(status);
-            
-        } catch (Exception e) {
-            logger.error("❌ Financial sync status check failed: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of(
-                "status", "ERROR",
-                "error", e.getMessage()
-            ));
-        }
-    }
-
-    /**
-     * Quick test of PayProp financial data access
-     */
-    @PostMapping("/test-payprop-financial-access")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testPayPropFinancialAccess(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        try {
-            Map<String, Object> testResults = new HashMap<>();
-            
-            if (!oAuth2Service.hasValidTokens()) {
-                return ResponseEntity.ok(Map.of(
-                    "status", "NO_TOKENS",
-                    "message", "Please authorize PayProp first"
-                ));
-            }
-            
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
-            
-            // Test 1: Properties with commission
-            String propertiesUrl = baseUrl + "/export/properties?include_commission=true&rows=3";
-            ResponseEntity<Map> propertiesResponse = restTemplate.exchange(propertiesUrl, HttpMethod.GET, request, Map.class);
-            List<Map<String, Object>> properties = (List<Map<String, Object>>) propertiesResponse.getBody().get("items");
-            
-            testResults.put("properties_with_commission", Map.of(
-                "count", properties.size(),
-                "sample", properties.stream().limit(1).collect(Collectors.toList())
-            ));
-            
-            // Test 2: Owner beneficiaries
-            String beneficiariesUrl = baseUrl + "/export/beneficiaries?owners=true&rows=3";
-            ResponseEntity<Map> beneficiariesResponse = restTemplate.exchange(beneficiariesUrl, HttpMethod.GET, request, Map.class);
-            List<Map<String, Object>> beneficiaries = (List<Map<String, Object>>) beneficiariesResponse.getBody().get("items");
-            
-            testResults.put("owner_beneficiaries", Map.of(
-                "count", beneficiaries.size(),
-                "sample", beneficiaries.stream().limit(1).collect(Collectors.toList())
-            ));
-            
-            // Test 3: Financial transactions (ICDN)
-            LocalDate fromDate = LocalDate.now().minusDays(30);
-            String icdnUrl = baseUrl + "/report/icdn?from_date=" + fromDate + "&rows=5";
-            ResponseEntity<Map> icdnResponse = restTemplate.exchange(icdnUrl, HttpMethod.GET, request, Map.class);
-            List<Map<String, Object>> transactions = (List<Map<String, Object>>) icdnResponse.getBody().get("items");
-            
-            testResults.put("financial_transactions", Map.of(
-                "count", transactions.size(),
-                "sample", transactions.stream().limit(1).collect(Collectors.toList())
-            ));
-            
-            testResults.put("status", "SUCCESS");
-            testResults.put("message", "PayProp financial data access working correctly");
-            
-            return ResponseEntity.ok(testResults);
-            
-        } catch (Exception e) {
-            logger.error("❌ PayProp financial access test failed: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of(
-                "status", "FAILED",
-                "error", e.getMessage()
-            ));
-        }
-    }
-
-
-    /**
-     * 🔍 DIAGNOSTIC: Test different PayProp endpoints to find correct data source
-     * FIXED: Automatically finds valid property ID
-     */
-    @PostMapping("/diagnose-payment-data-sources")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> diagnosePaymentDataSources(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-
-        Map<String, Object> diagnosis = new HashMap<>();
-        
-        try {
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
-            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
-            
-            // STEP 1: Find a valid property ID from your database
-            String testPropertyId = null;
-            try {
-                List<Property> properties = propertyService.findAll().stream()
-                    .filter(p -> p.getPayPropId() != null)
-                    .limit(1)
-                    .collect(Collectors.toList());
-                
-                if (!properties.isEmpty()) {
-                    testPropertyId = properties.get(0).getPayPropId();
-                    diagnosis.put("test_property_info", Map.of(
-                        "property_id", testPropertyId,
-                        "property_name", properties.get(0).getPropertyName(),
-                        "source", "Local database"
-                    ));
-                }
-            } catch (Exception e) {
-                logger.warn("Could not get property from database: {}", e.getMessage());
-            }
-            
-            // STEP 2: If no property in database, get one from PayProp
-            if (testPropertyId == null) {
-                try {
-                    String propertiesUrl = baseUrl + "/export/properties?rows=1";
-                    ResponseEntity<Map> propResponse = restTemplate.exchange(propertiesUrl, HttpMethod.GET, request, Map.class);
-                    List<Map<String, Object>> properties = (List<Map<String, Object>>) propResponse.getBody().get("items");
-                    
-                    if (!properties.isEmpty()) {
-                        testPropertyId = (String) properties.get(0).get("id");
-                        diagnosis.put("test_property_info", Map.of(
-                            "property_id", testPropertyId,
-                            "property_name", properties.get(0).get("property_name"),
-                            "source", "PayProp API"
-                        ));
-                    }
-                } catch (Exception e) {
-                    logger.warn("Could not get property from PayProp: {}", e.getMessage());
-                }
-            }
-            
-            if (testPropertyId == null) {
-                diagnosis.put("error", "Could not find any valid property ID to test with");
-                return ResponseEntity.ok(diagnosis);
-            }
-            
-            logger.info("Using test property ID: {} for diagnostics", testPropertyId);
-            
-            // 1. TEST: Payment Instructions Export (general)
-            String paymentsUrl = baseUrl + "/export/payments?rows=10&include_beneficiary_info=true";
-            ResponseEntity<Map> paymentsResponse = restTemplate.exchange(paymentsUrl, HttpMethod.GET, request, Map.class);
-            
-            diagnosis.put("1_payment_instructions", Map.of(
-                "endpoint", "/export/payments",
-                "description", "Payment instructions (what SHOULD be paid)",
-                "count", getItemCount(paymentsResponse.getBody()),
-                "sample_data", getSampleData(paymentsResponse.getBody(), 3)
-            ));
-            
-            // 2. TEST: Reconciled Payments (filtered by reconciliation date)
-            String reconciledUrl = baseUrl + "/export/payments?filter_by=reconciliation_date&rows=10&include_beneficiary_info=true";
-            try {
-                ResponseEntity<Map> reconciledResponse = restTemplate.exchange(reconciledUrl, HttpMethod.GET, request, Map.class);
-                
-                diagnosis.put("2_reconciled_payments", Map.of(
-                    "endpoint", "/export/payments?filter_by=reconciliation_date",
-                    "description", "ACTUAL reconciled payments (what WAS paid)",
-                    "count", getItemCount(reconciledResponse.getBody()),
-                    "sample_data", getSampleData(reconciledResponse.getBody(), 3)
-                ));
-            } catch (Exception e) {
-                diagnosis.put("2_reconciled_payments", Map.of("error", "Endpoint failed: " + e.getMessage()));
-            }
-            
-            // 3. TEST: ICDN Report (financial transactions)
-            LocalDate fromDate = LocalDate.now().minusMonths(6);
-            String icdnUrl = baseUrl + "/report/icdn?from_date=" + fromDate + "&rows=10";
-            try {
-                ResponseEntity<Map> icdnResponse = restTemplate.exchange(icdnUrl, HttpMethod.GET, request, Map.class);
-                
-                diagnosis.put("3_icdn_transactions", Map.of(
-                    "endpoint", "/report/icdn",
-                    "description", "Financial transaction records",
-                    "count", getItemCount(icdnResponse.getBody()),
-                    "sample_data", getSampleData(icdnResponse.getBody(), 3)
-                ));
-            } catch (Exception e) {
-                diagnosis.put("3_icdn_transactions", Map.of("error", "Endpoint failed: " + e.getMessage()));
-            }
-            
-            // 4. TEST: Property-specific payments (using valid property ID)
-            String propPaymentsUrl = baseUrl + "/export/payments?property_id=" + testPropertyId + "&rows=10&include_beneficiary_info=true";
-            try {
-                ResponseEntity<Map> propResponse = restTemplate.exchange(propPaymentsUrl, HttpMethod.GET, request, Map.class);
-                diagnosis.put("4_property_specific_payments", Map.of(
-                    "endpoint", "/export/payments?property_id=" + testPropertyId,
-                    "description", "Property-specific payment instructions",
-                    "count", getItemCount(propResponse.getBody()),
-                    "sample_data", getSampleData(propResponse.getBody(), 3)
-                ));
-            } catch (Exception e) {
-                diagnosis.put("4_property_specific_payments", Map.of("error", "Endpoint failed: " + e.getMessage()));
-            }
-            
-            // 5. TEST: Property-specific reconciled payments
-            String propReconciledUrl = baseUrl + "/export/payments?property_id=" + testPropertyId + "&filter_by=reconciliation_date&rows=10&include_beneficiary_info=true";
-            try {
-                ResponseEntity<Map> propReconResponse = restTemplate.exchange(propReconciledUrl, HttpMethod.GET, request, Map.class);
-                diagnosis.put("5_property_reconciled_payments", Map.of(
-                    "endpoint", "/export/payments?property_id=" + testPropertyId + "&filter_by=reconciliation_date",
-                    "description", "Property-specific ACTUAL reconciled payments",
-                    "count", getItemCount(propReconResponse.getBody()),
-                    "sample_data", getSampleData(propReconResponse.getBody(), 3)
-                ));
-            } catch (Exception e) {
-                diagnosis.put("5_property_reconciled_payments", Map.of("error", "Endpoint failed: " + e.getMessage()));
-            }
-            
-            diagnosis.put("analysis", Map.of(
-                "recommendation", "Compare amounts and dates between endpoints 1 vs 2 and 4 vs 5",
-                "look_for", "Endpoint with correct amounts (e.g., £1,100.00 vs £1,075.00) and dates",
-                "test_property_id", testPropertyId
-            ));
-            
-        } catch (Exception e) {
-            diagnosis.put("error", e.getMessage());
-            logger.error("Diagnostic failed: {}", e.getMessage(), e);
-        }
-        
-        return ResponseEntity.ok(diagnosis);
-    }
-
-    /**
-     * Check current PayProp OAuth2 scopes and token status
-     */
-    @GetMapping("/payprop/check-scopes")
-    public ResponseEntity<?> checkPayPropScopes() {
-        if (oAuth2Service.hasValidTokens()) {
-            PayPropOAuth2Service.PayPropTokens tokens = oAuth2Service.getCurrentTokens();
-            return ResponseEntity.ok(Map.of(
-                "scopes", tokens.getScopes(),
-                "expiresAt", tokens.getExpiresAt()
-            ));
-        }
-        return ResponseEntity.ok("No valid tokens");
-    }
-
-    /**
-     * Test real-time sync functionality
-     */
-    @PostMapping("/test-realtime-sync")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testRealtimeSync(
-            @RequestBody Map<String, Object> request,
-            Authentication authentication) {
-        
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-        
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            // Check if real-time sync is available
-            if (realTimeSyncService == null) {
-                response.put("status", "DISABLED");
-                response.put("message", "Real-time sync is not enabled. Set payprop.sync.realtime.enabled=true");
-                return ResponseEntity.ok(response);
-            }
-            
-            // Get test parameters
-            String ticketIdStr = (String) request.get("ticketId");
-            String newStatus = (String) request.getOrDefault("newStatus", "resolved");
-            boolean actuallyUpdate = Boolean.parseBoolean(request.getOrDefault("actuallyUpdate", "false").toString());
-            
-            if (ticketIdStr == null) {
-                response.put("error", "ticketId parameter required");
-                return ResponseEntity.badRequest().body(response);
-            }
-            
-            // Find the ticket
-            int ticketId = Integer.parseInt(ticketIdStr);
-            Ticket ticket = ticketService.findByTicketId(ticketId);
-            
-            if (ticket == null) {
-                response.put("error", "Ticket not found: " + ticketId);
-                return ResponseEntity.ok(response);
-            }
-            
-            response.put("ticket_info", Map.of(
-                "id", ticket.getTicketId(),
-                "subject", ticket.getSubject(),
-                "current_status", ticket.getStatus(),
-                "payprop_ticket_id", ticket.getPayPropTicketId(),
-                "type", ticket.getType()
-            ));
-            
-            // Check if ticket can be synced
-            if (ticket.getPayPropTicketId() == null) {
-                response.put("error", "Ticket is not linked to PayProp (no payPropTicketId)");
-                return ResponseEntity.ok(response);
-            }
-            
-            // Test sync decision logic
-            boolean shouldSync = realTimeSyncService.shouldPushImmediately(ticket);
-            response.put("sync_decision", Map.of(
-                "current_should_sync", shouldSync,
-                "is_maintenance_ticket", "maintenance".equals(ticket.getType()),
-                "has_payprop_id", ticket.getPayPropTicketId() != null,
-                "circuit_breaker_open", !realTimeSyncService.isHealthy()
-            ));
-            
-            // If actuallyUpdate is true, perform the test
-            if (actuallyUpdate) {
-                String originalStatus = ticket.getStatus();
-                
-                try {
-                    // Update the ticket status
-                    ticket.setStatus(newStatus);
-                    
-                    // Test if it would sync now
-                    boolean wouldSyncAfterUpdate = realTimeSyncService.shouldPushImmediately(ticket);
-                    response.put("would_sync_after_update", wouldSyncAfterUpdate);
-                    
-                    if (wouldSyncAfterUpdate) {
-                        // Actually trigger the sync
-                        CompletableFuture<Boolean> syncResult = realTimeSyncService.pushUpdateAsync(ticket);
-                        
-                        // Wait a bit for the async operation (for testing)
-                        Thread.sleep(2000);
-                        
-                        // Check if sync completed
-                        boolean syncSuccess = syncResult.get();
-                        
-                        response.put("sync_result", Map.of(
-                            "attempted", true,
-                            "success", syncSuccess,
-                            "new_status", ticket.getStatus(),
-                            "payprop_synced", ticket.getPayPropSynced(),
-                            "last_sync", ticket.getPayPropLastSync()
-                        ));
-                    } else {
-                        // Just save the ticket without sync
-                        ticketService.save(ticket);
-                        
-                        response.put("sync_result", Map.of(
-                            "attempted", false,
-                            "reason", "Update not considered critical for real-time sync",
-                            "new_status", ticket.getStatus()
-                        ));
-                    }
-                    
-                } catch (Exception e) {
-                    // Restore original status if something went wrong
-                    ticket.setStatus(originalStatus);
-                    ticketService.save(ticket);
-                    
-                    response.put("sync_result", Map.of(
-                        "attempted", true,
-                        "success", false,
-                        "error", e.getMessage()
-                    ));
-                }
-            } else {
-                response.put("message", "Test completed without updating ticket. Set actuallyUpdate=true to perform real test.");
-            }
-            
-            // Get sync statistics
-            response.put("sync_statistics", realTimeSyncService.getSyncStatistics());
-            
-            response.put("status", "SUCCESS");
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            log.error("❌ Real-time sync test failed: {}", e.getMessage(), e);
-            response.put("status", "ERROR");
-            response.put("error", e.getMessage());
-            return ResponseEntity.ok(response);
-        }
-    }
-
-    /**
-     * Get real-time sync health status
-     */
-    @GetMapping("/realtime-sync-health")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> getRealtimeSyncHealth(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-        
-        Map<String, Object> health = new HashMap<>();
-        
-        try {
-            if (realTimeSyncService == null) {
-                health.put("enabled", false);
-                health.put("status", "DISABLED");
-                health.put("message", "Real-time sync is not enabled");
-            } else {
-                health.put("enabled", true);
-                health.put("healthy", realTimeSyncService.isHealthy());
-                health.put("statistics", realTimeSyncService.getSyncStatistics());
-                
-                // Get monitoring report if available
-                if (payPropSyncMonitoringService != null) {
-                    try {
-                        PayPropSyncMonitoringService.RealTimeSyncReport report = 
-                            payPropSyncMonitoringService.generateRealTimeSyncReport();
-                        
-                        health.put("detailed_report", Map.of(
-                            "health_status", report.getHealthStatus(),
-                            "health_description", report.getHealthDescription(),
-                            "realtime_sync_rate", report.getRealtimeSyncRate(),
-                            "batch_fallback_rate", report.getBatchFallbackRate(),
-                            "recent_critical_updates", report.getRecentCriticalUpdates(),
-                            "recent_ticket_updates", report.getRecentTicketUpdates()
-                        ));
-                    } catch (Exception e) {
-                        health.put("monitoring_error", e.getMessage());
-                    }
-                }
-            }
-            
-            return ResponseEntity.ok(health);
-            
-        } catch (Exception e) {
-            return ResponseEntity.ok(Map.of(
-                "error", e.getMessage(),
-                "status", "ERROR"
-            ));
-        }
-    }
-
-    /**
-     * Manually trigger maintenance on real-time sync
-     */
-    @PostMapping("/realtime-sync-maintenance")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> performRealtimeSyncMaintenance(Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-        }
-        
-        try {
-            if (realTimeSyncService != null) {
-                realTimeSyncService.performMaintenance();
-                return ResponseEntity.ok(Map.of(
-                    "status", "SUCCESS",
-                    "message", "Real-time sync maintenance completed",
-                    "statistics", realTimeSyncService.getSyncStatistics()
-                ));
-            } else {
-                return ResponseEntity.ok(Map.of(
-                    "status", "DISABLED",
-                    "message", "Real-time sync is not enabled"
-                ));
-            }
-        } catch (Exception e) {
-            return ResponseEntity.ok(Map.of(
-                "status", "ERROR",
-                "error", e.getMessage()
-            ));
-        }
     }
 }
