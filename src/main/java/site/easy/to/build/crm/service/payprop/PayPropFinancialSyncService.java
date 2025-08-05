@@ -511,37 +511,26 @@ public class PayPropFinancialSyncService {
         }
     }
         
-    /**
-     * Sync payment categories - UNCHANGED (not paginated)
-     */
     private Map<String, Object> syncPaymentCategories() throws Exception {
         logger.info("🏷️ Syncing payment categories...");
         
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
-        String url = payPropApiBase + "/export/payments?rows=100";
+        // Use the correct endpoint - returns all categories, no pagination needed
+        String url = payPropApiBase + "/payments/categories";
         ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
         
-        List<Map<String, Object>> payments = (List<Map<String, Object>>) response.getBody().get("items");
-        Set<String> categoryIds = new HashSet<>();
-        Map<String, String> categoryNames = new HashMap<>();
-        
-        // Extract category information from payments
-        for (Map<String, Object> payment : payments) {
-            String categoryId = (String) payment.get("category_id");
-            String categoryName = (String) payment.get("category");
-            
-            if (categoryId != null && categoryName != null) {
-                categoryIds.add(categoryId);
-                categoryNames.put(categoryId, categoryName);
-            }
-        }
+        Map<String, Object> body = response.getBody();
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) body.get("categories");
         
         int processed = 0;
         
-        for (String categoryId : categoryIds) {
-            String categoryName = categoryNames.get(categoryId);
+        for (Map<String, Object> categoryData : categories) {
+            String categoryId = (String) categoryData.get("id");
+            String categoryName = (String) categoryData.get("name");
+            Boolean isActive = (Boolean) categoryData.get("is_active");
+            // Note: is_system from API is not stored - we don't have this field in our entity
             
             PaymentCategory category = paymentCategoryRepository.findByPayPropCategoryId(categoryId);
             if (category == null) {
@@ -552,13 +541,14 @@ public class PayPropFinancialSyncService {
             
             category.setCategoryName(categoryName);
             category.setCategoryType("PAYMENT");
-            category.setIsActive("Y");
+            category.setIsActive(isActive != null && isActive ? "Y" : "N");
             category.setUpdatedAt(LocalDateTime.now());
             
             paymentCategoryRepository.save(category);
             processed++;
         }
         
+        logger.info("✅ Synced {} payment categories", processed);
         return Map.of("categories_processed", processed);
     }
     
