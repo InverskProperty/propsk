@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PayProp Integration Test</title>
+    <title>PayProp Integration Test Dashboard</title>
     
     <!-- CSRF tokens for Spring Security -->
     <meta name="_csrf" th:content="${_csrf.token}"/>
@@ -16,272 +16,265 @@
         .result-box {
             background-color: #f8f9fa;
             border: 1px solid #dee2e6;
-            border-radius: 0.25rem;
+            border-radius: 0.375rem;
             padding: 1rem;
             margin-top: 1rem;
-            max-height: 400px;
+            max-height: 500px;
             overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
         }
         .loading {
             display: none;
-        }
-        .json-display {
-            white-space: pre-wrap;
-            font-family: monospace;
-            font-size: 12px;
-        }
-        .batch-field {
-            background-color: #fff3cd;
-            padding: 0.5rem;
-            margin: 0.5rem 0;
-            border-radius: 0.25rem;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            background: rgba(255,255,255,0.9);
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .test-section {
             margin-bottom: 2rem;
             padding: 1.5rem;
             border: 1px solid #dee2e6;
             border-radius: 0.5rem;
+            background: #fff;
         }
         .success-highlight {
-            background-color: #d4edda;
-            border: 2px solid #c3e6cb;
-            border-radius: 0.5rem;
+            background-color: #d1ecf1 !important;
+            border-color: #bee5eb !important;
+        }
+        .error-highlight {
+            background-color: #f8d7da !important;
+            border-color: #f5c6cb !important;
         }
         .batch-found {
-            background-color: #f0fff0;
-            border: 2px solid #28a745;
+            background-color: #d4edda;
+            border: 2px solid #c3e6cb;
             color: #155724;
             padding: 1rem;
             margin: 0.5rem 0;
-            border-radius: 0.5rem;
+            border-radius: 0.375rem;
             font-weight: bold;
         }
-        .icdn-highlight {
-            background-color: #e7f3ff;
-            border: 2px solid #0066cc;
-            border-radius: 0.5rem;
+        .warning-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 1rem;
+            border-radius: 0.375rem;
+            margin: 1rem 0;
         }
+        .json-display {
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            background: #f8f9fa;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            border: 1px solid #e9ecef;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+        .status-success { background-color: #d4edda; color: #155724; }
+        .status-error { background-color: #f8d7da; color: #721c24; }
+        .status-warning { background-color: #fff3cd; color: #856404; }
     </style>
 </head>
 <body>
-    <div class="container mt-4">
-        <h1>PayProp Integration Test Dashboard</h1>
-        <p class="lead">Test PayProp API endpoints and batch payment functionality</p>
-        
-        <!-- CSRF Status -->
-        <div class="alert alert-info">
-            <h5>Security Status</h5>
-            <div id="csrfStatus">Checking CSRF configuration...</div>
-        </div>
-        
-        <!-- API Connection Test -->
-        <div class="test-section">
-            <h3>1. API Connection Test</h3>
-            <button class="btn btn-primary" onclick="testConnection()">Test PayProp Connection</button>
-            <div id="connectionResult" class="result-box d-none"></div>
-        </div>
-        
-        <!-- Payment Categories Test -->
-        <div class="test-section">
-            <h3>2. Payment Categories</h3>
-            <button class="btn btn-primary" onclick="testPaymentCategories()">Sync Payment Categories</button>
-            <div id="categoriesResult" class="result-box d-none"></div>
-        </div>
-        
-        <!-- Actual Payments Test -->
-        <div class="test-section">
-            <h3>3. Search for Payments (Payment Instructions)</h3>
-            <div class="row mb-3">
-                <div class="col-md-3">
-                    <label>Page:</label>
-                    <input type="number" id="pageNum" class="form-control" value="1" min="1">
-                </div>
-                <div class="col-md-3">
-                    <label>Rows per page:</label>
-                    <input type="number" id="rowsNum" class="form-control" value="25" min="1" max="100">
-                </div>
-                <div class="col-md-6">
-                    <label>&nbsp;</label><br>
-                    <button class="btn btn-primary" onclick="searchPayments()">Search Payment Instructions</button>
-                    <button class="btn btn-warning" onclick="findBatchPayments()">Find Batch Fields</button>
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="mb-3">🔧 PayProp Integration Test Dashboard</h1>
+                <p class="lead">Test PayProp API endpoints and diagnose integration issues</p>
+                
+                <!-- CSRF Status -->
+                <div class="alert alert-info">
+                    <h5>🔐 Security Status</h5>
+                    <div id="csrfStatus">Checking CSRF configuration...</div>
                 </div>
             </div>
-            <div id="paymentsResult" class="result-box d-none"></div>
         </div>
-        
-        <!-- API Endpoint Discovery -->
-        <div class="test-section">
-            <h3>4. API Endpoint Discovery</h3>
-            <p class="text-muted">Discover which PayProp API endpoints are available with your current permissions</p>
-            <button class="btn btn-primary" onclick="discoverEndpoints()">Discover Available Endpoints</button>
-            <div id="discoveryResult" class="result-box d-none"></div>
-        </div>
-        
-        <!-- Report All Payments Test -->
-        <div class="test-section">
-            <h3>5. Test Report All-Payments (Real Transactions)</h3>
-            <p class="text-muted">This endpoint should contain actual payment transactions with batch information</p>
-            <div class="row mb-3">
-                <div class="col-md-3">
-                    <label>Property ID (optional):</label>
-                    <input type="text" id="reportPropertyId" class="form-control" placeholder="Leave empty for all">
-                </div>
-                <div class="col-md-3">
-                    <label>From Date:</label>
-                    <input type="date" id="reportFromDate" class="form-control" value="2024-01-01">
-                </div>
-                <div class="col-md-3">
-                    <label>To Date:</label>
-                    <input type="date" id="reportToDate" class="form-control" value="2024-12-31">
-                </div>
-                <div class="col-md-3">
-                    <label>Batch ID (optional):</label>
-                    <input type="text" id="reportBatchId" class="form-control" placeholder="Test specific batch">
-                </div>
-            </div>
-            <button class="btn btn-primary" onclick="testReportAllPayments()">Test Report All-Payments</button>
-            <button class="btn btn-info" onclick="testWithRecentDates()">Test with Recent Dates</button>
-            <div id="reportResult" class="result-box d-none"></div>
-        </div>
-        
-        <!-- Test Multiple Payment Endpoints -->
-        <div class="test-section">
-            <h3>6. Test Multiple Payment Endpoints</h3>
-            <p class="text-muted">Test different PayProp payment endpoints to find actual transaction data</p>
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label>Date Range (months back):</label>
-                    <input type="number" id="monthsBack" class="form-control" value="3" min="1" max="12">
-                </div>
-                <div class="col-md-8">
-                    <label>&nbsp;</label><br>
-                    <button class="btn btn-primary" onclick="testAllPaymentEndpoints()">Test All Payment Endpoints</button>
-                </div>
-            </div>
-            <div id="multipleEndpointsResult" class="result-box d-none"></div>
-        </div>
-        
-        <!-- Batch Payment Analysis -->
-        <div class="test-section">
-            <h3>7. Batch Payment Analysis</h3>
-            <button class="btn btn-primary" onclick="analyzeBatchFields()">Analyze All Batch Fields</button>
-            <button class="btn btn-info" onclick="checkDatabaseBatches()">Check Database Batches</button>
-            <div id="batchAnalysisResult" class="result-box d-none"></div>
-        </div>
-        
-        <!-- Property Statistics -->
-        <div class="test-section">
-            <h3>8. Property Statistics</h3>
-            <button class="btn btn-primary" onclick="getPropertyStats()">Get Property Statistics</button>
-            <div id="statsResult" class="result-box d-none"></div>
-        </div>
-        
-        <!-- Webhook Test -->
-        <div class="test-section">
-            <h3>9. Webhook Test</h3>
-            <button class="btn btn-primary" onclick="testWebhook()">Test Discovery Webhook</button>
-            <button class="btn btn-success" onclick="simulateBatchWebhook()">Simulate Batch Webhook</button>
-            <div id="webhookResult" class="result-box d-none"></div>
-        </div>
-        
-        <!-- Raw Response Viewer -->
-        <div class="test-section">
-            <h3>10. Raw API Response Viewer</h3>
-            <div class="mb-3">
-                <label>Custom Endpoint (relative to /api/payprop/):</label>
-                <input type="text" id="customEndpoint" class="form-control" placeholder="e.g., test/report-all-payments?fromDate=2024-01-01">
-            </div>
-            <button class="btn btn-primary" onclick="testCustomEndpoint()">Test Custom Endpoint</button>
-            <div id="customResult" class="result-box d-none"></div>
-        </div>
-        
-        <!-- NEW: ICDN Real-time Transaction Test -->
-        <div class="test-section">
-            <h3>11. Test ICDN Real-time Transactions</h3>
-            <p class="text-muted">ICDN = "I Can Do Now" - PayProp's real-time transaction data endpoint</p>
-            <div class="row mb-3">
-                <div class="col-md-3">
-                    <label>From Date:</label>
-                    <input type="date" id="icdnFromDate" class="form-control" value="2024-01-01">
-                </div>
-                <div class="col-md-3">
-                    <label>To Date:</label>
-                    <input type="date" id="icdnToDate" class="form-control" value="2024-12-31">
-                </div>
-                <div class="col-md-3">
-                    <label>Rows:</label>
-                    <input type="number" id="icdnRows" class="form-control" value="25" min="1" max="100">
-                </div>
-                <div class="col-md-3">
-                    <label>&nbsp;</label><br>
-                    <button class="btn btn-primary" onclick="testICDNEndpoint()">Test ICDN Endpoint</button>
-                    <button class="btn btn-info" onclick="testICDNRecent()">Test Recent 30 Days</button>
-                </div>
-            </div>
-            <div id="icdnResult" class="result-box d-none"></div>
-        </div>
-        
-        <!-- NEW: Comprehensive Endpoint Comparison -->
-        <div class="test-section">
-            <h3>12. Comprehensive Endpoint Comparison</h3>
-            <p class="text-muted">Compare all PayProp endpoints side-by-side including ICDN</p>
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label>From Date:</label>
-                    <input type="date" id="comparisonFromDate" class="form-control" value="2024-06-01">
-                </div>
-                <div class="col-md-4">
-                    <label>To Date:</label>
-                    <input type="date" id="comparisonToDate" class="form-control" value="2024-12-31">
-                </div>
-                <div class="col-md-4">
-                    <label>&nbsp;</label><br>
-                    <button class="btn btn-primary" onclick="testEndpointComparison()">Compare All Endpoints</button>
-                </div>
-            </div>
-            <div id="comparisonResult" class="result-box d-none"></div>
-        </div>
-    </div>
 
-    <!-- NEW: Fast Debug Sync for Development -->
-    <div class="test-section">
-        <h3>13. 🚀 Fast Debug Sync (Quick Iteration)</h3>
-        <p class="text-muted">Sync just a few properties with all related data for fast debugging - completes in 30 seconds</p>
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <label>Specific Property IDs (comma-separated, optional):</label>
-                <input type="text" id="debugPropertyIds" class="form-control" 
-                        placeholder="5AJ5KQjE1M,KAXNNaG9Xk or leave empty for auto-select">
-            </div>
-            <div class="col-md-3">
-                <label>Number of Properties:</label>
-                <input type="number" id="debugLimit" class="form-control" value="5" min="1" max="20">
-            </div>
-            <div class="col-md-3">
-                <label>Options:</label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="includeFinancials" checked>
-                    <label class="form-check-label" for="includeFinancials">Include Financials</label>
+        <div class="row">
+            <!-- Left Column: Core Tests -->
+            <div class="col-lg-6">
+                
+                <!-- OAuth Connection Test -->
+                <div class="test-section">
+                    <h4>1. 🔌 OAuth Connection Test</h4>
+                    <p class="text-muted">Test PayProp OAuth2 authentication status</p>
+                    <button class="btn btn-primary" onclick="testConnection()">Test OAuth Connection</button>
+                    <button class="btn btn-outline-secondary" onclick="getTokenStatus()">Check Token Status</button>
+                    <div id="connectionResult" class="result-box d-none"></div>
                 </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="includeValidationDetails" checked>
-                    <label class="form-check-label" for="includeValidationDetails">Detailed Validation</label>
+
+                <!-- API Endpoint Discovery -->
+                <div class="test-section">
+                    <h4>2. 🔍 API Endpoint Discovery</h4>
+                    <p class="text-muted">Discover which PayProp API endpoints are available</p>
+                    <button class="btn btn-primary" onclick="discoverEndpoints()">Discover Available Endpoints</button>
+                    <div id="discoveryResult" class="result-box d-none"></div>
                 </div>
+
+                <!-- Export Payments Test -->
+                <div class="test-section">
+                    <h4>3. 💰 Export Payments Test</h4>
+                    <p class="text-muted">Test PayProp payments export with detailed analysis</p>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label>Property ID (optional):</label>
+                            <input type="text" id="exportPropertyId" class="form-control" placeholder="Leave empty for all">
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="includeBeneficiaryInfo" checked>
+                                <label class="form-check-label" for="includeBeneficiaryInfo">Include Beneficiary Info</label>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="testExportPayments()">Test Export Payments</button>
+                    <button class="btn btn-outline-info" onclick="testPropertyPayments()">Test Property-Specific</button>
+                    <div id="exportResult" class="result-box d-none"></div>
+                </div>
+
+                <!-- Batch Payments Analysis -->
+                <div class="test-section">
+                    <h4>4. 📦 Batch Payments Analysis</h4>
+                    <p class="text-muted">Test batch payment functionality and data structure</p>
+                    <button class="btn btn-primary" onclick="testBatchPayments()">Test Batch Payments</button>
+                    <button class="btn btn-outline-warning" onclick="testBatchSync()">Test Batch Sync</button>
+                    <div id="batchResult" class="result-box d-none"></div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Advanced Tests -->
+            <div class="col-lg-6">
+
+                <!-- Report All Payments -->
+                <div class="test-section">
+                    <h4>5. 📊 Report All-Payments</h4>
+                    <p class="text-muted">Test the report/all-payments endpoint with real transactions</p>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label>Property ID (optional):</label>
+                            <input type="text" id="reportPropertyId" class="form-control" placeholder="Leave empty for all">
+                        </div>
+                        <div class="col-md-6">
+                            <label>Batch ID (optional):</label>
+                            <input type="text" id="reportBatchId" class="form-control" placeholder="Test specific batch">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="testReportAllPayments()">Test All-Payments Report</button>
+                    <button class="btn btn-outline-info" onclick="testRecentPayments()">Test Recent (30 days)</button>
+                    <div id="reportResult" class="result-box d-none"></div>
+                </div>
+
+                <!-- Commission Data Sources -->
+                <div class="test-section">
+                    <h4>6. 💼 Commission Data Sources</h4>
+                    <p class="text-muted">Test commission and financial data endpoints</p>
+                    <button class="btn btn-primary" onclick="testCommissionData()">Test Commission Data</button>
+                    <button class="btn btn-outline-info" onclick="testFinancialData()">Test Financial Data</button>
+                    <div id="commissionResult" class="result-box d-none"></div>
+                </div>
+
+                <!-- Detailed Transaction Analysis -->
+                <div class="test-section">
+                    <h4>7. 🔬 Detailed Transaction Analysis</h4>
+                    <p class="text-muted">Deep dive into transaction data structure and fields</p>
+                    <button class="btn btn-primary" onclick="testDetailedTransactions()">Analyze Transaction Fields</button>
+                    <button class="btn btn-outline-info" onclick="testFieldLocations()">Test Field Locations</button>
+                    <div id="detailedResult" class="result-box d-none"></div>
+                </div>
+
+                <!-- Diagnostic Tools -->
+                <div class="test-section">
+                    <h4>8. 🚨 Diagnostic Tools</h4>
+                    <p class="text-muted">Advanced diagnostics for payment data sources</p>
+                    <button class="btn btn-warning" onclick="diagnosePaymentSources()">Diagnose Payment Sources</button>
+                    <button class="btn btn-outline-danger" onclick="testSyncSingleProperty()">Test Single Property Sync</button>
+                    <div id="diagnosticResult" class="result-box d-none"></div>
+                </div>
+
             </div>
         </div>
-        <div class="mb-3">
-            <button class="btn btn-success btn-lg" onclick="debugSyncFast()">🚀 Debug Sync (Fast)</button>
-            <button class="btn btn-warning" onclick="debugSyncProblemProperties()">🎯 Sync Problem Properties</button>
-            <button class="btn btn-info" onclick="debugSyncSingleProperty()">🔍 Sync Single Property</button>
+
+        <!-- Full Width: Comprehensive Testing -->
+        <div class="row">
+            <div class="col-12">
+                
+                <!-- Comprehensive Sync Test -->
+                <div class="test-section">
+                    <h4>9. 🚀 Comprehensive Sync Test</h4>
+                    <p class="text-muted">Test sync functionality with real data and validation</p>
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label>Property ID:</label>
+                            <input type="text" id="syncPropertyId" class="form-control" value="K3Jwqg8W1E" placeholder="Test property ID">
+                        </div>
+                        <div class="col-md-3">
+                            <label>From Date:</label>
+                            <input type="date" id="syncFromDate" class="form-control" value="2025-04-01">
+                        </div>
+                        <div class="col-md-3">
+                            <label>To Date:</label>
+                            <input type="date" id="syncToDate" class="form-control" value="2025-07-01">
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" id="actuallySync">
+                                <label class="form-check-label" for="actuallySync">Actually Save Data</label>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-success btn-lg" onclick="testComprehensiveSync()">🚀 Test Comprehensive Sync</button>
+                    <button class="btn btn-outline-primary" onclick="testSyncValidation()">Test Sync Validation</button>
+                    <div id="syncResult" class="result-box d-none"></div>
+                </div>
+
+                <!-- Raw API Response Viewer -->
+                <div class="test-section">
+                    <h4>10. 🔧 Raw API Response Viewer</h4>
+                    <p class="text-muted">Test custom endpoints and view raw responses</p>
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label>Custom Endpoint (relative to /api/payprop/oauth/):</label>
+                            <input type="text" id="customEndpoint" class="form-control" 
+                                   placeholder="e.g., test-batch-payments-api-only or diagnose-payment-data-sources">
+                        </div>
+                        <div class="col-md-4">
+                            <label>&nbsp;</label><br>
+                            <button class="btn btn-primary" onclick="testCustomEndpoint()">Test Custom Endpoint</button>
+                        </div>
+                    </div>
+                    <div class="warning-box">
+                        <strong>Available Endpoints:</strong> test-batch-payments-api-only, test-export-payments-detailed, 
+                        diagnose-payment-data-sources, test-commission-data-sources, test-detailed-transactions
+                    </div>
+                    <div id="customResult" class="result-box d-none"></div>
+                </div>
+
+            </div>
         </div>
-        <div id="debugSyncResult" class="result-box d-none"></div>
     </div>
 
     <!-- Loading spinner -->
-    <div class="loading position-fixed top-50 start-50 translate-middle">
+    <div class="loading">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
+        <div class="mt-2">Processing request...</div>
     </div>
 
     <script>
@@ -297,12 +290,12 @@
             const csrfStatus = document.getElementById('csrfStatus');
             if (csrfToken && csrfHeader && !csrfToken.includes('${')) {
                 csrfStatus.innerHTML = `
-                    <span class="text-success">✅ CSRF Configured</span><br>
+                    <span class="status-badge status-success">✅ CSRF Configured</span><br>
                     Token: ${csrfToken.substring(0, 20)}...<br>
                     Header: ${csrfHeader}
                 `;
             } else {
-                csrfStatus.innerHTML = '<span class="text-danger">❌ CSRF Not Configured</span>';
+                csrfStatus.innerHTML = '<span class="status-badge status-error">❌ CSRF Not Configured</span>';
             }
         });
         
@@ -322,7 +315,7 @@
             try {
                 const response = await fetch(url, options);
                 const data = await response.json();
-                return { success: true, data, status: response.status };
+                return { success: response.ok, data, status: response.status };
             } catch (error) {
                 return { success: false, error: error.message };
             } finally {
@@ -338,280 +331,198 @@
         // Enhanced display results function
         function showResult(elementId, data, title = '') {
             const element = document.getElementById(elementId);
-            element.classList.remove('d-none');
+            element.classList.remove('d-none', 'success-highlight', 'error-highlight');
             
             let html = title ? `<h5>${title}</h5>` : '';
             
-            // Check if this is batch data discovery
-            if (data && data.batchAnalysis && data.batchAnalysis.hasBatchData) {
-                html += `<div class="batch-found">🎉 BATCH DATA DISCOVERED! Found ${data.batchAnalysis.uniqueBatchIds.length} unique batch IDs</div>`;
+            // Check for success/error status
+            if (data && data.success === false) {
+                element.classList.add('error-highlight');
+                html += `<div class="status-badge status-error">❌ FAILED</div>`;
+            } else if (data && data.success === true) {
+                element.classList.add('success-highlight');
+                html += `<div class="status-badge status-success">✅ SUCCESS</div>`;
             }
             
-            // Check if this is ICDN data discovery
-            if (data && data.icdnAnalysis && data.icdnAnalysis.hasData) {
-                html += `<div class="batch-found">🚀 ICDN REAL-TIME DATA FOUND! Records: ${data.icdnAnalysis.totalRecords}</div>`;
+            // Check for batch data discovery
+            if (data && data.has_payment_batch_field) {
+                html += `<div class="batch-found">🎉 BATCH DATA DISCOVERED! Has payment_batch field: ${data.has_payment_batch_field}</div>`;
+            }
+            
+            // Check for specific discoveries
+            if (data && data.total_items > 0) {
+                html += `<div class="status-badge status-success">📊 Found ${data.total_items} items</div>`;
             }
             
             if (typeof data === 'object') {
-                html += `<pre class="json-display">${JSON.stringify(data, null, 2)}</pre>`;
+                html += `<div class="json-display">${JSON.stringify(data, null, 2)}</div>`;
             } else {
                 html += `<div>${data}</div>`;
             }
             
             element.innerHTML = html;
-            
-            // Highlight successful discoveries
-            if (data && ((data.batchAnalysis && data.batchAnalysis.hasBatchData) || 
-                        (data.icdnAnalysis && data.icdnAnalysis.hasData))) {
-                element.classList.add('success-highlight');
-            }
-            
-            // Special highlighting for ICDN data
-            if (data && data.icdnAnalysis && data.icdnAnalysis.hasData) {
-                element.classList.add('icdn-highlight');
-            }
         }
         
-        // Original test functions
+        // ======================
+        // TEST FUNCTIONS
+        // ======================
+        
+        // 1. OAuth Connection Test
         async function testConnection() {
-            const result = await fetchWithCSRF('/api/payprop/webhook/health');
-            showResult('connectionResult', result.data, 'Connection Test Result');
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-connection', { 
+                method: 'POST' 
+            });
+            showResult('connectionResult', result.data, '🔌 OAuth Connection Test');
         }
         
-        async function testPaymentCategories() {
-            const result = await fetchWithCSRF('/api/payprop/test/payment-categories');
-            showResult('categoriesResult', result.data, 'Payment Categories Result');
+        async function getTokenStatus() {
+            const result = await fetchWithCSRF('/api/payprop/oauth/token-status');
+            showResult('connectionResult', result.data, '🔐 Token Status');
         }
         
-        async function searchPayments() {
-            const page = document.getElementById('pageNum').value;
-            const rows = document.getElementById('rowsNum').value;
-            const result = await fetchWithCSRF(`/api/payprop/test/actual-payments?page=${page}&rows=${rows}`);
-            
-            if (result.success && result.data.payPropResponse) {
-                const items = result.data.payPropResponse.items;
-                const summary = {
-                    totalItems: items.length,
-                    itemsWithAmounts: items.filter(i => i.gross_amount > 0).length,
-                    categories: [...new Set(items.map(i => i.category))],
-                    pagination: result.data.payPropResponse.pagination
-                };
-                
-                showResult('paymentsResult', {
-                    summary,
-                    firstItem: items[0],
-                    rawResponse: result.data
-                }, `Payment Instructions Search - Page ${page}`);
-            } else {
-                showResult('paymentsResult', result, 'Payment Instructions Search Error');
-            }
-        }
-        
-        async function findBatchPayments() {
-            showResult('paymentsResult', 'Searching for payments with batch IDs...', 'Batch Payment Search');
-            
-            let foundBatches = [];
-            for (let page = 1; page <= 20; page++) {
-                const result = await fetchWithCSRF(`/api/payprop/test/actual-payments?page=${page}&rows=50`);
-                
-                if (result.success && result.data.payPropResponse) {
-                    const items = result.data.payPropResponse.items;
-                    
-                    items.forEach(item => {
-                        // Check for any batch-related fields
-                        const batchFields = ['batch_id', 'payment_batch_id', 'batchId', 'group_id'];
-                        batchFields.forEach(field => {
-                            if (item[field] && item[field] !== null) {
-                                foundBatches.push({
-                                    page,
-                                    field,
-                                    value: item[field],
-                                    item
-                                });
-                            }
-                        });
-                    });
-                }
-                
-                if (foundBatches.length > 0) break;
-            }
-            
-            showResult('paymentsResult', {
-                found: foundBatches.length > 0,
-                batches: foundBatches,
-                message: foundBatches.length > 0 ? 'Found batch fields!' : 'No batch fields found in first 20 pages',
-                note: 'These are payment instructions, not actual transactions'
-            }, 'Batch Payment Search Results');
-        }
-        
+        // 2. API Endpoint Discovery
         async function discoverEndpoints() {
-            const result = await fetchWithCSRF('/api/payprop/test/discover-endpoints');
-            showResult('discoveryResult', result.data, 'API Endpoint Discovery Results');
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-available-payment-endpoints', { 
+                method: 'POST' 
+            });
+            showResult('discoveryResult', result.data, '🔍 API Endpoint Discovery');
         }
         
+        // 3. Export Payments Test
+        async function testExportPayments() {
+            const propertyId = document.getElementById('exportPropertyId').value;
+            const includeBeneficiaryInfo = document.getElementById('includeBeneficiaryInfo').checked;
+            
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-export-payments-detailed', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    propertyId: propertyId || '', 
+                    includeBeneficiaryInfo 
+                })
+            });
+            
+            showResult('exportResult', result.data, '💰 Export Payments Test');
+        }
+        
+        async function testPropertyPayments() {
+            const propertyId = document.getElementById('exportPropertyId').value || 'K3Jwqg8W1E';
+            
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-property-payments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ propertyId })
+            });
+            
+            showResult('exportResult', result.data, '🏠 Property-Specific Payments');
+        }
+        
+        // 4. Batch Payments Analysis
+        async function testBatchPayments() {
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-batch-payments-api-only', { 
+                method: 'POST' 
+            });
+            showResult('batchResult', result.data, '📦 Batch Payments Analysis');
+        }
+        
+        async function testBatchSync() {
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-simple-batch-payments', { 
+                method: 'POST' 
+            });
+            showResult('batchResult', result.data, '🔄 Batch Sync Test');
+        }
+        
+        // 5. Report All Payments
         async function testReportAllPayments() {
-            const propertyId = document.getElementById('reportPropertyId').value;
-            const fromDate = document.getElementById('reportFromDate').value;
-            const toDate = document.getElementById('reportToDate').value;
-            const batchId = document.getElementById('reportBatchId').value;
-            
-            let url = `/api/payprop/test/report-all-payments?fromDate=${fromDate}&toDate=${toDate}`;
-            if (propertyId) url += `&propertyId=${propertyId}`;
-            if (batchId) url += `&paymentBatchId=${batchId}`;
-            
-            const result = await fetchWithCSRF(url);
-            
-            if (result.success && result.data.batchAnalysis) {
-                const analysis = result.data.batchAnalysis;
-                if (analysis.hasBatchData) {
-                    showResult('reportResult', {
-                        ...result.data,
-                        summary: `🎉 FOUND BATCH DATA! Fields: ${JSON.stringify(analysis.batchFieldsFound)}, Unique Batches: ${analysis.uniqueBatchIds.length}`
-                    }, 'Report All-Payments Test - BATCH DATA FOUND!');
-                } else {
-                    showResult('reportResult', result.data, 'Report All-Payments Test - No Batch Data');
-                }
-            } else {
-                showResult('reportResult', result, 'Report All-Payments Test');
-            }
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-all-payments-report', { 
+                method: 'POST' 
+            });
+            showResult('reportResult', result.data, '📊 Report All-Payments');
         }
         
-        async function testWithRecentDates() {
-            // Set dates to last 30 days
-            const today = new Date();
-            const thirtyDaysAgo = new Date(today);
-            thirtyDaysAgo.setDate(today.getDate() - 30);
-            
-            document.getElementById('reportFromDate').value = thirtyDaysAgo.toISOString().split('T')[0];
-            document.getElementById('reportToDate').value = today.toISOString().split('T')[0];
-            
-            // Call the main test function
-            await testReportAllPayments();
+        async function testRecentPayments() {
+            // Use the batch payment test which uses recent dates
+            await testBatchPayments();
+            showResult('reportResult', document.getElementById('batchResult').innerHTML, '📅 Recent Payments (30 days)');
         }
         
-        // Updated testAllPaymentEndpoints function to include ICDN
-        async function testAllPaymentEndpoints() {
-            const monthsBack = document.getElementById('monthsBack').value;
-            
-            showResult('multipleEndpointsResult', 'Testing multiple payment endpoints including ICDN...', 'Multiple Endpoints Test');
-            
-            const endpoints = [
-                'test/report-all-payments',
-                'test/actual-payments', 
-                'test/payments',
-                'test/icdn-report'  // Add the new ICDN endpoint
-            ];
-            
-            const results = {};
-            
-            for (const endpoint of endpoints) {
-                try {
-                    const fromDate = new Date();
-                    fromDate.setMonth(fromDate.getMonth() - parseInt(monthsBack));
-                    const fromDateStr = fromDate.toISOString().split('T')[0];
-                    const toDateStr = new Date().toISOString().split('T')[0];
-                    
-                    const url = `/api/payprop/${endpoint}?fromDate=${fromDateStr}&toDate=${toDateStr}&page=1&rows=10`;
-                    const result = await fetchWithCSRF(url);
-                    
-                    results[endpoint] = {
-                        success: result.success,
-                        hasData: result.success && result.data && 
-                                ((result.data.payPropResponse && result.data.payPropResponse.items && result.data.payPropResponse.items.length > 0) ||
-                                 (result.data.icdnAnalysis && result.data.icdnAnalysis.hasData)), // Handle ICDN response structure
-                        itemCount: result.success && result.data ? 
-                                  (result.data.payPropResponse ? result.data.payPropResponse.items.length : 
-                                   result.data.icdnAnalysis ? result.data.icdnAnalysis.totalRecords : 0) : 0,
-                        batchData: result.success && result.data && 
-                                  (result.data.batchAnalysis ? result.data.batchAnalysis.hasBatchData : 
-                                   result.data.icdnAnalysis ? result.data.icdnAnalysis.hasData : false),
-                        response: result.data,
-                        endpoint_type: endpoint.includes('icdn') ? 'ICDN Real-time Transactions' : 'Standard PayProp Endpoint'
-                    };
-                } catch (error) {
-                    results[endpoint] = {
-                        success: false,
-                        error: error.message,
-                        endpoint_type: endpoint.includes('icdn') ? 'ICDN Real-time Transactions' : 'Standard PayProp Endpoint'
-                    };
-                }
-            }
-            
-            showResult('multipleEndpointsResult', results, 'Multiple Payment Endpoints Test Results (Including ICDN)');
+        // 6. Commission Data Sources
+        async function testCommissionData() {
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-commission-data-sources', { 
+                method: 'POST' 
+            });
+            showResult('commissionResult', result.data, '💼 Commission Data Sources');
         }
         
-        async function analyzeBatchFields() {
-            const batchKeywords = ['batch', 'group', 'bundle', 'set'];
-            const foundFields = new Set();
-            let analyzed = 0;
-            
-            for (let page = 1; page <= 5; page++) {
-                const result = await fetchWithCSRF(`/api/payprop/test/actual-payments?page=${page}&rows=25`);
-                
-                if (result.success && result.data.payPropResponse) {
-                    result.data.payPropResponse.items.forEach(item => {
-                        analyzed++;
-                        Object.keys(item).forEach(key => {
-                            batchKeywords.forEach(keyword => {
-                                if (key.toLowerCase().includes(keyword)) {
-                                    foundFields.add(`${key}: ${item[key]}`);
-                                }
-                            });
-                        });
-                    });
-                }
-            }
-            
-            showResult('batchAnalysisResult', {
-                analyzedCount: analyzed,
-                foundFields: Array.from(foundFields),
-                conclusion: foundFields.size > 0 ? 'Found potential batch fields' : 'No batch-related fields found',
-                note: 'These are payment instructions, not actual transactions'
-            }, 'Batch Field Analysis');
+        async function testFinancialData() {
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-financial-data', { 
+                method: 'POST' 
+            });
+            showResult('commissionResult', result.data, '💰 Financial Data Test');
         }
         
-        async function getPropertyStats() {
-            const result = await fetchWithCSRF('/api/payprop/test/property-stats');
-            showResult('statsResult', result.data, 'Property Statistics');
+        // 7. Detailed Transaction Analysis
+        async function testDetailedTransactions() {
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-detailed-transactions', { 
+                method: 'POST' 
+            });
+            showResult('detailedResult', result.data, '🔬 Detailed Transaction Analysis');
         }
         
-        async function testWebhook() {
-            const result = await fetchWithCSRF('/api/payprop/webhook/discovery', {
+        async function testFieldLocations() {
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-field-locations');
+            showResult('detailedResult', result.data, '📍 Field Locations Test');
+        }
+        
+        // 8. Diagnostic Tools
+        async function diagnosePaymentSources() {
+            const result = await fetchWithCSRF('/api/payprop/oauth/diagnose-payment-data-sources', { 
+                method: 'POST' 
+            });
+            showResult('diagnosticResult', result.data, '🚨 Payment Sources Diagnosis');
+        }
+        
+        async function testSyncSingleProperty() {
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-sync-single-property-exact-match', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ test: 'webhook test', timestamp: new Date().toISOString() })
+                body: JSON.stringify({ 
+                    propertyId: 'K3Jwqg8W1E',
+                    fromDate: '2025-04-01',
+                    toDate: '2025-07-01'
+                })
             });
-            showResult('webhookResult', result.data, 'Webhook Test Result');
+            showResult('diagnosticResult', result.data, '🔍 Single Property Sync Test');
         }
         
-        async function simulateBatchWebhook() {
-            const simulatedPayload = {
-                events: [{
-                    type: 'outgoing_payment_batch',
-                    action: 'update',
-                    data: {
-                        id: 'TEST_BATCH_123',
-                        status: 'processed',
-                        total_amount: 5000.00,
-                        payment_count: 5,
-                        processed_date: new Date().toISOString()
-                    }
-                }]
-            };
+        // 9. Comprehensive Sync Test
+        async function testComprehensiveSync() {
+            const propertyId = document.getElementById('syncPropertyId').value;
+            const fromDate = document.getElementById('syncFromDate').value;
+            const toDate = document.getElementById('syncToDate').value;
+            const actuallySync = document.getElementById('actuallySync').checked;
             
-            const result = await fetchWithCSRF('/api/payprop/webhook/outgoing-payment-batch', {
+            const result = await fetchWithCSRF('/api/payprop/oauth/test-sync-single-property-with-save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(simulatedPayload)
+                body: JSON.stringify({ 
+                    propertyId,
+                    fromDate,
+                    toDate,
+                    actuallySync: actuallySync.toString()
+                })
             });
-            showResult('webhookResult', { payload: simulatedPayload, response: result }, 'Simulated Batch Webhook');
+            
+            showResult('syncResult', result.data, '🚀 Comprehensive Sync Test');
         }
         
-        async function checkDatabaseBatches() {
-            const result = await fetchWithCSRF('/api/payprop/webhook/batch-payments?limit=10');
-            showResult('batchAnalysisResult', result.data, 'Database Batch Payments');
+        async function testSyncValidation() {
+            // Use the exact match test for validation
+            await testSyncSingleProperty();
+            showResult('syncResult', document.getElementById('diagnosticResult').innerHTML, '✅ Sync Validation Test');
         }
         
+        // 10. Raw API Response Viewer
         async function testCustomEndpoint() {
             const endpoint = document.getElementById('customEndpoint').value;
             if (!endpoint) {
@@ -619,156 +530,24 @@
                 return;
             }
             
-            const result = await fetchWithCSRF(`/api/payprop/${endpoint}`);
-            showResult('customResult', result, `Custom Endpoint: ${endpoint}`);
+            const result = await fetchWithCSRF(`/api/payprop/oauth/${endpoint}`, { method: 'POST' });
+            showResult('customResult', result, `🔧 Custom Endpoint: ${endpoint}`);
         }
         
-        // NEW: ICDN endpoint testing functions
-        
-        /**
-         * Test the ICDN endpoint with custom parameters
-         */
-        async function testICDNEndpoint() {
-            const fromDate = document.getElementById('icdnFromDate').value;
-            const toDate = document.getElementById('icdnToDate').value;
-            const rows = document.getElementById('icdnRows').value;
+        // Utility function to set today's date in date inputs
+        function setTodayDates() {
+            const today = new Date().toISOString().split('T')[0];
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             
-            let url = `/api/payprop/test/icdn-report?fromDate=${fromDate}&toDate=${toDate}`;
-            if (rows) url += `&rows=${rows}`;
-            
-            const result = await fetchWithCSRF(url);
-            
-            if (result.success && result.data.icdnAnalysis) {
-                const analysis = result.data.icdnAnalysis;
-                if (analysis.hasData) {
-                    showResult('icdnResult', {
-                        ...result.data,
-                        summary: `🚀 ICDN DATA FOUND! Records: ${analysis.totalRecords}, Transaction Types: ${JSON.stringify(analysis.transactionTypes)}`
-                    }, 'ICDN Real-time Transactions - DATA FOUND!');
-                } else {
-                    showResult('icdnResult', result.data, 'ICDN Real-time Transactions - No Data');
-                }
-            } else {
-                showResult('icdnResult', result, 'ICDN Real-time Transactions Test');
-            }
+            document.getElementById('syncFromDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+            document.getElementById('syncToDate').value = today;
         }
         
-        /**
-         * Test ICDN with recent dates (last 30 days)
-         */
-        async function testICDNRecent() {
-            const today = new Date();
-            const thirtyDaysAgo = new Date(today);
-            thirtyDaysAgo.setDate(today.getDate() - 30);
-            
-            document.getElementById('icdnFromDate').value = thirtyDaysAgo.toISOString().split('T')[0];
-            document.getElementById('icdnToDate').value = today.toISOString().split('T')[0];
-            
-            // Call the main test function
-            await testICDNEndpoint();
-        }
-        
-        /**
-         * NEW: Test the comprehensive endpoint comparison
-         */
-        async function testEndpointComparison() {
-            const fromDate = document.getElementById('comparisonFromDate').value;
-            const toDate = document.getElementById('comparisonToDate').value;
-            
-            const result = await fetchWithCSRF(`/api/payprop/test/endpoint-comparison?fromDate=${fromDate}&toDate=${toDate}`);
-            
-            if (result.success && result.data.comparison) {
-                const comparison = result.data.comparison;
-                const summary = comparison.summary;
-                
-                let titleText = 'Comprehensive Endpoint Comparison Results';
-                if (summary && summary.endpointsWithBatchData && summary.endpointsWithBatchData.length > 0) {
-                    titleText += ' - BATCH DATA FOUND!';
-                }
-                if (summary && summary.endpointsWithRealAmounts && summary.endpointsWithRealAmounts.length > 0) {
-                    titleText += ' - REAL AMOUNTS FOUND!';
-                }
-                
-                showResult('comparisonResult', result.data, titleText);
-            } else {
-                showResult('comparisonResult', result, 'Comprehensive Endpoint Comparison');
-            }
-        }
-
-            async function debugSyncFast() {
-            const propertyIds = document.getElementById('debugPropertyIds').value;
-            const limit = document.getElementById('debugLimit').value;
-            const includeFinancials = document.getElementById('includeFinancials').checked;
-            const includeValidationDetails = document.getElementById('includeValidationDetails').checked;
-            
-            let url = `/api/payprop/test/debug-sync?limit=${limit}&includeFinancials=${includeFinancials}&includeValidationDetails=${includeValidationDetails}`;
-            
-            if (propertyIds && propertyIds.trim()) {
-                url += `&propertyIds=${encodeURIComponent(propertyIds.trim())}`;
-            }
-            
-            showResult('debugSyncResult', 'Starting fast debug sync...', '🚀 Debug Sync Running');
-            
-            const result = await fetchWithCSRF(url);
-            
-            if (result.success && result.data) {
-                const data = result.data;
-                
-                // Enhanced result display
-                let title = `🚀 Debug Sync Complete (${data.duration_seconds}s)`;
-                
-                if (data.properties && data.properties.failed > 0) {
-                    title += ' - VALIDATION FAILURES FOUND!';
-                }
-                
-                // Add summary to the top
-                const summary = {
-                    duration: `${data.duration_seconds}s`,
-                    properties_processed: data.properties?.processed || 0,
-                    success_rate: `${data.properties?.success_rate || 0}%`,
-                    validation_failures: data.properties?.validation_failures?.length || 0,
-                    ...data
-                };
-                
-                showResult('debugSyncResult', summary, title);
-                
-                // Auto-scroll to validation failures if any
-                if (data.properties?.validation_failures?.length > 0) {
-                    setTimeout(() => {
-                        const element = document.getElementById('debugSyncResult');
-                        element.scrollIntoView({ behavior: 'smooth' });
-                    }, 500);
-                }
-                
-            } else {
-                showResult('debugSyncResult', result, '❌ Debug Sync Failed');
-            }
-        }
-        
-        /**
-         * Sync properties most likely to have validation issues
-         */
-        async function debugSyncProblemProperties() {
-            // Use properties that might have validation issues
-            const problemIds = '5AJ5KQjE1M,KAXNNaG9Xk,K3Jwqg8W1E'; // Known properties from your database
-            
-            document.getElementById('debugPropertyIds').value = problemIds;
-            document.getElementById('includeValidationDetails').checked = true;
-            
-            await debugSyncFast();
-        }
-        
-        /**
-         * Sync just one property with full detail
-         */
-        async function debugSyncSingleProperty() {
-            document.getElementById('debugPropertyIds').value = '5AJ5KQjE1M'; // The property that was updated during errors
-            document.getElementById('debugLimit').value = '1';
-            document.getElementById('includeFinancials').checked = true;
-            document.getElementById('includeValidationDetails').checked = true;
-            
-            await debugSyncFast();
-        }
+        // Initialize with reasonable dates
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(setTodayDates, 100);
+        });
     </script>
 </body>
 </html>
