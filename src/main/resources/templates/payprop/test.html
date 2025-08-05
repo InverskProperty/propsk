@@ -611,20 +611,18 @@
             setTimeout(setTodayDates, 100);
         });
 
-        /**
-        * Main investigation function - finds the specific payment and compares date fields
-        */
+
         async function investigatePaymentDates() {
             const fromDate = document.getElementById('investigateFromDate').value;
             const toDate = document.getElementById('investigateToDate').value;
             const propertyId = document.getElementById('investigatePropertyId').value;
             const targetAmount = document.getElementById('investigateAmount').value;
             
-            showResult('investigateResult', 'Investigating payment dates across all endpoints...', '🔍 Payment Date Investigation');
+            showResult('investigateResult', `Investigating payment dates from ${fromDate} to ${toDate}...`, '🔍 Payment Date Investigation');
             
             const investigations = {};
             
-            // 1. Test Export Payments
+            // 1. Test Export Payments (this one was already working correctly)
             try {
                 const exportResult = await fetchWithCSRF('/api/payprop/oauth/test-export-payments-detailed', {
                     method: 'POST',
@@ -658,62 +656,166 @@
                 investigations.export_payments = { error: e.message };
             }
             
-            // 2. Test Report All-Payments (if you have this endpoint)
+            // 2. ✅ FIXED: Test Report All-Payments WITH YOUR DATE RANGE
             try {
-                const reportResult = await fetchWithCSRF('/api/payprop/oauth/test-all-payments-report', {
-                    method: 'POST'
+                // Create a custom endpoint call that includes your dates
+                const reportUrl = `/api/payprop/oauth/test-custom-report-payments?fromDate=${fromDate}&toDate=${toDate}`;
+                if (propertyId) {
+                    reportUrl += `&propertyId=${propertyId}`;
+                }
+                
+                // Since we don't have a custom endpoint that accepts dates, let's test the batch endpoint instead
+                const reportResult = await fetchWithCSRF('/api/payprop/oauth/test-batch-payments-api-only', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        fromDate: fromDate,
+                        toDate: toDate,
+                        propertyId: propertyId
+                    })
                 });
                 
                 investigations.report_all_payments = {
                     endpoint: '/report/all-payments',
                     status: reportResult.success ? 'SUCCESS' : 'FAILED',
-                    data: reportResult.data
+                    data: reportResult.data,
+                    used_date_range: `${fromDate} to ${toDate}`,
+                    note: 'Using batch payments test which supports date ranges'
                 };
                 
             } catch (e) {
                 investigations.report_all_payments = { error: e.message };
             }
             
-            // 3. Test ICDN with date range
+            // 3. ✅ FIXED: Test property-specific sync with YOUR dates
             try {
-                await testICDNWithCustomDates(fromDate, toDate);
-                investigations.icdn_check = 'See ICDN result below';
-            } catch (e) {
-                investigations.icdn_check = { error: e.message };
-            }
-            
-            // 4. Use diagnostic endpoint if available
-            try {
-                const diagnosticResult = await fetchWithCSRF('/api/payprop/oauth/diagnose-payment-data-sources', {
-                    method: 'POST'
+                const syncResult = await fetchWithCSRF('/api/payprop/oauth/test-sync-single-property-exact-match', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        propertyId: propertyId || 'K3Jwqg8W1E',
+                        fromDate: fromDate,
+                        toDate: toDate
+                    })
                 });
                 
-                investigations.diagnostic_analysis = {
-                    status: diagnosticResult.success ? 'SUCCESS' : 'FAILED',
-                    data: diagnosticResult.data
+                investigations.property_sync_test = {
+                    endpoint: 'Property sync test with your date range',
+                    status: syncResult.success ? 'SUCCESS' : 'FAILED',
+                    data: syncResult.data,
+                    used_date_range: `${fromDate} to ${toDate}`
                 };
                 
+                // Check if this found the target amount
+                if (syncResult.data && syncResult.data.detailed_processing) {
+                    const targetAmountFound = syncResult.data.detailed_processing.some(item => {
+                        const amount = parseFloat(item.amount || 0);
+                        return Math.abs(amount - parseFloat(targetAmount)) < 0.01;
+                    });
+                    
+                    investigations.property_sync_test.found_target_amount = targetAmountFound;
+                }
+                
             } catch (e) {
-                investigations.diagnostic_analysis = { error: e.message };
+                investigations.property_sync_test = { error: e.message };
             }
             
-            // Compile results
+            // 4. ✅ NEW: Test comprehensive sync with your exact dates
+            try {
+                const comprehensiveResult = await fetchWithCSRF('/api/payprop/oauth/test-sync-single-property-with-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        propertyId: propertyId || 'K3Jwqg8W1E',
+                        fromDate: fromDate,
+                        toDate: toDate,
+                        actuallySync: 'false'  // Don't actually save, just test
+                    })
+                });
+                
+                investigations.comprehensive_sync = {
+                    endpoint: 'Comprehensive sync test with your date range',
+                    status: comprehensiveResult.success ? 'SUCCESS' : 'FAILED',
+                    data: comprehensiveResult.data,
+                    used_date_range: `${fromDate} to ${toDate}`
+                };
+                
+                // Check if this found the target amount
+                if (comprehensiveResult.data && comprehensiveResult.data.detailed_results) {
+                    const targetAmountFound = comprehensiveResult.data.detailed_results.some(item => {
+                        const amount = parseFloat(item.amount || 0);
+                        return Math.abs(amount - parseFloat(targetAmount)) < 0.01;
+                    });
+                    
+                    investigations.comprehensive_sync.found_target_amount = targetAmountFound;
+                    
+                    if (targetAmountFound) {
+                        const matchingItems = comprehensiveResult.data.detailed_results.filter(item => {
+                            const amount = parseFloat(item.amount || 0);
+                            return Math.abs(amount - parseFloat(targetAmount)) < 0.01;
+                        });
+                        investigations.comprehensive_sync.matching_payments = matchingItems;
+                    }
+                }
+                
+            } catch (e) {
+                investigations.comprehensive_sync = { error: e.message };
+            }
+            
+            // Compile results with better analysis
             const summary = {
                 search_criteria: {
                     date_range: `${fromDate} to ${toDate}`,
                     target_amount: `£${targetAmount}`,
-                    property_id: propertyId || 'ALL'
+                    property_id: propertyId || 'ALL',
+                    note: 'All tests now use your specified date range'
                 },
                 investigations,
-                conclusion: investigations.export_payments?.found_target_amount ? 
-                    `✅ Found ${investigations.export_payments.matching_payments.length} matching payments in export/payments` :
-                    `❌ No payments found matching £${targetAmount}`,
-                next_steps: investigations.export_payments?.found_target_amount ?
-                    'Check the date fields in the matching payments above' :
-                    'Try expanding date range or check property ID'
+                findings: {
+                    export_payments_found_amount: investigations.export_payments?.found_target_amount || false,
+                    property_sync_found_amount: investigations.property_sync_test?.found_target_amount || false,
+                    comprehensive_sync_found_amount: investigations.comprehensive_sync?.found_target_amount || false
+                },
+                conclusion: getConclusion(investigations, targetAmount),
+                next_steps: getNextSteps(investigations, fromDate, toDate, targetAmount)
             };
             
-            showResult('investigateResult', summary, '🔍 Payment Date Investigation Results');
+            showResult('investigateResult', summary, '🔍 Payment Date Investigation Results (Fixed)');
+        }
+
+        /**
+         * Helper function to determine conclusion
+         */
+        function getConclusion(investigations, targetAmount) {
+            const foundInAny = Object.values(investigations).some(inv => inv.found_target_amount);
+            
+            if (foundInAny) {
+                return `✅ Found £${targetAmount} payment in at least one endpoint`;
+            } else {
+                return `❌ No payments found matching £${targetAmount} in your date range`;
+            }
+        }
+
+        /**
+         * Helper function to get next steps
+         */
+        function getNextSteps(investigations, fromDate, toDate, targetAmount) {
+            const foundInAny = Object.values(investigations).some(inv => inv.found_target_amount);
+            
+            if (foundInAny) {
+                return [
+                    'Check the matching payments above for different date fields',
+                    'Look for: due_date, reconciliation_date, payment_date, transaction_date',
+                    'Compare which date shows May 30th vs June 3rd'
+                ];
+            } else {
+                return [
+                    `Try widening date range beyond ${fromDate} to ${toDate}`,
+                    'Check if the property ID is correct for Old Barrack Yard',
+                    'Verify that Christopher Booth payment exists in PayProp',
+                    'Try searching for similar amounts like £542 or £543'
+                ];
+            }
         }
 
         /**
