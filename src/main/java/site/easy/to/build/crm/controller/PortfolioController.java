@@ -17,6 +17,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import site.easy.to.build.crm.controller.PortfolioController.PortfolioWithAnalytics;
 import site.easy.to.build.crm.entity.*;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
@@ -27,6 +28,8 @@ import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
 import site.easy.to.build.crm.service.payprop.SyncResult;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
+import site.easy.to.build.crm.entity.AssignmentType;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -55,6 +58,9 @@ public class PortfolioController {
     
     @Autowired(required = false)
     private CustomerService customerService;
+
+    @Autowired
+    private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
     
     @Autowired(required = false)
     private PayPropPortfolioSyncService payPropSyncService;
@@ -555,6 +561,33 @@ public class PortfolioController {
         } catch (Exception e) {
             model.addAttribute("error", "Error loading maintenance dashboard: " + e.getMessage());
             return "error/500";
+        }
+    }
+
+    @GetMapping("/portfolio/owner/{ownerId}/properties")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, Object>>> getOwnerProperties(@PathVariable Integer ownerId) {
+        try {
+            // Use the existing repository method
+            List<CustomerPropertyAssignment> assignments = 
+                customerPropertyAssignmentRepository.findByCustomerCustomerIdAndAssignmentType(
+                    ownerId.longValue(), AssignmentType.OWNER);
+            
+            List<Map<String, Object>> propertyList = assignments.stream()
+                .map(assignment -> {
+                    Property property = assignment.getProperty();
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", property.getId());
+                    map.put("name", property.getPropertyName());
+                    map.put("address", property.getFullAddress());
+                    map.put("monthlyRent", property.getMonthlyPayment());
+                    return map;
+                })
+                .collect(Collectors.toList());
+                
+            return ResponseEntity.ok(propertyList);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ArrayList<>());
         }
     }
 

@@ -8,11 +8,13 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.entity.AssignmentType;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.ArrayList;
 
 @Service
@@ -72,6 +74,23 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     public List<Property> findByPropertyOwnerId(Long propertyOwnerId) {
+        // Use junction table (the correct way)
+        try {
+            List<CustomerPropertyAssignment> assignments = 
+                assignmentRepository.findByCustomerCustomerIdAndAssignmentType(
+                    propertyOwnerId, AssignmentType.OWNER);
+            
+            if (!assignments.isEmpty()) {
+                return assignments.stream()
+                    .map(CustomerPropertyAssignment::getProperty)
+                    .distinct()
+                    .collect(Collectors.toList());
+            }
+        } catch (Exception e) {
+            System.err.println("Junction table query failed, falling back to direct FK: " + e.getMessage());
+        }
+        
+        // Fallback to legacy direct foreign key (for any old data)
         return propertyRepository.findByPropertyOwnerId(propertyOwnerId);
     }
 
