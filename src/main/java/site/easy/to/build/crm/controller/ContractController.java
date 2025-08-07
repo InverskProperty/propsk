@@ -102,7 +102,6 @@ public class ContractController {
             return "error/access-denied";
         }
 
-        contractExpirationChecker.scheduleContractExpirationCheck(contract);
         List<File> files = contract.getFiles();
         List<Attachment> attachments = new ArrayList<>();
         for (File file : files) {
