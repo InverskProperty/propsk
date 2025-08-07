@@ -1,9 +1,12 @@
+// StatementController.java - Complete fix for statement generation with proper authentication
+
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +22,7 @@ import site.easy.to.build.crm.service.user.OAuthUserService;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map; // FIXED: Added missing Map import
+import java.util.Map;
 import java.util.Arrays;
 
 @Controller
@@ -30,14 +33,14 @@ public class StatementController {
     private final CustomerService customerService;
     private final PropertyService propertyService;
     private final OAuthUserService oAuthUserService;
-    private final AuthenticationUtils authenticationUtils; // FIXED: Added AuthenticationUtils
+    private final AuthenticationUtils authenticationUtils;
 
     @Autowired
     public StatementController(GoogleSheetsStatementService statementService,
                              CustomerService customerService,
                              PropertyService propertyService,
                              OAuthUserService oAuthUserService,
-                             AuthenticationUtils authenticationUtils) { // FIXED: Added to constructor
+                             AuthenticationUtils authenticationUtils) {
         this.statementService = statementService;
         this.customerService = customerService;
         this.propertyService = propertyService;
@@ -46,17 +49,63 @@ public class StatementController {
     }
 
     /**
-     * Show statement generation page
+     * Show statement generation page - FIXED to handle authentication properly
      */
     @GetMapping
     public String showStatements(Model model, Authentication authentication) {
-        // FIXED: Use authenticationUtils method
-        OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-        Integer userId = oAuthUser != null ? oAuthUser.getUserId() : null;
+        System.out.println("=== DEBUG: StatementController.showStatements ===");
         
-        // Get property owners for dropdown
-        List<Customer> propertyOwners = customerService.findPropertyOwners();
-        model.addAttribute("propertyOwners", propertyOwners);
+        // Get OAuth user for Google Sheets access
+        OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+        
+        if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
+            model.addAttribute("error", "Google account not connected. Please connect your Google account first.");
+            model.addAttribute("googleAuthRequired", true);
+            return "statements/generate-statement";
+        }
+        
+        // Determine what statements the user can generate
+        Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+        
+        if (currentCustomer != null) {
+            System.out.println("DEBUG: Found current customer: " + currentCustomer.getCustomerId() + 
+                             " - " + currentCustomer.getName() + " (" + currentCustomer.getCustomerType() + ")");
+            
+            if (currentCustomer.getIsPropertyOwner() != null && currentCustomer.getIsPropertyOwner()) {
+                // Property owner can only see their own statements
+                model.addAttribute("propertyOwners", Arrays.asList(currentCustomer));
+                model.addAttribute("isOwnStatements", true);
+                model.addAttribute("currentCustomer", currentCustomer);
+                model.addAttribute("viewMode", "owner");
+            } else if (currentCustomer.getIsTenant() != null && currentCustomer.getIsTenant()) {
+                // Tenant can only see their own statements
+                model.addAttribute("tenants", Arrays.asList(currentCustomer));
+                model.addAttribute("isOwnStatements", true);
+                model.addAttribute("currentCustomer", currentCustomer);
+                model.addAttribute("viewMode", "tenant");
+            } else {
+                // Regular customer - shouldn't see statements
+                model.addAttribute("error", "You don't have permission to view statements.");
+                return "error/403";
+            }
+        } else {
+            // Admin/Employee viewing all customers
+            System.out.println("DEBUG: No customer found for current user - showing admin view");
+            
+            // Check if this is an admin/employee
+            if (isAdminOrEmployee(authentication)) {
+                List<Customer> propertyOwners = customerService.findPropertyOwners();
+                List<Customer> tenants = customerService.findTenants();
+                
+                model.addAttribute("propertyOwners", propertyOwners);
+                model.addAttribute("tenants", tenants);
+                model.addAttribute("isOwnStatements", false);
+                model.addAttribute("viewMode", "admin");
+            } else {
+                model.addAttribute("error", "No customer account found for your login. Please contact support.");
+                return "error/403";
+            }
+        }
         
         // Set default date range (current month)
         LocalDate now = LocalDate.now();
@@ -65,12 +114,13 @@ public class StatementController {
         
         model.addAttribute("defaultFromDate", startOfMonth);
         model.addAttribute("defaultToDate", endOfMonth);
+        model.addAttribute("hasGoogleAuth", true);
         
         return "statements/generate-statement";
     }
 
     /**
-     * Generate property owner statement
+     * Generate property owner statement - FIXED with proper authorization
      */
     @PostMapping("/property-owner")
     public String generatePropertyOwnerStatement(
@@ -81,7 +131,22 @@ public class StatementController {
             RedirectAttributes redirectAttributes) {
         
         try {
-            // FIXED: Use authenticationUtils method
+            // Check authorization
+            Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+            
+            // If current user is a property owner, they can only generate their own statements
+            if (currentCustomer != null && currentCustomer.getIsPropertyOwner() != null && currentCustomer.getIsPropertyOwner()) {
+                if (!currentCustomer.getCustomerId().equals(propertyOwnerId.longValue())) {
+                    redirectAttributes.addFlashAttribute("error", "You can only generate statements for your own account.");
+                    return "redirect:/statements";
+                }
+            } else if (!isAdminOrEmployee(authentication)) {
+                // Not a property owner and not admin/employee
+                redirectAttributes.addFlashAttribute("error", "Access denied.");
+                return "redirect:/statements";
+            }
+            
+            // Get OAuth user for Google Sheets
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             
             if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
@@ -116,7 +181,7 @@ public class StatementController {
     }
 
     /**
-     * Generate tenant statement
+     * Generate tenant statement - FIXED with proper authorization
      */
     @PostMapping("/tenant")
     public String generateTenantStatement(
@@ -127,7 +192,22 @@ public class StatementController {
             RedirectAttributes redirectAttributes) {
         
         try {
-            // FIXED: Use authenticationUtils method
+            // Check authorization
+            Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+            
+            // If current user is a tenant, they can only generate their own statements
+            if (currentCustomer != null && currentCustomer.getIsTenant() != null && currentCustomer.getIsTenant()) {
+                if (!currentCustomer.getCustomerId().equals(tenantId.longValue())) {
+                    redirectAttributes.addFlashAttribute("error", "You can only generate statements for your own tenancy.");
+                    return "redirect:/statements";
+                }
+            } else if (!isAdminOrEmployee(authentication)) {
+                // Not a tenant and not admin/employee
+                redirectAttributes.addFlashAttribute("error", "Access denied.");
+                return "redirect:/statements";
+            }
+            
+            // Get OAuth user for Google Sheets
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             
             if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
@@ -173,7 +253,19 @@ public class StatementController {
             RedirectAttributes redirectAttributes) {
         
         try {
-            // FIXED: Use authenticationUtils method
+            // Check authorization (same as property owner statement)
+            Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+            
+            if (currentCustomer != null && currentCustomer.getIsPropertyOwner() != null && currentCustomer.getIsPropertyOwner()) {
+                if (!currentCustomer.getCustomerId().equals(propertyOwnerId.longValue())) {
+                    redirectAttributes.addFlashAttribute("error", "You can only generate portfolio statements for your own properties.");
+                    return "redirect:/statements";
+                }
+            } else if (!isAdminOrEmployee(authentication)) {
+                redirectAttributes.addFlashAttribute("error", "Access denied.");
+                return "redirect:/statements";
+            }
+            
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             
             if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
@@ -182,18 +274,15 @@ public class StatementController {
                 return "redirect:/statements";
             }
             
-            // Get property owner
             Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId.longValue());
             if (propertyOwner == null) {
                 redirectAttributes.addFlashAttribute("error", "Property owner not found.");
                 return "redirect:/statements";
             }
             
-            // Generate portfolio statement
             String spreadsheetId = statementService.createPortfolioStatement(
                 oAuthUser, propertyOwner, fromDate, toDate);
             
-            // Success message with link to Google Sheets
             String sheetsUrl = "https://docs.google.com/spreadsheets/d/" + spreadsheetId;
             redirectAttributes.addFlashAttribute("success", 
                 "Portfolio statement generated successfully! <a href='" + sheetsUrl + "' target='_blank'>View in Google Sheets</a>");
@@ -205,6 +294,94 @@ public class StatementController {
                 "Error generating portfolio statement: " + e.getMessage());
             return "redirect:/statements";
         }
+    }
+
+    // ===== HELPER METHODS =====
+
+    /**
+     * Get the current customer based on authentication
+     * This handles the case where all customers are linked to user_id 54
+     */
+    private Customer getCurrentCustomerFromAuth(Authentication authentication) {
+        try {
+            // For OAuth users, check by email first
+            if (authentication.getPrincipal() instanceof OAuth2User) {
+                OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
+                String email = oauth2User.getAttribute("email");
+                
+                System.out.println("DEBUG: OAuth user email: " + email);
+                
+                if (email != null) {
+                    // Try to find customer by email
+                    Customer customer = customerService.findByEmail(email);
+                    if (customer != null) {
+                        System.out.println("DEBUG: Found customer by email: " + customer.getCustomerId());
+                        return customer;
+                    }
+                    
+                    // If email is management@propsk.com, this is likely an admin
+                    if ("management@propsk.com".equals(email)) {
+                        System.out.println("DEBUG: Management user detected, no customer record needed");
+                        return null; // Admin doesn't need a customer record
+                    }
+                }
+                
+                // Check if we have an OAuth user ID stored
+                OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+                if (oAuthUser != null) {
+                    // Try to find customer by oauth_user_id column
+                    try {
+                        Customer customer = customerService.findByOAuthUserId(oAuthUser.getId());
+                        if (customer != null) {
+                            System.out.println("DEBUG: Found customer by OAuth user ID: " + customer.getCustomerId());
+                            return customer;
+                        }
+                    } catch (Exception e) {
+                        System.out.println("DEBUG: findByOAuthUserId not implemented or failed: " + e.getMessage());
+                    }
+                }
+            }
+            
+            // For regular authentication, use user ID
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            if (userId > 0) {
+                // Find customer by user_id (but be careful with user_id 54)
+                List<Customer> customers = customerService.findByUserId((long) userId);
+                
+                // If user_id is 54 and there are many customers, we can't determine which one
+                if (userId == 54 && customers.size() > 1) {
+                    System.out.println("DEBUG: Multiple customers for user_id 54, cannot determine specific customer");
+                    return null;
+                }
+                
+                if (!customers.isEmpty()) {
+                    return customers.get(0);
+                }
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error getting current customer: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return null;
+    }
+
+    /**
+     * Check if the current user is an admin or employee
+     */
+    private boolean isAdminOrEmployee(Authentication authentication) {
+        if (authentication == null) {
+            return false;
+        }
+        
+        // Check for specific roles
+        return authentication.getAuthorities().stream()
+            .anyMatch(auth -> 
+                auth.getAuthority().contains("ROLE_MANAGER") || 
+                auth.getAuthority().contains("ROLE_EMPLOYEE") ||
+                auth.getAuthority().contains("ROLE_ADMIN") ||
+                auth.getAuthority().contains("ROLE_OIDC_USER"));
     }
 
     /**
@@ -251,8 +428,7 @@ public class StatementController {
                 Customer propertyOwner = customerService.findByCustomerId(customerId.longValue());
                 List<Property> properties = propertyService.getPropertiesByOwner(customerId.longValue());
                 
-                // Return preview data
-                return ResponseEntity.ok(Map.of( // FIXED: Now Map is imported
+                return ResponseEntity.ok(Map.of(
                     "propertyOwner", propertyOwner,
                     "properties", properties,
                     "propertyCount", properties.size(),

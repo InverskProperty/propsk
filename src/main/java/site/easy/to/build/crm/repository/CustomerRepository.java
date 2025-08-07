@@ -2,6 +2,7 @@ package site.easy.to.build.crm.repository;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -144,5 +145,35 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
            "AND (c.moveOutDate IS NULL OR c.moveOutDate > :currentDate)")
     List<Customer> findActiveTenantsForProperty(@Param("propertyId") Long propertyId, 
                                                @Param("currentDate") LocalDate currentDate);
+
+    /**
+     * Find customer by OAuth user ID
+     * @param oauthUserId The OAuth user's ID from oauth_users table
+     * @return Customer if found, null otherwise
+     */
+    @Query("SELECT c FROM Customer c WHERE c.oauthUserId = :oauthUserId")
+    Customer findByOauthUserId(@Param("oauthUserId") Integer oauthUserId);
+    
+    /**
+     * Find all customers for a specific OAuth user
+     * @param oauthUserId The OAuth user's ID
+     * @return List of customers
+     */
+    @Query("SELECT c FROM Customer c WHERE c.oauthUserId = :oauthUserId")
+    List<Customer> findAllByOauthUserId(@Param("oauthUserId") Integer oauthUserId);
+    
+    /**
+     * Check if customer exists for OAuth user
+     * @param oauthUserId The OAuth user's ID
+     * @return true if exists
+     */
+    boolean existsByOauthUserId(Integer oauthUserId);
+    
+    /**
+     * Update OAuth user ID for a customer
+     */
+    @Modifying
+    @Query("UPDATE Customer c SET c.oauthUserId = :oauthUserId WHERE c.customerId = :customerId")
+    void updateOauthUserId(@Param("customerId") Long customerId, @Param("oauthUserId") Integer oauthUserId);
 
 }

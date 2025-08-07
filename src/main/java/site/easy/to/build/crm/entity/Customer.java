@@ -108,6 +108,9 @@ public class Customer {
     private LocalDateTime createdAt;
 
     // EXISTING CUSTOMER TYPE CLASSIFICATION AND PAYPROP INTEGRATION FIELDS
+
+    @Column(name = "oauth_user_id")
+    private Integer oauthUserId;
     
     @Column(name = "customer_type", nullable = false, columnDefinition = "VARCHAR(20) DEFAULT 'REGULAR_CUSTOMER'")
     @Enumerated(EnumType.STRING)
@@ -314,6 +317,15 @@ public class Customer {
         this.user = user;
         this.customerLoginInfo = customerLoginInfo;
         this.createdAt = createdAt;
+    }
+
+    // Add getter and setter
+    public Integer getOauthUserId() {
+        return oauthUserId;
+    }
+
+    public void setOauthUserId(Integer oauthUserId) {
+        this.oauthUserId = oauthUserId;
     }
 
     // EXISTING GETTERS AND SETTERS (keeping all your existing ones)

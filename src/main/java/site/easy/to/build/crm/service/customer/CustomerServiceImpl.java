@@ -1,14 +1,20 @@
 package site.easy.to.build.crm.service.customer;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerType;
+import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Ticket;
 import site.easy.to.build.crm.entity.Lead;
 import site.easy.to.build.crm.entity.Contract;
+import site.easy.to.build.crm.service.user.OAuthUserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -19,7 +25,12 @@ import java.util.ArrayList;
 @Service
 public class CustomerServiceImpl implements CustomerService {
 
+    private static final Logger log = LoggerFactory.getLogger(CustomerServiceImpl.class);
+    
     private final CustomerRepository customerRepository;
+    
+    @Autowired(required = false)
+    private OAuthUserService oAuthUserService;
 
     public CustomerServiceImpl(CustomerRepository customerRepository) {
         this.customerRepository = customerRepository;
@@ -42,7 +53,25 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public Customer findByEmail(String email) {
-        return customerRepository.findByEmail(email);
+        // First try direct email lookup
+        Customer customer = customerRepository.findByEmail(email);
+        
+        // If not found and OAuth service is available, try OAuth lookup
+        if (customer == null && oAuthUserService != null) {
+            try {
+                // Get OAuth user by email
+                OAuthUser oAuthUser = oAuthUserService.findBtEmail(email);
+                if (oAuthUser != null) {
+                    // Try to find customer by OAuth user ID
+                    customer = findByOAuthUserId(oAuthUser.getId());
+                }
+            } catch (Exception e) {
+                // Log error but don't fail
+                log.debug("OAuth lookup failed for email: " + email, e);
+            }
+        }
+        
+        return customer;
     }
 
     @Override
@@ -74,6 +103,43 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public long countByUserId(Long userId) {
         return customerRepository.countByUserId(userId);
+    }
+
+    // ===== OAUTH USER INTEGRATION METHODS =====
+    
+    @Override
+    public Customer findByOAuthUserId(Integer oauthUserId) {
+        if (oauthUserId == null) {
+            return null;
+        }
+        return customerRepository.findByOauthUserId(oauthUserId);
+    }
+    
+    @Override
+    public List<Customer> findAllByOAuthUserId(Integer oauthUserId) {
+        if (oauthUserId == null) {
+            return new ArrayList<>();
+        }
+        return customerRepository.findAllByOauthUserId(oauthUserId);
+    }
+    
+    @Override
+    @Transactional
+    public void linkCustomerToOAuthUser(Long customerId, Integer oauthUserId) {
+        Customer customer = customerRepository.findByCustomerId(customerId);
+        if (customer != null) {
+            customer.setOauthUserId(oauthUserId);
+            customerRepository.save(customer);
+            log.info("Linked customer {} to OAuth user {}", customerId, oauthUserId);
+        }
+    }
+    
+    @Override
+    public boolean existsByOAuthUserId(Integer oauthUserId) {
+        if (oauthUserId == null) {
+            return false;
+        }
+        return customerRepository.existsByOauthUserId(oauthUserId);
     }
 
     // ===== SEARCH METHODS =====
@@ -192,7 +258,7 @@ public class CustomerServiceImpl implements CustomerService {
         }
     }
 
-        // ===== STATEMENT GENERATION METHODS =====
+    // ===== STATEMENT GENERATION METHODS =====
     
     @Override
     public List<Customer> findByAssignedPropertyId(Long propertyId) {

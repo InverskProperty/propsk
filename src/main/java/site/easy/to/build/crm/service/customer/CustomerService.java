@@ -6,6 +6,7 @@ import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.Ticket;
 import site.easy.to.build.crm.entity.Lead;
 import site.easy.to.build.crm.entity.Contract;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -71,13 +72,25 @@ public interface CustomerService {
     List<Customer> findPropertyOwnersByPortfolioValue(BigDecimal minValue, BigDecimal maxValue);
     
     void updateOwnerPortfolioStats(Long customerId, BigDecimal portfolioValue, Integer totalProperties);
+
+    /**
+     * OAuth User Integration Methods
+     */
+    Customer findByOAuthUserId(Integer oauthUserId);
+    
+    List<Customer> findAllByOAuthUserId(Integer oauthUserId);
+    
+    void linkCustomerToOAuthUser(Long customerId, Integer oauthUserId);
+    
+    boolean existsByOAuthUserId(Integer oauthUserId);
     
     /**
      * Tenant specific methods
      */
-
     List<Customer> findByAssignedPropertyId(Long propertyId);
+    
     List<Customer> findByEntityTypeAndEntityId(String entityType, Long entityId);
+    
     Customer findTenantByEmail(String email);
     
     List<Customer> findTenantsByProperty(Long propertyId);

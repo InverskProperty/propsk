@@ -2,6 +2,7 @@ package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -166,12 +167,7 @@ public class CustomerController {
         }
     }
 
-    @GetMapping("/create-property-owner")
-    public String showCreatePropertyOwnerForm(Model model, Authentication authentication) {
-        // Redirect to unified form with property owner type pre-selected
-        return "redirect:/employee/customer/create-customer?type=PROPERTY_OWNER";
-    }
-
+    // In CustomerController.java - createCustomer method
     @PostMapping("/create-customer")
     public String createCustomer(@ModelAttribute Customer customer,
                             @RequestParam(value = "customerTypeSelection", required = false) String customerTypeSelection,
@@ -182,11 +178,44 @@ public class CustomerController {
                             Authentication authentication,
                             RedirectAttributes redirectAttributes) {
         try {
-            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
-            User user = userService.findById(userId);
+            // FIXED: Get the correct user ID based on authentication type
+            Integer userId = null;
+            User user = null;
+            
+            if (authentication.getPrincipal() instanceof OAuth2User) {
+                // OAuth authentication - get the OAuth user
+                OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+                if (oAuthUser != null) {
+                    // Use the OAuth user's user_id field, not the linked User entity's ID
+                    userId = oAuthUser.getUserId();
+                    System.out.println("OAuth user - using user_id: " + userId);
+                    
+                    // Try to find the actual User entity
+                    if (userId != null) {
+                        user = userService.findById(userId.longValue());
+                    }
+                }
+            } else {
+                // Regular authentication
+                Long regularUserId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+                user = userService.findById(regularUserId);
+                userId = user != null ? user.getId() : null;
+            }
+            
+            // If we couldn't find a user, create a placeholder or handle the error
+            if (user == null && userId != null) {
+                // Option 1: Try to find/create a user for this OAuth account
+                // Option 2: Allow null user (for OAuth-only customers)
+                System.out.println("Warning: No User entity found for ID " + userId);
+                
+                // For now, we'll allow the customer to be created without a User link
+                // This is better than linking all customers to user 54
+            }
             
             // Set basic properties
-            customer.setUser(user);
+            if (user != null) {
+                customer.setUser(user);
+            }
             customer.setCreatedAt(LocalDateTime.now());
             customer.setDescription("Active");
             

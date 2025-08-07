@@ -1,6 +1,5 @@
 package site.easy.to.build.crm.util;
 
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -14,7 +13,6 @@ import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
 import site.easy.to.build.crm.service.user.OAuthUserService;
 import site.easy.to.build.crm.service.user.UserService;
-
 
 @Component
 public class AuthenticationUtils {
@@ -65,6 +63,24 @@ public class AuthenticationUtils {
         }
     }
 
+    /**
+     * Get the OAuth User ID directly (not the linked User entity ID)
+     * This is specifically for OAuth authenticated users
+     */
+    public Integer getOAuthUserId(Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof OAuth2User)) {
+            return null;
+        }
+        
+        OAuthUser oAuthUser = getOAuthUserFromAuthentication(authentication);
+        if (oAuthUser != null) {
+            // Return the OAuth user's primary key ID
+            return oAuthUser.getId();
+        }
+        
+        return null;
+    }
+
     public int getLoggedInUserId(Authentication authentication) {
         System.out.println("🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called");
         System.out.println("   Authentication type: " + authentication.getClass().getSimpleName());
@@ -73,10 +89,12 @@ public class AuthenticationUtils {
         
         User user;
         CustomerLoginInfo customerLoginInfo;
+        
         if (authentication instanceof UsernamePasswordAuthenticationToken) {
             System.out.println("   Processing UsernamePasswordAuthenticationToken...");
             UserDetailsService authenticatedUserDetailsService = getAuthenticatedUserDetailsService(authentication);
             String userName = authentication.getName();
+            
             if (authenticatedUserDetailsService == crmUserDetails) {
                 user = userService.findByUsername(userName).get(0);
                 if (user == null) {
@@ -94,17 +112,33 @@ public class AuthenticationUtils {
             System.out.println("   Processing OAuth authentication...");
             OAuthUser oAuthUser = getOAuthUserFromAuthentication(authentication);
             System.out.println("   OAuth user found: " + (oAuthUser != null));
+            
             if (oAuthUser == null) {
                 System.out.println("❌ No OAuth user found, returning -1");
                 return -1;
             }
-            user = oAuthUser.getUser();
-            System.out.println("   OAuth user ID: " + (user != null ? user.getId() : "null"));
-            return user != null ? user.getId() : -1;
+            
+            // IMPORTANT: For OAuth users, we need to return a consistent ID
+            // Since the database constraint doesn't allow NULL user_id in customers table,
+            // and all customers are currently linked to user_id 54,
+            // we need to handle this carefully
+            
+            System.out.println("   OAuth user table ID: " + oAuthUser.getId());
+            System.out.println("   OAuth user's user_id field: " + oAuthUser.getUserId());
+            
+            // Option 1: Return the OAuth user's ID (from oauth_users table)
+            // This is what should uniquely identify the OAuth user
+            return oAuthUser.getId();
+            
+            // Option 2: If you need to maintain compatibility with the users table,
+            // you might need to create actual User records for OAuth users
+            // and return that ID instead
         }
+        
         System.out.println("❌ Failed to determine user ID, returning -1");
         return -1;
     }
+    
     public boolean checkIfAppHasAccess(String serviceAccessUrl, OAuthUser oAuthUser) {
         return oAuthUser.getGrantedScopes().contains(serviceAccessUrl);
     }
