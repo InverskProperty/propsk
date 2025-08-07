@@ -75,7 +75,8 @@ public class AuthenticationUtils {
         OAuthUser oAuthUser = getOAuthUserFromAuthentication(authentication);
         if (oAuthUser != null) {
             // Return the OAuth user's primary key ID
-            return oAuthUser.getId();
+            return oAuthUser.getUserId() != null ? oAuthUser.getUserId() : -1;
+
         }
         
         return null;
