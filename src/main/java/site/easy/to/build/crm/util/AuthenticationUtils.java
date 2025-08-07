@@ -63,10 +63,6 @@ public class AuthenticationUtils {
         }
     }
 
-    /**
-     * Get the OAuth User ID directly (not the linked User entity ID)
-     * This is specifically for OAuth authenticated users
-     */
     public Integer getOAuthUserId(Authentication authentication) {
         if (authentication == null || !(authentication.getPrincipal() instanceof OAuth2User)) {
             return null;
@@ -74,9 +70,7 @@ public class AuthenticationUtils {
         
         OAuthUser oAuthUser = getOAuthUserFromAuthentication(authentication);
         if (oAuthUser != null) {
-            // Return the OAuth user's primary key ID
-            return oAuthUser.getUserId() != null ? oAuthUser.getUserId() : -1;
-
+            return oAuthUser.getUserId() != null ? oAuthUser.getUserId() : null;
         }
         
         return null;
@@ -119,21 +113,17 @@ public class AuthenticationUtils {
                 return -1;
             }
             
-            // IMPORTANT: For OAuth users, we need to return a consistent ID
-            // Since the database constraint doesn't allow NULL user_id in customers table,
-            // and all customers are currently linked to user_id 54,
-            // we need to handle this carefully
-            
             System.out.println("   OAuth user table ID: " + oAuthUser.getId());
             System.out.println("   OAuth user's user_id field: " + oAuthUser.getUserId());
             
-            // Option 1: Return the OAuth user's ID (from oauth_users table)
-            // This is what should uniquely identify the OAuth user
-            return oAuthUser.getId();
-            
-            // Option 2: If you need to maintain compatibility with the users table,
-            // you might need to create actual User records for OAuth users
-            // and return that ID instead
+            Integer linkedUserId = oAuthUser.getUserId();
+            if (linkedUserId != null) {
+                System.out.println("✅ Returning linked user ID: " + linkedUserId);
+                return linkedUserId;
+            } else {
+                System.out.println("❌ OAuth user has no linked User record, returning -1");
+                return -1;
+            }
         }
         
         System.out.println("❌ Failed to determine user ID, returning -1");
