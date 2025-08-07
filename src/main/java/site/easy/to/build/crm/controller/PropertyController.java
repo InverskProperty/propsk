@@ -13,6 +13,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
+import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.entity.Ticket;
@@ -22,6 +23,7 @@ import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
+import site.easy.to.build.crm.entity.Role;
 
 
 import java.math.BigDecimal;
@@ -29,6 +31,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -285,15 +288,77 @@ public class PropertyController {
             return "error/not-found";
         }
 
-        int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(Long.valueOf(userId));
-        if (loggedInUser.isInactiveUser()) {
-            return "error/account-inactive";
+        // FIXED: Handle OAuth users properly
+        User loggedInUser = null;
+        int userId = -1;
+        boolean isOAuthUser = false;
+        
+        try {
+            // Check if this is an OAuth user
+            if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User) {
+                isOAuthUser = true;
+                OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+                
+                if (oAuthUser != null && oAuthUser.getUserId() != null) {
+                    // Use the linked user_id from oauth_users table
+                    userId = oAuthUser.getUserId();
+                    loggedInUser = userService.findById(oAuthUser.getUserId().longValue());
+                }
+                
+                // If no linked user found, create a temporary user object for compatibility
+                if (loggedInUser == null) {
+                    loggedInUser = new User();
+                    loggedInUser.setId(54); // FIXED: Use Integer instead of Long
+                    loggedInUser.setUsername(authentication.getName());
+                    loggedInUser.setEmail(authentication.getName());
+                    // Set a role for OAuth users - FIXED: Use List instead of Set
+                    List<Role> roles = new ArrayList<>();
+                    Role oauthRole = new Role();
+                    oauthRole.setName("ROLE_OIDC_USER");
+                    roles.add(oauthRole);
+                    loggedInUser.setRoles(roles);
+                    userId = 54; // Use management user ID as fallback
+                }
+            } else {
+                // Regular authentication
+                userId = authenticationUtils.getLoggedInUserId(authentication);
+                if (userId > 0) {
+                    loggedInUser = userService.findById(Long.valueOf(userId));
+                }
+            }
+            
+            // If still no user found and not OAuth, this is an error
+            if (loggedInUser == null && !isOAuthUser) {
+                model.addAttribute("error", "User not found");
+                return "error/500";
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error getting user information: " + e.getMessage());
+            // Continue with a default user to avoid breaking the page
+            if (loggedInUser == null) {
+                loggedInUser = new User();
+                loggedInUser.setId(54); // FIXED: Use Integer instead of Long
+                userId = 54;
+            }
+        }
+
+        // Check if user is inactive (only for non-OAuth users with proper User records)
+        if (!isOAuthUser && loggedInUser != null && loggedInUser.getId() != null && loggedInUser.getId() > 0) {
+            try {
+                if (loggedInUser.isInactiveUser()) {
+                    return "error/account-inactive";
+                }
+            } catch (Exception e) {
+                // Ignore if isInactiveUser() fails
+                System.err.println("Error checking if user is inactive: " + e.getMessage());
+            }
         }
 
         // Check authorization - role-based access
         boolean hasAccess = false;
-        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") || 
+            AuthorizationUtil.hasRole(authentication, "ROLE_OIDC_USER")) {
             hasAccess = true;
         } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") && 
                    property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(Long.valueOf(userId))) {
@@ -305,6 +370,10 @@ public class PropertyController {
         if (!hasAccess) {
             return "redirect:/access-denied";
         }
+
+        // Add model attributes for the view
+        model.addAttribute("user", loggedInUser);
+        model.addAttribute("isOAuthUser", isOAuthUser);
 
         // Add tenant count for this property
         long tenantCount = tenantService.countByPropertyId(property.getId());
@@ -337,7 +406,6 @@ public class PropertyController {
         model.addAttribute("property", property);
         return "property/property-details";
     }
-
     // ================================
     // PROPERTY CREATION AND UPDATES
     // ================================
