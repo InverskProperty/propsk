@@ -180,17 +180,10 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             // Handle invalid_grant error specifically
             if (e.getMessage().contains("invalid_grant")) {
                 System.err.println("🔄 Refresh token appears to be invalid or expired");
-                System.err.println("   Clearing stored tokens to force re-authentication");
+                System.err.println("   Removing OAuth record to force re-authentication");
                 
-                // Clear the invalid refresh token
-                oauthUser.setRefreshToken(null);
-                oauthUser.setRefreshTokenIssuedAt(null);
-                oauthUser.setRefreshTokenExpiration(null);
-                oauthUser.setAccessToken(null);
-                oauthUser.setAccessTokenExpiration(null);
-                oauthUser.setAccessTokenIssuedAt(null);
-                
-                oAuthUserRepository.save(oauthUser);
+                // Delete the OAuth record entirely
+                oAuthUserRepository.delete(oauthUser);
                 
                 throw new RuntimeException("OAuth tokens expired. Please re-authenticate with Google to continue using Google services.", e);
             }

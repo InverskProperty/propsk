@@ -200,16 +200,11 @@ public class GoogleTokenRefreshScheduler {
      */
     private void markUserForReauth(OAuthUser oAuthUser) {
         System.out.println("🔄 Marking user for re-authentication: " + oAuthUser.getEmail());
+        System.out.println("   Removing OAuth record to force complete re-authentication");
         
-        // Clear invalid tokens
-        oAuthUser.setAccessToken(null);
-        oAuthUser.setAccessTokenExpiration(null);
-        oAuthUser.setRefreshToken(null);
-        oAuthUser.setRefreshTokenExpiration(null);
+        // Delete the OAuth record entirely
+        oAuthUserRepository.delete(oAuthUser);
         
-        // Save the changes
-        oAuthUserRepository.save(oAuthUser);
-        
-        System.out.println("✅ User marked for re-authentication. Tokens cleared.");
+        System.out.println("✅ OAuth record removed. User must re-authenticate with Google.");
     }
 }
