@@ -36,6 +36,8 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.FinancialTransaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.context.SecurityContextHolder;
+import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -44,6 +46,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
 
+// Update your class to include AuthenticationUtils:
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Controller
 @RequestMapping("/api/payprop/oauth")
@@ -53,6 +56,7 @@ public class PayPropOAuth2Controller {
     
     private final PayPropOAuth2Service oAuth2Service;
     private final RestTemplate restTemplate;
+    private final AuthenticationUtils authenticationUtils;  // ADD THIS
     private final String payPropApiBase = "https://ukapi.staging.payprop.com/api/agency/v1.1";
     
     // Services
@@ -87,10 +91,14 @@ public class PayPropOAuth2Controller {
     @Autowired
     private FinancialTransactionRepository financialTransactionRepository;
 
+    // UPDATE YOUR CONSTRUCTOR to include AuthenticationUtils:
     @Autowired
-    public PayPropOAuth2Controller(PayPropOAuth2Service oAuth2Service, RestTemplate restTemplate) {
+    public PayPropOAuth2Controller(PayPropOAuth2Service oAuth2Service, 
+                                  RestTemplate restTemplate,
+                                  AuthenticationUtils authenticationUtils) {  // ADD THIS PARAMETER
         this.oAuth2Service = oAuth2Service;
         this.restTemplate = restTemplate;
+        this.authenticationUtils = authenticationUtils;  // ADD THIS
     }
 
     // ===== BASIC OAUTH FLOW (Unchanged) =====
@@ -126,7 +134,8 @@ public class PayPropOAuth2Controller {
                                 @RequestParam(required = false) String error_description,
                                 @RequestParam(required = false) String state,
                                 Model model,
-                                RedirectAttributes redirectAttributes) {
+                                RedirectAttributes redirectAttributes,
+                                Authentication authentication) {  // ADD Authentication parameter
         
         logger.info("📞 PayProp OAuth2 callback received - Code: {}, Error: {}", 
             code != null ? code.substring(0, Math.min(20, code.length())) + "..." : "null", error);
@@ -145,8 +154,36 @@ public class PayPropOAuth2Controller {
         }
 
         try {
-            PayPropTokens tokens = oAuth2Service.exchangeCodeForToken(code);
-            logger.info("✅ PayProp OAuth2 setup completed successfully!");
+            // Get the current user ID using AuthenticationUtils
+            Long userId = 1L; // Default to system user
+            
+            if (authentication != null && authentication.isAuthenticated()) {
+                try {
+                    int userIdInt = authenticationUtils.getLoggedInUserId(authentication);
+                    logger.info("Got user ID from authentication: {}", userIdInt);
+                    
+                    if (userIdInt > 0) {
+                        userId = (long) userIdInt;
+                    } else {
+                        logger.warn("AuthenticationUtils returned invalid user ID: {}, using default", userIdInt);
+                    }
+                } catch (Exception e) {
+                    logger.warn("Could not get user ID from authentication, using default: {}", e.getMessage());
+                }
+            } else {
+                logger.info("No authentication available, using default system user ID");
+            }
+            
+            logger.info("Exchanging PayProp authorization code for user ID: {}", userId);
+            
+            // Now call with both parameters
+            PayPropOAuth2Service.PayPropTokens tokens = oAuth2Service.exchangeCodeForToken(code, userId);
+            
+            logger.info("✅ PayProp OAuth2 setup completed successfully for user ID: {}", userId);
+            logger.info("   Access token obtained: {}", tokens.getAccessToken() != null);
+            logger.info("   Refresh token obtained: {}", tokens.getRefreshToken() != null);
+            logger.info("   Token expires at: {}", tokens.getExpiresAt());
+            
             redirectAttributes.addFlashAttribute("successMessage", 
                 "PayProp integration authorized successfully! You can now sync data with PayProp.");
             return "redirect:/api/payprop/oauth/status";

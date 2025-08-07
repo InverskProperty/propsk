@@ -208,8 +208,9 @@ public class Portfolio {
         return syncStatus == SyncStatus.synced && payPropTags != null && !payPropTags.trim().isEmpty();
     }
     
+    // FIXED: Changed SyncStatus.error to SyncStatus.failed
     public boolean needsPayPropSync() {
-        return syncStatus == SyncStatus.pending || syncStatus == SyncStatus.error;
+        return syncStatus == SyncStatus.pending || syncStatus == SyncStatus.failed;
     }
     
     // PayProp Tag Utilities

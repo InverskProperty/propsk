@@ -86,6 +86,8 @@ public class PayPropSyncLogger {
 
     public void logSyncComplete(String syncType, boolean success, String summary) {
         long duration = 0;
+        LocalDateTime completedAt = LocalDateTime.now();
+        
         if (isDebugMode()) {
             Long startTime = operationTimers.get().get("SYNC_" + syncType);
             if (startTime != null) {
@@ -99,7 +101,66 @@ public class PayPropSyncLogger {
         } else {
             System.out.println(success ? "✅ SYNC COMPLETED: " : "❌ SYNC FAILED: " + syncType);
             System.out.println("Summary: " + summary);
-            System.out.println("Completed at: " + LocalDateTime.now());
+            System.out.println("Completed at: " + completedAt);
+        }
+        
+        // CRITICAL FIX: Update the database with completion status
+        // Find the most recent PENDING sync of this type and update it
+        List<PortfolioSyncLog> pendingSyncs = syncLogRepository.findBySyncTypeAndStatus(syncType, "PENDING");
+        
+        if (!pendingSyncs.isEmpty()) {
+            // Sort by sync start time descending to get the most recent
+            pendingSyncs.sort((a, b) -> {
+                if (a.getSyncStartedAt() == null) return 1;
+                if (b.getSyncStartedAt() == null) return -1;
+                return b.getSyncStartedAt().compareTo(a.getSyncStartedAt());
+            });
+            
+            PortfolioSyncLog mostRecentSync = pendingSyncs.get(0);
+            
+            // Update the sync log with completion information
+            mostRecentSync.setStatus(success ? "SUCCESS" : "FAILED");
+            mostRecentSync.setSyncCompletedAt(completedAt);
+            
+            // Add summary as payload received
+            if (summary != null && !summary.trim().isEmpty()) {
+                Map<String, Object> summaryData = new HashMap<>();
+                summaryData.put("summary", summary);
+                summaryData.put("duration_ms", duration);
+                mostRecentSync.setPayloadReceived(summaryData);
+            }
+            
+            // Save the updated sync log
+            try {
+                syncLogRepository.save(mostRecentSync);
+                System.out.println("✅ Database updated: Sync log ID " + mostRecentSync.getId() + 
+                                " marked as " + (success ? "SUCCESS" : "FAILED"));
+            } catch (Exception e) {
+                System.err.println("❌ Failed to update sync log in database: " + e.getMessage());
+            }
+        } else {
+            // If no pending sync found, create a completion record
+            System.out.println("⚠️ No pending sync found for type: " + syncType + ", creating completion record");
+            
+            PortfolioSyncLog completionLog = new PortfolioSyncLog();
+            completionLog.setSyncType(syncType);
+            completionLog.setOperation("COMPLETE");
+            completionLog.setStatus(success ? "SUCCESS" : "FAILED");
+            completionLog.setSyncStartedAt(completedAt.minusSeconds(duration / 1000)); // Estimate start time (convert ms to seconds)
+            completionLog.setSyncCompletedAt(completedAt);
+            
+            Map<String, Object> summaryData = new HashMap<>();
+            summaryData.put("summary", summary);
+            summaryData.put("duration_ms", duration);
+            summaryData.put("note", "Completion record created - original start log was missing");
+            completionLog.setPayloadReceived(summaryData);
+            
+            try {
+                syncLogRepository.save(completionLog);
+                System.out.println("✅ Completion record created in database");
+            } catch (Exception e) {
+                System.err.println("❌ Failed to create completion record: " + e.getMessage());
+            }
         }
     }
 

@@ -116,7 +116,7 @@ public class PayPropPortfolioSyncService {
             return SyncResult.success("Portfolio synced successfully", Map.of("payPropTagId", tag.getId()));
             
         } catch (Exception e) {
-            portfolio.setSyncStatus(SyncStatus.error);
+            portfolio.setSyncStatus(SyncStatus.failed);
             
             // FIXED: Add duplicate key handling for error status save
             try {
@@ -156,19 +156,15 @@ public class PayPropPortfolioSyncService {
         return createPayPropTag(newTag);
     }
     
-    // REPLACE the existing getAllPayPropTags method with this corrected version
-
-    /**
-     * Get all PayProp tags - CORRECTED VERSION using proper API response format
-     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public List<PayPropTagDTO> getAllPayPropTags() throws Exception {
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
         try {
-            // PayProp tags endpoint - may need pagination for large tag sets
-            String url = payPropApiBase + "/tags?rows=100"; // Get up to 100 tags
+            String url = payPropApiBase + "/tags?rows=100";
             
+            // Use raw Map type
             ResponseEntity<Map> response = restTemplate.exchange(
                 url, 
                 HttpMethod.GET, 
@@ -177,15 +173,14 @@ public class PayPropPortfolioSyncService {
             );
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> responseBody = response.getBody();
+                // Cast to Map<String, Object> after getting the body
+                Map<String, Object> responseBody = (Map<String, Object>) response.getBody();
                 
-                // PayProp API returns tags in 'data' array
                 List<Map<String, Object>> tags = null;
                 
                 if (responseBody.containsKey("data")) {
                     tags = (List<Map<String, Object>>) responseBody.get("data");
                 } else {
-                    // Fallback - response might be the tags array directly
                     if (responseBody instanceof List) {
                         tags = (List<Map<String, Object>>) responseBody;
                     } else {
@@ -201,15 +196,10 @@ public class PayPropPortfolioSyncService {
                 
                 return tags.stream().map(tagMap -> {
                     PayPropTagDTO tag = new PayPropTagDTO();
-                    
-                    // PayProp uses 'external_id' as the tag identifier
                     tag.setId((String) tagMap.get("external_id"));
                     tag.setName((String) tagMap.get("name"));
-                    
-                    // These fields may not be present in PayProp API
                     tag.setDescription((String) tagMap.getOrDefault("description", ""));
                     tag.setColor((String) tagMap.getOrDefault("color", "#3498db"));
-                    
                     return tag;
                 }).collect(Collectors.toList());
             }
@@ -226,17 +216,17 @@ public class PayPropPortfolioSyncService {
         }
     }
 
-    /**
-     * Get specific PayProp tag - public method for controller access
-     */
+    // FIX 2: For getPayPropTag method (around line 240)
+    // REPLACE THE ENTIRE METHOD with this version:
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public PayPropTagDTO getPayPropTag(String tagId) throws Exception {
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
         try {
-            // Use the external_id parameter to get specific tag
             String url = payPropApiBase + "/tags?external_id=" + tagId;
             
+            // Use raw Map type
             ResponseEntity<Map> response = restTemplate.exchange(
                 url, 
                 HttpMethod.GET, 
@@ -245,9 +235,9 @@ public class PayPropPortfolioSyncService {
             );
             
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> responseBody = response.getBody();
+                // Cast to Map<String, Object> after getting the body
+                Map<String, Object> responseBody = (Map<String, Object>) response.getBody();
                 
-                // PayProp returns array even for single tag lookup
                 List<Map<String, Object>> tags = null;
                 if (responseBody.containsKey("data")) {
                     tags = (List<Map<String, Object>>) responseBody.get("data");
@@ -833,7 +823,7 @@ public class PayPropPortfolioSyncService {
         // This would ideally use a repository method
         return portfolioRepository.findAll().stream()
             .filter(portfolio -> portfolio.getSyncStatus() == SyncStatus.pending || 
-                               portfolio.getSyncStatus() == SyncStatus.error)
+                               portfolio.getSyncStatus() == SyncStatus.failed)
             .collect(Collectors.toList());
     }
     
