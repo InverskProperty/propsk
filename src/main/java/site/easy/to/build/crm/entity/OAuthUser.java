@@ -19,7 +19,7 @@ public class OAuthUser {
     @Convert(converter = StringSetConverter.class)
     private Set<String> grantedScopes = new HashSet<>();
 
-    @Column(name = "access_token")
+    @Column(name = "access_token", columnDefinition = "TEXT")
     private String accessToken;
 
     @Column(name = "access_token_issued_at")
@@ -28,7 +28,7 @@ public class OAuthUser {
     @Column(name = "access_token_expiration")
     private Instant accessTokenExpiration;
 
-    @Column(name = "refresh_token")
+    @Column(name = "refresh_token", columnDefinition = "TEXT")
     private String refreshToken;
 
     @Column(name = "refresh_token_issued_at")
