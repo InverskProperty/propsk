@@ -54,6 +54,7 @@ public class SecurityConfig {
         this.customerLoginFailureHandler = customerLoginFailureHandler;
     }
 
+    
     // FIXED: Customer security filter chain - ONLY handles customer-specific routes
     @Bean
     @Order(1) 
@@ -85,6 +86,7 @@ public class SecurityConfig {
                     .requestMatchers("/property-owner/**").hasAnyRole("PROPERTY_OWNER", "MANAGER", "ADMIN")
                     .requestMatchers("/tenant/**").hasRole("TENANT")
                     .requestMatchers("/contractor/**").hasRole("CONTRACTOR")
+                    // REMOVED: debug-sync from here - it belongs in main chain
                     .anyRequest().authenticated()
             )
             .formLogin((form) -> {
@@ -196,6 +198,8 @@ public class SecurityConfig {
                         .requestMatchers("/portfolio/assign-properties").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         .requestMatchers("/portfolio/dashboard").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
                         .requestMatchers("/portfolio/test/**").permitAll() // Allow test routes
+                        .requestMatchers("/portfolio/*/debug-sync").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER") // ADDED: Debug sync endpoint
+                        .requestMatchers("/portfolio/*/sync").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER") // ADDED: Actual sync endpoint
                         
                         // CRITICAL FIX: General portfolio routes - NOW properly handled by main chain
                         .requestMatchers("/portfolio/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
