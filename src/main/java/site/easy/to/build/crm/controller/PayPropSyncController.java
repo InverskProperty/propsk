@@ -720,10 +720,7 @@ public class PayPropSyncController {
         ));
     }
 
-    // ===== HELPER METHOD =====
-    
-
-    // REPLACE the getCurrentUserId method in PayPropSyncController.java with this SECURE version:
+    // REPLACE the getCurrentUserId method in PayPropSyncController.java with this simple version:
 
     private Long getCurrentUserId(Authentication authentication) {
         System.out.println("🔍 Getting user ID from authentication (SECURE VERSION)...");
@@ -734,41 +731,19 @@ public class PayPropSyncController {
         }
         
         try {
-            // FIXED: Use the new Long-based AuthenticationUtils method
-            Long userIdFromAuth = authenticationUtils.getLoggedInUserId(authentication);
+            // FIXED: Use the new secure method that returns Long and validates user
+            Long userIdFromAuth = authenticationUtils.getLoggedInUserIdSecure(authentication);
             
             if (userIdFromAuth != null && userIdFromAuth > 0) {
-                System.out.println("✅ Found user ID from AuthenticationUtils: " + userIdFromAuth);
-                
-                // SECURITY: Validate the user exists and is active
-                if (authenticationUtils.isValidActiveUserId(userIdFromAuth)) {
-                    return userIdFromAuth;
-                } else {
-                    throw new SecurityException("User ID " + userIdFromAuth + " is not valid or active");
-                }
-            }
-            
-            // Fallback: Extract email and find user (NO MORE HARDCODED IDs!)
-            String email = extractEmailFromAuthentication(authentication);
-            
-            if (email == null || email.trim().isEmpty()) {
-                throw new SecurityException("Could not extract email from authentication");
-            }
-            
-            // SECURE: Look up user by email
-            Long userIdByEmail = authenticationUtils.getUserIdByEmail(email);
-            
-            if (userIdByEmail != null && userIdByEmail > 0) {
-                System.out.println("✅ Found user by email lookup: " + userIdByEmail);
-                return userIdByEmail;
+                System.out.println("✅ Found secure user ID: " + userIdFromAuth);
+                return userIdFromAuth;
             }
             
             // SECURITY: No hardcoded fallbacks - fail securely
             System.err.println("🚨 SECURITY: No valid user found for authentication");
-            System.err.println("   Email: " + email);
             System.err.println("   Auth type: " + authentication.getClass().getSimpleName());
             
-            throw new SecurityException("No valid user account found for authentication: " + email);
+            throw new SecurityException("No valid user account found for authentication");
             
         } catch (SecurityException e) {
             // Re-throw security exceptions
@@ -777,92 +752,6 @@ public class PayPropSyncController {
             System.err.println("❌ Error resolving user ID: " + e.getMessage());
             e.printStackTrace();
             throw new SecurityException("Failed to resolve user ID: " + e.getMessage());
-        }
-    }
-
-
-    // HELPER METHOD: Extract email from different authentication types
-    private String extractEmailFromAuthentication(Authentication authentication) {
-        try {
-            if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.oidc.user.OidcUser) {
-                org.springframework.security.oauth2.core.oidc.user.OidcUser oidcUser = 
-                    (org.springframework.security.oauth2.core.oidc.user.OidcUser) authentication.getPrincipal();
-                return oidcUser.getEmail();
-            } else if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User) {
-                org.springframework.security.oauth2.core.user.OAuth2User oauth2User = 
-                    (org.springframework.security.oauth2.core.user.OAuth2User) authentication.getPrincipal();
-                return oauth2User.getAttribute("email");
-            } else if (authentication.getName() != null) {
-                // For username/password authentication, the name might be the email
-                return authentication.getName();
-            }
-            
-            return null;
-        } catch (Exception e) {
-            System.err.println("❌ Error extracting email: " + e.getMessage());
-            return null;
-        }
-    }
-
-
-    // Add this new helper method to PayPropSyncController
-    private User createUserForEmail(String email, Authentication authentication) {
-        try {
-            // Extract user details from OAuth
-            String firstName = null;
-            String lastName = null;
-            String username = email.split("@")[0];
-            
-            if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.oidc.user.OidcUser) {
-                org.springframework.security.oauth2.core.oidc.user.OidcUser oidcUser = 
-                    (org.springframework.security.oauth2.core.oidc.user.OidcUser) authentication.getPrincipal();
-                firstName = oidcUser.getGivenName();
-                lastName = oidcUser.getFamilyName();
-            }
-            
-            // Create new user with appropriate role
-            User newUser = new User();
-            newUser.setEmail(email);
-            newUser.setUsername(username);
-            newUser.setPasswordSet(true);
-            newUser.setStatus("ACTIVE");
-            newUser.setCreatedAt(LocalDateTime.now());
-            
-            // Assign role based on email domain or default to EMPLOYEE
-            Role role = determineRoleForEmail(email);
-            newUser.setRoles(List.of(role));
-            
-            User savedUser = userService.save(newUser);
-            
-            // Create user profile
-            UserProfile userProfile = new UserProfile();
-            userProfile.setUser(savedUser);
-            userProfile.setFirstName(firstName);
-            userProfile.setLastName(lastName);
-            userProfile.setStatus("ACTIVE");
-            userProfileService.save(userProfile);
-            
-            System.out.println("✅ Created new user account: " + savedUser.getId() + " with role: " + role.getName());
-            
-            return savedUser;
-            
-        } catch (Exception e) {
-            System.err.println("❌ Failed to create user account: " + e.getMessage());
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    // Add this helper method for role determination
-    private Role determineRoleForEmail(String email) {
-        // Define role assignment rules based on email domain or specific emails
-        if (email.endsWith("@propsk.com") || email.equals("management@propsk.com")) {
-            return roleService.findByName("ROLE_MANAGER");
-        } else if (email.endsWith("@yourdomain.com")) { // Replace with your domain
-            return roleService.findByName("ROLE_EMPLOYEE");
-        } else {
-            // External users get EMPLOYEE role by default, can be upgraded later
-            return roleService.findByName("ROLE_EMPLOYEE");
         }
     }
 }

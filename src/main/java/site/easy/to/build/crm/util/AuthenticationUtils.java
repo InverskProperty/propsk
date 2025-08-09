@@ -77,11 +77,11 @@ public class AuthenticationUtils {
     }
 
     /**
-     * FIXED: Primary method now returns Long to match Customer.customerId type
-     * This eliminates the need for .intValue() conversions throughout the codebase
+     * LEGACY METHOD: Keep returning int for backward compatibility
+     * This prevents breaking 100+ existing usages throughout the codebase
      */
-    public Long getLoggedInUserId(Authentication authentication) {
-        System.out.println("🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called");
+    public int getLoggedInUserId(Authentication authentication) {
+        System.out.println("🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called (LEGACY INT VERSION)");
         System.out.println("   Authentication type: " + authentication.getClass().getSimpleName());
         System.out.println("   Authentication name: " + authentication.getName());
         System.out.println("   Is authenticated: " + authentication.isAuthenticated());
@@ -98,20 +98,18 @@ public class AuthenticationUtils {
                 user = userService.findByUsername(userName).get(0);
                 if (user == null) {
                     System.out.println("❌ User not found by username: " + userName);
-                    return -1L;
+                    return -1;
                 }
                 System.out.println("✅ Found user by username: " + user.getId());
-                // FIXED: Return Long directly from Integer
-                return Long.valueOf(user.getId());
+                return user.getId(); // Return int directly
             } else if (authenticatedUserDetailsService == customerUserDetails) {
                 customerLoginInfo = customerLoginInfoService.findByEmail(userName);
                 if (customerLoginInfo == null) {
                     System.out.println("❌ Customer login info not found by email: " + userName);
-                    return -1L;
+                    return -1;
                 }
                 System.out.println("✅ Found customer login info: " + customerLoginInfo.getId());
-                // FIXED: Return Long directly from Integer
-                return Long.valueOf(customerLoginInfo.getId());
+                return customerLoginInfo.getId(); // Return int directly
             }
         } else {
             System.out.println("   Processing OAuth authentication...");
@@ -120,7 +118,7 @@ public class AuthenticationUtils {
             
             if (oAuthUser == null) {
                 System.out.println("❌ No OAuth user found, returning -1");
-                return -1L;
+                return -1;
             }
             
             System.out.println("   OAuth user table ID: " + oAuthUser.getId());
@@ -129,48 +127,61 @@ public class AuthenticationUtils {
             Integer linkedUserId = oAuthUser.getUserId();
             if (linkedUserId != null) {
                 System.out.println("✅ Returning linked user ID: " + linkedUserId);
-                // FIXED: Return Long directly from Integer
-                return Long.valueOf(linkedUserId);
+                return linkedUserId; // Return int directly
             } else {
                 System.out.println("❌ OAuth user has no linked User record, returning -1");
-                return -1L;
+                return -1;
             }
         }
         
         System.out.println("❌ Failed to determine user ID, returning -1");
-        return -1L;
+        return -1;
     }
 
     /**
-     * DEPRECATED: Legacy method for backward compatibility
-     * Use getLoggedInUserId() instead and handle Long properly
-     * 
-     * @deprecated Use getLoggedInUserId() which returns Long
+     * NEW SECURE METHOD: Returns Long and eliminates hardcoded fallbacks
+     * Use this for new PayProp integration code
      */
-    @Deprecated
-    public int getLoggedInUserIdAsInt(Authentication authentication) {
-        System.out.println("⚠️ WARNING: Using deprecated getLoggedInUserIdAsInt() method");
-        System.out.println("   Please update code to use getLoggedInUserId() which returns Long");
+    public Long getLoggedInUserIdSecure(Authentication authentication) {
+        System.out.println("🔐 DEBUG: AuthenticationUtils.getLoggedInUserIdSecure() called (NEW SECURE VERSION)");
         
-        Long userId = getLoggedInUserId(authentication);
-        if (userId == null || userId == -1L) {
-            return -1;
+        if (authentication == null) {
+            System.err.println("❌ No authentication provided");
+            return null;
         }
         
-        // Check for overflow before converting
-        if (userId > Integer.MAX_VALUE) {
-            System.err.println("🚨 CRITICAL: User ID " + userId + " exceeds Integer.MAX_VALUE!");
-            System.err.println("🚨 This will cause data loss. Database migration to BIGINT required.");
-            throw new IllegalStateException("User ID too large to convert to int: " + userId + 
-                ". Maximum safe value is " + Integer.MAX_VALUE);
+        // Use the existing logic but return Long and validate
+        int userId = getLoggedInUserId(authentication);
+        
+        if (userId <= 0) {
+            System.err.println("🚨 SECURITY: No valid user found for authentication");
+            return null;
         }
         
-        return userId.intValue();
+        // SECURITY: Validate the user exists and is active
+        try {
+            User user = userService.findById(Long.valueOf(userId));
+            if (user == null) {
+                System.err.println("🚨 SECURITY: User ID " + userId + " not found in database");
+                return null;
+            }
+            
+            if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+                System.err.println("🚨 SECURITY: User ID " + userId + " is not active (Status: " + user.getStatus() + ")");
+                return null;
+            }
+            
+            System.out.println("✅ Validated secure user ID: " + userId);
+            return Long.valueOf(userId);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error validating user ID " + userId + ": " + e.getMessage());
+            return null;
+        }
     }
 
     /**
      * SECURE: Get user ID by email with proper error handling
-     * Used as fallback when authentication-based lookup fails
      */
     public Long getUserIdByEmail(String email) {
         if (email == null || email.trim().isEmpty()) {
@@ -218,38 +229,6 @@ public class AuthenticationUtils {
         } catch (Exception e) {
             System.err.println("❌ Error validating user ID " + userId + ": " + e.getMessage());
             return false;
-        }
-    }
-
-    /**
-     * SECURE: Get user with full validation
-     */
-    public User getValidatedUser(Authentication authentication) {
-        Long userId = getLoggedInUserId(authentication);
-        
-        if (userId == null || userId <= 0) {
-            System.err.println("❌ Invalid user ID from authentication: " + userId);
-            return null;
-        }
-        
-        try {
-            User user = userService.findById(userId);
-            if (user == null) {
-                System.err.println("❌ User not found for ID: " + userId);
-                return null;
-            }
-            
-            if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
-                System.err.println("❌ User " + userId + " is not active (Status: " + user.getStatus() + ")");
-                return null;
-            }
-            
-            System.out.println("✅ Validated user: " + user.getId() + " - " + user.getEmail());
-            return user;
-        } catch (Exception e) {
-            System.err.println("❌ Error getting validated user: " + e.getMessage());
-            e.printStackTrace();
-            return null;
         }
     }
     
