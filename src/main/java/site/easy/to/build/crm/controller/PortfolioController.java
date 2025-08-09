@@ -207,6 +207,39 @@ public class PortfolioController {
         return "portfolio/create-portfolio";
     }
 
+
+    @PostMapping("/{id}/debug-sync")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> debugSync(
+            @PathVariable("id") Long portfolioId,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            response.put("portfolioId", portfolioId);
+            response.put("payPropEnabled", payPropEnabled);
+            response.put("payPropSyncService", payPropSyncService != null ? "AVAILABLE" : "NULL");
+            
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            response.put("userId", userId);
+            
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            response.put("portfolioExists", portfolio != null);
+            
+            response.put("success", true);
+            response.put("message", "Debug successful");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Debug failed: " + e.getMessage());
+            response.put("error", e.getClass().getSimpleName());
+            return ResponseEntity.ok(response);
+        }
+    }
+
     /**
      * Create Portfolio Processing
      */

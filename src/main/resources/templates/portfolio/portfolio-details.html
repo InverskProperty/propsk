@@ -337,6 +337,14 @@
 
 <!-- Scripts -->
 <script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<!-- ADD THIS FALLBACK -->
+<script>
+if (typeof jQuery === 'undefined') {
+    document.write('<script src="https://code.jquery.com/jquery-3.6.0.min.js"><\/script>');
+}
+</script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
 <script th:src="@{/js/library/popper.min.js}"></script>
 <script th:src="@{/js/library/bootstrap.min.js}"></script>
 <script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
@@ -461,7 +469,22 @@ function syncWithPayProp() {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+            
+            // Check if response is actually JSON
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            } else {
+                // If it's HTML, read as text to see the error
+                return response.text().then(text => {
+                    console.error('Received HTML instead of JSON:', text);
+                    throw new Error('Server returned HTML error page instead of JSON');
+                });
+            }
+        })
         .then(data => {
             if (data.success) {
                 alert('Portfolio sync initiated successfully!');
@@ -471,8 +494,8 @@ function syncWithPayProp() {
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            alert('Failed to sync portfolio');
+            console.error('Sync error:', error);
+            alert('Failed to sync portfolio: ' + error.message);
         });
     }
 }
