@@ -9,6 +9,7 @@ import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
+import site.easy.to.build.crm.entity.Customer;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

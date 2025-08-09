@@ -5,6 +5,7 @@ import site.easy.to.build.crm.entity.Property;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import site.easy.to.build.crm.entity.Customer;
 
 public interface PropertyService {
 
