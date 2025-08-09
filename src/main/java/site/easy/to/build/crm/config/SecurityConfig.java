@@ -82,7 +82,7 @@ public class SecurityConfig {
             .authorizeHttpRequests((authorize) -> authorize
                     .requestMatchers("/customer-login", "/customer-login/**").permitAll()
                     .requestMatchers("/set-password/**").permitAll()
-                    .requestMatchers("/property-owner/**").hasRole("PROPERTY_OWNER")
+                    .requestMatchers("/property-owner/**").hasAnyRole("PROPERTY_OWNER", "MANAGER", "ADMIN")
                     .requestMatchers("/tenant/**").hasRole("TENANT")
                     .requestMatchers("/contractor/**").hasRole("CONTRACTOR")
                     .anyRequest().authenticated()
