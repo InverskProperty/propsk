@@ -1,17 +1,16 @@
-// PayPropOAuth2Service.java - FIXED VERSION with Database Token Persistence
+// PayPropOAuth2Service.java - COMPLETE REPLACEMENT with Database Token Persistence and API Validation
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.env.Environment;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.util.UriComponentsBuilder;
 import site.easy.to.build.crm.entity.PayPropToken;
 import site.easy.to.build.crm.repository.PayPropTokenRepository;
@@ -19,6 +18,8 @@ import site.easy.to.build.crm.repository.PayPropTokenRepository;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
+import java.util.HashMap;
+import java.util.List;
 
 @ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Service
@@ -26,6 +27,7 @@ public class PayPropOAuth2Service {
 
     private final RestTemplate restTemplate;
     private final PayPropTokenRepository tokenRepository;
+    private final Environment environment;
     
     @Value("${payprop.oauth2.client-id}")
     private String clientId;
@@ -49,9 +51,10 @@ public class PayPropOAuth2Service {
     private volatile PayPropTokens currentTokens;
 
     @Autowired
-    public PayPropOAuth2Service(RestTemplate restTemplate, PayPropTokenRepository tokenRepository) {
+    public PayPropOAuth2Service(RestTemplate restTemplate, PayPropTokenRepository tokenRepository, Environment environment) {
         this.restTemplate = restTemplate;
         this.tokenRepository = tokenRepository;
+        this.environment = environment;
         
         // Load existing tokens from database on startup
         loadTokensFromDatabase();
@@ -79,6 +82,21 @@ public class PayPropOAuth2Service {
             System.out.println("✅ Loaded existing PayProp tokens from database");
             System.out.println("   Token expires at: " + token.getExpiresAt());
             System.out.println("   Has refresh token: " + (token.getRefreshToken() != null));
+            
+            // CRITICAL ADDITION: Validate tokens on startup
+            try {
+                if (currentTokens.isExpired()) {
+                    System.out.println("🔄 Tokens expired, attempting refresh on startup...");
+                    refreshToken();
+                } else if (currentTokens.isExpiringSoon()) {
+                    System.out.println("🔄 Tokens expiring soon, refreshing proactively...");
+                    refreshToken();
+                }
+            } catch (Exception e) {
+                System.err.println("⚠️ Token validation failed on startup: " + e.getMessage());
+                System.err.println("   Tokens may need reauthorization");
+            }
+            
         } else {
             System.out.println("📝 No existing PayProp tokens found in database");
         }
@@ -336,14 +354,43 @@ public class PayPropOAuth2Service {
     public HttpHeaders createAuthorizedHeaders() throws Exception {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(getValidAccessToken());
+        
+        // Use Bearer token as per PayProp API specification
+        String accessToken = getValidAccessToken();
+        headers.set("Authorization", "Bearer " + accessToken);
+        
+        // Add User-Agent header (good practice for API calls)
+        headers.set("User-Agent", "CRM-System/1.0");
+        
         return headers;
     }
 
     /**
-     * Check if we have valid tokens
+     * Check if we have valid tokens that actually work with PayProp API
      */
     public boolean hasValidTokens() {
+        // First check if tokens exist and are not expired
+        boolean hasTokens = hasStoredTokens();
+        if (!hasTokens) {
+            System.out.println("❌ No valid tokens found");
+            return false;
+        }
+        
+        // CRITICAL ADDITION: Test if tokens actually work with PayProp API
+        try {
+            boolean apiConnected = testConnection();
+            System.out.println("🔍 PayProp API connection test: " + (apiConnected ? "SUCCESS" : "FAILED"));
+            return apiConnected;
+        } catch (Exception e) {
+            System.err.println("❌ PayProp API connection test failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Check if tokens exist and are not expired (internal method)
+     */
+    private boolean hasStoredTokens() {
         // Check memory first
         if (currentTokens != null && currentTokens.getAccessToken() != null) {
             boolean notExpired = currentTokens.getExpiresAt() == null || 
@@ -361,11 +408,6 @@ public class PayPropOAuth2Service {
             boolean notExpired = token.getExpiresAt() == null || 
                                token.getExpiresAt().isAfter(LocalDateTime.now());
             
-            System.out.println("🔍 TOKEN VALIDITY CHECK (Database):");
-            System.out.println("   Has Tokens: " + hasTokens);
-            System.out.println("   Not Expired: " + notExpired);
-            System.out.println("   Overall Valid: " + (hasTokens && notExpired));
-            
             if (hasTokens && notExpired) {
                 // Load to memory for faster access
                 loadTokensFromDatabase();
@@ -374,6 +416,162 @@ public class PayPropOAuth2Service {
         }
         
         return false;
+    }
+
+    /**
+     * CRITICAL ADDITION: Test actual API connection using PayProp's /meta/me endpoint
+     */
+    public boolean testConnection() throws Exception {
+        try {
+            // Use YOUR staging environment for connection testing
+            String baseUrl = environment.getProperty("payprop.api.base-url", "https://ukapi.staging.payprop.com/api/agency/v1.1");
+            String apiUrl = baseUrl + "/meta/me";
+            
+            HttpHeaders headers = createAuthorizedHeaders();
+            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            ResponseEntity<Map> response = restTemplate.exchange(
+                apiUrl, 
+                HttpMethod.GET, 
+                request, 
+                Map.class
+            );
+            
+            boolean success = response.getStatusCode() == HttpStatus.OK;
+            
+            if (success && response.getBody() != null) {
+                Map<String, Object> metaInfo = response.getBody();
+                System.out.println("✅ PayProp API connection verified!");
+                
+                // Log useful connection info
+                if (metaInfo.containsKey("user")) {
+                    Map<String, Object> user = (Map<String, Object>) metaInfo.get("user");
+                    System.out.println("   Connected as: " + user.get("full_name") + " (" + user.get("email") + ")");
+                    System.out.println("   User type: " + user.get("type"));
+                    System.out.println("   Is admin: " + user.get("is_admin"));
+                }
+                
+                if (metaInfo.containsKey("agency")) {
+                    Map<String, Object> agency = (Map<String, Object>) metaInfo.get("agency");
+                    System.out.println("   Agency: " + agency.get("name"));
+                }
+                
+                if (metaInfo.containsKey("scopes")) {
+                    List<String> scopes = (List<String>) metaInfo.get("scopes");
+                    System.out.println("   Available scopes: " + String.join(", ", scopes));
+                }
+            }
+            
+            return success;
+            
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
+                System.err.println("🔄 PayProp tokens expired (401), attempting refresh...");
+                
+                try {
+                    refreshToken();
+                    // Retry the connection test after refresh
+                    return testConnection();
+                } catch (Exception refreshError) {
+                    System.err.println("❌ Token refresh failed: " + refreshError.getMessage());
+                    // Clear invalid tokens
+                    clearTokens();
+                    return false;
+                }
+            } else {
+                System.err.println("❌ PayProp API error: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
+                return false;
+            }
+        } catch (Exception e) {
+            System.err.println("❌ PayProp connection test failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Get connection status for UI display
+     */
+    public String getConnectionStatus() {
+        try {
+            if (!hasStoredTokens()) {
+                return "NOT_AUTHORIZED";
+            }
+            
+            if (testConnection()) {
+                return "CONNECTED";
+            } else {
+                return "CONNECTION_FAILED";
+            }
+        } catch (Exception e) {
+            return "ERROR: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Get detailed connection info for debugging and UI display
+     */
+    public Map<String, Object> getConnectionInfo() {
+        Map<String, Object> info = new HashMap<>();
+        
+        try {
+            info.put("payPropEnabled", true); // Since this service only exists when enabled
+            info.put("hasMemoryTokens", currentTokens != null);
+            
+            Optional<PayPropToken> dbToken = tokenRepository.findMostRecentActiveToken();
+            info.put("hasDatabaseTokens", dbToken.isPresent());
+            
+            if (dbToken.isPresent()) {
+                PayPropToken token = dbToken.get();
+                info.put("tokenExpiresAt", token.getExpiresAt());
+                info.put("tokenObtainedAt", token.getObtainedAt());
+                info.put("hasRefreshToken", token.getRefreshToken() != null);
+                info.put("tokenExpired", token.getExpiresAt() != null && 
+                        token.getExpiresAt().isBefore(LocalDateTime.now()));
+            }
+            
+            // Test actual API connection
+            String status = getConnectionStatus();
+            info.put("connectionStatus", status);
+            
+            // If connected, get user info
+            if ("CONNECTED".equals(status)) {
+                try {
+                    Map<String, Object> metaInfo = getUserMetaInfo();
+                    info.put("userInfo", metaInfo);
+                } catch (Exception e) {
+                    info.put("userInfoError", e.getMessage());
+                }
+            }
+            
+        } catch (Exception e) {
+            info.put("error", e.getMessage());
+        }
+        
+        return info;
+    }
+
+    /**
+     * Get PayProp user meta information (useful for debugging and display)
+     */
+    public Map<String, Object> getUserMetaInfo() throws Exception {
+        String baseUrl = environment.getProperty("payprop.api.base-url", "https://ukapi.staging.payprop.com/api/agency/v1.1");
+        String apiUrl = baseUrl + "/meta/me";
+        
+        HttpHeaders headers = createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        ResponseEntity<Map> response = restTemplate.exchange(
+            apiUrl, 
+            HttpMethod.GET, 
+            request, 
+            Map.class
+        );
+        
+        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+            return response.getBody();
+        }
+        
+        throw new RuntimeException("Failed to get user meta info from PayProp");
     }
 
     /**

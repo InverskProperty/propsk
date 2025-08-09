@@ -24,6 +24,7 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
     List<Portfolio> findByPortfolioType(PortfolioType portfolioType);
     List<Portfolio> findByIsActive(String isActive);
     List<Portfolio> findByIsShared(String isShared);
+    List<Portfolio> findBySyncStatus(SyncStatus syncStatus);
     
     // Active portfolios
     @Query("SELECT p FROM Portfolio p WHERE p.isActive = 'Y' ORDER BY p.displayOrder, p.name")

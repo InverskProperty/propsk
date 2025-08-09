@@ -1,4 +1,4 @@
-// PortfolioServiceImpl.java - Implementation of portfolio management
+// PortfolioServiceImpl.java - COMPLETE REPLACEMENT with PayProp Connection Validation
 package site.easy.to.build.crm.service.portfolio;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +11,7 @@ import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.payprop.PayPropPortfolioSyncService;
+import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
@@ -21,6 +22,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -33,9 +37,12 @@ public class PortfolioServiceImpl implements PortfolioService {
     private final TenantService tenantService;
     private final AuthenticationUtils authenticationUtils;
     
-    // Make PayProp service optional
+    // Make PayProp services optional
     @Autowired(required = false)
     private PayPropPortfolioSyncService payPropSyncService;
+    
+    @Autowired(required = false)
+    private PayPropOAuth2Service payPropOAuth2Service;
     
     @Value("${payprop.enabled:false}")
     private boolean payPropEnabled;
@@ -99,15 +106,44 @@ public class PortfolioServiceImpl implements PortfolioService {
         // Set sharing based on ownership
         portfolio.setIsShared(propertyOwnerId == null ? "Y" : "N");
         
-        // Set PayProp sync information only if PayProp is enabled
-        if (payPropEnabled) {
-            portfolio.setPayPropTags(tagId);
-            portfolio.setPayPropTagNames(tagData.getName());
-            portfolio.setSyncStatus(SyncStatus.synced);
-            portfolio.setLastSyncAt(LocalDateTime.now());
+        // CRITICAL FIX: Only set sync status if we can actually connect to PayProp
+        if (payPropEnabled && payPropSyncService != null) {
+            try {
+                // Test actual PayProp connection before claiming sync
+                if (hasActivePayPropConnection()) {
+                    portfolio.setPayPropTags(tagId);
+                    portfolio.setPayPropTagNames(tagData.getName());
+                    portfolio.setSyncStatus(SyncStatus.synced);
+                    portfolio.setLastSyncAt(LocalDateTime.now());
+                    System.out.println("✅ Portfolio created and synced with PayProp");
+                } else {
+                    // PayProp enabled but not connected
+                    portfolio.setPayPropTags(tagId);
+                    portfolio.setPayPropTagNames(tagData.getName());
+                    portfolio.setSyncStatus(SyncStatus.pending);
+                    portfolio.setLastSyncAt(null);
+                    System.out.println("⚠️ Portfolio created but PayProp sync pending (not connected)");
+                }
+            } catch (Exception e) {
+                // Connection test failed
+                portfolio.setPayPropTags(tagId);
+                portfolio.setPayPropTagNames(tagData.getName());
+                portfolio.setSyncStatus(SyncStatus.failed);
+                portfolio.setLastSyncAt(null);
+                System.err.println("❌ Portfolio created but PayProp sync failed: " + e.getMessage());
+            }
+        } else {
+            // PayProp disabled - no sync status
+            portfolio.setSyncStatus(null);
+            portfolio.setLastSyncAt(null);
         }
         
         Portfolio savedPortfolio = portfolioRepository.save(portfolio);
+        
+        // Track change if PayProp is disconnected
+        if (payPropEnabled && !hasActivePayPropConnection()) {
+            trackPortfolioChange(savedPortfolio.getId(), "CREATED", "Portfolio created from PayProp tag: " + tagData.getName());
+        }
         
         // Initialize analytics
         calculatePortfolioAnalytics(savedPortfolio.getId(), LocalDate.now());
@@ -172,7 +208,30 @@ public class PortfolioServiceImpl implements PortfolioService {
         portfolio.setPortfolioType(type);
         portfolio.setIsShared(propertyOwnerId == null ? "Y" : "N");
         
+        // CRITICAL FIX: Don't claim sync until actually synced
+        if (payPropEnabled && payPropSyncService != null) {
+            try {
+                if (hasActivePayPropConnection()) {
+                    portfolio.setSyncStatus(SyncStatus.pending);
+                    System.out.println("📝 Portfolio created, ready for PayProp sync");
+                } else {
+                    portfolio.setSyncStatus(SyncStatus.pending);
+                    System.out.println("⚠️ Portfolio created but PayProp not connected");
+                }
+            } catch (Exception e) {
+                portfolio.setSyncStatus(SyncStatus.failed);
+                System.err.println("❌ Portfolio created but PayProp connection failed: " + e.getMessage());
+            }
+        } else {
+            portfolio.setSyncStatus(null); // PayProp disabled
+        }
+        
         Portfolio savedPortfolio = portfolioRepository.save(portfolio);
+        
+        // Track change if PayProp is disconnected
+        if (payPropEnabled && !hasActivePayPropConnection()) {
+            trackPortfolioChange(savedPortfolio.getId(), "CREATED", "Portfolio created: " + name);
+        }
         
         // Initialize analytics
         calculatePortfolioAnalytics(savedPortfolio.getId(), LocalDate.now());
@@ -193,18 +252,38 @@ public class PortfolioServiceImpl implements PortfolioService {
                 property.setPortfolio(portfolio);
                 property.setPortfolioAssignmentDate(LocalDateTime.now());
                 propertyService.save(property);
-                
-                // If portfolio has PayProp tags and PayProp is enabled, apply them to the property
-                if (payPropEnabled && payPropSyncService != null && 
-                    portfolio.isSyncedWithPayProp() && property.getPayPropId() != null) {
-                    // Trigger PayProp tag application
-                    try {
-                        payPropSyncService.syncPortfolioToPayProp(portfolioId, assignedBy);
-                    } catch (Exception e) {
-                        // Log error but don't fail the assignment
-                        System.err.println("PayProp sync failed: " + e.getMessage());
-                    }
+            }
+        }
+        
+        // ENHANCED: Update sync status when properties are assigned
+        if (payPropEnabled) {
+            try {
+                if (hasActivePayPropConnection() && portfolio.isSyncedWithPayProp()) {
+                    // Trigger real PayProp sync for property assignment
+                    payPropSyncService.syncPortfolioToPayProp(portfolioId, assignedBy);
+                    
+                    // Update sync status on success
+                    portfolio.setSyncStatus(SyncStatus.synced);
+                    portfolio.setLastSyncAt(LocalDateTime.now());
+                    portfolioRepository.save(portfolio);
+                    
+                    System.out.println("✅ Portfolio properties synced with PayProp");
+                } else {
+                    // Track the change for later sync
+                    trackPortfolioChange(portfolioId, "PROPERTIES_ASSIGNED", 
+                        "Assigned " + propertyIds.size() + " properties");
+                    
+                    portfolio.setSyncStatus(SyncStatus.pending);
+                    portfolioRepository.save(portfolio);
+                    
+                    System.out.println("📝 Property assignment tracked for PayProp sync");
                 }
+            } catch (Exception e) {
+                // Mark sync as failed but don't fail the assignment
+                portfolio.setSyncStatus(SyncStatus.failed);
+                portfolioRepository.save(portfolio);
+                
+                System.err.println("❌ PayProp sync failed for property assignment: " + e.getMessage());
             }
         }
         
@@ -393,29 +472,61 @@ public class PortfolioServiceImpl implements PortfolioService {
     
     @Override
     public void syncPortfolioWithPayProp(Long portfolioId, Long initiatedBy) {
-        if (payPropEnabled && payPropSyncService != null) {
-            try {
-                payPropSyncService.syncPortfolioToPayProp(portfolioId, initiatedBy);
-            } catch (Exception e) {
-                System.err.println("PayProp sync failed: " + e.getMessage());
-                throw new RuntimeException("PayProp sync failed", e);
-            }
-        } else {
+        if (!payPropEnabled || payPropSyncService == null) {
             throw new IllegalStateException("PayProp integration is not enabled");
+        }
+        
+        // ENHANCED: Validate connection before attempting sync
+        if (!hasActivePayPropConnection()) {
+            throw new IllegalStateException("PayProp is not connected. Please reauthorize.");
+        }
+        
+        try {
+            payPropSyncService.syncPortfolioToPayProp(portfolioId, initiatedBy);
+            
+            // Update portfolio sync status on success
+            Portfolio portfolio = findById(portfolioId);
+            if (portfolio != null) {
+                portfolio.setSyncStatus(SyncStatus.synced);
+                portfolio.setLastSyncAt(LocalDateTime.now());
+                // Clear any pending changes (if you have these fields)
+                // portfolio.setPendingChanges(null);
+                // portfolio.setLastModifiedWhileDisconnected(null);
+                portfolioRepository.save(portfolio);
+                
+                System.out.println("✅ Portfolio " + portfolio.getName() + " successfully synced with PayProp");
+            }
+            
+        } catch (Exception e) {
+            // Update portfolio sync status on failure
+            Portfolio portfolio = findById(portfolioId);
+            if (portfolio != null) {
+                portfolio.setSyncStatus(SyncStatus.failed);
+                portfolioRepository.save(portfolio);
+            }
+            
+            System.err.println("❌ PayProp sync failed for portfolio " + portfolioId + ": " + e.getMessage());
+            throw new RuntimeException("PayProp sync failed", e);
         }
     }
     
     @Override
     public void syncAllPortfoliosWithPayProp(Long initiatedBy) {
-        if (payPropEnabled && payPropSyncService != null) {
-            try {
-                payPropSyncService.syncAllPortfolios(initiatedBy);
-            } catch (Exception e) {
-                System.err.println("PayProp bulk sync failed: " + e.getMessage());
-                throw new RuntimeException("PayProp bulk sync failed", e);
-            }
-        } else {
+        if (!payPropEnabled || payPropSyncService == null) {
             throw new IllegalStateException("PayProp integration is not enabled");
+        }
+        
+        // ENHANCED: Validate connection before attempting bulk sync
+        if (!hasActivePayPropConnection()) {
+            throw new IllegalStateException("PayProp is not connected. Please reauthorize.");
+        }
+        
+        try {
+            payPropSyncService.syncAllPortfolios(initiatedBy);
+            System.out.println("✅ All portfolios synced with PayProp");
+        } catch (Exception e) {
+            System.err.println("❌ PayProp bulk sync failed: " + e.getMessage());
+            throw new RuntimeException("PayProp bulk sync failed", e);
         }
     }
     
@@ -531,5 +642,112 @@ public class PortfolioServiceImpl implements PortfolioService {
         }
         
         return !exists;
+    }
+
+    /**
+     * CRITICAL FIX: Test actual PayProp connection, not just configuration
+     */
+    private boolean hasActivePayPropConnection() {
+        if (!payPropEnabled || payPropOAuth2Service == null) {
+            return false;
+        }
+        
+        try {
+            // Use the enhanced OAuth service with real API validation
+            return payPropOAuth2Service.hasValidTokens();
+        } catch (Exception e) {
+            System.err.println("PayProp connection test failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Track changes made while PayProp was disconnected (simplified version)
+     */
+    private void trackPortfolioChange(Long portfolioId, String changeType, String changeDetails) {
+        // Only track if PayProp is enabled but not connected
+        if (payPropEnabled && !hasActivePayPropConnection()) {
+            Portfolio portfolio = findById(portfolioId);
+            if (portfolio != null) {
+                // Mark as needing sync
+                portfolio.setSyncStatus(SyncStatus.pending);
+                // Note: Your entity doesn't have lastModifiedWhileDisconnected or pendingChanges fields
+                // So we'll just mark it as pending for now
+                
+                portfolioRepository.save(portfolio);
+                System.out.println("📝 Tracked change for portfolio " + portfolioId + ": " + changeType);
+            }
+        }
+    }
+
+    /**
+     * Sync all pending changes when PayProp connection is restored
+     */
+    public void syncPendingChanges() {
+        if (!payPropEnabled || !hasActivePayPropConnection()) {
+            System.out.println("⚠️ Cannot sync pending changes - PayProp not connected");
+            return;
+        }
+        
+        System.out.println("🔄 Starting sync of pending changes...");
+        
+        List<Portfolio> portfoliosWithPendingChanges = portfolioRepository.findBySyncStatus(SyncStatus.pending);
+        
+        int successCount = 0;
+        int failureCount = 0;
+        
+        for (Portfolio portfolio : portfoliosWithPendingChanges) {
+            try {
+                // Attempt to sync the portfolio
+                syncPortfolioWithPayProp(portfolio.getId(), 1L); // Use system user ID
+                successCount++;
+                
+            } catch (Exception e) {
+                portfolio.setSyncStatus(SyncStatus.failed);
+                portfolioRepository.save(portfolio);
+                failureCount++;
+                System.err.println("❌ Failed to sync portfolio " + portfolio.getName() + ": " + e.getMessage());
+            }
+        }
+        
+        System.out.println("🔄 Pending changes sync complete:");
+        System.out.println("   ✅ Successful: " + successCount);
+        System.out.println("   ❌ Failed: " + failureCount);
+    }
+
+    /**
+     * Get summary of pending changes for admin dashboard
+     */
+    public Map<String, Object> getPendingChangesSummary() {
+        List<Portfolio> pendingPortfolios = portfolioRepository.findBySyncStatus(SyncStatus.pending);
+        
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("totalPendingPortfolios", pendingPortfolios.size());
+        summary.put("payPropConnectionStatus", hasActivePayPropConnection() ? "CONNECTED" : "DISCONNECTED");
+        summary.put("pendingPortfolios", pendingPortfolios.stream()
+            .map(p -> Map.of(
+                "id", p.getId(),
+                "name", p.getName(),
+                "lastSyncAt", p.getLastSyncAt() != null ? p.getLastSyncAt() : "Never",
+                "syncStatus", p.getSyncStatus().getDisplayName()
+            ))
+            .collect(Collectors.toList()));
+        
+        return summary;
+    }
+
+    /**
+     * Get detailed PayProp connection status for debugging
+     */
+    public Map<String, Object> getPayPropConnectionStatus() {
+        if (!payPropEnabled || payPropOAuth2Service == null) {
+            return Map.of(
+                "enabled", false,
+                "status", "DISABLED",
+                "message", "PayProp integration is disabled"
+            );
+        }
+        
+        return payPropOAuth2Service.getConnectionInfo();
     }
 }
