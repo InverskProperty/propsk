@@ -19,6 +19,12 @@ import site.easy.to.build.crm.service.payprop.PayPropSyncService.PayPropExportRe
 import site.easy.to.build.crm.service.payprop.PayPropRealTimeSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropSyncMonitoringService;
 import site.easy.to.build.crm.service.ticket.TicketService;
+import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.entity.Role;
+import site.easy.to.build.crm.entity.UserProfile;
+import site.easy.to.build.crm.service.user.UserService;
+import site.easy.to.build.crm.service.user.UserProfileService;
+import site.easy.to.build.crm.service.role.RoleService;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
