@@ -146,13 +146,14 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
 
             System.out.println("📧 Processing OAuth login for: " + email);
 
-            int currUserId = authenticationUtils.getLoggedInUserId(authentication);
+            // FIXED: Use new Long-based method
+            Long currUserId = authenticationUtils.getLoggedInUserId(authentication);
             System.out.println("🔍 DEBUG: Authentication analysis:");
             System.out.println("   Current user ID from auth: " + currUserId);
             
             User user = null;
-            if (currUserId != -1) {
-                user = userService.findById(Long.valueOf(currUserId));
+            if (currUserId != null && currUserId > 0) {
+                user = userService.findById(currUserId);
                 System.out.println("   User found by ID: " + (user != null));
             }
             
@@ -190,17 +191,19 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
 
                 long countUsers = userService.countAllUsers();
                 Role role;
+                
                 if (countUsers == 0) {
-                    role = roleService.findByName("ROLE_MANAGER");
-                    user.setStatus("ACTIVE");  // FIXED: Use consistent casing
-                    userProfile.setStatus("ACTIVE");
-                    System.out.println("👑 First user - assigning MANAGER role and ACTIVE status");
-                } else {
-                    // FIXED: Make all OAuth users active managers for now
+                    // First user gets MANAGER role
                     role = roleService.findByName("ROLE_MANAGER");
                     user.setStatus("ACTIVE");
                     userProfile.setStatus("ACTIVE");
-                    System.out.println("👤 Subsequent user - assigning MANAGER role and ACTIVE status");
+                    System.out.println("👑 First user - assigning MANAGER role and ACTIVE status");
+                } else {
+                    // FIXED: Determine role based on email domain/patterns instead of automatic MANAGER
+                    role = determineRoleForNewUser(email);
+                    user.setStatus("ACTIVE");
+                    userProfile.setStatus("ACTIVE");
+                    System.out.println("👤 New user - assigning " + role.getName() + " role based on email analysis");
                 }
 
                 user.setRoles(List.of(role));
@@ -215,6 +218,23 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
                 oAuthUserService.updateOAuthUserTokens(loggedOAuthUser, oAuth2AccessToken, oAuth2RefreshToken);
             } else {
                 System.out.println("♻️ Using existing user: " + user.getId() + " - " + user.getEmail());
+                
+                // SECURITY CHECK: Validate user account status
+                if (!isUserAccountValid(user)) {
+                    System.err.println("🚨 SECURITY: Invalid user account attempting OAuth login: " + user.getEmail());
+                    System.err.println("   Status: " + user.getStatus());
+                    
+                    if ("INACTIVE".equalsIgnoreCase(user.getStatus())) {
+                        response.sendRedirect("/account-inactive");
+                        return;
+                    } else if ("SUSPENDED".equalsIgnoreCase(user.getStatus())) {
+                        response.sendRedirect("/account-suspended");
+                        return;
+                    } else {
+                        response.sendRedirect("/access-denied");
+                        return;
+                    }
+                }
                 
                 // FIXED: Check if OAuth user exists for this user
                 if (user.getOauthUser() != null) {
@@ -284,5 +304,131 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
                 response.sendRedirect("/");
             }
         }
+    }
+
+    /**
+     * FIXED: Secure role determination based on email analysis
+     * No longer automatically assigns MANAGER role to all OAuth users
+     */
+    private Role determineRoleForNewUser(String email) {
+        System.out.println("🔍 Determining role for new user: " + email);
+        
+        if (email == null || email.trim().isEmpty()) {
+            System.out.println("   → EMPLOYEE role (no email provided)");
+            return roleService.findByName("ROLE_EMPLOYEE");
+        }
+        
+        email = email.trim().toLowerCase();
+        
+        // SECURITY: Management emails get MANAGER role
+        if (email.equals("management@propsk.com") || 
+            email.equals("sajidkazmi@propsk.com") ||
+            email.equals("admin@localhost.com") ||
+            email.equals("admin@propsk.com")) {
+            System.out.println("   → MANAGER role (management email)");
+            return roleService.findByName("ROLE_MANAGER");
+        }
+        
+        // Company domain emails get EMPLOYEE role
+        if (email.endsWith("@propsk.com")) {
+            System.out.println("   → EMPLOYEE role (company domain)");
+            return roleService.findByName("ROLE_EMPLOYEE");
+        }
+        
+        // Check if this is a known property owner email
+        if (isKnownPropertyOwnerEmail(email)) {
+            System.out.println("   → PROPERTY_OWNER role (known property owner)");
+            return roleService.findByName("ROLE_PROPERTY_OWNER");
+        }
+        
+        // Check if this is a known tenant email
+        if (isKnownTenantEmail(email)) {
+            System.out.println("   → TENANT role (known tenant)");
+            return roleService.findByName("ROLE_TENANT");
+        }
+        
+        // SECURITY: Default for external users - LIMITED ROLE
+        System.out.println("   → EMPLOYEE role (default for external users - can be upgraded manually)");
+        return roleService.findByName("ROLE_EMPLOYEE");
+    }
+
+    /**
+     * Check if email belongs to a known property owner
+     * This should query your Customer table or other data sources
+     */
+    private boolean isKnownPropertyOwnerEmail(String email) {
+        try {
+            // TODO: Implement actual lookup against Customer table
+            // Example:
+            // Customer customer = customerService.findByEmailAndType(email, CustomerType.PROPERTY_OWNER);
+            // return customer != null;
+            
+            // For now, return false and handle role assignment manually through admin
+            return false;
+        } catch (Exception e) {
+            System.err.println("❌ Error checking property owner email: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Check if email belongs to a known tenant
+     * This should query your Customer table or other data sources
+     */
+    private boolean isKnownTenantEmail(String email) {
+        try {
+            // TODO: Implement actual lookup against Customer table
+            // Example:
+            // Customer customer = customerService.findByEmailAndType(email, CustomerType.TENANT);
+            // return customer != null;
+            
+            // For now, return false and handle role assignment manually through admin
+            return false;
+        } catch (Exception e) {
+            System.err.println("❌ Error checking tenant email: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * SECURITY: Validate user account status
+     */
+    private boolean isUserAccountValid(User user) {
+        if (user == null) {
+            System.err.println("🚨 SECURITY: Null user in validation");
+            return false;
+        }
+        
+        String status = user.getStatus();
+        if (status == null) {
+            System.err.println("🚨 SECURITY: User " + user.getId() + " has null status");
+            return false;
+        }
+        
+        // Only allow ACTIVE users to login via OAuth
+        boolean isActive = "ACTIVE".equalsIgnoreCase(status.trim());
+        
+        if (!isActive) {
+            System.err.println("🚨 SECURITY: User " + user.getId() + " (" + user.getEmail() + 
+                ") attempted OAuth login with status: " + status);
+        }
+        
+        return isActive;
+    }
+
+    /**
+     * AUDIT: Log security events
+     */
+    private void logSecurityEvent(String event, User user, String details) {
+        System.out.println("🔐 SECURITY EVENT: " + event);
+        if (user != null) {
+            System.out.println("   User: " + user.getId() + " (" + user.getEmail() + ")");
+            System.out.println("   Status: " + user.getStatus());
+        }
+        System.out.println("   Details: " + details);
+        System.out.println("   Timestamp: " + LocalDateTime.now());
+        
+        // TODO: Implement proper audit logging to database
+        // auditService.logSecurityEvent(event, user, details);
     }
 }

@@ -9891,6 +9891,9 @@ paths:
       - Transactions
   /transactions/debit-note:
     post:
+
+
+    git remote add origin https://github.com/InverskProperty/payprop-api-spec.git
       consumes:
       - application/json
       description: |
