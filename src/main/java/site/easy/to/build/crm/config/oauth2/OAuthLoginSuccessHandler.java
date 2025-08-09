@@ -147,7 +147,7 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
             System.out.println("📧 Processing OAuth login for: " + email);
 
             // FIXED: Use new Long-based method
-            Long currUserId = authenticationUtils.getLoggedInUserId(authentication);
+            Long currUserId = authenticationUtils.getLoggedInUserIdSecure(authentication);
             System.out.println("🔍 DEBUG: Authentication analysis:");
             System.out.println("   Current user ID from auth: " + currUserId);
             
