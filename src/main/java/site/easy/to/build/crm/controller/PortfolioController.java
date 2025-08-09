@@ -900,11 +900,6 @@ public class PortfolioController {
         }
     }
 
-    // ===== PARAMETERIZED ROUTES LAST =====
-
-    /**
-     * Portfolio-Specific Property Assignment Interface - NEW METHOD
-     */
     @GetMapping("/{id}/assign")
     public String showPortfolioSpecificAssignmentPage(@PathVariable("id") Long portfolioId, 
                                                     Model model, 
@@ -924,19 +919,45 @@ public class PortfolioController {
             // Get all portfolios for the general assignment interface
             List<Portfolio> allPortfolios = portfolioService.findPortfoliosForUser(authentication);
             
-            // Get all properties and unassigned properties
-            List<Property> allProperties = propertyService.findAll();
-            List<Property> unassignedProperties = allProperties.stream()
-                .filter(property -> property.getPortfolio() == null)
-                .collect(Collectors.toList());
+            // FIXED: Filter properties based on portfolio ownership
+            List<Property> allProperties;
+            List<Property> unassignedProperties;
             
-            // FIXED: Add the missing attributes
+            if (targetPortfolio.getPropertyOwnerId() != null) {
+                // Owner-specific portfolio - only show properties for this owner
+                Integer ownerId = targetPortfolio.getPropertyOwnerId();
+                
+                // Use the existing method that works with junction table
+                allProperties = propertyService.findByPropertyOwnerId(ownerId.longValue());
+                
+                // Filter to get unassigned properties for this owner
+                unassignedProperties = allProperties.stream()
+                    .filter(property -> property.getPortfolio() == null)
+                    .collect(Collectors.toList());
+                    
+                System.out.println("✅ Owner-specific portfolio " + portfolioId + 
+                                " for owner " + ownerId + 
+                                " - showing " + allProperties.size() + " total properties, " +
+                                unassignedProperties.size() + " unassigned");
+            } else {
+                // Shared portfolio - show all unassigned properties
+                allProperties = propertyService.findAll();
+                unassignedProperties = allProperties.stream()
+                    .filter(property -> property.getPortfolio() == null)
+                    .collect(Collectors.toList());
+                    
+                System.out.println("✅ Shared portfolio " + portfolioId + 
+                                " - showing " + allProperties.size() + " total properties, " +
+                                unassignedProperties.size() + " unassigned");
+            }
+            
+            // Add the attributes
             model.addAttribute("targetPortfolio", targetPortfolio);
             model.addAttribute("portfolios", allPortfolios);
             model.addAttribute("unassignedProperties", unassignedProperties);
             model.addAttribute("allProperties", allProperties);
             model.addAttribute("pageTitle", "Assign Properties to " + targetPortfolio.getName());
-            model.addAttribute("isPortfolioSpecific", true);  // ✅ FIXED: This was missing
+            model.addAttribute("isPortfolioSpecific", true);
             
             return "portfolio/assign-properties";
             
@@ -945,9 +966,7 @@ public class PortfolioController {
             return "error/500";
         }
     }
-    /**
-     * Get available properties for assignment to a specific portfolio
-     */
+
     @GetMapping("/{id}/available-properties")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getAvailablePropertiesForPortfolio(
@@ -963,12 +982,43 @@ public class PortfolioController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
             }
             
-            // Get all properties that are NOT assigned to any portfolio
-            List<Property> allProperties = propertyService.findAll();
-            List<Property> availableProperties = allProperties.stream()
-                .filter(property -> property.getPortfolio() == null || 
-                                  !property.getPortfolio().getId().equals(portfolioId))
-                .collect(Collectors.toList());
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            if (portfolio == null) {
+                response.put("success", false);
+                response.put("message", "Portfolio not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            // FIXED: Filter properties based on portfolio ownership
+            List<Property> availableProperties;
+            
+            if (portfolio.getPropertyOwnerId() != null) {
+                // Owner-specific portfolio - only show properties for this owner
+                Integer ownerId = portfolio.getPropertyOwnerId();
+                
+                // Get all properties for this owner using the existing method
+                List<Property> ownerProperties = propertyService.findByPropertyOwnerId(ownerId.longValue());
+                
+                // Filter to get properties not already in this portfolio
+                availableProperties = ownerProperties.stream()
+                    .filter(property -> property.getPortfolio() == null || 
+                                    !property.getPortfolio().getId().equals(portfolioId))
+                    .collect(Collectors.toList());
+                    
+                System.out.println("✅ Owner " + ownerId + " - found " + 
+                                ownerProperties.size() + " total properties, " +
+                                availableProperties.size() + " available for portfolio " + portfolioId);
+            } else {
+                // Shared portfolio - show all available properties
+                List<Property> allProperties = propertyService.findAll();
+                availableProperties = allProperties.stream()
+                    .filter(property -> property.getPortfolio() == null || 
+                                    !property.getPortfolio().getId().equals(portfolioId))
+                    .collect(Collectors.toList());
+                    
+                System.out.println("✅ Shared portfolio - found " + 
+                                availableProperties.size() + " available properties");
+            }
             
             // Convert to simple DTOs for JSON response
             List<Map<String, Object>> propertyDTOs = availableProperties.stream()

@@ -98,8 +98,8 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     public List<Property> findByPropertyOwnerId(Long propertyOwnerId) {
-        // Use junction table (the correct way)
         try {
+            // propertyOwnerId is actually a customer_id for owners
             List<CustomerPropertyAssignment> assignments = 
                 assignmentRepository.findByCustomerCustomerIdAndAssignmentType(
                     propertyOwnerId, AssignmentType.OWNER);
@@ -107,15 +107,17 @@ public class PropertyServiceImpl implements PropertyService {
             if (!assignments.isEmpty()) {
                 return assignments.stream()
                     .map(CustomerPropertyAssignment::getProperty)
+                    .filter(property -> property != null)
+                    .filter(property -> !"Y".equals(property.getIsArchived()))
                     .distinct()
                     .collect(Collectors.toList());
             }
+            return new ArrayList<>();
+            
         } catch (Exception e) {
-            System.err.println("Junction table query failed, falling back to direct FK: " + e.getMessage());
+            System.err.println("Error finding properties for owner " + propertyOwnerId + ": " + e.getMessage());
+            return new ArrayList<>();
         }
-        
-        // Fallback to legacy direct foreign key (for any old data)
-        return propertyRepository.findByPropertyOwnerId(propertyOwnerId);
     }
 
     // ✅ Junction table-based property-owner relationships
