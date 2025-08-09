@@ -198,8 +198,8 @@ public class SecurityConfig {
                         .requestMatchers("/portfolio/assign-properties").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         .requestMatchers("/portfolio/dashboard").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
                         .requestMatchers("/portfolio/test/**").permitAll() // Allow test routes
-                        .requestMatchers("/portfolio/*/debug-sync").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER") // ADDED: Debug sync endpoint
-                        .requestMatchers("/portfolio/*/sync").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER") // ADDED: Actual sync endpoint
+                        .requestMatchers("/portfolio/**/debug-sync").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        .requestMatchers("/portfolio/**/sync").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         
                         // CRITICAL FIX: General portfolio routes - NOW properly handled by main chain
                         .requestMatchers("/portfolio/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
