@@ -267,8 +267,11 @@
                                                 <span th:unless="${property.isOccupied()}" class="badge badge-warning">Vacant</span>
                                             </td>
                                             <td>
-                                                <span th:if="${false}" th:text="'No tenant assigned'">Tenant Name</span>
-                                                <span th:unless="${property.currentTenant}" class="text-muted">No tenant</span>
+                                                <span th:with="tenant=${propertyService.getCurrentTenant(property.id)}"
+                                                    th:if="${tenant != null}" 
+                                                    th:text="${tenant.firstName + ' ' + tenant.lastName}">Tenant Name</span>
+                                                <span th:unless="${propertyService.getCurrentTenant(property.id) != null}" 
+                                                    class="text-muted">No tenant assigned</span>
                                             </td>
                                             <td>
                                                 <span th:if="${property.payPropId}" class="badge badge-success">

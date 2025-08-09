@@ -57,6 +57,29 @@ public class PropertyServiceImpl implements PropertyService {
     }
 
     @Override
+    public Customer getCurrentTenant(Long propertyId) {
+        try {
+            // Use existing repository method to find tenant assignments
+            List<CustomerPropertyAssignment> tenantAssignments = 
+                assignmentRepository.findByPropertyIdAndAssignmentType(propertyId, AssignmentType.TENANT);
+            
+            // Filter for active tenants (no end date or end date in future)
+            return tenantAssignments.stream()
+                .filter(assignment -> assignment.getEndDate() == null || 
+                                    assignment.getEndDate().isAfter(LocalDate.now()))
+                .filter(assignment -> assignment.getStartDate() == null || 
+                                    assignment.getStartDate().isBefore(LocalDate.now()) ||
+                                    assignment.getStartDate().equals(LocalDate.now()))
+                .map(CustomerPropertyAssignment::getCustomer)
+                .findFirst()
+                .orElse(null);
+        } catch (Exception e) {
+            System.err.println("Error finding tenant for property " + propertyId + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    @Override
     public void deleteById(Long id) {
         propertyRepository.deleteById(id);
     }
