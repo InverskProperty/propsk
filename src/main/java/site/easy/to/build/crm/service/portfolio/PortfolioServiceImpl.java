@@ -609,13 +609,6 @@ public class PortfolioServiceImpl implements PortfolioService {
         assignPropertiesToPortfolio(portfolioId, propertyIds, PortfolioAssignmentType.PRIMARY, assignedBy);
     }
 
-    @Override
-    @Deprecated
-    public void removePropertiesFromPortfolio(Long portfolioId, List<Long> propertyIds, Long removedBy) {
-        // Legacy method - use new junction table method
-        removePropertiesFromPortfolio(portfolioId, propertyIds, removedBy);
-    }
-
     // ===== REMAINING EXISTING METHODS (UNCHANGED) =====
 
     @Override
