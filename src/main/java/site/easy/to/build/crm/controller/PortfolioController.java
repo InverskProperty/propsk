@@ -1299,10 +1299,12 @@ public class PortfolioController {
             
             for (PropertyPortfolioAssignment assignment : assignments) {
                 try {
-                    Property property = propertyService.findById(assignment.getPropertyId());
+                    // FIX: Use property_id field name
+                    Long propertyId = assignment.getProperty_id();
+                    Property property = propertyService.findById(propertyId);
                     
                     if (property == null) {
-                        errors.add("Property " + assignment.getPropertyId() + " not found");
+                        errors.add("Property " + propertyId + " not found");
                         failedCount++;
                         continue;
                     }
@@ -1313,30 +1315,31 @@ public class PortfolioController {
                         continue;
                     }
                     
-                    // Apply the PayProp tag
-                    boolean success = payPropSyncService.applyTagToProperty(
-                        property.getPayPropId(), 
-                        portfolio.getPayPropTags()
-                    );
-                    
-                    if (success) {
-                        // Update sync status in junction table
-                        assignment.setSyncStatus("synced");
+                    // Apply the PayProp tag - check return type
+                    try {
+                        payPropSyncService.applyTagToProperty(
+                            property.getPayPropId(), 
+                            portfolio.getPayPropTags()
+                        );
+                        
+                        // Update sync status in junction table using enum
+                        assignment.setSyncStatus(SyncStatus.synced);
                         assignment.setLastSyncAt(LocalDateTime.now());
                         propertyPortfolioAssignmentRepository.save(assignment);
                         syncedCount++;
                         System.out.println("✅ Synced property " + property.getPropertyName() + 
                                         " (PayProp ID: " + property.getPayPropId() + ")");
-                    } else {
+                        
+                    } catch (Exception e) {
                         failedCount++;
-                        errors.add("Failed to apply tag to property " + property.getPropertyName());
+                        errors.add("Failed to apply tag to property " + property.getPropertyName() + ": " + e.getMessage());
                         System.out.println("❌ Failed to sync property " + property.getPropertyName());
                     }
                     
                 } catch (Exception e) {
                     failedCount++;
-                    errors.add("Error processing property " + assignment.getPropertyId() + ": " + e.getMessage());
-                    log.error("Error syncing property {} to PayProp: {}", assignment.getPropertyId(), e.getMessage());
+                    errors.add("Error processing property: " + e.getMessage());
+                    log.error("Error syncing property to PayProp: {}", e.getMessage());
                 }
             }
             
@@ -1397,26 +1400,30 @@ public class PortfolioController {
             
             System.out.println("🏷️ Applying PayProp tag " + tagId + " to property " + propertyPayPropId);
             
-            // Apply the tag
-            boolean success = payPropSyncService.applyTagToProperty(propertyPayPropId, tagId);
-            
-            if (success) {
+            // Apply the tag - handle void return type
+            try {
+                payPropSyncService.applyTagToProperty(propertyPayPropId, tagId);
+                
                 // Try to update the junction table if we can find the property
                 try {
-                    Property property = propertyService.findByPayPropId(propertyPayPropId);
-                    if (property != null) {
+                    // FIX: Handle Optional properly
+                    Optional<Property> propertyOpt = propertyRepository.findByPayPropId(propertyPayPropId);
+                    if (propertyOpt.isPresent()) {
+                        Property property = propertyOpt.get();
+                        
                         // Find the portfolio with this tag
                         List<Portfolio> portfolios = portfolioService.findByPayPropTag(tagId);
                         if (!portfolios.isEmpty()) {
                             Portfolio portfolio = portfolios.get(0);
                             
                             // Update the assignment sync status
+                            // FIX: Use correct repository method
                             List<PropertyPortfolioAssignment> assignments = 
-                                propertyPortfolioAssignmentRepository.findByPropertyIdAndPortfolioId(
+                                propertyPortfolioAssignmentRepository.findByProperty_idAndPortfolio_id(
                                     property.getId(), portfolio.getId());
                             
                             for (PropertyPortfolioAssignment assignment : assignments) {
-                                assignment.setSyncStatus("synced");
+                                assignment.setSyncStatus(SyncStatus.synced);
                                 assignment.setLastSyncAt(LocalDateTime.now());
                                 propertyPortfolioAssignmentRepository.save(assignment);
                             }
@@ -1431,9 +1438,9 @@ public class PortfolioController {
                 response.put("message", "PayProp tag applied successfully");
                 System.out.println("✅ PayProp tag applied successfully");
                 
-            } else {
+            } catch (Exception e) {
                 response.put("success", false);
-                response.put("message", "Failed to apply PayProp tag");
+                response.put("message", "Failed to apply PayProp tag: " + e.getMessage());
                 System.out.println("❌ Failed to apply PayProp tag");
             }
             
@@ -1476,18 +1483,20 @@ public class PortfolioController {
             List<Map<String, Object>> propertyStatuses = new ArrayList<>();
             
             for (PropertyPortfolioAssignment assignment : assignments) {
-                Property property = propertyService.findById(assignment.getPropertyId());
+                // FIX: Use property_id field
+                Long propertyId = assignment.getProperty_id();
+                Property property = propertyService.findById(propertyId);
                 
                 Map<String, Object> propertyStatus = new HashMap<>();
-                propertyStatus.put("propertyId", assignment.getPropertyId());
+                propertyStatus.put("propertyId", propertyId);
                 propertyStatus.put("propertyName", property != null ? property.getPropertyName() : "Unknown");
                 propertyStatus.put("payPropId", property != null ? property.getPayPropId() : null);
-                propertyStatus.put("syncStatus", assignment.getSyncStatus());
+                propertyStatus.put("syncStatus", assignment.getSyncStatus().toString());
                 propertyStatus.put("lastSyncAt", assignment.getLastSyncAt());
                 
-                if ("synced".equals(assignment.getSyncStatus())) {
+                if (SyncStatus.synced.equals(assignment.getSyncStatus())) {
                     syncedCount++;
-                } else if ("failed".equals(assignment.getSyncStatus())) {
+                } else if (SyncStatus.failed.equals(assignment.getSyncStatus())) {
                     failedCount++;
                 } else {
                     pendingCount++;
