@@ -1,7 +1,11 @@
-<!-- 2. property-owner-dashboard.html -->
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{general/head.html}"></head>
+
+<!-- ADD THESE CSRF META TAGS -->
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
 <body class="skin-blue fixed-layout">
     <div id="main-wrapper">
         <div th:replace="~{general/header.html}"></div>
