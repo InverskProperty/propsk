@@ -73,6 +73,9 @@ public class PortfolioController {
     private boolean payPropEnabled;
 
     @Autowired
+    private PropertyPortfolioAssignmentRepository propertyPortfolioAssignmentRepository;
+
+    @Autowired
     public PortfolioController(PortfolioService portfolioService,
                               PropertyService propertyService,
                               AuthenticationUtils authenticationUtils,
@@ -2108,6 +2111,36 @@ public class PortfolioController {
             result.put("error", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
         }
+    }
+
+    @GetMapping("/test-fix")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testFix() {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            // Test repository injection
+            result.put("repositoryInjected", propertyPortfolioAssignmentRepository != null);
+            
+            // Test junction table
+            long count = propertyPortfolioAssignmentRepository.count();
+            result.put("junctionTableRecords", count);
+            
+            // Test portfolio properties
+            List<Property> props = portfolioService.getPropertiesForPortfolio(12L);
+            result.put("portfolio12Properties", props.size());
+            
+            // Test user existence
+            boolean userExists = userService.existsById(1L);
+            result.put("systemUserExists", userExists);
+            
+            result.put("status", "SUCCESS");
+        } catch (Exception e) {
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
+        }
+        
+        return ResponseEntity.ok(result);
     }
 
     // ===== HELPER CLASSES =====
