@@ -1286,9 +1286,9 @@ public class PortfolioController {
                 return ResponseEntity.ok(response);
             }
             
-            // Get all property assignments for this portfolio
+            // Get all property assignments for this portfolio - note Boolean not boolean
             List<PropertyPortfolioAssignment> assignments = 
-                propertyPortfolioAssignmentRepository.findByPortfolioIdAndIsActive(portfolioId, true);
+                propertyPortfolioAssignmentRepository.findByPortfolioIdAndIsActive(portfolioId, Boolean.TRUE);
             
             int syncedCount = 0;
             int failedCount = 0;
@@ -1299,12 +1299,11 @@ public class PortfolioController {
             
             for (PropertyPortfolioAssignment assignment : assignments) {
                 try {
-                    // FIX: Use property_id field name
-                    Long propertyId = assignment.getProperty_id();
-                    Property property = propertyService.findById(propertyId);
+                    // Get the property object from the assignment
+                    Property property = assignment.getProperty();
                     
                     if (property == null) {
-                        errors.add("Property " + propertyId + " not found");
+                        errors.add("Property in assignment is null");
                         failedCount++;
                         continue;
                     }
@@ -1315,14 +1314,14 @@ public class PortfolioController {
                         continue;
                     }
                     
-                    // Apply the PayProp tag - check return type
+                    // Apply the PayProp tag
                     try {
                         payPropSyncService.applyTagToProperty(
                             property.getPayPropId(), 
                             portfolio.getPayPropTags()
                         );
                         
-                        // Update sync status in junction table using enum
+                        // Update sync status in junction table
                         assignment.setSyncStatus(SyncStatus.synced);
                         assignment.setLastSyncAt(LocalDateTime.now());
                         propertyPortfolioAssignmentRepository.save(assignment);
@@ -1338,7 +1337,7 @@ public class PortfolioController {
                     
                 } catch (Exception e) {
                     failedCount++;
-                    errors.add("Error processing property: " + e.getMessage());
+                    errors.add("Error processing assignment: " + e.getMessage());
                     log.error("Error syncing property to PayProp: {}", e.getMessage());
                 }
             }
@@ -1400,29 +1399,36 @@ public class PortfolioController {
             
             System.out.println("🏷️ Applying PayProp tag " + tagId + " to property " + propertyPayPropId);
             
-            // Apply the tag - handle void return type
+            // Apply the tag
             try {
                 payPropSyncService.applyTagToProperty(propertyPayPropId, tagId);
                 
                 // Try to update the junction table if we can find the property
                 try {
-                    // FIX: Handle Optional properly
-                    Optional<Property> propertyOpt = propertyRepository.findByPayPropId(propertyPayPropId);
-                    if (propertyOpt.isPresent()) {
-                        Property property = propertyOpt.get();
-                        
+                    // Find property by PayProp ID
+                    List<Property> allProperties = propertyService.findAll();
+                    Property property = allProperties.stream()
+                        .filter(p -> propertyPayPropId.equals(p.getPayPropId()))
+                        .findFirst()
+                        .orElse(null);
+                    
+                    if (property != null) {
                         // Find the portfolio with this tag
                         List<Portfolio> portfolios = portfolioService.findByPayPropTag(tagId);
                         if (!portfolios.isEmpty()) {
                             Portfolio portfolio = portfolios.get(0);
                             
-                            // Update the assignment sync status
-                            // FIX: Use correct repository method
-                            List<PropertyPortfolioAssignment> assignments = 
-                                propertyPortfolioAssignmentRepository.findByProperty_idAndPortfolio_id(
-                                    property.getId(), portfolio.getId());
+                            // Find the assignment
+                            Optional<PropertyPortfolioAssignment> assignmentOpt = 
+                                propertyPortfolioAssignmentRepository.findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
+                                    property.getId(), 
+                                    portfolio.getId(), 
+                                    PortfolioAssignmentType.PRIMARY, 
+                                    Boolean.TRUE
+                                );
                             
-                            for (PropertyPortfolioAssignment assignment : assignments) {
+                            if (assignmentOpt.isPresent()) {
+                                PropertyPortfolioAssignment assignment = assignmentOpt.get();
                                 assignment.setSyncStatus(SyncStatus.synced);
                                 assignment.setLastSyncAt(LocalDateTime.now());
                                 propertyPortfolioAssignmentRepository.save(assignment);
@@ -1441,7 +1447,7 @@ public class PortfolioController {
             } catch (Exception e) {
                 response.put("success", false);
                 response.put("message", "Failed to apply PayProp tag: " + e.getMessage());
-                System.out.println("❌ Failed to apply PayProp tag");
+                System.out.println("❌ Failed to apply PayProp tag: " + e.getMessage());
             }
             
             return ResponseEntity.ok(response);
@@ -1473,9 +1479,9 @@ public class PortfolioController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
             }
             
-            // Get all assignments
+            // Get all assignments - use Boolean.TRUE
             List<PropertyPortfolioAssignment> assignments = 
-                propertyPortfolioAssignmentRepository.findByPortfolioIdAndIsActive(portfolioId, true);
+                propertyPortfolioAssignmentRepository.findByPortfolioIdAndIsActive(portfolioId, Boolean.TRUE);
             
             int syncedCount = 0;
             int pendingCount = 0;
@@ -1483,21 +1489,23 @@ public class PortfolioController {
             List<Map<String, Object>> propertyStatuses = new ArrayList<>();
             
             for (PropertyPortfolioAssignment assignment : assignments) {
-                // FIX: Use property_id field
-                Long propertyId = assignment.getProperty_id();
-                Property property = propertyService.findById(propertyId);
+                Property property = assignment.getProperty();
                 
                 Map<String, Object> propertyStatus = new HashMap<>();
-                propertyStatus.put("propertyId", propertyId);
+                propertyStatus.put("propertyId", property != null ? property.getId() : null);
                 propertyStatus.put("propertyName", property != null ? property.getPropertyName() : "Unknown");
                 propertyStatus.put("payPropId", property != null ? property.getPayPropId() : null);
-                propertyStatus.put("syncStatus", assignment.getSyncStatus().toString());
+                propertyStatus.put("syncStatus", assignment.getSyncStatus() != null ? assignment.getSyncStatus().toString() : "pending");
                 propertyStatus.put("lastSyncAt", assignment.getLastSyncAt());
                 
-                if (SyncStatus.synced.equals(assignment.getSyncStatus())) {
-                    syncedCount++;
-                } else if (SyncStatus.failed.equals(assignment.getSyncStatus())) {
-                    failedCount++;
+                if (assignment.getSyncStatus() != null) {
+                    if (SyncStatus.synced.equals(assignment.getSyncStatus())) {
+                        syncedCount++;
+                    } else if (SyncStatus.failed.equals(assignment.getSyncStatus())) {
+                        failedCount++;
+                    } else {
+                        pendingCount++;
+                    }
                 } else {
                     pendingCount++;
                 }
