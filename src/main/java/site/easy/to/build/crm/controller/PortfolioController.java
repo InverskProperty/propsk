@@ -1244,6 +1244,277 @@ public class PortfolioController {
     }
 
     /**
+     * Force sync portfolio properties to PayProp tags
+     * This ensures all properties in the portfolio have the PayProp tags applied
+     */
+    @PostMapping("/{id}/sync-properties-to-payprop")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> syncPropertiesToPayProp(
+            @PathVariable("id") Long portfolioId,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Check permissions
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
+                !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            // Check PayProp is enabled
+            if (!payPropEnabled || payPropSyncService == null) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            // Get the portfolio
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            if (portfolio == null) {
+                response.put("success", false);
+                response.put("message", "Portfolio not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            // Check if portfolio has PayProp tags
+            if (portfolio.getPayPropTags() == null || portfolio.getPayPropTags().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Portfolio has no PayProp tags to sync");
+                return ResponseEntity.ok(response);
+            }
+            
+            // Get all property assignments for this portfolio
+            List<PropertyPortfolioAssignment> assignments = 
+                propertyPortfolioAssignmentRepository.findByPortfolioIdAndIsActive(portfolioId, true);
+            
+            int syncedCount = 0;
+            int failedCount = 0;
+            List<String> errors = new ArrayList<>();
+            
+            System.out.println("📋 Syncing " + assignments.size() + " properties to PayProp for portfolio " + portfolioId);
+            System.out.println("🏷️ Portfolio PayProp tag: " + portfolio.getPayPropTags());
+            
+            for (PropertyPortfolioAssignment assignment : assignments) {
+                try {
+                    Property property = propertyService.findById(assignment.getPropertyId());
+                    
+                    if (property == null) {
+                        errors.add("Property " + assignment.getPropertyId() + " not found");
+                        failedCount++;
+                        continue;
+                    }
+                    
+                    if (property.getPayPropId() == null || property.getPayPropId().isEmpty()) {
+                        errors.add("Property " + property.getPropertyName() + " has no PayProp ID");
+                        failedCount++;
+                        continue;
+                    }
+                    
+                    // Apply the PayProp tag
+                    boolean success = payPropSyncService.applyTagToProperty(
+                        property.getPayPropId(), 
+                        portfolio.getPayPropTags()
+                    );
+                    
+                    if (success) {
+                        // Update sync status in junction table
+                        assignment.setSyncStatus("synced");
+                        assignment.setLastSyncAt(LocalDateTime.now());
+                        propertyPortfolioAssignmentRepository.save(assignment);
+                        syncedCount++;
+                        System.out.println("✅ Synced property " + property.getPropertyName() + 
+                                        " (PayProp ID: " + property.getPayPropId() + ")");
+                    } else {
+                        failedCount++;
+                        errors.add("Failed to apply tag to property " + property.getPropertyName());
+                        System.out.println("❌ Failed to sync property " + property.getPropertyName());
+                    }
+                    
+                } catch (Exception e) {
+                    failedCount++;
+                    errors.add("Error processing property " + assignment.getPropertyId() + ": " + e.getMessage());
+                    log.error("Error syncing property {} to PayProp: {}", assignment.getPropertyId(), e.getMessage());
+                }
+            }
+            
+            response.put("success", syncedCount > 0);
+            response.put("message", String.format("Synced %d properties, %d failed", syncedCount, failedCount));
+            response.put("syncedCount", syncedCount);
+            response.put("failedCount", failedCount);
+            response.put("totalProperties", assignments.size());
+            response.put("errors", errors);
+            
+            System.out.println("📊 PayProp sync complete: " + syncedCount + " synced, " + failedCount + " failed");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error syncing portfolio properties to PayProp: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Sync failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * Apply a specific PayProp tag to a specific property
+     * Direct method for testing
+     */
+    @PostMapping("/apply-payprop-tag")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> applyPayPropTagDirectly(
+            @RequestBody Map<String, Object> request,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Check permissions
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                response.put("success", false);
+                response.put("message", "Access denied - Manager role required");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            // Check PayProp is enabled
+            if (!payPropEnabled || payPropSyncService == null) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            String propertyPayPropId = (String) request.get("propertyPayPropId");
+            String tagId = (String) request.get("tagId");
+            
+            if (propertyPayPropId == null || tagId == null) {
+                response.put("success", false);
+                response.put("message", "Both propertyPayPropId and tagId are required");
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            System.out.println("🏷️ Applying PayProp tag " + tagId + " to property " + propertyPayPropId);
+            
+            // Apply the tag
+            boolean success = payPropSyncService.applyTagToProperty(propertyPayPropId, tagId);
+            
+            if (success) {
+                // Try to update the junction table if we can find the property
+                try {
+                    Property property = propertyService.findByPayPropId(propertyPayPropId);
+                    if (property != null) {
+                        // Find the portfolio with this tag
+                        List<Portfolio> portfolios = portfolioService.findByPayPropTag(tagId);
+                        if (!portfolios.isEmpty()) {
+                            Portfolio portfolio = portfolios.get(0);
+                            
+                            // Update the assignment sync status
+                            List<PropertyPortfolioAssignment> assignments = 
+                                propertyPortfolioAssignmentRepository.findByPropertyIdAndPortfolioId(
+                                    property.getId(), portfolio.getId());
+                            
+                            for (PropertyPortfolioAssignment assignment : assignments) {
+                                assignment.setSyncStatus("synced");
+                                assignment.setLastSyncAt(LocalDateTime.now());
+                                propertyPortfolioAssignmentRepository.save(assignment);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    // Log but don't fail - the tag was applied successfully
+                    log.warn("Could not update junction table after tag application: {}", e.getMessage());
+                }
+                
+                response.put("success", true);
+                response.put("message", "PayProp tag applied successfully");
+                System.out.println("✅ PayProp tag applied successfully");
+                
+            } else {
+                response.put("success", false);
+                response.put("message", "Failed to apply PayProp tag");
+                System.out.println("❌ Failed to apply PayProp tag");
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error applying PayProp tag: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * Get sync status for a portfolio's properties
+     */
+    @GetMapping("/{id}/payprop-sync-status")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getPayPropSyncStatus(
+            @PathVariable("id") Long portfolioId,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            if (portfolio == null) {
+                response.put("success", false);
+                response.put("message", "Portfolio not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            // Get all assignments
+            List<PropertyPortfolioAssignment> assignments = 
+                propertyPortfolioAssignmentRepository.findByPortfolioIdAndIsActive(portfolioId, true);
+            
+            int syncedCount = 0;
+            int pendingCount = 0;
+            int failedCount = 0;
+            List<Map<String, Object>> propertyStatuses = new ArrayList<>();
+            
+            for (PropertyPortfolioAssignment assignment : assignments) {
+                Property property = propertyService.findById(assignment.getPropertyId());
+                
+                Map<String, Object> propertyStatus = new HashMap<>();
+                propertyStatus.put("propertyId", assignment.getPropertyId());
+                propertyStatus.put("propertyName", property != null ? property.getPropertyName() : "Unknown");
+                propertyStatus.put("payPropId", property != null ? property.getPayPropId() : null);
+                propertyStatus.put("syncStatus", assignment.getSyncStatus());
+                propertyStatus.put("lastSyncAt", assignment.getLastSyncAt());
+                
+                if ("synced".equals(assignment.getSyncStatus())) {
+                    syncedCount++;
+                } else if ("failed".equals(assignment.getSyncStatus())) {
+                    failedCount++;
+                } else {
+                    pendingCount++;
+                }
+                
+                propertyStatuses.add(propertyStatus);
+            }
+            
+            response.put("success", true);
+            response.put("portfolioName", portfolio.getName());
+            response.put("portfolioPayPropTag", portfolio.getPayPropTags());
+            response.put("totalProperties", assignments.size());
+            response.put("syncedCount", syncedCount);
+            response.put("pendingCount", pendingCount);
+            response.put("failedCount", failedCount);
+            response.put("propertyStatuses", propertyStatuses);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
      * FIXED: Enhanced assignment with junction table and PayProp sync
      */
     @PostMapping("/{id}/assign-properties")
