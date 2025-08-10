@@ -1888,6 +1888,228 @@ public class PortfolioController {
         return false;
     }
 
+        /**
+     * DIAGNOSTIC 1: Check all the different ways of getting properties
+     */
+    @GetMapping("/{id}/diagnostic-complete")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> completePortfolioDiagnostic(@PathVariable Long id) {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            Portfolio portfolio = portfolioService.findById(id);
+            result.put("portfolioExists", portfolio != null);
+            if (portfolio != null) {
+                result.put("portfolioName", portfolio.getName());
+                result.put("portfolioOwnerId", portfolio.getPropertyOwnerId());
+            }
+            
+            // Test Method 1: Junction table (the one that's failing)
+            try {
+                List<Property> junctionProperties = portfolioService.getPropertiesForPortfolio(id);
+                result.put("method1_junctionTable", Map.of(
+                    "status", "SUCCESS",
+                    "count", junctionProperties.size(),
+                    "propertyNames", junctionProperties.stream().limit(3)
+                        .map(Property::getPropertyName).collect(Collectors.toList())
+                ));
+            } catch (Exception e) {
+                result.put("method1_junctionTable", Map.of(
+                    "status", "FAILED",
+                    "error", e.getMessage(),
+                    "errorType", e.getClass().getSimpleName()
+                ));
+            }
+            
+            // Test Method 2: Direct FK (the fallback)
+            try {
+                List<Property> directProperties = propertyService.findByPortfolioId(id);
+                result.put("method2_directFK", Map.of(
+                    "status", "SUCCESS",
+                    "count", directProperties.size(),
+                    "propertyNames", directProperties.stream().limit(3)
+                        .map(Property::getPropertyName).collect(Collectors.toList())
+                ));
+            } catch (Exception e) {
+                result.put("method2_directFK", Map.of(
+                    "status", "FAILED",
+                    "error", e.getMessage(),
+                    "errorType", e.getClass().getSimpleName()
+                ));
+            }
+            
+            // Test Method 3: Portfolio entity properties
+            if (portfolio != null) {
+                try {
+                    if (portfolio.getProperties() != null) {
+                        result.put("method3_portfolioEntity", Map.of(
+                            "status", "SUCCESS",
+                            "count", portfolio.getProperties().size(),
+                            "propertyNames", portfolio.getProperties().stream().limit(3)
+                                .map(Property::getPropertyName).collect(Collectors.toList())
+                        ));
+                    } else {
+                        result.put("method3_portfolioEntity", Map.of(
+                            "status", "NULL_PROPERTIES",
+                            "count", 0
+                        ));
+                    }
+                } catch (Exception e) {
+                    result.put("method3_portfolioEntity", Map.of(
+                        "status", "FAILED",
+                        "error", e.getMessage()
+                    ));
+                }
+            }
+            
+            // Test Method 4: Owner-based properties (what assignment page uses)
+            if (portfolio != null && portfolio.getPropertyOwnerId() != null) {
+                try {
+                    List<Property> ownerProperties = propertyService.findByPropertyOwnerId(portfolio.getPropertyOwnerId().longValue());
+                    result.put("method4_ownerProperties", Map.of(
+                        "status", "SUCCESS",
+                        "count", ownerProperties.size(),
+                        "propertyNames", ownerProperties.stream().limit(3)
+                            .map(Property::getPropertyName).collect(Collectors.toList())
+                    ));
+                } catch (Exception e) {
+                    result.put("method4_ownerProperties", Map.of(
+                        "status", "FAILED",
+                        "error", e.getMessage()
+                    ));
+                }
+            }
+            
+            // Test Method 5: Check repository exists
+            try {
+                if (propertyPortfolioAssignmentRepository != null) {
+                    long count = propertyPortfolioAssignmentRepository.count();
+                    result.put("method5_repositoryCheck", Map.of(
+                        "repositoryExists", true,
+                        "totalAssignments", count
+                    ));
+                } else {
+                    result.put("method5_repositoryCheck", Map.of(
+                        "repositoryExists", false,
+                        "error", "Repository is null"
+                    ));
+                }
+            } catch (Exception e) {
+                result.put("method5_repositoryCheck", Map.of(
+                    "repositoryExists", "unknown",
+                    "error", e.getMessage(),
+                    "errorType", e.getClass().getSimpleName()
+                ));
+            }
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            result.put("overallError", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
+        }
+    }
+
+    /**
+     * DIAGNOSTIC 2: Check why assignment page works but details page doesn't
+     */
+    @GetMapping("/{id}/trace-assignment-vs-details")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> traceAssignmentVsDetails(@PathVariable Long id) {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            Portfolio portfolio = portfolioService.findById(id);
+            if (portfolio == null) {
+                result.put("error", "Portfolio not found");
+                return ResponseEntity.ok(result);
+            }
+            
+            result.put("portfolioName", portfolio.getName());
+            result.put("portfolioOwnerId", portfolio.getPropertyOwnerId());
+            
+            // Simulate what assignment page does
+            if (portfolio.getPropertyOwnerId() != null) {
+                try {
+                    // This is what assignment page uses for owner-specific portfolios
+                    List<Property> ownerProperties = propertyService.findByPropertyOwnerId(portfolio.getPropertyOwnerId().longValue());
+                    List<Property> unassignedProperties = ownerProperties.stream()
+                        .filter(property -> property.getPortfolio() == null)
+                        .collect(Collectors.toList());
+                    
+                    result.put("assignmentPageLogic", Map.of(
+                        "totalOwnerProperties", ownerProperties.size(),
+                        "unassignedProperties", unassignedProperties.size(),
+                        "assignedProperties", ownerProperties.size() - unassignedProperties.size(),
+                        "method", "propertyService.findByPropertyOwnerId()"
+                    ));
+                    
+                    // Check how many are actually assigned to THIS portfolio
+                    long assignedToThisPortfolio = ownerProperties.stream()
+                        .filter(p -> p.getPortfolio() != null && p.getPortfolio().getId().equals(id))
+                        .count();
+                    
+                    result.put("assignedToThisPortfolio", assignedToThisPortfolio);
+                    
+                } catch (Exception e) {
+                    result.put("assignmentPageLogic", Map.of(
+                        "error", e.getMessage()
+                    ));
+                }
+            }
+            
+            // Simulate what details page tries to do
+            try {
+                // This is what details page uses
+                List<Property> detailsPageProperties = portfolioService.getPropertiesForPortfolio(id);
+                result.put("detailsPageLogic", Map.of(
+                    "count", detailsPageProperties.size(),
+                    "method", "portfolioService.getPropertiesForPortfolio()"
+                ));
+            } catch (Exception e) {
+                result.put("detailsPageLogic", Map.of(
+                    "error", e.getMessage(),
+                    "method", "portfolioService.getPropertiesForPortfolio() - FAILED"
+                ));
+            }
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
+        }
+    }
+
+    /**
+     * DIAGNOSTIC 3: Database table verification
+     */
+    @GetMapping("/debug/database-tables")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> checkDatabaseTables() {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            // This will help us verify what's actually in the database
+            result.put("timestamp", LocalDateTime.now());
+            result.put("message", "Check console logs for SQL verification queries");
+            
+            System.out.println("=== DATABASE DIAGNOSTIC ===");
+            System.out.println("Run these SQL queries in your database:");
+            System.out.println("1. SHOW TABLES LIKE 'property_portfolio_assignments';");
+            System.out.println("2. SELECT COUNT(*) FROM properties WHERE portfolio_id IS NOT NULL;");
+            System.out.println("3. SELECT COUNT(*) FROM users WHERE id = 1;");
+            System.out.println("4. DESCRIBE properties;");
+            System.out.println("========================");
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
+        }
+    }
+
     // ===== HELPER CLASSES =====
 
     public static class PortfolioWithAnalytics {
