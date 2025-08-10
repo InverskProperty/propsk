@@ -15,6 +15,15 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Set;
+
 import site.easy.to.build.crm.controller.PortfolioController.PortfolioWithAnalytics;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
@@ -31,16 +40,9 @@ import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import site.easy.to.build.crm.entity.AssignmentType;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.util.stream.Collectors;
 import site.easy.to.build.crm.entity.Customer;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Set;
+
+
 
 /**
  * PortfolioController - FIXED: Route ordering to prevent conflicts
