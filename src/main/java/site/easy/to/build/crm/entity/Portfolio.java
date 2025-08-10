@@ -29,8 +29,12 @@ public class Portfolio {
     private PortfolioType portfolioType;
     
     // PayProp Integration Fields - CRITICAL for two-way sync
-    @Column(name = "payprop_tags", columnDefinition = "TEXT")
-    private String payPropTags; // Comma-separated PayProp tag IDs
+    // @Column(name = "payprop_tags", columnDefinition = "TEXT")
+    //private String payPropTags; // Comma-separated PayProp tag IDs
+
+    // ADD this instead:
+    @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<PayPropTagLink> payPropTagLinks = new ArrayList<>();
     
     @Column(name = "payprop_tag_names", columnDefinition = "TEXT") 
     private String payPropTagNames; // Human-readable tag names for UI
