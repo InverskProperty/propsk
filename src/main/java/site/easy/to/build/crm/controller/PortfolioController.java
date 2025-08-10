@@ -1253,7 +1253,9 @@ public class PortfolioController {
             }
             
             // Get properties with tenant information
-            List<Property> properties = propertyService.findByPortfolioId(id);
+            System.out.println("🔍 Loading properties for portfolio " + id);
+            List<Property> properties = portfolioService.getPropertiesForPortfolio(id);
+            System.out.println("✅ Found " + properties.size() + " properties using junction table method");
             
             // Create simple portfolio statistics
             Map<String, Object> stats = new HashMap<>();
