@@ -93,24 +93,34 @@ public class PortfolioServiceImpl implements PortfolioService {
         return portfolioRepository.findByPayPropTag(tagId);
     }
 
-    // ===== CORE JUNCTION TABLE METHODS =====
-
-    /**
-     * CRITICAL FIX: Get properties for portfolio using junction table
-     * This fixes your main issue where portfolio detail page shows 0 properties
-     */
     @Override
     public List<Property> getPropertiesForPortfolio(Long portfolioId) {
         try {
-            return propertyPortfolioAssignmentRepository.findPropertiesForPortfolio(portfolioId);
+            System.out.println("🔍 Attempting to get properties for portfolio " + portfolioId + " using junction table");
+            
+            // Try junction table first
+            List<Property> properties = propertyPortfolioAssignmentRepository.findPropertiesForPortfolio(portfolioId);
+            System.out.println("✅ Junction table: Found " + properties.size() + " properties for portfolio " + portfolioId);
+            return properties;
+            
         } catch (Exception e) {
-            System.err.println("Error getting properties for portfolio " + portfolioId + ": " + e.getMessage());
-            // Fallback to direct FK method for backwards compatibility
-            return portfolioRepository.findByIdWithProperties(portfolioId)
-                .map(Portfolio::getProperties)
-                .orElse(new ArrayList<>());
+            System.out.println("⚠️ Junction table failed, trying direct FK fallback: " + e.getMessage());
+            
+            try {
+                // Fallback to direct FK method
+                List<Property> properties = propertyService.findByPortfolioId(portfolioId);
+                System.out.println("📝 Direct FK: Found " + properties.size() + " properties for portfolio " + portfolioId);
+                return properties;
+                
+            } catch (Exception e2) {
+                System.err.println("❌ Both methods failed for portfolio " + portfolioId);
+                System.err.println("Junction table error: " + e.getMessage());
+                System.err.println("Direct FK error: " + e2.getMessage());
+                return new ArrayList<>();
+            }
         }
     }
+
 
     @Override
     public List<Property> getPropertiesForPortfolioByType(Long portfolioId, PortfolioAssignmentType assignmentType) {
@@ -143,6 +153,42 @@ public class PortfolioServiceImpl implements PortfolioService {
     }
 
     // ===== ASSIGNMENT MANAGEMENT METHODS =====
+
+    @Transactional
+    public void testPortfolioAssignments() {
+        System.out.println("=== TESTING PORTFOLIO ASSIGNMENTS ===");
+        
+        try {
+            // Test 1: Check if junction table exists and has data
+            long totalAssignments = propertyPortfolioAssignmentRepository.count();
+            System.out.println("Total assignments in junction table: " + totalAssignments);
+            
+            // Test 2: Check a specific portfolio
+            List<Portfolio> allPortfolios = portfolioRepository.findAll();
+            for (Portfolio portfolio : allPortfolios.stream().limit(3).collect(Collectors.toList())) {
+                List<Property> properties = getPropertiesForPortfolio(portfolio.getId());
+                System.out.println("Portfolio '" + portfolio.getName() + "' has " + properties.size() + " properties");
+                
+                // Show first few properties
+                for (Property prop : properties.stream().limit(3).collect(Collectors.toList())) {
+                    System.out.println("  - " + prop.getPropertyName());
+                }
+            }
+            
+            // Test 3: Check direct FK assignments still in properties table
+            List<Property> propertiesWithDirectFK = propertyService.findAll()
+                .stream()
+                .filter(p -> p.getPortfolio() != null)
+                .collect(Collectors.toList());
+            System.out.println("Properties with direct FK: " + propertiesWithDirectFK.size());
+            
+        } catch (Exception e) {
+            System.err.println("❌ Test failed: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        System.out.println("=== END TEST ===");
+    }
 
     @Override
     @Transactional
