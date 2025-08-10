@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 import site.easy.to.build.crm.entity.Customer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * PortfolioController - FIXED: Route ordering to prevent conflicts
