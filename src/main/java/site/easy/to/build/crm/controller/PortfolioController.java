@@ -38,8 +38,6 @@ import site.easy.to.build.crm.entity.Customer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-
-
 /**
  * PortfolioController - FIXED: Route ordering to prevent conflicts
  * Specific routes come BEFORE parameterized routes like /{id}
