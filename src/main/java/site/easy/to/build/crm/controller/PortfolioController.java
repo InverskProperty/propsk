@@ -38,6 +38,7 @@ import site.easy.to.build.crm.entity.Customer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
 
 /**
  * PortfolioController - FIXED: Route ordering to prevent conflicts
@@ -1238,9 +1239,6 @@ public class PortfolioController {
         }
     }
 
-    /**
-     * Portfolio Details - MOVED TO END to prevent route conflicts
-     */
     @GetMapping("/{id}")
     public String showPortfolioDetails(@PathVariable Long id, Model model, Authentication authentication) {
         try {
@@ -1254,11 +1252,18 @@ public class PortfolioController {
                 return "error/not-found";
             }
             
-            // Get portfolio statistics
-            Map<String, Object> stats = portfolioService.getPortfolioStatistics(id);
-            
             // Get properties with tenant information
             List<Property> properties = propertyService.findByPortfolioId(id);
+            
+            // Create simple portfolio statistics
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("totalProperties", properties.size());
+            stats.put("occupiedProperties", properties.stream()
+                .filter(p -> propertyService.getCurrentTenant(p.getId()) != null)
+                .count());
+            stats.put("vacantProperties", properties.stream()
+                .filter(p -> propertyService.getCurrentTenant(p.getId()) == null)
+                .count());
             
             // Create property data with tenant info (HANDLES NULL TENANTS)
             List<Map<String, Object>> propertiesWithTenants = properties.stream()
