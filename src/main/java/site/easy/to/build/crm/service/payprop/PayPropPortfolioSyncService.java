@@ -38,6 +38,9 @@ public class PayPropPortfolioSyncService {
     private String payPropApiBase;
     
     @Autowired
+    private PayPropApiClient payPropApiClient;
+
+    @Autowired
     public PayPropPortfolioSyncService(PortfolioRepository portfolioRepository,
                                       BlockRepository blockRepository,
                                       PropertyService propertyService,
@@ -156,113 +159,68 @@ public class PayPropPortfolioSyncService {
         return createPayPropTag(newTag);
     }
     
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public List<PayPropTagDTO> getAllPayPropTags() throws Exception {
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<String> request = new HttpEntity<>(headers);
+        log.info("🚀 Fetching all PayProp tags using ApiClient...");
         
         try {
-            String url = payPropApiBase + "/tags?rows=100";
+            List<Map<String, Object>> allTagData = payPropApiClient.fetchAllPages("/tags", item -> item);
             
-            // Use raw Map type
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, 
-                HttpMethod.GET, 
-                request, 
-                Map.class
-            );
+            // ✅ FIX: Use lambda instead of method reference
+            List<PayPropTagDTO> tags = allTagData.stream()
+                .map(tagMap -> convertMapToTagDTO(tagMap))  // ✅ Lambda works reliably
+                .collect(Collectors.toList());
             
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                // Cast to Map<String, Object> after getting the body
-                Map<String, Object> responseBody = (Map<String, Object>) response.getBody();
-                
-                List<Map<String, Object>> tags = null;
-                
-                if (responseBody.containsKey("data")) {
-                    tags = (List<Map<String, Object>>) responseBody.get("data");
-                } else {
-                    if (responseBody instanceof List) {
-                        tags = (List<Map<String, Object>>) responseBody;
-                    } else {
-                        log.warn("Unexpected PayProp /tags response format: {}", responseBody.keySet());
-                        tags = new ArrayList<>();
-                    }
-                }
-                
-                if (tags == null) {
-                    log.warn("PayProp API returned null for tags data");
-                    return new ArrayList<>();
-                }
-                
-                return tags.stream().map(tagMap -> {
-                    PayPropTagDTO tag = new PayPropTagDTO();
-                    tag.setId((String) tagMap.get("external_id"));
-                    tag.setName((String) tagMap.get("name"));
-                    tag.setDescription((String) tagMap.getOrDefault("description", ""));
-                    tag.setColor((String) tagMap.getOrDefault("color", "#3498db"));
-                    return tag;
-                }).collect(Collectors.toList());
-            }
+            log.info("✅ Successfully fetched {} PayProp tags", tags.size());
+            return tags;
             
-            log.warn("PayProp /tags API returned non-200 status: {}", response.getStatusCode());
-            return new ArrayList<>();
-            
-        } catch (HttpClientErrorException e) {
-            log.error("PayProp API error getting tags: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
         } catch (Exception e) {
-            log.error("Unexpected error getting PayProp tags: {}", e.getMessage());
+            log.error("❌ Failed to fetch PayProp tags: {}", e.getMessage());
             throw new RuntimeException("Failed to get PayProp tags: " + e.getMessage(), e);
         }
     }
 
-    // FIX 2: For getPayPropTag method (around line 240)
-    // REPLACE THE ENTIRE METHOD with this version:
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    
+    // Make sure the helper method is exactly like this:
+    private PayPropTagDTO convertMapToTagDTO(Map<String, Object> tagMap) {
+        PayPropTagDTO tag = new PayPropTagDTO();
+        tag.setId((String) tagMap.get("external_id"));
+        tag.setName((String) tagMap.get("name"));
+        tag.setDescription((String) tagMap.getOrDefault("description", ""));
+        tag.setColor((String) tagMap.getOrDefault("color", "#3498db"));
+        return tag;
+    }
+
+    // ✅ SAFE VALUE EXTRACTION HELPERS
+    private String getStringValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return value != null ? value.toString() : null;
+    }
+
+    private String getStringValue(Map<String, Object> map, String key, String defaultValue) {
+        Object value = map.get(key);
+        return value != null ? value.toString() : defaultValue;
+    }
+
+    // ===== SINGLE TAG LOOKUP - TYPE SAFE =====
     public PayPropTagDTO getPayPropTag(String tagId) throws Exception {
-        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-        HttpEntity<String> request = new HttpEntity<>(headers);
-        
         try {
-            String url = payPropApiBase + "/tags?external_id=" + tagId;
+            Map<String, String> params = new HashMap<>();
+            params.put("external_id", tagId);
             
-            // Use raw Map type
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, 
-                HttpMethod.GET, 
-                request, 
-                Map.class
-            );
+            // ✅ PayPropApiClient returns properly typed result
+            PayPropApiClient.PayPropPageResult result = payPropApiClient.fetchWithParams("/tags", params);
             
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                // Cast to Map<String, Object> after getting the body
-                Map<String, Object> responseBody = (Map<String, Object>) response.getBody();
-                
-                List<Map<String, Object>> tags = null;
-                if (responseBody.containsKey("data")) {
-                    tags = (List<Map<String, Object>>) responseBody.get("data");
-                }
-                
-                if (tags != null && !tags.isEmpty()) {
-                    Map<String, Object> tagMap = tags.get(0);
-                    PayPropTagDTO tag = new PayPropTagDTO();
-                    tag.setId((String) tagMap.get("external_id"));
-                    tag.setName((String) tagMap.get("name"));
-                    tag.setDescription((String) tagMap.getOrDefault("description", ""));
-                    tag.setColor((String) tagMap.getOrDefault("color", "#3498db"));
-                    return tag;
-                }
+            if (!result.getItems().isEmpty()) {
+                Map<String, Object> tagMap = result.getItems().get(0);
+                return convertMapToTagDTO(tagMap);  // ✅ Reuse helper method
             }
             
+            log.warn("PayProp tag {} not found", tagId);
             return null;
             
-        } catch (HttpClientErrorException e) {
-            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
-                log.warn("PayProp tag {} not found", tagId);
-                return null;
-            }
-            log.error("PayProp API error getting tag {}: {}", tagId, e.getResponseBodyAsString());
-            throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            log.error("Error getting PayProp tag {}: {}", tagId, e.getMessage());
+            throw new RuntimeException("Failed to get PayProp tag: " + e.getMessage(), e);
         }
     }
 

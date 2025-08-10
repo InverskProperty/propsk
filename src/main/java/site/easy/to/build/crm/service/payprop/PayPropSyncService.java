@@ -301,7 +301,7 @@ public class PayPropSyncService {
         params.put("property_id", propertyId);
         params.put("include_beneficiary_info", "true");
         params.put("page", "1");
-        params.put("rows", "100");
+        params.put("rows", "25");
         
         PayPropApiClient.PayPropPageResult pageResult = apiClient.fetchWithParams("/export/payments", params);
         
