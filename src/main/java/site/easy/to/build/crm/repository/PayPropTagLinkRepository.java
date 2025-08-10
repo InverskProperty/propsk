@@ -100,7 +100,7 @@ public interface PayPropTagLinkRepository extends JpaRepository<PayPropTagLink, 
     List<String> findAllSyncedTagIds();
     
     @Query("SELECT ptl FROM PayPropTagLink ptl WHERE ptl.portfolio.payPropId IS NOT NULL AND ptl.syncStatus != 'SYNCED'")
-    List<PayPropTagLink> findUnsynced PayPropEnabledPortfolios();
+    List<PayPropTagLink> findUnsyncedPayPropEnabledPortfolios();
     
     @Query("SELECT ptl FROM PayPropTagLink ptl JOIN ptl.portfolio p WHERE p.portfolioType = :type")
     List<PayPropTagLink> findByPortfolioType(@Param("type") String portfolioType);
@@ -110,5 +110,5 @@ public interface PayPropTagLinkRepository extends JpaRepository<PayPropTagLink, 
     List<PayPropTagLink> findIncompleteLinks();
     
     @Query("SELECT COUNT(*) FROM PayPropTagLink ptl WHERE ptl.syncStatus = 'SYNCED' AND ptl.syncedAt > :since")
-    long countRecentlySync(@Param("since") LocalDateTime since);
+    long countRecentlySynced(@Param("since") LocalDateTime since);
 }
