@@ -31,10 +31,14 @@ import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import site.easy.to.build.crm.entity.AssignmentType;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
+import site.easy.to.build.crm.entity.Customer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
-import java.util.stream.Collectors;
+
+
 
 /**
  * PortfolioController - FIXED: Route ordering to prevent conflicts
@@ -1239,55 +1243,68 @@ public class PortfolioController {
      * Portfolio Details - MOVED TO END to prevent route conflicts
      */
     @GetMapping("/{id}")
-    public String viewPortfolio(@PathVariable("id") Long portfolioId, Model model, Authentication authentication) {
+    public String showPortfolioDetails(@PathVariable Long id, Model model, Authentication authentication) {
         try {
-            if (!portfolioService.canUserAccessPortfolio(portfolioId, authentication)) {
+            // Check access permissions
+            if (!portfolioService.canUserAccessPortfolio(id, authentication)) {
                 return "redirect:/access-denied";
             }
             
-            Portfolio portfolio = portfolioService.findById(portfolioId);
+            Portfolio portfolio = portfolioService.findById(id);
             if (portfolio == null) {
                 return "error/not-found";
             }
             
-            PortfolioAnalytics analytics = portfolioService.getLatestPortfolioAnalytics(portfolioId);
-            if (analytics == null) {
-                analytics = portfolioService.calculatePortfolioAnalytics(portfolioId, LocalDate.now());
-            }
+            // Get portfolio statistics
+            Map<String, Object> stats = portfolioService.getPortfolioStatistics(id);
             
-            List<Block> blocks = portfolioService.findBlocksByPortfolio(portfolioId);
-            List<Property> properties = propertyService.findByPortfolioId(portfolioId);
+            // Get properties with tenant information
+            List<Property> properties = propertyService.findByPortfolioId(id);
             
-            LocalDate sixMonthsAgo = LocalDate.now().minusMonths(6);
-            List<PortfolioAnalytics> analyticsHistory = portfolioService
-                .getPortfolioAnalyticsHistory(portfolioId, sixMonthsAgo, LocalDate.now());
+            // Create property data with tenant info (HANDLES NULL TENANTS)
+            List<Map<String, Object>> propertiesWithTenants = properties.stream()
+                .map(property -> {
+                    Map<String, Object> propertyData = new HashMap<>();
+                    propertyData.put("id", property.getId());
+                    propertyData.put("propertyName", property.getPropertyName());
+                    propertyData.put("fullAddress", property.getFullAddress());
+                    propertyData.put("propertyType", property.getPropertyType());
+                    propertyData.put("bedrooms", property.getBedrooms());
+                    propertyData.put("bathrooms", property.getBathrooms());
+                    propertyData.put("monthlyPayment", property.getMonthlyPayment());
+                    propertyData.put("payPropId", property.getPayPropId());
+                    propertyData.put("isArchived", property.getIsArchived());
+                    
+                    // Get tenant - will be null if no tenant
+                    Customer tenant = propertyService.getCurrentTenant(property.getId());
+                    if (tenant != null) {
+                        Map<String, Object> tenantData = new HashMap<>();
+                        tenantData.put("id", tenant.getCustomerId());
+                        tenantData.put("firstName", tenant.getFirstName());
+                        tenantData.put("lastName", tenant.getLastName());
+                        tenantData.put("fullName", tenant.getFirstName() + " " + tenant.getLastName());
+                        tenantData.put("email", tenant.getEmail());
+                        tenantData.put("phone", tenant.getPhone());
+                        propertyData.put("currentTenant", tenantData);
+                    } else {
+                        propertyData.put("currentTenant", null);
+                    }
+                    
+                    return propertyData;
+                })
+                .collect(Collectors.toList());
             
-            boolean canEdit = canUserEditPortfolio(portfolioId, authentication);
-            boolean canManageProperties = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
-                                        AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE");
-            
-            // ✅ NEW: Add portfolio-specific maintenance statistics
-            try {
-                Map<String, Object> portfolioMaintenanceStats = calculatePortfolioSpecificMaintenanceStats(portfolioId);
-                model.addAttribute("portfolioMaintenanceStats", portfolioMaintenanceStats);
-            } catch (Exception e) {
-                System.err.println("Error calculating portfolio-specific maintenance stats: " + e.getMessage());
-                model.addAttribute("portfolioMaintenanceStats", getDefaultMaintenanceStats());
-            }
-            
+            // Add all attributes
             model.addAttribute("portfolio", portfolio);
-            model.addAttribute("analytics", analytics);
-            model.addAttribute("blocks", blocks);
-            model.addAttribute("properties", properties);
-            model.addAttribute("analyticsHistory", analyticsHistory);
-            model.addAttribute("canEdit", canEdit);
-            model.addAttribute("canManageProperties", canManageProperties);
-            model.addAttribute("payPropEnabled", payPropEnabled);
-            model.addAttribute("pageTitle", portfolio.getName());
+            model.addAttribute("propertiesWithTenants", propertiesWithTenants);
+            model.addAttribute("stats", stats);
+            model.addAttribute("pageTitle", "Portfolio: " + portfolio.getName());
             
             return "portfolio/portfolio-details";
             
         } catch (Exception e) {
+            System.err.println("Error loading portfolio details: " + e.getMessage());
+            e.printStackTrace();
             model.addAttribute("error", "Error loading portfolio: " + e.getMessage());
             return "error/500";
         }

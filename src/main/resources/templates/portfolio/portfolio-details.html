@@ -248,52 +248,63 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <tr th:each="property : ${properties}">
+                                        <tr th:each="prop : ${propertiesWithTenants}">
                                             <td>
-                                                <strong th:text="${property.propertyName}">Property Name</strong>
+                                                <a th:href="@{/property/{id}(id=${prop.id})}" 
+                                                th:text="${prop.propertyName}">Property Name</a>
                                             </td>
-                                            <td th:text="${property.fullAddress}">Address</td>
+                                            <td th:text="${prop.fullAddress}">Address</td>
                                             <td>
-                                                <span class="badge badge-secondary" th:text="${property.propertyType}">Type</span>
+                                                <span class="badge badge-secondary" 
+                                                    th:text="${prop.propertyType}">Type</span>
                                             </td>
+                                            <td th:text="${prop.bedrooms}">0</td>
+                                            <td th:text="${prop.bathrooms}">0</td>
                                             <td>
-                                                <span th:if="${property.monthlyPayment}" 
-                                                      class="text-success"
-                                                      th:text="'£' + ${#numbers.formatDecimal(property.monthlyPayment, 0, 'COMMA', 0, 'POINT')}">£0</span>
-                                                <span th:unless="${property.monthlyPayment}" class="text-muted">Not set</span>
-                                            </td>
-                                            <td>
-                                                <span th:if="${property.isOccupied()}" class="badge badge-success">Occupied</span>
-                                                <span th:unless="${property.isOccupied()}" class="badge badge-warning">Vacant</span>
-                                            </td>
-                                            <td>
-                                                <span th:with="tenant=${propertyService.getCurrentTenant(property.id)}"
-                                                    th:if="${tenant != null}" 
-                                                    th:text="${tenant.firstName + ' ' + tenant.lastName}">Tenant Name</span>
-                                                <span th:unless="${propertyService.getCurrentTenant(property.id) != null}" 
+                                                <!-- Safe tenant handling - checks if currentTenant exists -->
+                                                <span th:if="${prop.currentTenant != null}" 
+                                                    th:text="${prop.currentTenant.fullName}">Tenant Name</span>
+                                                <span th:unless="${prop.currentTenant != null}" 
                                                     class="text-muted">No tenant assigned</span>
                                             </td>
                                             <td>
-                                                <span th:if="${property.payPropId}" class="badge badge-success">
-                                                    <i class="fas fa-sync"></i> Synced
+                                                <span th:if="${prop.monthlyPayment != null}"
+                                                    th:text="'£' + ${#numbers.formatDecimal(prop.monthlyPayment, 0, 'COMMA', 2, 'POINT')}">£0</span>
+                                                <span th:unless="${prop.monthlyPayment != null}" 
+                                                    class="text-muted">Not set</span>
+                                            </td>
+                                            <td>
+                                                <span th:if="${prop.payPropId}" 
+                                                    class="badge badge-success">
+                                                    <i class="fas fa-check"></i> Synced
                                                 </span>
-                                                <span th:unless="${property.payPropId}" class="badge badge-warning">
-                                                    <i class="fas fa-clock"></i> Pending
+                                                <span th:unless="${prop.payPropId}" 
+                                                    class="badge badge-warning">
+                                                    <i class="fas fa-sync"></i> Not synced
                                                 </span>
                                             </td>
                                             <td>
                                                 <div class="btn-group btn-group-sm">
-                                                    <a th:href="@{'/property/' + ${property.id}}" 
-                                                       class="btn btn-info" title="View Property">
+                                                    <a th:href="@{/property/{id}(id=${prop.id})}" 
+                                                    class="btn btn-info" title="View">
                                                         <i class="fas fa-eye"></i>
                                                     </a>
-                                                    <button th:if="${canManageProperties}" 
-                                                            class="btn btn-danger" 
-                                                            th:onclick="'removeProperty(' + ${property.id} + ')'" 
-                                                            title="Remove from Portfolio">
-                                                        <i class="fas fa-times"></i>
-                                                    </button>
+                                                    <a th:href="@{/property/{id}/edit(id=${prop.id})}" 
+                                                    class="btn btn-primary" title="Edit">
+                                                        <i class="fas fa-edit"></i>
+                                                    </a>
                                                 </div>
+                                            </td>
+                                        </tr>
+                                        <!-- Show message if no properties -->
+                                        <tr th:if="${#lists.isEmpty(propertiesWithTenants)}">
+                                            <td colspan="9" class="text-center text-muted">
+                                                <i class="fas fa-home fa-2x mb-2"></i>
+                                                <p>No properties assigned to this portfolio yet.</p>
+                                                <a th:href="@{/portfolio/{id}/assign(id=${portfolio.id})}" 
+                                                class="btn btn-success btn-sm">
+                                                    <i class="fas fa-plus"></i> Assign Properties
+                                                </a>
                                             </td>
                                         </tr>
                                     </tbody>
