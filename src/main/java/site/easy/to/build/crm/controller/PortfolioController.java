@@ -2114,36 +2114,6 @@ public class PortfolioController {
         }
     }
 
-    @GetMapping("/test-fix")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testFix() {
-        Map<String, Object> result = new HashMap<>();
-        
-        try {
-            // Test repository injection
-            result.put("repositoryInjected", propertyPortfolioAssignmentRepository != null);
-            
-            // Test junction table
-            long count = propertyPortfolioAssignmentRepository.count();
-            result.put("junctionTableRecords", count);
-            
-            // Test portfolio properties
-            List<Property> props = portfolioService.getPropertiesForPortfolio(12L);
-            result.put("portfolio12Properties", props.size());
-            
-            // Test user existence
-            boolean userExists = userService.existsById(1L);
-            result.put("systemUserExists", userExists);
-            
-            result.put("status", "SUCCESS");
-        } catch (Exception e) {
-            result.put("status", "ERROR");
-            result.put("error", e.getMessage());
-        }
-        
-        return ResponseEntity.ok(result);
-    }
-
     // ===== HELPER CLASSES =====
 
     public static class PortfolioWithAnalytics {
