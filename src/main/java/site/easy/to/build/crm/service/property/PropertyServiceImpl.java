@@ -99,23 +99,55 @@ public class PropertyServiceImpl implements PropertyService {
     @Override
     public List<Property> findByPropertyOwnerId(Long propertyOwnerId) {
         try {
-            // propertyOwnerId is actually a customer_id for owners
+            System.out.println("🔍 [PropertyService] Looking for properties owned by customer ID: " + propertyOwnerId);
+            
+            // Query the junction table
             List<CustomerPropertyAssignment> assignments = 
                 assignmentRepository.findByCustomerCustomerIdAndAssignmentType(
                     propertyOwnerId, AssignmentType.OWNER);
             
+            System.out.println("📊 [PropertyService] Found " + assignments.size() + " assignments in junction table");
+            
             if (!assignments.isEmpty()) {
-                return assignments.stream()
-                    .map(CustomerPropertyAssignment::getProperty)
-                    .filter(property -> property != null)
-                    .filter(property -> !"Y".equals(property.getIsArchived()))
+                // Debug each assignment
+                for (CustomerPropertyAssignment assignment : assignments) {
+                    Property prop = assignment.getProperty();
+                    System.out.println("  - Assignment ID " + assignment.getId() + 
+                                    ": Property " + (prop != null ? prop.getId() + " - " + prop.getPropertyName() : "NULL"));
+                }
+                
+                List<Property> properties = assignments.stream()
+                    .map(assignment -> {
+                        Property p = assignment.getProperty();
+                        if (p == null) {
+                            System.out.println("    ⚠️ NULL property in assignment!");
+                        }
+                        return p;
+                    })
+                    .filter(property -> {
+                        if (property == null) {
+                            System.out.println("    ❌ Filtering out NULL property");
+                            return false;
+                        }
+                        boolean archived = "Y".equals(property.getIsArchived());
+                        if (archived) {
+                            System.out.println("    ❌ Filtering out archived property: " + property.getPropertyName());
+                        }
+                        return !archived;
+                    })
                     .distinct()
                     .collect(Collectors.toList());
+                
+                System.out.println("✅ [PropertyService] Returning " + properties.size() + " properties after filtering");
+                return properties;
             }
+            
+            System.out.println("❌ [PropertyService] No assignments found for customer " + propertyOwnerId);
             return new ArrayList<>();
             
         } catch (Exception e) {
-            System.err.println("Error finding properties for owner " + propertyOwnerId + ": " + e.getMessage());
+            System.err.println("💥 [PropertyService] Error: " + e.getMessage());
+            e.printStackTrace();
             return new ArrayList<>();
         }
     }

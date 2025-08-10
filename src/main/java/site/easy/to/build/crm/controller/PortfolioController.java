@@ -632,6 +632,30 @@ public class PortfolioController {
         }
     }
 
+    @GetMapping("/test/owner/{ownerId}/properties")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testOwnerProperties(@PathVariable Long ownerId) {
+        Map<String, Object> response = new HashMap<>();
+        
+        System.out.println("🧪 [TEST] Looking up properties for owner: " + ownerId);
+        
+        List<Property> properties = propertyService.findByPropertyOwnerId(ownerId);
+        
+        response.put("ownerId", ownerId);
+        response.put("propertyCount", properties.size());
+        response.put("properties", properties.stream()
+            .map(p -> {
+                Map<String, Object> prop = new HashMap<>();
+                prop.put("id", p.getId());
+                prop.put("name", p.getPropertyName());
+                prop.put("portfolioId", p.getPortfolio() != null ? p.getPortfolio().getId() : null);
+                return prop;
+            })
+            .collect(Collectors.toList()));
+        
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/debug/test-payprop-direct")
     @ResponseBody
     public ResponseEntity<String> testPayPropDirect(Authentication authentication) {
@@ -997,35 +1021,68 @@ public class PortfolioController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
             }
             
-            // FIXED: Filter properties based on portfolio ownership
             List<Property> availableProperties;
             
             if (portfolio.getPropertyOwnerId() != null) {
                 // Owner-specific portfolio - only show properties for this owner
                 Integer ownerId = portfolio.getPropertyOwnerId();
+                System.out.println("🎯 [Controller] Portfolio " + portfolioId + " is owner-specific for owner ID: " + ownerId);
                 
-                // Get all properties for this owner using the existing method
+                // Get all properties for this owner using junction table
                 List<Property> ownerProperties = propertyService.findByPropertyOwnerId(ownerId.longValue());
+                System.out.println("📦 [Controller] Owner has " + ownerProperties.size() + " total properties from junction table");
                 
-                // Filter to get properties not already in this portfolio
+                // Get properties already in this portfolio using junction table
+                List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
+                System.out.println("📌 [Controller] Portfolio already has " + propertiesInPortfolio.size() + " properties");
+                
+                // Create set of IDs already in portfolio
+                Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
+                    .map(Property::getId)
+                    .collect(Collectors.toSet());
+                
+                // Filter to get properties NOT already in this portfolio
                 availableProperties = ownerProperties.stream()
-                    .filter(property -> property.getPortfolio() == null || 
-                                    !property.getPortfolio().getId().equals(portfolioId))
+                    .filter(property -> !assignedPropertyIds.contains(property.getId()))
                     .collect(Collectors.toList());
                     
-                System.out.println("✅ Owner " + ownerId + " - found " + 
+                System.out.println("✅ [Controller] Owner " + ownerId + " - found " + 
                                 ownerProperties.size() + " total properties, " +
-                                availableProperties.size() + " available for portfolio " + portfolioId);
+                                propertiesInPortfolio.size() + " already in portfolio, " +
+                                availableProperties.size() + " available for assignment");
+                
+                // Debug: Show which properties are available
+                if (availableProperties.size() > 0) {
+                    System.out.println("📋 Available properties:");
+                    for (Property p : availableProperties) {
+                        System.out.println("   - ID " + p.getId() + ": " + p.getPropertyName());
+                    }
+                }
+                
             } else {
-                // Shared portfolio - show all available properties
+                // Shared portfolio - show all properties not in this portfolio
+                System.out.println("🌐 [Controller] Portfolio " + portfolioId + " is a shared portfolio");
+                
                 List<Property> allProperties = propertyService.findAll();
+                System.out.println("📦 [Controller] Total properties in system: " + allProperties.size());
+                
+                // Get properties already in this portfolio
+                List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
+                System.out.println("📌 [Controller] Portfolio already has " + propertiesInPortfolio.size() + " properties");
+                
+                Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
+                    .map(Property::getId)
+                    .collect(Collectors.toSet());
+                
                 availableProperties = allProperties.stream()
-                    .filter(property -> property.getPortfolio() == null || 
-                                    !property.getPortfolio().getId().equals(portfolioId))
+                    .filter(property -> !assignedPropertyIds.contains(property.getId()))
+                    .filter(property -> !"Y".equals(property.getIsArchived()))
                     .collect(Collectors.toList());
                     
-                System.out.println("✅ Shared portfolio - found " + 
-                                availableProperties.size() + " available properties");
+                System.out.println("✅ [Controller] Shared portfolio - " + 
+                                allProperties.size() + " total properties, " +
+                                propertiesInPortfolio.size() + " already in portfolio, " +
+                                availableProperties.size() + " available for assignment");
             }
             
             // Convert to simple DTOs for JSON response
@@ -1039,6 +1096,21 @@ public class PortfolioController {
                     dto.put("monthlyPayment", property.getMonthlyPayment());
                     dto.put("payPropId", property.getPayPropId());
                     dto.put("isOccupied", property.isOccupied());
+                    
+                    // Add owner info from junction table
+                    try {
+                        List<CustomerPropertyAssignment> ownerAssignments = 
+                            customerPropertyAssignmentRepository.findByPropertyIdAndAssignmentType(
+                                property.getId(), AssignmentType.OWNER);
+                        if (!ownerAssignments.isEmpty()) {
+                            Customer owner = ownerAssignments.get(0).getCustomer();
+                            dto.put("ownerName", owner != null ? owner.getName() : "Unknown");
+                            dto.put("ownerId", owner != null ? owner.getCustomerId() : null);
+                        }
+                    } catch (Exception e) {
+                        // Ignore owner lookup errors
+                    }
+                    
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -1050,6 +1122,8 @@ public class PortfolioController {
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
+            System.err.println("❌ [Controller] Error in getAvailablePropertiesForPortfolio: " + e.getMessage());
+            e.printStackTrace();
             response.put("success", false);
             response.put("message", "Failed to load available properties: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
