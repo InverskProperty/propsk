@@ -538,7 +538,7 @@ public class PortfolioController {
     }
 
     /**
-     * Assign Properties Interface
+     * ADDITIONAL FIX: Update the "unassigned properties" logic in assignment page
      */
     @GetMapping("/assign-properties")
     public String showAssignPropertiesPage(Model model, Authentication authentication) {
@@ -550,9 +550,14 @@ public class PortfolioController {
         try {
             List<Portfolio> portfolios = portfolioService.findAll();
             List<Property> allProperties = propertyService.findAll();
+            
+            // ✅ FIXED: Use junction table to find unassigned properties
             List<Property> unassignedProperties = allProperties.stream()
                 .filter(property -> !hasAnyPortfolioAssignment(property.getId()))
+                .filter(property -> !"Y".equals(property.getIsArchived()))
                 .collect(Collectors.toList());
+            
+            System.out.println("📊 [FIXED] Found " + unassignedProperties.size() + " unassigned properties using junction table logic");
             
             model.addAttribute("portfolios", portfolios);
             model.addAttribute("unassignedProperties", unassignedProperties);
@@ -934,6 +939,9 @@ public class PortfolioController {
         }
     }
 
+    /**
+     * ADDITIONAL FIX: Update portfolio-specific assignment page logic
+     */
     @GetMapping("/{id}/assign")
     public String showPortfolioSpecificAssignmentPage(@PathVariable("id") Long portfolioId, 
                                                     Model model, 
@@ -953,7 +961,7 @@ public class PortfolioController {
             // Get all portfolios for the general assignment interface
             List<Portfolio> allPortfolios = portfolioService.findPortfoliosForUser(authentication);
             
-            // FIXED: Filter properties based on portfolio ownership
+            // ✅ FIXED: Filter properties based on portfolio ownership using junction table logic
             List<Property> allProperties;
             List<Property> unassignedProperties;
             
@@ -964,25 +972,27 @@ public class PortfolioController {
                 // Use the existing method that works with junction table
                 allProperties = propertyService.findByPropertyOwnerId(ownerId.longValue());
                 
-                // Filter to get unassigned properties for this owner
+                // ✅ FIXED: Filter to get unassigned properties using junction table logic
                 unassignedProperties = allProperties.stream()
-                    .filter(property -> property.getPortfolio() == null)
+                    .filter(property -> !hasAnyPortfolioAssignment(property.getId()))
+                    .filter(property -> !"Y".equals(property.getIsArchived()))
                     .collect(Collectors.toList());
                     
                 System.out.println("✅ Owner-specific portfolio " + portfolioId + 
                                 " for owner " + ownerId + 
                                 " - showing " + allProperties.size() + " total properties, " +
-                                unassignedProperties.size() + " unassigned");
+                                unassignedProperties.size() + " unassigned (junction table logic)");
             } else {
                 // Shared portfolio - show all unassigned properties
                 allProperties = propertyService.findAll();
                 unassignedProperties = allProperties.stream()
-                    .filter(property -> property.getPortfolio() == null)
+                    .filter(property -> !hasAnyPortfolioAssignment(property.getId()))
+                    .filter(property -> !"Y".equals(property.getIsArchived()))
                     .collect(Collectors.toList());
                     
                 System.out.println("✅ Shared portfolio " + portfolioId + 
                                 " - showing " + allProperties.size() + " total properties, " +
-                                unassignedProperties.size() + " unassigned");
+                                unassignedProperties.size() + " unassigned (junction table logic)");
             }
             
             // Add the attributes
@@ -1132,9 +1142,6 @@ public class PortfolioController {
         }
     }
 
-    /**
-     * Remove a single property from portfolio
-     */
     @PostMapping("/{portfolioId}/remove-property/{propertyId}")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> removePropertyFromPortfolio(
@@ -1165,7 +1172,27 @@ public class PortfolioController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
             }
             
-            // Remove PayProp tags if applicable
+            // ✅ FIXED: Validate property is actually in this portfolio before removing
+            try {
+                List<Property> portfolioProperties = portfolioService.getPropertiesForPortfolio(portfolioId);
+                boolean propertyInPortfolio = portfolioProperties.stream()
+                    .anyMatch(p -> p.getId().equals(propertyId));
+                
+                if (!propertyInPortfolio) {
+                    response.put("success", false);
+                    response.put("message", "Property is not assigned to this portfolio");
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+                }
+            } catch (Exception e) {
+                System.err.println("❌ Error checking property assignment: " + e.getMessage());
+                response.put("success", false);
+                response.put("message", "Error validating property assignment");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            }
+            
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            
+            // Remove PayProp tags BEFORE removing from portfolio
             if (payPropEnabled && payPropSyncService != null && 
                 portfolio.isSyncedWithPayProp() && property.getPayPropId() != null) {
                 
@@ -1173,17 +1200,35 @@ public class PortfolioController {
                 for (String tagId : payPropTags) {
                     try {
                         payPropSyncService.removeTagFromProperty(property.getPayPropId(), tagId);
+                        System.out.println("🏷️ [FIXED] PayProp tag " + tagId + " removed from property " + property.getPayPropId());
                     } catch (Exception e) {
                         log.warn("Failed to remove PayProp tag {} from property {}: {}", 
                                 tagId, property.getPayPropId(), e.getMessage());
+                        // Continue with removal even if PayProp sync fails
                     }
                 }
             }
             
-            // Remove from local portfolio
-            property.setPortfolio(null);
-            property.setPortfolioAssignmentDate(null);
-            propertyService.save(property);
+            // ✅ FIXED: Use junction table removal method instead of direct FK
+            try {
+                portfolioService.removePropertyFromPortfolio(propertyId, portfolioId, (long) userId);
+                System.out.println("✅ [FIXED] Property " + propertyId + " removed using junction table method");
+            } catch (Exception e) {
+                System.err.println("❌ Junction table removal failed: " + e.getMessage());
+                
+                // ⚠️ FALLBACK: If junction table method fails, try direct FK removal
+                try {
+                    property.setPortfolio(null);
+                    property.setPortfolioAssignmentDate(null);
+                    propertyService.save(property);
+                    System.out.println("⚠️ [FALLBACK] Used direct FK removal for property " + propertyId);
+                } catch (Exception e2) {
+                    System.err.println("❌ Both removal methods failed: " + e2.getMessage());
+                    response.put("success", false);
+                    response.put("message", "Failed to remove property from portfolio");
+                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+                }
+            }
             
             response.put("success", true);
             response.put("message", "Property removed from portfolio successfully");
@@ -1191,6 +1236,7 @@ public class PortfolioController {
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
+            System.err.println("❌ Property removal failed: " + e.getMessage());
             response.put("success", false);
             response.put("message", "Failed to remove property: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
@@ -1198,7 +1244,7 @@ public class PortfolioController {
     }
 
     /**
-     * Enhanced assignment with PayProp sync
+     * FIXED: Enhanced assignment with junction table and PayProp sync
      */
     @PostMapping("/{id}/assign-properties")
     @ResponseBody
@@ -1229,39 +1275,55 @@ public class PortfolioController {
             int errorCount = 0;
             List<String> errors = new ArrayList<>();
             
+            System.out.println("🔧 [FIXED] Using junction table assignment for " + propertyIds.size() + " properties to portfolio " + portfolioId);
+            
             for (Long propertyId : propertyIds) {
                 try {
                     Property property = propertyService.findById(propertyId);
-                    if (property != null) {
-                        // Assign locally
-                        property.setPortfolio(portfolio);
-                        property.setPortfolioAssignmentDate(LocalDateTime.now());
-                        propertyService.save(property);
-                        assignedCount++;
+                    if (property == null) {
+                        errorCount++;
+                        errors.add("Property ID " + propertyId + " not found");
+                        continue;
+                    }
+                    
+                    // ✅ FIXED: Use junction table assignment method instead of direct FK
+                    portfolioService.assignPropertyToPortfolio(
+                        propertyId, 
+                        portfolioId, 
+                        PortfolioAssignmentType.PRIMARY, 
+                        (long) userId, 
+                        "Assigned via drag-and-drop interface"
+                    );
+                    assignedCount++;
+                    System.out.println("✅ [FIXED] Property " + propertyId + " assigned using junction table");
+                    
+                    // ✅ PayProp sync will now work because junction table is populated
+                    if (payPropEnabled && payPropSyncService != null && 
+                        portfolio.isSyncedWithPayProp() && property.getPayPropId() != null) {
                         
-                        // Sync to PayProp if enabled and property has PayProp ID
-                        if (payPropEnabled && payPropSyncService != null && 
-                            portfolio.isSyncedWithPayProp() && property.getPayPropId() != null) {
-                            
-                            List<String> payPropTags = portfolio.getPayPropTagList();
-                            for (String tagId : payPropTags) {
-                                try {
-                                    payPropSyncService.applyTagToProperty(property.getPayPropId(), tagId);
-                                    syncedCount++;
-                                } catch (Exception e) {
-                                    log.warn("Failed to apply PayProp tag {} to property {}: {}", 
-                                        tagId, property.getPayPropId(), e.getMessage());
-                                    errors.add("PayProp sync failed for property " + property.getPropertyName());
-                                }
+                        List<String> payPropTags = portfolio.getPayPropTagList();
+                        for (String tagId : payPropTags) {
+                            try {
+                                payPropSyncService.applyTagToProperty(property.getPayPropId(), tagId);
+                                syncedCount++;
+                                System.out.println("🏷️ [FIXED] PayProp tag " + tagId + " applied to property " + property.getPayPropId());
+                            } catch (Exception e) {
+                                log.warn("Failed to apply PayProp tag {} to property {}: {}", 
+                                    tagId, property.getPayPropId(), e.getMessage());
+                                errors.add("PayProp sync failed for property " + property.getPropertyName());
                             }
                         }
                     }
+                    
                 } catch (Exception e) {
                     errorCount++;
                     errors.add("Failed to assign property ID " + propertyId + ": " + e.getMessage());
                     log.error("Failed to assign property {} to portfolio {}: {}", propertyId, portfolioId, e.getMessage());
                 }
             }
+            
+            System.out.println("📊 [FIXED] Assignment complete: " + assignedCount + " assigned, " + 
+                            syncedCount + " synced to PayProp, " + errorCount + " errors");
             
             response.put("success", true);
             response.put("message", assignedCount + " properties assigned successfully");
@@ -1273,6 +1335,7 @@ public class PortfolioController {
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
+            System.err.println("❌ [FIXED] Assignment failed: " + e.getMessage());
             response.put("success", false);
             response.put("message", "Assignment failed: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
@@ -1918,15 +1981,20 @@ public class PortfolioController {
                AuthorizationUtil.hasRole(authentication, "ROLE_USER");
     }
 
+    /**
+     * HELPER METHOD: Check if property has any portfolio assignments
+     */
     private boolean hasAnyPortfolioAssignment(Long propertyId) {
         try {
-            return propertyPortfolioAssignmentRepository
+            return !propertyPortfolioAssignmentRepository
                 .findByPropertyIdAndIsActive(propertyId, true)
-                .size() > 0;
+                .isEmpty();
         } catch (Exception e) {
-            return false;
+            System.err.println("Error checking portfolio assignments for property " + propertyId + ": " + e.getMessage());
+            return false; // Assume no assignments if check fails
         }
     }
+
 
     private PortfolioAggregateStats calculateAggregateStats(List<Portfolio> portfolios) {
         PortfolioAggregateStats stats = new PortfolioAggregateStats();
