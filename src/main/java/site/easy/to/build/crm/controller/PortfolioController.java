@@ -40,6 +40,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Set;
 
 /**
  * PortfolioController - FIXED: Route ordering to prevent conflicts
