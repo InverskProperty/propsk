@@ -1314,6 +1314,17 @@ public class PortfolioController {
         }
     }
 
+    @GetMapping("/portfolio/{id}/debug")
+    @ResponseBody
+    public String debugPortfolio(@PathVariable Long id) {
+        try {
+            List<Property> properties = portfolioService.getPropertiesForPortfolio(id);
+            return "Portfolio " + id + " has " + properties.size() + " properties. Check console for details.";
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
     /**
      * Edit Portfolio Form
      */
