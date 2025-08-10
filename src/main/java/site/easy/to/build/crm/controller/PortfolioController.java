@@ -134,19 +134,18 @@ public class PortfolioController {
             
             if (showUnassigned) {
                 try {
-                    unassignedProperties = propertyService.findUnassignedProperties();
+                    unassignedProperties = propertyService.findPropertiesWithNoPortfolioAssignments();
                     
                     // Filter unassigned properties by owner if specified
                     if (selectedOwnerId != null && selectedOwnerId > 0) {
-                        // This filters based on properties owned by the customer
-                        // You may need to adjust this based on your Customer-Property relationship
                         unassignedProperties = unassignedProperties.stream()
                             .filter(property -> {
-                                // Check if property is owned by the selected customer
-                                List<Customer> propertyCustomers = customerService.findByEntityTypeAndEntityId("Property", property.getId());
-                                return propertyCustomers.stream()
-                                    .anyMatch(customer -> customer.getCustomerId().equals(selectedOwnerId) && 
-                                            customer.getIsPropertyOwner() != null && customer.getIsPropertyOwner());
+                                try {
+                                    List<Property> ownerProperties = propertyService.findByPropertyOwnerId(selectedOwnerId.longValue());
+                                    return ownerProperties.stream().anyMatch(p -> p.getId().equals(property.getId()));
+                                } catch (Exception e) {
+                                    return false;
+                                }
                             })
                             .collect(Collectors.toList());
                     }
@@ -552,7 +551,7 @@ public class PortfolioController {
             List<Portfolio> portfolios = portfolioService.findAll();
             List<Property> allProperties = propertyService.findAll();
             List<Property> unassignedProperties = allProperties.stream()
-                .filter(property -> property.getPortfolio() == null)
+                .filter(property -> !hasAnyPortfolioAssignment(property.getId()))
                 .collect(Collectors.toList());
             
             model.addAttribute("portfolios", portfolios);
@@ -1917,6 +1916,16 @@ public class PortfolioController {
         return AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") || 
                AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER") ||
                AuthorizationUtil.hasRole(authentication, "ROLE_USER");
+    }
+
+    private boolean hasAnyPortfolioAssignment(Long propertyId) {
+        try {
+            return propertyPortfolioAssignmentRepository
+                .findByPropertyIdAndIsActive(propertyId, true)
+                .size() > 0;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private PortfolioAggregateStats calculateAggregateStats(List<Portfolio> portfolios) {

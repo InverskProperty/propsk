@@ -94,6 +94,15 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     // ✅ Portfolio analytics support
     @Query("SELECT p FROM Property p LEFT JOIN FETCH p.portfolio WHERE p.id IN :propertyIds")
     List<Property> findByIdInWithPortfolio(@Param("propertyIds") List<Long> propertyIds);
+
+    // Add to PropertyRepository.java
+    @Query(value = "SELECT DISTINCT p.* FROM properties p " +
+                   "WHERE p.is_archived = 'N' " +
+                   "AND NOT EXISTS ( " +
+                   "    SELECT 1 FROM property_portfolio_assignments ppa " +
+                   "    WHERE ppa.property_id = p.id AND ppa.is_active = 1 " +
+                   ")", nativeQuery = true)
+    List<Property> findPropertiesWithNoPortfolioAssignments();
     
     // 🔧 FIXED: Junction table-based occupancy detection (WORKING - 252 occupied properties)
     @Query(value = "SELECT DISTINCT p.* FROM properties p " +

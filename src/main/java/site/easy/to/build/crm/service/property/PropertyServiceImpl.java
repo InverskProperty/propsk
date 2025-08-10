@@ -169,6 +169,12 @@ public class PropertyServiceImpl implements PropertyService {
         }
     }
 
+    // Add this to PropertyServiceImpl.java
+    @Override
+    public List<Property> findPropertiesWithNoPortfolioAssignments() {
+        return propertyRepository.findPropertiesWithNoPortfolioAssignments();
+    }
+
     @Override
     public Property getPropertyByTenant(Long tenantId) {
         try {

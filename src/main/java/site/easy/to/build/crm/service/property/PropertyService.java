@@ -98,4 +98,6 @@ public interface PropertyService {
     List<Property> findPropertiesWithMissingPayPropFields();
 
     List<Property> findByPayPropIdIsNull();
+
+    List<Property> findPropertiesWithNoPortfolioAssignments();
 }
