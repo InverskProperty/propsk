@@ -18,6 +18,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import site.easy.to.build.crm.controller.PortfolioController.PortfolioWithAnalytics;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
+import site.easy.to.build.crm.repository.PropertyPortfolioAssignmentRepository;
 import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
