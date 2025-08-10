@@ -937,7 +937,8 @@ public class PortfolioServiceImpl implements PortfolioService {
         
         for (Portfolio portfolio : autoAssignPortfolios) {
             if (shouldAutoAssignToPortfolio(property, portfolio)) {
-                assignPropertyToPortfolio(property.getId(), portfolio.getId(), PortfolioAssignmentType.SECONDARY, 1L);
+                assignPropertyToPortfolio(property.getId(), portfolio.getId(), PortfolioAssignmentType.SECONDARY, 1L, 
+                    "Auto-assigned based on rules: " + portfolio.getAssignmentRules());
                 break; // Assign to first matching portfolio only
             }
         }
