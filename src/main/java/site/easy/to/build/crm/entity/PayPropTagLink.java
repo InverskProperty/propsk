@@ -21,8 +21,8 @@ public class PayPropTagLink {
     @Column(name = "tag_name", nullable = false, length = 100)
     private String tagName;
     
-    @Column(name = "tag_external_id", length = 32)
-    private String tagExternalId;
+    // REMOVED: tag_external_id field - column doesn't exist in database
+    // If needed in future, add migration: ALTER TABLE payprop_tag_links ADD COLUMN tag_external_id VARCHAR(32);
     
     @Column(name = "sync_status", length = 20)
     private String syncStatus = "PENDING";
@@ -30,7 +30,7 @@ public class PayPropTagLink {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
-    @Column(name = "updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
     
     @Column(name = "synced_at")
@@ -50,6 +50,12 @@ public class PayPropTagLink {
     }
     
     // Lifecycle methods
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+    
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
@@ -109,13 +115,8 @@ public class PayPropTagLink {
         this.tagName = tagName;
     }
     
-    public String getTagExternalId() {
-        return tagExternalId;
-    }
-    
-    public void setTagExternalId(String tagExternalId) {
-        this.tagExternalId = tagExternalId;
-    }
+    // REMOVED: getTagExternalId() and setTagExternalId() methods
+    // Column doesn't exist in database schema
     
     public String getSyncStatus() {
         return syncStatus;
