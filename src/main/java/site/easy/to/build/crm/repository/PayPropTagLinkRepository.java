@@ -99,7 +99,8 @@ public interface PayPropTagLinkRepository extends JpaRepository<PayPropTagLink, 
     @Query("SELECT DISTINCT ptl.tagId FROM PayPropTagLink ptl WHERE ptl.syncStatus = 'SYNCED'")
     List<String> findAllSyncedTagIds();
     
-    @Query("SELECT ptl FROM PayPropTagLink ptl WHERE ptl.portfolio.payPropId IS NOT NULL AND ptl.syncStatus != 'SYNCED'")
+    // OPTION 1: Query based on existing Portfolio fields
+    @Query("SELECT ptl FROM PayPropTagLink ptl WHERE ptl.portfolio.payPropTags IS NOT NULL AND ptl.syncStatus != 'SYNCED'")
     List<PayPropTagLink> findUnsyncedPayPropEnabledPortfolios();
     
     @Query("SELECT ptl FROM PayPropTagLink ptl JOIN ptl.portfolio p WHERE p.portfolioType = :type")
