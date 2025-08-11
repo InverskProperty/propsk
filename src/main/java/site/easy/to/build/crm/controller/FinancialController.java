@@ -163,7 +163,7 @@ public class FinancialController {
                     if (t2.getTransactionDate() == null) return -1;
                     return t2.getTransactionDate().compareTo(t1.getTransactionDate());
                 })
-                .limit(5)
+                .limit(60)
                 .collect(Collectors.toList());
             
             // Prepare response

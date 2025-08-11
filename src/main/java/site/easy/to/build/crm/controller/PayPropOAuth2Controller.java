@@ -735,7 +735,6 @@ public class PayPropOAuth2Controller {
             @RequestParam(required = false) String parameters,
             @RequestParam(required = false) String requestBody,
             Authentication authentication) {
-        
         if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
             return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
         }
