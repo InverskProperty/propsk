@@ -726,15 +726,13 @@ public class PayPropOAuth2Controller {
         }
     }
 
-    /**
-     * 🔧 RAW API CALL - Make custom API calls with full control
-     */
     @PostMapping("/raw-api-call")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> rawApiCall(
             @RequestParam String endpoint,
             @RequestParam(required = false) String method,
             @RequestParam(required = false) String parameters,
+            @RequestParam(required = false) String requestBody,  // ✅ ADD THIS LINE
             Authentication authentication) {
         
         if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
@@ -755,11 +753,28 @@ public class PayPropOAuth2Controller {
                 "method", httpMethod.toString(),
                 "full_url", fullUrl,
                 "endpoint", endpoint,
-                "parameters", parameters != null ? parameters : "None"
+                "parameters", parameters != null ? parameters : "None",
+                "request_body", requestBody != null ? requestBody : "None"  // ✅ ADD THIS LINE
             ));
             
             HttpHeaders headers = createAuthorizedHeadersSafe();
-            HttpEntity<String> request = new HttpEntity<>(headers);
+            
+            // ✅ ADD THIS SECTION - Handle request body
+            HttpEntity<?> request;
+            if (requestBody != null && !requestBody.trim().isEmpty() && 
+                (httpMethod == HttpMethod.POST || httpMethod == HttpMethod.PUT || httpMethod == HttpMethod.PATCH)) {
+                
+                // For tag application, we need JSON content type
+                if (endpoint.contains("/tags/entities/")) {
+                    headers.setContentType(MediaType.APPLICATION_JSON);
+                    request = new HttpEntity<>(requestBody, headers);
+                } else {
+                    request = new HttpEntity<>(requestBody, headers);
+                }
+            } else {
+                request = new HttpEntity<>(headers);
+            }
+            // ✅ END OF NEW SECTION
             
             ResponseEntity<Map> response = restTemplate.exchange(fullUrl, httpMethod, request, Map.class);
             
