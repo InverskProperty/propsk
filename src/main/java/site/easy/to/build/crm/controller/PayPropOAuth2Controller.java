@@ -755,7 +755,8 @@ public class PayPropOAuth2Controller {
                 "full_url", fullUrl,
                 "endpoint", endpoint,
                 "parameters", parameters != null ? parameters : "None",
-                "request_body", requestBody != null ? requestBody : "None"  // ✅ ADD THIS LINE
+                "request_body", requestBody != null ? requestBody : "None",
+                "content_type", headers.getContentType() != null ? headers.getContentType().toString() : "None"  // ✅ ADD THIS LINE
             ));
             
             HttpHeaders headers = createAuthorizedHeadersSafe();
