@@ -551,10 +551,28 @@ public class PayPropOAuth2Service {
     }
 
     public String getAccessToken() {
-        PayPropToken token = getValidToken();
-        return token != null ? token.getAccessToken() : null;
+        try {
+            return getValidAccessToken();
+        } catch (Exception e) {
+            System.err.println("❌ Failed to get access token: " + e.getMessage());
+            return null;
+        }
     }
     
+    // Also add this helper method that was referenced but missing:
+    private PayPropToken getValidToken() {
+        Optional<PayPropToken> savedToken = tokenRepository.findMostRecentActiveToken();
+        if (savedToken.isPresent()) {
+            PayPropToken token = savedToken.get();
+            boolean notExpired = token.getExpiresAt() == null || 
+                            token.getExpiresAt().isAfter(LocalDateTime.now());
+            if (notExpired) {
+                return token;
+            }
+        }
+        return null;
+    }
+
     /**
      * Get PayProp user meta information (useful for debugging and display)
      */

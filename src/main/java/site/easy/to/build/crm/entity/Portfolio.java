@@ -9,8 +9,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.ArrayList;
 
-
-
 @Entity
 @Table(name = "portfolios")
 public class Portfolio {
@@ -32,10 +30,9 @@ public class Portfolio {
     private PortfolioType portfolioType;
     
     // PayProp Integration Fields - CRITICAL for two-way sync
-    // @Column(name = "payprop_tags", columnDefinition = "TEXT")
-    //private String payPropTags; // Comma-separated PayProp tag IDs
-
-    // ADD this instead:
+    @Column(name = "payprop_tags", columnDefinition = "TEXT")
+    private String payPropTags; // Keep temporarily for backward compatibility
+    
     @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<PayPropTagLink> payPropTagLinks = new ArrayList<>();
     
@@ -134,8 +131,12 @@ public class Portfolio {
     public PortfolioType getPortfolioType() { return portfolioType; }
     public void setPortfolioType(PortfolioType portfolioType) { this.portfolioType = portfolioType; }
     
+    // FIXED: Add the missing getter/setter that was referenced
     public String getPayPropTags() { return payPropTags; }
     public void setPayPropTags(String payPropTags) { this.payPropTags = payPropTags; }
+    
+    public List<PayPropTagLink> getPayPropTagLinks() { return payPropTagLinks; }
+    public void setPayPropTagLinks(List<PayPropTagLink> payPropTagLinks) { this.payPropTagLinks = payPropTagLinks; }
     
     public String getPayPropTagNames() { return payPropTagNames; }
     public void setPayPropTagNames(String payPropTagNames) { this.payPropTagNames = payPropTagNames; }
@@ -211,8 +212,12 @@ public class Portfolio {
         return "Y".equalsIgnoreCase(autoAssignNewProperties);
     }
     
+    // FIXED: Update the isSyncedWithPayProp method to handle both approaches
     public boolean isSyncedWithPayProp() {
-        return syncStatus == SyncStatus.synced && payPropTags != null && !payPropTags.trim().isEmpty();
+        // Check either the old string field or new relationship approach
+        boolean hasStringTags = payPropTags != null && !payPropTags.trim().isEmpty();
+        boolean hasTagLinks = payPropTagLinks != null && !payPropTagLinks.isEmpty();
+        return syncStatus == SyncStatus.synced && (hasStringTags || hasTagLinks);
     }
     
     // FIXED: Changed SyncStatus.error to SyncStatus.failed
@@ -246,14 +251,6 @@ public class Portfolio {
             tags.remove(tagId);
             payPropTags = tags.isEmpty() ? null : String.join(",", tags);
         }
-    }
-
-    public List<PayPropTagLink> getPayPropTagLinks() {
-        return payPropTagLinks;
-    }
-
-    public void setPayPropTagLinks(List<PayPropTagLink> payPropTagLinks) {
-        this.payPropTagLinks = payPropTagLinks;
     }
     
     @PrePersist
