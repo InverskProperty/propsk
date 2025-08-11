@@ -733,7 +733,7 @@ public class PayPropOAuth2Controller {
             @RequestParam String endpoint,
             @RequestParam(required = false) String method,
             @RequestParam(required = false) String parameters,
-            @RequestParam(required = false) String requestBody,  // ✅ ADD THIS LINE
+            @RequestParam(required = false) String requestBody,
             Authentication authentication) {
         
         if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
@@ -750,18 +750,10 @@ public class PayPropOAuth2Controller {
                 fullUrl += (endpoint.contains("?") ? "&" : "?") + parameters;
             }
             
-            result.put("request_details", Map.of(
-                "method", httpMethod.toString(),
-                "full_url", fullUrl,
-                "endpoint", endpoint,
-                "parameters", parameters != null ? parameters : "None",
-                "request_body", requestBody != null ? requestBody : "None",
-                "content_type", headers.getContentType() != null ? headers.getContentType().toString() : "None"  // ✅ ADD THIS LINE
-            ));
-            
+            // ✅ MOVE THIS BEFORE request_details
             HttpHeaders headers = createAuthorizedHeadersSafe();
             
-            // ✅ ADD THIS SECTION - Handle request body
+            // Handle request body
             HttpEntity<?> request;
             if (requestBody != null && !requestBody.trim().isEmpty() && 
                 (httpMethod == HttpMethod.POST || httpMethod == HttpMethod.PUT || httpMethod == HttpMethod.PATCH)) {
@@ -769,14 +761,21 @@ public class PayPropOAuth2Controller {
                 // For tag application, we need JSON content type
                 if (endpoint.contains("/tags/entities/")) {
                     headers.setContentType(MediaType.APPLICATION_JSON);
-                    request = new HttpEntity<>(requestBody, headers);
-                } else {
-                    request = new HttpEntity<>(requestBody, headers);
                 }
+                request = new HttpEntity<>(requestBody, headers);
             } else {
                 request = new HttpEntity<>(headers);
             }
-            // ✅ END OF NEW SECTION
+            
+            // ✅ NOW request_details can access headers
+            result.put("request_details", Map.of(
+                "method", httpMethod.toString(),
+                "full_url", fullUrl,
+                "endpoint", endpoint,
+                "parameters", parameters != null ? parameters : "None",
+                "request_body", requestBody != null ? requestBody : "None",
+                "content_type", headers.getContentType() != null ? headers.getContentType().toString() : "None"
+            ));
             
             ResponseEntity<Map> response = restTemplate.exchange(fullUrl, httpMethod, request, Map.class);
             
