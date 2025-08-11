@@ -43,11 +43,6 @@ public interface PayPropTagLinkRepository extends JpaRepository<PayPropTagLink, 
     
     List<PayPropTagLink> findByTagNameContainingIgnoreCase(String tagName);
     
-    // Find by external ID
-    Optional<PayPropTagLink> findByTagExternalId(String tagExternalId);
-    
-    List<PayPropTagLink> findByTagExternalIdIsNotNull();
-    
     // Sync-related queries
     @Query("SELECT ptl FROM PayPropTagLink ptl WHERE ptl.syncedAt IS NULL")
     List<PayPropTagLink> findNeverSynced();
@@ -92,8 +87,6 @@ public interface PayPropTagLinkRepository extends JpaRepository<PayPropTagLink, 
     boolean existsByPortfolioAndTagId(Portfolio portfolio, String tagId);
     
     boolean existsByPortfolioIdAndTagId(Long portfolioId, String tagId);
-    
-    boolean existsByTagExternalId(String tagExternalId);
     
     // Advanced queries for sync optimization
     @Query("SELECT DISTINCT ptl.tagId FROM PayPropTagLink ptl WHERE ptl.syncStatus = 'SYNCED'")
