@@ -7,6 +7,9 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
+
+
 
 @Entity
 @Table(name = "portfolios")
@@ -243,6 +246,14 @@ public class Portfolio {
             tags.remove(tagId);
             payPropTags = tags.isEmpty() ? null : String.join(",", tags);
         }
+    }
+
+    public List<PayPropTagLink> getPayPropTagLinks() {
+        return payPropTagLinks;
+    }
+
+    public void setPayPropTagLinks(List<PayPropTagLink> payPropTagLinks) {
+        this.payPropTagLinks = payPropTagLinks;
     }
     
     @PrePersist

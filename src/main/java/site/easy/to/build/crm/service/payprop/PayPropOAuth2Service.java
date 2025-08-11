@@ -550,6 +550,11 @@ public class PayPropOAuth2Service {
         return info;
     }
 
+    public String getAccessToken() {
+        PayPropToken token = getValidToken();
+        return token != null ? token.getAccessToken() : null;
+    }
+    
     /**
      * Get PayProp user meta information (useful for debugging and display)
      */

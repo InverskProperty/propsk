@@ -25,12 +25,17 @@ import site.easy.to.build.crm.entity.UserProfile;
 import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.service.user.UserProfileService;
 import site.easy.to.build.crm.service.role.RoleService;
+import site.easy.to.build.crm.entity.PropertyPortfolioAssignment;
+import site.easy.to.build.crm.entity.SyncStatus;
+import site.easy.to.build.crm.repository.PropertyPortfolioAssignmentRepository;
+
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -52,6 +57,12 @@ public class PayPropSyncController {
     private final PayPropSyncService payPropSyncService;
     private final AuthenticationUtils authenticationUtils;
     
+    @Autowired
+    private PropertyPortfolioAssignmentRepository propertyPortfolioAssignmentRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Autowired(required = false)
     private PayPropRealTimeSyncService realTimeSyncService;
 
@@ -843,70 +854,6 @@ public class PayPropSyncController {
             "success", true,
             "message", "Sync status check completed"
         ));
-    }
-
-    @PostMapping("/emergency-tag-apply")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> emergencyTagApply(
-            @RequestParam String propertyId,
-            @RequestParam String tagId,
-            Authentication authentication) {
-        
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            // Check authorization
-            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
-            }
-            
-            if (!oAuth2Service.hasValidTokens()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "PayProp not authorized"));
-            }
-            
-            // Call PayProp API directly
-            String url = "https://api.payprop.com/api/agency/v1.1/tags/entities/property/" + propertyId;
-            
-            // Build request body according to API spec
-            Map<String, Object> body = new HashMap<>();
-            body.put("tags", Arrays.asList(tagId)); // Can be tag ID or tag name
-            
-            // Create headers
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(oAuth2Service.getAccessToken());
-            
-            // Make the request
-            RestTemplate restTemplate = new RestTemplate();
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
-            
-            ResponseEntity<Map> payPropResponse = restTemplate.exchange(
-                url, 
-                HttpMethod.POST, 
-                request, 
-                Map.class
-            );
-            
-            response.put("success", payPropResponse.getStatusCode().is2xxSuccessful());
-            response.put("payPropResponse", payPropResponse.getBody());
-            response.put("message", "Tag applied to property in PayProp");
-            
-            // Update database
-            if (payPropResponse.getStatusCode().is2xxSuccessful()) {
-                // Mark as synced in database
-                jdbcTemplate.update(
-                    "UPDATE property_portfolio_assignments SET sync_status = 'synced', last_sync_at = NOW() " +
-                    "WHERE property_id = 99 AND portfolio_id = 21"
-                );
-            }
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("error", e.getMessage());
-            return ResponseEntity.ok(response);
-        }
     }
 
     // REPLACE the getCurrentUserId method in PayPropSyncController.java with this simple version:
