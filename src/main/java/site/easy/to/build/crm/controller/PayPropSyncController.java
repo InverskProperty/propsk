@@ -31,6 +31,12 @@ import site.easy.to.build.crm.service.role.RoleService;
 import site.easy.to.build.crm.entity.PropertyPortfolioAssignment;
 import site.easy.to.build.crm.entity.SyncStatus;
 import site.easy.to.build.crm.repository.PropertyPortfolioAssignmentRepository;
+import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.Portfolio;
+import site.easy.to.build.crm.service.PropertyService;
+import site.easy.to.build.crm.service.PortfolioService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
 import org.springframework.http.HttpEntity;
@@ -88,6 +94,15 @@ public class PayPropSyncController {
         this.payPropSyncService = payPropSyncService;
         this.authenticationUtils = authenticationUtils;
     }
+
+    @Autowired
+    private PropertyService propertyService;
+
+    @Autowired
+    private PortfolioService portfolioService;
+
+    // Add logger
+    private static final Logger log = LoggerFactory.getLogger(PayPropSyncController.class);
 
     // ===== DASHBOARD AND STATUS =====
 

@@ -40,6 +40,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import org.springframework.http.MediaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 import java.util.HashMap;
@@ -64,6 +66,8 @@ public class PayPropOAuth2Controller {
     private final RestTemplate restTemplate;
     private final AuthenticationUtils authenticationUtils;  // ADD THIS
     private final String payPropApiBase = "https://ukapi.staging.payprop.com/api/agency/v1.1";
+    private static final Logger log = LoggerFactory.getLogger(PayPropOAuth2Controller.class);
+
     
     // Services
     @Autowired
