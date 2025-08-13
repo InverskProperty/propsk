@@ -24,8 +24,10 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.Optional;
+import java.util.Optional;
 
 import site.easy.to.build.crm.controller.PortfolioController.PortfolioWithAnalytics;
+import site.easy.to.build.crm.entity.SyncStatus;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.repository.PropertyPortfolioAssignmentRepository;
@@ -1193,19 +1195,48 @@ public class PortfolioController {
             
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             
-            // Remove PayProp tags BEFORE removing from portfolio
+            // ✅ PayProp sync using corrected tag application format
             if (payPropEnabled && payPropSyncService != null && 
                 portfolio.isSyncedWithPayProp() && property.getPayPropId() != null) {
                 
-                List<String> payPropTags = portfolio.getPayPropTagList();
-                for (String tagId : payPropTags) {
-                    try {
-                        payPropSyncService.removeTagFromProperty(property.getPayPropId(), tagId);
-                        System.out.println("🏷️ [FIXED] PayProp tag " + tagId + " removed from property " + property.getPayPropId());
-                    } catch (Exception e) {
-                        log.warn("Failed to remove PayProp tag {} from property {}: {}", 
-                                tagId, property.getPayPropId(), e.getMessage());
-                        // Continue with removal even if PayProp sync fails
+            try {
+                payPropSyncService.applyTagToProperty(
+                    property.getPayPropId(), 
+                    portfolio.getPayPropTags(),
+                    portfolio.getPayPropTagNames() != null ? portfolio.getPayPropTagNames() : portfolio.getName()
+                );
+                    
+                    // Update junction table sync status on success
+                    Optional<PropertyPortfolioAssignment> assignmentOpt = 
+                        propertyPortfolioAssignmentRepository.findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
+                            propertyId, portfolioId, PortfolioAssignmentType.PRIMARY, Boolean.TRUE);
+                    
+                    if (assignmentOpt.isPresent()) {
+                        PropertyPortfolioAssignment assignment = assignmentOpt.get();
+                        assignment.setSyncStatus(SyncStatus.synced);
+                        assignment.setLastSyncAt(LocalDateTime.now());
+                        propertyPortfolioAssignmentRepository.save(assignment);
+                    }
+                    
+                    syncedCount++;
+                    System.out.println("✅ [FIXED] PayProp tag applied to property " + property.getPayPropId() + 
+                                    " using correct API format");
+                    
+                } catch (Exception e) {
+                    log.warn("Failed to apply PayProp tag to property {}: {}", 
+                        property.getPayPropId(), e.getMessage());
+                    errors.add("PayProp sync failed for property " + property.getPropertyName() + ": " + e.getMessage());
+                    
+                    // Update junction table sync status to failed
+                    Optional<PropertyPortfolioAssignment> assignmentOpt = 
+                        propertyPortfolioAssignmentRepository.findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
+                            propertyId, portfolioId, PortfolioAssignmentType.PRIMARY, Boolean.TRUE);
+                    
+                    if (assignmentOpt.isPresent()) {
+                        PropertyPortfolioAssignment assignment = assignmentOpt.get();
+                        assignment.setSyncStatus(SyncStatus.failed);
+                        assignment.setLastSyncAt(LocalDateTime.now());
+                        propertyPortfolioAssignmentRepository.save(assignment);
                     }
                 }
             }
@@ -1402,8 +1433,20 @@ public class PortfolioController {
             
             // Apply the tag
             try {
-                payPropSyncService.applyTagToProperty(propertyPayPropId, tagId);
+                // Get tag name from portfolio or use default
+                String tagName = "Unknown Tag";
+                try {
+                    List<Portfolio> portfolios = portfolioService.findByPayPropTag(tagId);
+                    if (!portfolios.isEmpty()) {
+                        Portfolio portfolio = portfolios.get(0);
+                        tagName = portfolio.getPayPropTagNames() != null ? 
+                                portfolio.getPayPropTagNames() : portfolio.getName();
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not get tag name for {}, using default", tagId);
+                }
                 
+                payPropSyncService.applyTagToProperty(propertyPayPropId, tagId, tagName);
                 // Try to update the junction table if we can find the property
                 try {
                     // Find property by PayProp ID

@@ -22,6 +22,9 @@ import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.entity.Role;
 import site.easy.to.build.crm.entity.UserProfile;
+import site.easy.to.build.crm.entity.PropertyPortfolioAssignment;
+import site.easy.to.build.crm.entity.PortfolioAssignmentType;
+import site.easy.to.build.crm.entity.SyncStatus;
 import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.service.user.UserProfileService;
 import site.easy.to.build.crm.service.role.RoleService;
@@ -29,6 +32,7 @@ import site.easy.to.build.crm.entity.PropertyPortfolioAssignment;
 import site.easy.to.build.crm.entity.SyncStatus;
 import site.easy.to.build.crm.repository.PropertyPortfolioAssignmentRepository;
 
+import java.util.Optional;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -134,53 +138,128 @@ public class PayPropSyncController {
                 return ResponseEntity.badRequest().body(Map.of("error", "PayProp not authorized"));
             }
             
-            // Use the existing PayProp sync service instead of direct API call
-            if (payPropSyncService != null) {
-                try {
-                    // Call the existing service method to apply tag
-                    // Note: This assumes the method exists or you need to add it
-                    List<String> tags = new ArrayList<>();
-                    tags.add(tagId);
+            // Get property and portfolio details
+            Property property = propertyService.findById(Long.valueOf(propertyId));
+            Portfolio portfolio = portfolioService.findById(Long.valueOf(tagId));
+            
+            if (property == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Property not found: " + propertyId));
+            }
+            
+            if (portfolio == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Portfolio not found: " + tagId));
+            }
+            
+            if (property.getPayPropId() == null || property.getPayPropId().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Property has no PayProp ID"));
+            }
+            
+            if (portfolio.getPayPropTags() == null || portfolio.getPayPropTags().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Portfolio has no PayProp tags"));
+            }
+            
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            
+            // ✅ 1. Create/update junction table record
+            try {
+                Optional<PropertyPortfolioAssignment> existingAssignment = 
+                    propertyPortfolioAssignmentRepository.findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
+                        property.getId(), 
+                        portfolio.getId(), 
+                        PortfolioAssignmentType.PRIMARY, 
+                        Boolean.TRUE
+                    );
+                
+                PropertyPortfolioAssignment assignment;
+                if (existingAssignment.isPresent()) {
+                    assignment = existingAssignment.get();
+                    assignment.setSyncStatus(SyncStatus.pending);
+                    assignment.setUpdatedAt(LocalDateTime.now());
+                } else {
+                    assignment = new PropertyPortfolioAssignment();
+                    assignment.setProperty(property);
+                    assignment.setPortfolio(portfolio);
+                    assignment.setAssignmentType(PortfolioAssignmentType.PRIMARY);
+                    assignment.setAssignedBy((long) userId);
+                    assignment.setSyncStatus(SyncStatus.pending);
+                    assignment.setIsActive(Boolean.TRUE);
+                    assignment.setNotes("Emergency tag application");
+                }
+                
+                assignment = propertyPortfolioAssignmentRepository.save(assignment);
+                response.put("assignmentId", assignment.getId());
+                response.put("databaseRecordCreated", true);
+                
+            } catch (Exception e) {
+                log.error("Failed to create junction table record: {}", e.getMessage());
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to create database record: " + e.getMessage()));
+            }
+            
+            // ✅ 2. Apply PayProp tag using CORRECTED format
+            try {
+                if (payPropSyncService != null) {
+                    // Use the corrected tag application method with proper format
+                    payPropSyncService.applyTagToProperty(
+                        property.getPayPropId(), 
+                        portfolio.getPayPropTags(),
+                        portfolio.getPayPropTagNames()
+                    );
                     
-                    // If the method doesn't exist, we need to add it to PayPropSyncService
-                    // For now, let's use a simpler approach with existing infrastructure
+                    // Update sync status on success
+                    PropertyPortfolioAssignment assignment = propertyPortfolioAssignmentRepository
+                        .findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
+                            property.getId(), portfolio.getId(), PortfolioAssignmentType.PRIMARY, Boolean.TRUE
+                        ).orElse(null);
                     
-                    response.put("propertyId", propertyId);
-                    response.put("tagId", tagId);
-                    response.put("message", "Tag application initiated");
-                    
-                    // Update the database to mark as synced
-                    // Since we don't have jdbcTemplate, update using repository
-                    List<PropertyPortfolioAssignment> assignments = 
-                        propertyPortfolioAssignmentRepository.findByPropertyIdAndIsActive(99L, Boolean.TRUE);
-                    
-                    for (PropertyPortfolioAssignment assignment : assignments) {
-                        if (assignment.getPortfolio().getId().equals(21L)) {
-                            assignment.setSyncStatus(SyncStatus.synced);
-                            assignment.setLastSyncAt(LocalDateTime.now());
-                            propertyPortfolioAssignmentRepository.save(assignment);
-                            response.put("databaseUpdated", true);
-                            break;
-                        }
+                    if (assignment != null) {
+                        assignment.setSyncStatus(SyncStatus.synced);
+                        assignment.setLastSyncAt(LocalDateTime.now());
+                        propertyPortfolioAssignmentRepository.save(assignment);
                     }
                     
-                    response.put("success", true);
+                    response.put("payPropSyncSuccess", true);
+                    response.put("message", "Emergency tag application completed successfully!");
                     
-                } catch (Exception e) {
-                    response.put("success", false);
-                    response.put("error", "Service error: " + e.getMessage());
+                } else {
+                    response.put("payPropSyncSuccess", false);
+                    response.put("message", "Database record created but PayProp service unavailable");
                 }
-            } else {
-                response.put("success", false);
-                response.put("error", "PayProp sync service not available");
+                
+            } catch (Exception e) {
+                log.error("PayProp tag application failed: {}", e.getMessage());
+                
+                // Update sync status to failed
+                PropertyPortfolioAssignment assignment = propertyPortfolioAssignmentRepository
+                    .findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
+                        property.getId(), portfolio.getId(), PortfolioAssignmentType.PRIMARY, Boolean.TRUE
+                    ).orElse(null);
+                
+                if (assignment != null) {
+                    assignment.setSyncStatus(SyncStatus.failed);
+                    assignment.setLastSyncAt(LocalDateTime.now());
+                    propertyPortfolioAssignmentRepository.save(assignment);
+                }
+                
+                response.put("payPropSyncSuccess", false);
+                response.put("message", "Database record created but PayProp sync failed: " + e.getMessage());
             }
+            
+            response.put("success", true);
+            response.put("propertyId", propertyId);
+            response.put("portfolioId", tagId);
+            response.put("propertyName", property.getPropertyName());
+            response.put("portfolioName", portfolio.getName());
+            response.put("payPropPropertyId", property.getPayPropId());
+            response.put("payPropTag", portfolio.getPayPropTags());
             
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
+            log.error("Emergency tag apply failed: {}", e.getMessage(), e);
             response.put("success", false);
-            response.put("error", e.getMessage());
-            return ResponseEntity.ok(response);
+            response.put("error", "Emergency tag application failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
 

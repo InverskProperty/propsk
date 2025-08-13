@@ -92,7 +92,7 @@ public class PayPropPortfolioSyncService {
             for (Property property : properties) {
                 if (property.getPayPropId() != null) {
                     try {
-                        applyTagToProperty(property.getPayPropId(), tag.getId());
+                        applyTagToProperty(property.getPayPropId(), tag.getId(), tag.getName());
                         propertiesTagged++;
                     } catch (Exception e) {
                         log.warn("Failed to apply tag {} to property {}: {}", tag.getId(), property.getPayPropId(), e.getMessage());
@@ -504,16 +504,25 @@ public class PayPropPortfolioSyncService {
     }
     
 
-    /**
-     * Apply tag to property using PayProp API - PUBLIC METHOD for controller access
-     * Uses the correct PayProp endpoint: POST /tags/entities/property/{property_id}
-     */
     public void applyTagToProperty(String payPropPropertyId, String tagId) throws Exception {
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
         
-        // PayProp expects an array of tag IDs for bulk tagging
-        List<String> tagIds = List.of(tagId);
-        HttpEntity<List<String>> request = new HttpEntity<>(tagIds, headers);
+        // ✅ CORRECT FORMAT - PayProp requires this specific structure
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("tags", List.of(tagId));
+        
+        // Try to get tag name for better API compatibility
+        try {
+            PayPropTagDTO tag = getPayPropTag(tagId);
+            if (tag != null && tag.getName() != null) {
+                requestBody.put("names", List.of(tag.getName()));
+            }
+        } catch (Exception e) {
+            log.warn("Could not retrieve tag name for {}, proceeding with ID only", tagId);
+        }
+        
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
         
         try {
             ResponseEntity<Map> response = restTemplate.postForEntity(
@@ -522,7 +531,7 @@ public class PayPropPortfolioSyncService {
                 Map.class
             );
             
-            if (response.getStatusCode() == HttpStatus.OK) {
+            if (response.getStatusCode().is2xxSuccessful()) {
                 log.info("Successfully applied PayProp tag {} to property {}", tagId, payPropPropertyId);
             } else {
                 throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
@@ -530,6 +539,28 @@ public class PayPropPortfolioSyncService {
         } catch (HttpClientErrorException e) {
             log.error("Failed to apply tag {} to property {}: {}", tagId, payPropPropertyId, e.getResponseBodyAsString());
             throw new RuntimeException("Failed to apply tag to property: " + e.getResponseBodyAsString(), e);
+        }
+    }
+
+    // Alternative method for name-only approach
+    public void applyTagToPropertyByName(String payPropPropertyId, String tagName) throws Exception {
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        
+        // ✅ Names-only format also works
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("names", List.of(tagName));
+        
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+        
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+            payPropApiBase + "/tags/entities/property/" + payPropPropertyId, 
+            request, 
+            Map.class
+        );
+        
+        if (response.getStatusCode().is2xxSuccessful()) {
+            log.info("Successfully applied PayProp tag {} to property {}", tagName, payPropPropertyId);
         }
     }
 
@@ -716,7 +747,7 @@ public class PayPropPortfolioSyncService {
         
         for (String propertyId : payPropPropertyIds) {
             try {
-                applyTagToProperty(propertyId, tagId);
+                applyTagToProperty(propertyId, tagId, tagName);
                 successCount++;
             } catch (Exception e) {
                 failureCount++;
@@ -732,9 +763,6 @@ public class PayPropPortfolioSyncService {
         
         return result;
     }
-
-
-
 
 
     /**

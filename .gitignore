@@ -45,3 +45,4 @@ backup_*
 # Any other sensitive files
 credentials.json
 secrets.*
+src/main/resources/application-local.properties
