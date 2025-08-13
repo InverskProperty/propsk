@@ -33,8 +33,8 @@ import site.easy.to.build.crm.entity.SyncStatus;
 import site.easy.to.build.crm.repository.PropertyPortfolioAssignmentRepository;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.Portfolio;
-import site.easy.to.build.crm.service.PropertyService;
-import site.easy.to.build.crm.service.PortfolioService;
+import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
