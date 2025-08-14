@@ -2560,6 +2560,8 @@ public class PortfolioController {
             @RequestParam("propertyIds") List<Long> propertyIds,
             Authentication authentication) {
         
+        System.out.println("🔥 V2 METHOD CALLED! Portfolio: " + portfolioId + ", Properties: " + propertyIds);
+        
         Map<String, Object> response = new HashMap<>();
         List<String> errors = new ArrayList<>();
         int assignedCount = 0;
