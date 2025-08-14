@@ -75,6 +75,9 @@ public class PortfolioController {
     @Autowired
     private PortfolioAssignmentService portfolioAssignmentService;
 
+    @Autowired(required = false)
+    private PayPropOAuth2Service oAuth2Service;  // Add this line
+
     @Autowired
     private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
     
@@ -2562,7 +2565,7 @@ public class PortfolioController {
         
         System.out.println("🔥 V2 METHOD CALLED! Portfolio: " + portfolioId + ", Properties: " + propertyIds);
         
-        // 🔥 ADD AUTHORIZATION CHECK FIRST (BEFORE ANYTHING ELSE)
+        // 🔥 AUTHORIZATION CHECK FIRST
         if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
             !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
             Map<String, Object> response = new HashMap<>();
@@ -2577,19 +2580,15 @@ public class PortfolioController {
         int syncedCount = 0;
         
         try {
-            // Check authorization (additional safety check)
-            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Access denied"));
-            }
-            
-            if (!oAuth2Service.hasValidTokens()) {
+            // OAuth check (now available)
+            if (oAuth2Service != null && !oAuth2Service.hasValidTokens()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "PayProp not authorized"));
             }
             
             // Get user ID
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             
-            // Load portfolio once
+            // Rest of your method exactly as before...
             Portfolio portfolio = portfolioService.findById(portfolioId);
             if (portfolio == null) {
                 response.put("success", false);
@@ -2629,7 +2628,7 @@ public class PortfolioController {
                     assignment = propertyPortfolioAssignmentRepository.save(assignment);
                     assignedCount++;
                     
-                    // Apply PayProp tag if available - EXACT SAME AS EMERGENCY
+                    // Apply PayProp tag if available
                     if (property.getPayPropId() != null && 
                         portfolio.getPayPropTags() != null && 
                         payPropPortfolioSyncService != null) {
