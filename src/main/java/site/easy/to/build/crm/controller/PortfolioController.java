@@ -45,6 +45,7 @@ import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.service.payprop.PayPropApiClient;
 
 
 
@@ -82,6 +83,12 @@ public class PortfolioController {
     
     @Value("${payprop.enabled:false}")
     private boolean payPropEnabled;
+
+    @Autowired(required = false)
+    private PayPropPortfolioSyncService payPropPortfolioSyncService;
+
+    @Autowired(required = false)
+    private PayPropApiClient payPropApiClient;
 
     @Autowired
     private PropertyPortfolioAssignmentRepository propertyPortfolioAssignmentRepository;
