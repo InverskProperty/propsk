@@ -284,7 +284,7 @@
 
                             <div th:unless="${#lists.isEmpty(portfolios ?: {})}" class="row">
                                 <div th:each="portfolioData : ${portfolios}" class="col-lg-6 col-xl-4 mb-4">
-                                    <div th:class="'card portfolio-card h-100 ' + ${portfolioData.portfolio.isShared == 'Y' ? 'shared' : (portfolioData.portfolio.isSyncedWithPayProp() ? 'synced' : 'pending')}">
+                                    <div th:class="'card portfolio-card h-100 ' + ${portfolioData.portfolio.isShared == 'Y' ? 'shared' : ((portfolioData.portfolio.payPropTags != null && !portfolioData.portfolio.payPropTags.isEmpty()) ? 'synced' : 'pending')}">
                                         <div class="card-header d-flex justify-content-between align-items-center">
                                             <h6 class="mb-0" th:text="${portfolioData.portfolio.name}">Portfolio Name</h6>
                                             <div>
@@ -325,11 +325,11 @@
                                             <!-- PayProp Status -->
                                             <div class="mb-3">
                                                 <strong>PayProp:</strong>
-                                                <span th:if="${portfolioData.portfolio.isSyncedWithPayProp()}" 
+                                                <span th:if="${(portfolioData.portfolio.payPropTags != null && !portfolioData.portfolio.payPropTags.isEmpty())}" 
                                                       class="badge badge-success">
                                                     <i class="fas fa-sync"></i> Synced
                                                 </span>
-                                                <span th:unless="${portfolioData.portfolio.isSyncedWithPayProp()}" 
+                                                <span th:unless="${(portfolioData.portfolio.payPropTags != null && !portfolioData.portfolio.payPropTags.isEmpty())}" 
                                                       class="badge badge-warning">
                                                     <i class="fas fa-clock"></i> Pending
                                                 </span>

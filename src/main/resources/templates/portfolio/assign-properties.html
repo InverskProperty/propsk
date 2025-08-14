@@ -109,10 +109,10 @@
                         <button class="btn btn-info" onclick="toggleAssignmentMode()" th:if="${isPortfolioSpecific}">
                             <i class="fas fa-exchange-alt"></i> Change Mode
                         </button>
-                        <a th:href="${isPortfolioSpecific ? '/portfolio/' + targetPortfolio.id : '/portfolio/all'}" 
+                        <a th:href="${(isPortfolioSpecific != null && isPortfolioSpecific) ? '/portfolio/' + targetPortfolio?.id : '/portfolio/all'}" 
                            class="btn btn-secondary">
                             <i class="fas fa-arrow-left"></i> 
-                            <span th:text="${isPortfolioSpecific ? 'Back to Portfolio' : 'Back to Portfolios'}">Back</span>
+                            <span th:text="${(isPortfolioSpecific != null && isPortfolioSpecific) ? 'Back to Portfolio' : 'Back to Portfolios'}">Back</span>
                         </a>
                     </div>
                 </div>
