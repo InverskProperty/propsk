@@ -38,6 +38,7 @@ import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.service.payprop.PayPropPortfolioSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
+import site.easy.to.build.crm.service.portfolio.PortfolioAssignmentService;
 import site.easy.to.build.crm.service.payprop.SyncResult;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
