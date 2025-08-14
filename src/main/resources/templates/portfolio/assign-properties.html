@@ -539,91 +539,66 @@ function drop(event) {
     }
 }
 
+// Function to assign properties to portfolio
+function assignPropertiesToPortfolio(portfolioId, propertyIds) {
+    return fetch(`/portfolio/${portfolioId}/assign-properties-v2?propertyIds=${propertyIds.join(',')}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Network response was not ok');
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            alert(`Successfully assigned ${data.assignedCount} properties. PayProp synced: ${data.syncedCount}`);
+            location.reload(); // Refresh to show updated assignments
+        } else {
+            alert('Assignment failed: ' + (data.error || 'Unknown error'));
+        }
+        return data;
+    });
+}
+
 function assignPropertyToPortfolio(propertyId, portfolioId) {
     console.log('=== ASSIGNMENT DEBUG ===');
     console.log('Property ID:', propertyId);
     console.log('Portfolio ID:', portfolioId);
     
-    // Get CSRF token with enhanced error handling
-    const csrfMeta = document.querySelector('meta[name="_csrf"]');
-    const csrfHeaderMeta = document.querySelector('meta[name="_csrf_header"]');
-    
-    if (!csrfMeta || !csrfHeaderMeta) {
-        console.error('CSRF meta tags not found');
-        showError('Configuration Error', 'CSRF protection not configured properly');
-        return;
-    }
-    
-    const csrfToken = csrfMeta.getAttribute('content');
-    const csrfHeader = csrfHeaderMeta.getAttribute('content');
-    
-    console.log('CSRF Token:', csrfToken);
-    console.log('CSRF Header:', csrfHeader);
-    
-    const url = '/portfolio/' + portfolioId + '/assign-properties';
-    console.log('Request URL:', url);
-    
-    // Create form data
-    const formData = new URLSearchParams();
-    formData.append('propertyIds', propertyId);
-    
-    console.log('Request body:', formData.toString());
-    
-    // Show loading state
-    createToast('info', 'Processing', 'Assigning property to portfolio...');
-    
-    fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRF-TOKEN': csrfToken  // Fixed: Use hardcoded header name
-        },
-        body: formData.toString()
-    })
-    .then(response => {
-        console.log('Response status:', response.status);
-        console.log('Response ok:', response.ok);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        return response.json();
-    })
-    .then(data => {
-        console.log('Response data:', data);
-        
-        if (data.success) {
-            // Remove the property from unassigned list
-            const propertyElement = document.querySelector('[data-property-id="' + propertyId + '"]');
-            if (propertyElement) {
-                propertyElement.style.opacity = '1';
-                propertyElement.style.transition = 'all 0.5s ease';
-                propertyElement.style.transform = 'scale(0)';
-                setTimeout(() => propertyElement.remove(), 500);
+    // Use the new function for single property assignment
+    assignPropertiesToPortfolio(portfolioId, [propertyId])
+        .then(data => {
+            if (data.success) {
+                // Remove the property from unassigned list
+                const propertyElement = document.querySelector('[data-property-id="' + propertyId + '"]');
+                if (propertyElement) {
+                    propertyElement.style.opacity = '1';
+                    propertyElement.style.transition = 'all 0.5s ease';
+                    propertyElement.style.transform = 'scale(0)';
+                    setTimeout(() => propertyElement.remove(), 500);
+                }
+                
+                showSuccess('Success!', 'Property assigned successfully');
+                
+                // If portfolio-specific and assigned to target portfolio, show celebration
+                if (isPortfolioSpecific && portfolioId == targetPortfolioId) {
+                    setTimeout(() => {
+                        showSuccess('🎉 Excellent!', 'Property added to your target portfolio!');
+                    }, 1000);
+                }
+                
+                // Update statistics after a delay
+                setTimeout(() => updateStatistics(), 2000);
             }
-            
-            showSuccess('Success!', 'Property assigned successfully');
-            
-            // If portfolio-specific and assigned to target portfolio, show celebration
-            if (isPortfolioSpecific && portfolioId == targetPortfolioId) {
-                setTimeout(() => {
-                    showSuccess('🎉 Excellent!', 'Property added to your target portfolio!');
-                }, 1000);
-            }
-            
-            // Update statistics after a delay
-            setTimeout(() => updateStatistics(), 2000);
-            
-        } else {
-            console.error('Assignment failed:', data);
-            showError('Assignment Failed', data.message || 'Unknown error occurred');
-        }
-    })
-    .catch(error => {
-        console.error('Network/Parse error:', error);
-        showError('Network Error', 'Failed to assign property: ' + error.message);
-    });
+        })
+        .catch(error => {
+            console.error('Assignment error:', error);
+            showError('Network Error', 'Failed to assign property: ' + error.message);
+        });
 }
 
 // Enhanced Bulk Assignment Functions

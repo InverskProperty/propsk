@@ -2574,11 +2574,8 @@ public class PortfolioController {
             if (portfolio == null) {
                 response.put("success", false);
                 response.put("error", "Portfolio not found");
-                return ResponseEntity.ok(response);
+                return ResponseEntity.badRequest().body(response);
             }
-            
-            // Get PayProp tag
-            String payPropTag = portfolio.getPayPropTags();
             
             for (Long propertyId : propertyIds) {
                 try {
@@ -2589,54 +2586,64 @@ public class PortfolioController {
                     }
                     
                     // Check if already assigned
-                    boolean exists = propertyPortfolioAssignmentRepository
-                        .findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
-                            propertyId, portfolioId, PortfolioAssignmentType.PRIMARY, Boolean.TRUE)
-                        .isPresent();
+                    Optional<PropertyPortfolioAssignment> existing = 
+                        propertyPortfolioAssignmentRepository
+                            .findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
+                                propertyId, portfolioId, PortfolioAssignmentType.PRIMARY, Boolean.TRUE);
                     
-                    if (!exists) {
-                        // Create assignment (same as emergency endpoint)
-                        PropertyPortfolioAssignment assignment = new PropertyPortfolioAssignment();
-                        assignment.setProperty(property);
-                        assignment.setPortfolio(portfolio);
-                        assignment.setAssignmentType(PortfolioAssignmentType.PRIMARY);
-                        assignment.setAssignedBy((long) userId);
-                        assignment.setSyncStatus(SyncStatus.pending);
-                        assignment.setIsActive(Boolean.TRUE);
-                        assignment.setAssignedAt(LocalDateTime.now());
-                        assignment = propertyPortfolioAssignmentRepository.save(assignment);
-                        assignedCount++;
-                        
-                        // Apply PayProp tag if available
-                        if (property.getPayPropId() != null && payPropTag != null && payPropPortfolioSyncService != null) {
-                            try {
-                                payPropPortfolioSyncService.applyTagToProperty(
-                                    property.getPayPropId(),
-                                    payPropTag
-                                );
-                                
-                                assignment.setSyncStatus(SyncStatus.synced);
-                                assignment.setLastSyncAt(LocalDateTime.now());
-                                propertyPortfolioAssignmentRepository.save(assignment);
-                                syncedCount++;
-                            } catch (Exception e) {
-                                assignment.setSyncStatus(SyncStatus.failed);
-                                propertyPortfolioAssignmentRepository.save(assignment);
-                                errors.add("PayProp sync failed for property " + propertyId);
-                            }
+                    if (existing.isPresent()) {
+                        errors.add("Property " + propertyId + " already assigned");
+                        continue;
+                    }
+                    
+                    // Create assignment - EXACT SAME AS EMERGENCY ENDPOINT
+                    PropertyPortfolioAssignment assignment = new PropertyPortfolioAssignment();
+                    assignment.setProperty(property);
+                    assignment.setPortfolio(portfolio);
+                    assignment.setAssignmentType(PortfolioAssignmentType.PRIMARY);
+                    assignment.setAssignedBy((long) userId);
+                    assignment.setSyncStatus(SyncStatus.pending);
+                    assignment.setIsActive(Boolean.TRUE);
+                    assignment.setAssignedAt(LocalDateTime.now());
+                    assignment.setNotes("Assigned via portfolio UI");
+                    assignment = propertyPortfolioAssignmentRepository.save(assignment);
+                    assignedCount++;
+                    
+                    // Apply PayProp tag if available
+                    if (property.getPayPropId() != null && 
+                        portfolio.getPayPropTags() != null && 
+                        payPropPortfolioSyncService != null) {
+                        try {
+                            payPropPortfolioSyncService.applyTagToProperty(
+                                property.getPayPropId(),
+                                portfolio.getPayPropTags()
+                            );
+                            
+                            assignment.setSyncStatus(SyncStatus.synced);
+                            assignment.setLastSyncAt(LocalDateTime.now());
+                            propertyPortfolioAssignmentRepository.save(assignment);
+                            syncedCount++;
+                        } catch (Exception e) {
+                            log.warn("PayProp sync failed for property {}: {}", propertyId, e.getMessage());
+                            assignment.setSyncStatus(SyncStatus.failed);
+                            propertyPortfolioAssignmentRepository.save(assignment);
                         }
                     }
                 } catch (Exception e) {
                     errors.add("Property " + propertyId + ": " + e.getMessage());
+                    log.error("Failed to assign property {}: {}", propertyId, e.getMessage());
                 }
             }
             
-            response.put("success", errors.isEmpty());
+            response.put("success", assignedCount > 0);
             response.put("assignedCount", assignedCount);
             response.put("syncedCount", syncedCount);
             response.put("errors", errors);
+            response.put("message", String.format("Assigned %d properties, %d synced to PayProp", 
+                                                assignedCount, syncedCount));
             
         } catch (Exception e) {
+            log.error("Assignment failed: {}", e.getMessage(), e);
             response.put("success", false);
             response.put("error", e.getMessage());
         }
@@ -2644,33 +2651,66 @@ public class PortfolioController {
         return ResponseEntity.ok(response);
     }
     
-    /**
-     * NEW: Remove property from portfolio
-     */
-    @PostMapping("/{portfolioId}/remove-property-v2/{propertyId}")  // Using v2 to not conflict
+    @PostMapping("/{portfolioId}/remove-property-v2/{propertyId}")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> removePropertyFromPortfolioV2(
             @PathVariable("portfolioId") Long portfolioId,
             @PathVariable("propertyId") Long propertyId,
             Authentication authentication) {
         
+        Map<String, Object> response = new HashMap<>();
+        
         try {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             
-            portfolioAssignmentService.removePropertyFromPortfolio(
-                propertyId, portfolioId, (long) userId);
+            // Find the assignment
+            Optional<PropertyPortfolioAssignment> assignmentOpt = 
+                propertyPortfolioAssignmentRepository
+                    .findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
+                        propertyId, portfolioId, PortfolioAssignmentType.PRIMARY, Boolean.TRUE);
             
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "Property removed successfully"
-            ));
+            if (!assignmentOpt.isPresent()) {
+                response.put("success", false);
+                response.put("error", "Assignment not found");
+                return ResponseEntity.ok(response);
+            }
+            
+            PropertyPortfolioAssignment assignment = assignmentOpt.get();
+            Property property = assignment.getProperty();
+            Portfolio portfolio = assignment.getPortfolio();
+            
+            // Deactivate assignment
+            assignment.setIsActive(Boolean.FALSE);
+            assignment.setUpdatedAt(LocalDateTime.now());
+            assignment.setUpdatedBy((long) userId);
+            propertyPortfolioAssignmentRepository.save(assignment);
+            
+            // Remove PayProp tag if synced
+            if (property.getPayPropId() != null && 
+                portfolio.getPayPropTags() != null && 
+                payPropPortfolioSyncService != null) {
+                try {
+                    payPropPortfolioSyncService.removeTagFromProperty(
+                        property.getPayPropId(),
+                        portfolio.getPayPropTags()
+                    );
+                    response.put("payPropSyncRemoved", true);
+                } catch (Exception e) {
+                    log.warn("Failed to remove PayProp tag: {}", e.getMessage());
+                    response.put("payPropSyncRemoved", false);
+                }
+            }
+            
+            response.put("success", true);
+            response.put("message", "Property removed from portfolio");
             
         } catch (Exception e) {
-            log.error("Failed to remove property {} from portfolio {}: {}", 
-                propertyId, portfolioId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("success", false, "message", e.getMessage()));
+            log.error("Removal failed: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("error", e.getMessage());
         }
+        
+        return ResponseEntity.ok(response);
     }
     
     /**
