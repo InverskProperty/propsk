@@ -71,6 +71,9 @@ public class PortfolioController {
     private CustomerService customerService;
 
     @Autowired
+    private PortfolioAssignmentService portfolioAssignmentService;
+
+    @Autowired
     private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
     
     @Autowired(required = false)
@@ -1145,140 +1148,6 @@ public class PortfolioController {
         }
     }
 
-    @PostMapping("/{portfolioId}/remove-property/{propertyId}")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> removePropertyFromPortfolio(
-            @PathVariable("portfolioId") Long portfolioId,
-            @PathVariable("propertyId") Long propertyId,
-            Authentication authentication) {
-        
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            if (!canUserEditPortfolio(portfolioId, authentication)) {
-                response.put("success", false);
-                response.put("message", "Access denied");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
-            }
-            
-            Property property = propertyService.findById(propertyId);
-            if (property == null) {
-                response.put("success", false);
-                response.put("message", "Property not found");
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-            }
-            
-            Portfolio portfolio = portfolioService.findById(portfolioId);
-            if (portfolio == null) {
-                response.put("success", false);
-                response.put("message", "Portfolio not found");
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-            }
-            
-            // ✅ FIXED: Validate property is actually in this portfolio before removing
-            try {
-                List<Property> portfolioProperties = portfolioService.getPropertiesForPortfolio(portfolioId);
-                boolean propertyInPortfolio = portfolioProperties.stream()
-                    .anyMatch(p -> p.getId().equals(propertyId));
-                
-                if (!propertyInPortfolio) {
-                    response.put("success", false);
-                    response.put("message", "Property is not assigned to this portfolio");
-                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
-                }
-            } catch (Exception e) {
-                System.err.println("❌ Error checking property assignment: " + e.getMessage());
-                response.put("success", false);
-                response.put("message", "Error validating property assignment");
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-            }
-            
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
-            
-            // ✅ FIXED: Declare missing variables
-            int syncedCount = 0;
-            List<String> errors = new ArrayList<>();
-            
-            // ✅ PayProp sync using corrected tag application format
-            if (payPropEnabled && payPropSyncService != null && 
-                portfolio.isSyncedWithPayProp() && property.getPayPropId() != null) {
-                
-                try {
-                    // ✅ FIXED: Remove third parameter - method only accepts 2
-                    payPropSyncService.applyTagToProperty(
-                        property.getPayPropId(), 
-                        portfolio.getPayPropTags()
-                    );
-                    
-                    // Update junction table sync status on success
-                    Optional<PropertyPortfolioAssignment> assignmentOpt = 
-                        propertyPortfolioAssignmentRepository.findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
-                            propertyId, portfolioId, PortfolioAssignmentType.PRIMARY, Boolean.TRUE);
-                    
-                    if (assignmentOpt.isPresent()) {
-                        PropertyPortfolioAssignment assignment = assignmentOpt.get();
-                        assignment.setSyncStatus(SyncStatus.synced);
-                        assignment.setLastSyncAt(LocalDateTime.now());
-                        propertyPortfolioAssignmentRepository.save(assignment);
-                    }
-                    
-                    syncedCount++;
-                    System.out.println("✅ [FIXED] PayProp tag applied to property " + property.getPayPropId() + 
-                                    " using correct API format");
-                    
-                } catch (Exception e) {
-                    log.warn("Failed to apply PayProp tag to property {}: {}", 
-                        property.getPayPropId(), e.getMessage());
-                    errors.add("PayProp sync failed for property " + property.getPropertyName() + ": " + e.getMessage());
-                    
-                    // Update junction table sync status to failed
-                    Optional<PropertyPortfolioAssignment> assignmentOpt = 
-                        propertyPortfolioAssignmentRepository.findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
-                            propertyId, portfolioId, PortfolioAssignmentType.PRIMARY, Boolean.TRUE);
-                    
-                    if (assignmentOpt.isPresent()) {
-                        PropertyPortfolioAssignment assignment = assignmentOpt.get();
-                        assignment.setSyncStatus(SyncStatus.failed);
-                        assignment.setLastSyncAt(LocalDateTime.now());
-                        propertyPortfolioAssignmentRepository.save(assignment);
-                    }
-                }
-            }
-            
-            // ✅ FIXED: Use junction table removal method instead of direct FK
-            try {
-                portfolioService.removePropertyFromPortfolio(propertyId, portfolioId, (long) userId);
-                System.out.println("✅ [FIXED] Property " + propertyId + " removed using junction table method");
-            } catch (Exception e) {
-                System.err.println("❌ Junction table removal failed: " + e.getMessage());
-                
-                // ⚠️ FALLBACK: If junction table method fails, try direct FK removal
-                try {
-                    property.setPortfolio(null);
-                    property.setPortfolioAssignmentDate(null);
-                    propertyService.save(property);
-                    System.out.println("⚠️ [FALLBACK] Used direct FK removal for property " + propertyId);
-                } catch (Exception e2) {
-                    System.err.println("❌ Both removal methods failed: " + e2.getMessage());
-                    response.put("success", false);
-                    response.put("message", "Failed to remove property from portfolio");
-                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-                }
-            }
-            
-            response.put("success", true);
-            response.put("message", "Property removed from portfolio successfully");
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            System.err.println("❌ Property removal failed: " + e.getMessage());
-            response.put("success", false);
-            response.put("message", "Failed to remove property: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-        }
-    }
-
     /**
      * Force sync portfolio properties to PayProp tags
      * This ensures all properties in the portfolio have the PayProp tags applied
@@ -1396,7 +1265,7 @@ public class PortfolioController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
-
+    
     @PostMapping("/apply-payprop-tag")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> applyPayPropTagDirectly(
@@ -1565,7 +1434,7 @@ public class PortfolioController {
     }
 
     /**
-     * FIXED: Enhanced assignment with junction table and PayProp sync
+     * NEW: Assign properties to portfolio using junction table + PayProp sync
      */
     @PostMapping("/{id}/assign-properties")
     @ResponseBody
@@ -1574,92 +1443,32 @@ public class PortfolioController {
             @RequestParam("propertyIds") List<Long> propertyIds,
             Authentication authentication) {
         
-        Map<String, Object> response = new HashMap<>();
-        
         try {
-            if (!canUserEditPortfolio(portfolioId, authentication)) {
-                response.put("success", false);
-                response.put("message", "Access denied");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
-            }
-            
-            Portfolio portfolio = portfolioService.findById(portfolioId);
-            if (portfolio == null) {
-                response.put("success", false);
-                response.put("message", "Portfolio not found");
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-            }
-            
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            int assignedCount = 0;
-            int syncedCount = 0;
-            int errorCount = 0;
-            List<String> errors = new ArrayList<>();
             
-            System.out.println("🔧 [FIXED] Using junction table assignment for " + propertyIds.size() + " properties to portfolio " + portfolioId);
+            // Use the new service that handles junction table + PayProp
+            PortfolioAssignmentService.AssignmentResult result = 
+                portfolioAssignmentService.assignPropertiesToPortfolio(
+                    portfolioId, propertyIds, (long) userId);
             
-            for (Long propertyId : propertyIds) {
-                try {
-                    Property property = propertyService.findById(propertyId);
-                    if (property == null) {
-                        errorCount++;
-                        errors.add("Property ID " + propertyId + " not found");
-                        continue;
-                    }
-                    
-                    // ✅ FIXED: Use junction table assignment method instead of direct FK
-                    portfolioService.assignPropertyToPortfolio(
-                        propertyId, 
-                        portfolioId, 
-                        PortfolioAssignmentType.PRIMARY, 
-                        (long) userId, 
-                        "Assigned via drag-and-drop interface"
-                    );
-                    assignedCount++;
-                    System.out.println("✅ [FIXED] Property " + propertyId + " assigned using junction table");
-                    
-                    // ✅ PayProp sync will now work because junction table is populated
-                    if (payPropEnabled && payPropSyncService != null && 
-                        portfolio.isSyncedWithPayProp() && property.getPayPropId() != null) {
-                        
-                        List<String> payPropTags = portfolio.getPayPropTagList();
-                        for (String tagId : payPropTags) {
-                            try {
-                                payPropSyncService.applyTagToProperty(property.getPayPropId(), tagId);
-                                syncedCount++;
-                                System.out.println("🏷️ [FIXED] PayProp tag " + tagId + " applied to property " + property.getPayPropId());
-                            } catch (Exception e) {
-                                log.warn("Failed to apply PayProp tag {} to property {}: {}", 
-                                    tagId, property.getPayPropId(), e.getMessage());
-                                errors.add("PayProp sync failed for property " + property.getPropertyName());
-                            }
-                        }
-                    }
-                    
-                } catch (Exception e) {
-                    errorCount++;
-                    errors.add("Failed to assign property ID " + propertyId + ": " + e.getMessage());
-                    log.error("Failed to assign property {} to portfolio {}: {}", propertyId, portfolioId, e.getMessage());
-                }
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", result.isSuccess());
+            response.put("message", result.getSummary());
+            response.put("assignedCount", result.getAssignedCount());
+            response.put("syncedCount", result.getSyncedCount());
+            response.put("skippedCount", result.getSkippedCount());
+            response.put("errors", result.getErrors());
+            
+            if (result.isSuccess()) {
+                return ResponseEntity.ok(response);
+            } else {
+                return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).body(response);
             }
-            
-            System.out.println("📊 [FIXED] Assignment complete: " + assignedCount + " assigned, " + 
-                            syncedCount + " synced to PayProp, " + errorCount + " errors");
-            
-            response.put("success", true);
-            response.put("message", assignedCount + " properties assigned successfully");
-            response.put("assignedCount", assignedCount);
-            response.put("syncedToPayProp", syncedCount);
-            response.put("errorCount", errorCount);
-            response.put("errors", errors);
-            
-            return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            System.err.println("❌ [FIXED] Assignment failed: " + e.getMessage());
-            response.put("success", false);
-            response.put("message", "Assignment failed: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            log.error("Failed to assign properties to portfolio {}: {}", portfolioId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
         }
     }
 
@@ -2560,32 +2369,179 @@ public class PortfolioController {
         }
     }
 
-    /**
-     * DIAGNOSTIC 3: Database table verification
-     */
-    @GetMapping("/debug/database-tables")
+        /**
+         * DIAGNOSTIC 3: Database table verification
+         */
+        @GetMapping("/debug/database-tables")
+        @ResponseBody
+        public ResponseEntity<Map<String, Object>> checkDatabaseTables() {
+            Map<String, Object> result = new HashMap<>();
+            
+            try {
+                // This will help us verify what's actually in the database
+                result.put("timestamp", LocalDateTime.now());
+                result.put("message", "Check console logs for SQL verification queries");
+                
+                System.out.println("=== DATABASE DIAGNOSTIC ===");
+                System.out.println("Run these SQL queries in your database:");
+                System.out.println("1. SHOW TABLES LIKE 'property_portfolio_assignments';");
+                System.out.println("2. SELECT COUNT(*) FROM properties WHERE portfolio_id IS NOT NULL;");
+                System.out.println("3. SELECT COUNT(*) FROM users WHERE id = 1;");
+                System.out.println("4. DESCRIBE properties;");
+                System.out.println("========================");
+                
+                return ResponseEntity.ok(result);
+                
+            } catch (Exception e) {
+                result.put("error", e.getMessage());
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
+            }
+        }
+
+
+    @PostMapping("/test/sync-property-tag")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> checkDatabaseTables() {
-        Map<String, Object> result = new HashMap<>();
+    public ResponseEntity<Map<String, Object>> testSyncPropertyTag(
+            @RequestParam("propertyId") Long propertyId,
+            @RequestParam("portfolioId") Long portfolioId,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
         
         try {
-            // This will help us verify what's actually in the database
-            result.put("timestamp", LocalDateTime.now());
-            result.put("message", "Check console logs for SQL verification queries");
+            // Step 1: Get the property and portfolio
+            Property property = propertyService.findById(propertyId);
+            Portfolio portfolio = portfolioService.findById(portfolioId);
             
-            System.out.println("=== DATABASE DIAGNOSTIC ===");
-            System.out.println("Run these SQL queries in your database:");
-            System.out.println("1. SHOW TABLES LIKE 'property_portfolio_assignments';");
-            System.out.println("2. SELECT COUNT(*) FROM properties WHERE portfolio_id IS NOT NULL;");
-            System.out.println("3. SELECT COUNT(*) FROM users WHERE id = 1;");
-            System.out.println("4. DESCRIBE properties;");
-            System.out.println("========================");
+            if (property == null || portfolio == null) {
+                response.put("error", "Property or Portfolio not found");
+                return ResponseEntity.badRequest().body(response);
+            }
             
-            return ResponseEntity.ok(result);
+            response.put("property", Map.of(
+                "id", property.getId(),
+                "name", property.getPropertyName(),
+                "payPropId", property.getPayPropId()
+            ));
+            
+            response.put("portfolio", Map.of(
+                "id", portfolio.getId(),
+                "name", portfolio.getName(),
+                "payPropTag", portfolio.getPayPropTags()
+            ));
+            
+            // Step 2: Check junction table assignment
+            Optional<PropertyPortfolioAssignment> assignmentOpt = 
+                propertyPortfolioAssignmentRepository.findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
+                    propertyId, portfolioId, PortfolioAssignmentType.PRIMARY, Boolean.TRUE);
+            
+            if (assignmentOpt.isEmpty()) {
+                response.put("error", "No active assignment found in junction table");
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            PropertyPortfolioAssignment assignment = assignmentOpt.get();
+            response.put("assignment", Map.of(
+                "id", assignment.getId(),
+                "syncStatus", assignment.getSyncStatus(),
+                "lastSyncAt", assignment.getLastSyncAt()
+            ));
+            
+            // Step 3: Check if we can sync to PayProp
+            boolean canSync = portfolio.getPayPropTags() != null && 
+                            !portfolio.getPayPropTags().trim().isEmpty() &&
+                            property.getPayPropId() != null &&
+                            !property.getPayPropId().trim().isEmpty();
+            
+            response.put("canSyncToPayProp", canSync);
+            
+            if (!canSync) {
+                response.put("error", "Missing PayProp data - cannot sync");
+                return ResponseEntity.ok(response);
+            }
+            
+            // Step 4: Try to apply the tag
+            try {
+                log.info("🔄 Attempting to apply PayProp tag {} to property {}", 
+                    portfolio.getPayPropTags(), property.getPayPropId());
+                
+                payPropPortfolioSyncService.applyTagToProperty(
+                    property.getPayPropId(),
+                    portfolio.getPayPropTags()
+                );
+                
+                // Update sync status
+                assignment.setSyncStatus(SyncStatus.synced);
+                assignment.setLastSyncAt(LocalDateTime.now());
+                propertyPortfolioAssignmentRepository.save(assignment);
+                
+                response.put("success", true);
+                response.put("message", "PayProp tag applied successfully!");
+                
+                log.info("✅ PayProp sync successful");
+                
+            } catch (Exception e) {
+                log.error("❌ PayProp sync failed: {}", e.getMessage(), e);
+                response.put("error", "PayProp sync failed: " + e.getMessage());
+                response.put("stackTrace", e.getStackTrace());
+                
+                // Update sync status to failed
+                assignment.setSyncStatus(SyncStatus.failed);
+                assignment.setLastSyncAt(LocalDateTime.now());
+                propertyPortfolioAssignmentRepository.save(assignment);
+            }
+            
+            return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            result.put("error", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
+            log.error("Test endpoint error: {}", e.getMessage(), e);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * TEST ENDPOINT: Check current PayProp tags on a property
+     */
+    @GetMapping("/test/check-property-tags")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> checkPropertyTags(
+            @RequestParam("propertyId") Long propertyId) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            Property property = propertyService.findById(propertyId);
+            if (property == null || property.getPayPropId() == null) {
+                response.put("error", "Property not found or no PayProp ID");
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            // Call PayProp API to get property details including tags
+            String endpoint = "/entity/property/" + property.getPayPropId();
+            Map<String, Object> payPropData = payPropApiClient.get(endpoint);
+            
+            response.put("property", Map.of(
+                "id", property.getId(),
+                "name", property.getPropertyName(),
+                "payPropId", property.getPayPropId()
+            ));
+            
+            response.put("payPropData", payPropData);
+            
+            // Extract tags if present
+            if (payPropData.containsKey("tags")) {
+                response.put("currentTags", payPropData.get("tags"));
+            } else {
+                response.put("currentTags", "No tags found");
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error checking property tags: {}", e.getMessage(), e);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
 
