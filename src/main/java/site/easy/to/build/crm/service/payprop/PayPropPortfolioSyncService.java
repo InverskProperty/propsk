@@ -92,7 +92,8 @@ public class PayPropPortfolioSyncService {
             for (Property property : properties) {
                 if (property.getPayPropId() != null) {
                     try {
-                        applyTagToProperty(property.getPayPropId(), tag.getId(), tag.getName());
+                        // ✅ FIXED: Remove third parameter - method only accepts 2
+                        applyTagToProperty(property.getPayPropId(), tag.getId());
                         propertiesTagged++;
                     } catch (Exception e) {
                         log.warn("Failed to apply tag {} to property {}: {}", tag.getId(), property.getPayPropId(), e.getMessage());
