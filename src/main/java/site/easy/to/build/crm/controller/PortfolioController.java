@@ -2652,6 +2652,19 @@ public class PortfolioController {
         
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/{id}/test-simple")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testSimple(@PathVariable("id") Long portfolioId) {
+        System.out.println("🔥 SIMPLE TEST CALLED! Portfolio: " + portfolioId);
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Simple test works!");
+        response.put("portfolioId", portfolioId);
+        
+        return ResponseEntity.ok(response);
+    }
     
     @PostMapping("/{portfolioId}/remove-property-v2/{propertyId}")
     @ResponseBody
