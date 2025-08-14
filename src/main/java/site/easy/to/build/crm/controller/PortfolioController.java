@@ -2546,6 +2546,153 @@ public class PortfolioController {
         }
     }
 
+    /**
+     * NEW: Assign properties to portfolio using junction table + PayProp sync
+     */
+    @PostMapping("/{id}/assign-properties-v2")  // Using v2 to not conflict with existing
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> assignPropertiesToPortfolioV2(
+            @PathVariable("id") Long portfolioId,
+            @RequestParam("propertyIds") List<Long> propertyIds,
+            Authentication authentication) {
+        
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            
+            // Use the new service that handles junction table + PayProp
+            PortfolioAssignmentService.AssignmentResult result = 
+                portfolioAssignmentService.assignPropertiesToPortfolio(
+                    portfolioId, propertyIds, (long) userId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", result.isSuccess());
+            response.put("message", result.getSummary());
+            response.put("assignedCount", result.getAssignedCount());
+            response.put("syncedCount", result.getSyncedCount());
+            response.put("skippedCount", result.getSkippedCount());
+            response.put("errors", result.getErrors());
+            
+            if (result.isSuccess()) {
+                return ResponseEntity.ok(response);
+            } else {
+                return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).body(response);
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to assign properties to portfolio {}: {}", portfolioId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * NEW: Remove property from portfolio
+     */
+    @PostMapping("/{portfolioId}/remove-property-v2/{propertyId}")  // Using v2 to not conflict
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> removePropertyFromPortfolioV2(
+            @PathVariable("portfolioId") Long portfolioId,
+            @PathVariable("propertyId") Long propertyId,
+            Authentication authentication) {
+        
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            
+            portfolioAssignmentService.removePropertyFromPortfolio(
+                propertyId, portfolioId, (long) userId);
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Property removed successfully"
+            ));
+            
+        } catch (Exception e) {
+            log.error("Failed to remove property {} from portfolio {}: {}", 
+                propertyId, portfolioId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * NEW: One-time migration endpoint - ADMIN ONLY
+     */
+    @PostMapping("/admin/migrate-fk-to-junction")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> migrateFKToJunction(Authentication authentication) {
+        
+        // Check for admin role
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("success", false, "message", "Admin access required"));
+        }
+        
+        try {
+            PortfolioAssignmentService.MigrationResult result = 
+                portfolioAssignmentService.migrateDirectFKToJunctionTable();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", result.getSummary());
+            response.put("migratedCount", result.getMigratedCount());
+            response.put("skippedCount", result.getSkippedCount());
+            response.put("errors", result.getErrors());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Migration failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * NEW: Sync pending PayProp tags - ADMIN ONLY
+     */
+    @PostMapping("/admin/sync-pending-tags")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> syncPendingTags(Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("success", false, "message", "Admin access required"));
+        }
+        
+        try {
+            PortfolioAssignmentService.SyncResult result = 
+                portfolioAssignmentService.syncPendingPayPropTags();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("errors", result.getErrors());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Sync failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+    
+    /**
+     * NEW: Get assignment statistics
+     */
+    @GetMapping("/statistics/assignments")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getAssignmentStatistics() {
+        try {
+            Map<String, Object> stats = portfolioAssignmentService.getAssignmentStatistics();
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            log.error("Failed to get statistics: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", e.getMessage()));
+        }
+    }
+
     // ===== HELPER CLASSES =====
 
     public static class PortfolioWithAnalytics {

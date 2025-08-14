@@ -246,8 +246,11 @@ public class PortfolioAssignmentService {
             return new SyncResult(false, "PayProp integration not available");
         }
         
+        // Use existing repository method
         List<PropertyPortfolioAssignment> pendingAssignments = 
-            assignmentRepository.findBySyncStatus(SyncStatus.pending);
+            assignmentRepository.findByIsActive(Boolean.TRUE).stream()
+                .filter(a -> a.getSyncStatus() == SyncStatus.pending)
+                .collect(Collectors.toList());
         
         log.info("Found {} assignments pending PayProp sync", pendingAssignments.size());
         
@@ -313,8 +316,11 @@ public class PortfolioAssignmentService {
      * Check if property is assigned to portfolio
      */
     public boolean isPropertyAssignedToPortfolio(Long propertyId, Long portfolioId) {
-        return assignmentRepository.existsByPropertyIdAndPortfolioIdAndIsActive(
-            propertyId, portfolioId, Boolean.TRUE);
+        // Use existing repository method with filter
+        return assignmentRepository
+            .findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
+                propertyId, portfolioId, PortfolioAssignmentType.PRIMARY, Boolean.TRUE)
+            .isPresent();
     }
     
     /**
@@ -323,19 +329,39 @@ public class PortfolioAssignmentService {
     public Map<String, Object> getAssignmentStatistics() {
         Map<String, Object> stats = new HashMap<>();
         
-        // Count assignments by sync status
-        stats.put("totalAssignments", assignmentRepository.count());
-        stats.put("syncedAssignments", 
-            assignmentRepository.countBySyncStatus(SyncStatus.synced));
-        stats.put("pendingAssignments", 
-            assignmentRepository.countBySyncStatus(SyncStatus.pending));
-        stats.put("failedAssignments", 
-            assignmentRepository.countBySyncStatus(SyncStatus.failed));
+        // Get all assignments and count by status
+        List<PropertyPortfolioAssignment> allAssignments = assignmentRepository.findAll();
         
-        // Properties with multiple portfolios
-        List<Object[]> multiPortfolioProperties = 
-            assignmentRepository.findPropertiesWithMultiplePortfolios();
-        stats.put("propertiesWithMultiplePortfolios", multiPortfolioProperties.size());
+        stats.put("totalAssignments", allAssignments.size());
+        
+        // Count by sync status
+        long syncedCount = allAssignments.stream()
+            .filter(a -> a.getSyncStatus() == SyncStatus.synced)
+            .count();
+        long pendingCount = allAssignments.stream()
+            .filter(a -> a.getSyncStatus() == SyncStatus.pending)
+            .count();
+        long failedCount = allAssignments.stream()
+            .filter(a -> a.getSyncStatus() == SyncStatus.failed)
+            .count();
+        
+        stats.put("syncedAssignments", syncedCount);
+        stats.put("pendingAssignments", pendingCount);
+        stats.put("failedAssignments", failedCount);
+        
+        // Count properties with multiple portfolios
+        Map<Long, Long> propertyPortfolioCount = allAssignments.stream()
+            .filter(a -> a.getIsActive())
+            .collect(Collectors.groupingBy(
+                a -> a.getProperty().getId(),
+                Collectors.counting()
+            ));
+        
+        long multiPortfolioCount = propertyPortfolioCount.values().stream()
+            .filter(count -> count > 1)
+            .count();
+        
+        stats.put("propertiesWithMultiplePortfolios", multiPortfolioCount);
         
         return stats;
     }
