@@ -2553,43 +2553,95 @@ public class PortfolioController {
         }
     }
 
-    /**
-     * NEW: Assign properties to portfolio using junction table + PayProp sync
-     */
-    @PostMapping("/{id}/assign-properties-v2")  // Using v2 to not conflict with existing
+    @PostMapping("/{id}/assign-properties-v2")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> assignPropertiesToPortfolioV2(
             @PathVariable("id") Long portfolioId,
             @RequestParam("propertyIds") List<Long> propertyIds,
             Authentication authentication) {
         
+        Map<String, Object> response = new HashMap<>();
+        List<String> errors = new ArrayList<>();
+        int assignedCount = 0;
+        int syncedCount = 0;
+        
         try {
+            // Get user ID
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             
-            // Use the new service that handles junction table + PayProp
-            PortfolioAssignmentService.AssignmentResult result = 
-                portfolioAssignmentService.assignPropertiesToPortfolio(
-                    portfolioId, propertyIds, (long) userId);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", result.isSuccess());
-            response.put("message", result.getSummary());
-            response.put("assignedCount", result.getAssignedCount());
-            response.put("syncedCount", result.getSyncedCount());
-            response.put("skippedCount", result.getSkippedCount());
-            response.put("errors", result.getErrors());
-            
-            if (result.isSuccess()) {
+            // Load portfolio once
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            if (portfolio == null) {
+                response.put("success", false);
+                response.put("error", "Portfolio not found");
                 return ResponseEntity.ok(response);
-            } else {
-                return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).body(response);
             }
             
+            // Get PayProp tag
+            String payPropTag = portfolio.getPayPropTags();
+            
+            for (Long propertyId : propertyIds) {
+                try {
+                    Property property = propertyService.findById(propertyId);
+                    if (property == null) {
+                        errors.add("Property not found: " + propertyId);
+                        continue;
+                    }
+                    
+                    // Check if already assigned
+                    boolean exists = propertyPortfolioAssignmentRepository
+                        .findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
+                            propertyId, portfolioId, PortfolioAssignmentType.PRIMARY, Boolean.TRUE)
+                        .isPresent();
+                    
+                    if (!exists) {
+                        // Create assignment (same as emergency endpoint)
+                        PropertyPortfolioAssignment assignment = new PropertyPortfolioAssignment();
+                        assignment.setProperty(property);
+                        assignment.setPortfolio(portfolio);
+                        assignment.setAssignmentType(PortfolioAssignmentType.PRIMARY);
+                        assignment.setAssignedBy((long) userId);
+                        assignment.setSyncStatus(SyncStatus.pending);
+                        assignment.setIsActive(Boolean.TRUE);
+                        assignment.setAssignedAt(LocalDateTime.now());
+                        assignment = propertyPortfolioAssignmentRepository.save(assignment);
+                        assignedCount++;
+                        
+                        // Apply PayProp tag if available
+                        if (property.getPayPropId() != null && payPropTag != null && payPropPortfolioSyncService != null) {
+                            try {
+                                payPropPortfolioSyncService.applyTagToProperty(
+                                    property.getPayPropId(),
+                                    payPropTag
+                                );
+                                
+                                assignment.setSyncStatus(SyncStatus.synced);
+                                assignment.setLastSyncAt(LocalDateTime.now());
+                                propertyPortfolioAssignmentRepository.save(assignment);
+                                syncedCount++;
+                            } catch (Exception e) {
+                                assignment.setSyncStatus(SyncStatus.failed);
+                                propertyPortfolioAssignmentRepository.save(assignment);
+                                errors.add("PayProp sync failed for property " + propertyId);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    errors.add("Property " + propertyId + ": " + e.getMessage());
+                }
+            }
+            
+            response.put("success", errors.isEmpty());
+            response.put("assignedCount", assignedCount);
+            response.put("syncedCount", syncedCount);
+            response.put("errors", errors);
+            
         } catch (Exception e) {
-            log.error("Failed to assign properties to portfolio {}: {}", portfolioId, e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("success", false, "message", e.getMessage()));
+            response.put("success", false);
+            response.put("error", e.getMessage());
         }
+        
+        return ResponseEntity.ok(response);
     }
     
     /**
