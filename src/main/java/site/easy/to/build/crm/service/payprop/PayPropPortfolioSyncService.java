@@ -747,7 +747,7 @@ public class PayPropPortfolioSyncService {
         
         for (String propertyId : payPropPropertyIds) {
             try {
-                applyTagToProperty(propertyId, tagId, tagName);
+                applyTagToProperty(propertyId, tagId);
                 successCount++;
             } catch (Exception e) {
                 failureCount++;

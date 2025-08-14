@@ -1195,16 +1195,20 @@ public class PortfolioController {
             
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             
+            // ✅ FIXED: Declare missing variables
+            int syncedCount = 0;
+            List<String> errors = new ArrayList<>();
+            
             // ✅ PayProp sync using corrected tag application format
             if (payPropEnabled && payPropSyncService != null && 
                 portfolio.isSyncedWithPayProp() && property.getPayPropId() != null) {
                 
-            try {
-                payPropSyncService.applyTagToProperty(
-                    property.getPayPropId(), 
-                    portfolio.getPayPropTags(),
-                    portfolio.getPayPropTagNames() != null ? portfolio.getPayPropTagNames() : portfolio.getName()
-                );
+                try {
+                    // ✅ FIXED: Remove third parameter - method only accepts 2
+                    payPropSyncService.applyTagToProperty(
+                        property.getPayPropId(), 
+                        portfolio.getPayPropTags()
+                    );
                     
                     // Update junction table sync status on success
                     Optional<PropertyPortfolioAssignment> assignmentOpt = 
@@ -1393,10 +1397,6 @@ public class PortfolioController {
         }
     }
 
-    /**
-     * Apply a specific PayProp tag to a specific property
-     * Direct method for testing
-     */
     @PostMapping("/apply-payprop-tag")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> applyPayPropTagDirectly(
@@ -1433,20 +1433,9 @@ public class PortfolioController {
             
             // Apply the tag
             try {
-                // Get tag name from portfolio or use default
-                String tagName = "Unknown Tag";
-                try {
-                    List<Portfolio> portfolios = portfolioService.findByPayPropTag(tagId);
-                    if (!portfolios.isEmpty()) {
-                        Portfolio portfolio = portfolios.get(0);
-                        tagName = portfolio.getPayPropTagNames() != null ? 
-                                portfolio.getPayPropTagNames() : portfolio.getName();
-                    }
-                } catch (Exception e) {
-                    log.warn("Could not get tag name for {}, using default", tagId);
-                }
+                // ✅ FIXED: Remove third parameter - method only accepts 2
+                payPropSyncService.applyTagToProperty(propertyPayPropId, tagId);
                 
-                payPropSyncService.applyTagToProperty(propertyPayPropId, tagId, tagName);
                 // Try to update the junction table if we can find the property
                 try {
                     // Find property by PayProp ID

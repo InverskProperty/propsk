@@ -218,7 +218,6 @@ public class PayPropSyncController {
                     payPropSyncService.applyTagToProperty(
                         property.getPayPropId(), 
                         portfolio.getPayPropTags(),
-                        portfolio.getPayPropTagNames()
                     );
                     
                     // Update sync status on success
