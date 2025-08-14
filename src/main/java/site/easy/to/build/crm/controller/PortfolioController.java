@@ -75,9 +75,6 @@ public class PortfolioController {
     @Autowired
     private PortfolioAssignmentService portfolioAssignmentService;
 
-    @Autowired(required = false)
-    private PayPropOAuth2Service oAuth2Service;  // Add this line
-
     @Autowired
     private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
     
@@ -2565,7 +2562,7 @@ public class PortfolioController {
         
         System.out.println("🔥 V2 METHOD CALLED! Portfolio: " + portfolioId + ", Properties: " + propertyIds);
         
-        // 🔥 AUTHORIZATION CHECK FIRST
+        // 🔥 AUTHORIZATION CHECK FIRST - THIS PREVENTS THE REDIRECT
         if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
             !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
             Map<String, Object> response = new HashMap<>();
@@ -2580,15 +2577,10 @@ public class PortfolioController {
         int syncedCount = 0;
         
         try {
-            // OAuth check (now available)
-            if (oAuth2Service != null && !oAuth2Service.hasValidTokens()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "PayProp not authorized"));
-            }
-            
             // Get user ID
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             
-            // Rest of your method exactly as before...
+            // Load portfolio once
             Portfolio portfolio = portfolioService.findById(portfolioId);
             if (portfolio == null) {
                 response.put("success", false);
