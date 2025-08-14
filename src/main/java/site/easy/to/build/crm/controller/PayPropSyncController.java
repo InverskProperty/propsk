@@ -217,7 +217,7 @@ public class PayPropSyncController {
                     // Use the corrected tag application method with proper format
                     payPropSyncService.applyTagToProperty(
                         property.getPayPropId(), 
-                        portfolio.getPayPropTags(),
+                        portfolio.getPayPropTags()
                     );
                     
                     // Update sync status on success
