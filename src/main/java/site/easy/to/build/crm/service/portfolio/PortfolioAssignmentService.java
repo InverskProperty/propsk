@@ -246,10 +246,10 @@ public class PortfolioAssignmentService {
             return new SyncResult(false, "PayProp integration not available");
         }
         
-        // Use existing repository method
+        // Use findAll and filter for pending status
         List<PropertyPortfolioAssignment> pendingAssignments = 
-            assignmentRepository.findByIsActive(Boolean.TRUE).stream()
-                .filter(a -> a.getSyncStatus() == SyncStatus.pending)
+            assignmentRepository.findAll().stream()
+                .filter(a -> Boolean.TRUE.equals(a.getIsActive()) && a.getSyncStatus() == SyncStatus.pending)
                 .collect(Collectors.toList());
         
         log.info("Found {} assignments pending PayProp sync", pendingAssignments.size());
@@ -296,20 +296,16 @@ public class PortfolioAssignmentService {
      * Get all properties assigned to a portfolio (using junction table)
      */
     public List<Property> getPropertiesForPortfolio(Long portfolioId) {
-        return assignmentRepository.findByPortfolioIdAndIsActive(portfolioId, Boolean.TRUE)
-            .stream()
-            .map(PropertyPortfolioAssignment::getProperty)
-            .collect(Collectors.toList());
+        // Use the existing repository method that returns Properties directly
+        return assignmentRepository.findPropertiesForPortfolio(portfolioId);
     }
     
     /**
      * Get all portfolios a property is assigned to
      */
     public List<Portfolio> getPortfoliosForProperty(Long propertyId) {
-        return assignmentRepository.findByPropertyIdAndIsActive(propertyId, Boolean.TRUE)
-            .stream()
-            .map(PropertyPortfolioAssignment::getPortfolio)
-            .collect(Collectors.toList());
+        // Use the existing repository method that returns Portfolios directly
+        return assignmentRepository.findPortfoliosForProperty(propertyId);
     }
     
     /**
