@@ -365,9 +365,18 @@ public class Property {
     public void setPayPropPropertyId(String payPropPropertyId) { this.payPropPropertyId = payPropPropertyId; }
     
     // Portfolio and Block getters/setters - UNIFIED MANY-TO-MANY APPROACH
-    // ❌ DISABLED: Direct portfolio getters/setters - use PropertyPortfolioAssignment repository methods
-    // public Portfolio getPortfolio() { return portfolio; }
-    // public void setPortfolio(Portfolio portfolio) { this.portfolio = portfolio; }
+    // ⚠️ DEPRECATED: Direct portfolio getters/setters - use PropertyPortfolioAssignment repository methods
+    @Deprecated
+    public Portfolio getPortfolio() { 
+        // Return null since direct assignment is disabled - use PropertyPortfolioAssignmentRepository.findPrimaryPortfolioForProperty()
+        return null; 
+    }
+    
+    @Deprecated
+    public void setPortfolio(Portfolio portfolio) { 
+        // No-op since direct assignment is disabled - use PortfolioAssignmentService.assignProperty()
+        // This method is kept only for compilation compatibility
+    }
 
     public Block getBlock() { return block; }
     public void setBlock(Block block) { this.block = block; }
