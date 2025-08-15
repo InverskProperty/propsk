@@ -1615,10 +1615,32 @@ public class PortfolioController {
     @ResponseBody
     public String debugPortfolio(@PathVariable Long id) {
         try {
+            // Check junction table assignments
+            List<PropertyPortfolioAssignment> assignments = propertyPortfolioAssignmentRepository.findByPortfolioId(id);
+            List<PropertyPortfolioAssignment> activeAssignments = propertyPortfolioAssignmentRepository.findByPortfolioIdAndIsActive(id, true);
+            
+            // Check service method
             List<Property> properties = portfolioService.getPropertiesForPortfolio(id);
-            return "Portfolio " + id + " has " + properties.size() + " properties. Check console for details.";
+            
+            StringBuilder result = new StringBuilder();
+            result.append("Portfolio ").append(id).append(" Debug:\n");
+            result.append("- Total assignments in junction table: ").append(assignments.size()).append("\n");
+            result.append("- Active assignments: ").append(activeAssignments.size()).append("\n");
+            result.append("- Properties returned by service: ").append(properties.size()).append("\n");
+            
+            if (!assignments.isEmpty()) {
+                result.append("\nAll assignments:\n");
+                for (PropertyPortfolioAssignment assignment : assignments) {
+                    result.append("  - Property ").append(assignment.getProperty().getId())
+                          .append(" (").append(assignment.getProperty().getPropertyName()).append(")")
+                          .append(" - Active: ").append(assignment.getIsActive())
+                          .append(" - Type: ").append(assignment.getAssignmentType()).append("\n");
+                }
+            }
+            
+            return result.toString();
         } catch (Exception e) {
-            return "Error: " + e.getMessage();
+            return "Error: " + e.getMessage() + "\n" + e.getStackTrace()[0];
         }
     }
 
