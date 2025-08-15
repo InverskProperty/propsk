@@ -5,6 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -93,6 +95,9 @@ public class PortfolioController {
 
     @Autowired
     private PropertyPortfolioAssignmentRepository propertyPortfolioAssignmentRepository;
+    
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Autowired
     public PortfolioController(PortfolioService portfolioService,
@@ -1622,25 +1627,138 @@ public class PortfolioController {
             // Check service method
             List<Property> properties = portfolioService.getPropertiesForPortfolio(id);
             
+            // Check for legacy assignments in database
+            List<Property> allProperties = propertyService.findAll();
+            int legacyAssignments = 0;
+            for (Property prop : allProperties) {
+                // Check if property was assigned to this portfolio in the old system
+                // We need to query the database directly since the entity field is disabled
+            }
+            
             StringBuilder result = new StringBuilder();
             result.append("Portfolio ").append(id).append(" Debug:\n");
             result.append("- Total assignments in junction table: ").append(assignments.size()).append("\n");
             result.append("- Active assignments: ").append(activeAssignments.size()).append("\n");
             result.append("- Properties returned by service: ").append(properties.size()).append("\n");
+            result.append("- Junction table has data: ").append(propertyPortfolioAssignmentRepository.count()).append(" total assignments\n");
             
             if (!assignments.isEmpty()) {
-                result.append("\nAll assignments:\n");
+                result.append("\nAll assignments for this portfolio:\n");
                 for (PropertyPortfolioAssignment assignment : assignments) {
                     result.append("  - Property ").append(assignment.getProperty().getId())
                           .append(" (").append(assignment.getProperty().getPropertyName()).append(")")
                           .append(" - Active: ").append(assignment.getIsActive())
                           .append(" - Type: ").append(assignment.getAssignmentType()).append("\n");
                 }
+            } else {
+                result.append("\nNo assignments found in junction table for portfolio ").append(id).append("\n");
+                result.append("This suggests properties may have been assigned using the old direct FK system\n");
+                result.append("and need to be migrated to the junction table approach.\n");
             }
             
             return result.toString();
         } catch (Exception e) {
-            return "Error: " + e.getMessage() + "\n" + e.getStackTrace()[0];
+            return "Error: " + e.getMessage() + "\n" + java.util.Arrays.toString(e.getStackTrace()).substring(0, 500);
+        }
+    }
+
+    @GetMapping("/migrate-legacy-assignments")
+    @ResponseBody
+    public String migrateLegacyPortfolioAssignments() {
+        try {
+            StringBuilder result = new StringBuilder();
+            result.append("Legacy Portfolio Assignment Migration\n");
+            result.append("=====================================\n\n");
+            
+            // Query the database directly for properties with portfolio_id values
+            String sql = "SELECT id, property_name, portfolio_id FROM properties WHERE portfolio_id IS NOT NULL AND is_archived != 'Y'";
+            
+            JdbcTemplate jdbcTemplate = applicationContext.getBean(JdbcTemplate.class);
+            List<Map<String, Object>> legacyAssignments = jdbcTemplate.queryForList(sql);
+            
+            int migrated = 0;
+            int skipped = 0;
+            int errors = 0;
+            
+            for (Map<String, Object> row : legacyAssignments) {
+                Long propertyId = ((Number) row.get("id")).longValue();
+                String propertyName = (String) row.get("property_name");
+                Long portfolioId = ((Number) row.get("portfolio_id")).longValue();
+                
+                try {
+                    // Check if assignment already exists in junction table
+                    boolean exists = propertyPortfolioAssignmentRepository
+                        .existsByPropertyIdAndPortfolioIdAndAssignmentType(
+                            propertyId, portfolioId, PortfolioAssignmentType.PRIMARY);
+                    
+                    if (exists) {
+                        result.append("SKIP: Property ").append(propertyId)
+                              .append(" (").append(propertyName).append(") already assigned to portfolio ")
+                              .append(portfolioId).append(" in junction table\n");
+                        skipped++;
+                        continue;
+                    }
+                    
+                    // Get the actual entities
+                    Property property = propertyService.findById(propertyId);
+                    Portfolio portfolio = portfolioService.findById(portfolioId);
+                    
+                    if (property == null) {
+                        result.append("ERROR: Property ").append(propertyId).append(" not found\n");
+                        errors++;
+                        continue;
+                    }
+                    
+                    if (portfolio == null) {
+                        result.append("ERROR: Portfolio ").append(portfolioId).append(" not found\n");
+                        errors++;
+                        continue;
+                    }
+                    
+                    // Create new junction table assignment
+                    PropertyPortfolioAssignment assignment = new PropertyPortfolioAssignment();
+                    assignment.setProperty(property);
+                    assignment.setPortfolio(portfolio);
+                    assignment.setAssignmentType(PortfolioAssignmentType.PRIMARY);
+                    assignment.setIsActive(true);
+                    assignment.setAssignedAt(java.time.LocalDateTime.now());
+                    assignment.setAssignedBy(1L); // System user
+                    assignment.setSyncStatus(SyncStatus.pending);
+                    assignment.setDisplayOrder(0);
+                    
+                    // Save to junction table
+                    propertyPortfolioAssignmentRepository.save(assignment);
+                    
+                    result.append("MIGRATED: Property ").append(propertyId)
+                          .append(" (").append(propertyName).append(") → Portfolio ")
+                          .append(portfolioId).append(" (").append(portfolio.getName()).append(")\n");
+                    migrated++;
+                    
+                } catch (Exception e) {
+                    result.append("ERROR: Failed to migrate property ").append(propertyId)
+                          .append(" → portfolio ").append(portfolioId).append(": ")
+                          .append(e.getMessage()).append("\n");
+                    errors++;
+                }
+            }
+            
+            result.append("\n=== MIGRATION SUMMARY ===\n");
+            result.append("Migrated: ").append(migrated).append("\n");
+            result.append("Skipped: ").append(skipped).append("\n");
+            result.append("Errors: ").append(errors).append("\n");
+            result.append("Total processed: ").append(migrated + skipped + errors).append("\n");
+            
+            if (migrated > 0) {
+                result.append("\n✅ Migration completed! Portfolio 89 should now show its properties.\n");
+            } else {
+                result.append("\n⚠️  No properties were migrated. Check if legacy assignments exist.\n");
+            }
+            
+            return result.toString();
+            
+        } catch (Exception e) {
+            return "Migration failed: " + e.getMessage() + "\n" + 
+                   java.util.Arrays.toString(e.getStackTrace()).substring(0, 1000);
         }
     }
 
