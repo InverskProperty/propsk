@@ -1602,6 +1602,7 @@ public class PortfolioController {
             
             // Add all attributes
             model.addAttribute("portfolio", portfolio);
+            model.addAttribute("properties", properties); // ← FIXED: Template expects "properties"
             model.addAttribute("propertiesWithTenants", propertiesWithTenants);
             model.addAttribute("stats", stats);
             model.addAttribute("pageTitle", "Portfolio: " + portfolio.getName());
