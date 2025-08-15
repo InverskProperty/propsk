@@ -441,22 +441,10 @@ public class PayPropPortfolioSyncService {
                 Optional<Property> propertyOpt = propertyService.findByPayPropId(payPropPropertyId);
                 if (propertyOpt.isPresent()) {
                     Property property = propertyOpt.get();
-                    // ❌ DISABLED: Direct portfolio queries - now handled by PropertyPortfolioAssignment table
-                    // Only remove from portfolio if this was the matching tag
-                    // if (property.getPortfolio() != null && 
-                    //     portfolioHasPayPropTag(property.getPortfolio(), tagId)) {
-                    //     property.setPortfolio(null);
-                    //     property.setPortfolioAssignmentDate(null);
-                        
-                        // FIXED: Add duplicate key handling for property portfolio removal
-                        try {
-                            propertyService.save(property);
-                            removedCount++;
-                        } catch (DataIntegrityViolationException e) {
-                            log.warn("Property {} already exists when removing from portfolio, skipping save", property.getId());
-                            duplicateCount++;
-                        }
-                    }
+                    // ❌ DISABLED: Direct portfolio removal - now handled by PropertyPortfolioAssignment table
+                    // TODO: Implement removal using PortfolioAssignmentService.removeAssignment()
+                    log.info("Skipping direct portfolio removal for property {}, use PropertyPortfolioAssignment table", property.getId());
+                    // removedCount++; // Don't increment since we're not actually removing anything
                 } else {
                     log.warn("Property with PayProp ID {} not found in system", payPropPropertyId);
                     errors.add("Property not found: " + payPropPropertyId);
