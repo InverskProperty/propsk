@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -200,6 +201,9 @@ public class SecurityConfig {
                         .requestMatchers("/portfolio/test/**").permitAll() // Allow test routes
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/portfolio/*/debug-sync")).hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/portfolio/*/sync")).hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        
+                        // FIXED: Add specific assign-properties-v2 route with correct authorities
+                        .requestMatchers(HttpMethod.POST, "/portfolio/*/assign-properties-v2").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN")
                         
                         // CRITICAL FIX: General portfolio routes - NOW properly handled by main chain
                         .requestMatchers("/portfolio/**").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE", "ROLE_PROPERTY_OWNER", "ROLE_CUSTOMER")
