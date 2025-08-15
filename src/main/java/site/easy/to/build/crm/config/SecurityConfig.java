@@ -189,18 +189,18 @@ public class SecurityConfig {
                         .requestMatchers("/api/payprop/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
 
                         // CRITICAL FIX: Portfolio specific routes - MUST come BEFORE general /portfolio/**
-                        .requestMatchers("/portfolio/actions/pull-payprop-tags").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
-                        .requestMatchers("/portfolio/payprop-tags").hasAnyRole("MANAGER", "PROPERTY_OWNER", "OIDC_USER")
-                        .requestMatchers("/portfolio/adopt-payprop-tag").hasAnyRole("MANAGER", "PROPERTY_OWNER", "OIDC_USER") 
-                        .requestMatchers("/portfolio/sync-all").hasAnyRole("MANAGER", "OIDC_USER")
-                        .requestMatchers("/portfolio/bulk-assign").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
-                        .requestMatchers("/portfolio/create").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
-                        .requestMatchers("/portfolio/all").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
-                        .requestMatchers("/portfolio/assign-properties").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
-                        .requestMatchers("/portfolio/dashboard").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
+                        .requestMatchers("/portfolio/actions/pull-payprop-tags").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE")
+                        .requestMatchers("/portfolio/payprop-tags").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_PROPERTY_OWNER")
+                        .requestMatchers("/portfolio/adopt-payprop-tag").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_PROPERTY_OWNER") 
+                        .requestMatchers("/portfolio/sync-all").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+                        .requestMatchers("/portfolio/bulk-assign").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE")
+                        .requestMatchers("/portfolio/create").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE", "ROLE_PROPERTY_OWNER", "ROLE_CUSTOMER")
+                        .requestMatchers("/portfolio/all").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE")
+                        .requestMatchers("/portfolio/assign-properties").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE")
+                        .requestMatchers("/portfolio/dashboard").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE", "ROLE_PROPERTY_OWNER", "ROLE_CUSTOMER")
                         .requestMatchers("/portfolio/test/**").permitAll() // Allow test routes
-                        .requestMatchers(AntPathRequestMatcher.antMatcher("/portfolio/*/debug-sync")).hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
-                        .requestMatchers(AntPathRequestMatcher.antMatcher("/portfolio/*/sync")).hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        .requestMatchers(AntPathRequestMatcher.antMatcher("/portfolio/*/debug-sync")).hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE")
+                        .requestMatchers(AntPathRequestMatcher.antMatcher("/portfolio/*/sync")).hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE")
                         
                         // FIXED: Add specific assign-properties-v2 route with correct authorities
                         .requestMatchers(HttpMethod.POST, "/portfolio/*/assign-properties-v2").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN")
