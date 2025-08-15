@@ -1662,6 +1662,65 @@ public class PortfolioController {
         }
     }
 
+    @GetMapping("/system-debug")
+    @ResponseBody
+    public String systemDebug() {
+        try {
+            StringBuilder result = new StringBuilder();
+            result.append("SYSTEM DEBUG REPORT\n");
+            result.append("==================\n\n");
+            
+            // 1. Check junction table
+            long totalAssignments = propertyPortfolioAssignmentRepository.count();
+            result.append("1. JUNCTION TABLE (PropertyPortfolioAssignment):\n");
+            result.append("- Total assignments: ").append(totalAssignments).append("\n");
+            
+            if (totalAssignments > 0) {
+                List<PropertyPortfolioAssignment> recentAssignments = propertyPortfolioAssignmentRepository.findAll()
+                    .stream().limit(5).collect(Collectors.toList());
+                result.append("- Recent assignments:\n");
+                for (PropertyPortfolioAssignment assignment : recentAssignments) {
+                    result.append("  * Property ").append(assignment.getProperty().getId())
+                          .append(" → Portfolio ").append(assignment.getPortfolio().getId())
+                          .append(" (").append(assignment.getAssignmentType()).append(")")
+                          .append(" - Active: ").append(assignment.getIsActive()).append("\n");
+                }
+            }
+            
+            // 2. Check legacy assignments
+            result.append("\n2. LEGACY ASSIGNMENTS (direct portfolio_id):\n");
+            String legacySql = "SELECT COUNT(*) FROM properties WHERE portfolio_id IS NOT NULL AND is_archived != 'Y'";
+            JdbcTemplate jdbcTemplate = applicationContext.getBean(JdbcTemplate.class);
+            Long legacyCount = jdbcTemplate.queryForObject(legacySql, Long.class);
+            result.append("- Properties with portfolio_id: ").append(legacyCount).append("\n");
+            
+            // 3. Check portfolios
+            result.append("\n3. PORTFOLIOS:\n");
+            List<Portfolio> allPortfolios = portfolioService.findAll();
+            result.append("- Total portfolios: ").append(allPortfolios.size()).append("\n");
+            
+            // Test a few portfolios
+            for (Portfolio portfolio : allPortfolios.stream().limit(3).collect(Collectors.toList())) {
+                List<Property> properties = portfolioService.getPropertiesForPortfolio(portfolio.getId());
+                result.append("  * Portfolio ").append(portfolio.getId())
+                      .append(" (").append(portfolio.getName()).append("): ")
+                      .append(properties.size()).append(" properties\n");
+            }
+            
+            // 4. Check properties  
+            result.append("\n4. PROPERTIES:\n");
+            List<Property> allProperties = propertyService.findAll();
+            result.append("- Total properties: ").append(allProperties.size()).append("\n");
+            result.append("- Active properties: ").append(propertyService.findActiveProperties().size()).append("\n");
+            
+            return result.toString();
+            
+        } catch (Exception e) {
+            return "Debug failed: " + e.getMessage() + "\n" + 
+                   java.util.Arrays.toString(e.getStackTrace()).substring(0, 1000);
+        }
+    }
+
     @GetMapping("/migrate-legacy-assignments")
     @ResponseBody
     public String migrateLegacyPortfolioAssignments() {
