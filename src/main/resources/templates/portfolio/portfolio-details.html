@@ -250,7 +250,7 @@
                                     <tbody>
                                         <tr th:each="prop : ${propertiesWithTenants}">
                                             <td>
-                                                <a th:href="@{/property/{id}(id=${prop.id})}" 
+                                                <a th:href="@{/employee/property/{id}(id=${prop.id})}" 
                                                 th:text="${prop.propertyName}">Property Name</a>
                                             </td>
                                             <td th:text="${prop.fullAddress}">Address</td>
@@ -285,11 +285,11 @@
                                             </td>
                                             <td>
                                                 <div class="btn-group btn-group-sm">
-                                                    <a th:href="@{/property/{id}(id=${prop.id})}" 
+                                                    <a th:href="@{/employee/property/{id}(id=${prop.id})}" 
                                                     class="btn btn-info" title="View">
                                                         <i class="fas fa-eye"></i>
                                                     </a>
-                                                    <a th:href="@{/property/{id}/edit(id=${prop.id})}" 
+                                                    <a th:href="@{/employee/property/{id}/edit(id=${prop.id})}" 
                                                     class="btn btn-primary" title="Edit">
                                                         <i class="fas fa-edit"></i>
                                                     </a>
@@ -483,10 +483,27 @@ function removeProperty(propertyId) {
             }
             
             if (data.success) {
-                alert('Property removed successfully' + 
-                      (data.payPropSyncRemoved ? ' (PayProp tag also removed)' : 
-                       data.payPropSkipped ? ' (PayProp tag removal skipped)' : 
-                       data.payPropError ? ' (PayProp tag removal failed)' : ''));
+                let message = 'Property removed successfully';
+                if (data.payPropSyncRemoved) {
+                    message += '\n✅ PayProp tag removed';
+                } else if (data.payPropError) {
+                    message += '\n❌ PayProp tag removal failed: ' + data.payPropError;
+                } else if (data.payPropSkipped) {
+                    message += '\n⚠️ PayProp tag removal skipped: ' + data.payPropSkipped;
+                }
+                
+                // Add debug info to alert for troubleshooting
+                if (data.propertyPayPropId) {
+                    message += '\nProperty PayProp ID: ' + data.propertyPayPropId;
+                }
+                if (data.portfolioPayPropTags) {
+                    message += '\nPortfolio PayProp Tags: ' + data.portfolioPayPropTags;
+                }
+                if (data.payPropServiceAvailable !== undefined) {
+                    message += '\nPayProp Service Available: ' + data.payPropServiceAvailable;
+                }
+                
+                alert(message);
                 location.reload();
             } else {
                 alert('Error: ' + (data.message || data.error || 'Unknown error'));
