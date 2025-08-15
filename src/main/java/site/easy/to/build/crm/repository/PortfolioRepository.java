@@ -80,22 +80,23 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
     long countByIsActive(String isActive);
     long countBySyncStatus(SyncStatus syncStatus);
     
-    // Property count queries
-    @Query("SELECT COUNT(pr) FROM Property pr WHERE pr.portfolio.id = :portfolioId")
+    // Property count queries - UPDATED to use PropertyPortfolioAssignment junction table
+    @Query("SELECT COUNT(ppa) FROM PropertyPortfolioAssignment ppa WHERE ppa.portfolio.id = :portfolioId AND ppa.isActive = true")
     long countPropertiesByPortfolioId(@Param("portfolioId") Long portfolioId);
     
-    @Query("SELECT COUNT(pr) FROM Property pr WHERE pr.portfolio.id = :portfolioId AND pr.isArchived = 'N'")
+    @Query("SELECT COUNT(ppa) FROM PropertyPortfolioAssignment ppa WHERE ppa.portfolio.id = :portfolioId AND ppa.isActive = true AND ppa.property.isArchived = 'N'")
     long countActivePropertiesByPortfolioId(@Param("portfolioId") Long portfolioId);
     
-    // Analytics queries
-    @Query("SELECT p FROM Portfolio p JOIN FETCH p.properties WHERE p.id = :portfolioId")
-    Optional<Portfolio> findByIdWithProperties(@Param("portfolioId") Long portfolioId);
+    // Analytics queries - DISABLED (no longer valid with many-to-many approach)
+    // @Query("SELECT p FROM Portfolio p JOIN FETCH p.properties WHERE p.id = :portfolioId")
+    // Optional<Portfolio> findByIdWithProperties(@Param("portfolioId") Long portfolioId);
     
     @Query("SELECT p FROM Portfolio p JOIN FETCH p.blocks WHERE p.id = :portfolioId")
     Optional<Portfolio> findByIdWithBlocks(@Param("portfolioId") Long portfolioId);
     
-    @Query("SELECT p, COUNT(pr) as propertyCount FROM Portfolio p " +
-           "LEFT JOIN p.properties pr " +
+    // Portfolio property count analytics - UPDATED to use PropertyPortfolioAssignment junction table
+    @Query("SELECT p, COUNT(ppa) as propertyCount FROM Portfolio p " +
+           "LEFT JOIN PropertyPortfolioAssignment ppa ON ppa.portfolio.id = p.id AND ppa.isActive = true " +
            "WHERE p.isActive = 'Y' " +
            "GROUP BY p.id " +
            "ORDER BY propertyCount DESC")
