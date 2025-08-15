@@ -2553,6 +2553,41 @@ public class PortfolioController {
         }
     }
 
+    @PostMapping("/{id}/debug-auth")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> debugAuth(
+            @PathVariable("id") Long portfolioId,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        if (authentication == null) {
+            response.put("error", "No authentication");
+            return ResponseEntity.ok(response);
+        }
+        
+        // Get all authorities as strings
+        List<String> authorities = authentication.getAuthorities().stream()
+            .map(GrantedAuthority::getAuthority)
+            .collect(Collectors.toList());
+        
+        response.put("allAuthorities", authorities);
+        
+        // Test specific role checks
+        response.put("hasROLE_MANAGER", AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER"));
+        response.put("hasROLE_EMPLOYEE", AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE"));
+        response.put("hasMANAGER", AuthorizationUtil.hasRole(authentication, "MANAGER"));
+        response.put("hasSUPER_ADMIN", AuthorizationUtil.hasRole(authentication, "SUPER_ADMIN"));
+        response.put("hasROLE_SUPER_ADMIN", AuthorizationUtil.hasRole(authentication, "ROLE_SUPER_ADMIN"));
+        
+        // Test the exact condition from assign-properties-v2
+        boolean wouldPass = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") || 
+                        AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE");
+        response.put("wouldPassAuthCheck", wouldPass);
+        
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/{id}/assign-properties-v2")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> assignPropertiesToPortfolioV2(
