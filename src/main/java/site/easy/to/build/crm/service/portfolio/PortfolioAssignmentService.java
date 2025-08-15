@@ -67,9 +67,15 @@ public class PortfolioAssignmentService {
                 }
                 
                 // Step 1.5: Check if INACTIVE assignment exists that we can reactivate  
+                log.info("🔍 Checking for existing assignment: Property {} → Portfolio {}", propertyId, portfolioId);
                 Optional<PropertyPortfolioAssignment> inactiveAssignment = 
                     assignmentRepository.findByPropertyIdAndPortfolioIdAndAssignmentType(
                         propertyId, portfolioId, PortfolioAssignmentType.PRIMARY);
+                
+                log.info("🔍 Found existing assignment: {}", inactiveAssignment.isPresent());
+                if (inactiveAssignment.isPresent()) {
+                    log.info("🔍 Existing assignment active status: {}", inactiveAssignment.get().getIsActive());
+                }
                 
                 PropertyPortfolioAssignment assignment;
                 if (inactiveAssignment.isPresent() && !inactiveAssignment.get().getIsActive()) {
