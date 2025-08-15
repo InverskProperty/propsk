@@ -24,10 +24,10 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     List<Property> findByEnablePayments(String enablePayments);
     long countByIsArchived(String isArchived);
 
-    // ✅ Portfolio and Block relationship queries
-    List<Property> findByPortfolioId(Long portfolioId);
+    // ✅ Portfolio and Block relationship queries - LEGACY DISABLED (portfolio now uses junction table)
+    // List<Property> findByPortfolioId(Long portfolioId);  // Use PropertyPortfolioAssignmentRepository.findPropertiesForPortfolio() instead
     List<Property> findByBlockId(Long blockId);
-    List<Property> findByPortfolioIdAndIsArchived(Long portfolioId, String isArchived);
+    // List<Property> findByPortfolioIdAndIsArchived(Long portfolioId, String isArchived);  // Use PropertyPortfolioAssignmentRepository instead
     List<Property> findByBlockIdAndIsArchived(Long blockId, String isArchived);
     
     // ✅ Property characteristics (PayProp compatible)
@@ -74,26 +74,29 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
            "LIKE LOWER(CONCAT('%', :address, '%'))")
     List<Property> findByFullAddressContaining(@Param("address") String address);
 
-    // ✅ Portfolio assignment queries
-    @Query("SELECT p FROM Property p WHERE p.portfolio IS NULL AND p.isArchived = 'N'")
+    // ✅ Portfolio assignment queries - UPDATED to use PropertyPortfolioAssignment junction table
+    @Query("SELECT p FROM Property p WHERE p.isArchived = 'N' AND NOT EXISTS " +
+           "(SELECT ppa FROM PropertyPortfolioAssignment ppa WHERE ppa.property.id = p.id AND ppa.isActive = true)")
     List<Property> findUnassignedProperties();
 
-    @Query("SELECT p FROM Property p WHERE p.portfolio.id = :portfolioId AND p.isArchived = 'N'")
+    @Query("SELECT p FROM Property p WHERE p.isArchived = 'N' AND EXISTS " +
+           "(SELECT ppa FROM PropertyPortfolioAssignment ppa WHERE ppa.property.id = p.id AND ppa.portfolio.id = :portfolioId AND ppa.isActive = true)")
     List<Property> findActivePropertiesByPortfolio(@Param("portfolioId") Long portfolioId);
 
     @Query("SELECT p FROM Property p WHERE p.block.id = :blockId AND p.isArchived = 'N'")
     List<Property> findActivePropertiesByBlock(@Param("blockId") Long blockId);
 
-    // ✅ Count properties by portfolio/block
-    @Query("SELECT COUNT(p) FROM Property p WHERE p.portfolio.id = :portfolioId")
+    // ✅ Count properties by portfolio/block - UPDATED to use PropertyPortfolioAssignment junction table
+    @Query("SELECT COUNT(p) FROM Property p WHERE EXISTS " +
+           "(SELECT ppa FROM PropertyPortfolioAssignment ppa WHERE ppa.property.id = p.id AND ppa.portfolio.id = :portfolioId AND ppa.isActive = true)")
     long countByPortfolioId(@Param("portfolioId") Long portfolioId);
 
     @Query("SELECT COUNT(p) FROM Property p WHERE p.block.id = :blockId")
     long countByBlockId(@Param("blockId") Long blockId);
 
-    // ✅ Portfolio analytics support
-    @Query("SELECT p FROM Property p LEFT JOIN FETCH p.portfolio WHERE p.id IN :propertyIds")
-    List<Property> findByIdInWithPortfolio(@Param("propertyIds") List<Long> propertyIds);
+    // ✅ Portfolio analytics support - DISABLED (no longer valid with many-to-many)
+    // @Query("SELECT p FROM Property p LEFT JOIN FETCH p.portfolio WHERE p.id IN :propertyIds")
+    // List<Property> findByIdInWithPortfolio(@Param("propertyIds") List<Long> propertyIds);
 
     // Add to PropertyRepository.java
     @Query(value = "SELECT DISTINCT p.* FROM properties p " +

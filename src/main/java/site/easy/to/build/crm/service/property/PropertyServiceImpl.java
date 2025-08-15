@@ -190,10 +190,12 @@ public class PropertyServiceImpl implements PropertyService {
         }
     }
 
-    // ✅ Portfolio and Block methods
+    // ✅ Portfolio and Block methods - UPDATED for junction table approach
     @Override
     public List<Property> findByPortfolioId(Long portfolioId) {
-        return propertyRepository.findByPortfolioId(portfolioId);
+        // ❌ DISABLED: Direct portfolio queries - now handled by PropertyPortfolioAssignment table
+        // return propertyRepository.findByPortfolioId(portfolioId);
+        throw new UnsupportedOperationException("Use PropertyPortfolioAssignmentRepository.findPropertiesForPortfolio() instead");
     }
 
     @Override
@@ -260,7 +262,9 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     public long countPropertiesByPortfolio(Long portfolioId) {
-        return propertyRepository.countByPortfolioId(portfolioId);
+        // ❌ DISABLED: Direct portfolio count - now handled by PropertyPortfolioAssignment table
+        // return propertyRepository.countByPortfolioId(portfolioId);
+        throw new UnsupportedOperationException("Use PropertyPortfolioAssignmentRepository.countPropertiesForPortfolio() instead");
     }
 
     @Override
