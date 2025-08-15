@@ -3042,9 +3042,18 @@ public class PortfolioController {
                     response.put("payPropSyncRemoved", true);
                     response.put("payPropMessage", "Tag removal successful");
                 } catch (Exception e) {
-                    log.warn("Failed to remove PayProp tag: {}", e.getMessage());
-                    response.put("payPropSyncRemoved", false);
-                    response.put("payPropError", e.getMessage());
+                    String errorMessage = e.getMessage();
+                    log.warn("Failed to remove PayProp tag: {}", errorMessage);
+                    
+                    // Check if it's a 404 (tag already removed)
+                    if (errorMessage != null && errorMessage.contains("404")) {
+                        response.put("payPropSyncRemoved", true);
+                        response.put("payPropMessage", "Tag was already removed from PayProp (404 - not found)");
+                        log.info("PayProp tag already removed (404), treating as success");
+                    } else {
+                        response.put("payPropSyncRemoved", false);
+                        response.put("payPropError", errorMessage);
+                    }
                 }
             } else {
                 response.put("payPropSkipped", "One or more conditions not met for PayProp tag removal");
