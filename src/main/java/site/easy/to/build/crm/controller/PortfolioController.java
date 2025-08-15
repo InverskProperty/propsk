@@ -265,6 +265,16 @@ public class PortfolioController {
         }
     }
 
+    @PostMapping("/test-simple-auth/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testSimpleAuth(@PathVariable("id") Long portfolioId) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Route works!");
+        response.put("portfolioId", portfolioId);
+        return ResponseEntity.ok(response);
+    }
+
     /**
      * Create Portfolio Processing
      */
