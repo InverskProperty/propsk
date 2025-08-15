@@ -2991,19 +2991,29 @@ public class PortfolioController {
             propertyPortfolioAssignmentRepository.save(assignment);
             
             // Remove PayProp tag if synced
+            response.put("payPropDebug", "Checking PayProp removal conditions...");
+            response.put("propertyPayPropId", property.getPayPropId());
+            response.put("portfolioPayPropTags", portfolio.getPayPropTags());
+            response.put("payPropServiceAvailable", payPropPortfolioSyncService != null);
+            
             if (property.getPayPropId() != null && 
                 portfolio.getPayPropTags() != null && 
                 payPropPortfolioSyncService != null) {
                 try {
+                    response.put("payPropRemovalAttempt", "Attempting to remove tag from property " + property.getPayPropId());
                     payPropPortfolioSyncService.removeTagFromProperty(
                         property.getPayPropId(),
                         portfolio.getPayPropTags()
                     );
                     response.put("payPropSyncRemoved", true);
+                    response.put("payPropMessage", "Tag removal successful");
                 } catch (Exception e) {
                     log.warn("Failed to remove PayProp tag: {}", e.getMessage());
                     response.put("payPropSyncRemoved", false);
+                    response.put("payPropError", e.getMessage());
                 }
+            } else {
+                response.put("payPropSkipped", "One or more conditions not met for PayProp tag removal");
             }
             
             response.put("success", true);
