@@ -227,12 +227,16 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     public void removePropertyFromPortfolio(Long propertyId, Long removedBy) {
-        Property property = findById(propertyId);
-        if (property != null) {
-            property.setPortfolio(null);
-            property.setPortfolioAssignmentDate(null);
-            save(property);
-        }
+        // ❌ DISABLED: Direct portfolio assignment - now handled by PropertyPortfolioAssignment table
+        // Property property = findById(propertyId);
+        // if (property != null) {
+        //     property.setPortfolio(null);
+        //     property.setPortfolioAssignmentDate(null);
+        //     save(property);
+        // }
+        
+        // ✅ TODO: This method should be deprecated and replaced with PortfolioAssignmentService.removeAssignment()
+        throw new UnsupportedOperationException("Use PortfolioAssignmentService.removeAssignment() instead");
     }
 
     @Override

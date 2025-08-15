@@ -541,12 +541,16 @@ function drop(event) {
 
 // Function to assign properties to portfolio
 function assignPropertiesToPortfolio(portfolioId, propertyIds) {
+    // Get CSRF token
+    const csrfToken = document.querySelector('meta[name="_csrf"]')?.getAttribute('content');
+    
     return fetch(`/portfolio/${portfolioId}/assign-properties-v2?propertyIds=${propertyIds.join(',')}`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
             'Accept': 'application/json',
-            'Content-Type': 'application/x-www-form-urlencoded'
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRF-TOKEN': csrfToken
         }
     })
     .then(response => {

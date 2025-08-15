@@ -511,10 +511,8 @@ function syncAllPortfolios() {
 function pullPayPropTags() {
     if (confirm('Import existing PayProp tags as portfolios?')) {
         fetch('/portfolio/actions/pull-payprop-tags', {
-            method: 'GET',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
-            }
+            method: 'GET'
+            // Removed CSRF token - GET requests don't need CSRF protection
         })
         .then(response => response.json())
         .then(data => {

@@ -110,10 +110,11 @@ public class Property {
     @Column(name = "payprop_property_id", length = 100)
     private String payPropPropertyId;
 
-    // Portfolio and Block Relationships - NEW FIELDS
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "portfolio_id")
-    private Portfolio portfolio;
+    // Portfolio and Block Relationships - UNIFIED MANY-TO-MANY APPROACH
+    // ❌ DISABLED: Direct portfolio assignment conflicts with PropertyPortfolioAssignment table
+    // @ManyToOne(fetch = FetchType.LAZY)
+    // @JoinColumn(name = "portfolio_id")
+    // private Portfolio portfolio;  // Use PropertyPortfolioAssignment table instead
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "block_id")
@@ -363,9 +364,10 @@ public class Property {
     public String getPayPropPropertyId() { return payPropPropertyId; }
     public void setPayPropPropertyId(String payPropPropertyId) { this.payPropPropertyId = payPropPropertyId; }
     
-    // Portfolio and Block getters/setters - NEW
-    public Portfolio getPortfolio() { return portfolio; }
-    public void setPortfolio(Portfolio portfolio) { this.portfolio = portfolio; }
+    // Portfolio and Block getters/setters - UNIFIED MANY-TO-MANY APPROACH
+    // ❌ DISABLED: Direct portfolio getters/setters - use PropertyPortfolioAssignment repository methods
+    // public Portfolio getPortfolio() { return portfolio; }
+    // public void setPortfolio(Portfolio portfolio) { this.portfolio = portfolio; }
 
     public Block getBlock() { return block; }
     public void setBlock(Block block) { this.block = block; }

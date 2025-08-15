@@ -680,7 +680,10 @@ public class PortfolioController {
                 Map<String, Object> prop = new HashMap<>();
                 prop.put("id", p.getId());
                 prop.put("name", p.getPropertyName());
-                prop.put("portfolioId", p.getPortfolio() != null ? p.getPortfolio().getId() : null);
+                
+                // ✅ FIXED: Use many-to-many assignment table to get primary portfolio
+                Optional<Portfolio> primaryPortfolio = propertyPortfolioAssignmentRepository.findPrimaryPortfolioForProperty(p.getId());
+                prop.put("portfolioId", primaryPortfolio.map(Portfolio::getId).orElse(null));
                 return prop;
             })
             .collect(Collectors.toList()));
@@ -2369,10 +2372,13 @@ public class PortfolioController {
             // Simulate what assignment page does
             if (portfolio.getPropertyOwnerId() != null) {
                 try {
-                    // This is what assignment page uses for owner-specific portfolios
+                    // ✅ FIXED: Use many-to-many approach for owner-specific portfolios
                     List<Property> ownerProperties = propertyService.findByPropertyOwnerId(portfolio.getPropertyOwnerId().longValue());
                     List<Property> unassignedProperties = ownerProperties.stream()
-                        .filter(property -> property.getPortfolio() == null)
+                        .filter(property -> {
+                            // Check if property has any active assignments
+                            return propertyPortfolioAssignmentRepository.countPortfoliosForProperty(property.getId()) == 0;
+                        })
                         .collect(Collectors.toList());
                     
                     result.put("assignmentPageLogic", Map.of(
@@ -2382,10 +2388,8 @@ public class PortfolioController {
                         "method", "propertyService.findByPropertyOwnerId()"
                     ));
                     
-                    // Check how many are actually assigned to THIS portfolio
-                    long assignedToThisPortfolio = ownerProperties.stream()
-                        .filter(p -> p.getPortfolio() != null && p.getPortfolio().getId().equals(id))
-                        .count();
+                    // ✅ FIXED: Check how many are actually assigned to THIS portfolio using many-to-many
+                    long assignedToThisPortfolio = propertyPortfolioAssignmentRepository.countPropertiesInPortfolio(id);
                     
                     result.put("assignedToThisPortfolio", assignedToThisPortfolio);
                     

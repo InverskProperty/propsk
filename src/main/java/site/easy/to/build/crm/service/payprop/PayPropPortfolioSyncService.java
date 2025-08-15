@@ -397,8 +397,9 @@ public class PayPropPortfolioSyncService {
                 Optional<Property> propertyOpt = propertyService.findByPayPropId(payPropPropertyId);
                 if (propertyOpt.isPresent()) {
                     Property property = propertyOpt.get();
-                    property.setPortfolio(portfolio);
-                    property.setPortfolioAssignmentDate(LocalDateTime.now());
+                    // ❌ DISABLED: Direct portfolio assignment - now handled by PropertyPortfolioAssignment table
+                    // property.setPortfolio(portfolio);
+                    // property.setPortfolioAssignmentDate(LocalDateTime.now());
                     
                     // FIXED: Add duplicate key handling for property portfolio assignment
                     try {
@@ -440,11 +441,12 @@ public class PayPropPortfolioSyncService {
                 Optional<Property> propertyOpt = propertyService.findByPayPropId(payPropPropertyId);
                 if (propertyOpt.isPresent()) {
                     Property property = propertyOpt.get();
+                    // ❌ DISABLED: Direct portfolio queries - now handled by PropertyPortfolioAssignment table
                     // Only remove from portfolio if this was the matching tag
-                    if (property.getPortfolio() != null && 
-                        portfolioHasPayPropTag(property.getPortfolio(), tagId)) {
-                        property.setPortfolio(null);
-                        property.setPortfolioAssignmentDate(null);
+                    // if (property.getPortfolio() != null && 
+                    //     portfolioHasPayPropTag(property.getPortfolio(), tagId)) {
+                    //     property.setPortfolio(null);
+                    //     property.setPortfolioAssignmentDate(null);
                         
                         // FIXED: Add duplicate key handling for property portfolio removal
                         try {
