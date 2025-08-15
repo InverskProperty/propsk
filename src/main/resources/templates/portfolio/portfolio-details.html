@@ -293,6 +293,12 @@
                                                     class="btn btn-primary" title="Edit">
                                                         <i class="fas fa-edit"></i>
                                                     </a>
+                                                    <button type="button" 
+                                                            class="btn btn-danger" 
+                                                            title="Remove from Portfolio"
+                                                            th:onclick="'removeProperty(' + ${prop.id} + ')'">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -447,7 +453,7 @@ function assignSelectedProperties() {
 
 function removeProperty(propertyId) {
     if (confirm('Remove this property from the portfolio?')) {
-        fetch('/portfolio/' + portfolioId + '/remove-property/' + propertyId, {
+        fetch('/portfolio/' + portfolioId + '/remove-property-v2/' + propertyId, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

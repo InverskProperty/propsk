@@ -108,7 +108,7 @@ public class PortfolioServiceImpl implements PortfolioService {
             
             try {
                 // Fallback to direct FK method
-                List<Property> properties = propertyService.findByPortfolioId(portfolioId);
+                List<Property> properties = propertyService.findActivePropertiesByPortfolio(portfolioId);
                 System.out.println("📝 Direct FK: Found " + properties.size() + " properties for portfolio " + portfolioId);
                 return properties;
                 

@@ -24,10 +24,8 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     List<Property> findByEnablePayments(String enablePayments);
     long countByIsArchived(String isArchived);
 
-    // ✅ Portfolio and Block relationship queries - LEGACY DISABLED (portfolio now uses junction table)
-    // List<Property> findByPortfolioId(Long portfolioId);  // Use PropertyPortfolioAssignmentRepository.findPropertiesForPortfolio() instead
+    // ✅ Block relationship queries
     List<Property> findByBlockId(Long blockId);
-    // List<Property> findByPortfolioIdAndIsArchived(Long portfolioId, String isArchived);  // Use PropertyPortfolioAssignmentRepository instead
     List<Property> findByBlockIdAndIsArchived(Long blockId, String isArchived);
     
     // ✅ Property characteristics (PayProp compatible)
@@ -74,7 +72,7 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
            "LIKE LOWER(CONCAT('%', :address, '%'))")
     List<Property> findByFullAddressContaining(@Param("address") String address);
 
-    // ✅ Portfolio assignment queries - UPDATED to use PropertyPortfolioAssignment junction table
+    // ✅ Portfolio assignment queries using PropertyPortfolioAssignment junction table
     @Query("SELECT p FROM Property p WHERE p.isArchived = 'N' AND NOT EXISTS " +
            "(SELECT ppa FROM PropertyPortfolioAssignment ppa WHERE ppa.property.id = p.id AND ppa.isActive = true)")
     List<Property> findUnassignedProperties();
@@ -94,9 +92,6 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     @Query("SELECT COUNT(p) FROM Property p WHERE p.block.id = :blockId")
     long countByBlockId(@Param("blockId") Long blockId);
 
-    // ✅ Portfolio analytics support - DISABLED (no longer valid with many-to-many)
-    // @Query("SELECT p FROM Property p LEFT JOIN FETCH p.portfolio WHERE p.id IN :propertyIds")
-    // List<Property> findByIdInWithPortfolio(@Param("propertyIds") List<Long> propertyIds);
 
     // Add to PropertyRepository.java
     @Query(value = "SELECT DISTINCT p.* FROM properties p " +

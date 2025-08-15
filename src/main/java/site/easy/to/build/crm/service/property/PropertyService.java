@@ -35,9 +35,8 @@ public interface PropertyService {
     List<Property> findPropertiesByFurnished(String furnished);
 
     // Portfolio and Block relationships
-    List<Property> findByPortfolioId(Long portfolioId);
-    List<Property> findByBlockId(Long blockId);
     List<Property> findActivePropertiesByPortfolio(Long portfolioId);
+    List<Property> findByBlockId(Long blockId);
     List<Property> findActivePropertiesByBlock(Long blockId);
     List<Property> findUnassignedProperties();
     
@@ -76,14 +75,11 @@ public interface PropertyService {
     long countArchivedProperties();
     long countActiveProperties();
 
-    // Property assignment
-    void assignPropertyToPortfolio(Long propertyId, Long portfolioId, Long assignedBy);
-    void removePropertyFromPortfolio(Long propertyId, Long removedBy);
+    // Block assignment (portfolio assignment now handled by PropertyPortfolioAssignmentService)
     void assignPropertyToBlock(Long propertyId, Long blockId, Long assignedBy);
     void removePropertyFromBlock(Long propertyId, Long removedBy);
 
     // Analytics support
-    long countPropertiesByPortfolio(Long portfolioId);
     long countPropertiesByBlock(Long blockId);
     
     // PayProp sync methods

@@ -1831,7 +1831,7 @@ public class PortfolioController {
             List<Long> allPropertyIds = portfolios.stream()
                 .flatMap(portfolio -> {
                     try {
-                        return propertyService.findByPortfolioId(portfolio.getId()).stream();
+                        return propertyService.findActivePropertiesByPortfolio(portfolio.getId()).stream();
                     } catch (Exception e) {
                         return java.util.stream.Stream.empty();
                     }
@@ -1920,7 +1920,7 @@ public class PortfolioController {
             // Process each portfolio
             for (Portfolio portfolio : portfolios) {
                 try {
-                    List<Property> portfolioProperties = propertyService.findByPortfolioId(portfolio.getId());
+                    List<Property> portfolioProperties = propertyService.findActivePropertiesByPortfolio(portfolio.getId());
                     int portfolioTicketCount = 0;
                     
                     for (Property property : portfolioProperties) {
@@ -1985,7 +1985,7 @@ public class PortfolioController {
         Map<String, Object> stats = new HashMap<>();
         
         try {
-            List<Property> portfolioProperties = propertyService.findByPortfolioId(portfolioId);
+            List<Property> portfolioProperties = propertyService.findActivePropertiesByPortfolio(portfolioId);
             List<Long> propertyIds = portfolioProperties.stream().map(Property::getId).collect(Collectors.toList());
             
             // Get all maintenance tickets for this portfolio's properties
@@ -2054,7 +2054,7 @@ public class PortfolioController {
         
         try {
             for (Portfolio portfolio : portfolios) {
-                List<Property> portfolioProperties = propertyService.findByPortfolioId(portfolio.getId());
+                List<Property> portfolioProperties = propertyService.findActivePropertiesByPortfolio(portfolio.getId());
                 
                 for (Property property : portfolioProperties) {
                     try {
@@ -2264,7 +2264,7 @@ public class PortfolioController {
             
             // Test Method 2: Direct FK (the fallback)
             try {
-                List<Property> directProperties = propertyService.findByPortfolioId(id);
+                List<Property> directProperties = propertyService.findActivePropertiesByPortfolio(id);
                 result.put("method2_directFK", Map.of(
                     "status", "SUCCESS",
                     "count", directProperties.size(),

@@ -87,7 +87,7 @@ public class PayPropPortfolioSyncService {
             portfolio.setPayPropTagNames(tag.getName());
             
             // Step 3: Apply tags to all properties in this portfolio
-            List<Property> properties = propertyService.findByPortfolioId(portfolioId);
+            List<Property> properties = propertyService.findActivePropertiesByPortfolio(portfolioId);
             int propertiesTagged = 0;
             for (Property property : properties) {
                 if (property.getPayPropId() != null) {

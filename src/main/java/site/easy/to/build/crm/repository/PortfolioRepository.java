@@ -87,9 +87,6 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
     @Query("SELECT COUNT(ppa) FROM PropertyPortfolioAssignment ppa WHERE ppa.portfolio.id = :portfolioId AND ppa.isActive = true AND ppa.property.isArchived = 'N'")
     long countActivePropertiesByPortfolioId(@Param("portfolioId") Long portfolioId);
     
-    // Analytics queries - DISABLED (no longer valid with many-to-many approach)
-    // @Query("SELECT p FROM Portfolio p JOIN FETCH p.properties WHERE p.id = :portfolioId")
-    // Optional<Portfolio> findByIdWithProperties(@Param("portfolioId") Long portfolioId);
     
     @Query("SELECT p FROM Portfolio p JOIN FETCH p.blocks WHERE p.id = :portfolioId")
     Optional<Portfolio> findByIdWithBlocks(@Param("portfolioId") Long portfolioId);

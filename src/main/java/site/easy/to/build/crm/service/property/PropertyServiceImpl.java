@@ -190,13 +190,6 @@ public class PropertyServiceImpl implements PropertyService {
         }
     }
 
-    // ✅ Portfolio and Block methods - UPDATED for junction table approach
-    @Override
-    public List<Property> findByPortfolioId(Long portfolioId) {
-        // ❌ DISABLED: Direct portfolio queries - now handled by PropertyPortfolioAssignment table
-        // return propertyRepository.findByPortfolioId(portfolioId);
-        throw new UnsupportedOperationException("Use PropertyPortfolioAssignmentRepository.findPropertiesForPortfolio() instead");
-    }
 
     @Override
     public List<Property> findByBlockId(Long blockId) {
@@ -218,28 +211,6 @@ public class PropertyServiceImpl implements PropertyService {
         return propertyRepository.findUnassignedProperties();
     }
 
-    @Override
-    public void assignPropertyToPortfolio(Long propertyId, Long portfolioId, Long assignedBy) {
-        Property property = findById(propertyId);
-        if (property != null) {
-            property.setPortfolioAssignmentDate(LocalDateTime.now());
-            save(property);
-        }
-    }
-
-    @Override
-    public void removePropertyFromPortfolio(Long propertyId, Long removedBy) {
-        // ❌ DISABLED: Direct portfolio assignment - now handled by PropertyPortfolioAssignment table
-        // Property property = findById(propertyId);
-        // if (property != null) {
-        //     property.setPortfolio(null);
-        //     property.setPortfolioAssignmentDate(null);
-        //     save(property);
-        // }
-        
-        // ✅ TODO: This method should be deprecated and replaced with PortfolioAssignmentService.removeAssignment()
-        throw new UnsupportedOperationException("Use PortfolioAssignmentService.removeAssignment() instead");
-    }
 
     @Override
     public void assignPropertyToBlock(Long propertyId, Long blockId, Long assignedBy) {
@@ -260,12 +231,6 @@ public class PropertyServiceImpl implements PropertyService {
         }
     }
 
-    @Override
-    public long countPropertiesByPortfolio(Long portfolioId) {
-        // ❌ DISABLED: Direct portfolio count - now handled by PropertyPortfolioAssignment table
-        // return propertyRepository.countByPortfolioId(portfolioId);
-        throw new UnsupportedOperationException("Use PropertyPortfolioAssignmentRepository.countPropertiesForPortfolio() instead");
-    }
 
     @Override
     public long countPropertiesByBlock(Long blockId) {
