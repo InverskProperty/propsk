@@ -195,10 +195,31 @@ public class PortfolioServiceImpl implements PortfolioService {
     public void assignPropertyToPortfolio(Long propertyId, Long portfolioId, PortfolioAssignmentType assignmentType, 
                                         Long assignedBy, String notes) {
         try {
-            // Check if assignment already exists
+            // Check if ACTIVE assignment already exists
             if (propertyPortfolioAssignmentRepository.existsByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
                     propertyId, portfolioId, assignmentType, true)) {
-                System.out.println("⚠️ Assignment already exists: Property " + propertyId + " → Portfolio " + portfolioId + " (" + assignmentType + ")");
+                System.out.println("⚠️ Active assignment already exists: Property " + propertyId + " → Portfolio " + portfolioId + " (" + assignmentType + ")");
+                return;
+            }
+            
+            // Check if INACTIVE assignment exists that we can reactivate
+            Optional<PropertyPortfolioAssignment> existingAssignment = 
+                propertyPortfolioAssignmentRepository.findByPropertyIdAndPortfolioIdAndAssignmentType(
+                    propertyId, portfolioId, assignmentType);
+            
+            if (existingAssignment.isPresent()) {
+                // Reactivate existing assignment
+                PropertyPortfolioAssignment assignment = existingAssignment.get();
+                assignment.setIsActive(true);
+                assignment.setAssignedAt(LocalDateTime.now());
+                assignment.setAssignedBy(assignedBy);
+                assignment.setUpdatedAt(LocalDateTime.now());
+                assignment.setUpdatedBy(assignedBy);
+                assignment.setNotes(notes);
+                assignment.setSyncStatus(SyncStatus.pending);
+                
+                propertyPortfolioAssignmentRepository.save(assignment);
+                System.out.println("✅ Reactivated existing assignment: Property " + propertyId + " → Portfolio " + portfolioId + " (" + assignmentType + ")");
                 return;
             }
             
@@ -212,7 +233,7 @@ public class PortfolioServiceImpl implements PortfolioService {
                 throw new IllegalArgumentException("Portfolio not found: " + portfolioId);
             }
             
-            // Create new assignment
+            // Create new assignment (first time)
             PropertyPortfolioAssignment assignment = new PropertyPortfolioAssignment(
                 property, portfolio, assignmentType, assignedBy);
             assignment.setNotes(notes);
