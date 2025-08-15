@@ -67,7 +67,7 @@ public class SecurityConfig {
 
         http.csrf((csrf) -> csrf
                 .csrfTokenRepository(httpSessionCsrfTokenRepository)
-                .ignoringRequestMatchers("/api/payprop/**")
+                .ignoringRequestMatchers("/api/payprop/**", "/portfolio/**")
         );
         
         // CRITICAL FIX: Only match specific customer routes - NO wildcards that could catch /portfolio/**
@@ -205,8 +205,8 @@ public class SecurityConfig {
                         // FIXED: Add specific assign-properties-v2 route with correct authorities
                         .requestMatchers(HttpMethod.POST, "/portfolio/*/assign-properties-v2").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN")
                         
-                        // TEMPORARY: Make all portfolio routes public for testing
-                        .requestMatchers("/portfolio/**").permitAll()
+                        // CRITICAL FIX: General portfolio routes - NOW properly handled by main chain
+                        .requestMatchers("/portfolio/**").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE", "ROLE_PROPERTY_OWNER", "ROLE_CUSTOMER")
 
                         
                         // Property API routes (for address copy functionality)
