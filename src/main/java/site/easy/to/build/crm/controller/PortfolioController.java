@@ -3034,7 +3034,10 @@ public class PortfolioController {
                 portfolio.getPayPropTags() != null && 
                 payPropPortfolioSyncService != null) {
                 try {
-                    response.put("payPropRemovalAttempt", "Attempting to remove tag from property " + property.getPayPropId());
+                    String apiCall = "DELETE /tags/entities/property/" + property.getPayPropId() + "/" + portfolio.getPayPropTags();
+                    response.put("payPropRemovalAttempt", "API Call: " + apiCall);
+                    response.put("payPropApiCall", apiCall);
+                    
                     payPropPortfolioSyncService.removeTagFromProperty(
                         property.getPayPropId(),
                         portfolio.getPayPropTags()

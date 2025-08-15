@@ -66,9 +66,30 @@ public class PortfolioAssignmentService {
                     continue;
                 }
                 
-                // Step 2: Create junction table assignment
-                PropertyPortfolioAssignment assignment = createJunctionTableAssignment(
-                    property, portfolio, userId);
+                // Step 1.5: Check if INACTIVE assignment exists that we can reactivate  
+                Optional<PropertyPortfolioAssignment> inactiveAssignment = 
+                    assignmentRepository.findByPropertyIdAndPortfolioIdAndAssignmentType(
+                        propertyId, portfolioId, PortfolioAssignmentType.PRIMARY);
+                
+                PropertyPortfolioAssignment assignment;
+                if (inactiveAssignment.isPresent() && !inactiveAssignment.get().getIsActive()) {
+                    // Reactivate existing assignment
+                    assignment = inactiveAssignment.get();
+                    assignment.setIsActive(true);
+                    assignment.setAssignedAt(LocalDateTime.now());
+                    assignment.setAssignedBy(userId);
+                    assignment.setUpdatedAt(LocalDateTime.now());
+                    assignment.setUpdatedBy(userId);
+                    assignment.setSyncStatus(SyncStatus.pending);
+                    assignment.setNotes("Reactivated via assignment page");
+                    
+                    assignmentRepository.save(assignment);
+                    log.info("✅ Reactivated existing assignment: Property {} → Portfolio {}", propertyId, portfolioId);
+                } else {
+                    // Step 2: Create new junction table assignment
+                    assignment = createJunctionTableAssignment(property, portfolio, userId);
+                    log.info("✅ Created new assignment: Property {} → Portfolio {}", propertyId, portfolioId);
+                }
                 result.incrementAssigned();
                 
                 // Step 3: Apply PayProp tag if applicable
