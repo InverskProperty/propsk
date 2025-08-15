@@ -202,7 +202,7 @@ public class SecurityConfig {
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/portfolio/*/sync")).hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         
                         // CRITICAL FIX: General portfolio routes - NOW properly handled by main chain
-                        .requestMatchers("/portfolio/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "CUSTOMER", "OIDC_USER")
+                        .requestMatchers("/portfolio/**").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE", "ROLE_PROPERTY_OWNER", "ROLE_CUSTOMER")
 
                         
                         // Property API routes (for address copy functionality)
