@@ -1663,6 +1663,40 @@ public class PortfolioController {
         }
     }
 
+    @GetMapping("/property-debug/{propertyId}")
+    @ResponseBody  
+    public String debugProperty(@PathVariable Long propertyId) {
+        try {
+            StringBuilder result = new StringBuilder();
+            result.append("PROPERTY ").append(propertyId).append(" DEBUG\n");
+            result.append("=======================\n\n");
+            
+            Property property = propertyService.findById(propertyId);
+            if (property == null) {
+                return "Property " + propertyId + " not found";
+            }
+            
+            result.append("Property: ").append(property.getPropertyName()).append("\n");
+            result.append("PayProp ID: ").append(property.getPayPropId()).append("\n");
+            result.append("Archived: ").append(property.getIsArchived()).append("\n\n");
+            
+            // Check current portfolio assignments
+            List<PropertyPortfolioAssignment> assignments = propertyPortfolioAssignmentRepository.findByPropertyId(propertyId);
+            result.append("Portfolio Assignments (").append(assignments.size()).append("):\n");
+            for (PropertyPortfolioAssignment assignment : assignments) {
+                result.append("- Portfolio ").append(assignment.getPortfolio().getId())
+                      .append(" (").append(assignment.getPortfolio().getName()).append(")")
+                      .append(" - Active: ").append(assignment.getIsActive())
+                      .append(" - Type: ").append(assignment.getAssignmentType())
+                      .append(" - Sync: ").append(assignment.getSyncStatus()).append("\n");
+            }
+            
+            return result.toString();
+        } catch (Exception e) {
+            return "Debug failed: " + e.getMessage();
+        }
+    }
+
     @GetMapping("/system-debug")
     @ResponseBody
     public String systemDebug() {

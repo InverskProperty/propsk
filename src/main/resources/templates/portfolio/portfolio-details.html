@@ -462,10 +462,34 @@ function removeProperty(propertyId) {
         })
         .then(response => response.json())
         .then(data => {
+            // Log full debug information
+            console.log('Remove property response:', data);
+            
+            // Log PayProp debug details if available
+            if (data.payPropDebug) {
+                console.log('PayProp Debug:', data.payPropDebug);
+                console.log('Property PayProp ID:', data.propertyPayPropId);
+                console.log('Portfolio PayProp Tags:', data.portfolioPayPropTags);
+                console.log('PayProp Service Available:', data.payPropServiceAvailable);
+                if (data.payPropRemovalAttempt) {
+                    console.log('PayProp Removal Attempt:', data.payPropRemovalAttempt);
+                }
+                if (data.payPropError) {
+                    console.error('PayProp Removal Error:', data.payPropError);
+                }
+                if (data.payPropSkipped) {
+                    console.warn('PayProp Removal Skipped:', data.payPropSkipped);
+                }
+            }
+            
             if (data.success) {
+                alert('Property removed successfully' + 
+                      (data.payPropSyncRemoved ? ' (PayProp tag also removed)' : 
+                       data.payPropSkipped ? ' (PayProp tag removal skipped)' : 
+                       data.payPropError ? ' (PayProp tag removal failed)' : ''));
                 location.reload();
             } else {
-                alert('Error: ' + data.message);
+                alert('Error: ' + (data.message || data.error || 'Unknown error'));
             }
         })
         .catch(error => {
