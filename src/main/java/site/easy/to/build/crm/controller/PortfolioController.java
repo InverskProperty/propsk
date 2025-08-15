@@ -1761,6 +1761,37 @@ public class PortfolioController {
         }
     }
 
+    @GetMapping("/debug-actual-roles")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> debugActualRoles(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        if (authentication == null) {
+            response.put("error", "No authentication");
+            return ResponseEntity.ok(response);
+        }
+        
+        response.put("authenticated", authentication.isAuthenticated());
+        response.put("principal", authentication.getPrincipal().toString());
+        response.put("authType", authentication.getClass().getSimpleName());
+        
+        // Get actual authorities
+        List<String> authorities = authentication.getAuthorities().stream()
+            .map(GrantedAuthority::getAuthority)
+            .collect(Collectors.toList());
+        response.put("actualAuthorities", authorities);
+        
+        // Test specific role checks
+        response.put("hasROLE_MANAGER", AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER"));
+        response.put("hasMANAGER", AuthorizationUtil.hasRole(authentication, "MANAGER"));
+        response.put("hasROLE_EMPLOYEE", AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE"));
+        response.put("hasEMPLOYEE", AuthorizationUtil.hasRole(authentication, "EMPLOYEE"));
+        response.put("hasOIDC_USER", AuthorizationUtil.hasRole(authentication, "OIDC_USER"));
+        response.put("hasROLE_OIDC_USER", AuthorizationUtil.hasRole(authentication, "ROLE_OIDC_USER"));
+        
+        return ResponseEntity.ok(response);
+    }
+
     /**
      * Recalculate Portfolio Analytics (alternative endpoint)
      */
