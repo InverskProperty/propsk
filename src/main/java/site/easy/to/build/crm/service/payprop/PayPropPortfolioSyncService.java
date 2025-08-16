@@ -4,6 +4,7 @@ package site.easy.to.build.crm.service.payprop;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
@@ -41,8 +42,9 @@ public class PayPropPortfolioSyncService {
     @Autowired
     private PayPropApiClient payPropApiClient;
     
-    // FIXED: Add PortfolioAssignmentService for proper local tag removal
+    // FIXED: Add PortfolioAssignmentService for proper local tag removal (with @Lazy to break circular dependency)
     @Autowired(required = false)
+    @Lazy
     private PortfolioAssignmentService portfolioAssignmentService;
 
     @Autowired

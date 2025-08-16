@@ -3,6 +3,7 @@ package site.easy.to.build.crm.service.portfolio;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.annotation.Lazy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +36,7 @@ public class PortfolioAssignmentService {
     private PropertyService propertyService;
     
     @Autowired(required = false) // Make optional for non-PayProp environments
+    @Lazy // Break circular dependency with PayPropPortfolioSyncService
     private PayPropPortfolioSyncService payPropSyncService;
     
     // ==================== MAIN ASSIGNMENT METHODS ====================
