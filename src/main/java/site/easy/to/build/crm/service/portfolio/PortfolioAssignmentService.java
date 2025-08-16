@@ -191,8 +191,12 @@ public class PortfolioAssignmentService {
                 log.info("✅ PayProp tag removed successfully");
             } catch (Exception e) {
                 log.error("❌ Failed to remove PayProp tag: {}", e.getMessage());
-                // Continue anyway - local removal is more important
+                // ENHANCED: Throw exception to surface error to user instead of silent failure
+                throw new RuntimeException("Local removal succeeded, but PayProp tag removal failed: " + e.getMessage(), e);
             }
+        } else {
+            log.info("⏭️ Skipping PayProp tag removal - not configured for portfolio {} or property {}", 
+                portfolioId, propertyId);
         }
         
         // Clear direct FK if it matches

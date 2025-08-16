@@ -523,6 +523,8 @@ public class PayPropPortfolioSyncService {
     
 
     public void applyTagToProperty(String payPropPropertyId, String tagId) throws Exception {
+        log.info("🏷️ Attempting to apply PayProp tag {} to property {}", tagId, payPropPropertyId);
+        
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         
@@ -535,28 +537,47 @@ public class PayPropPortfolioSyncService {
             PayPropTagDTO tag = getPayPropTag(tagId);
             if (tag != null && tag.getName() != null) {
                 requestBody.put("names", List.of(tag.getName()));
+                log.info("📋 Using tag name '{}' along with ID", tag.getName());
             }
         } catch (Exception e) {
             log.warn("Could not retrieve tag name for {}, proceeding with ID only", tagId);
         }
         
+        String url = payPropApiBase + "/tags/entities/property/" + payPropPropertyId;
+        log.info("🔗 POST URL: {}, Body: {}", url, requestBody);
+        
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
         
         try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(
-                payPropApiBase + "/tags/entities/property/" + payPropPropertyId, 
-                request, 
-                Map.class
-            );
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
+            
+            log.info("📊 PayProp tag application response: Status={}, Body={}", 
+                response.getStatusCode(), response.getBody());
             
             if (response.getStatusCode().is2xxSuccessful()) {
-                log.info("Successfully applied PayProp tag {} to property {}", tagId, payPropPropertyId);
+                log.info("✅ Successfully applied PayProp tag {} to property {}", tagId, payPropPropertyId);
             } else {
-                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
+                String errorMsg = "Unexpected response status: " + response.getStatusCode();
+                log.error("❌ {}", errorMsg);
+                throw new RuntimeException(errorMsg);
             }
         } catch (HttpClientErrorException e) {
-            log.error("Failed to apply tag {} to property {}: {}", tagId, payPropPropertyId, e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to apply tag to property: " + e.getResponseBodyAsString(), e);
+            String errorDetails = String.format("HTTP %s: %s", e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("❌ Failed to apply tag {} to property {}: {}", tagId, payPropPropertyId, errorDetails);
+            
+            // ENHANCED: Provide more specific error messages
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new RuntimeException("Property " + payPropPropertyId + " or tag " + tagId + " not found in PayProp");
+            } else if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
+                throw new RuntimeException("PayProp authentication failed - please re-authorize");
+            } else if (e.getStatusCode() == HttpStatus.BAD_REQUEST) {
+                throw new RuntimeException("Invalid request to PayProp: " + e.getResponseBodyAsString());
+            } else {
+                throw new RuntimeException("Failed to apply tag to property: " + errorDetails, e);
+            }
+        } catch (Exception e) {
+            log.error("❌ Unexpected error applying tag {} to property {}: {}", tagId, payPropPropertyId, e.getMessage());
+            throw new RuntimeException("Unexpected error during tag application: " + e.getMessage(), e);
         }
     }
 
@@ -587,25 +608,48 @@ public class PayPropPortfolioSyncService {
      * Uses the correct PayProp endpoint: DELETE /tags/entities/property/{property_id}/{tag_id}
      */
     public void removeTagFromProperty(String payPropPropertyId, String tagId) throws Exception {
+        log.info("🗑️ Attempting to remove PayProp tag {} from property {}", tagId, payPropPropertyId);
+        
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
+        String url = payPropApiBase + "/tags/entities/property/" + payPropPropertyId + "/" + tagId;
+        log.info("🔗 DELETE URL: {}", url);
+        
         try {
             ResponseEntity<Map> response = restTemplate.exchange(
-                payPropApiBase + "/tags/entities/property/" + payPropPropertyId + "/" + tagId,
+                url,
                 HttpMethod.DELETE,
                 request,
                 Map.class
             );
             
-            if (response.getStatusCode() == HttpStatus.OK) {
-                log.info("Successfully removed PayProp tag {} from property {}", tagId, payPropPropertyId);
+            log.info("📊 PayProp tag removal response: Status={}, Body={}", 
+                response.getStatusCode(), response.getBody());
+            
+            // FIXED: Accept both OK (200) and NO_CONTENT (204) as success
+            if (response.getStatusCode() == HttpStatus.OK || response.getStatusCode() == HttpStatus.NO_CONTENT) {
+                log.info("✅ Successfully removed PayProp tag {} from property {}", tagId, payPropPropertyId);
             } else {
-                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
+                String errorMsg = "Unexpected response status: " + response.getStatusCode();
+                log.error("❌ {}", errorMsg);
+                throw new RuntimeException(errorMsg);
             }
         } catch (HttpClientErrorException e) {
-            log.error("Failed to remove tag {} from property {}: {}", tagId, payPropPropertyId, e.getResponseBodyAsString());
-            throw new RuntimeException("Failed to remove tag from property: " + e.getResponseBodyAsString(), e);
+            String errorDetails = String.format("HTTP %s: %s", e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("❌ Failed to remove tag {} from property {}: {}", tagId, payPropPropertyId, errorDetails);
+            
+            // ENHANCED: Provide more specific error messages
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new RuntimeException("Tag " + tagId + " not found on property " + payPropPropertyId + " in PayProp");
+            } else if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
+                throw new RuntimeException("PayProp authentication failed - please re-authorize");
+            } else {
+                throw new RuntimeException("Failed to remove tag from property: " + errorDetails, e);
+            }
+        } catch (Exception e) {
+            log.error("❌ Unexpected error removing tag {} from property {}: {}", tagId, payPropPropertyId, e.getMessage());
+            throw new RuntimeException("Unexpected error during tag removal: " + e.getMessage(), e);
         }
     }
     
