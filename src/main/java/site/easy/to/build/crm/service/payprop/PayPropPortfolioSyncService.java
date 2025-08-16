@@ -525,6 +525,109 @@ public class PayPropPortfolioSyncService {
         }
     }
     
+    /**
+     * CRITICAL FIX: Ensure a PayProp tag exists by name, creating it if necessary
+     * This is the core method that fixes our tag creation workflow
+     * 
+     * @param tagName The tag name (e.g., "PF-1105-JoeWeeks")
+     * @return PayPropTagDTO with the external_id from PayProp
+     * @throws Exception if tag creation fails
+     */
+    public PayPropTagDTO ensurePayPropTagExists(String tagName) throws Exception {
+        log.info("🏷️ Ensuring PayProp tag exists: {}", tagName);
+        
+        // Step 1: Search for existing tag by name
+        try {
+            List<PayPropTagDTO> existingTags = searchPayPropTagsByName(tagName);
+            if (!existingTags.isEmpty()) {
+                PayPropTagDTO existingTag = existingTags.get(0);
+                log.info("✅ Found existing PayProp tag: {} -> {}", tagName, existingTag.getId());
+                return existingTag;
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to search for existing tag {}: {}", tagName, e.getMessage());
+            // Continue to creation attempt
+        }
+        
+        // Step 2: Create new tag in PayProp
+        log.info("🆕 Creating new PayProp tag: {}", tagName);
+        PayPropTagDTO newTag = new PayPropTagDTO();
+        newTag.setName(tagName);
+        newTag.setDescription("Created by CRM for portfolio organization");
+        
+        try {
+            PayPropTagDTO createdTag = createPayPropTag(newTag);
+            log.info("✅ Successfully created PayProp tag: {} -> {}", tagName, createdTag.getId());
+            return createdTag;
+        } catch (Exception e) {
+            // PayProp API returns existing tag if name already exists
+            if (e.getMessage().contains("already exists") || e.getMessage().contains("duplicate")) {
+                log.info("ℹ️ Tag already exists in PayProp, searching again: {}", tagName);
+                try {
+                    List<PayPropTagDTO> retryTags = searchPayPropTagsByName(tagName);
+                    if (!retryTags.isEmpty()) {
+                        PayPropTagDTO existingTag = retryTags.get(0);
+                        log.info("✅ Retrieved existing tag after creation attempt: {} -> {}", tagName, existingTag.getId());
+                        return existingTag;
+                    }
+                } catch (Exception retryError) {
+                    log.error("❌ Failed to retrieve tag after creation conflict: {}", retryError.getMessage());
+                }
+            }
+            
+            log.error("❌ Failed to ensure PayProp tag exists: {}", e.getMessage());
+            throw new RuntimeException("Failed to ensure PayProp tag exists: " + tagName, e);
+        }
+    }
+    
+    /**
+     * Search PayProp tags by name
+     * @param tagName The exact tag name to search for
+     * @return List of matching tags (should be 0 or 1 due to PayProp uniqueness)
+     */
+    private List<PayPropTagDTO> searchPayPropTagsByName(String tagName) throws Exception {
+        log.debug("🔍 Searching PayProp for tag: {}", tagName);
+        
+        HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        
+        // Use PayProp's tag search API with name filter
+        String url = payPropApiBase + "/tags?name=" + tagName;
+        
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                url, HttpMethod.GET, request, Map.class
+            );
+            
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> items = (List<Map<String, Object>>) response.getBody().get("items");
+                
+                if (items != null) {
+                    List<PayPropTagDTO> tags = new ArrayList<>();
+                    for (Map<String, Object> item : items) {
+                        PayPropTagDTO tag = new PayPropTagDTO();
+                        tag.setId((String) item.get("id"));
+                        tag.setName((String) item.get("name"));
+                        tag.setDescription((String) item.get("description"));
+                        tag.setColor((String) item.get("color"));
+                        
+                        // Exact name match check (PayProp search might be fuzzy)
+                        if (tagName.equals(tag.getName())) {
+                            tags.add(tag);
+                        }
+                    }
+                    return tags;
+                }
+            }
+            
+            return new ArrayList<>();
+            
+        } catch (HttpClientErrorException e) {
+            log.error("❌ PayProp API error searching tags: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new RuntimeException("Failed to search PayProp tags: " + e.getResponseBodyAsString(), e);
+        }
+    }
 
     public void applyTagToProperty(String payPropPropertyId, String tagId) throws Exception {
         log.info("🏷️ Attempting to apply PayProp tag {} to property {}", tagId, payPropPropertyId);

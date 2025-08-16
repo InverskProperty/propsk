@@ -11,6 +11,7 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.payprop.PayPropPortfolioSyncService;
+import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -431,6 +432,60 @@ public class PortfolioAssignmentService {
             payPropSyncService != null);
         
         return shouldSync;
+    }
+    
+    /**
+     * CRITICAL FIX: Ensure portfolio has PayProp external ID, not just tag name
+     * This fixes cases where portfolios have tag names instead of external IDs
+     */
+    private String ensurePortfolioHasExternalId(Portfolio portfolio) {
+        String currentTagValue = portfolio.getPayPropTags();
+        
+        // If empty or null, return null
+        if (currentTagValue == null || currentTagValue.trim().isEmpty()) {
+            return null;
+        }
+        
+        // If it looks like an external ID (alphanumeric, 10-32 chars), use it
+        if (currentTagValue.matches("^[a-zA-Z0-9]{10,32}$")) {
+            log.debug("Portfolio {} already has external ID: {}", portfolio.getId(), currentTagValue);
+            return currentTagValue;
+        }
+        
+        // If it looks like a tag name (has namespace prefix), try to get external ID
+        if (currentTagValue.startsWith("PF-") || currentTagValue.startsWith("BL-")) {
+            log.warn("Portfolio {} has tag name instead of external ID: {}", portfolio.getId(), currentTagValue);
+            
+            // Try to resolve it to external ID using PayProp API
+            if (payPropSyncService != null) {
+                try {
+                    String tagName = portfolio.getPayPropTagNames();
+                    if (tagName == null || tagName.trim().isEmpty()) {
+                        tagName = currentTagValue; // Fallback to current value
+                    }
+                    
+                    log.info("🔄 Attempting to resolve tag name to external ID: {}", tagName);
+                    PayPropTagDTO resolvedTag = payPropSyncService.ensurePayPropTagExists(tagName);
+                    
+                    // Update the portfolio with the correct external ID
+                    portfolio.setPayPropTags(resolvedTag.getId());
+                    portfolio.setPayPropTagNames(tagName);
+                    portfolioRepository.save(portfolio);
+                    
+                    log.info("✅ Resolved portfolio {} tag: {} -> {}", portfolio.getId(), tagName, resolvedTag.getId());
+                    return resolvedTag.getId();
+                    
+                } catch (Exception e) {
+                    log.error("❌ Failed to resolve tag name to external ID for portfolio {}: {}", 
+                        portfolio.getId(), e.getMessage());
+                    return null;
+                }
+            }
+        }
+        
+        // Unknown format, log warning and return null
+        log.warn("Portfolio {} has unrecognized tag format: {}", portfolio.getId(), currentTagValue);
+        return null;
     }
     
     // ==================== RESULT CLASSES ====================

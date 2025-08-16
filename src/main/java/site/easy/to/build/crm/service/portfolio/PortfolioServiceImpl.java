@@ -814,28 +814,35 @@ public class PortfolioServiceImpl implements PortfolioService {
         portfolio.setPortfolioType(type);
         portfolio.setIsShared(propertyOwnerId == null ? "Y" : "N");
         
-        // NEW: Create namespaced PayProp tag for manual portfolio creation
-        String namespacedTag = tagNamespaceService.createPortfolioTag(name);
-        portfolio.setPayPropTags(namespacedTag);
-        portfolio.setPayPropTagNames(name);
-        System.out.println("✅ Created portfolio with namespaced tag: " + namespacedTag);
+        // FIXED: Create namespaced tag name and attempt PayProp tag creation
+        String namespacedTagName = tagNamespaceService.createPortfolioTag(name);
+        portfolio.setPayPropTagNames(namespacedTagName);
+        System.out.println("✅ Created portfolio with namespaced tag name: " + namespacedTagName);
         
-        // CRITICAL FIX: Don't claim sync until actually synced
+        // CRITICAL FIX: Attempt to create tag in PayProp immediately if connected
         if (payPropEnabled && payPropSyncService != null) {
             try {
                 if (hasActivePayPropConnection()) {
-                    portfolio.setSyncStatus(SyncStatus.pending);
-                    System.out.println("📝 Portfolio created, ready for PayProp sync");
+                    // Use the new ensurePayPropTagExists method
+                    PayPropTagDTO payPropTag = payPropSyncService.ensurePayPropTagExists(namespacedTagName);
+                    portfolio.setPayPropTags(payPropTag.getId()); // Store external ID
+                    portfolio.setSyncStatus(SyncStatus.synced);
+                    portfolio.setLastSyncAt(LocalDateTime.now());
+                    System.out.println("✅ Portfolio created and tag synced with PayProp: " + payPropTag.getId());
                 } else {
+                    portfolio.setPayPropTags(null); // No external ID yet
                     portfolio.setSyncStatus(SyncStatus.pending);
-                    System.out.println("⚠️ Portfolio created but PayProp not connected");
+                    System.out.println("⚠️ Portfolio created but PayProp not connected - will sync later");
                 }
             } catch (Exception e) {
+                portfolio.setPayPropTags(null); // No external ID due to error
                 portfolio.setSyncStatus(SyncStatus.failed);
-                System.err.println("❌ Portfolio created but PayProp connection failed: " + e.getMessage());
+                System.err.println("❌ Portfolio created but PayProp tag creation failed: " + e.getMessage());
             }
         } else {
-            portfolio.setSyncStatus(null); // PayProp disabled
+            portfolio.setPayPropTags(null); // PayProp disabled
+            portfolio.setSyncStatus(null);
+            System.out.println("ℹ️ Portfolio created without PayProp integration (disabled)");
         }
         
         Portfolio savedPortfolio = portfolioRepository.save(portfolio);
@@ -868,6 +875,37 @@ public class PortfolioServiceImpl implements PortfolioService {
         block.setDescription(description);
         block.setBlockType(type);
         block.setPropertyOwnerId(portfolio.getPropertyOwnerId());
+        
+        // FIXED: Create namespaced block tag name and attempt PayProp tag creation  
+        String blockTagName = tagNamespaceService.createBlockTag(portfolioId, name);
+        block.setPayPropTagNames(blockTagName);
+        System.out.println("✅ Created block with namespaced tag name: " + blockTagName);
+        
+        // CRITICAL FIX: Attempt to create block tag in PayProp immediately if connected
+        if (payPropEnabled && payPropSyncService != null) {
+            try {
+                if (hasActivePayPropConnection()) {
+                    // Use the same ensurePayPropTagExists method for block tags
+                    PayPropTagDTO payPropTag = payPropSyncService.ensurePayPropTagExists(blockTagName);
+                    block.setPayPropTags(payPropTag.getId()); // Store external ID
+                    block.setSyncStatus(SyncStatus.synced);
+                    block.setLastSyncAt(LocalDateTime.now());
+                    System.out.println("✅ Block created and tag synced with PayProp: " + payPropTag.getId());
+                } else {
+                    block.setPayPropTags(null); // No external ID yet
+                    block.setSyncStatus(SyncStatus.pending);
+                    System.out.println("⚠️ Block created but PayProp not connected - will sync later");
+                }
+            } catch (Exception e) {
+                block.setPayPropTags(null); // No external ID due to error
+                block.setSyncStatus(SyncStatus.failed);
+                System.err.println("❌ Block created but PayProp tag creation failed: " + e.getMessage());
+            }
+        } else {
+            block.setPayPropTags(null); // PayProp disabled
+            block.setSyncStatus(null);
+            System.out.println("ℹ️ Block created without PayProp integration (disabled)");
+        }
         
         return blockRepository.save(block);
     }
@@ -903,6 +941,27 @@ public class PortfolioServiceImpl implements PortfolioService {
                     if (!alreadyInPortfolio) {
                         assignPropertyToPortfolio(propertyId, blockPortfolio.getId(), 
                             PortfolioAssignmentType.SECONDARY, assignedBy, "Assigned via block: " + block.getName());
+                    }
+                }
+                
+                // CRITICAL: Apply block tag to property in PayProp if both are configured
+                if (payPropEnabled && payPropSyncService != null && property.getPayPropId() != null) {
+                    try {
+                        // Apply portfolio tag (if portfolio has one)
+                        if (blockPortfolio != null && blockPortfolio.getPayPropTags() != null) {
+                            payPropSyncService.applyTagToProperty(property.getPayPropId(), blockPortfolio.getPayPropTags());
+                            System.out.println("✅ Applied portfolio tag to property " + propertyId);
+                        }
+                        
+                        // Apply block tag (if block has one)
+                        if (block.getPayPropTags() != null) {
+                            payPropSyncService.applyTagToProperty(property.getPayPropId(), block.getPayPropTags());
+                            System.out.println("✅ Applied block tag to property " + propertyId);
+                        }
+                        
+                    } catch (Exception e) {
+                        System.err.println("❌ Failed to apply PayProp tags to property " + propertyId + ": " + e.getMessage());
+                        // Continue with other properties even if tag application fails
                     }
                 }
                 

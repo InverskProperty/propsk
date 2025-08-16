@@ -50,6 +50,12 @@ public class Block {
     @Column(name = "payprop_tags", columnDefinition = "TEXT")
     private String payPropTags;
     
+    @Column(name = "payprop_tag_names", columnDefinition = "TEXT")
+    private String payPropTagNames;
+    
+    @Column(name = "last_sync_at")
+    private LocalDateTime lastSyncAt;
+    
     @Column(name = "sync_status")
     @Enumerated(EnumType.STRING)
     private SyncStatus syncStatus = SyncStatus.pending;
@@ -232,4 +238,11 @@ public class Block {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+    
+    // PayProp Integration Getters/Setters
+    public String getPayPropTagNames() { return payPropTagNames; }
+    public void setPayPropTagNames(String payPropTagNames) { this.payPropTagNames = payPropTagNames; }
+    
+    public LocalDateTime getLastSyncAt() { return lastSyncAt; }
+    public void setLastSyncAt(LocalDateTime lastSyncAt) { this.lastSyncAt = lastSyncAt; }
 }
