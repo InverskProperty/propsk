@@ -270,15 +270,6 @@ public class PortfolioController {
         }
     }
 
-    @PostMapping("/test-simple-auth/{id}")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testSimpleAuth(@PathVariable("id") Long portfolioId) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("message", "Route works!");
-        response.put("portfolioId", portfolioId);
-        return ResponseEntity.ok(response);
-    }
 
     /**
      * Create Portfolio Processing
@@ -669,56 +660,7 @@ public class PortfolioController {
         }
     }
 
-    @GetMapping("/test/owner/{ownerId}/properties")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> testOwnerProperties(@PathVariable Long ownerId) {
-        Map<String, Object> response = new HashMap<>();
-        
-        System.out.println("🧪 [TEST] Looking up properties for owner: " + ownerId);
-        
-        List<Property> properties = propertyService.findByPropertyOwnerId(ownerId);
-        
-        response.put("ownerId", ownerId);
-        response.put("propertyCount", properties.size());
-        response.put("properties", properties.stream()
-            .map(p -> {
-                Map<String, Object> prop = new HashMap<>();
-                prop.put("id", p.getId());
-                prop.put("name", p.getPropertyName());
-                
-                // ✅ FIXED: Use many-to-many assignment table to get primary portfolio
-                Optional<Portfolio> primaryPortfolio = propertyPortfolioAssignmentRepository.findPrimaryPortfolioForProperty(p.getId());
-                prop.put("portfolioId", primaryPortfolio.map(Portfolio::getId).orElse(null));
-                return prop;
-            })
-            .collect(Collectors.toList()));
-        
-        return ResponseEntity.ok(response);
-    }
 
-    @GetMapping("/debug/test-payprop-direct")
-    @ResponseBody
-    public ResponseEntity<String> testPayPropDirect(Authentication authentication) {
-        StringBuilder result = new StringBuilder();
-        
-        try {
-            result.append("🔍 PayProp Direct Test\n");
-            result.append("payPropEnabled: ").append(payPropEnabled).append("\n");
-            result.append("payPropSyncService: ").append(payPropSyncService != null ? "AVAILABLE" : "NULL").append("\n");
-            
-            if (payPropSyncService != null) {
-                result.append("Calling pullAllTagsFromPayProp...\n");
-                SyncResult syncResult = payPropSyncService.pullAllTagsFromPayProp(54L);
-                result.append("Result: ").append(syncResult.getMessage()).append("\n");
-            }
-            
-            return ResponseEntity.ok(result.toString());
-            
-        } catch (Exception e) {
-            result.append("ERROR: ").append(e.getMessage()).append("\n");
-            return ResponseEntity.ok(result.toString());
-        }
-    }
 
     // ===== PAYPROP SPECIFIC ROUTES =====
 
@@ -883,24 +825,6 @@ public class PortfolioController {
         }
     }
 
-    @GetMapping("/debug/raw-payprop-response")
-    @ResponseBody
-    public ResponseEntity<String> debugRawPayPropResponse(Authentication authentication) {
-        try {
-            if (payPropSyncService == null) {
-                return ResponseEntity.ok("PayProp sync service is null");
-            }
-            
-            List<PayPropTagDTO> tags = payPropSyncService.getAllPayPropTags();
-            
-            return ResponseEntity.ok("Found " + tags.size() + " tags:\n" + 
-                                tags.toString());
-            
-        } catch (Exception e) {
-            return ResponseEntity.ok("ERROR: " + e.getMessage() + 
-                                "\nCause: " + (e.getCause() != null ? e.getCause().getMessage() : "None"));
-        }
-    }
 
     @PostMapping("/sync-all")
     @ResponseBody
@@ -1617,51 +1541,6 @@ public class PortfolioController {
         }
     }
 
-    @GetMapping("/portfolio/{id}/debug")
-    @ResponseBody
-    public String debugPortfolio(@PathVariable Long id) {
-        try {
-            // Check junction table assignments
-            List<PropertyPortfolioAssignment> assignments = propertyPortfolioAssignmentRepository.findByPortfolioId(id);
-            List<PropertyPortfolioAssignment> activeAssignments = propertyPortfolioAssignmentRepository.findByPortfolioIdAndIsActive(id, true);
-            
-            // Check service method
-            List<Property> properties = portfolioService.getPropertiesForPortfolio(id);
-            
-            // Check for legacy assignments in database
-            List<Property> allProperties = propertyService.findAll();
-            int legacyAssignments = 0;
-            for (Property prop : allProperties) {
-                // Check if property was assigned to this portfolio in the old system
-                // We need to query the database directly since the entity field is disabled
-            }
-            
-            StringBuilder result = new StringBuilder();
-            result.append("Portfolio ").append(id).append(" Debug:\n");
-            result.append("- Total assignments in junction table: ").append(assignments.size()).append("\n");
-            result.append("- Active assignments: ").append(activeAssignments.size()).append("\n");
-            result.append("- Properties returned by service: ").append(properties.size()).append("\n");
-            result.append("- Junction table has data: ").append(propertyPortfolioAssignmentRepository.count()).append(" total assignments\n");
-            
-            if (!assignments.isEmpty()) {
-                result.append("\nAll assignments for this portfolio:\n");
-                for (PropertyPortfolioAssignment assignment : assignments) {
-                    result.append("  - Property ").append(assignment.getProperty().getId())
-                          .append(" (").append(assignment.getProperty().getPropertyName()).append(")")
-                          .append(" - Active: ").append(assignment.getIsActive())
-                          .append(" - Type: ").append(assignment.getAssignmentType()).append("\n");
-                }
-            } else {
-                result.append("\nNo assignments found in junction table for portfolio ").append(id).append("\n");
-                result.append("This suggests properties may have been assigned using the old direct FK system\n");
-                result.append("and need to be migrated to the junction table approach.\n");
-            }
-            
-            return result.toString();
-        } catch (Exception e) {
-            return "Error: " + e.getMessage() + "\n" + java.util.Arrays.toString(e.getStackTrace()).substring(0, 500);
-        }
-    }
 
     @GetMapping("/property-debug/{propertyId}")
     @ResponseBody  
