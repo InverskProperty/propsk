@@ -17,6 +17,7 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.portfolio.PortfolioAssignmentService;
+import site.easy.to.build.crm.service.tag.TagNamespaceService;
 import org.springframework.http.*;
 
 import java.time.LocalDateTime;
@@ -46,6 +47,9 @@ public class PayPropPortfolioSyncService {
     @Autowired(required = false)
     @Lazy
     private PortfolioAssignmentService portfolioAssignmentService;
+    
+    @Autowired
+    private TagNamespaceService tagNamespaceService;
 
     @Autowired
     public PayPropPortfolioSyncService(PortfolioRepository portfolioRepository,

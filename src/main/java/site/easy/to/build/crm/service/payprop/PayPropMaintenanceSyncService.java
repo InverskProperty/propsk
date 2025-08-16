@@ -14,6 +14,7 @@ import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.tag.TagNamespaceService;
 
 import java.time.LocalDateTime;
 import java.time.LocalDate;
@@ -52,6 +53,9 @@ public class PayPropMaintenanceSyncService {
     
     @Autowired
     private PaymentCategoryRepository paymentCategoryRepository;
+    
+    @Autowired
+    private TagNamespaceService tagNamespaceService;
     
     // ===== IMPORT FROM PAYPROP =====
     
@@ -252,11 +256,13 @@ public class PayPropMaintenanceSyncService {
             ticket.setPayPropLastSync(LocalDateTime.now());
             ticket.setPayPropSynced(true);
             
-            // Map category
+            // Map category with namespace
             if (payPropCategoryId != null) {
                 PaymentCategory category = paymentCategoryRepository.findByPayPropCategoryId(payPropCategoryId);
                 if (category != null) {
-                    ticket.setMaintenanceCategory(category.getCategoryName().toLowerCase());
+                    // Create namespaced maintenance tag
+                    String namespacedCategory = tagNamespaceService.createMaintenanceTag(category.getCategoryName());
+                    ticket.setMaintenanceCategory(namespacedCategory);
                 }
             }
             

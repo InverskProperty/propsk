@@ -13,6 +13,7 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
 import site.easy.to.build.crm.service.payprop.SyncResult;
 import site.easy.to.build.crm.service.portfolio.PortfolioAssignmentService;
+import site.easy.to.build.crm.service.tag.TagNamespaceService;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -27,6 +28,9 @@ import java.util.stream.Collectors;
 public class PortfolioPayPropController extends PortfolioControllerBase {
     
     private static final Logger log = LoggerFactory.getLogger(PortfolioPayPropController.class);
+    
+    @Autowired
+    private TagNamespaceService tagNamespaceService;
     
     /**
      * Get available PayProp tags for adoption
@@ -113,7 +117,9 @@ public class PortfolioPayPropController extends PortfolioControllerBase {
             portfolio.setCreatedBy((long) userId);
             portfolio.setCreatedAt(LocalDateTime.now());
             
-            portfolio.setPayPropTags(payPropTagId);
+            // Create namespaced PayProp tag for portfolio
+            String namespacedTag = tagNamespaceService.createPortfolioTag(tagData.getName());
+            portfolio.setPayPropTags(namespacedTag);
             portfolio.setPayPropTagNames(tagData.getName());
             portfolio.setSyncStatus(SyncStatus.synced);
             portfolio.setLastSyncAt(LocalDateTime.now());
