@@ -230,6 +230,61 @@ public class TagNamespaceService {
     }
     
     /**
+     * Convert legacy tag to namespaced format if needed
+     * Used for backward compatibility during migration
+     * @param tag The tag to convert
+     * @param namespace The target namespace
+     * @return Namespaced tag
+     */
+    public String ensureNamespaced(String tag, TagNamespace namespace) {
+        if (tag == null || namespace == null) {
+            return tag;
+        }
+        
+        // If already namespaced, return as-is
+        if (TagNamespace.isValidNamespacedTag(tag)) {
+            return tag;
+        }
+        
+        // Convert legacy tag to namespaced format
+        return namespace.createTag(tag);
+    }
+    
+    /**
+     * Get all possible tag variations for a given tag (legacy + namespaced)
+     * Useful for searching existing data during migration
+     */
+    public List<String> getTagVariations(String originalTag, TagNamespace namespace) {
+        if (originalTag == null || namespace == null || originalTag.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        List<String> variations = new ArrayList<>();
+        
+        // Add original tag
+        variations.add(originalTag);
+        
+        // Add namespaced version if not already namespaced and not empty
+        if (!TagNamespace.isValidNamespacedTag(originalTag) && !originalTag.trim().isEmpty()) {
+            try {
+                variations.add(namespace.createTag(originalTag));
+            } catch (IllegalArgumentException e) {
+                // Skip if tag creation fails (e.g., empty suffix after cleaning)
+            }
+        }
+        
+        // If it's namespaced, also add the suffix (legacy format)
+        if (TagNamespace.isValidNamespacedTag(originalTag)) {
+            String suffix = TagNamespace.extractSuffix(originalTag);
+            if (!suffix.equals(originalTag) && !suffix.trim().isEmpty()) {
+                variations.add(suffix);
+            }
+        }
+        
+        return variations;
+    }
+    
+    /**
      * Check if two suffixes are similar (potential conflict)
      */
     private boolean isSimilarSuffix(String suffix1, String suffix2) {
