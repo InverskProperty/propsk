@@ -168,8 +168,11 @@ public class PortfolioAssignmentService {
             PropertyPortfolioAssignment assignment = assignmentOpt.get();
             assignment.setIsActive(Boolean.FALSE);
             assignment.setUpdatedAt(LocalDateTime.now());
+            assignment.setUpdatedBy(userId);
             assignmentRepository.save(assignment);
             log.info("✅ Junction table assignment removed");
+        } else {
+            log.warn("⚠️ No active assignment found for property {} in portfolio {} - may already be removed", propertyId, portfolioId);
         }
         
         // Remove PayProp tag

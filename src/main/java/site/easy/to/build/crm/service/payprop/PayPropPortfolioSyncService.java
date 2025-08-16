@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.portfolio.PortfolioAssignmentService;
 import org.springframework.http.*;
 
 import java.time.LocalDateTime;
@@ -39,6 +40,10 @@ public class PayPropPortfolioSyncService {
     
     @Autowired
     private PayPropApiClient payPropApiClient;
+    
+    // FIXED: Add PortfolioAssignmentService for proper local tag removal
+    @Autowired(required = false)
+    private PortfolioAssignmentService portfolioAssignmentService;
 
     @Autowired
     public PayPropPortfolioSyncService(PortfolioRepository portfolioRepository,
@@ -436,32 +441,52 @@ public class PayPropPortfolioSyncService {
         int errorCount = 0;
         List<String> errors = new ArrayList<>();
         
+        // First, find portfolios that use this tag
+        List<Portfolio> portfolios = findPortfoliosByPayPropTag(tagId);
+        
         for (String payPropPropertyId : propertyIds) {
             try {
                 Optional<Property> propertyOpt = propertyService.findByPayPropId(payPropPropertyId);
                 if (propertyOpt.isPresent()) {
                     Property property = propertyOpt.get();
-                    // ❌ DISABLED: Direct portfolio removal - now handled by PropertyPortfolioAssignment table
-                    // TODO: Implement removal using PortfolioAssignmentService.removeAssignment()
-                    log.info("Skipping direct portfolio removal for property {}, use PropertyPortfolioAssignment table", property.getId());
-                    // removedCount++; // Don't increment since we're not actually removing anything
+                    
+                    // FIXED: Use proper portfolio assignment service for local removal
+                    for (Portfolio portfolio : portfolios) {
+                        try {
+                            // Use PortfolioAssignmentService if available
+                            if (portfolioAssignmentService != null) {
+                                portfolioAssignmentService.removePropertyFromPortfolio(property.getId(), portfolio.getId(), 1L); // System user
+                                removedCount++;
+                                log.info("✅ Removed property {} from portfolio {} via PayProp webhook", property.getId(), portfolio.getId());
+                            } else {
+                                log.warn("PortfolioAssignmentService not available for property {} removal", property.getId());
+                                errors.add("Property " + payPropPropertyId + ": Service not available");
+                                errorCount++;
+                            }
+                        } catch (Exception e) {
+                            log.error("Failed to remove property {} from portfolio {}: {}", property.getId(), portfolio.getId(), e.getMessage());
+                            errors.add("Property " + payPropPropertyId + " from portfolio " + portfolio.getId() + ": " + e.getMessage());
+                            errorCount++;
+                        }
+                    }
                 } else {
                     log.warn("Property with PayProp ID {} not found in system", payPropPropertyId);
                     errors.add("Property not found: " + payPropPropertyId);
+                    errorCount++;
                 }
             } catch (Exception e) {
                 errorCount++;
-                log.error("Failed to remove property {} from portfolio: {}", payPropPropertyId, e.getMessage());
+                log.error("Failed to process property {} for tag removal: {}", payPropPropertyId, e.getMessage());
                 errors.add("Property " + payPropPropertyId + ": " + e.getMessage());
                 // Continue with next property
             }
         }
         
         completeSyncLog(syncLog, "SUCCESS", null, 
-            Map.of("removedProperties", removedCount, "duplicates", duplicateCount, 
+            Map.of("removedAssignments", removedCount, "duplicates", duplicateCount, 
                    "errors", errorCount, "errorDetails", errors));
         
-        String message = String.format("Removed %d properties from portfolio (duplicates: %d, errors: %d)", 
+        String message = String.format("Removed %d property assignments from portfolios (duplicates: %d, errors: %d)", 
             removedCount, duplicateCount, errorCount);
         return SyncResult.success(message);
     }

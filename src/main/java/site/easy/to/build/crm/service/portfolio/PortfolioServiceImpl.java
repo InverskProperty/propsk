@@ -42,6 +42,10 @@ public class PortfolioServiceImpl implements PortfolioService {
     @Autowired
     private PropertyPortfolioAssignmentRepository propertyPortfolioAssignmentRepository;
     
+    // FIXED: Add PortfolioAssignmentService for proper PayProp integration
+    @Autowired(required = false)
+    private PortfolioAssignmentService portfolioAssignmentService;
+    
     // Make PayProp services optional
     @Autowired(required = false)
     private PayPropPortfolioSyncService payPropSyncService;
@@ -274,33 +278,41 @@ public class PortfolioServiceImpl implements PortfolioService {
     @Transactional
     public void removePropertyFromPortfolio(Long propertyId, Long portfolioId, Long removedBy) {
         try {
-            List<PropertyPortfolioAssignment> assignments = propertyPortfolioAssignmentRepository
-                .findByPropertyIdAndIsActive(propertyId, true)
-                .stream()
-                .filter(a -> a.getPortfolio().getId().equals(portfolioId))
-                .collect(Collectors.toList());
-            
-            for (PropertyPortfolioAssignment assignment : assignments) {
-                assignment.setIsActive(false);
-                assignment.setUpdatedBy(removedBy);
-                propertyPortfolioAssignmentRepository.save(assignment);
+            // FIXED: Use PortfolioAssignmentService for proper PayProp integration
+            if (portfolioAssignmentService != null) {
+                portfolioAssignmentService.removePropertyFromPortfolio(propertyId, portfolioId, removedBy);
+                System.out.println("✅ Removed property " + propertyId + " from portfolio " + portfolioId + " (with PayProp sync)");
+            } else {
+                // Fallback to old logic if PortfolioAssignmentService not available
+                System.out.println("⚠️ Using fallback removal logic - no PayProp sync");
+                List<PropertyPortfolioAssignment> assignments = propertyPortfolioAssignmentRepository
+                    .findByPropertyIdAndIsActive(propertyId, true)
+                    .stream()
+                    .filter(a -> a.getPortfolio().getId().equals(portfolioId))
+                    .collect(Collectors.toList());
                 
-                System.out.println("✅ Removed property " + propertyId + " from portfolio " + portfolioId + " (" + assignment.getAssignmentType() + ")");
-                
-                // Clear direct FK if removing PRIMARY assignment
-                if (assignment.getAssignmentType() == PortfolioAssignmentType.PRIMARY) {
-                    Property property = propertyService.findById(propertyId);
-                    if (property != null) {
-                        property.setPortfolio(null);
-                        property.setPortfolioAssignmentDate(null);
-                        propertyService.save(property);
+                for (PropertyPortfolioAssignment assignment : assignments) {
+                    assignment.setIsActive(false);
+                    assignment.setUpdatedBy(removedBy);
+                    propertyPortfolioAssignmentRepository.save(assignment);
+                    
+                    System.out.println("✅ Removed property " + propertyId + " from portfolio " + portfolioId + " (" + assignment.getAssignmentType() + ") - NO PayProp sync");
+                    
+                    // Clear direct FK if removing PRIMARY assignment
+                    if (assignment.getAssignmentType() == PortfolioAssignmentType.PRIMARY) {
+                        Property property = propertyService.findById(propertyId);
+                        if (property != null) {
+                            property.setPortfolio(null);
+                            property.setPortfolioAssignmentDate(null);
+                            propertyService.save(property);
+                            System.out.println("✅ Cleared direct FK for property " + propertyId);
+                        }
                     }
                 }
             }
-            
         } catch (Exception e) {
             System.err.println("❌ Failed to remove property " + propertyId + " from portfolio " + portfolioId + ": " + e.getMessage());
-            throw new RuntimeException("Removal failed", e);
+            throw new RuntimeException("Failed to remove property from portfolio", e);
         }
     }
 
