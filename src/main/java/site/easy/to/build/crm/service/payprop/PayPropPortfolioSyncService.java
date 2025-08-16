@@ -605,7 +605,7 @@ public class PayPropPortfolioSyncService {
 
     /**
      * Remove tag from property using PayProp API - PUBLIC METHOD for controller access
-     * Uses the correct PayProp endpoint: DELETE /tags/entities/property/{property_id}/{tag_id}
+     * Uses the correct PayProp endpoint: DELETE /tags/{tag_id}/entities?entity_type=property&entity_id={property_id}
      */
     public void removeTagFromProperty(String payPropPropertyId, String tagId) throws Exception {
         log.info("🗑️ Attempting to remove PayProp tag {} from property {}", tagId, payPropPropertyId);
@@ -613,8 +613,9 @@ public class PayPropPortfolioSyncService {
         HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
         HttpEntity<String> request = new HttpEntity<>(headers);
         
-        String url = payPropApiBase + "/tags/entities/property/" + payPropPropertyId + "/" + tagId;
-        log.info("🔗 DELETE URL: {}", url);
+        // FIXED: Use correct PayProp API endpoint with query parameters
+        String url = payPropApiBase + "/tags/" + tagId + "/entities?entity_type=property&entity_id=" + payPropPropertyId;
+        log.info("🔗 CORRECTED DELETE URL: {}", url);
         
         try {
             ResponseEntity<Map> response = restTemplate.exchange(
