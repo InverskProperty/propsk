@@ -48,6 +48,9 @@ import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.controller.portfolio.PortfolioPayPropController;
+import site.easy.to.build.crm.controller.portfolio.PortfolioAssignmentController;
+import site.easy.to.build.crm.controller.portfolio.PortfolioAdminController;
 import site.easy.to.build.crm.service.payprop.PayPropApiClient;
 
 
@@ -89,6 +92,17 @@ public class PortfolioController {
 
     @Autowired(required = false)
     private PayPropPortfolioSyncService payPropPortfolioSyncService;
+    
+    // ===== SEPARATED CONTROLLER DELEGATES =====
+    
+    @Autowired
+    private PortfolioPayPropController portfolioPayPropController;
+    
+    @Autowired
+    private PortfolioAssignmentController portfolioAssignmentController;
+    
+    @Autowired
+    private PortfolioAdminController portfolioAdminController;
 
     @Autowired(required = false)
     private PayPropApiClient payPropApiClient;
@@ -3088,4 +3102,9 @@ public class PortfolioController {
         public int getTotalPendingSync() { return totalPendingSync; }
         public double getOverallOccupancyRate() { return overallOccupancyRate; }
     }
+    
+    // ===== CONTROLLER SEPARATION COMPLETED =====
+    // PayProp functionality: /portfolio/internal/payprop/*
+    // Assignment functionality: /portfolio/internal/assignment/*  
+    // Admin functionality: /portfolio/internal/admin/*
 }
