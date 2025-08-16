@@ -15,6 +15,7 @@ import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
+import site.easy.to.build.crm.service.tag.TagNamespaceService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -52,6 +53,9 @@ public class PortfolioServiceImpl implements PortfolioService {
     
     @Autowired(required = false)
     private PayPropOAuth2Service payPropOAuth2Service;
+    
+    @Autowired
+    private TagNamespaceService tagNamespaceService;
     
     @Value("${payprop.enabled:false}")
     private boolean payPropEnabled;
@@ -809,6 +813,12 @@ public class PortfolioServiceImpl implements PortfolioService {
         portfolio.setDescription(description);
         portfolio.setPortfolioType(type);
         portfolio.setIsShared(propertyOwnerId == null ? "Y" : "N");
+        
+        // NEW: Create namespaced PayProp tag for manual portfolio creation
+        String namespacedTag = tagNamespaceService.createPortfolioTag(name);
+        portfolio.setPayPropTags(namespacedTag);
+        portfolio.setPayPropTagNames(name);
+        System.out.println("✅ Created portfolio with namespaced tag: " + namespacedTag);
         
         // CRITICAL FIX: Don't claim sync until actually synced
         if (payPropEnabled && payPropSyncService != null) {
