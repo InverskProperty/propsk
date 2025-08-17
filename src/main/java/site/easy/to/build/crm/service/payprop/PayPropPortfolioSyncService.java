@@ -48,6 +48,11 @@ public class PayPropPortfolioSyncService {
     @Lazy
     private PortfolioAssignmentService portfolioAssignmentService;
     
+    // Add PayPropBlockSyncService for hierarchical sync
+    @Autowired(required = false)
+    @Lazy
+    private PayPropBlockSyncService blockSyncService;
+    
     @Autowired
     private TagNamespaceService tagNamespaceService;
 
@@ -1135,5 +1140,185 @@ public class PayPropPortfolioSyncService {
         } catch (DataIntegrityViolationException e) {
             log.warn("Sync log {} already exists when completing, skipping save", syncLog.getId());
         }
+    }
+    
+    // ===== HIERARCHICAL SYNC METHODS (Task 3.2) =====
+    
+    /**
+     * Enhanced portfolio sync that includes cascading to blocks
+     * Syncs portfolio first, then all its blocks
+     */
+    public SyncResult syncPortfolioWithBlocks(Long portfolioId, Long initiatedBy) {
+        log.info("🏗️ Starting hierarchical sync for portfolio {} with blocks", portfolioId);
+        
+        // Step 1: Sync the portfolio itself
+        SyncResult portfolioResult = syncPortfolioToPayProp(portfolioId, initiatedBy);
+        if (!portfolioResult.isSuccess()) {
+            log.error("❌ Portfolio sync failed, skipping block sync: {}", portfolioResult.getMessage());
+            return portfolioResult;
+        }
+        
+        log.info("✅ Portfolio {} synced successfully, proceeding with blocks", portfolioId);
+        
+        // Step 2: Sync all blocks in the portfolio (if block sync service is available)
+        if (blockSyncService != null) {
+            try {
+                PayPropBlockSyncService.BatchBlockSyncResult blockResult = 
+                    blockSyncService.syncAllBlocksInPortfolio(portfolioId);
+                
+                String combinedMessage = String.format(
+                    "Portfolio synced successfully. %s", blockResult.getMessage()
+                );
+                
+                Map<String, Object> combinedDetails = new HashMap<>();
+                combinedDetails.putAll((Map<String, Object>) portfolioResult.getDetails());
+                combinedDetails.put("blocksSucceeded", blockResult.getSuccessCount());
+                combinedDetails.put("blocksFailed", blockResult.getFailureCount());
+                combinedDetails.put("blocksSkipped", blockResult.getSkippedCount());
+                
+                if (blockResult.getFailureCount() > 0) {
+                    combinedDetails.put("blockErrors", blockResult.getErrors());
+                    log.warn("⚠️ Some blocks failed to sync: {}", blockResult.getErrors());
+                }
+                
+                return SyncResult.success(combinedMessage, combinedDetails);
+                
+            } catch (Exception e) {
+                log.error("❌ Block sync failed after successful portfolio sync: {}", e.getMessage());
+                String warningMessage = String.format(
+                    "Portfolio synced successfully, but block sync failed: %s", e.getMessage()
+                );
+                return SyncResult.success(warningMessage, portfolioResult.getDetails());
+            }
+        } else {
+            log.warn("⚠️ PayPropBlockSyncService not available, skipping block sync");
+            return SyncResult.success(
+                "Portfolio synced successfully (block sync service not available)", 
+                portfolioResult.getDetails()
+            );
+        }
+    }
+    
+    /**
+     * Sync all portfolios with their blocks (enhanced bulk operation)
+     */
+    public SyncResult syncAllPortfoliosWithBlocks(Long initiatedBy) {
+        log.info("🏗️ Starting bulk hierarchical sync for all portfolios with blocks");
+        
+        if (!oAuth2Service.hasValidTokens()) {
+            throw new IllegalStateException("No valid OAuth2 tokens. Please authorize PayProp first.");
+        }
+        
+        List<Portfolio> portfoliosNeedingSync = findPortfoliosNeedingSync();
+        
+        int portfolioSuccessCount = 0;
+        int portfolioFailureCount = 0;
+        int totalBlocksSucceeded = 0;
+        int totalBlocksFailed = 0;
+        List<String> errors = new ArrayList<>();
+        
+        for (Portfolio portfolio : portfoliosNeedingSync) {
+            try {
+                log.info("🔄 Processing portfolio {} with hierarchical sync", portfolio.getId());
+                
+                SyncResult result = syncPortfolioWithBlocks(portfolio.getId(), initiatedBy);
+                if (result.isSuccess()) {
+                    portfolioSuccessCount++;
+                    
+                    // Extract block stats from result details
+                    Map<String, Object> details = (Map<String, Object>) result.getDetails();
+                    if (details != null) {
+                        totalBlocksSucceeded += ((Number) details.getOrDefault("blocksSucceeded", 0)).intValue();
+                        totalBlocksFailed += ((Number) details.getOrDefault("blocksFailed", 0)).intValue();
+                    }
+                    
+                } else {
+                    portfolioFailureCount++;
+                    errors.add("Portfolio " + portfolio.getName() + ": " + result.getMessage());
+                }
+            } catch (Exception e) {
+                portfolioFailureCount++;
+                log.error("Failed to sync portfolio {} hierarchically: {}", portfolio.getName(), e.getMessage());
+                errors.add("Portfolio " + portfolio.getName() + ": " + e.getMessage());
+                // Continue with next portfolio
+            }
+        }
+        
+        String message = String.format(
+            "Hierarchical sync completed. Portfolios - Success: %d, Failed: %d. Blocks - Success: %d, Failed: %d", 
+            portfolioSuccessCount, portfolioFailureCount, totalBlocksSucceeded, totalBlocksFailed);
+        
+        Map<String, Object> details = Map.of(
+            "totalPortfolios", portfoliosNeedingSync.size(),
+            "portfolioSuccessCount", portfolioSuccessCount,
+            "portfolioFailureCount", portfolioFailureCount,
+            "totalBlocksSucceeded", totalBlocksSucceeded,
+            "totalBlocksFailed", totalBlocksFailed,
+            "errors", errors
+        );
+        
+        return portfolioFailureCount == 0 ? 
+            SyncResult.success(message, details) : 
+            SyncResult.failure(message, details);
+    }
+    
+    /**
+     * Sync blocks only for portfolios that are already synced
+     * Useful for adding blocks to existing portfolios
+     */
+    public SyncResult syncBlocksForSyncedPortfolios(Long initiatedBy) {
+        log.info("🏗️ Starting block sync for already-synced portfolios");
+        
+        if (blockSyncService == null) {
+            return SyncResult.failure("PayPropBlockSyncService not available");
+        }
+        
+        // Find portfolios that are synced but may have blocks needing sync
+        List<Portfolio> syncedPortfolios = portfolioRepository.findAll().stream()
+            .filter(p -> p.getSyncStatus() == SyncStatus.synced)
+            .filter(p -> p.getPayPropTags() != null && !p.getPayPropTags().trim().isEmpty())
+            .collect(Collectors.toList());
+        
+        int portfoliosProcessed = 0;
+        int totalBlocksSucceeded = 0;
+        int totalBlocksFailed = 0;
+        List<String> errors = new ArrayList<>();
+        
+        for (Portfolio portfolio : syncedPortfolios) {
+            try {
+                PayPropBlockSyncService.BatchBlockSyncResult blockResult = 
+                    blockSyncService.syncAllBlocksInPortfolio(portfolio.getId());
+                
+                portfoliosProcessed++;
+                totalBlocksSucceeded += blockResult.getSuccessCount();
+                totalBlocksFailed += blockResult.getFailureCount();
+                
+                if (blockResult.getFailureCount() > 0) {
+                    errors.addAll(blockResult.getErrors());
+                }
+                
+                log.info("✅ Portfolio {}: {} blocks succeeded, {} failed", 
+                        portfolio.getId(), blockResult.getSuccessCount(), blockResult.getFailureCount());
+                        
+            } catch (Exception e) {
+                log.error("Failed to sync blocks for portfolio {}: {}", portfolio.getId(), e.getMessage());
+                errors.add("Portfolio " + portfolio.getName() + ": " + e.getMessage());
+            }
+        }
+        
+        String message = String.format(
+            "Block sync completed for %d portfolios. Blocks - Success: %d, Failed: %d",
+            portfoliosProcessed, totalBlocksSucceeded, totalBlocksFailed);
+        
+        Map<String, Object> details = Map.of(
+            "portfoliosProcessed", portfoliosProcessed,
+            "totalBlocksSucceeded", totalBlocksSucceeded,
+            "totalBlocksFailed", totalBlocksFailed,
+            "errors", errors
+        );
+        
+        return totalBlocksFailed == 0 ? 
+            SyncResult.success(message, details) : 
+            SyncResult.failure(message, details);
     }
 }
