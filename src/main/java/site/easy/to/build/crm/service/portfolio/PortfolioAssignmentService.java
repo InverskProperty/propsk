@@ -458,16 +458,28 @@ public class PortfolioAssignmentService {
     }
     
     private boolean shouldSyncToPayProp(Portfolio portfolio, Property property) {
-        boolean shouldSync = payPropSyncService != null &&
-               portfolio.getPayPropTags() != null && 
-               !portfolio.getPayPropTags().trim().isEmpty() &&
-               property.getPayPropId() != null &&
-               !property.getPayPropId().trim().isEmpty();
+        // ENHANCED DEBUG: Check each condition individually
+        boolean serviceAvailable = payPropSyncService != null;
+        boolean portfolioHasTags = portfolio.getPayPropTags() != null;
+        boolean portfolioTagsNotEmpty = portfolioHasTags && !portfolio.getPayPropTags().trim().isEmpty();
+        boolean propertyHasPayPropId = property.getPayPropId() != null;
+        boolean propertyPayPropIdNotEmpty = propertyHasPayPropId && !property.getPayPropId().trim().isEmpty();
         
-        log.debug("Should sync to PayProp? Portfolio has tags: {}, Property has PayProp ID: {}, Service available: {}", 
-            portfolio.getPayPropTags() != null,
-            property.getPayPropId() != null,
-            payPropSyncService != null);
+        boolean shouldSync = serviceAvailable && portfolioHasTags && portfolioTagsNotEmpty && 
+                           propertyHasPayPropId && propertyPayPropIdNotEmpty;
+        
+        // DETAILED LOGGING to identify the exact failure point
+        log.info("🔍 PayProp Sync Check for Portfolio {} → Property {}:", portfolio.getId(), property.getId());
+        log.info("  Service available: {}", serviceAvailable);
+        log.info("  Portfolio has tags: {} (value: '{}')", portfolioHasTags, portfolio.getPayPropTags());
+        log.info("  Portfolio tags not empty: {}", portfolioTagsNotEmpty);
+        log.info("  Property has PayProp ID: {} (value: '{}')", propertyHasPayPropId, property.getPayPropId());
+        log.info("  Property PayProp ID not empty: {}", propertyPayPropIdNotEmpty);
+        log.info("  🎯 RESULT: shouldSync = {}", shouldSync);
+        
+        if (!shouldSync) {
+            log.warn("❌ PayProp sync SKIPPED due to failed conditions above");
+        }
         
         return shouldSync;
     }

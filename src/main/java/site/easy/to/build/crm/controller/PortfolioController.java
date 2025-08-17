@@ -2786,95 +2786,16 @@ public class PortfolioController {
         
         try {
             // Get user ID
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            Long userId = (long) authenticationUtils.getLoggedInUserId(authentication);
             
-            // Load portfolio once
-            Portfolio portfolio = portfolioService.findById(portfolioId);
-            if (portfolio == null) {
-                response.put("success", false);
-                response.put("error", "Portfolio not found");
-                return ResponseEntity.badRequest().body(response);
-            }
+            // 🔧 FIX: Use the proper PortfolioAssignmentService instead of duplicating logic
+            System.out.println("🔄 Delegating to PortfolioAssignmentService for proper PayProp handling");
+            PortfolioAssignmentService.AssignmentResult result = 
+                portfolioAssignmentService.assignPropertiesToPortfolio(portfolioId, propertyIds, userId);
             
-            for (Long propertyId : propertyIds) {
-                try {
-                    Property property = propertyService.findById(propertyId);
-                    if (property == null) {
-                        errors.add("Property not found: " + propertyId);
-                        continue;
-                    }
-                    
-                    // FIXED: Check for ANY assignment (active or inactive) and handle reactivation
-                    Optional<PropertyPortfolioAssignment> activeAssignment = 
-                        propertyPortfolioAssignmentRepository
-                            .findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
-                                propertyId, portfolioId, PortfolioAssignmentType.PRIMARY, Boolean.TRUE);
-                    
-                    if (activeAssignment.isPresent()) {
-                        errors.add("Property " + propertyId + " already assigned");
-                        continue;
-                    }
-                    
-                    // Check for inactive assignment to reactivate
-                    Optional<PropertyPortfolioAssignment> inactiveAssignment = 
-                        propertyPortfolioAssignmentRepository
-                            .findByPropertyIdAndPortfolioIdAndAssignmentType(
-                                propertyId, portfolioId, PortfolioAssignmentType.PRIMARY);
-                    
-                    PropertyPortfolioAssignment assignment;
-                    if (inactiveAssignment.isPresent() && !inactiveAssignment.get().getIsActive()) {
-                        // Reactivate existing assignment
-                        assignment = inactiveAssignment.get();
-                        assignment.setIsActive(Boolean.TRUE);
-                        assignment.setAssignedAt(LocalDateTime.now());
-                        assignment.setAssignedBy((long) userId);
-                        assignment.setUpdatedAt(LocalDateTime.now());
-                        assignment.setUpdatedBy((long) userId);
-                        assignment.setSyncStatus(SyncStatus.pending);
-                        assignment.setNotes("Reactivated via portfolio UI v2");
-                        System.out.println("✅ Reactivating existing assignment for property " + propertyId);
-                    } else {
-                        // Create new assignment
-                        assignment = new PropertyPortfolioAssignment();
-                        assignment.setProperty(property);
-                        assignment.setPortfolio(portfolio);
-                        assignment.setAssignmentType(PortfolioAssignmentType.PRIMARY);
-                        assignment.setAssignedBy((long) userId);
-                        assignment.setSyncStatus(SyncStatus.pending);
-                        assignment.setIsActive(Boolean.TRUE);
-                        assignment.setAssignedAt(LocalDateTime.now());
-                        assignment.setNotes("Assigned via portfolio UI v2");
-                        System.out.println("✅ Creating new assignment for property " + propertyId);
-                    }
-                    
-                    assignment = propertyPortfolioAssignmentRepository.save(assignment);
-                    assignedCount++;
-                    
-                    // Apply PayProp tag if available
-                    if (property.getPayPropId() != null && 
-                        portfolio.getPayPropTags() != null && 
-                        payPropPortfolioSyncService != null) {
-                        try {
-                            payPropPortfolioSyncService.applyTagToProperty(
-                                property.getPayPropId(),
-                                portfolio.getPayPropTags()
-                            );
-                            
-                            assignment.setSyncStatus(SyncStatus.synced);
-                            assignment.setLastSyncAt(LocalDateTime.now());
-                            propertyPortfolioAssignmentRepository.save(assignment);
-                            syncedCount++;
-                        } catch (Exception e) {
-                            log.warn("PayProp sync failed for property {}: {}", propertyId, e.getMessage());
-                            assignment.setSyncStatus(SyncStatus.failed);
-                            propertyPortfolioAssignmentRepository.save(assignment);
-                        }
-                    }
-                } catch (Exception e) {
-                    errors.add("Property " + propertyId + ": " + e.getMessage());
-                    log.error("Failed to assign property {}: {}", propertyId, e.getMessage());
-                }
-            }
+            assignedCount = result.getAssignedCount();
+            syncedCount = result.getSyncedCount();
+            errors.addAll(result.getErrors());
             
             response.put("success", assignedCount > 0);
             response.put("assignedCount", assignedCount);
