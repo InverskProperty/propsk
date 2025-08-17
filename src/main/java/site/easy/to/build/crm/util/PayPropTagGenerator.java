@@ -65,79 +65,76 @@ public class PayPropTagGenerator {
     }
     
     /**
-     * Generate a block tag name using unified Owner- format
-     * Format: Owner-{PORTFOLIO_ID}-{BLOCK_NAME}
+     * Generate a block tag name using ultra-simplified Owner- format
+     * Format: Owner-{BLOCK_ID}
      * 
-     * @param portfolioId Portfolio ID
-     * @param blockName Block name
+     * @param blockId Block ID
      * @return Generated tag name
-     * @throws IllegalArgumentException if names are null/empty or would result in invalid tag
+     * @throws IllegalArgumentException if block ID is null
      */
+    public static String generateBlockTag(Long blockId) {
+        if (blockId == null) {
+            throw new IllegalArgumentException("Block ID cannot be null");
+        }
+        
+        return "Owner-" + blockId;
+    }
+    
+    /**
+     * Generate a block tag name using unified Owner- format (legacy method)
+     * Format: Owner-{BLOCK_ID}
+     * 
+     * @param portfolioId Portfolio ID (not used in simplified format)
+     * @param blockName Block name (not used in simplified format)
+     * @return Generated tag name
+     * @deprecated Use generateBlockTag(Long blockId) instead
+     */
+    @Deprecated
     public static String generateBlockTag(Long portfolioId, String blockName) {
-        if (portfolioId == null) {
-            throw new IllegalArgumentException("Portfolio ID cannot be null");
-        }
-        if (blockName == null || blockName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Block name cannot be null or empty");
-        }
-        
-        // Use Owner- format for consistency with portfolios
-        String cleanBlockName = blockName.replaceAll("[^a-zA-Z0-9\\s]", "");
-        String tag = "Owner-" + portfolioId + "-" + cleanBlockName;
-        
-        // Ensure length limit (50 chars to match portfolio logic)
-        tag = tag.length() > 50 ? tag.substring(0, 50) : tag;
-        
-        return tag;
+        throw new UnsupportedOperationException("Use generateBlockTag(Long blockId) for ultra-simplified tag format");
     }
 
     /**
      * Generate a block tag name (legacy method for backward compatibility)
-     * Format: Owner-{PORTFOLIO_ID}-{BLOCK_NAME}
+     * Format: Owner-{BLOCK_ID}
      * 
-     * @param portfolioName Portfolio name (not used in unified format)
-     * @param blockName Block name
+     * @param portfolioName Portfolio name (not used in simplified format)
+     * @param blockName Block name (not used in simplified format)
      * @return Generated tag name
-     * @deprecated Use generateBlockTag(Long portfolioId, String blockName) instead
+     * @deprecated Use generateBlockTag(Long blockId) instead
      */
     @Deprecated
     public static String generateBlockTag(String portfolioName, String blockName) {
-        throw new UnsupportedOperationException("Use generateBlockTag(Long portfolioId, String blockName) for unified tag format");
+        throw new UnsupportedOperationException("Use generateBlockTag(Long blockId) for ultra-simplified tag format");
     }
     
     /**
      * Generate a block tag name from entities
      * 
-     * @param portfolio Portfolio entity
+     * @param portfolio Portfolio entity (not used in simplified format)
      * @param block Block entity
      * @return Generated tag name
      */
     public static String generateBlockTag(Portfolio portfolio, Block block) {
-        if (portfolio == null || portfolio.getId() == null) {
-            throw new IllegalArgumentException("Portfolio and portfolio ID cannot be null");
-        }
-        if (block == null || block.getName() == null) {
-            throw new IllegalArgumentException("Block and block name cannot be null");
+        if (block == null || block.getId() == null) {
+            throw new IllegalArgumentException("Block and block ID cannot be null");
         }
         
-        return generateBlockTag(portfolio.getId(), block.getName());
+        return generateBlockTag(block.getId());
     }
     
     /**
      * Generate a block tag name when block belongs to a portfolio
      * 
-     * @param block Block entity (must have portfolio relationship loaded)
+     * @param block Block entity
      * @return Generated tag name
      */
     public static String generateBlockTag(Block block) {
-        if (block == null || block.getName() == null) {
-            throw new IllegalArgumentException("Block and block name cannot be null");
-        }
-        if (block.getPortfolio() == null || block.getPortfolio().getId() == null) {
-            throw new IllegalArgumentException("Block must have portfolio with ID");
+        if (block == null || block.getId() == null) {
+            throw new IllegalArgumentException("Block and block ID cannot be null");
         }
         
-        return generateBlockTag(block.getPortfolio().getId(), block.getName());
+        return generateBlockTag(block.getId());
     }
     
     /**
@@ -220,7 +217,7 @@ public class PayPropTagGenerator {
      * Check if a string is a valid block tag
      * 
      * @param tag Tag to validate
-     * @return true if tag follows block tag format
+     * @return true if tag follows block tag format (Owner-{id})
      */
     public static boolean isValidBlockTag(String tag) {
         if (tag == null || tag.trim().isEmpty()) {
@@ -228,6 +225,18 @@ public class PayPropTagGenerator {
         }
         
         String trimmed = tag.trim();
+        // Check for simplified Owner-{id} format
+        if (trimmed.startsWith("Owner-")) {
+            String idPart = trimmed.substring(6); // Remove "Owner-"
+            try {
+                Long.parseLong(idPart);
+                return true; // Valid numeric ID after Owner-
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        
+        // Legacy: Check for old PF- format (for validation of existing data)
         return trimmed.startsWith(PORTFOLIO_PREFIX) && 
                trimmed.contains(BLOCK_SEPARATOR) &&
                trimmed.length() <= MAX_TAG_LENGTH;

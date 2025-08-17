@@ -3,7 +3,9 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(chmod:*)",
-      "Bash(mysql:*)"
+      "Bash(mysql:*)",
+      "Bash(mvn compile:*)",
+      "Bash(execute_migration.bat)"
     ],
     "deny": [],
     "ask": [],

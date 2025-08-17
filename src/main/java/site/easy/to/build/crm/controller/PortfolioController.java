@@ -3024,8 +3024,124 @@ public class PortfolioController {
         public double getOverallOccupancyRate() { return overallOccupancyRate; }
     }
     
+    // ===== HIERARCHICAL UI ENDPOINTS =====
+    
+    /**
+     * Get properties organized hierarchically by blocks for UI
+     * @param portfolioId Portfolio ID
+     * @param authentication User authentication
+     * @return Hierarchical organization of properties
+     */
+    @GetMapping("/{portfolioId}/properties-hierarchical")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getPropertiesHierarchical(
+            @PathVariable Long portfolioId,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Check access permissions
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
+                !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+                response.put("error", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            // Get user ID
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            
+            // Verify portfolio exists and user has access
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            if (portfolio == null) {
+                response.put("error", "Portfolio not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            // Check if user has access to this portfolio
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
+                !portfolio.getPropertyOwnerId().equals(userId)) {
+                response.put("error", "Access denied to this portfolio");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            // Get all properties in portfolio with block assignments
+            List<Property> allProperties = portfolioService.getPropertiesForPortfolio(portfolioId);
+            
+            // Get property assignments to determine block relationships
+            List<PropertyPortfolioAssignment> assignments = propertyPortfolioAssignmentRepository
+                .findByPortfolioIdAndIsActive(portfolioId, true);
+            
+            // Organize properties by block assignment
+            List<Map<String, Object>> assignedToBlocks = new ArrayList<>();
+            List<Map<String, Object>> unassigned = new ArrayList<>();
+            
+            for (Property property : allProperties) {
+                // Find assignment for this property
+                PropertyPortfolioAssignment assignment = assignments.stream()
+                    .filter(a -> a.getProperty().getId().equals(property.getId()))
+                    .findFirst()
+                    .orElse(null);
+                
+                // Create property data map
+                Map<String, Object> propertyData = createPropertyDataMap(property);
+                
+                if (assignment != null && assignment.getBlock() != null) {
+                    // Property is assigned to a block
+                    propertyData.put("blockId", assignment.getBlock().getId());
+                    propertyData.put("blockName", assignment.getBlock().getName());
+                    assignedToBlocks.add(propertyData);
+                } else {
+                    // Property is unassigned (portfolio-only)
+                    unassigned.add(propertyData);
+                }
+            }
+            
+            // Prepare response
+            Map<String, Object> propertiesData = new HashMap<>();
+            propertiesData.put("assignedToBlocks", assignedToBlocks);
+            propertiesData.put("unassigned", unassigned);
+            
+            response.put("success", true);
+            response.put("assignedToBlocks", assignedToBlocks);
+            response.put("unassigned", unassigned);
+            response.put("totalProperties", allProperties.size());
+            response.put("assignedCount", assignedToBlocks.size());
+            response.put("unassignedCount", unassigned.size());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Failed to load hierarchical properties for portfolio {}: {}", portfolioId, e.getMessage(), e);
+            response.put("error", "Failed to load properties: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * Helper method to create property data map for frontend
+     */
+    private Map<String, Object> createPropertyDataMap(Property property) {
+        Map<String, Object> propertyData = new HashMap<>();
+        
+        propertyData.put("id", property.getId());
+        propertyData.put("propertyName", property.getPropertyName());
+        propertyData.put("fullAddress", property.getFullAddress());
+        propertyData.put("propertyType", property.getPropertyType());
+        propertyData.put("bedrooms", property.getBedrooms());
+        propertyData.put("bathrooms", property.getBathrooms());
+        propertyData.put("monthlyPayment", property.getMonthlyPayment());
+        propertyData.put("payPropId", property.getPayPropId());
+        
+        // Add tenant information (simplified for now - can be enhanced later)
+        propertyData.put("currentTenant", null);
+        
+        return propertyData;
+    }
+
     // ===== CONTROLLER SEPARATION COMPLETED =====
     // PayProp functionality: /portfolio/internal/payprop/*
     // Assignment functionality: /portfolio/internal/assignment/*  
     // Admin functionality: /portfolio/internal/admin/*
+    // Hierarchical UI: /{portfolioId}/properties-hierarchical
 }

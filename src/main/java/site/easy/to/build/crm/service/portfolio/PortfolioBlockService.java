@@ -146,12 +146,21 @@ public interface PortfolioBlockService {
     // ===== PAYPROP INTEGRATION =====
     
     /**
-     * Generate PayProp tag name for block
+     * Generate PayProp tag name for block (legacy method)
      * @param portfolioId Portfolio ID
      * @param blockName Block name
      * @return Generated tag name in format: PF-{PORTFOLIO}-BL-{BLOCK}
+     * @deprecated Use generatePayPropTagName(Long blockId) instead
      */
+    @Deprecated
     String generatePayPropTagName(Long portfolioId, String blockName);
+    
+    /**
+     * Generate PayProp tag name for block using simplified format
+     * @param blockId Block ID
+     * @return Generated tag name in format: Owner-{BLOCK_ID}
+     */
+    String generatePayPropTagName(Long blockId);
     
     /**
      * Check if PayProp tag name would be unique

@@ -68,19 +68,15 @@ public class PortfolioBlockServiceImpl implements PortfolioBlockService {
             throw new IllegalArgumentException(validation.getErrorMessage());
         }
         
-        // Generate PayProp tag name using the unified Owner- format
-        String payPropTagName = PayPropTagGenerator.generateBlockTag(portfolioId, blockName);
-        
         // Get next display order
         Integer displayOrder = blockRepository.getNextDisplayOrderForPortfolio(portfolioId);
         
-        // Create block
+        // Create block without PayProp tag first (need ID for simplified tag generation)
         Block block = new Block();
         block.setName(blockName.trim());
         block.setDescription(description);
         block.setBlockType(blockType != null ? blockType : BlockType.BUILDING);
         block.setPortfolio(portfolio);
-        block.setPayPropTagNames(payPropTagName);
         block.setSyncStatus(SyncStatus.pending);
         block.setPropertyOwnerId(portfolio.getPropertyOwnerId());
         block.setIsActive("Y");
@@ -90,10 +86,17 @@ public class PortfolioBlockServiceImpl implements PortfolioBlockService {
         block.setUpdatedAt(LocalDateTime.now());
         block.setUpdatedBy(createdBy);
         
-        // Save block
+        // Save block to get ID
         Block savedBlock = blockRepository.save(block);
         
-        log.info("✅ Created block {} with PayProp tag name: {}", savedBlock.getId(), payPropTagName);
+        // Generate simplified PayProp tag name using block ID
+        String payPropTagName = PayPropTagGenerator.generateBlockTag(savedBlock.getId());
+        savedBlock.setPayPropTagNames(payPropTagName);
+        
+        // Save again with PayProp tag
+        savedBlock = blockRepository.save(savedBlock);
+        
+        log.info("✅ Created block {} with simplified PayProp tag: {}", savedBlock.getId(), payPropTagName);
         return savedBlock;
     }
     
@@ -128,21 +131,21 @@ public class PortfolioBlockServiceImpl implements PortfolioBlockService {
         }
         
         // Update fields
-        boolean nameChanged = !blockName.trim().equals(block.getName());
         block.setName(blockName.trim());
         block.setDescription(description);
         block.setBlockType(blockType);
         block.setUpdatedBy(updatedBy);
         block.setUpdatedAt(LocalDateTime.now());
         
-        // If name changed, regenerate PayProp tag name and mark for sync
-        if (nameChanged) {
-            String newPayPropTagName = PayPropTagGenerator.generateBlockTag(block.getPortfolio().getId(), blockName);
-            block.setPayPropTagNames(newPayPropTagName);
+        // With simplified Owner-{block_id} tags, the tag never changes
+        // Only ensure the tag is set correctly if missing
+        if (block.getPayPropTagNames() == null || block.getPayPropTagNames().trim().isEmpty()) {
+            String payPropTagName = PayPropTagGenerator.generateBlockTag(block.getId());
+            block.setPayPropTagNames(payPropTagName);
             block.setSyncStatus(SyncStatus.pending);
             block.setLastSyncAt(null);
             
-            log.info("📝 Block name changed, new PayProp tag: {}", newPayPropTagName);
+            log.info("📝 Set missing PayProp tag: {}", payPropTagName);
         }
         
         // Save block
@@ -433,22 +436,24 @@ public class PortfolioBlockServiceImpl implements PortfolioBlockService {
     
     @Override
     @Transactional(readOnly = true)
+    @Deprecated
     public String generatePayPropTagName(Long portfolioId, String blockName) {
-        if (portfolioId == null || blockName == null || blockName.trim().isEmpty()) {
-            return null;
-        }
-        
-        // Find portfolio to get name
-        Optional<Portfolio> portfolio = portfolioRepository.findById(portfolioId);
-        if (!portfolio.isPresent()) {
+        // This method is deprecated since we now use simplified Owner-{block_id} tags
+        // Block must be created first to get an ID for tag generation
+        throw new UnsupportedOperationException("Use generatePayPropTagName(Long blockId) instead - blocks must be created first to get ID for simplified tags");
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public String generatePayPropTagName(Long blockId) {
+        if (blockId == null) {
             return null;
         }
         
         try {
-            return PayPropTagGenerator.generateBlockTag(portfolioId, blockName.trim());
+            return PayPropTagGenerator.generateBlockTag(blockId);
         } catch (IllegalArgumentException e) {
-            log.warn("Failed to generate PayProp tag for portfolio {} block '{}': {}", 
-                    portfolioId, blockName, e.getMessage());
+            log.warn("Failed to generate PayProp tag for block {}: {}", blockId, e.getMessage());
             return null;
         }
     }

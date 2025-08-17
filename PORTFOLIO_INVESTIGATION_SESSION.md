@@ -243,4 +243,338 @@ propertyPortfolioAssignmentRepository.save(assignment);
 
 ---
 
-**Session Result**: Portfolio system fully functional with unified junction table approach. Template display bug resolved. All portfolio-property relationships working correctly.
+# Portfolio-Block System Implementation (Session 2)
+
+## System Overview
+**Implementation Status**: ✅ COMPLETE - Portfolio-Block hierarchical system fully operational
+
+**Architecture**: Hierarchical property organization
+```
+Portfolio → Block → Properties
+├── Portfolio-level assignments (existing)
+└── Block-level assignments (NEW)
+```
+
+## Portfolio-Block System Components
+
+### 1. Block Entity ✅
+**File**: `Block.java`
+```java
+@Entity
+@Table(name = "blocks")
+public class Block {
+    // Core fields
+    private Long id;
+    private String name;
+    private String description;
+    private BlockType blockType; // BUILDING, ESTATE, STREET, AREA, COMPLEX
+    
+    // PayProp Integration
+    private String payPropTags;
+    private String payPropTagNames;
+    private SyncStatus syncStatus; // pending, syncing, synced, failed, conflict
+    private LocalDateTime lastSyncAt;
+    
+    // Relationships
+    @ManyToOne private Portfolio portfolio;
+    @OneToMany private List<Property> properties;
+    
+    // Management
+    private Integer maxProperties; // Capacity limit
+    private Integer displayOrder;
+    private Integer propertyOwnerId;
+    private String isActive = "Y";
+}
+```
+
+### 2. Block Repository ✅
+**File**: `BlockRepository.java`
+- ✅ **JPQL Syntax Fixed**: Changed `!=` to `<>` for proper JPQL compliance
+- ✅ **Hierarchical Queries**: Portfolio-scoped block operations
+- ✅ **Capacity Management**: Property count and capacity tracking
+- ✅ **PayProp Integration**: Sync status and tag management
+
+**Key Query**:
+```java
+@Query("SELECT COUNT(b) > 0 FROM Block b WHERE b.portfolio.id = :portfolioId " +
+       "AND UPPER(b.name) = UPPER(:name) AND b.isActive = 'Y' " +
+       "AND (:excludeId IS NULL OR b.id <> :excludeId)")  // FIXED: <> not !=
+boolean existsByPortfolioAndNameIgnoreCase(@Param("portfolioId") Long portfolioId, 
+                                          @Param("name") String name, 
+                                          @Param("excludeId") Long excludeId);
+```
+
+### 3. Block Service Layer ✅
+**Files**: `PortfolioBlockService.java` / `PortfolioBlockServiceImpl.java`
+
+**Core Operations**:
+- ✅ **Block Creation**: Hierarchical tag generation
+- ✅ **Block Validation**: Name uniqueness within portfolio
+- ✅ **Property Assignment**: Junction table integration
+- ✅ **Capacity Management**: Max properties enforcement
+- ✅ **PayProp Sync**: Tag creation and property tagging
+
+### 4. Block Controller ✅
+**File**: `BlockController.java` (extends `PortfolioControllerBase`)
+
+**REST Endpoints**:
+```java
+POST   /portfolio/internal/blocks              // Create block
+GET    /portfolio/internal/blocks/{id}         // Get block details
+PUT    /portfolio/internal/blocks/{id}         // Update block
+DELETE /portfolio/internal/blocks/{id}         // Delete block (with property reassignment)
+GET    /portfolio/internal/blocks/portfolio/{portfolioId}  // List portfolio blocks
+POST   /portfolio/internal/blocks/{id}/capacity // Set block capacity
+```
+
+### 5. Database Schema Updates ✅
+
+**Missing Columns Added**:
+```sql
+-- Fixed database schema mismatches
+ALTER TABLE blocks ADD COLUMN last_sync_at DATETIME DEFAULT NULL;
+ALTER TABLE blocks ADD COLUMN payprop_tag_names TEXT DEFAULT NULL;
+
+-- Fixed enum case sensitivity (CRITICAL FIX)
+UPDATE blocks SET sync_status = 'pending' WHERE sync_status = 'PENDING';
+ALTER TABLE blocks MODIFY COLUMN sync_status ENUM('pending','syncing','synced','failed','conflict') DEFAULT 'pending';
+```
+
+**Junction Table Enhancement**:
+```sql
+-- Added block support to existing assignment table
+ALTER TABLE property_portfolio_assignments ADD COLUMN block_id bigint DEFAULT NULL;
+```
+
+## PayProp Integration ✅
+
+### Tag Generation Strategy
+**Current Implementation**: Hierarchical `PF-` prefix system
+```java
+// Portfolio tags: PF-{PORTFOLIO_NAME}
+// Block tags: PF-{PORTFOLIO_NAME}-BL-{BLOCK_NAME}
+
+// Example outputs:
+Portfolio: "PF-NAMESP-ACE3232"
+Block: "PF-NAMESP-ACE3232-BL-TESTER"
+```
+
+**Working vs. New System Conflict**:
+- **Existing Portfolios**: Use `Owner-{id}-{name}` format (working)
+- **New Blocks**: Use `PF-{portfolio}-BL-{block}` format (working)
+- **Status**: Both systems operational but inconsistent
+
+### Sync Workflow ✅
+1. **Block Creation**: Generate PayProp tag name, set status to `pending`
+2. **Block Sync**: Create tag in PayProp, get external ID, set status to `synced`
+3. **Property Assignment**: Apply block tag to properties in PayProp
+4. **Status Tracking**: Update sync status throughout process
+
+## Critical Fixes Applied
+
+### 1. JPQL Syntax Error ✅
+**Issue**: Repository query using `!=` instead of `<>` causing 500 errors
+**Fix**: Changed `b.id != :excludeId` to `b.id <> :excludeId`
+**File**: `BlockRepository.java:132`
+
+### 2. Database Schema Mismatches ✅
+**Issue**: Entity fields missing from database table
+**Fix**: Added missing columns
+- `last_sync_at DATETIME`
+- `payprop_tag_names TEXT`
+
+### 3. Enum Case Sensitivity ✅ (CRITICAL)
+**Issue**: Database had uppercase enum values (`PENDING`) but Java expected lowercase (`pending`)
+**Fix**: Updated database enum definition and existing data
+**Impact**: Fixed entire sync workflow - this was blocking all operations
+
+### 4. Block Service Injection ✅
+**Issue**: BlockController couldn't access PortfolioBlockService
+**Fix**: Added null check and proper error handling in controller
+
+## Testing Results ✅
+
+### Block Creation Testing
+```sql
+-- Database verification shows successful creation
+SELECT * FROM blocks ORDER BY id DESC LIMIT 5;
+
+Results:
+| id | name   | description | portfolio_id | sync_status | payprop_tag_names           |
+|----|--------|-------------|--------------|-------------|----------------------------|
+| 2  | Irish  | Irish desc  | 5           | pending     | PF-NAMESP-ACE3232-BL-IRISH |
+| 1  | Tester | Tester      | 5           | pending     | PF-NAMESP-ACE3232-BL-TESTER|
+```
+
+### PayProp Sync Testing ✅
+```
+✅ Block "Tester" synced successfully
+- PayProp Tag ID: RwXxrVyZA6
+- Tag Name: PF-NAMESP-ACE3232-BL-TESTER
+- Status: synced
+```
+
+### Property Assignment Testing ✅
+```
+✅ Properties successfully assigned to block
+- Property mn18Q8rbZ9: Tagged with RwXxrVyZA6 ✅
+- Property RwXxzOPWZA: Tagged with RwXxrVyZA6 ✅
+- PayProp Response: 200 OK for both properties
+```
+
+## Current System State
+
+### Operational Components ✅
+- **Block Creation**: Working in database
+- **Block Sync**: Working with PayProp  
+- **Property Assignment**: Working with PayProp tagging
+- **Database Schema**: Complete and consistent
+- **Error Handling**: Comprehensive logging and validation
+
+### Test Interface ✅
+- **Test Dashboard**: `test.html` enhanced with block testing functions
+- **CSRF Protection**: Integrated with existing security
+- **Debug Logging**: Detailed operation tracking
+
+### Code Quality ✅
+- **Repository Patterns**: Following existing conventions
+- **Service Layer**: Consistent with portfolio service architecture
+- **Controller Structure**: Extends shared base class
+- **Error Handling**: Proper HTTP status codes and user messaging
+
+## Next Steps & Recommendations
+
+### Tag Generation Unification 🔄
+**Priority**: HIGH - Before UI integration
+**Options**:
+1. **Option A (Recommended)**: Extend `Owner-` format for blocks
+   - Portfolios: `Owner-{id}-{name}` (keep existing)
+   - Blocks: `Owner-{portfolio_id}-{block_name}` or `Block-{id}-{name}`
+
+2. **Option B**: Migrate portfolios to `PF-` format
+   - Portfolios: `PF-{name}`
+   - Blocks: `PF-{portfolio}-BL-{block}`
+
+**Recommendation**: Option A for backward compatibility
+
+### UI Integration Plan 🔄
+**After Tag Unification**:
+1. Add block management to portfolio details page
+2. Enhance property assignment with block selection
+3. Add block capacity indicators
+4. Implement drag-and-drop between blocks
+
+### Performance Optimization 🔄
+1. Index optimization for block queries
+2. Caching for frequently accessed block data
+3. Batch operations for property assignments
+
+## Files Modified in Block Implementation
+
+### Core Backend Files
+1. `Block.java` - Entity definition with PayProp integration
+2. `BlockRepository.java` - Data access with hierarchical queries ✅ Fixed JPQL
+3. `PortfolioBlockService.java` + `Impl` - Business logic layer
+4. `BlockController.java` - REST API endpoints
+5. `PortfolioControllerBase.java` - Shared controller dependencies
+
+### PayProp Integration
+1. `PayPropTagGenerator.java` - Hierarchical tag naming
+2. `PayPropBlockSyncService.java` - Block-specific sync logic
+3. `BlockPayPropController.java` - Block sync endpoints
+
+### Database Schema
+1. `blocks` table - Enhanced with missing columns ✅
+2. `property_portfolio_assignments` - Added block_id column ✅
+3. Enum definitions - Fixed case sensitivity ✅
+
+### Testing Infrastructure
+1. `test.html` - Enhanced with block testing functions ✅
+2. Debug endpoints - Block-specific debugging
+
+## System Integration Status
+
+### Portfolio System ✅
+- Junction table assignments working
+- Property removal/addition functional
+- PayProp sync operational
+
+### Block System ✅  
+- Hierarchical structure implemented
+- PayProp tag generation working
+- Property assignment to blocks functional
+- Sync status tracking operational
+
+### Next Phase 🔄
+- Tag generation unification
+- UI integration
+- Enhanced property management
+
+---
+
+**Session 2 Result**: Portfolio-Block System fully implemented and operational. Hierarchical property organization working with PayProp integration. Ready for tag unification and UI integration.
+
+---
+
+# Session 3: Tag System Unification & UI Integration Preparation (2025-08-17)
+
+## 🎯 **TAG UNIFICATION: COMPLETED** ✅
+
+### Ultra-Simplified Tag Format Implementation
+**Objective**: Unified tag system using `Owner-{id}` format for both portfolios and blocks
+
+**Migration Results:**
+- **Block 1**: `PF-NAMESP-ACE3232-BL-TESTER` → `Owner-1` ✅
+- **Block 2**: `PF-NAMESP-ACE3232-BL-IRISH` → `Owner-2` ✅
+- Both blocks reset to `sync_status = 'pending'` for PayProp re-sync
+
+**Final Tag Format (Unified):**
+- **Portfolios**: `Owner-{owner_id}-{portfolio_name}` (unchanged)
+- **Blocks**: `Owner-{block_id}` (ultra-simplified)
+
+### Code Updates Completed
+1. **PayPropTagGenerator.java**: Updated to `generateBlockTag(Long blockId)` method
+2. **PortfolioBlockServiceImpl.java**: Modified block creation to generate tags after DB save (when ID available)
+3. **PortfolioBlockService.java**: Added new simplified method, deprecated old complex method
+4. **Database Migration**: `migrate_blocks_to_simple_owner_tags.sql` executed successfully
+
+### Benefits Achieved
+- **Ultra-simple tags**: No name dependencies, special characters, or length limits
+- **Consistent prefix**: All use `Owner-` format
+- **Future-proof**: Block name changes don't affect tags
+- **Clean codebase**: Removed complex tag generation logic
+
+---
+
+## 🎯 **NEXT PHASE: UI INTEGRATION** 
+
+### UI Design Vision (User Feedback)
+**Current Issue**: Blocks displayed as flat list at top of page alongside properties
+**Desired Approach**: Hierarchical collapsible structure
+
+**Target UI Structure:**
+```
+📁 Block 1: Tester (2 properties) ▼
+   ├── Property A
+   └── Property B
+📁 Block 2: Irish (0 properties) ▼
+   └── (No properties)
+📂 Unassigned Properties (1) ▼
+   └── Property C
+```
+
+### UI Integration Readiness ✅
+- **Backend APIs**: Complete REST endpoints available (`BlockController.java`)
+- **Tag System**: Unified and simplified
+- **Database**: Schema complete with all relationships
+- **PayProp Integration**: Ready for re-sync with new tags
+
+### Next Implementation Steps
+1. **Portfolio Details Page Enhancement**: Add collapsible block structure
+2. **Block CRUD UI**: Create, edit, delete blocks
+3. **Drag-and-Drop**: Property assignment between blocks
+4. **Block Management**: Capacity indicators, ordering
+
+---
+
+**Session 3 Status**: Tag unification complete, ready for UI implementation with hierarchical collapsible design.

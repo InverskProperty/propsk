@@ -208,39 +208,18 @@
                 </div>
             </div>
 
-            <!-- Block Management Section -->
+            <!-- Hierarchical Blocks & Properties View -->
             <div class="row">
                 <div class="col-12">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between">
-                            <h4><i class="fas fa-building-user text-primary"></i> Blocks in this Portfolio</h4>
+                            <h4><i class="fas fa-layer-group text-primary"></i> Portfolio Organization</h4>
                             <div>
-                                <span id="blockCountBadge" class="badge badge-info mr-2">Loading blocks...</span>
-                                <button th:if="${canManageProperties}" class="btn btn-sm btn-primary" 
+                                <span id="totalPropertiesCount" class="badge badge-info mr-2">Loading...</span>
+                                <button th:if="${canManageProperties}" class="btn btn-sm btn-primary mr-2" 
                                         onclick="showCreateBlockModal()">
-                                    <i class="fas fa-plus"></i> Create Block
+                                    <i class="fas fa-building"></i> New Block
                                 </button>
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <div id="blocksContainer">
-                                <div class="text-center py-3">
-                                    <i class="fas fa-spinner fa-spin"></i> Loading blocks...
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Properties in Portfolio -->
-            <div class="row">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header d-flex justify-content-between">
-                            <h4>Properties in this Portfolio</h4>
-                            <div>
-                                <span class="badge badge-info mr-2" th:text="${#lists.size(properties ?: {})} + ' properties'">0 properties</span>
                                 <button th:if="${canManageProperties}" class="btn btn-sm btn-success" 
                                         onclick="showAssignModal()">
                                     <i class="fas fa-plus"></i> Add Properties
@@ -248,101 +227,65 @@
                             </div>
                         </div>
                         <div class="card-body">
-                            <div th:if="${#lists.isEmpty(properties ?: {})}" class="text-center py-5">
-                                <i class="fas fa-building fa-4x text-muted mb-3"></i>
-                                <h5>No Properties Assigned</h5>
-                                <p class="text-muted">Assign properties to this portfolio to start tracking performance.</p>
-                                <button th:if="${canManageProperties}" class="btn btn-success" 
-                                        onclick="showAssignModal()">
-                                    <i class="fas fa-plus"></i> Assign Properties
-                                </button>
+                            <!-- Loading State -->
+                            <div id="loadingState" class="text-center py-5">
+                                <i class="fas fa-spinner fa-spin fa-2x text-muted mb-3"></i>
+                                <h5>Loading portfolio organization...</h5>
                             </div>
 
-                            <div th:unless="${#lists.isEmpty(properties ?: {})}" class="table-responsive">
-                                <table id="propertiesTable" class="table table-striped table-bordered">
-                                    <thead>
-                                        <tr>
-                                            <th>Property Name</th>
-                                            <th>Address</th>
-                                            <th>Type</th>
-                                            <th>Bedrooms</th>
-                                            <th>Bathrooms</th>
-                                            <th>Tenant</th>
-                                            <th>Monthly Rent</th>
-                                            <th>PayProp Status</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr th:each="prop : ${propertiesWithTenants}">
-                                            <td>
-                                                <a th:href="@{/employee/property/{id}(id=${prop.id})}" 
-                                                th:text="${prop.propertyName}">Property Name</a>
-                                            </td>
-                                            <td th:text="${prop.fullAddress}">Address</td>
-                                            <td>
-                                                <span class="badge badge-secondary" 
-                                                    th:text="${prop.propertyType}">Type</span>
-                                            </td>
-                                            <td th:text="${prop.bedrooms}">0</td>
-                                            <td th:text="${prop.bathrooms}">0</td>
-                                            <td>
-                                                <!-- Safe tenant handling - checks if currentTenant exists -->
-                                                <span th:if="${prop.currentTenant != null}" 
-                                                    th:text="${prop.currentTenant.fullName}">Tenant Name</span>
-                                                <span th:unless="${prop.currentTenant != null}" 
-                                                    class="text-muted">No tenant assigned</span>
-                                            </td>
-                                            <td>
-                                                <span th:if="${prop.monthlyPayment != null}"
-                                                    th:text="'£' + ${#numbers.formatDecimal(prop.monthlyPayment, 0, 'COMMA', 2, 'POINT')}">£0</span>
-                                                <span th:unless="${prop.monthlyPayment != null}" 
-                                                    class="text-muted">Not set</span>
-                                            </td>
-                                            <td>
-                                                <span th:if="${prop.payPropId}" 
-                                                    class="badge badge-success">
-                                                    <i class="fas fa-check"></i> Synced
-                                                </span>
-                                                <span th:unless="${prop.payPropId}" 
-                                                    class="badge badge-warning">
-                                                    <i class="fas fa-sync"></i> Not synced
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div class="btn-group btn-group-sm">
-                                                    <a th:href="@{/employee/property/{id}(id=${prop.id})}" 
-                                                    class="btn btn-info" title="View">
-                                                        <i class="fas fa-eye"></i>
-                                                    </a>
-                                                    <a th:href="@{/employee/property/{id}/edit(id=${prop.id})}" 
-                                                    class="btn btn-primary" title="Edit">
-                                                        <i class="fas fa-edit"></i>
-                                                    </a>
-                                                    <button type="button" 
-                                                            class="btn btn-danger" 
-                                                            title="Remove from Portfolio"
-                                                            th:onclick="'removeProperty(' + ${prop.id} + ')'">
-                                                        <i class="fas fa-times"></i>
+                            <!-- Empty State -->
+                            <div id="emptyState" class="text-center py-5" style="display: none;">
+                                <i class="fas fa-building fa-4x text-muted mb-3"></i>
+                                <h5>No Properties in Portfolio</h5>
+                                <p class="text-muted">Start by creating blocks or assigning properties directly to organize your portfolio.</p>
+                                <div class="mt-3">
+                                    <button th:if="${canManageProperties}" class="btn btn-primary mr-2" 
+                                            onclick="showCreateBlockModal()">
+                                        <i class="fas fa-building"></i> Create First Block
+                                    </button>
+                                    <button th:if="${canManageProperties}" class="btn btn-success" 
+                                            onclick="showAssignModal()">
+                                        <i class="fas fa-plus"></i> Assign Properties
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Hierarchical Organization View -->
+                            <div id="portfolioOrganization" style="display: none;">
+                                <!-- Blocks with Properties (Populated by JavaScript) -->
+                                <div id="blocksContainer"></div>
+                                
+                                <!-- Unassigned Properties Section -->
+                                <div id="unassignedSection" class="mt-3">
+                                    <div class="border rounded">
+                                        <div class="bg-light p-3 border-bottom">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <h6 class="mb-0">
+                                                        <i class="fas fa-folder-open text-warning"></i>
+                                                        <span>Unassigned Properties</span>
+                                                        <span id="unassignedCount" class="badge badge-warning ml-2">0</span>
+                                                    </div>
+                                                <div>
+                                                    <button class="btn btn-sm btn-outline-secondary" 
+                                                            onclick="toggleSection('unassigned')" 
+                                                            id="unassignedToggle">
+                                                        <i class="fas fa-chevron-down"></i>
                                                     </button>
                                                 </div>
-                                            </td>
-                                        </tr>
-                                        <!-- Show message if no properties -->
-                                        <tr th:if="${#lists.isEmpty(propertiesWithTenants)}">
-                                            <td colspan="9" class="text-center text-muted">
-                                                <i class="fas fa-home fa-2x mb-2"></i>
-                                                <p>No properties assigned to this portfolio yet.</p>
-                                                <a th:href="@{/portfolio/{id}/assign(id=${portfolio.id})}" 
-                                                class="btn btn-success btn-sm">
-                                                    <i class="fas fa-plus"></i> Assign Properties
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                                            </div>
+                                        </div>
+                                        <div id="unassignedProperties" class="collapse show">
+                                            <!-- Unassigned properties populated by JavaScript -->
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+
                         </div>
+                    </div>
+                </div>
+            </div>
                     </div>
                 </div>
             </div>
@@ -845,9 +788,343 @@ function deleteBlock(blockId, blockName) {
     }
 }
 
-// Load blocks when page loads
+// ===== HIERARCHICAL ORGANIZATION FUNCTIONS =====
+
+// Load portfolio organization (blocks + properties hierarchically)
+function loadPortfolioOrganization() {
+    const loadingState = document.getElementById('loadingState');
+    const emptyState = document.getElementById('emptyState');
+    const organizationView = document.getElementById('portfolioOrganization');
+    
+    // Show loading
+    loadingState.style.display = 'block';
+    emptyState.style.display = 'none';
+    organizationView.style.display = 'none';
+    
+    // Fetch blocks and properties
+    Promise.all([
+        fetch(`/portfolio/internal/blocks/portfolio/${portfolioId}/with-counts`),
+        fetch(`/portfolio/${portfolioId}/properties-hierarchical`) // New endpoint needed
+    ])
+    .then(async ([blocksResponse, propertiesResponse]) => {
+        const blocks = await blocksResponse.json();
+        const properties = await propertiesResponse.json();
+        
+        renderHierarchicalOrganization(blocks, properties);
+    })
+    .catch(error => {
+        console.error('Error loading portfolio organization:', error);
+        showOrganizationError('Failed to load portfolio organization');
+    });
+}
+
+// Render the hierarchical organization
+function renderHierarchicalOrganization(blocks, properties) {
+    const loadingState = document.getElementById('loadingState');
+    const emptyState = document.getElementById('emptyState');
+    const organizationView = document.getElementById('portfolioOrganization');
+    const blocksContainer = document.getElementById('blocksContainer');
+    const unassignedContainer = document.getElementById('unassignedProperties');
+    
+    // Hide loading
+    loadingState.style.display = 'none';
+    
+    // Check if we have any content
+    const totalProperties = properties.assignedToBlocks.length + properties.unassigned.length;
+    if (blocks.length === 0 && totalProperties === 0) {
+        emptyState.style.display = 'block';
+        return;
+    }
+    
+    // Show organization view
+    organizationView.style.display = 'block';
+    
+    // Render blocks with their properties
+    renderBlocksWithProperties(blocksContainer, blocks, properties.assignedToBlocks);
+    
+    // Render unassigned properties
+    renderUnassignedProperties(unassignedContainer, properties.unassigned);
+    
+    // Update counts
+    updatePropertyCounts(totalProperties, properties.unassigned.length);
+}
+
+// Render blocks with their properties
+function renderBlocksWithProperties(container, blocks, assignedProperties) {
+    let html = '';
+    
+    blocks.forEach(block => {
+        // Get properties for this block
+        const blockProperties = assignedProperties.filter(prop => prop.blockId === block.id);
+        const propertyCount = blockProperties.length;
+        
+        // Determine colors and icons
+        const isExpanded = true; // Start expanded
+        const chevronClass = isExpanded ? 'fa-chevron-down' : 'fa-chevron-right';
+        const collapseClass = isExpanded ? 'show' : '';
+        
+        // Capacity status
+        let capacityClass = 'secondary';
+        let capacityText = propertyCount;
+        if (block.maxProperties) {
+            capacityText = `${propertyCount}/${block.maxProperties}`;
+            capacityClass = propertyCount >= block.maxProperties ? 'danger' : 
+                          propertyCount > block.maxProperties * 0.8 ? 'warning' : 'success';
+        }
+        
+        html += `
+            <div class="mb-3">
+                <div class="border rounded">
+                    <!-- Block Header -->
+                    <div class="bg-light p-3 border-bottom">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <button class="btn btn-sm btn-link p-0 mr-2" onclick="toggleBlockSection(${block.id})" id="toggle-${block.id}">
+                                    <i class="fas ${chevronClass}"></i>
+                                </button>
+                                <div>
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-building text-primary"></i>
+                                        ${block.name}
+                                        <span class="badge badge-${capacityClass} ml-2">${capacityText}</span>
+                                    </h6>
+                                    ${block.description ? `<small class="text-muted">${block.description}</small>` : ''}
+                                </div>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="assignPropertiesToBlock(${block.id})" title="Assign Properties">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="editBlock(${block.id})" title="Edit Block">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="deleteBlock(${block.id}, '${block.name}')" title="Delete Block">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Block Properties -->
+                    <div id="block-${block.id}" class="collapse ${collapseClass}">
+                        <div class="p-3">
+                            ${renderBlockProperties(blockProperties, block.id)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Render properties within a block
+function renderBlockProperties(properties, blockId) {
+    if (properties.length === 0) {
+        return `
+            <div class="text-center py-3 text-muted">
+                <i class="fas fa-home fa-2x mb-2"></i>
+                <p>No properties in this block</p>
+                <button class="btn btn-sm btn-primary" onclick="assignPropertiesToBlock(${blockId})">
+                    <i class="fas fa-plus"></i> Assign Properties
+                </button>
+            </div>
+        `;
+    }
+    
+    let html = '<div class="list-group list-group-flush">';
+    
+    properties.forEach(prop => {
+        const tenantInfo = prop.currentTenant ? 
+            `<small class="text-muted">Tenant: ${prop.currentTenant.fullName}</small>` :
+            `<small class="text-muted">No tenant</small>`;
+            
+        const rentInfo = prop.monthlyPayment ? 
+            `£${prop.monthlyPayment.toLocaleString()}` : 'Rent not set';
+            
+        const syncStatus = prop.payPropId ? 
+            '<span class="badge badge-success badge-sm">Synced</span>' :
+            '<span class="badge badge-warning badge-sm">Not synced</span>';
+        
+        html += `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">
+                                <a href="/employee/property/${prop.id}" class="text-decoration-none">
+                                    ${prop.propertyName}
+                                </a>
+                            </h6>
+                            <p class="mb-1 small text-muted">${prop.fullAddress}</p>
+                            <div class="d-flex gap-3">
+                                <span class="small">${tenantInfo}</span>
+                                <span class="small"><strong>${rentInfo}/month</strong></span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            ${syncStatus}
+                            <div class="btn-group btn-group-sm mt-1">
+                                <a href="/employee/property/${prop.id}" class="btn btn-outline-info btn-sm" title="View">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <button class="btn btn-outline-warning btn-sm" onclick="removePropertyFromBlock(${prop.id}, ${blockId})" title="Remove from Block">
+                                    <i class="fas fa-arrow-up"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="removeProperty(${prop.id})" title="Remove from Portfolio">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    return html;
+}
+
+// Render unassigned properties
+function renderUnassignedProperties(container, properties) {
+    if (properties.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-3 text-muted">
+                <p class="mb-0">All properties are organized in blocks</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="p-3"><div class="list-group list-group-flush">';
+    
+    properties.forEach(prop => {
+        const tenantInfo = prop.currentTenant ? 
+            `<small class="text-muted">Tenant: ${prop.currentTenant.fullName}</small>` :
+            `<small class="text-muted">No tenant</small>`;
+            
+        const rentInfo = prop.monthlyPayment ? 
+            `£${prop.monthlyPayment.toLocaleString()}` : 'Rent not set';
+            
+        const syncStatus = prop.payPropId ? 
+            '<span class="badge badge-success badge-sm">Synced</span>' :
+            '<span class="badge badge-warning badge-sm">Not synced</span>';
+        
+        html += `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">
+                                <a href="/employee/property/${prop.id}" class="text-decoration-none">
+                                    ${prop.propertyName}
+                                </a>
+                            </h6>
+                            <p class="mb-1 small text-muted">${prop.fullAddress}</p>
+                            <div class="d-flex gap-3">
+                                <span class="small">${tenantInfo}</span>
+                                <span class="small"><strong>${rentInfo}/month</strong></span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            ${syncStatus}
+                            <div class="btn-group btn-group-sm mt-1">
+                                <a href="/employee/property/${prop.id}" class="btn btn-outline-info btn-sm" title="View">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-primary btn-sm dropdown-toggle" data-toggle="dropdown" title="Assign to Block">
+                                        <i class="fas fa-arrow-down"></i>
+                                    </button>
+                                    <div class="dropdown-menu" id="blockDropdown-${prop.id}">
+                                        <!-- Populated by JavaScript -->
+                                    </div>
+                                </div>
+                                <button class="btn btn-outline-danger btn-sm" onclick="removeProperty(${prop.id})" title="Remove from Portfolio">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div></div>';
+    container.innerHTML = html;
+}
+
+// Toggle block section
+function toggleBlockSection(blockId) {
+    const section = document.getElementById(`block-${blockId}`);
+    const toggle = document.getElementById(`toggle-${blockId}`);
+    const icon = toggle.querySelector('i');
+    
+    section.classList.toggle('show');
+    
+    if (section.classList.contains('show')) {
+        icon.className = 'fas fa-chevron-down';
+    } else {
+        icon.className = 'fas fa-chevron-right';
+    }
+}
+
+// Toggle unassigned section
+function toggleSection(sectionName) {
+    const section = document.getElementById(`${sectionName}Properties`);
+    const toggle = document.getElementById(`${sectionName}Toggle`);
+    const icon = toggle.querySelector('i');
+    
+    section.classList.toggle('show');
+    
+    if (section.classList.contains('show')) {
+        icon.className = 'fas fa-chevron-down';
+    } else {
+        icon.className = 'fas fa-chevron-right';
+    }
+}
+
+// Update property counts
+function updatePropertyCounts(total, unassigned) {
+    const totalCount = document.getElementById('totalPropertiesCount');
+    const unassignedCount = document.getElementById('unassignedCount');
+    
+    totalCount.textContent = `${total} properties`;
+    unassignedCount.textContent = unassigned;
+}
+
+// Show organization error
+function showOrganizationError(message) {
+    const loadingState = document.getElementById('loadingState');
+    const organizationView = document.getElementById('portfolioOrganization');
+    
+    loadingState.style.display = 'none';
+    organizationView.innerHTML = `
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle"></i> ${message}
+        </div>
+    `;
+    organizationView.style.display = 'block';
+}
+
+// Placeholder functions for new functionality
+function assignPropertiesToBlock(blockId) {
+    alert('Assign properties to block functionality will be implemented next');
+}
+
+function removePropertyFromBlock(propertyId, blockId) {
+    if (confirm('Move this property to unassigned?')) {
+        // Implementation needed
+        alert('Remove from block functionality will be implemented next');
+    }
+}
+
+// Load organization when page loads (replace the old loadBlocks)
 $(document).ready(function() {
-    loadBlocks();
+    loadPortfolioOrganization();
 });
 
 </script>
