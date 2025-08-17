@@ -603,4 +603,343 @@ public class PortfolioAssignmentService {
         public String getMessage() { return message; }
         public List<String> getErrors() { return errors; }
     }
+    
+    // ==================== BLOCK ASSIGNMENT METHODS ====================
+    
+    /**
+     * Assign properties to a specific block within a portfolio WITH PayProp sync
+     * This creates hierarchical Portfolio → Block → Property assignments
+     */
+    public AssignmentResult assignPropertiesToBlock(Long portfolioId, Long blockId, List<Long> propertyIds, Long userId) {
+        log.info("🏗️ Starting assignment of {} properties to block {} in portfolio {}", 
+                propertyIds.size(), blockId, portfolioId);
+        
+        // Validate inputs
+        if (portfolioId == null || blockId == null || propertyIds == null || propertyIds.isEmpty() || userId == null) {
+            throw new IllegalArgumentException("Portfolio ID, Block ID, property IDs, and user ID are required");
+        }
+        
+        // Validate portfolio exists
+        Portfolio portfolio = portfolioRepository.findById(portfolioId)
+            .orElseThrow(() -> new IllegalArgumentException("Portfolio not found: " + portfolioId));
+        
+        // Validate block exists and belongs to portfolio
+        Block block = validateBlockBelongsToPortfolio(blockId, portfolioId);
+        
+        AssignmentResult result = new AssignmentResult();
+        LocalDateTime now = LocalDateTime.now();
+        
+        for (Long propertyId : propertyIds) {
+            try {
+                Property property = propertyService.findById(propertyId);
+                if (property == null) {
+                    result.addError("Property not found: " + propertyId);
+                    continue;
+                }
+                
+                // Check if assignment already exists
+                Optional<PropertyPortfolioAssignment> existing = assignmentRepository
+                    .findByPropertyIdAndPortfolioIdAndAssignmentTypeAndIsActive(
+                        propertyId, portfolioId, PortfolioAssignmentType.PRIMARY, true);
+                
+                PropertyPortfolioAssignment assignment;
+                if (existing.isPresent()) {
+                    // Update existing assignment to include block
+                    assignment = existing.get();
+                    Block oldBlock = assignment.getBlock();
+                    assignment.setBlock(block);
+                    assignment.setUpdatedAt(now);
+                    assignment.setUpdatedBy(userId);
+                    
+                    // If block changed, mark for re-sync
+                    if (oldBlock == null || !oldBlock.getId().equals(blockId)) {
+                        assignment.setSyncStatus(SyncStatus.pending);
+                        assignment.setLastSyncAt(null);
+                        log.info("🔄 Moved property {} from {} to block {}", 
+                                propertyId, oldBlock != null ? "block " + oldBlock.getId() : "portfolio-only", blockId);
+                    }
+                } else {
+                    // Create new assignment with block
+                    assignment = new PropertyPortfolioAssignment();
+                    assignment.setProperty(property);
+                    assignment.setPortfolio(portfolio);
+                    assignment.setBlock(block);
+                    assignment.setAssignmentType(PortfolioAssignmentType.PRIMARY);
+                    assignment.setAssignedBy(userId);
+                    assignment.setAssignedAt(now);
+                    assignment.setIsActive(true);
+                    assignment.setSyncStatus(SyncStatus.pending);
+                    assignment.setCreatedAt(now);
+                    assignment.setUpdatedAt(now);
+                    assignment.setUpdatedBy(userId);
+                    
+                    log.info("➕ Created new assignment: property {} to block {} in portfolio {}", 
+                            propertyId, blockId, portfolioId);
+                }
+                
+                // Clear any conflicting direct FK assignment
+                if (property.getPortfolio() != null && property.getPortfolio().getId().equals(portfolioId)) {
+                    log.info("🔧 Clearing direct FK for property {} to prevent conflicts", propertyId);
+                    property.setPortfolio(null);
+                    property.setPortfolioAssignmentDate(null);
+                    propertyService.save(property);
+                }
+                
+                // Save assignment
+                assignmentRepository.save(assignment);
+                result.incrementAssigned();
+                
+                // Sync to PayProp if configured and assignment should sync
+                if (payPropSyncService != null && assignment.shouldSyncToPayProp()) {
+                    try {
+                        boolean syncSuccess = syncAssignmentToPayProp(assignment);
+                        if (syncSuccess) {
+                            result.incrementSynced();
+                        } else {
+                            result.addError("PayProp sync failed for property " + propertyId);
+                        }
+                    } catch (Exception e) {
+                        log.error("PayProp sync error for property {}: {}", propertyId, e.getMessage());
+                        result.addError("PayProp sync error for property " + propertyId + ": " + e.getMessage());
+                    }
+                } else {
+                    result.incrementSkipped();
+                    log.debug("Skipped PayProp sync for property {} (sync not configured or assignment doesn't meet sync criteria)", propertyId);
+                }
+                
+            } catch (Exception e) {
+                log.error("Error assigning property {} to block {}: {}", propertyId, blockId, e.getMessage());
+                result.addError("Property " + propertyId + ": " + e.getMessage());
+            }
+        }
+        
+        log.info("✅ Block assignment complete. Assigned: {}, Synced: {}, Skipped: {}, Errors: {}", 
+                result.getAssignedCount(), result.getSyncedCount(), result.getSkippedCount(), result.getErrors().size());
+        
+        return result;
+    }
+    
+    /**
+     * Move properties from one block to another within the same portfolio
+     */
+    public AssignmentResult movePropertiesBetweenBlocks(Long portfolioId, Long fromBlockId, Long toBlockId, 
+                                                       List<Long> propertyIds, Long userId) {
+        log.info("🔄 Moving {} properties from block {} to block {} in portfolio {}", 
+                propertyIds.size(), fromBlockId, toBlockId, portfolioId);
+        
+        // Validate inputs
+        if (portfolioId == null || propertyIds == null || propertyIds.isEmpty() || userId == null) {
+            throw new IllegalArgumentException("Portfolio ID, property IDs, and user ID are required");
+        }
+        
+        // Validate blocks (null values allowed for portfolio-only assignments)
+        if (fromBlockId != null) validateBlockBelongsToPortfolio(fromBlockId, portfolioId);
+        if (toBlockId != null) validateBlockBelongsToPortfolio(toBlockId, portfolioId);
+        
+        if (Objects.equals(fromBlockId, toBlockId)) {
+            throw new IllegalArgumentException("Source and target blocks cannot be the same");
+        }
+        
+        Block toBlock = toBlockId != null ? 
+            blockRepository.findById(toBlockId).orElse(null) : null;
+        
+        AssignmentResult result = new AssignmentResult();
+        LocalDateTime now = LocalDateTime.now();
+        
+        for (Long propertyId : propertyIds) {
+            try {
+                // Find existing assignment
+                List<PropertyPortfolioAssignment> assignments = assignmentRepository
+                    .findByPropertyIdAndIsActive(propertyId, true)
+                    .stream()
+                    .filter(a -> portfolioId.equals(a.getPortfolio().getId()))
+                    .collect(Collectors.toList());
+                
+                PropertyPortfolioAssignment targetAssignment = assignments.stream()
+                    .filter(a -> Objects.equals(
+                        a.getBlock() != null ? a.getBlock().getId() : null, fromBlockId))
+                    .findFirst()
+                    .orElse(null);
+                
+                if (targetAssignment == null) {
+                    result.addError("Property " + propertyId + " not found in specified source block");
+                    continue;
+                }
+                
+                // Update assignment
+                targetAssignment.setBlock(toBlock);
+                targetAssignment.setSyncStatus(SyncStatus.pending);
+                targetAssignment.setLastSyncAt(null);
+                targetAssignment.setUpdatedAt(now);
+                targetAssignment.setUpdatedBy(userId);
+                
+                assignmentRepository.save(targetAssignment);
+                result.incrementAssigned();
+                
+                // Sync to PayProp
+                if (payPropSyncService != null && targetAssignment.shouldSyncToPayProp()) {
+                    try {
+                        boolean syncSuccess = syncAssignmentToPayProp(targetAssignment);
+                        if (syncSuccess) {
+                            result.incrementSynced();
+                        }
+                    } catch (Exception e) {
+                        log.error("PayProp sync error moving property {}: {}", propertyId, e.getMessage());
+                        result.addError("PayProp sync error for property " + propertyId);
+                    }
+                } else {
+                    result.incrementSkipped();
+                }
+                
+                log.info("✅ Moved property {} from block {} to block {}", 
+                        propertyId, fromBlockId, toBlockId);
+                
+            } catch (Exception e) {
+                log.error("Error moving property {} between blocks: {}", propertyId, e.getMessage());
+                result.addError("Property " + propertyId + ": " + e.getMessage());
+            }
+        }
+        
+        log.info("✅ Block move complete. Moved: {}, Synced: {}, Errors: {}", 
+                result.getAssignedCount(), result.getSyncedCount(), result.getErrors().size());
+        
+        return result;
+    }
+    
+    /**
+     * Remove properties from a block (move to portfolio-only assignment)
+     */
+    public AssignmentResult removePropertiesFromBlock(Long portfolioId, Long blockId, 
+                                                     List<Long> propertyIds, Long userId) {
+        log.info("📦 Removing {} properties from block {} (moving to portfolio-only)", 
+                propertyIds.size(), blockId);
+        
+        return movePropertiesBetweenBlocks(portfolioId, blockId, null, propertyIds, userId);
+    }
+    
+    /**
+     * Get properties assigned to a specific block
+     */
+    @Transactional(readOnly = true)
+    public List<Property> getPropertiesInBlock(Long blockId) {
+        if (blockId == null) return new ArrayList<>();
+        
+        List<PropertyPortfolioAssignment> assignments = assignmentRepository
+            .findByPortfolioAndSyncStatus(null, null) // Get all assignments
+            .stream()
+            .filter(a -> a.getBlock() != null && blockId.equals(a.getBlock().getId()) && a.getIsActive())
+            .collect(Collectors.toList());
+        
+        return assignments.stream()
+            .map(PropertyPortfolioAssignment::getProperty)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Get all properties in a portfolio organized by blocks
+     */
+    @Transactional(readOnly = true)
+    public Map<Block, List<Property>> getPropertiesByBlocksInPortfolio(Long portfolioId) {
+        if (portfolioId == null) return new HashMap<>();
+        
+        List<PropertyPortfolioAssignment> assignments = assignmentRepository
+            .findByPortfolioIdAndIsActive(portfolioId, true);
+        
+        Map<Block, List<Property>> result = new HashMap<>();
+        
+        for (PropertyPortfolioAssignment assignment : assignments) {
+            Block block = assignment.getBlock(); // Can be null for portfolio-only assignments
+            
+            result.computeIfAbsent(block, k -> new ArrayList<>())
+                  .add(assignment.getProperty());
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Validate that a block belongs to the specified portfolio
+     */
+    private Block validateBlockBelongsToPortfolio(Long blockId, Long portfolioId) {
+        Block block = blockRepository.findById(blockId)
+            .orElseThrow(() -> new IllegalArgumentException("Block not found: " + blockId));
+        
+        if (!portfolioId.equals(block.getPortfolio().getId())) {
+            throw new IllegalArgumentException("Block " + blockId + " does not belong to portfolio " + portfolioId);
+        }
+        
+        if (!"Y".equals(block.getIsActive())) {
+            throw new IllegalArgumentException("Block " + blockId + " is not active");
+        }
+        
+        return block;
+    }
+    
+    /**
+     * Sync a property assignment to PayProp (hierarchical version)
+     * This handles both portfolio-only and block assignments
+     */
+    private boolean syncAssignmentToPayProp(PropertyPortfolioAssignment assignment) {
+        if (payPropSyncService == null) {
+            log.warn("PayProp sync service not available");
+            return false;
+        }
+        
+        try {
+            Property property = assignment.getProperty();
+            if (property == null || property.getPayPropId() == null) {
+                log.warn("Property {} has no PayProp ID, skipping sync", 
+                        property != null ? property.getId() : "null");
+                return false;
+            }
+            
+            String targetTagId = null;
+            
+            // Determine which tag to use based on assignment hierarchy
+            if (assignment.getBlock() != null) {
+                // Block assignment - use block's PayProp tag
+                Block block = assignment.getBlock();
+                if (block.getPayPropTags() == null || block.getPayPropTags().trim().isEmpty()) {
+                    log.warn("Block {} has no PayProp external ID, cannot sync property {}", 
+                            block.getId(), property.getId());
+                    return false;
+                }
+                targetTagId = block.getPayPropTags();
+                
+            } else {
+                // Portfolio-only assignment - use portfolio's PayProp tag
+                Portfolio portfolio = assignment.getPortfolio();
+                if (portfolio.getPayPropTags() == null || portfolio.getPayPropTags().trim().isEmpty()) {
+                    log.warn("Portfolio {} has no PayProp external ID, cannot sync property {}", 
+                            portfolio.getId(), property.getId());
+                    return false;
+                }
+                targetTagId = portfolio.getPayPropTags();
+            }
+            
+            // Apply tag to property in PayProp
+            payPropSyncService.applyTagToProperty(property.getPayPropId(), targetTagId);
+            
+            // Update assignment sync status
+            assignment.setSyncStatus(SyncStatus.synced);
+            assignment.setLastSyncAt(LocalDateTime.now());
+            assignmentRepository.save(assignment);
+            
+            log.debug("✅ Synced property {} to PayProp tag {}", property.getId(), targetTagId);
+            return true;
+            
+        } catch (Exception e) {
+            log.error("Failed to sync assignment {} to PayProp: {}", assignment.getId(), e.getMessage());
+            
+            // Mark as failed
+            assignment.setSyncStatus(SyncStatus.failed);
+            assignmentRepository.save(assignment);
+            
+            return false;
+        }
+    }
+    
+    @Autowired
+    private BlockRepository blockRepository;
 }

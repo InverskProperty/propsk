@@ -5,6 +5,9 @@
       "Bash(chmod:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "C:\\c\\Users\\sajid"
+    ]
   }
 }
