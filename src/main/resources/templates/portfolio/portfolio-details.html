@@ -208,6 +208,31 @@
                 </div>
             </div>
 
+            <!-- Block Management Section -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between">
+                            <h4><i class="fas fa-building-user text-primary"></i> Blocks in this Portfolio</h4>
+                            <div>
+                                <span id="blockCountBadge" class="badge badge-info mr-2">Loading blocks...</span>
+                                <button th:if="${canManageProperties}" class="btn btn-sm btn-primary" 
+                                        onclick="showCreateBlockModal()">
+                                    <i class="fas fa-plus"></i> Create Block
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="blocksContainer">
+                                <div class="text-center py-3">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading blocks...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Properties in Portfolio -->
             <div class="row">
                 <div class="col-12">
@@ -347,6 +372,51 @@
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-success" onclick="assignSelectedProperties()">
                     <i class="fas fa-check"></i> Assign Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Block Modal -->
+<div class="modal fade" id="createBlockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title">Create New Block</h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="createBlockForm">
+                    <div class="form-group">
+                        <label for="blockName">Block Name *</label>
+                        <input type="text" class="form-control" id="blockName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="blockDescription">Description</label>
+                        <textarea class="form-control" id="blockDescription" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="blockType">Block Type</label>
+                        <select class="form-control" id="blockType">
+                            <option value="BUILDING">Building</option>
+                            <option value="ESTATE">Estate</option>
+                            <option value="STREET">Street</option>
+                            <option value="AREA">Area</option>
+                            <option value="COMPLEX">Complex</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="blockCapacity">Maximum Properties (optional)</label>
+                        <input type="number" class="form-control" id="blockCapacity" min="1">
+                        <small class="form-text text-muted">Leave empty for unlimited capacity</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createBlock()">
+                    <i class="fas fa-plus"></i> Create Block
                 </button>
             </div>
         </div>
@@ -584,6 +654,202 @@ function recalculateAnalytics() {
 function exportPortfolioData() {
     window.location.href = '/portfolio/' + portfolioId + '/export';
 }
+
+// ===== BLOCK MANAGEMENT FUNCTIONS =====
+
+// Load blocks for this portfolio
+function loadBlocks() {
+    const portfolioId = [[${portfolio.id}]];
+    
+    fetch(`/portfolio/internal/blocks/portfolio/${portfolioId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayBlocks(data.blocks);
+                updateBlockCountBadge(data.total);
+            } else {
+                showBlockError('Failed to load blocks');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading blocks:', error);
+            showBlockError('Error loading blocks');
+        });
+}
+
+// Display blocks in the UI
+function displayBlocks(blocks) {
+    const container = document.getElementById('blocksContainer');
+    
+    if (!blocks || blocks.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-building fa-3x text-muted mb-3"></i>
+                <h5>No Blocks Created</h5>
+                <p class="text-muted">Create blocks to organize properties within this portfolio.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '<div class="row">';
+    
+    blocks.forEach(block => {
+        const capacityText = block.maxProperties ? `${block.propertyCount}/${block.maxProperties}` : `${block.propertyCount}/∞`;
+        const capacityClass = block.maxProperties && block.propertyCount >= block.maxProperties ? 'danger' : 'info';
+        
+        html += `
+            <div class="col-lg-6 col-xl-4 mb-3">
+                <div class="card border-left-primary">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title mb-1">
+                                    <i class="fas fa-building text-primary"></i> 
+                                    ${block.name}
+                                </h6>
+                                <small class="text-muted">${block.blockType}</small>
+                            </div>
+                            <div class="text-right">
+                                <span class="badge badge-${capacityClass}">${capacityText} properties</span>
+                            </div>
+                        </div>
+                        
+                        ${block.description ? `<p class="text-muted small mt-2 mb-2">${block.description}</p>` : ''}
+                        
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <small class="text-muted">
+                                Tag: <code>${block.payPropTagNames || 'Not synced'}</code>
+                            </small>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="editBlock(${block.id})" title="Edit Block">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="deleteBlock(${block.id}, '${block.name}')" title="Delete Block">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Update block count badge
+function updateBlockCountBadge(count) {
+    const badge = document.getElementById('blockCountBadge');
+    badge.textContent = `${count} block${count !== 1 ? 's' : ''}`;
+}
+
+// Show error in blocks container
+function showBlockError(message) {
+    const container = document.getElementById('blocksContainer');
+    container.innerHTML = `
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle"></i> ${message}
+        </div>
+    `;
+}
+
+// Show create block modal
+function showCreateBlockModal() {
+    // Clear form
+    document.getElementById('createBlockForm').reset();
+    $('#createBlockModal').modal('show');
+}
+
+// Create new block
+function createBlock() {
+    const portfolioId = [[${portfolio.id}]];
+    const name = document.getElementById('blockName').value.trim();
+    const description = document.getElementById('blockDescription').value.trim();
+    const blockType = document.getElementById('blockType').value;
+    const capacity = document.getElementById('blockCapacity').value;
+    
+    if (!name) {
+        alert('Block name is required');
+        return;
+    }
+    
+    const blockData = {
+        portfolioId: portfolioId,
+        name: name,
+        description: description || null,
+        blockType: blockType,
+        maxProperties: capacity ? parseInt(capacity) : null
+    };
+    
+    // Get CSRF token
+    const token = $("meta[name='_csrf']").attr("content");
+    const header = $("meta[name='_csrf_header']").attr("content");
+    
+    fetch('/portfolio/internal/blocks', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            [header]: token
+        },
+        body: JSON.stringify(blockData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            $('#createBlockModal').modal('hide');
+            loadBlocks(); // Reload blocks
+            alert('Block created successfully!');
+        } else {
+            alert('Error creating block: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error creating block:', error);
+        alert('Error creating block');
+    });
+}
+
+// Edit block (placeholder for now)
+function editBlock(blockId) {
+    alert('Block editing will be implemented in the next phase');
+}
+
+// Delete block
+function deleteBlock(blockId, blockName) {
+    if (confirm(`Delete block "${blockName}"? Properties will be moved to portfolio-only assignment.`)) {
+        const token = $("meta[name='_csrf']").attr("content");
+        const header = $("meta[name='_csrf_header']").attr("content");
+        
+        fetch(`/portfolio/internal/blocks/${blockId}?reassignmentOption=MOVE_TO_PORTFOLIO_ONLY`, {
+            method: 'DELETE',
+            headers: {
+                [header]: token
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                loadBlocks(); // Reload blocks
+                alert('Block deleted successfully');
+            } else {
+                alert('Error deleting block: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting block:', error);
+            alert('Error deleting block');
+        });
+    }
+}
+
+// Load blocks when page loads
+$(document).ready(function() {
+    loadBlocks();
+});
+
 </script>
 
 </body>
