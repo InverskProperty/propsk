@@ -24,6 +24,7 @@ import site.easy.to.build.crm.entity.PropertyOwner;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import org.springframework.http.HttpStatus;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

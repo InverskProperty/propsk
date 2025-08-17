@@ -121,7 +121,7 @@ public class PortfolioPayPropController extends PortfolioControllerBase {
             SyncResult syncResult = payPropSyncService.syncPortfolioToPayProp(savedPortfolio.getId(), (long) userId);
             
             // Get updated portfolio to check PayProp fields
-            Portfolio updatedPortfolio = portfolioService.findById(savedPortfolio.getId()).orElse(null);
+            Portfolio updatedPortfolio = portfolioService.findById(savedPortfolio.getId());
             
             response.put("success", syncResult.isSuccess());
             response.put("message", syncResult.getMessage());

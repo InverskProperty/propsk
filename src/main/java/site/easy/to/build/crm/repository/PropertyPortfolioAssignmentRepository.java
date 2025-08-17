@@ -104,6 +104,9 @@ public interface PropertyPortfolioAssignmentRepository extends JpaRepository<Pro
     // Find assignments needing sync
     List<PropertyPortfolioAssignment> findBySyncStatusAndIsActive(SyncStatus syncStatus, Boolean isActive);
     
+    // Find assignments by portfolio and sync status
+    List<PropertyPortfolioAssignment> findByPortfolioAndSyncStatus(Portfolio portfolio, SyncStatus syncStatus);
+    
     @Query("SELECT ppa FROM PropertyPortfolioAssignment ppa " +
            "WHERE ppa.syncStatus IN ('PENDING', 'FAILED') AND ppa.isActive = true " +
            "ORDER BY ppa.assignedAt")

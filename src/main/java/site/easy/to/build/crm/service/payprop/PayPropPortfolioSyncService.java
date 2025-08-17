@@ -623,7 +623,7 @@ public class PayPropPortfolioSyncService {
             
             if (!oAuth2Service.hasValidTokens()) {
                 log.warn("⚠️ PayProp token expired, attempting refresh...");
-                oAuth2Service.refreshAccessToken();
+                oAuth2Service.refreshToken();
                 
                 if (!oAuth2Service.hasValidTokens()) {
                     throw new RuntimeException("Failed to refresh PayProp tokens");
