@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.portfolio.*;
+import site.easy.to.build.crm.service.portfolio.PortfolioBlockService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.payprop.*;
@@ -34,6 +35,9 @@ public class PortfolioControllerBase {
     
     @Autowired
     protected PortfolioAssignmentService portfolioAssignmentService;
+    
+    @Autowired(required = false)
+    protected PortfolioBlockService portfolioBlockService;
     
     @Autowired
     protected PortfolioRepository portfolioRepository;

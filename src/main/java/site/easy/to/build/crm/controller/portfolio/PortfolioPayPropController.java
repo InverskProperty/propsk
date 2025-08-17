@@ -236,6 +236,251 @@ public class PortfolioPayPropController extends PortfolioControllerBase {
         }
     }
     
+    // ===== ENHANCED MIGRATION ENDPOINTS WITH BLOCK SUPPORT (Task 4.4) =====
+    
+    /**
+     * Get enhanced migration summary including blocks
+     * GET /portfolio/internal/payprop/migration/enhanced-summary
+     */
+    @GetMapping("/migration/enhanced-summary")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getEnhancedMigrationSummary(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!isPayPropAvailable()) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            PayPropPortfolioMigrationService.EnhancedMigrationSummary summary = 
+                migrationService.getEnhancedMigrationSummary();
+            
+            response.put("success", true);
+            response.put("needsMigration", summary.needsMigration());
+            response.put("needsBlockMigration", summary.needsBlockMigration());
+            
+            // Portfolio migration data
+            response.put("brokenPortfoliosCount", summary.getBrokenPortfoliosCount());
+            response.put("pendingAssignmentsCount", summary.getPendingAssignmentsCount());
+            response.put("brokenPortfolioDetails", summary.getBrokenPortfolioDetails());
+            
+            // Block migration data
+            response.put("brokenBlocksCount", summary.getBrokenBlocksCount());
+            response.put("blocksNeedingSyncCount", summary.getBlocksNeedingSyncCount());
+            response.put("brokenBlockDetails", summary.getBrokenBlockDetails());
+            response.put("blockSyncServiceAvailable", summary.isBlockSyncServiceAvailable());
+            
+            if (summary.needsMigration()) {
+                String message = String.format(
+                    "Migration needed: %d broken portfolios, %d pending assignments, %d broken blocks, %d blocks needing sync", 
+                    summary.getBrokenPortfoliosCount(), 
+                    summary.getPendingAssignmentsCount(),
+                    summary.getBrokenBlocksCount(),
+                    summary.getBlocksNeedingSyncCount()
+                );
+                response.put("message", message);
+            } else {
+                response.put("message", "No migration needed - all portfolios and blocks are properly synced");
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to get enhanced migration summary: {}", e.getMessage(), e);
+            
+            response.put("success", false);
+            response.put("message", "Failed to get enhanced migration summary: " + e.getMessage());
+            response.put("errorType", e.getClass().getSimpleName());
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * Fix broken portfolios and blocks (comprehensive migration)
+     * POST /portfolio/internal/payprop/migration/fix-portfolios-and-blocks
+     */
+    @PostMapping("/migration/fix-portfolios-and-blocks")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> fixBrokenPortfoliosAndBlocks(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!isPayPropAvailable()) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            log.info("🔄 Starting enhanced portfolio and block migration requested by user");
+            
+            PayPropPortfolioMigrationService.EnhancedMigrationResult result = 
+                migrationService.fixBrokenPortfoliosAndBlocks();
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("totalFixed", result.getTotalFixed());
+            response.put("totalFailed", result.getTotalFailed());
+            
+            // Portfolio migration results
+            response.put("portfolioResult", Map.of(
+                "success", result.getPortfolioResult().isSuccess(),
+                "message", result.getPortfolioResult().getMessage(),
+                "fixedCount", result.getPortfolioResult().getFixedCount(),
+                "failedCount", result.getPortfolioResult().getFailedCount(),
+                "errors", result.getPortfolioResult().getErrors()
+            ));
+            
+            // Block migration results
+            response.put("blockResult", Map.of(
+                "success", result.getBlockResult().isSuccess(),
+                "message", result.getBlockResult().getMessage(),
+                "fixedCount", result.getBlockResult().getFixedCount(),
+                "failedCount", result.getBlockResult().getFailedCount(),
+                "skippedCount", result.getBlockResult().getSkippedCount(),
+                "errors", result.getBlockResult().getErrors()
+            ));
+            
+            if (result.isSuccess()) {
+                log.info("✅ Enhanced migration completed successfully: {} total fixed, {} total failed", 
+                        result.getTotalFixed(), result.getTotalFailed());
+            } else {
+                log.error("❌ Enhanced migration completed with errors: {} total fixed, {} total failed", 
+                         result.getTotalFixed(), result.getTotalFailed());
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Enhanced migration failed: {}", e.getMessage(), e);
+            
+            response.put("success", false);
+            response.put("message", "Enhanced migration failed: " + e.getMessage());
+            response.put("errorType", e.getClass().getSimpleName());
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * Fix blocks only (block-specific migration)
+     * POST /portfolio/internal/payprop/migration/fix-blocks
+     */
+    @PostMapping("/migration/fix-blocks")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> fixBrokenBlocks(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!isPayPropAvailable()) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            log.info("🏗️ Starting block migration requested by user");
+            
+            PayPropPortfolioMigrationService.BlockMigrationResult result = 
+                migrationService.fixBrokenBlocks();
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("fixedCount", result.getFixedCount());
+            response.put("failedCount", result.getFailedCount());
+            response.put("skippedCount", result.getSkippedCount());
+            response.put("errors", result.getErrors());
+            
+            if (result.isSuccess()) {
+                log.info("✅ Block migration completed successfully: {} fixed, {} failed, {} skipped", 
+                        result.getFixedCount(), result.getFailedCount(), result.getSkippedCount());
+            } else {
+                log.error("❌ Block migration completed with errors: {} fixed, {} failed, {} skipped", 
+                         result.getFixedCount(), result.getFailedCount(), result.getSkippedCount());
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Block migration failed: {}", e.getMessage(), e);
+            
+            response.put("success", false);
+            response.put("message", "Block migration failed: " + e.getMessage());
+            response.put("errorType", e.getClass().getSimpleName());
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * Fix blocks for a specific portfolio
+     * POST /portfolio/internal/payprop/migration/portfolio/{portfolioId}/fix-blocks
+     */
+    @PostMapping("/migration/portfolio/{portfolioId}/fix-blocks")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> fixBlocksInPortfolio(@PathVariable Long portfolioId, 
+                                                                   Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!isPayPropAvailable()) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            // Check permissions
+            Integer userId = getLoggedInUserId(authentication);
+            if (userId == null) {
+                response.put("success", false);
+                response.put("message", "Authentication required");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            }
+            
+            // Validate portfolio exists
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            if (portfolio == null) {
+                response.put("success", false);
+                response.put("message", "Portfolio not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            log.info("🏗️ Starting block migration for portfolio {} requested by user {}", portfolioId, userId);
+            
+            PayPropPortfolioMigrationService.BlockMigrationResult result = 
+                migrationService.fixBlocksInPortfolio(portfolioId);
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("portfolioId", portfolioId);
+            response.put("portfolioName", portfolio.getName());
+            response.put("fixedCount", result.getFixedCount());
+            response.put("failedCount", result.getFailedCount());
+            response.put("skippedCount", result.getSkippedCount());
+            response.put("errors", result.getErrors());
+            
+            if (result.isSuccess()) {
+                log.info("✅ Portfolio {} block migration completed successfully: {} fixed, {} failed, {} skipped", 
+                        portfolioId, result.getFixedCount(), result.getFailedCount(), result.getSkippedCount());
+            } else {
+                log.error("❌ Portfolio {} block migration completed with errors: {} fixed, {} failed, {} skipped", 
+                         portfolioId, result.getFixedCount(), result.getFailedCount(), result.getSkippedCount());
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Portfolio {} block migration failed: {}", portfolioId, e.getMessage(), e);
+            
+            response.put("success", false);
+            response.put("message", "Portfolio block migration failed: " + e.getMessage());
+            response.put("errorType", e.getClass().getSimpleName());
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
     /**
      * Get available PayProp tags for adoption
      */

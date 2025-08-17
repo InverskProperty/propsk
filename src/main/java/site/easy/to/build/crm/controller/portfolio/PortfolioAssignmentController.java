@@ -466,6 +466,327 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
         }
     }
     
+    // ===== BLOCK ASSIGNMENT ENDPOINTS (Task 4.2) =====
+    
+    /**
+     * Assign properties to a specific block within a portfolio
+     * POST /portfolio/internal/assignment/blocks/{blockId}/assign-properties
+     */
+    @PostMapping("/blocks/{blockId}/assign-properties")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> assignPropertiesToBlock(
+            @PathVariable("blockId") Long blockId,
+            @RequestParam("propertyIds") List<Long> propertyIds,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        log.info("🏗️ Assigning {} properties to block {}", propertyIds.size(), blockId);
+        
+        try {
+            // Validate block exists and get portfolio
+            Optional<Block> blockOpt = portfolioBlockService.findById(blockId);
+            if (!blockOpt.isPresent()) {
+                response.put("success", false);
+                response.put("message", "Block not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            Block block = blockOpt.get();
+            Long portfolioId = block.getPortfolio().getId();
+            
+            // Check permissions for the portfolio
+            if (!canUserEditPortfolio(portfolioId, authentication)) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            Integer userId = getLoggedInUserId(authentication);
+            if (userId == null) {
+                response.put("success", false);
+                response.put("message", "User authentication failed");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            }
+            
+            // Use the enhanced service for block assignment
+            PortfolioAssignmentService.AssignmentResult result = 
+                portfolioAssignmentService.assignPropertiesToBlock(
+                    portfolioId, blockId, propertyIds, (long) userId);
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.isSuccess() ? "Properties assigned successfully" : "Some properties failed to assign");
+            response.put("assignedCount", result.getAssignedCount());
+            response.put("skippedCount", result.getSkippedCount());
+            response.put("errorCount", result.getErrors().size());
+            
+            if (!result.getErrors().isEmpty()) {
+                response.put("errors", result.getErrors());
+            }
+            
+            log.info("✅ Block assignment completed: {} assigned, {} skipped, {} errors", 
+                    result.getAssignedCount(), result.getSkippedCount(), result.getErrors().size());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to assign properties to block {}: {}", blockId, e.getMessage());
+            response.put("success", false);
+            response.put("message", "Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * Move properties between blocks
+     * POST /portfolio/internal/assignment/blocks/move-properties
+     */
+    @PostMapping("/blocks/move-properties")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> movePropertiesBetweenBlocks(
+            @RequestParam("sourceBlockId") Long sourceBlockId,
+            @RequestParam("targetBlockId") Long targetBlockId,
+            @RequestParam("propertyIds") List<Long> propertyIds,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        log.info("🔄 Moving {} properties from block {} to block {}", 
+                propertyIds.size(), sourceBlockId, targetBlockId);
+        
+        try {
+            // Validate source block
+            Optional<Block> sourceBlockOpt = portfolioBlockService.findById(sourceBlockId);
+            if (!sourceBlockOpt.isPresent()) {
+                response.put("success", false);
+                response.put("message", "Source block not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            // Validate target block
+            Optional<Block> targetBlockOpt = portfolioBlockService.findById(targetBlockId);
+            if (!targetBlockOpt.isPresent()) {
+                response.put("success", false);
+                response.put("message", "Target block not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            Block sourceBlock = sourceBlockOpt.get();
+            Block targetBlock = targetBlockOpt.get();
+            
+            // Ensure both blocks are in the same portfolio
+            if (!sourceBlock.getPortfolio().getId().equals(targetBlock.getPortfolio().getId())) {
+                response.put("success", false);
+                response.put("message", "Blocks must be in the same portfolio");
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            Long portfolioId = sourceBlock.getPortfolio().getId();
+            
+            // Check permissions
+            if (!canUserEditPortfolio(portfolioId, authentication)) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            Integer userId = getLoggedInUserId(authentication);
+            if (userId == null) {
+                response.put("success", false);
+                response.put("message", "User authentication failed");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            }
+            
+            // Check target block capacity if set
+            if (portfolioBlockService.isBlockAtCapacity(targetBlockId)) {
+                Integer availableCapacity = portfolioBlockService.getAvailableCapacity(targetBlockId);
+                if (availableCapacity != null && propertyIds.size() > availableCapacity) {
+                    response.put("success", false);
+                    response.put("message", String.format("Target block has capacity for only %d more properties, but %d were requested", 
+                                                        availableCapacity, propertyIds.size()));
+                    return ResponseEntity.badRequest().body(response);
+                }
+            }
+            
+            // Use the enhanced service for moving properties
+            PortfolioAssignmentService.AssignmentResult result = 
+                portfolioAssignmentService.movePropertiesBetweenBlocks(
+                    portfolioId, sourceBlockId, targetBlockId, propertyIds, (long) userId);
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.isSuccess() ? "Properties moved successfully" : "Some properties failed to move");
+            response.put("movedCount", result.getAssignedCount());
+            response.put("skippedCount", result.getSkippedCount());
+            response.put("errorCount", result.getErrors().size());
+            
+            if (!result.getErrors().isEmpty()) {
+                response.put("errors", result.getErrors());
+            }
+            
+            log.info("✅ Property move completed: {} moved, {} skipped, {} errors", 
+                    result.getAssignedCount(), result.getSkippedCount(), result.getErrors().size());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to move properties between blocks: {}", e.getMessage());
+            response.put("success", false);
+            response.put("message", "Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * Remove properties from a block (move to portfolio-only assignment)
+     * POST /portfolio/internal/assignment/blocks/{blockId}/remove-properties
+     */
+    @PostMapping("/blocks/{blockId}/remove-properties")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> removePropertiesFromBlock(
+            @PathVariable("blockId") Long blockId,
+            @RequestParam("propertyIds") List<Long> propertyIds,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        log.info("🗑️ Removing {} properties from block {}", propertyIds.size(), blockId);
+        
+        try {
+            // Validate block exists
+            Optional<Block> blockOpt = portfolioBlockService.findById(blockId);
+            if (!blockOpt.isPresent()) {
+                response.put("success", false);
+                response.put("message", "Block not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            Block block = blockOpt.get();
+            Long portfolioId = block.getPortfolio().getId();
+            
+            // Check permissions
+            if (!canUserEditPortfolio(portfolioId, authentication)) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            Integer userId = getLoggedInUserId(authentication);
+            if (userId == null) {
+                response.put("success", false);
+                response.put("message", "User authentication failed");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            }
+            
+            // Use the enhanced service for removing properties from block
+            PortfolioAssignmentService.AssignmentResult result = 
+                portfolioAssignmentService.removePropertiesFromBlock(
+                    portfolioId, blockId, propertyIds, (long) userId);
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.isSuccess() ? "Properties removed successfully" : "Some properties failed to remove");
+            response.put("removedCount", result.getAssignedCount());
+            response.put("skippedCount", result.getSkippedCount());
+            response.put("errorCount", result.getErrors().size());
+            
+            if (!result.getErrors().isEmpty()) {
+                response.put("errors", result.getErrors());
+            }
+            
+            log.info("✅ Property removal completed: {} removed, {} skipped, {} errors", 
+                    result.getAssignedCount(), result.getSkippedCount(), result.getErrors().size());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to remove properties from block {}: {}", blockId, e.getMessage());
+            response.put("success", false);
+            response.put("message", "Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * Get properties organized by blocks within a portfolio
+     * GET /portfolio/internal/assignment/{portfolioId}/blocks-view
+     */
+    @GetMapping("/{portfolioId}/blocks-view")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getPropertiesByBlocksInPortfolio(
+            @PathVariable("portfolioId") Long portfolioId,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        log.info("📊 Getting properties organized by blocks for portfolio {}", portfolioId);
+        
+        try {
+            // Check permissions
+            if (!canUserEditPortfolio(portfolioId, authentication)) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            // Get portfolio
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            if (portfolio == null) {
+                response.put("success", false);
+                response.put("message", "Portfolio not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+            
+            // Use the enhanced service to get organized properties
+            Map<Block, List<Property>> organizedProperties = 
+                portfolioAssignmentService.getPropertiesByBlocksInPortfolio(portfolioId);
+            
+            // Convert to response format
+            Map<String, Object> blocksData = new HashMap<>();
+            
+            for (Map.Entry<Block, List<Property>> entry : organizedProperties.entrySet()) {
+                Block block = entry.getKey();
+                List<Property> properties = entry.getValue();
+                
+                String blockKey = block != null ? 
+                    String.format("Block: %s (ID: %d)", block.getName(), block.getId()) :
+                    "portfolio-only";
+                
+                List<Map<String, Object>> propertyData = properties.stream()
+                    .map(property -> {
+                        Map<String, Object> data = new HashMap<>();
+                        data.put("id", property.getId());
+                        data.put("propertyName", property.getPropertyName());
+                        data.put("address", property.getFullAddress());
+                        data.put("payPropId", property.getPayPropId());
+                        return data;
+                    })
+                    .collect(Collectors.toList());
+                
+                Map<String, Object> blockInfo = new HashMap<>();
+                blockInfo.put("properties", propertyData);
+                blockInfo.put("propertyCount", properties.size());
+                
+                // If it's a block (not "portfolio-only"), add block details
+                if (block != null) {
+                    blockInfo.put("blockId", block.getId());
+                    blockInfo.put("blockName", block.getName());
+                    blockInfo.put("maxProperties", block.getMaxProperties());
+                    blockInfo.put("availableCapacity", portfolioBlockService.getAvailableCapacity(block.getId()));
+                }
+                
+                blocksData.put(blockKey, blockInfo);
+            }
+            
+            response.put("success", true);
+            response.put("portfolioId", portfolioId);
+            response.put("portfolioName", portfolio.getName());
+            response.put("blocks", blocksData);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to get block view for portfolio {}: {}", portfolioId, e.getMessage());
+            response.put("success", false);
+            response.put("message", "Internal server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
     // ===== UTILITY METHODS =====
     
     /**
