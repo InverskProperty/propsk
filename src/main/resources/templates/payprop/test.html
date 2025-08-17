@@ -276,6 +276,11 @@
                                 </a>
                             </li>
                             <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#blocksTab">
+                                    <i class="fas fa-building"></i> Block Testing
+                                </a>
+                            </li>
+                            <li class="nav-item">
                                 <a class="nav-link" data-bs-toggle="tab" href="#rawTab">
                                     <i class="fas fa-code"></i> Raw API
                                 </a>
@@ -541,6 +546,188 @@
                                 </div>
                                 
                                 <div id="syncTestResult" class="result-display d-none"></div>
+                            </div>
+                            
+                            <!-- Block Testing Tab -->
+                            <div class="tab-pane fade" id="blocksTab">
+                                <h5><i class="fas fa-building"></i> Portfolio-Block System Testing</h5>
+                                <p class="text-muted">Test the new Portfolio-Block system with hierarchical PayProp integration</p>
+                                
+                                <!-- Block Management Section -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-cubes"></i> Block Management</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <label class="form-label">Portfolio ID</label>
+                                                <input type="number" id="blockPortfolioId" class="form-control" placeholder="Portfolio ID for testing">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">Block Name</label>
+                                                <input type="text" id="blockName" class="form-control" placeholder="e.g., Building A">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">Block Description</label>
+                                                <input type="text" id="blockDescription" class="form-control" placeholder="Optional description">
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="quick-actions mt-3">
+                                            <button class="btn btn-success quick-action-btn" onclick="createBlock()">
+                                                <i class="fas fa-plus"></i> Create Block
+                                            </button>
+                                            <button class="btn btn-primary quick-action-btn" onclick="listPortfolioBlocks()">
+                                                <i class="fas fa-list"></i> List Blocks
+                                            </button>
+                                            <button class="btn btn-info quick-action-btn" onclick="getBlocksWithCounts()">
+                                                <i class="fas fa-chart-bar"></i> Blocks with Counts
+                                            </button>
+                                            <button class="btn btn-secondary quick-action-btn" onclick="getPortfolioStatistics()">
+                                                <i class="fas fa-analytics"></i> Portfolio Statistics
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Property Assignment Section -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-home"></i> Property Assignment</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <label class="form-label">Block ID</label>
+                                                <input type="number" id="assignBlockId" class="form-control" placeholder="Block ID">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">Property IDs (comma-separated)</label>
+                                                <input type="text" id="assignPropertyIds" class="form-control" placeholder="e.g., 1,2,3,4">
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Source Block ID (for moves)</label>
+                                                <input type="number" id="sourceBlockId" class="form-control" placeholder="Source Block">
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="quick-actions mt-3">
+                                            <button class="btn btn-success quick-action-btn" onclick="assignPropertiesToBlock()">
+                                                <i class="fas fa-arrow-right"></i> Assign Properties
+                                            </button>
+                                            <button class="btn btn-warning quick-action-btn" onclick="movePropertiesBetweenBlocks()">
+                                                <i class="fas fa-exchange-alt"></i> Move Between Blocks
+                                            </button>
+                                            <button class="btn btn-danger quick-action-btn" onclick="removePropertiesFromBlock()">
+                                                <i class="fas fa-minus"></i> Remove from Block
+                                            </button>
+                                            <button class="btn btn-info quick-action-btn" onclick="getBlocksView()">
+                                                <i class="fas fa-sitemap"></i> Hierarchical View
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- PayProp Sync Section -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-sync"></i> PayProp Block Sync</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <label class="form-label">Block ID for Sync</label>
+                                                <input type="number" id="syncBlockId" class="form-control" placeholder="Block ID">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">Portfolio ID for Sync</label>
+                                                <input type="number" id="syncPortfolioId" class="form-control" placeholder="Portfolio ID">
+                                            </div>
+                                            <div class="col-md-4 d-flex align-items-end">
+                                                <button class="btn btn-primary w-100" onclick="syncBlockToPayProp()">
+                                                    <i class="fas fa-cloud-upload-alt"></i> Sync Block
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="quick-actions mt-3">
+                                            <button class="btn btn-primary quick-action-btn" onclick="syncAllBlocksInPortfolio()">
+                                                <i class="fas fa-cloud-upload-alt"></i> Sync All in Portfolio
+                                            </button>
+                                            <button class="btn btn-warning quick-action-btn" onclick="syncBlocksNeedingSync()">
+                                                <i class="fas fa-exclamation-circle"></i> Sync Blocks Needing Sync
+                                            </button>
+                                            <button class="btn btn-info quick-action-btn" onclick="syncPortfolioHierarchical()">
+                                                <i class="fas fa-layer-group"></i> Hierarchical Sync
+                                            </button>
+                                            <button class="btn btn-success quick-action-btn" onclick="getBlockSyncStatus()">
+                                                <i class="fas fa-check-circle"></i> Check Sync Status
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Migration Section -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-database"></i> Enhanced Migration & Health</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <button class="btn btn-info w-100 mb-2" onclick="getEnhancedMigrationSummary()">
+                                                    <i class="fas fa-chart-line"></i> Enhanced Migration Summary
+                                                </button>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <button class="btn btn-warning w-100 mb-2" onclick="fixBrokenPortfoliosAndBlocks()">
+                                                    <i class="fas fa-wrench"></i> Fix Portfolios & Blocks
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="quick-actions">
+                                            <button class="btn btn-outline-warning quick-action-btn" onclick="fixBrokenBlocks()">
+                                                <i class="fas fa-tools"></i> Fix Blocks Only
+                                            </button>
+                                            <button class="btn btn-outline-info quick-action-btn" onclick="getBlocksNeedingSync()">
+                                                <i class="fas fa-search"></i> Find Blocks Needing Sync
+                                            </button>
+                                            <button class="btn btn-outline-success quick-action-btn" onclick="testBlockValidation()">
+                                                <i class="fas fa-check"></i> Test Block Validation
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Test Data Section -->
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-vial"></i> Quick Test Data</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="alert alert-info">
+                                            <strong>Sample Test Data:</strong> Use these values to quickly test block functionality
+                                        </div>
+                                        <div class="quick-actions">
+                                            <button class="btn btn-outline-secondary quick-action-btn" onclick="loadTestData('small')">
+                                                <i class="fas fa-flask"></i> Small Test (Portfolio 1)
+                                            </button>
+                                            <button class="btn btn-outline-secondary quick-action-btn" onclick="loadTestData('medium')">
+                                                <i class="fas fa-vials"></i> Medium Test (Portfolio 2)
+                                            </button>
+                                            <button class="btn btn-outline-secondary quick-action-btn" onclick="loadTestData('large')">
+                                                <i class="fas fa-industry"></i> Large Test (Portfolio 3)
+                                            </button>
+                                            <button class="btn btn-outline-danger quick-action-btn" onclick="clearBlockTestData()">
+                                                <i class="fas fa-eraser"></i> Clear All
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="blockTestResult" class="result-display d-none"></div>
                             </div>
                             
                             <!-- Raw API Tab -->
@@ -1206,6 +1393,400 @@
             const firstRow = container.querySelector('.row');
             firstRow.insertAdjacentHTML('beforebegin', quickTestsHtml);
         });
+        
+        // ===== BLOCK TESTING FUNCTIONS =====
+        
+        // Block Management Functions
+        async function createBlock() {
+            const portfolioId = document.getElementById('blockPortfolioId').value;
+            const name = document.getElementById('blockName').value;
+            const description = document.getElementById('blockDescription').value;
+            
+            if (!portfolioId || !name) {
+                alert('Portfolio ID and Block Name are required');
+                return;
+            }
+            
+            const blockData = {
+                portfolioId: parseInt(portfolioId),
+                name: name,
+                description: description,
+                blockType: 'BUILDING'
+            };
+            
+            const result = await fetchWithCSRF('/portfolio/internal/blocks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(blockData)
+            });
+            
+            showResult('blockTestResult', result.data, '🏗️ Create Block Result');
+        }
+        
+        async function listPortfolioBlocks() {
+            const portfolioId = document.getElementById('blockPortfolioId').value;
+            
+            if (!portfolioId) {
+                alert('Portfolio ID is required');
+                return;
+            }
+            
+            const result = await fetchWithCSRF(`/portfolio/internal/blocks/portfolio/${portfolioId}`);
+            showResult('blockTestResult', result.data, '📋 Portfolio Blocks List');
+        }
+        
+        async function getBlocksWithCounts() {
+            const portfolioId = document.getElementById('blockPortfolioId').value;
+            
+            if (!portfolioId) {
+                alert('Portfolio ID is required');
+                return;
+            }
+            
+            const result = await fetchWithCSRF(`/portfolio/internal/blocks/portfolio/${portfolioId}/with-counts`);
+            showResult('blockTestResult', result.data, '📊 Blocks with Property Counts');
+        }
+        
+        async function getPortfolioStatistics() {
+            const portfolioId = document.getElementById('blockPortfolioId').value;
+            
+            if (!portfolioId) {
+                alert('Portfolio ID is required');
+                return;
+            }
+            
+            const result = await fetchWithCSRF(`/portfolio/internal/blocks/portfolio/${portfolioId}/statistics`);
+            showResult('blockTestResult', result.data, '📈 Portfolio Block Statistics');
+        }
+        
+        // Property Assignment Functions
+        async function assignPropertiesToBlock() {
+            const blockId = document.getElementById('assignBlockId').value;
+            const propertyIds = document.getElementById('assignPropertyIds').value;
+            
+            if (!blockId || !propertyIds) {
+                alert('Block ID and Property IDs are required');
+                return;
+            }
+            
+            const propertyIdArray = propertyIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            
+            const params = new URLSearchParams();
+            propertyIdArray.forEach(id => params.append('propertyIds', id));
+            
+            const result = await fetchWithCSRF(`/portfolio/internal/assignment/blocks/${blockId}/assign-properties`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: params
+            });
+            
+            showResult('blockTestResult', result.data, '➡️ Assign Properties to Block Result');
+        }
+        
+        async function movePropertiesBetweenBlocks() {
+            const sourceBlockId = document.getElementById('sourceBlockId').value;
+            const targetBlockId = document.getElementById('assignBlockId').value;
+            const propertyIds = document.getElementById('assignPropertyIds').value;
+            
+            if (!sourceBlockId || !targetBlockId || !propertyIds) {
+                alert('Source Block ID, Target Block ID, and Property IDs are required');
+                return;
+            }
+            
+            const propertyIdArray = propertyIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            
+            const params = new URLSearchParams();
+            params.append('sourceBlockId', sourceBlockId);
+            params.append('targetBlockId', targetBlockId);
+            propertyIdArray.forEach(id => params.append('propertyIds', id));
+            
+            const result = await fetchWithCSRF('/portfolio/internal/assignment/blocks/move-properties', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: params
+            });
+            
+            showResult('blockTestResult', result.data, '🔄 Move Properties Between Blocks Result');
+        }
+        
+        async function removePropertiesFromBlock() {
+            const blockId = document.getElementById('assignBlockId').value;
+            const propertyIds = document.getElementById('assignPropertyIds').value;
+            
+            if (!blockId || !propertyIds) {
+                alert('Block ID and Property IDs are required');
+                return;
+            }
+            
+            const propertyIdArray = propertyIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+            
+            const params = new URLSearchParams();
+            propertyIdArray.forEach(id => params.append('propertyIds', id));
+            
+            const result = await fetchWithCSRF(`/portfolio/internal/assignment/blocks/${blockId}/remove-properties`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: params
+            });
+            
+            showResult('blockTestResult', result.data, '❌ Remove Properties from Block Result');
+        }
+        
+        async function getBlocksView() {
+            const portfolioId = document.getElementById('blockPortfolioId').value;
+            
+            if (!portfolioId) {
+                alert('Portfolio ID is required');
+                return;
+            }
+            
+            const result = await fetchWithCSRF(`/portfolio/internal/assignment/${portfolioId}/blocks-view`);
+            showResult('blockTestResult', result.data, '🏗️ Hierarchical Blocks View');
+        }
+        
+        // PayProp Sync Functions
+        async function syncBlockToPayProp() {
+            const blockId = document.getElementById('syncBlockId').value;
+            
+            if (!blockId) {
+                alert('Block ID is required');
+                return;
+            }
+            
+            const result = await fetchWithCSRF(`/portfolio/internal/blocks/payprop/${blockId}/sync`, {
+                method: 'POST'
+            });
+            
+            showResult('blockTestResult', result.data, '☁️ Sync Block to PayProp Result');
+        }
+        
+        async function syncAllBlocksInPortfolio() {
+            const portfolioId = document.getElementById('syncPortfolioId').value || document.getElementById('blockPortfolioId').value;
+            
+            if (!portfolioId) {
+                alert('Portfolio ID is required');
+                return;
+            }
+            
+            const result = await fetchWithCSRF(`/portfolio/internal/blocks/payprop/portfolio/${portfolioId}/sync-all`, {
+                method: 'POST'
+            });
+            
+            showResult('blockTestResult', result.data, '☁️ Sync All Blocks in Portfolio Result');
+        }
+        
+        async function syncBlocksNeedingSync() {
+            const result = await fetchWithCSRF('/portfolio/internal/blocks/payprop/sync-needed', {
+                method: 'POST'
+            });
+            
+            showResult('blockTestResult', result.data, '⚠️ Sync Blocks Needing Sync Result');
+        }
+        
+        async function syncPortfolioHierarchical() {
+            const portfolioId = document.getElementById('syncPortfolioId').value || document.getElementById('blockPortfolioId').value;
+            
+            if (!portfolioId) {
+                alert('Portfolio ID is required');
+                return;
+            }
+            
+            const result = await fetchWithCSRF(`/portfolio/internal/blocks/payprop/portfolio/${portfolioId}/sync-hierarchical`, {
+                method: 'POST'
+            });
+            
+            showResult('blockTestResult', result.data, '🏗️ Hierarchical Portfolio+Blocks Sync Result');
+        }
+        
+        async function getBlockSyncStatus() {
+            const blockId = document.getElementById('syncBlockId').value;
+            
+            if (!blockId) {
+                alert('Block ID is required');
+                return;
+            }
+            
+            const result = await fetchWithCSRF(`/portfolio/internal/blocks/payprop/${blockId}/status`);
+            showResult('blockTestResult', result.data, '📊 Block Sync Status');
+        }
+        
+        async function getBlocksNeedingSync() {
+            const portfolioId = document.getElementById('syncPortfolioId').value || document.getElementById('blockPortfolioId').value;
+            
+            if (portfolioId) {
+                const result = await fetchWithCSRF(`/portfolio/internal/blocks/payprop/portfolio/${portfolioId}/needing-sync`);
+                showResult('blockTestResult', result.data, '🔍 Blocks Needing Sync in Portfolio');
+            } else {
+                const result = await fetchWithCSRF('/portfolio/internal/blocks/payprop/needing-sync');
+                showResult('blockTestResult', result.data, '🔍 All Blocks Needing Sync');
+            }
+        }
+        
+        // Migration Functions
+        async function getEnhancedMigrationSummary() {
+            const result = await fetchWithCSRF('/portfolio/internal/payprop/migration/enhanced-summary');
+            showResult('blockTestResult', result.data, '📊 Enhanced Migration Summary (Portfolios + Blocks)');
+        }
+        
+        async function fixBrokenPortfoliosAndBlocks() {
+            if (confirm('This will attempt to fix broken portfolios and blocks. Continue?')) {
+                const result = await fetchWithCSRF('/portfolio/internal/payprop/migration/fix-portfolios-and-blocks', {
+                    method: 'POST'
+                });
+                showResult('blockTestResult', result.data, '🔧 Fix Broken Portfolios and Blocks Result');
+            }
+        }
+        
+        async function fixBrokenBlocks() {
+            if (confirm('This will attempt to fix broken blocks only. Continue?')) {
+                const result = await fetchWithCSRF('/portfolio/internal/payprop/migration/fix-blocks', {
+                    method: 'POST'
+                });
+                showResult('blockTestResult', result.data, '🔧 Fix Broken Blocks Result');
+            }
+        }
+        
+        async function testBlockValidation() {
+            const portfolioId = document.getElementById('blockPortfolioId').value;
+            const blockName = document.getElementById('blockName').value;
+            
+            if (!portfolioId || !blockName) {
+                alert('Portfolio ID and Block Name are required');
+                return;
+            }
+            
+            const validationData = {
+                portfolioId: parseInt(portfolioId),
+                blockName: blockName
+            };
+            
+            const result = await fetchWithCSRF('/portfolio/internal/blocks/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(validationData)
+            });
+            
+            showResult('blockTestResult', result.data, '✅ Block Validation Result');
+        }
+        
+        // Test Data Functions
+        function loadTestData(size) {
+            switch(size) {
+                case 'small':
+                    document.getElementById('blockPortfolioId').value = '1';
+                    document.getElementById('blockName').value = 'Test Block Small';
+                    document.getElementById('blockDescription').value = 'Small test block for basic testing';
+                    document.getElementById('assignBlockId').value = '1';
+                    document.getElementById('assignPropertyIds').value = '1,2';
+                    document.getElementById('syncBlockId').value = '1';
+                    document.getElementById('syncPortfolioId').value = '1';
+                    break;
+                    
+                case 'medium':
+                    document.getElementById('blockPortfolioId').value = '2';
+                    document.getElementById('blockName').value = 'Test Block Medium';
+                    document.getElementById('blockDescription').value = 'Medium test block for advanced testing';
+                    document.getElementById('assignBlockId').value = '2';
+                    document.getElementById('assignPropertyIds').value = '3,4,5,6';
+                    document.getElementById('syncBlockId').value = '2';
+                    document.getElementById('syncPortfolioId').value = '2';
+                    break;
+                    
+                case 'large':
+                    document.getElementById('blockPortfolioId').value = '3';
+                    document.getElementById('blockName').value = 'Test Block Large';
+                    document.getElementById('blockDescription').value = 'Large test block for performance testing';
+                    document.getElementById('assignBlockId').value = '3';
+                    document.getElementById('assignPropertyIds').value = '7,8,9,10,11,12';
+                    document.getElementById('syncBlockId').value = '3';
+                    document.getElementById('syncPortfolioId').value = '3';
+                    break;
+            }
+            
+            showResult('blockTestResult', {
+                message: `Loaded ${size} test data`,
+                portfolioId: document.getElementById('blockPortfolioId').value,
+                blockName: document.getElementById('blockName').value,
+                note: `Ready to test ${size} scenario with Portfolio ${document.getElementById('blockPortfolioId').value}`
+            }, `📝 ${size.toUpperCase()} Test Data Loaded`);
+        }
+        
+        function clearBlockTestData() {
+            document.getElementById('blockPortfolioId').value = '';
+            document.getElementById('blockName').value = '';
+            document.getElementById('blockDescription').value = '';
+            document.getElementById('assignBlockId').value = '';
+            document.getElementById('assignPropertyIds').value = '';
+            document.getElementById('sourceBlockId').value = '';
+            document.getElementById('syncBlockId').value = '';
+            document.getElementById('syncPortfolioId').value = '';
+            
+            showResult('blockTestResult', {
+                message: 'All block test data cleared',
+                status: 'SUCCESS'
+            }, '🧹 Test Data Cleared');
+        }
+        
+        // Auto-populate functions for block testing
+        function autoFillFromBlockResult(data) {
+            if (data && data.block && data.block.id) {
+                // Auto-fill sync fields when a block is created
+                document.getElementById('syncBlockId').value = data.block.id;
+                if (data.block.portfolioId) {
+                    document.getElementById('syncPortfolioId').value = data.block.portfolioId;
+                }
+                if (data.block.id && !document.getElementById('assignBlockId').value) {
+                    document.getElementById('assignBlockId').value = data.block.id;
+                }
+            }
+        }
+        
+        // Enhanced result display for block testing
+        const originalShowResult = showResult;
+        function showResult(elementId, data, title = '') {
+            originalShowResult(elementId, data, title);
+            
+            // Auto-populate fields if this is a block creation result
+            if (elementId === 'blockTestResult' && data && data.block) {
+                autoFillFromBlockResult(data);
+            }
+        }
+        
+        // Add quick test scenarios for blocks
+        async function runQuickBlockTest(scenario) {
+            switch(scenario) {
+                case 'create_and_sync':
+                    loadTestData('small');
+                    await createBlock();
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+                    await syncBlockToPayProp();
+                    break;
+                    
+                case 'assign_and_move':
+                    loadTestData('medium');
+                    await assignPropertiesToBlock();
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    // Change target block and move properties
+                    document.getElementById('sourceBlockId').value = document.getElementById('assignBlockId').value;
+                    document.getElementById('assignBlockId').value = '4';
+                    await movePropertiesBetweenBlocks();
+                    break;
+                    
+                case 'full_migration':
+                    await getEnhancedMigrationSummary();
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    if (confirm('Run full migration test?')) {
+                        await fixBrokenPortfoliosAndBlocks();
+                    }
+                    break;
+                    
+                case 'sync_health':
+                    await getBlocksNeedingSync();
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await syncBlocksNeedingSync();
+                    break;
+            }
+        }
     </script>
 </body>
 </html>
