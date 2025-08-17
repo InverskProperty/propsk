@@ -3097,12 +3097,7 @@ public class PortfolioController {
                 }
             }
             
-            // Prepare response
-            Map<String, Object> propertiesData = new HashMap<>();
-            propertiesData.put("assignedToBlocks", assignedToBlocks);
-            propertiesData.put("unassigned", unassigned);
-            
-            response.put("success", true);
+            // Return the structure expected by JavaScript
             response.put("assignedToBlocks", assignedToBlocks);
             response.put("unassigned", unassigned);
             response.put("totalProperties", allProperties.size());

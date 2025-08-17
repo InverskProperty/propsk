@@ -5,7 +5,9 @@
       "Bash(chmod:*)",
       "Bash(mysql:*)",
       "Bash(mvn compile:*)",
-      "Bash(execute_migration.bat)"
+      "Bash(execute_migration.bat)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": [],

@@ -268,7 +268,7 @@
 
                                     <!-- Other Portfolios -->
                                     <div th:each="portfolio : ${portfolios}" class="mb-3"
-                                         th:if="${!isPortfolioSpecific || portfolio.id != targetPortfolio.id}">
+                                         th:if="${!isPortfolioSpecific || (targetPortfolio == null || portfolio.id != targetPortfolio.id)}">
                                         <div class="card portfolio-target"
                                              th:data-portfolio-id="${portfolio.id}"
                                              ondrop="drop(event)" 
