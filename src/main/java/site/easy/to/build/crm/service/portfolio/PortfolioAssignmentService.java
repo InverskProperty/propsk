@@ -104,22 +104,27 @@ public class PortfolioAssignmentService {
                 // Step 3: Apply PayProp tag if applicable
                 if (shouldSyncToPayProp(portfolio, property)) {
                     try {
-                        // CRITICAL FIX: Use ensurePortfolioHasExternalId to get proper external ID
-                        String externalId = ensurePortfolioHasExternalId(portfolio);
-                        if (externalId == null) {
-                            log.error("❌ Cannot get PayProp external ID for portfolio {}", portfolio.getId());
-                            assignment.setSyncStatus(SyncStatus.failed);
-                            assignmentRepository.save(assignment);
-                            result.addError("Failed to get PayProp external ID for portfolio " + portfolio.getId());
-                            continue;
+                        String tagValue = portfolio.getPayPropTags();
+                        
+                        // CRITICAL FIX: Check if tag value looks like a tag name, not external ID
+                        if (tagValue.startsWith("PF-") || tagValue.startsWith("BL-")) {
+                            log.warn("Portfolio {} has tag name instead of external ID, resolving: {}", portfolio.getId(), tagValue);
+                            tagValue = ensurePortfolioHasExternalId(portfolio);
+                            if (tagValue == null) {
+                                log.error("❌ Cannot resolve PayProp external ID for portfolio {}", portfolio.getId());
+                                assignment.setSyncStatus(SyncStatus.failed);
+                                assignmentRepository.save(assignment);
+                                result.addError("Failed to resolve PayProp external ID for portfolio " + portfolio.getId());
+                                continue;
+                            }
                         }
                         
                         log.info("🔄 Applying PayProp tag {} to property {}", 
-                            externalId, property.getPayPropId());
+                            tagValue, property.getPayPropId());
                         
                         payPropSyncService.applyTagToProperty(
                             property.getPayPropId(), 
-                            externalId
+                            tagValue
                         );
                         
                         // Update sync status
@@ -191,19 +196,24 @@ public class PortfolioAssignmentService {
         // Remove PayProp tag
         if (shouldSyncToPayProp(portfolio, property)) {
             try {
-                // CRITICAL FIX: Use ensurePortfolioHasExternalId to get proper external ID
-                String externalId = ensurePortfolioHasExternalId(portfolio);
-                if (externalId == null) {
-                    log.error("❌ Cannot get PayProp external ID for portfolio {} removal", portfolio.getId());
-                    throw new RuntimeException("Failed to get PayProp external ID for tag removal");
+                String tagValue = portfolio.getPayPropTags();
+                
+                // CRITICAL FIX: Check if tag value looks like a tag name, not external ID
+                if (tagValue.startsWith("PF-") || tagValue.startsWith("BL-")) {
+                    log.warn("Portfolio {} has tag name instead of external ID for removal, resolving: {}", portfolio.getId(), tagValue);
+                    tagValue = ensurePortfolioHasExternalId(portfolio);
+                    if (tagValue == null) {
+                        log.error("❌ Cannot resolve PayProp external ID for portfolio {} removal", portfolio.getId());
+                        throw new RuntimeException("Failed to resolve PayProp external ID for tag removal");
+                    }
                 }
                 
                 log.info("🔄 Removing PayProp tag {} from property {}", 
-                    externalId, property.getPayPropId());
+                    tagValue, property.getPayPropId());
                 
                 payPropSyncService.removeTagFromProperty(
                     property.getPayPropId(), 
-                    externalId
+                    tagValue
                 );
                 
                 log.info("✅ PayProp tag removed successfully");
@@ -318,15 +328,20 @@ public class PortfolioAssignmentService {
                 Portfolio portfolio = assignment.getPortfolio();
                 
                 if (shouldSyncToPayProp(portfolio, property)) {
-                    // CRITICAL FIX: Use ensurePortfolioHasExternalId to get proper external ID
-                    String externalId = ensurePortfolioHasExternalId(portfolio);
-                    if (externalId == null) {
-                        throw new RuntimeException("Cannot get PayProp external ID for portfolio " + portfolio.getId());
+                    String tagValue = portfolio.getPayPropTags();
+                    
+                    // CRITICAL FIX: Check if tag value looks like a tag name, not external ID
+                    if (tagValue.startsWith("PF-") || tagValue.startsWith("BL-")) {
+                        log.warn("Portfolio {} has tag name instead of external ID for sync, resolving: {}", portfolio.getId(), tagValue);
+                        tagValue = ensurePortfolioHasExternalId(portfolio);
+                        if (tagValue == null) {
+                            throw new RuntimeException("Cannot resolve PayProp external ID for portfolio " + portfolio.getId());
+                        }
                     }
                     
                     payPropSyncService.applyTagToProperty(
                         property.getPayPropId(),
-                        externalId
+                        tagValue
                     );
                     
                     assignment.setSyncStatus(SyncStatus.synced);
@@ -443,20 +458,14 @@ public class PortfolioAssignmentService {
     }
     
     private boolean shouldSyncToPayProp(Portfolio portfolio, Property property) {
-        if (payPropSyncService == null) {
-            return false;
-        }
+        boolean shouldSync = payPropSyncService != null &&
+               portfolio.getPayPropTags() != null && 
+               !portfolio.getPayPropTags().trim().isEmpty() &&
+               property.getPayPropId() != null &&
+               !property.getPayPropId().trim().isEmpty();
         
-        if (property.getPayPropId() == null || property.getPayPropId().trim().isEmpty()) {
-            return false;
-        }
-        
-        // CRITICAL FIX: Check if we can get a valid external ID for the portfolio
-        String externalId = ensurePortfolioHasExternalId(portfolio);
-        boolean shouldSync = externalId != null && !externalId.trim().isEmpty();
-        
-        log.debug("Should sync to PayProp? Portfolio external ID: {}, Property has PayProp ID: {}, Service available: {}", 
-            externalId != null,
+        log.debug("Should sync to PayProp? Portfolio has tags: {}, Property has PayProp ID: {}, Service available: {}", 
+            portfolio.getPayPropTags() != null,
             property.getPayPropId() != null,
             payPropSyncService != null);
         
