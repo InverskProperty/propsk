@@ -146,29 +146,33 @@ public class PayPropPortfolioSyncService {
     }
     
     /**
-     * Create or retrieve existing PayProp tag for a portfolio
+     * FIXED: Create or retrieve existing PayProp tag for a portfolio using enhanced method
      */
     private PayPropTagDTO createOrGetPayPropTag(Portfolio portfolio) throws Exception {
+        log.info("🔍 Creating/retrieving PayProp tag for portfolio {}: '{}'", portfolio.getId(), portfolio.getName());
+        
         // First, check if portfolio already has PayProp tags
         if (portfolio.getPayPropTags() != null && !portfolio.getPayPropTags().isEmpty()) {
             // Assuming PayProp tags are stored as comma-separated string
             String[] tagIds = portfolio.getPayPropTags().split(",");
             if (tagIds.length > 0) {
                 String existingTagId = tagIds[0].trim();
+                log.info("Portfolio already has PayProp tag ID: '{}'", existingTagId);
                 PayPropTagDTO existingTag = getPayPropTag(existingTagId);
                 if (existingTag != null) {
+                    log.info("✅ Retrieved existing tag: {} -> {}", existingTag.getName(), existingTag.getId());
                     return existingTag;
                 }
+                log.warn("⚠️ Portfolio has tag ID '{}' but tag not found in PayProp, creating new", existingTagId);
             }
         }
         
-        // Create new tag
-        PayPropTagDTO newTag = new PayPropTagDTO();
-        newTag.setName(generateTagName(portfolio));
-        newTag.setDescription("Auto-generated tag for portfolio: " + portfolio.getName());
-        newTag.setColor(portfolio.getColorCode() != null ? portfolio.getColorCode() : "#3498db");
+        // Generate tag name and use enhanced creation method
+        String tagName = generateTagName(portfolio);
+        log.info("📝 Using enhanced tag creation for: '{}'", tagName);
         
-        return createPayPropTag(newTag);
+        // Use the enhanced ensurePayPropTagExists method that we just fixed
+        return ensurePayPropTagExists(tagName);
     }
     
     public List<PayPropTagDTO> getAllPayPropTags() throws Exception {
@@ -534,40 +538,68 @@ public class PayPropPortfolioSyncService {
      * @throws Exception if tag creation fails
      */
     public PayPropTagDTO ensurePayPropTagExists(String tagName) throws Exception {
-        log.info("🏷️ Ensuring PayProp tag exists: {}", tagName);
+        log.info("🏷️ Starting tag creation/verification for: '{}'", tagName);
         
-        // Step 1: Search for existing tag by name
+        // STEP 0: Validate authentication before proceeding
         try {
-            List<PayPropTagDTO> existingTags = searchPayPropTagsByName(tagName);
-            if (!existingTags.isEmpty()) {
-                PayPropTagDTO existingTag = existingTags.get(0);
-                log.info("✅ Found existing PayProp tag: {} -> {}", tagName, existingTag.getId());
-                return existingTag;
-            }
+            validateAuthentication();
         } catch (Exception e) {
-            log.warn("⚠️ Failed to search for existing tag {}: {}", tagName, e.getMessage());
-            // Continue to creation attempt
+            log.error("❌ CRITICAL: Authentication validation failed: {}", e.getMessage());
+            throw new RuntimeException("PayProp authentication failed: " + e.getMessage(), e);
         }
         
-        // Step 2: Create new tag in PayProp
-        log.info("🆕 Creating new PayProp tag: {}", tagName);
-        PayPropTagDTO newTag = new PayPropTagDTO();
-        newTag.setName(tagName);
-        newTag.setDescription("Created by CRM for portfolio organization");
-        
         try {
-            PayPropTagDTO createdTag = createPayPropTag(newTag);
-            log.info("✅ Successfully created PayProp tag: {} -> {}", tagName, createdTag.getId());
+            // Step 1: Check if tag already exists
+            log.debug("Step 1: Searching for existing tag with name: '{}'", tagName);
+            List<PayPropTagDTO> existingTags = searchPayPropTagsByName(tagName);
+            
+            if (!existingTags.isEmpty()) {
+                PayPropTagDTO existingTag = existingTags.get(0);
+                log.info("✅ Found existing PayProp tag: '{}' with ID: '{}'", tagName, existingTag.getId());
+                return existingTag;
+            }
+            
+            log.debug("No existing tag found, proceeding to create new tag");
+            
+            // Step 2: Create new tag
+            log.info("📝 Creating new PayProp tag: '{}'", tagName);
+            Map<String, Object> tagRequest = new HashMap<>();
+            tagRequest.put("name", tagName);
+            tagRequest.put("description", "Created by CRM for portfolio organization");
+            
+            log.debug("API Request: POST /tags with payload: {}", tagRequest);
+            Map<String, Object> tagResponse = payPropApiClient.post("/tags", tagRequest);
+            log.debug("API Response: {}", tagResponse);
+            
+            // Step 3: Extract external ID
+            String externalId = extractTagId(tagResponse);
+            if (externalId == null || externalId.trim().isEmpty()) {
+                log.error("❌ PayProp API returned null/empty external ID. Full response: {}", tagResponse);
+                throw new RuntimeException("PayProp API returned invalid tag ID");
+            }
+            
+            // Step 4: Create return object
+            PayPropTagDTO createdTag = new PayPropTagDTO();
+            createdTag.setId(externalId);
+            createdTag.setName(tagName);
+            createdTag.setDescription("Created by CRM for portfolio organization");
+            
+            log.info("✅ Successfully created PayProp tag: '{}' with external ID: '{}'", tagName, externalId);
             return createdTag;
+            
         } catch (Exception e) {
-            // PayProp API returns existing tag if name already exists
-            if (e.getMessage().contains("already exists") || e.getMessage().contains("duplicate")) {
-                log.info("ℹ️ Tag already exists in PayProp, searching again: {}", tagName);
+            log.error("❌ CRITICAL: Tag creation failed for '{}': {}", tagName, e.getMessage(), e);
+            
+            // Enhanced error handling - check if it's a duplicate error
+            if (e.getMessage() != null && (e.getMessage().contains("already exists") || 
+                                         e.getMessage().contains("duplicate") ||
+                                         e.getMessage().contains("conflict"))) {
+                log.info("ℹ️ Tag conflict detected, attempting to retrieve existing tag: {}", tagName);
                 try {
                     List<PayPropTagDTO> retryTags = searchPayPropTagsByName(tagName);
                     if (!retryTags.isEmpty()) {
                         PayPropTagDTO existingTag = retryTags.get(0);
-                        log.info("✅ Retrieved existing tag after creation attempt: {} -> {}", tagName, existingTag.getId());
+                        log.info("✅ Retrieved existing tag after creation conflict: '{}' -> '{}'", tagName, existingTag.getId());
                         return existingTag;
                     }
                 } catch (Exception retryError) {
@@ -575,9 +607,53 @@ public class PayPropPortfolioSyncService {
                 }
             }
             
-            log.error("❌ Failed to ensure PayProp tag exists: {}", e.getMessage());
-            throw new RuntimeException("Failed to ensure PayProp tag exists: " + tagName, e);
+            // DON'T return null - throw the exception to see what's breaking
+            throw new RuntimeException("Tag creation failed for '" + tagName + "': " + e.getMessage(), e);
         }
+    }
+    
+    /**
+     * Validate PayProp authentication before tag operations
+     */
+    private void validateAuthentication() {
+        try {
+            if (oAuth2Service == null) {
+                throw new RuntimeException("OAuth2 service not available");
+            }
+            
+            if (!oAuth2Service.hasValidTokens()) {
+                log.warn("⚠️ PayProp token expired, attempting refresh...");
+                oAuth2Service.refreshAccessToken();
+                
+                if (!oAuth2Service.hasValidTokens()) {
+                    throw new RuntimeException("Failed to refresh PayProp tokens");
+                }
+            }
+            
+            log.debug("✅ PayProp authentication validated");
+        } catch (Exception e) {
+            log.error("❌ PayProp authentication failed: {}", e.getMessage());
+            throw new RuntimeException("PayProp authentication failed", e);
+        }
+    }
+    
+    /**
+     * Handle different PayProp response formats to extract tag ID
+     */
+    private String extractTagId(Map<String, Object> response) {
+        // Try different possible ID field names
+        String[] possibleFields = {"id", "external_id", "tag_id", "tagId"};
+        
+        for (String field : possibleFields) {
+            Object value = response.get(field);
+            if (value != null && !value.toString().trim().isEmpty()) {
+                log.debug("Found tag ID in field '{}': '{}'", field, value);
+                return value.toString();
+            }
+        }
+        
+        log.error("❌ Could not find tag ID in response: {}", response);
+        throw new RuntimeException("PayProp response missing tag ID: " + response);
     }
     
     /**

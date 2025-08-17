@@ -13,6 +13,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService;
+import site.easy.to.build.crm.service.payprop.PayPropPortfolioMigrationService;
+import site.easy.to.build.crm.service.payprop.PayPropApiClient;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
@@ -38,6 +40,12 @@ public class PayPropAdminController {
     private final PropertyService propertyService;
     private final TenantService tenantService;
     private final PropertyOwnerService propertyOwnerService;
+    
+    @Autowired
+    private PayPropPortfolioMigrationService migrationService;
+    
+    @Autowired
+    private PayPropApiClient payPropApiClient;
 
     @Autowired
     public PayPropAdminController(PayPropOAuth2Service oAuth2Service,
@@ -581,6 +589,102 @@ public class PayPropAdminController {
             response.put("success", false);
             response.put("message", e.getMessage());
             return ResponseEntity.ok(response);
+        }
+    }
+    
+    /**
+     * 🚨 HEALTH ENDPOINT: Comprehensive PayProp system health check
+     * This provides detailed health status for the emergency fix validation
+     */
+    @GetMapping("/health")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> checkPayPropHealth(Authentication authentication) {
+        Map<String, Object> health = new HashMap<>();
+        
+        try {
+            // Authentication check
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                health.put("success", false);
+                health.put("message", "Access denied");
+                return ResponseEntity.status(403).body(health);
+            }
+            
+            log.info("🏥 Running PayProp health check...");
+            
+            // 1. Test API connectivity
+            boolean apiConnected = false;
+            String apiMessage = "";
+            try {
+                payPropApiClient.get("/properties?rows=1");
+                apiConnected = true;
+                apiMessage = "API connection successful";
+                log.info("✅ PayProp API connectivity: OK");
+            } catch (Exception e) {
+                apiMessage = "API connection failed: " + e.getMessage();
+                log.error("❌ PayProp API connectivity: FAILED - {}", e.getMessage());
+            }
+            health.put("api_connectivity", apiConnected ? "OK" : "FAILED");
+            health.put("api_message", apiMessage);
+            
+            // 2. OAuth2 authentication status
+            boolean authValid = oAuth2Service.hasValidTokens();
+            health.put("oauth2_valid", authValid);
+            if (authValid) {
+                PayPropOAuth2Service.PayPropTokens tokens = oAuth2Service.getCurrentTokens();
+                health.put("token_expires_at", tokens.getExpiresAt());
+                health.put("token_expires_soon", tokens.isExpiringSoon());
+                log.info("✅ OAuth2 authentication: VALID");
+            } else {
+                health.put("oauth2_message", "No valid tokens - requires re-authorization");
+                log.warn("⚠️ OAuth2 authentication: INVALID");
+            }
+            
+            // 3. Check broken portfolios (ROOT CAUSE VALIDATION)
+            PayPropPortfolioMigrationService.MigrationSummary migrationSummary = migrationService.getMigrationSummary();
+            health.put("broken_portfolios", migrationSummary.getBrokenPortfoliosCount());
+            health.put("pending_assignments", migrationSummary.getPendingAssignmentsCount());
+            health.put("needs_migration", migrationSummary.needsMigration());
+            
+            if (migrationSummary.getBrokenPortfoliosCount() > 0) {
+                health.put("broken_portfolio_details", migrationSummary.getBrokenPortfolioDetails());
+                log.warn("⚠️ Found {} broken portfolios needing migration", migrationSummary.getBrokenPortfoliosCount());
+            } else {
+                log.info("✅ All portfolios have valid PayProp external IDs");
+            }
+            
+            // 4. Overall health status
+            boolean isHealthy = apiConnected && authValid && !migrationSummary.needsMigration();
+            health.put("status", isHealthy ? "HEALTHY" : "NEEDS_ATTENTION");
+            
+            if (isHealthy) {
+                health.put("message", "PayProp integration is fully operational");
+                log.info("✅ PayProp health check: HEALTHY");
+            } else {
+                List<String> issues = new ArrayList<>();
+                if (!apiConnected) issues.add("API connectivity failed");
+                if (!authValid) issues.add("OAuth2 authentication invalid");
+                if (migrationSummary.needsMigration()) issues.add(String.format("%d broken portfolios need migration", migrationSummary.getBrokenPortfoliosCount()));
+                
+                health.put("message", "Issues detected: " + String.join(", ", issues));
+                health.put("issues", issues);
+                log.warn("⚠️ PayProp health check: NEEDS ATTENTION - {}", String.join(", ", issues));
+            }
+            
+            health.put("success", true);
+            health.put("timestamp", System.currentTimeMillis());
+            
+            return ResponseEntity.ok(health);
+            
+        } catch (Exception e) {
+            log.error("❌ PayProp health check failed: {}", e.getMessage(), e);
+            
+            health.put("status", "ERROR");
+            health.put("success", false);
+            health.put("message", "Health check failed: " + e.getMessage());
+            health.put("error", e.getMessage());
+            health.put("timestamp", System.currentTimeMillis());
+            
+            return ResponseEntity.status(500).body(health);
         }
     }
 }

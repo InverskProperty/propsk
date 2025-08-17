@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
 import site.easy.to.build.crm.service.payprop.SyncResult;
+import site.easy.to.build.crm.service.payprop.PayPropPortfolioMigrationService;
 import site.easy.to.build.crm.service.portfolio.PortfolioAssignmentService;
 import site.easy.to.build.crm.service.tag.TagNamespaceService;
 
@@ -31,6 +32,209 @@ public class PortfolioPayPropController extends PortfolioControllerBase {
     
     @Autowired
     private TagNamespaceService tagNamespaceService;
+    
+    @Autowired
+    private PayPropPortfolioMigrationService migrationService;
+    
+    /**
+     * 🚨 DEBUG ENDPOINT: Test enhanced tag creation method
+     * This will help us identify where the tag creation is failing
+     */
+    @PostMapping("/debug/test-tag-creation")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testTagCreation(
+            @RequestParam String tagName,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            log.info("🧪 DEBUG: Testing tag creation for: '{}'", tagName);
+            
+            if (!isPayPropAvailable()) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            // Call our enhanced tag creation method directly
+            PayPropTagDTO result = payPropSyncService.ensurePayPropTagExists(tagName);
+            
+            response.put("success", true);
+            response.put("message", "Tag creation test completed successfully");
+            response.put("tagId", result.getId());
+            response.put("tagName", result.getName());
+            response.put("tagDescription", result.getDescription());
+            
+            log.info("✅ DEBUG: Tag creation test successful - Tag ID: {}", result.getId());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ DEBUG: Tag creation test failed: {}", e.getMessage(), e);
+            
+            response.put("success", false);
+            response.put("message", "Tag creation failed: " + e.getMessage());
+            response.put("errorType", e.getClass().getSimpleName());
+            response.put("stackTrace", Arrays.toString(e.getStackTrace()));
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * 🚨 DEBUG ENDPOINT: Test portfolio creation with enhanced logging
+     */
+    @PostMapping("/debug/test-portfolio-creation")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testPortfolioCreation(
+            @RequestParam String portfolioName,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            log.info("🧪 DEBUG: Testing portfolio creation for: '{}'", portfolioName);
+            
+            if (!isPayPropAvailable()) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            
+            // Create portfolio manually for testing
+            Portfolio testPortfolio = new Portfolio();
+            testPortfolio.setName(portfolioName);
+            testPortfolio.setDescription("DEBUG test portfolio for tag creation");
+            testPortfolio.setPortfolioType(PortfolioType.CUSTOM);
+            testPortfolio.setCreatedBy((long) userId);
+            testPortfolio.setIsShared("N");
+            testPortfolio.setSyncStatus(SyncStatus.pending);
+            
+            // Save portfolio first
+            Portfolio savedPortfolio = portfolioService.save(testPortfolio);
+            log.info("📝 DEBUG: Portfolio created with ID: {}", savedPortfolio.getId());
+            
+            // Test PayProp sync
+            SyncResult syncResult = payPropSyncService.syncPortfolioToPayProp(savedPortfolio.getId(), (long) userId);
+            
+            // Get updated portfolio to check PayProp fields
+            Portfolio updatedPortfolio = portfolioService.findById(savedPortfolio.getId()).orElse(null);
+            
+            response.put("success", syncResult.isSuccess());
+            response.put("message", syncResult.getMessage());
+            response.put("portfolioId", savedPortfolio.getId());
+            response.put("payPropTags", updatedPortfolio != null ? updatedPortfolio.getPayPropTags() : null);
+            response.put("payPropTagNames", updatedPortfolio != null ? updatedPortfolio.getPayPropTagNames() : null);
+            response.put("syncStatus", updatedPortfolio != null ? updatedPortfolio.getSyncStatus() : null);
+            response.put("syncDetails", syncResult.getDetails());
+            
+            log.info("✅ DEBUG: Portfolio creation test completed - Success: {}", syncResult.isSuccess());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ DEBUG: Portfolio creation test failed: {}", e.getMessage(), e);
+            
+            response.put("success", false);
+            response.put("message", "Portfolio creation failed: " + e.getMessage());
+            response.put("errorType", e.getClass().getSimpleName());
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * 🚨 MIGRATION ENDPOINT: Get summary of portfolios needing migration
+     */
+    @GetMapping("/migration/summary")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getMigrationSummary(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!isPayPropAvailable()) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            PayPropPortfolioMigrationService.MigrationSummary summary = migrationService.getMigrationSummary();
+            
+            response.put("success", true);
+            response.put("needsMigration", summary.needsMigration());
+            response.put("brokenPortfoliosCount", summary.getBrokenPortfoliosCount());
+            response.put("pendingAssignmentsCount", summary.getPendingAssignmentsCount());
+            response.put("brokenPortfolioDetails", summary.getBrokenPortfolioDetails());
+            
+            if (summary.needsMigration()) {
+                response.put("message", String.format("Migration needed: %d broken portfolios, %d pending assignments", 
+                    summary.getBrokenPortfoliosCount(), summary.getPendingAssignmentsCount()));
+            } else {
+                response.put("message", "No migration needed - all portfolios are properly synced");
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to get migration summary: {}", e.getMessage(), e);
+            
+            response.put("success", false);
+            response.put("message", "Failed to get migration summary: " + e.getMessage());
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * 🚨 MIGRATION ENDPOINT: Fix all broken portfolios
+     */
+    @PostMapping("/migration/fix-broken-portfolios")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> fixBrokenPortfolios(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (!isPayPropAvailable()) {
+                response.put("success", false);
+                response.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+            }
+            
+            log.info("🔄 Starting portfolio migration requested by user");
+            
+            PayPropPortfolioMigrationService.MigrationResult result = migrationService.fixBrokenPortfolios();
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("fixedCount", result.getFixedCount());
+            response.put("failedCount", result.getFailedCount());
+            response.put("skippedCount", result.getSkippedCount());
+            response.put("fixedPortfolios", result.getFixedPortfolios());
+            response.put("errors", result.getErrors());
+            
+            if (result.isSuccess()) {
+                log.info("✅ Portfolio migration completed successfully: {} fixed, {} failed", 
+                    result.getFixedCount(), result.getFailedCount());
+            } else {
+                log.error("❌ Portfolio migration completed with errors: {} fixed, {} failed", 
+                    result.getFixedCount(), result.getFailedCount());
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ Portfolio migration failed: {}", e.getMessage(), e);
+            
+            response.put("success", false);
+            response.put("message", "Migration failed: " + e.getMessage());
+            response.put("errorType", e.getClass().getSimpleName());
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
     
     /**
      * Get available PayProp tags for adoption
