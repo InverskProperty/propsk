@@ -1741,16 +1741,24 @@
             }
         }
         
-        // Enhanced result display for block testing
-        const originalShowResult = showResult;
-        function showResult(elementId, data, title = '') {
-            originalShowResult(elementId, data, title);
+        // Enhanced result display for block testing - Fixed recursion issue
+        function enhanceBlockTestingResults() {
+            // Override the showResult function for block testing specifically
+            const originalShowResult = window.showResult;
             
-            // Auto-populate fields if this is a block creation result
-            if (elementId === 'blockTestResult' && data && data.block) {
-                autoFillFromBlockResult(data);
-            }
+            window.showResult = function(elementId, data, title = '') {
+                // Call the original function
+                originalShowResult.call(this, elementId, data, title);
+                
+                // Auto-populate fields if this is a block creation result
+                if (elementId === 'blockTestResult' && data && data.block) {
+                    autoFillFromBlockResult(data);
+                }
+            };
         }
+        
+        // Initialize the enhanced block testing when page loads
+        enhanceBlockTestingResults();
         
         // Add quick test scenarios for blocks
         async function runQuickBlockTest(scenario) {
