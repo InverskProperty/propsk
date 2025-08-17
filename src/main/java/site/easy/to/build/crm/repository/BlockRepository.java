@@ -108,4 +108,58 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
     
     // Recent activity
     List<Block> findByCreatedByOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    
+    // ===== HIERARCHICAL BLOCK-ASSIGNMENT QUERIES =====
+    
+    // Find blocks with missing PayProp external IDs (for migration)
+    @Query("SELECT b FROM Block b " +
+           "WHERE b.isActive = 'Y' " +
+           "AND (b.payPropTagNames IS NOT NULL AND b.payPropTagNames != '') " +
+           "AND (b.payPropTags IS NULL OR b.payPropTags = '') " +
+           "ORDER BY b.portfolio.displayOrder, b.displayOrder")
+    List<Block> findBlocksWithMissingPayPropTags();
+    
+    // Count properties in block via assignment table (more accurate)
+    @Query("SELECT COUNT(ppa) FROM PropertyPortfolioAssignment ppa " +
+           "WHERE ppa.block.id = :blockId AND ppa.isActive = true")
+    long countPropertiesInBlockViaAssignment(@Param("blockId") Long blockId);
+    
+    // Check if block name is unique within portfolio
+    @Query("SELECT COUNT(b) > 0 FROM Block b " +
+           "WHERE b.portfolio.id = :portfolioId " +
+           "AND UPPER(b.name) = UPPER(:name) " +
+           "AND b.isActive = 'Y' " +
+           "AND (:excludeId IS NULL OR b.id != :excludeId)")
+    boolean existsByPortfolioAndNameIgnoreCase(@Param("portfolioId") Long portfolioId, 
+                                              @Param("name") String name, 
+                                              @Param("excludeId") Long excludeId);
+    
+    // Get next display order for portfolio
+    @Query("SELECT COALESCE(MAX(b.displayOrder), 0) + 1 FROM Block b " +
+           "WHERE b.portfolio.id = :portfolioId")
+    Integer getNextDisplayOrderForPortfolio(@Param("portfolioId") Long portfolioId);
+    
+    // Generate hierarchical tag name
+    @Query("SELECT CONCAT('PF-', " +
+           "UPPER(REPLACE(REPLACE(REPLACE(p.name, ' ', '-'), '.', ''), '/', '-')), " +
+           "'-BL-', " +
+           "UPPER(REPLACE(REPLACE(REPLACE(:blockName, ' ', '-'), '.', ''), '/', '-'))) " +
+           "FROM Portfolio p WHERE p.id = :portfolioId")
+    Optional<String> generateBlockTagName(@Param("portfolioId") Long portfolioId, 
+                                         @Param("blockName") String blockName);
+    
+    // Find empty blocks (no property assignments)
+    @Query("SELECT b FROM Block b " +
+           "WHERE b.isActive = 'Y' AND b.id NOT IN (" +
+           "    SELECT DISTINCT ppa.block.id FROM PropertyPortfolioAssignment ppa " +
+           "    WHERE ppa.block.id IS NOT NULL AND ppa.isActive = true" +
+           ") " +
+           "ORDER BY b.portfolio.displayOrder, b.displayOrder")
+    List<Block> findEmptyBlocks();
+    
+    // Find blocks by portfolio ordered by display order
+    @Query("SELECT b FROM Block b " +
+           "WHERE b.portfolio.id = :portfolioId AND b.isActive = 'Y' " +
+           "ORDER BY b.displayOrder, b.name")
+    List<Block> findByPortfolioIdOrderByDisplayOrder(@Param("portfolioId") Long portfolioId);
 }

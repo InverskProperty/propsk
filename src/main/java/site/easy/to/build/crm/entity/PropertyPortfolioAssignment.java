@@ -22,6 +22,10 @@ public class PropertyPortfolioAssignment {
     @JoinColumn(name = "portfolio_id", nullable = false)
     private Portfolio portfolio;
     
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "block_id")
+    private Block block;
+    
     @Enumerated(EnumType.STRING)
     @Column(name = "assignment_type", nullable = false)
     private PortfolioAssignmentType assignmentType;
@@ -85,6 +89,9 @@ public class PropertyPortfolioAssignment {
     public Portfolio getPortfolio() { return portfolio; }
     public void setPortfolio(Portfolio portfolio) { this.portfolio = portfolio; }
     
+    public Block getBlock() { return block; }
+    public void setBlock(Block block) { this.block = block; }
+    
     public PortfolioAssignmentType getAssignmentType() { return assignmentType; }
     public void setAssignmentType(PortfolioAssignmentType assignmentType) { this.assignmentType = assignmentType; }
     
@@ -137,6 +144,65 @@ public class PropertyPortfolioAssignment {
     
     public boolean needsSync() {
         return syncStatus == SyncStatus.pending || syncStatus == SyncStatus.failed;
+    }
+    
+    public boolean isBlockAssignment() {
+        return block != null;
+    }
+    
+    public boolean isPortfolioOnlyAssignment() {
+        return block == null;
+    }
+    
+    /**
+     * Generate the expected PayProp tag name for this assignment
+     * Format: PF-{PORTFOLIO} or PF-{PORTFOLIO}-BL-{BLOCK}
+     */
+    public String getExpectedPayPropTagName() {
+        if (portfolio == null) return null;
+        
+        String portfolioTag = "PF-" + portfolio.getName().toUpperCase()
+            .replaceAll("[^A-Z0-9]+", "-")
+            .replaceAll("-+", "-")
+            .replaceAll("^-|-$", "");
+            
+        if (block != null) {
+            String blockTag = block.getName().toUpperCase()
+                .replaceAll("[^A-Z0-9]+", "-")
+                .replaceAll("-+", "-")
+                .replaceAll("^-|-$", "");
+            return portfolioTag + "-BL-" + blockTag;
+        }
+        
+        return portfolioTag;
+    }
+    
+    /**
+     * Determine if this assignment should sync to PayProp
+     * Hierarchical logic: Portfolio must have tags, and if block exists, block must have tags
+     */
+    public boolean shouldSyncToPayProp() {
+        if (!isActive() || portfolio == null) {
+            return false;
+        }
+        
+        // Portfolio must have PayProp external IDs
+        boolean portfolioHasTags = portfolio.getPayPropTags() != null && 
+                                  !portfolio.getPayPropTags().trim().isEmpty();
+        
+        if (!portfolioHasTags) {
+            return false;
+        }
+        
+        // If assigned to a block, block must also have PayProp external IDs
+        if (block != null) {
+            boolean blockHasTags = block.getPayPropTags() != null && 
+                                  !block.getPayPropTags().trim().isEmpty();
+            return blockHasTags;
+        }
+        
+        // Portfolio-only assignment is valid if portfolio has tags
+        return true;
     }
     
     @PrePersist
