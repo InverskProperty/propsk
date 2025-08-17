@@ -65,29 +65,44 @@ public class PayPropTagGenerator {
     }
     
     /**
-     * Generate a block tag name
-     * Format: PF-{PORTFOLIO_NAME}-BL-{BLOCK_NAME}
+     * Generate a block tag name using unified Owner- format
+     * Format: Owner-{PORTFOLIO_ID}-{BLOCK_NAME}
      * 
-     * @param portfolioName Portfolio name
+     * @param portfolioId Portfolio ID
      * @param blockName Block name
      * @return Generated tag name
      * @throws IllegalArgumentException if names are null/empty or would result in invalid tag
      */
-    public static String generateBlockTag(String portfolioName, String blockName) {
-        if (portfolioName == null || portfolioName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Portfolio name cannot be null or empty");
+    public static String generateBlockTag(Long portfolioId, String blockName) {
+        if (portfolioId == null) {
+            throw new IllegalArgumentException("Portfolio ID cannot be null");
         }
         if (blockName == null || blockName.trim().isEmpty()) {
             throw new IllegalArgumentException("Block name cannot be null or empty");
         }
         
-        String normalizedPortfolio = normalizeNameForTag(portfolioName, MAX_PORTFOLIO_NAME_LENGTH);
-        String normalizedBlock = normalizeNameForTag(blockName, MAX_BLOCK_NAME_LENGTH);
+        // Use Owner- format for consistency with portfolios
+        String cleanBlockName = blockName.replaceAll("[^a-zA-Z0-9\\s]", "");
+        String tag = "Owner-" + portfolioId + "-" + cleanBlockName;
         
-        String tag = PORTFOLIO_PREFIX + normalizedPortfolio + BLOCK_SEPARATOR + normalizedBlock;
+        // Ensure length limit (50 chars to match portfolio logic)
+        tag = tag.length() > 50 ? tag.substring(0, 50) : tag;
         
-        validateTagLength(tag, "Block");
         return tag;
+    }
+
+    /**
+     * Generate a block tag name (legacy method for backward compatibility)
+     * Format: Owner-{PORTFOLIO_ID}-{BLOCK_NAME}
+     * 
+     * @param portfolioName Portfolio name (not used in unified format)
+     * @param blockName Block name
+     * @return Generated tag name
+     * @deprecated Use generateBlockTag(Long portfolioId, String blockName) instead
+     */
+    @Deprecated
+    public static String generateBlockTag(String portfolioName, String blockName) {
+        throw new UnsupportedOperationException("Use generateBlockTag(Long portfolioId, String blockName) for unified tag format");
     }
     
     /**
@@ -98,14 +113,14 @@ public class PayPropTagGenerator {
      * @return Generated tag name
      */
     public static String generateBlockTag(Portfolio portfolio, Block block) {
-        if (portfolio == null || portfolio.getName() == null) {
-            throw new IllegalArgumentException("Portfolio and portfolio name cannot be null");
+        if (portfolio == null || portfolio.getId() == null) {
+            throw new IllegalArgumentException("Portfolio and portfolio ID cannot be null");
         }
         if (block == null || block.getName() == null) {
             throw new IllegalArgumentException("Block and block name cannot be null");
         }
         
-        return generateBlockTag(portfolio.getName(), block.getName());
+        return generateBlockTag(portfolio.getId(), block.getName());
     }
     
     /**
@@ -118,11 +133,11 @@ public class PayPropTagGenerator {
         if (block == null || block.getName() == null) {
             throw new IllegalArgumentException("Block and block name cannot be null");
         }
-        if (block.getPortfolio() == null || block.getPortfolio().getName() == null) {
-            throw new IllegalArgumentException("Block must have portfolio with name");
+        if (block.getPortfolio() == null || block.getPortfolio().getId() == null) {
+            throw new IllegalArgumentException("Block must have portfolio with ID");
         }
         
-        return generateBlockTag(block.getPortfolio().getName(), block.getName());
+        return generateBlockTag(block.getPortfolio().getId(), block.getName());
     }
     
     /**

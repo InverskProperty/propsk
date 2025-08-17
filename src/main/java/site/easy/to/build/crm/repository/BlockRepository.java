@@ -139,11 +139,9 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
            "WHERE b.portfolio.id = :portfolioId")
     Integer getNextDisplayOrderForPortfolio(@Param("portfolioId") Long portfolioId);
     
-    // Generate hierarchical tag name
-    @Query("SELECT CONCAT('PF-', " +
-           "UPPER(REPLACE(REPLACE(REPLACE(p.name, ' ', '-'), '.', ''), '/', '-')), " +
-           "'-BL-', " +
-           "UPPER(REPLACE(REPLACE(REPLACE(:blockName, ' ', '-'), '.', ''), '/', '-'))) " +
+    // Generate unified Owner- format tag name
+    @Query("SELECT CONCAT('Owner-', :portfolioId, '-', " +
+           "REPLACE(REPLACE(REPLACE(:blockName, ' ', ''), '.', ''), '/', '')) " +
            "FROM Portfolio p WHERE p.id = :portfolioId")
     Optional<String> generateBlockTagName(@Param("portfolioId") Long portfolioId, 
                                          @Param("blockName") String blockName);

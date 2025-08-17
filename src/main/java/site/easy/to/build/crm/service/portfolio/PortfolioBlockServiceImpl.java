@@ -68,8 +68,8 @@ public class PortfolioBlockServiceImpl implements PortfolioBlockService {
             throw new IllegalArgumentException(validation.getErrorMessage());
         }
         
-        // Generate PayProp tag name using the new utility
-        String payPropTagName = PayPropTagGenerator.generateBlockTag(portfolio.getName(), blockName);
+        // Generate PayProp tag name using the unified Owner- format
+        String payPropTagName = PayPropTagGenerator.generateBlockTag(portfolioId, blockName);
         
         // Get next display order
         Integer displayOrder = blockRepository.getNextDisplayOrderForPortfolio(portfolioId);
@@ -137,7 +137,7 @@ public class PortfolioBlockServiceImpl implements PortfolioBlockService {
         
         // If name changed, regenerate PayProp tag name and mark for sync
         if (nameChanged) {
-            String newPayPropTagName = PayPropTagGenerator.generateBlockTag(block.getPortfolio().getName(), blockName);
+            String newPayPropTagName = PayPropTagGenerator.generateBlockTag(block.getPortfolio().getId(), blockName);
             block.setPayPropTagNames(newPayPropTagName);
             block.setSyncStatus(SyncStatus.pending);
             block.setLastSyncAt(null);
@@ -445,7 +445,7 @@ public class PortfolioBlockServiceImpl implements PortfolioBlockService {
         }
         
         try {
-            return PayPropTagGenerator.generateBlockTag(portfolio.get().getName(), blockName.trim());
+            return PayPropTagGenerator.generateBlockTag(portfolioId, blockName.trim());
         } catch (IllegalArgumentException e) {
             log.warn("Failed to generate PayProp tag for portfolio {} block '{}': {}", 
                     portfolioId, blockName, e.getMessage());
