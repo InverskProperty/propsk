@@ -15,7 +15,7 @@ import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
-import site.easy.to.build.crm.service.tag.TagNamespaceService;
+// Removed TagNamespaceService import - using direct tag generation to match PayPropPortfolioSyncService
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -54,8 +54,7 @@ public class PortfolioServiceImpl implements PortfolioService {
     @Autowired(required = false)
     private PayPropOAuth2Service payPropOAuth2Service;
     
-    @Autowired
-    private TagNamespaceService tagNamespaceService;
+    // Removed TagNamespaceService autowiring - using direct tag generation to match PayPropPortfolioSyncService
     
     @Value("${payprop.enabled:false}")
     private boolean payPropEnabled;
@@ -814,17 +813,29 @@ public class PortfolioServiceImpl implements PortfolioService {
         portfolio.setPortfolioType(type);
         portfolio.setIsShared(propertyOwnerId == null ? "Y" : "N");
         
-        // FIXED: Create namespaced tag name and attempt PayProp tag creation
-        String namespacedTagName = tagNamespaceService.createPortfolioTag(name);
-        portfolio.setPayPropTagNames(namespacedTagName);
-        System.out.println("✅ Created portfolio with namespaced tag name: " + namespacedTagName);
+        // FIXED: Use the same tag generation format as PayPropPortfolioSyncService
+        String baseName = name.replaceAll("[^a-zA-Z0-9\\s]", "");
+        String tagName;
+        
+        // Add owner prefix if it's an owner-specific portfolio (matching PayPropPortfolioSyncService.generateTagName)
+        if (propertyOwnerId != null) {
+            tagName = "Owner-" + propertyOwnerId + "-" + baseName;
+        } else {
+            tagName = baseName;
+        }
+        
+        // Ensure length limit
+        tagName = tagName.length() > 50 ? tagName.substring(0, 50) : tagName;
+        
+        portfolio.setPayPropTagNames(tagName);
+        System.out.println("✅ Created portfolio with tag name: " + tagName);
         
         // CRITICAL FIX: Attempt to create tag in PayProp immediately if connected
         if (payPropEnabled && payPropSyncService != null) {
             try {
                 if (hasActivePayPropConnection()) {
-                    // Use the new ensurePayPropTagExists method
-                    PayPropTagDTO payPropTag = payPropSyncService.ensurePayPropTagExists(namespacedTagName);
+                    // Use the original working ensurePayPropTagExists method
+                    PayPropTagDTO payPropTag = payPropSyncService.ensurePayPropTagExists(tagName);
                     portfolio.setPayPropTags(payPropTag.getId()); // Store external ID
                     portfolio.setSyncStatus(SyncStatus.synced);
                     portfolio.setLastSyncAt(LocalDateTime.now());
@@ -876,10 +887,11 @@ public class PortfolioServiceImpl implements PortfolioService {
         block.setBlockType(type);
         block.setPropertyOwnerId(portfolio.getPropertyOwnerId());
         
-        // FIXED: Create namespaced block tag name and attempt PayProp tag creation  
-        String blockTagName = tagNamespaceService.createBlockTag(portfolioId, name);
+        // TEMPORARILY DISABLED: Block tag generation until portfolio assignment is fixed
+        // Using simple block naming for now to avoid conflicts
+        String blockTagName = "BL-" + portfolio.getName().replaceAll("[^a-zA-Z0-9\\s]", "") + "-" + name.replaceAll("[^a-zA-Z0-9\\s]", "");
         block.setPayPropTagNames(blockTagName);
-        System.out.println("✅ Created block with namespaced tag name: " + blockTagName);
+        System.out.println("✅ Created block with tag name: " + blockTagName);
         
         // CRITICAL FIX: Attempt to create block tag in PayProp immediately if connected
         if (payPropEnabled && payPropSyncService != null) {
