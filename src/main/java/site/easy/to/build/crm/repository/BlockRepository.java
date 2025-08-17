@@ -129,7 +129,7 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
            "WHERE b.portfolio.id = :portfolioId " +
            "AND UPPER(b.name) = UPPER(:name) " +
            "AND b.isActive = 'Y' " +
-           "AND (:excludeId IS NULL OR b.id != :excludeId)")
+           "AND (:excludeId IS NULL OR b.id <> :excludeId)")
     boolean existsByPortfolioAndNameIgnoreCase(@Param("portfolioId") Long portfolioId, 
                                               @Param("name") String name, 
                                               @Param("excludeId") Long excludeId);
