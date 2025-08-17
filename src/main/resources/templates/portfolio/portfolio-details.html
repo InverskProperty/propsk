@@ -743,8 +743,8 @@ function createBlock() {
     .then(data => {
         if (data.success) {
             $('#createBlockModal').modal('hide');
-            loadBlocks(); // Reload blocks
-            alert('Block created successfully!');
+            loadPortfolioOrganization(); // Reload hierarchical organization
+            showToast('success', 'Block created successfully!');
         } else {
             alert('Error creating block: ' + (data.error || 'Unknown error'));
         }
@@ -775,8 +775,8 @@ function deleteBlock(blockId, blockName) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                loadBlocks(); // Reload blocks
-                alert('Block deleted successfully');
+                loadPortfolioOrganization(); // Reload hierarchical organization
+                showToast('success', 'Block deleted successfully');
             } else {
                 alert('Error deleting block: ' + (data.error || 'Unknown error'));
             }
@@ -1035,11 +1035,14 @@ function renderUnassignedProperties(container, properties) {
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 <div class="dropdown">
-                                    <button class="btn btn-outline-primary btn-sm dropdown-toggle" data-toggle="dropdown" title="Assign to Block">
+                                    <button class="btn btn-outline-primary btn-sm dropdown-toggle" 
+                                            data-toggle="dropdown" 
+                                            title="Assign to Block"
+                                            onclick="populateBlockDropdown(${prop.id})">
                                         <i class="fas fa-arrow-down"></i>
                                     </button>
                                     <div class="dropdown-menu" id="blockDropdown-${prop.id}">
-                                        <!-- Populated by JavaScript -->
+                                        <div class="dropdown-item text-muted">Loading blocks...</div>
                                     </div>
                                 </div>
                                 <button class="btn btn-outline-danger btn-sm" onclick="removeProperty(${prop.id})" title="Remove from Portfolio">
@@ -1055,6 +1058,40 @@ function renderUnassignedProperties(container, properties) {
     
     html += '</div></div>';
     container.innerHTML = html;
+}
+
+// Populate block dropdown for property assignment
+function populateBlockDropdown(propertyId) {
+    const dropdown = document.getElementById(`blockDropdown-${propertyId}`);
+    
+    // Fetch available blocks for this portfolio
+    fetch(`/portfolio/internal/blocks/portfolio/${portfolioId}/with-counts`)
+        .then(response => response.json())
+        .then(blocks => {
+            let html = '';
+            
+            if (blocks.length === 0) {
+                html = '<div class="dropdown-item text-muted">No blocks available</div>';
+            } else {
+                blocks.forEach(block => {
+                    const capacityInfo = block.maxProperties ? 
+                        ` (${block.propertyCount || 0}/${block.maxProperties})` : 
+                        ` (${block.propertyCount || 0})`;
+                    
+                    html += `
+                        <a class="dropdown-item" href="#" onclick="assignPropertyToBlock(${propertyId}, ${block.id}); event.preventDefault();">
+                            ${block.name}${capacityInfo}
+                        </a>
+                    `;
+                });
+            }
+            
+            dropdown.innerHTML = html;
+        })
+        .catch(error => {
+            console.error('Error loading blocks:', error);
+            dropdown.innerHTML = '<div class="dropdown-item text-danger">Error loading blocks</div>';
+        });
 }
 
 // Toggle block section
@@ -1110,16 +1147,96 @@ function showOrganizationError(message) {
     organizationView.style.display = 'block';
 }
 
-// Placeholder functions for new functionality
+// Property assignment functions
 function assignPropertiesToBlock(blockId) {
-    alert('Assign properties to block functionality will be implemented next');
+    // Show modal or interface to select properties to assign
+    // For now, redirect to the existing assignment page with block filter
+    window.location.href = `/portfolio/${portfolioId}/assign?blockId=${blockId}`;
 }
 
 function removePropertyFromBlock(propertyId, blockId) {
-    if (confirm('Move this property to unassigned?')) {
-        // Implementation needed
-        alert('Remove from block functionality will be implemented next');
+    if (confirm('Move this property to unassigned? It will remain in the portfolio but not in any block.')) {
+        const token = $("meta[name='_csrf']").attr("content");
+        const header = $("meta[name='_csrf_header']").attr("content");
+        
+        // Call the REST endpoint to remove property from block
+        fetch(`/employee/property/${propertyId}/remove-from-block`, {
+            method: 'DELETE',
+            headers: {
+                [header]: token,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reload the hierarchical view to show updated organization
+                loadPortfolioOrganization();
+                
+                // Show success message
+                showToast('success', 'Property moved to unassigned successfully');
+            } else {
+                showToast('error', 'Failed to move property: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error removing property from block:', error);
+            showToast('error', 'Error moving property from block');
+        });
     }
+}
+
+function assignPropertyToBlock(propertyId, blockId) {
+    const token = $("meta[name='_csrf']").attr("content");
+    const header = $("meta[name='_csrf_header']").attr("content");
+    
+    // Call the REST endpoint to assign property to block
+    fetch(`/employee/property/${propertyId}/assign-to-block`, {
+        method: 'POST',
+        headers: {
+            [header]: token,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: `blockId=${blockId}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Reload the hierarchical view to show updated organization
+            loadPortfolioOrganization();
+            
+            // Show success message
+            showToast('success', 'Property assigned to block successfully');
+        } else {
+            showToast('error', 'Failed to assign property: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error assigning property to block:', error);
+        showToast('error', 'Error assigning property to block');
+    });
+}
+
+// Toast notification function
+function showToast(type, message) {
+    // Simple toast implementation - could be enhanced with a toast library
+    const toastClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const toast = $(`
+        <div class="alert ${toastClass} alert-dismissible fade show position-fixed" 
+             style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+            ${message}
+            <button type="button" class="close" data-dismiss="alert">
+                <span>&times;</span>
+            </button>
+        </div>
+    `);
+    
+    $('body').append(toast);
+    
+    // Auto-dismiss after 3 seconds
+    setTimeout(() => {
+        toast.alert('close');
+    }, 3000);
 }
 
 // Load organization when page loads (replace the old loadBlocks)

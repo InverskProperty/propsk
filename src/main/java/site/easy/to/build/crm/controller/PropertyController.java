@@ -1273,6 +1273,88 @@ public class PropertyController {
         }
     }
 
+    // ===== BLOCK ASSIGNMENT ENDPOINTS =====
+    
+    /**
+     * Assign a property to a block
+     * POST /employee/property/{propertyId}/assign-to-block
+     */
+    @PostMapping("/{propertyId}/assign-to-block")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> assignPropertyToBlock(
+            @PathVariable Long propertyId,
+            @RequestParam Long blockId,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Check permissions
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
+                !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+                response.put("error", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            // Get user ID
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            
+            // Assign property to block
+            propertyService.assignPropertyToBlock(propertyId, blockId, (long) userId);
+            
+            response.put("success", true);
+            response.put("message", "Property assigned to block successfully");
+            response.put("propertyId", propertyId);
+            response.put("blockId", blockId);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("error", "Failed to assign property to block: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+    
+    /**
+     * Remove a property from its current block (move to unassigned)
+     * DELETE /employee/property/{propertyId}/remove-from-block
+     */
+    @DeleteMapping("/{propertyId}/remove-from-block")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> removePropertyFromBlock(
+            @PathVariable Long propertyId,
+            Authentication authentication) {
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Check permissions
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
+                !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+                response.put("error", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+            
+            // Get user ID
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            
+            // Remove property from block
+            propertyService.removePropertyFromBlock(propertyId, (long) userId);
+            
+            response.put("success", true);
+            response.put("message", "Property removed from block successfully");
+            response.put("propertyId", propertyId);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("error", "Failed to remove property from block: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
     // Helper method to set default model attributes when errors occur
     private void setDefaultModelAttributes(Model model) {
         model.addAttribute("totalProperties", 0);
