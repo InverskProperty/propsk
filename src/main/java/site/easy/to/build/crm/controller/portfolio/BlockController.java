@@ -56,6 +56,13 @@ public class BlockController extends PortfolioControllerBase {
                     .body(Map.of("error", "Portfolio ID and block name are required"));
             }
             
+            // Check if service is available
+            if (portfolioBlockService == null) {
+                log.error("❌ PortfolioBlockService is not available");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", "Block service is not available"));
+            }
+            
             // Create block
             Block block = portfolioBlockService.createBlock(
                 request.getPortfolioId(),
