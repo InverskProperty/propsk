@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.property.PropertyService;
-import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.util.PayPropTagGenerator;
 
 import java.time.LocalDateTime;
@@ -35,8 +34,7 @@ public class PortfolioBlockServiceImpl implements PortfolioBlockService {
     @Autowired
     private PortfolioAssignmentService assignmentService;
     
-    @Autowired
-    private AuthorizationUtil authorizationUtil;
+    // AuthorizationUtil is a static utility class, no injection needed
     
     // ===== BLOCK CREATION & MANAGEMENT =====
     
