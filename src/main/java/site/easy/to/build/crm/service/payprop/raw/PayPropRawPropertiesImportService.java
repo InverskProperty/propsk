@@ -203,12 +203,12 @@ public class PayPropRawPropertiesImportService {
         
         // Settings object (CRITICAL - Contains £995!)
         stmt.setBigDecimal(paramIndex++, getBigDecimalValue(settings, "monthly_payment")); // £995
-        stmt.setBoolean(paramIndex++, getBooleanValue(settings, "enable_payments"));
-        stmt.setBoolean(paramIndex++, getBooleanValue(settings, "hold_owner_funds"));
-        stmt.setBoolean(paramIndex++, getBooleanValue(settings, "verify_payments"));
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(settings, "enable_payments"));
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(settings, "hold_owner_funds"));
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(settings, "verify_payments"));
         stmt.setBigDecimal(paramIndex++, getBigDecimalValue(settings, "minimum_balance"));
         stmt.setDate(paramIndex++, getDateValue(settings, "listing_from"));
-        stmt.setBoolean(paramIndex++, getBooleanValue(settings, "approval_required"));
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(settings, "approval_required"));
         
         // Commission object
         stmt.setBigDecimal(paramIndex++, getBigDecimalValue(commission, "percentage"));
@@ -300,6 +300,18 @@ public class PayPropRawPropertiesImportService {
         } catch (ClassCastException e) {
             log.warn("Value for key {} is not a Map: {}", key, map.get(key));
             return Map.of();
+        }
+    }
+    
+    /**
+     * Helper method to safely set boolean parameters, handling null values
+     */
+    private void setBooleanParameter(PreparedStatement stmt, int paramIndex, Boolean value) 
+            throws SQLException {
+        if (value == null) {
+            stmt.setNull(paramIndex, java.sql.Types.BOOLEAN);
+        } else {
+            stmt.setBoolean(paramIndex, value);
         }
     }
 }

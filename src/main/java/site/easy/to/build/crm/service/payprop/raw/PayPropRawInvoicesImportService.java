@@ -173,7 +173,7 @@ public class PayPropRawInvoicesImportService {
         // Root invoice instruction fields
         stmt.setString(paramIndex++, getStringValue(invoice, "id"));
         stmt.setString(paramIndex++, getStringValue(invoice, "account_type"));
-        stmt.setBoolean(paramIndex++, getBooleanValue(invoice, "debit_order"));
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(invoice, "debit_order"));
         stmt.setString(paramIndex++, getStringValue(invoice, "description"));
         stmt.setString(paramIndex++, getStringValue(invoice, "frequency"));
         stmt.setString(paramIndex++, getStringValue(invoice, "frequency_code"));
@@ -191,7 +191,7 @@ public class PayPropRawInvoicesImportService {
         stmt.setInt(paramIndex++, getIntValue(invoice, "payment_day"));
         stmt.setString(paramIndex++, getStringValue(invoice, "invoice_type"));
         stmt.setString(paramIndex++, getStringValue(invoice, "reference"));
-        stmt.setBoolean(paramIndex++, getBooleanValue(invoice, "vat"));
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(invoice, "vat"));
         stmt.setBigDecimal(paramIndex++, getBigDecimalValue(invoice, "vat_amount"));
         
         // Foreign key relationships (DO NOT DUPLICATE DATA)
@@ -317,6 +317,18 @@ public class PayPropRawInvoicesImportService {
         } catch (ClassCastException e) {
             log.warn("Value for key {} is not a Map: {}", key, map.get(key));
             return Map.of();
+        }
+    }
+    
+    /**
+     * Helper method to safely set boolean parameters, handling null values
+     */
+    private void setBooleanParameter(PreparedStatement stmt, int paramIndex, Boolean value) 
+            throws SQLException {
+        if (value == null) {
+            stmt.setNull(paramIndex, java.sql.Types.BOOLEAN);
+        } else {
+            stmt.setBoolean(paramIndex, value);
         }
     }
 }
