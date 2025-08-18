@@ -35,6 +35,18 @@ public class PayPropRawImportOrchestrator {
     private PayPropRawInvoicesImportService invoicesImportService;
     
     @Autowired
+    private PayPropRawAllPaymentsImportService allPaymentsImportService;
+    
+    @Autowired
+    private PayPropRawPaymentsImportService paymentsImportService;
+    
+    @Autowired
+    private PayPropRawBeneficiariesImportService beneficiariesImportService;
+    
+    @Autowired
+    private PayPropRawTenantsImportService tenantsImportService;
+    
+    @Autowired
     private PropertyRentCalculationService rentCalculationService;
     
     /**
@@ -66,11 +78,45 @@ public class PayPropRawImportOrchestrator {
                 throw new RuntimeException("Invoice instructions import failed: " + invoicesResult.getErrorMessage());
             }
             
-            log.info("✅ PHASE 1 Complete: Raw data imported successfully");
-            log.info("   Properties: {} items (settings.monthly_payment = £995)", 
-                propertiesResult.getTotalImported());
-            log.info("   Invoice Instructions: {} items (gross_amount = £1,075)", 
-                invoicesResult.getTotalImported());
+            // Import ALL payment transactions (this is where the missing £1,100 should be!)
+            PayPropRawImportResult allPaymentsResult = allPaymentsImportService.importAllPayments();
+            orchestrationResult.addImportResult("all_payments", allPaymentsResult);
+            
+            if (!allPaymentsResult.isSuccess()) {
+                throw new RuntimeException("All payments import failed: " + allPaymentsResult.getErrorMessage());
+            }
+            
+            // Import payment distributions
+            PayPropRawImportResult paymentsResult = paymentsImportService.importAllPayments();
+            orchestrationResult.addImportResult("payments", paymentsResult);
+            
+            if (!paymentsResult.isSuccess()) {
+                throw new RuntimeException("Payments import failed: " + paymentsResult.getErrorMessage());
+            }
+            
+            // Import beneficiaries
+            PayPropRawImportResult beneficiariesResult = beneficiariesImportService.importAllBeneficiaries();
+            orchestrationResult.addImportResult("beneficiaries", beneficiariesResult);
+            
+            if (!beneficiariesResult.isSuccess()) {
+                throw new RuntimeException("Beneficiaries import failed: " + beneficiariesResult.getErrorMessage());
+            }
+            
+            // Import tenants
+            PayPropRawImportResult tenantsResult = tenantsImportService.importAllTenants();
+            orchestrationResult.addImportResult("tenants", tenantsResult);
+            
+            if (!tenantsResult.isSuccess()) {
+                throw new RuntimeException("Tenants import failed: " + tenantsResult.getErrorMessage());
+            }
+            
+            log.info("✅ PHASE 1 Complete: ALL RAW DATA imported successfully");
+            log.info("   Properties: {} items (settings.monthly_payment = £995)", propertiesResult.getTotalImported());
+            log.info("   Invoice Instructions: {} items (gross_amount = £1,075)", invoicesResult.getTotalImported());
+            log.info("   All Payment Transactions: {} items (FIND MISSING £1,100 HERE!)", allPaymentsResult.getTotalImported());
+            log.info("   Payment Distributions: {} items", paymentsResult.getTotalImported());
+            log.info("   Beneficiaries: {} items", beneficiariesResult.getTotalImported());
+            log.info("   Tenants: {} items", tenantsResult.getTotalImported());
             
             // PHASE 2: Business Logic Application
             log.info("🧠 PHASE 2: Business Logic - Solving £995 vs £1,075 mystery");

@@ -12,6 +12,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.service.payprop.raw.PayPropRawImportOrchestrator;
 import site.easy.to.build.crm.service.payprop.raw.PayPropRawImportOrchestrator.PayPropRawImportOrchestrationResult;
+import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator;
+import site.easy.to.build.crm.service.payprop.PayPropFinancialSyncService;
+import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -30,6 +33,15 @@ public class PayPropRawImportSimpleController {
     
     @Autowired
     private PayPropRawImportOrchestrator orchestrator;
+    
+    @Autowired
+    private PayPropSyncOrchestrator syncOrchestrator;
+    
+    @Autowired 
+    private PayPropFinancialSyncService financialSyncService;
+    
+    @Autowired
+    private AuthenticationUtils authenticationUtils;
     
     /**
      * HTML view for testing (like other debug controllers)
@@ -58,6 +70,37 @@ public class PayPropRawImportSimpleController {
         ));
         
         return status;
+    }
+    
+    /**
+     * Test existing financial sync (shows current £995 vs £1,075 behavior)
+     */
+    @PostMapping("/test-current-financial-sync")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testCurrentFinancialSync() {
+        log.info("🧪 TESTING: Current PayProp financial sync (existing working system)");
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Use existing working financial sync
+            Map<String, Object> financialResults = financialSyncService.syncComprehensiveFinancialData();
+            
+            response.put("success", true);
+            response.put("message", "✅ Current financial sync completed - shows existing £995/£1,075 handling");
+            response.put("financial_results", financialResults);
+            response.put("note", "This uses your EXISTING working PayProp sync - check logs for £995 vs £1,075 behavior");
+            
+            log.info("🎯 EXISTING SYNC TEST SUCCESS: Financial sync completed");
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ EXISTING SYNC TEST FAILED", e);
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            response.put("note", "Current financial sync failed - this shows why we need the raw import approach");
+            return ResponseEntity.status(500).body(response);
+        }
     }
     
     /**
