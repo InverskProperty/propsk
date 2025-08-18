@@ -83,6 +83,12 @@ public class PayPropOAuth2Controller {
     @SuppressWarnings("unused")
     private TicketService ticketService;
     
+    // NEW: Raw Import System Services
+    @Autowired(required = false)
+    private site.easy.to.build.crm.service.payprop.raw.PayPropRawImportOrchestrator rawImportOrchestrator;
+    @Autowired(required = false) 
+    private site.easy.to.build.crm.service.payprop.business.PropertyRentCalculationService rentCalculationService;
+    
     // Repositories
     @Autowired
     private PropertyRepository propertyRepository;
@@ -462,6 +468,102 @@ public class PayPropOAuth2Controller {
             
         } catch (Exception e) {
             logger.error("❌ Sync trigger failed: {}", e.getMessage(), e);
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
+            result.put("completed_at", LocalDateTime.now());
+            return ResponseEntity.ok(result);
+        }
+    }
+
+    /**
+     * 🧪 TEST NEW RAW IMPORT SYSTEM - Following exact same pattern as working endpoints
+     */
+    @PostMapping("/test-new-raw-import")
+    @ResponseBody 
+    public ResponseEntity<Map<String, Object>> testNewRawImport(
+            @RequestParam(required = false, defaultValue = "complete") String testType,
+            Authentication authentication) {
+        
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            logger.info("🧪 TESTING NEW RAW IMPORT: {}", testType);
+            result.put("test_type", testType);
+            result.put("started_at", LocalDateTime.now());
+            
+            Map<String, Object> testResult;
+            
+            // Check if our new raw import system is available
+            if (rawImportOrchestrator == null) {
+                testResult = Map.of(
+                    "status", "WARNING",
+                    "message", "Raw import orchestrator not available",
+                    "note", "The new raw import services may not be deployed yet",
+                    "path", "/api/payprop/oauth/test-new-raw-import",
+                    "available_services", "Will show which services are available"
+                );
+            } else {
+                // Run the actual test based on testType
+                switch (testType.toLowerCase()) {
+                    case "complete":
+                        logger.info("🚀 Running complete raw import test...");
+                        var orchestrationResult = rawImportOrchestrator.executeCompleteImport();
+                        testResult = Map.of(
+                            "status", orchestrationResult.isSuccess() ? "SUCCESS" : "FAILED",
+                            "message", orchestrationResult.isSuccess() ? "✅ £995 vs £1,075 mystery SOLVED!" : "❌ Raw import failed",
+                            "summary", orchestrationResult.getSummary(),
+                            "duration_seconds", orchestrationResult.getDuration().getSeconds(),
+                            "import_results", orchestrationResult.getImportResults(),
+                            "rent_calculation", orchestrationResult.getRentCalculationResult()
+                        );
+                        break;
+                        
+                    case "raw-only":
+                        logger.info("🚀 Running raw import only test...");
+                        var rawResult = rawImportOrchestrator.executeRawImportOnly();
+                        testResult = Map.of(
+                            "status", rawResult.isSuccess() ? "SUCCESS" : "FAILED",
+                            "message", rawResult.isSuccess() ? "✅ Raw data imported" : "❌ Raw import failed",
+                            "summary", rawResult.getSummary(),
+                            "duration_seconds", rawResult.getDuration().getSeconds(),
+                            "import_results", rawResult.getImportResults()
+                        );
+                        break;
+                        
+                    case "business-only":
+                        logger.info("🚀 Running business logic only test...");
+                        var businessResult = rawImportOrchestrator.executeBusinessLogicOnly();
+                        testResult = Map.of(
+                            "status", businessResult.isSuccess() ? "SUCCESS" : "FAILED", 
+                            "message", businessResult.isSuccess() ? "✅ Rent calculations completed" : "❌ Business logic failed",
+                            "summary", businessResult.getSummary(),
+                            "total_properties", businessResult.getTotalProperties(),
+                            "decisions_calculated", businessResult.getDecisionsCalculated(),
+                            "properties_updated", businessResult.getPropertiesUpdated()
+                        );
+                        break;
+                        
+                    default:
+                        testResult = Map.of(
+                            "status", "ERROR",
+                            "message", "Unknown test type: " + testType,
+                            "available_types", "complete, raw-only, business-only"
+                        );
+                }
+            }
+            
+            result.put("test_result", testResult);
+            result.put("completed_at", LocalDateTime.now());
+            result.put("success", true);
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            logger.error("❌ New raw import test failed: {}", e.getMessage(), e);
             result.put("status", "ERROR");
             result.put("error", e.getMessage());
             result.put("completed_at", LocalDateTime.now());
