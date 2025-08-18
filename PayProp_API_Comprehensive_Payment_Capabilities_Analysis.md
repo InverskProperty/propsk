@@ -2,14 +2,24 @@
 
 ## Executive Summary
 
-This document provides a comprehensive analysis of PayProp API payment endpoints and identifies where the current system underutilizes available capabilities. The analysis reveals significant opportunities for enhanced payment processing, better financial reporting, and improved data accuracy.
+This document provides a comprehensive analysis of PayProp API payment endpoints based on **real API testing results** and identifies critical data gaps in the current system integration. The testing revealed the complete PayProp payment lifecycle and exact data structures available.
 
-**Key Findings:**
-- ✅ Current system covers ~60% of available PayProp payment capabilities
-- 🚨 **Missing critical invoice instruction data** (monthly rent schedules, parking charges, etc.)
-- ⚠️ Underutilizing 15+ advanced payment endpoints
-- 🔍 Commission calculation improvements needed
-- 📊 Enhanced reporting capabilities available
+**Critical Findings from API Testing:**
+- 🚨 **CONFIRMED: Missing 2 out of 3 core data sources** (66% data gap identified)
+- ✅ **Current system syncs actual payments** but missing schedules and distributions
+- 💰 **£80/month rent discrepancy discovered** (PayProp: £1,075 vs Database: £995)
+- 🔍 **Complete payment lifecycle mapped** from real API responses
+- 📊 **Transaction table confusion explained** - missing data relationships
+
+**Tested PayProp Permissions Available:**
+```
+✅ read:export:invoices (CRITICAL - not currently used)
+✅ read:export:payments (CRITICAL - not currently used)  
+✅ read:report:all-payments (CURRENT - partially used)
+✅ read:report:icdn (CURRENT - used)
+✅ read:invoices:categories (Available - not used)
+✅ create:entity:adhoc-payment (Available - not used)
+```
 
 ---
 
@@ -111,9 +121,96 @@ public class InvoiceCategory {
 
 ---
 
-## PayProp API Endpoint Capability Analysis
+## 🧪 REAL API TESTING RESULTS
 
-### 🔍 Currently Used Endpoints (60% of available capabilities)
+### Complete PayProp Payment Data Architecture Discovered
+
+Through systematic API testing, we have mapped the **complete PayProp payment lifecycle** consisting of three distinct data sources:
+
+#### 1. **INVOICE INSTRUCTIONS** (`/export/invoices`) - MISSING FROM CURRENT SYSTEM ❌
+```json
+{
+  "account_type": "direct deposit",
+  "category": {"id": "Vv2XlY1ema", "name": "Rent"},
+  "frequency": "Monthly",
+  "frequency_code": "M",
+  "from_date": "2025-04-07",
+  "gross_amount": 1075,
+  "payment_day": 6,
+  "property": {
+    "id": "K3Jwqg8W1E",
+    "name": "71b Shrubbery Road, Croydon"
+  },
+  "tenant": {
+    "id": "v0Zo3rbbZD",
+    "display_name": "Regan Denise",
+    "email": "tlsjdgzv@me.com"
+  }
+}
+```
+**Business Impact:** Recurring rent schedules, payment due dates, tenant assignments
+
+#### 2. **ACTUAL PAYMENT TRANSACTIONS** (`/report/all-payments`) - PARTIALLY USED ⚠️
+```json
+{
+  "amount": "15.50",
+  "beneficiary": {"id": "DWzJBkWXQB", "type": "agency"},
+  "category": {"id": "Kd71e915Ma", "name": "Commission"},
+  "incoming_transaction": {
+    "amount": "126.00",
+    "property": {"id": "8EJAAwgeJj", "name": "Chesterfield Street 57"},
+    "tenant": {"id": "D6JmWjbk1v", "name": "Andrews Holly"},
+    "status": "paid",
+    "type": "instant bank transfer"
+  },
+  "payment_batch": {
+    "amount": "0.00", 
+    "status": "not approved",
+    "transfer_date": "2025-06-12"
+  },
+  "service_fee": "0.54",
+  "tax_amount": "2.58",
+  "transaction_fee": "0.32"
+}
+```
+**Business Impact:** Complete financial breakdown with fees, linking, batch processing
+
+#### 3. **PAYMENT INSTRUCTIONS TO BENEFICIARIES** (`/export/payments`) - MISSING FROM CURRENT SYSTEM ❌
+```json
+{
+  "beneficiary": "Natalie Turner [B]",
+  "beneficiary_reference": "53997590",
+  "category": "Owner",
+  "frequency": "Monthly",
+  "gross_percentage": 100,
+  "property": {
+    "address": {
+      "first_line": "88a Satchwell Road",
+      "city": "Canterbury",
+      "postal_code": "CT1 8WM"
+    }
+  },
+  "from_date": "2019-02-13"
+}
+```
+**Business Impact:** Owner payment instructions, commission rates, distribution rules
+
+### 🚨 CRITICAL DATA GAP DISCOVERED
+
+**Current System Coverage:**
+- ✅ **33% Coverage:** Getting some actual payment transactions
+- ❌ **67% Missing:** Invoice instructions + Payment distribution rules
+
+**Real Example - Property K3Jwqg8W1E:**
+- **PayProp Invoice Instruction:** £1,075/month due 6th
+- **Your Database Property Record:** £995/month  
+- **Variance:** £80/month (7.5% undervaluation)
+
+---
+
+## PayProp API Endpoint Capability Analysis  
+
+### 🔍 Currently Used Endpoints (33% of core payment data)
 
 #### Payment Processing Endpoints
 | Endpoint | Current Usage | Capability Score |
