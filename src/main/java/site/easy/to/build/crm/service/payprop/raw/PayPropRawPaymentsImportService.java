@@ -61,7 +61,7 @@ public class PayPropRawPaymentsImportService {
             
             result.setSuccess(true);
             result.setEndTime(LocalDateTime.now());
-            result.setSummary(String.format("Payment distributions imported: %d fetched, %d imported", 
+            result.setDetails(String.format("Payment distributions imported: %d fetched, %d imported", 
                 payments.size(), importedCount));
             
             log.info("✅ Raw payments (distribution) import completed: {} fetched, {} imported", 

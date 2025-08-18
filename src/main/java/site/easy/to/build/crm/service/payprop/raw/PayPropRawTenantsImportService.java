@@ -54,7 +54,7 @@ public class PayPropRawTenantsImportService {
             
             result.setSuccess(true);
             result.setEndTime(LocalDateTime.now());
-            result.setSummary(String.format("Tenants imported: %d fetched, %d imported", 
+            result.setDetails(String.format("Tenants imported: %d fetched, %d imported", 
                 tenants.size(), importedCount));
             
             log.info("✅ Raw tenants import completed: {} fetched, {} imported", 

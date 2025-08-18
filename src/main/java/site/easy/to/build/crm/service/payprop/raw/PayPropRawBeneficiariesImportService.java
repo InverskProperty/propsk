@@ -53,7 +53,7 @@ public class PayPropRawBeneficiariesImportService {
             
             result.setSuccess(true);
             result.setEndTime(LocalDateTime.now());
-            result.setSummary(String.format("Beneficiaries imported: %d fetched, %d imported", 
+            result.setDetails(String.format("Beneficiaries imported: %d fetched, %d imported", 
                 beneficiaries.size(), importedCount));
             
             log.info("✅ Raw beneficiaries import completed: {} fetched, {} imported", 

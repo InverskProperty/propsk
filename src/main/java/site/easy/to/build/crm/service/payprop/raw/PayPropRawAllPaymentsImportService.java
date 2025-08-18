@@ -63,7 +63,7 @@ public class PayPropRawAllPaymentsImportService {
             
             result.setSuccess(true);
             result.setEndTime(LocalDateTime.now());
-            result.setSummary(String.format("All payments imported: %d fetched, %d imported", 
+            result.setDetails(String.format("All payments imported: %d fetched, %d imported", 
                 payments.size(), importedCount));
             
             log.info("✅ Raw all-payments import completed: {} fetched, {} imported", 
