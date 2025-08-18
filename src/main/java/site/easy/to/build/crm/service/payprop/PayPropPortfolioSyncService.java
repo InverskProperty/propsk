@@ -275,18 +275,40 @@ public class PayPropPortfolioSyncService {
     }
 
     /**
-     * Generate a unique tag name for PayProp
+     * Generate a unique tag name for PayProp (max 32 characters)
+     * PayProp limit: 1-32 characters, pattern: ^[a-zA-Z0-9_\-\s]+$
      */
     private String generateTagName(Portfolio portfolio) {
-        String baseName = portfolio.getName().replaceAll("[^a-zA-Z0-9\\s]", "");
+        String baseName = portfolio.getName().replaceAll("[^a-zA-Z0-9\\s_-]", "");
         
         // Add owner prefix if it's an owner-specific portfolio
         if (portfolio.getPropertyOwnerId() != null) {
             baseName = "Owner-" + portfolio.getPropertyOwnerId() + "-" + baseName;
         }
         
-        // Ensure uniqueness
-        return baseName.length() > 50 ? baseName.substring(0, 50) : baseName;
+        // ✅ CRITICAL FIX: Ensure PayProp 32-character limit is respected
+        if (baseName.length() > 32) {
+            // Truncate but keep meaningful content
+            // Try to keep owner info and truncate portfolio name
+            String ownerPrefix = "Owner-" + portfolio.getPropertyOwnerId() + "-";
+            int remainingSpace = 32 - ownerPrefix.length();
+            
+            if (remainingSpace > 0) {
+                String portfolioName = portfolio.getName().replaceAll("[^a-zA-Z0-9\\s_-]", "");
+                String truncatedName = portfolioName.length() > remainingSpace ? 
+                    portfolioName.substring(0, remainingSpace).trim() : portfolioName;
+                baseName = ownerPrefix + truncatedName;
+            } else {
+                // If owner prefix itself is too long, just use first 32 chars
+                baseName = baseName.substring(0, 32).trim();
+            }
+        }
+        
+        // Final safety check
+        baseName = baseName.length() > 32 ? baseName.substring(0, 32).trim() : baseName;
+        
+        log.debug("Generated PayProp tag name: '{}' (length: {})", baseName, baseName.length());
+        return baseName;
     }
     
     // ===== PAYPROP TO PORTFOLIO SYNCHRONIZATION =====
