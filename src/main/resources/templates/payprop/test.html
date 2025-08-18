@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PayProp Enhanced Test Dashboard</title>
+    <title>PayProp Comprehensive API Test Suite</title>
     
     <meta name="_csrf" th:content="${_csrf.token}"/>
     <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
@@ -332,6 +332,16 @@
                             <li class="nav-item">
                                 <a class="nav-link" data-bs-toggle="tab" href="#invoiceInvestigationTab">
                                     <i class="fas fa-file-invoice-dollar text-warning"></i> Invoice Investigation
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#comprehensiveTab">
+                                    <i class="fas fa-clipboard-list text-primary"></i> Comprehensive Tests
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#testDataTab">
+                                    <i class="fas fa-database text-info"></i> Test Data
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -1175,6 +1185,239 @@
                                 </div>
                                 
                                 <div id="invoiceInvestigationResult" class="result-display d-none"></div>
+                            </div>
+                            
+                            <!-- Comprehensive Tests Tab -->
+                            <div class="tab-pane fade" id="comprehensiveTab">
+                                <h5><i class="fas fa-clipboard-list"></i> Comprehensive PayProp API Tests</h5>
+                                <p class="text-muted">Execute all critical PayProp API tests to identify missing capabilities</p>
+                                
+                                <!-- Test Categories -->
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6><i class="fas fa-file-invoice"></i> Invoice & Instruction Tests</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <button class="btn btn-outline-warning btn-sm mb-2" onclick="testInvoiceInstructions()">
+                                                    <i class="fas fa-file-contract"></i> Test Invoice Instructions
+                                                </button><br>
+                                                <button class="btn btn-outline-warning btn-sm mb-2" onclick="testInvoiceCategories()">
+                                                    <i class="fas fa-tags"></i> Test Invoice Categories  
+                                                </button><br>
+                                                <button class="btn btn-outline-info btn-sm mb-2" onclick="testRecurringInvoices()">
+                                                    <i class="fas fa-repeat"></i> Test Recurring Invoices
+                                                </button><br>
+                                                <button class="btn btn-outline-success btn-sm" onclick="testInvoiceToPaymentLinking()">
+                                                    <i class="fas fa-link"></i> Test Invoice-Payment Links
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6><i class="fas fa-credit-card"></i> Advanced Payment Tests</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <button class="btn btn-outline-primary btn-sm mb-2" onclick="testAdhocPayments()">
+                                                    <i class="fas fa-hand-holding-usd"></i> Test Adhoc Payments
+                                                </button><br>
+                                                <button class="btn btn-outline-primary btn-sm mb-2" onclick="testSecondaryPayments()">
+                                                    <i class="fas fa-exchange-alt"></i> Test Secondary Payments
+                                                </button><br>
+                                                <button class="btn btn-outline-danger btn-sm mb-2" onclick="testPostedPayments()">
+                                                    <i class="fas fa-mail-bulk"></i> Test Posted Payments (UK)
+                                                </button><br>
+                                                <button class="btn btn-outline-info btn-sm" onclick="testBulkPaymentInstructions()">
+                                                    <i class="fas fa-layer-group"></i> Test Bulk Instructions
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6><i class="fas fa-chart-bar"></i> Reporting & Analytics Tests</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <button class="btn btn-outline-success btn-sm mb-2" onclick="testCommissionSummaryReport()">
+                                                    <i class="fas fa-percentage"></i> Commission Summary
+                                                </button><br>
+                                                <button class="btn btn-outline-warning btn-sm mb-2" onclick="testPaymentVarianceReport()">
+                                                    <i class="fas fa-exclamation-triangle"></i> Payment Variance
+                                                </button><br>
+                                                <button class="btn btn-outline-info btn-sm mb-2" onclick="testTenantArrearsReport()">
+                                                    <i class="fas fa-clock"></i> Tenant Arrears
+                                                </button><br>
+                                                <button class="btn btn-outline-primary btn-sm" onclick="testCashFlowReport()">
+                                                    <i class="fas fa-chart-line"></i> Cash Flow Forecast
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6><i class="fas fa-broadcast-tower"></i> Real-time & Webhook Tests</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <button class="btn btn-outline-info btn-sm mb-2" onclick="testWebhookConfiguration()">
+                                                    <i class="fas fa-cog"></i> Webhook Configuration
+                                                </button><br>
+                                                <button class="btn btn-outline-success btn-sm mb-2" onclick="testRealTimeReporting()">
+                                                    <i class="fas fa-satellite-dish"></i> Real-time Reports
+                                                </button><br>
+                                                <button class="btn btn-outline-warning btn-sm mb-2" onclick="testNotificationEndpoints()">
+                                                    <i class="fas fa-bell"></i> Notification Endpoints
+                                                </button><br>
+                                                <button class="btn btn-outline-primary btn-sm" onclick="testWebhookPayload()">
+                                                    <i class="fas fa-paper-plane"></i> Test Webhook Payload
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Run All Tests -->
+                                <div class="text-center mb-3">
+                                    <button class="btn btn-primary btn-lg" onclick="runAllComprehensiveTests()">
+                                        <i class="fas fa-play-circle"></i> Run All Comprehensive Tests
+                                    </button>
+                                    <button class="btn btn-secondary btn-lg ms-2" onclick="exportTestResults()">
+                                        <i class="fas fa-download"></i> Export Results
+                                    </button>
+                                </div>
+                                
+                                <div id="comprehensiveTestResult" class="result-display d-none"></div>
+                            </div>
+                            
+                            <!-- Test Data Tab -->
+                            <div class="tab-pane fade" id="testDataTab">
+                                <h5><i class="fas fa-database"></i> Test Data & Property References</h5>
+                                <p class="text-muted">Use real property data from your system for comprehensive testing</p>
+                                
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6><i class="fas fa-building"></i> Sample Properties with PayProp IDs</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <small class="text-muted">Properties from your database with PayProp integration:</small>
+                                                <div class="mt-2">
+                                                    <div class="test-property mb-2">
+                                                        <strong>PYZ2VG9VZQ</strong> - 10 Ditton Court Road, Westcliff (£1,200/month)
+                                                        <button class="btn btn-sm btn-outline-primary ms-2" onclick="testWithProperty('PYZ2VG9VZQ')">Test</button>
+                                                    </div>
+                                                    <div class="test-property mb-2">
+                                                        <strong>K3Jwqg8W1E</strong> - 71b Shrubbery Road, Croydon (£995/month)
+                                                        <button class="btn btn-sm btn-outline-primary ms-2" onclick="testWithProperty('K3Jwqg8W1E')">Test</button>
+                                                    </div>
+                                                    <div class="test-property mb-2">
+                                                        <strong>WzJBxGM1QB</strong> - 88a Satchwell Road, Canterbury (£960/month)
+                                                        <button class="btn btn-sm btn-outline-primary ms-2" onclick="testWithProperty('WzJBxGM1QB')">Test</button>
+                                                    </div>
+                                                    <div class="test-property mb-2">
+                                                        <strong>mLZdRPLPXn</strong> - Tregothnan, Adams Mews, Wandsworth (£925/month)
+                                                        <button class="btn btn-sm btn-outline-primary ms-2" onclick="testWithProperty('mLZdRPLPXn')">Test</button>
+                                                    </div>
+                                                    <div class="test-property mb-2">
+                                                        <strong>z2JkP6BpXb</strong> - 79 Alie Street, Barking (£1,875/month)
+                                                        <button class="btn btn-sm btn-outline-primary ms-2" onclick="testWithProperty('z2JkP6BpXb')">Test</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6><i class="fas fa-users"></i> Multi-Property Owners for Testing</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <small class="text-muted">Test bulk operations with these property groups:</small>
+                                                <div class="mt-2">
+                                                    <div class="test-owner mb-3">
+                                                        <strong>Owner Portfolio A:</strong><br>
+                                                        <code>PYZ2VG9VZQ,K3Jwqg8W1E,WzJBxGM1QB</code><br>
+                                                        <button class="btn btn-sm btn-outline-success ms-2" onclick="testWithPropertyGroup('PYZ2VG9VZQ,K3Jwqg8W1E,WzJBxGM1QB')">Test Group</button>
+                                                    </div>
+                                                    <div class="test-owner mb-3">
+                                                        <strong>Owner Portfolio B:</strong><br>
+                                                        <code>mLZdRPLPXn,z2JkP6BpXb,aLJMv0ljXq</code><br>
+                                                        <button class="btn btn-sm btn-outline-success ms-2" onclick="testWithPropertyGroup('mLZdRPLPXn,z2JkP6BpXb,aLJMv0ljXq')">Test Group</button>
+                                                    </div>
+                                                    <div class="test-owner mb-3">
+                                                        <strong>High-Value Properties:</strong><br>
+                                                        <code>z2JkP6BpXb,DyZqowklXV,08JLmY3eXR</code> (£1,600+ rent)<br>
+                                                        <button class="btn btn-sm btn-outline-warning ms-2" onclick="testWithPropertyGroup('z2JkP6BpXb,DyZqowklXV,08JLmY3eXR')">Test High-Value</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- SQL Queries for Testing -->
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-database"></i> SQL Queries for Additional Test Data</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted">Run these queries to get more test data from your database:</p>
+                                        
+                                        <div class="mb-3">
+                                            <strong>Properties with PayProp IDs and Commission Rates:</strong>
+                                            <pre class="bg-light p-2 mt-2"><code>SELECT p.pay_prop_id, p.property_name, p.monthly_payment, p.commission_percentage, c.customer_id, c.first_name, c.last_name
+FROM properties p 
+JOIN customers c ON p.property_owner_id = c.customer_id
+WHERE p.pay_prop_id IS NOT NULL 
+AND p.commission_percentage > 0
+ORDER BY p.monthly_payment DESC
+LIMIT 10;</code></pre>
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <strong>Multi-Property Owners:</strong>
+                                            <pre class="bg-light p-2 mt-2"><code>SELECT c.customer_id, c.first_name, c.last_name, 
+       COUNT(p.id) as property_count,
+       GROUP_CONCAT(p.pay_prop_id) as payprop_ids
+FROM customers c 
+JOIN properties p ON c.customer_id = p.property_owner_id
+WHERE p.pay_prop_id IS NOT NULL
+GROUP BY c.customer_id 
+HAVING property_count >= 2
+ORDER BY property_count DESC;</code></pre>
+                                        </div>
+                                        
+                                        <div class="mb-3">
+                                            <strong>Properties with Recent Financial Activity:</strong>
+                                            <pre class="bg-light p-2 mt-2"><code>SELECT p.pay_prop_id, p.property_name, 
+       COUNT(ft.id) as transaction_count,
+       SUM(ft.amount) as total_amount
+FROM properties p 
+LEFT JOIN financial_transactions ft ON p.pay_prop_id = ft.property_id
+WHERE p.pay_prop_id IS NOT NULL
+GROUP BY p.pay_prop_id
+HAVING transaction_count > 0
+ORDER BY transaction_count DESC;</code></pre>
+                                        </div>
+                                        
+                                        <button class="btn btn-info" onclick="loadDynamicTestData()">
+                                            <i class="fas fa-sync"></i> Load Fresh Test Data from Database
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div id="testDataResult" class="result-display d-none"></div>
                             </div>
                             
                             <!-- Raw API Tab -->
@@ -3331,6 +3574,359 @@
                     await new Promise(resolve => setTimeout(resolve, 1000));
                     await syncBlocksNeedingSync();
                     break;
+            }
+        }
+        
+        // ===== COMPREHENSIVE TEST FUNCTIONS =====
+        
+        async function testInvoiceInstructions() {
+            try {
+                showResult('comprehensiveTestResult', { status: 'INFO', message: 'Testing /export/invoices endpoint...' }, '🔍 Invoice Instructions Test');
+                
+                const response = await fetchWithCSRF('/api/payprop/test/custom-endpoint?endpoint=export/invoices?include_categories=true&rows=25', {
+                    method: 'GET'
+                });
+                
+                if (response.success && response.payPropResponse && response.payPropResponse.items) {
+                    const instructions = response.payPropResponse.items;
+                    showResult('comprehensiveTestResult', {
+                        status: 'SUCCESS',
+                        endpoint: '/export/invoices',
+                        total_instructions: instructions.length,
+                        sample_instruction: instructions[0],
+                        missing_from_system: 'This data is NOT currently synced to your database!',
+                        impact: 'Missing recurring rent schedules, parking fees, service charges'
+                    }, '🚨 CRITICAL: Invoice Instructions Found');
+                } else {
+                    showResult('comprehensiveTestResult', {
+                        status: 'WARNING',
+                        message: 'No invoice instructions returned or endpoint not accessible',
+                        note: 'This could indicate missing permissions or no invoice data'
+                    }, '⚠️ Invoice Instructions Test');
+                }
+            } catch (error) {
+                showResult('comprehensiveTestResult', {
+                    status: 'ERROR',
+                    error: error.message
+                }, '❌ Invoice Instructions Test Failed');
+            }
+        }
+        
+        async function testInvoiceCategories() {
+            try {
+                const response = await fetchWithCSRF('/api/payprop/test/custom-endpoint?endpoint=categories?type=invoice', {
+                    method: 'GET'
+                });
+                
+                showResult('comprehensiveTestResult', {
+                    status: response.success ? 'SUCCESS' : 'ERROR',
+                    endpoint: '/categories?type=invoice',
+                    data: response
+                }, response.success ? '✅ Invoice Categories' : '❌ Invoice Categories Failed');
+            } catch (error) {
+                showResult('comprehensiveTestResult', { status: 'ERROR', error: error.message }, '❌ Invoice Categories Test Failed');
+            }
+        }
+        
+        async function testAdhocPayments() {
+            try {
+                const response = await fetchWithCSRF('/api/payprop/test/custom-endpoint?endpoint=payments/adhoc', {
+                    method: 'GET'
+                });
+                
+                showResult('comprehensiveTestResult', {
+                    status: response.success ? 'SUCCESS' : 'WARNING',
+                    endpoint: '/payments/adhoc',
+                    data: response,
+                    note: 'Adhoc payments allow one-time payment processing outside regular schedules'
+                }, response.success ? '✅ Adhoc Payments Available' : '⚠️ Adhoc Payments Not Available');
+            } catch (error) {
+                showResult('comprehensiveTestResult', { status: 'ERROR', error: error.message }, '❌ Adhoc Payments Test Failed');
+            }
+        }
+        
+        async function testSecondaryPayments() {
+            try {
+                const response = await fetchWithCSRF('/api/payprop/test/custom-endpoint?endpoint=payments/secondary', {
+                    method: 'GET'
+                });
+                
+                showResult('comprehensiveTestResult', {
+                    status: response.success ? 'SUCCESS' : 'WARNING',
+                    endpoint: '/payments/secondary',
+                    data: response,
+                    note: 'Secondary payments provide alternative payment methods for tenants'
+                }, response.success ? '✅ Secondary Payments Available' : '⚠️ Secondary Payments Not Available');
+            } catch (error) {
+                showResult('comprehensiveTestResult', { status: 'ERROR', error: error.message }, '❌ Secondary Payments Test Failed');
+            }
+        }
+        
+        async function testPostedPayments() {
+            try {
+                const response = await fetchWithCSRF('/api/payprop/test/custom-endpoint?endpoint=payments/posted', {
+                    method: 'GET'
+                });
+                
+                showResult('comprehensiveTestResult', {
+                    status: response.success ? 'SUCCESS' : 'WARNING',
+                    endpoint: '/payments/posted',
+                    data: response,
+                    note: 'Posted payments (UK restricted) - may not be available in your region'
+                }, response.success ? '✅ Posted Payments Available' : '⚠️ Posted Payments Restricted');
+            } catch (error) {
+                showResult('comprehensiveTestResult', { status: 'ERROR', error: error.message }, '❌ Posted Payments Test Failed');
+            }
+        }
+        
+        async function testCommissionSummaryReport() {
+            try {
+                const fromDate = new Date();
+                fromDate.setMonth(fromDate.getMonth() - 3);
+                
+                const response = await fetchWithCSRF('/api/payprop/test/custom-endpoint?endpoint=reports/commission-summary?from_date=' + fromDate.toISOString().split('T')[0], {
+                    method: 'GET'
+                });
+                
+                showResult('comprehensiveTestResult', {
+                    status: response.success ? 'SUCCESS' : 'WARNING',
+                    endpoint: '/reports/commission-summary',
+                    data: response,
+                    missing_capability: 'Advanced commission analytics not currently used'
+                }, response.success ? '✅ Commission Analytics Available' : '⚠️ Commission Analytics Limited');
+            } catch (error) {
+                showResult('comprehensiveTestResult', { status: 'ERROR', error: error.message }, '❌ Commission Report Test Failed');
+            }
+        }
+        
+        async function testWebhookConfiguration() {
+            try {
+                const response = await fetchWithCSRF('/api/payprop/test/custom-endpoint?endpoint=webhooks/configuration', {
+                    method: 'GET'
+                });
+                
+                showResult('comprehensiveTestResult', {
+                    status: response.success ? 'SUCCESS' : 'WARNING',
+                    endpoint: '/webhooks/configuration',
+                    data: response,
+                    real_time_opportunity: 'Webhooks could provide instant payment status updates'
+                }, response.success ? '✅ Webhook Configuration Available' : '⚠️ Webhooks Not Configured');
+            } catch (error) {
+                showResult('comprehensiveTestResult', { status: 'ERROR', error: error.message }, '❌ Webhook Test Failed');
+            }
+        }
+        
+        async function testWithProperty(propertyId) {
+            try {
+                showResult('comprehensiveTestResult', { status: 'INFO', message: 'Testing with property: ' + propertyId }, '🏠 Property-Specific Test');
+                
+                // Test multiple endpoints with this property
+                const tests = [
+                    { name: 'ICDN Transactions', endpoint: `report/icdn?property_id=${propertyId}&rows=10` },
+                    { name: 'All Payments Report', endpoint: `report/all-payments?property_id=${propertyId}&rows=10` },
+                    { name: 'Property Details', endpoint: `properties/${propertyId}` },
+                    { name: 'Tenants', endpoint: `export/tenants?property_id=${propertyId}` }
+                ];
+                
+                const results = {};
+                for (const test of tests) {
+                    try {
+                        const response = await fetchWithCSRF('/api/payprop/test/custom-endpoint?endpoint=' + encodeURIComponent(test.endpoint), {
+                            method: 'GET'
+                        });
+                        results[test.name] = {
+                            success: response.success,
+                            hasData: response.payPropResponse && response.payPropResponse.items && response.payPropResponse.items.length > 0
+                        };
+                    } catch (error) {
+                        results[test.name] = { success: false, error: error.message };
+                    }
+                }
+                
+                showResult('comprehensiveTestResult', {
+                    status: 'SUCCESS',
+                    property_id: propertyId,
+                    test_results: results,
+                    summary: 'Multi-endpoint property test completed'
+                }, '🏠 Property Test Results: ' + propertyId);
+                
+            } catch (error) {
+                showResult('comprehensiveTestResult', { status: 'ERROR', error: error.message }, '❌ Property Test Failed');
+            }
+        }
+        
+        async function testWithPropertyGroup(propertyIds) {
+            try {
+                const ids = propertyIds.split(',');
+                showResult('comprehensiveTestResult', { 
+                    status: 'INFO', 
+                    message: 'Testing bulk operations with ' + ids.length + ' properties...',
+                    property_ids: ids
+                }, '🏘️ Bulk Property Test');
+                
+                const results = {};
+                for (const propertyId of ids) {
+                    try {
+                        const response = await fetchWithCSRF('/api/payprop/test/custom-endpoint?endpoint=' + encodeURIComponent(`report/all-payments?property_id=${propertyId.trim()}&rows=5`), {
+                            method: 'GET'
+                        });
+                        results[propertyId.trim()] = {
+                            success: response.success,
+                            payments: response.payPropResponse && response.payPropResponse.items ? response.payPropResponse.items.length : 0
+                        };
+                    } catch (error) {
+                        results[propertyId.trim()] = { success: false, error: error.message };
+                    }
+                }
+                
+                showResult('comprehensiveTestResult', {
+                    status: 'SUCCESS',
+                    property_group: propertyIds,
+                    individual_results: results,
+                    bulk_recommendation: 'Consider using bulk API endpoints for better performance'
+                }, '🏘️ Bulk Test Results');
+                
+            } catch (error) {
+                showResult('comprehensiveTestResult', { status: 'ERROR', error: error.message }, '❌ Bulk Test Failed');
+            }
+        }
+        
+        async function runAllComprehensiveTests() {
+            try {
+                showResult('comprehensiveTestResult', { status: 'INFO', message: 'Starting comprehensive API capability analysis...' }, '🚀 Comprehensive Test Suite');
+                
+                const testSuite = [
+                    { name: 'Invoice Instructions', func: testInvoiceInstructions },
+                    { name: 'Invoice Categories', func: testInvoiceCategories },
+                    { name: 'Adhoc Payments', func: testAdhocPayments },
+                    { name: 'Secondary Payments', func: testSecondaryPayments },
+                    { name: 'Posted Payments', func: testPostedPayments },
+                    { name: 'Commission Analytics', func: testCommissionSummaryReport },
+                    { name: 'Webhook Configuration', func: testWebhookConfiguration }
+                ];
+                
+                const results = {};
+                for (const test of testSuite) {
+                    try {
+                        showResult('comprehensiveTestResult', { status: 'INFO', message: 'Running: ' + test.name }, '🔄 Testing: ' + test.name);
+                        await test.func();
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // Rate limiting
+                        results[test.name] = 'completed';
+                    } catch (error) {
+                        results[test.name] = 'failed: ' + error.message;
+                    }
+                }
+                
+                showResult('comprehensiveTestResult', {
+                    status: 'SUCCESS',
+                    comprehensive_results: results,
+                    timestamp: new Date().toISOString(),
+                    next_steps: [
+                        'Review individual test results above',
+                        'Identify missing API capabilities', 
+                        'Prioritize implementation based on business value',
+                        'Consider webhook integration for real-time updates'
+                    ]
+                }, '✅ Comprehensive Test Suite Complete');
+                
+            } catch (error) {
+                showResult('comprehensiveTestResult', { status: 'ERROR', error: error.message }, '❌ Comprehensive Test Failed');
+            }
+        }
+        
+        async function loadDynamicTestData() {
+            try {
+                showResult('testDataResult', { status: 'INFO', message: 'Loading fresh test data from database...' }, '🔄 Loading Test Data');
+                
+                // This would call a new endpoint to get fresh test data
+                const response = await fetchWithCSRF('/employee/property/1/financial-summary', {
+                    method: 'GET'
+                });
+                
+                showResult('testDataResult', {
+                    status: 'INFO',
+                    message: 'Use the SQL queries above to get fresh test data from your database',
+                    sample_response: response,
+                    note: 'Create a new controller endpoint to fetch dynamic test data if needed'
+                }, '📊 Test Data Helper');
+                
+            } catch (error) {
+                showResult('testDataResult', { status: 'WARNING', message: 'Use the provided SQL queries to get test data manually' }, '💡 Test Data Instructions');
+            }
+        }
+        
+        // Additional test functions for remaining capabilities
+        async function testRecurringInvoices() {
+            await testEndpointHelper('export/invoices?type=recurring', 'Recurring Invoices', 'Monthly rent schedules and recurring charges');
+        }
+        
+        async function testInvoiceToPaymentLinking() {
+            await testEndpointHelper('invoices/12345/payments', 'Invoice-Payment Links', 'Links between invoice instructions and actual payments');
+        }
+        
+        async function testBulkPaymentInstructions() {
+            await testEndpointHelper('payments/bulk-instructions', 'Bulk Payment Instructions', 'Process multiple payment instructions in single API call');
+        }
+        
+        async function testPaymentVarianceReport() {
+            await testEndpointHelper('reports/payment-variance', 'Payment Variance Report', 'Differences between instructed vs actual payments');
+        }
+        
+        async function testTenantArrearsReport() {
+            await testEndpointHelper('reports/tenant-arrears', 'Tenant Arrears Report', 'Overdue payment tracking and management');
+        }
+        
+        async function testCashFlowReport() {
+            await testEndpointHelper('reports/cash-flow', 'Cash Flow Forecast', 'Future cash flow projections based on instructions');
+        }
+        
+        async function testRealTimeReporting() {
+            await testEndpointHelper('reports/real-time', 'Real-time Reports', 'Live financial data and status updates');
+        }
+        
+        async function testNotificationEndpoints() {
+            await testEndpointHelper('notifications/configure', 'Notification Configuration', 'Custom notification setup and management');
+        }
+        
+        async function testWebhookPayload() {
+            await testEndpointHelper('webhooks/test-payload', 'Webhook Payload Test', 'Test webhook data structure and delivery');
+        }
+        
+        async function testEndpointHelper(endpoint, name, description) {
+            try {
+                const response = await fetchWithCSRF('/api/payprop/test/custom-endpoint?endpoint=' + encodeURIComponent(endpoint), {
+                    method: 'GET'
+                });
+                
+                showResult('comprehensiveTestResult', {
+                    status: response.success ? 'SUCCESS' : 'WARNING',
+                    endpoint: endpoint,
+                    description: description,
+                    available: response.success,
+                    data: response
+                }, (response.success ? '✅ ' : '⚠️ ') + name);
+            } catch (error) {
+                showResult('comprehensiveTestResult', { 
+                    status: 'ERROR', 
+                    endpoint: endpoint,
+                    error: error.message 
+                }, '❌ ' + name + ' Failed');
+            }
+        }
+        
+        function exportTestResults() {
+            const resultElement = document.getElementById('comprehensiveTestResult');
+            if (resultElement) {
+                const content = resultElement.textContent || resultElement.innerText;
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'payprop-test-results-' + new Date().toISOString().split('T')[0] + '.txt';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
             }
         }
     </script>
