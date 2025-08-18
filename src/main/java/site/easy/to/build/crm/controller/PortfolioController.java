@@ -3109,6 +3109,14 @@ public class PortfolioController {
         } catch (Exception e) {
             log.error("Failed to load hierarchical properties for portfolio {}: {}", portfolioId, e.getMessage(), e);
             response.put("error", "Failed to load properties: " + e.getMessage());
+            response.put("debug", "Error class: " + e.getClass().getSimpleName());
+            response.put("portfolioId", portfolioId);
+            try {
+                int userId = authenticationUtils.getLoggedInUserId(authentication);
+                response.put("userId", userId);
+            } catch (Exception userEx) {
+                response.put("userError", userEx.getMessage());
+            }
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }

@@ -1,6 +1,38 @@
 # Portfolio System Investigation & Fix Session
 
-## Issue Summary
+## Session 4: PayProp Automatic Tag Creation Fix (2025-08-18)
+
+### Critical Issues Identified and Fixed
+
+**Problem 1**: PayProp sync showing "0 synced" despite valid tags - assignments weren't triggering PayProp tag creation automatically.
+
+**Problem 2**: PayProp tag retrieval returning null - API response field mapping issue.
+
+**Problem 3**: Manual sync button required - system should auto-create tags during property assignment.
+
+### Root Causes Found
+1. **Timing Issue**: `PortfolioAssignmentService.shouldSyncToPayProp()` required existing PayProp tags before sync, but never created them
+2. **API Field Mapping**: Code looked for tag ID in `external_id` field, but PayProp returns it in `id` field
+3. **Sync Logic**: Assignment workflow assumed tags existed instead of creating them
+
+### Solutions Implemented
+1. **Auto-Tag Creation**: Modified assignment service to automatically call `syncPortfolioToPayProp()` when portfolio lacks tags
+2. **Flexible Field Mapping**: Added `extractTagIdFromMap()` to try multiple possible PayProp response field names
+3. **Updated Sync Logic**: Changed `shouldSyncToPayProp()` to allow sync without existing tags
+
+### Files Modified
+- `PortfolioAssignmentService.java`: Lines 110-136 (auto-creation), Lines 500-517 (sync logic)
+- `PayPropPortfolioSyncService.java`: Lines 225-241 (field mapping), Lines 207-219 (tag conversion)
+
+---
+
+## Session 3: Tag Unification Completion (Previous)
+
+## Session 2: Block System Implementation (Previous)
+
+## Session 1: Initial Portfolio Display Fix (Previous)
+
+### Issue Summary
 **Problem**: All portfolios showed "no properties assigned" despite having data in the database. No remove property buttons appeared in UI.
 
 **Root Cause**: Template variable mismatch - controller sent `propertiesWithTenants` but template expected `properties`.

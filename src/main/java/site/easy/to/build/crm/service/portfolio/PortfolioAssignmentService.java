@@ -106,8 +106,37 @@ public class PortfolioAssignmentService {
                     try {
                         String tagValue = portfolio.getPayPropTags();
                         
+                        // ✅ CRITICAL FIX: Auto-create PayProp tag if portfolio doesn't have one
+                        if (tagValue == null || tagValue.trim().isEmpty()) {
+                            log.info("🏷️ Portfolio {} has no PayProp tag - creating one automatically", portfolio.getId());
+                            try {
+                                // Use the sync service to create/get the PayProp tag
+                                var syncResult = payPropSyncService.syncPortfolioToPayProp(portfolio.getId(), userId);
+                                if (syncResult.isSuccess()) {
+                                    // Reload portfolio to get the updated PayProp tags
+                                    portfolio = portfolioRepository.findById(portfolioId).orElse(portfolio);
+                                    tagValue = portfolio.getPayPropTags();
+                                    log.info("✅ Auto-created PayProp tag for portfolio {}: {}", portfolio.getId(), tagValue);
+                                } else {
+                                    log.error("❌ Failed to auto-create PayProp tag for portfolio {}: {}", 
+                                        portfolio.getId(), syncResult.getMessage());
+                                    assignment.setSyncStatus(SyncStatus.failed);
+                                    assignmentRepository.save(assignment);
+                                    result.addError("Failed to create PayProp tag for portfolio " + portfolio.getId() + ": " + syncResult.getMessage());
+                                    continue;
+                                }
+                            } catch (Exception e) {
+                                log.error("❌ Exception during auto-creation of PayProp tag for portfolio {}: {}", 
+                                    portfolio.getId(), e.getMessage());
+                                assignment.setSyncStatus(SyncStatus.failed);
+                                assignmentRepository.save(assignment);
+                                result.addError("Exception creating PayProp tag for portfolio " + portfolio.getId() + ": " + e.getMessage());
+                                continue;
+                            }
+                        }
+                        
                         // CRITICAL FIX: Check if tag value looks like a tag name, not external ID
-                        if (tagValue.startsWith("PF-") || tagValue.startsWith("BL-")) {
+                        if (tagValue != null && (tagValue.startsWith("PF-") || tagValue.startsWith("BL-"))) {
                             log.warn("Portfolio {} has tag name instead of external ID, resolving: {}", portfolio.getId(), tagValue);
                             tagValue = ensurePortfolioHasExternalId(portfolio);
                             if (tagValue == null) {
@@ -458,27 +487,30 @@ public class PortfolioAssignmentService {
     }
     
     private boolean shouldSyncToPayProp(Portfolio portfolio, Property property) {
-        // ENHANCED DEBUG: Check each condition individually
+        // ✅ ENHANCED: Allow sync even if portfolio doesn't have tags yet (we'll create them)
         boolean serviceAvailable = payPropSyncService != null;
-        boolean portfolioHasTags = portfolio.getPayPropTags() != null;
-        boolean portfolioTagsNotEmpty = portfolioHasTags && !portfolio.getPayPropTags().trim().isEmpty();
         boolean propertyHasPayPropId = property.getPayPropId() != null;
         boolean propertyPayPropIdNotEmpty = propertyHasPayPropId && !property.getPayPropId().trim().isEmpty();
         
-        boolean shouldSync = serviceAvailable && portfolioHasTags && portfolioTagsNotEmpty && 
-                           propertyHasPayPropId && propertyPayPropIdNotEmpty;
+        // NEW: Check if portfolio already has tags (for logging purposes)
+        boolean portfolioHasTags = portfolio.getPayPropTags() != null && !portfolio.getPayPropTags().trim().isEmpty();
+        
+        // ✅ CRITICAL CHANGE: Only require service + property PayProp ID
+        // Portfolio tags will be created automatically if missing
+        boolean shouldSync = serviceAvailable && propertyHasPayPropId && propertyPayPropIdNotEmpty;
         
         // DETAILED LOGGING to identify the exact failure point
         log.info("🔍 PayProp Sync Check for Portfolio {} → Property {}:", portfolio.getId(), property.getId());
         log.info("  Service available: {}", serviceAvailable);
-        log.info("  Portfolio has tags: {} (value: '{}')", portfolioHasTags, portfolio.getPayPropTags());
-        log.info("  Portfolio tags not empty: {}", portfolioTagsNotEmpty);
+        log.info("  Portfolio has existing tags: {} (value: '{}')", portfolioHasTags, portfolio.getPayPropTags());
         log.info("  Property has PayProp ID: {} (value: '{}')", propertyHasPayPropId, property.getPayPropId());
         log.info("  Property PayProp ID not empty: {}", propertyPayPropIdNotEmpty);
         log.info("  🎯 RESULT: shouldSync = {}", shouldSync);
         
         if (!shouldSync) {
             log.warn("❌ PayProp sync SKIPPED due to failed conditions above");
+        } else if (!portfolioHasTags) {
+            log.info("🏷️ PayProp sync will proceed with automatic tag creation for portfolio {}", portfolio.getId());
         }
         
         return shouldSync;

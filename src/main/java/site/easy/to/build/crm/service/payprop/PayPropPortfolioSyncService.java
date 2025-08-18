@@ -204,11 +204,40 @@ public class PayPropPortfolioSyncService {
     // Make sure the helper method is exactly like this:
     private PayPropTagDTO convertMapToTagDTO(Map<String, Object> tagMap) {
         PayPropTagDTO tag = new PayPropTagDTO();
-        tag.setId((String) tagMap.get("external_id"));
+        
+        // ✅ FIX: Try multiple possible ID field names since PayProp API might use different fields
+        String tagId = extractTagIdFromMap(tagMap);
+        tag.setId(tagId);
         tag.setName((String) tagMap.get("name"));
         tag.setDescription((String) tagMap.getOrDefault("description", ""));
         tag.setColor((String) tagMap.getOrDefault("color", "#3498db"));
+        
+        // Debug logging to understand PayProp response structure
+        log.debug("🔍 Converting PayProp tag map to DTO: {}", tagMap);
+        log.debug("🏷️ Extracted tag ID: '{}' from field check", tagId);
+        
         return tag;
+    }
+    
+    /**
+     * Extract tag ID from PayProp response trying multiple possible field names
+     */
+    private String extractTagIdFromMap(Map<String, Object> tagMap) {
+        // Try different possible ID field names that PayProp might use
+        String[] possibleIdFields = {"id", "external_id", "tag_id", "tagId", "_id", "uuid"};
+        
+        for (String field : possibleIdFields) {
+            Object value = tagMap.get(field);
+            if (value != null && !value.toString().trim().isEmpty()) {
+                log.debug("✅ Found tag ID '{}' in field '{}'", value, field);
+                return value.toString();
+            }
+        }
+        
+        // If no ID found, log the entire response for debugging
+        log.error("❌ No tag ID found in PayProp response. Available fields: {}", tagMap.keySet());
+        log.error("❌ Full response data: {}", tagMap);
+        return null;
     }
 
     // ✅ SAFE VALUE EXTRACTION HELPERS

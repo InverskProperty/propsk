@@ -1,6 +1,41 @@
 # 🚨 PayProp Integration Emergency Fix - Progress Log
 
-## 📋 Session: 2025-08-17 - ROOT CAUSE EMERGENCY FIX
+## 📋 Session: 2025-08-18 - AUTOMATIC TAG CREATION FIX ✅
+
+### 🎯 **CRITICAL BREAKTHROUGH: Auto-Creation Fixed** ✅
+
+**Issue**: PayProp tags weren't being created automatically during property assignment - required manual sync button click.
+
+**Root Cause**: Assignment service checked for existing tags before sync, but never created them.
+
+**Solution**: Modified `PortfolioAssignmentService` to automatically trigger PayProp tag creation when portfolio lacks tags.
+
+### 🔧 Key Changes Made
+
+1. **Auto-Creation Logic**: `PortfolioAssignmentService.java:110-136`
+   - Added automatic `syncPortfolioToPayProp()` call when `tagValue` is null/empty
+   - Reloads portfolio after tag creation to get updated tags
+   - Proper error handling for failed tag creation
+
+2. **API Response Mapping**: `PayPropPortfolioSyncService.java:225-241`
+   - Added `extractTagIdFromMap()` to handle different PayProp response field names
+   - Tries `id`, `external_id`, `tag_id`, `tagId`, `_id`, `uuid` fields
+   - Enhanced debugging to show exactly which field contains the tag ID
+
+3. **Sync Logic Update**: `PortfolioAssignmentService.java:500-517`
+   - Changed `shouldSyncToPayProp()` to not require existing tags
+   - Only requires PayProp service availability + property PayProp ID
+   - Added logging for automatic tag creation scenarios
+
+### 🧪 Expected Result
+- Property assignment now automatically creates PayProp tags
+- "PayProp synced: X" should show real numbers instead of 0
+- No more manual sync button required
+- Enhanced debugging shows auto-creation progress
+
+---
+
+## 📋 Session: 2025-08-17 - ROOT CAUSE EMERGENCY FIX (Previous)
 
 ### 🎯 **EMERGENCY FIX: COMPLETED & VALIDATED** ✅
 

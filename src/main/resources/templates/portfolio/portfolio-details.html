@@ -804,17 +804,31 @@ function loadPortfolioOrganization() {
     // Fetch blocks and properties
     Promise.all([
         fetch(`/portfolio/internal/blocks/portfolio/${portfolioId}/with-counts`),
-        fetch(`/portfolio/${portfolioId}/properties-hierarchical`) // New endpoint needed
+        fetch(`/portfolio/${portfolioId}/properties-hierarchical`)
     ])
     .then(async ([blocksResponse, propertiesResponse]) => {
+        console.log('Blocks response status:', blocksResponse.status);
+        console.log('Properties response status:', propertiesResponse.status);
+        
+        if (!blocksResponse.ok) {
+            throw new Error(`Blocks API failed: ${blocksResponse.status} ${blocksResponse.statusText}`);
+        }
+        if (!propertiesResponse.ok) {
+            const errorText = await propertiesResponse.text();
+            throw new Error(`Properties API failed: ${propertiesResponse.status} ${propertiesResponse.statusText} - ${errorText}`);
+        }
+        
         const blocks = await blocksResponse.json();
         const properties = await propertiesResponse.json();
+        
+        console.log('Blocks data:', blocks);
+        console.log('Properties data:', properties);
         
         renderHierarchicalOrganization(blocks, properties);
     })
     .catch(error => {
         console.error('Error loading portfolio organization:', error);
-        showOrganizationError('Failed to load portfolio organization');
+        showOrganizationError('Failed to load portfolio organization: ' + error.message);
     });
 }
 
