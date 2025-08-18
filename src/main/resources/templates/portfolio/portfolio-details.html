@@ -818,11 +818,16 @@ function loadPortfolioOrganization() {
             throw new Error(`Properties API failed: ${propertiesResponse.status} ${propertiesResponse.statusText} - ${errorText}`);
         }
         
-        const blocks = await blocksResponse.json();
+        const blocksData = await blocksResponse.json();
         const properties = await propertiesResponse.json();
         
-        console.log('Blocks data:', blocks);
+        console.log('Blocks data:', blocksData);
         console.log('Properties data:', properties);
+        
+        // ✅ FIX: Extract the actual blocks array from the response wrapper
+        const blocks = blocksData.blocks || blocksData || [];
+        console.log('Extracted blocks array:', blocks);
+        console.log('Blocks array length:', blocks.length);
         
         renderHierarchicalOrganization(blocks, properties);
     })
@@ -866,6 +871,18 @@ function renderHierarchicalOrganization(blocks, properties) {
 // Render blocks with their properties
 function renderBlocksWithProperties(container, blocks, assignedProperties) {
     let html = '';
+    
+    // ✅ SAFETY CHECK: Ensure blocks is an array
+    if (!Array.isArray(blocks)) {
+        console.error('renderBlocksWithProperties: blocks is not an array:', blocks);
+        console.error('Type of blocks:', typeof blocks);
+        if (container) {
+            container.innerHTML = '<div class="alert alert-warning">No blocks data available</div>';
+        }
+        return;
+    }
+    
+    console.log(`Rendering ${blocks.length} blocks with properties`);
     
     blocks.forEach(block => {
         // Get properties for this block
