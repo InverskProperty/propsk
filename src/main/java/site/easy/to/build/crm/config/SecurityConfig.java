@@ -170,6 +170,7 @@ public class SecurityConfig {
                         
                         // PayProp Raw Import Test Routes (temporary - remove after testing)
                         .requestMatchers("/test/payprop-raw/**").hasAnyRole("MANAGER", "ADMIN", "SUPER_ADMIN")
+                        .requestMatchers("/debug/payprop-raw/**").permitAll()
                         
                         // Role-based access - Manager routes
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/**/manager/**")).hasRole("MANAGER")
