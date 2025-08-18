@@ -596,7 +596,22 @@
                                     <!-- Recent Transactions -->
                                     <div class="row mt-4">
                                         <div class="col-12">
-                                            <h6>Recent Transactions</h6>
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <h6>Recent Transactions</h6>
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <button class="btn btn-outline-primary active" onclick="filterTransactions('all')" id="filterAll">All</button>
+                                                    <button class="btn btn-outline-success" onclick="filterTransactions('actual')" id="filterActual">Actual</button>
+                                                    <button class="btn btn-outline-info" onclick="filterTransactions('calculated')" id="filterCalculated">Calculated</button>
+                                                    <button class="btn btn-outline-warning" onclick="filterTransactions('grouped')" id="filterGrouped">Grouped</button>
+                                                </div>
+                                            </div>
+                                            <div class="alert alert-info alert-sm mt-2">
+                                                <small><strong>Data Sources:</strong> 
+                                                    <span class="badge bg-success">ACTUAL</span> Real PayProp data | 
+                                                    <span class="badge bg-info">CALCULATED</span> System generated | 
+                                                    <span class="badge bg-warning">SYNTHETIC</span> Derived data
+                                                </small>
+                                            </div>
                                             <div class="table-responsive">
                                                 <table class="table table-sm" id="recentTransactionsTable">
                                                     <thead>
@@ -607,11 +622,13 @@
                                                             <th>Commission</th>
                                                             <th>Net to Owner</th>
                                                             <th>Category</th>
+                                                            <th>Source</th>
+                                                            <th>Status</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody id="recentTransactionsBody">
                                                         <tr>
-                                                            <td colspan="6" class="text-center text-muted">Loading financial data...</td>
+                                                            <td colspan="8" class="text-center text-muted">Loading financial data...</td>
                                                         </tr>
                                                     </tbody>
                                                 </table>
@@ -951,6 +968,9 @@ function loadMaintenanceData() {
     });
 }
 
+// Global variable to store all transaction data
+let allTransactionsData = [];
+
 function updateFinancialDisplay(data) {
     // Update metrics
     $('#totalIncome').text('£' + formatNumber(data.totalIncome));
@@ -958,31 +978,299 @@ function updateFinancialDisplay(data) {
     $('#netOwnerIncome').text('£' + formatNumber(data.netOwnerIncome));
     $('#transactionCount').text(data.transactionCount);
     
-    // Update recent transactions table
+    // Store transaction data globally for filtering
+    allTransactionsData = data.recentTransactions || [];
+    
+    // Display transactions with enhanced formatting
+    displayTransactions(allTransactionsData, 'all');
+}
+
+function displayTransactions(transactions, filterType) {
     const tbody = $('#recentTransactionsBody');
     tbody.empty();
     
-    if (data.recentTransactions && data.recentTransactions.length > 0) {
-        data.recentTransactions.forEach(function(transaction) {
-            const row = `
-                <tr>
-                    <td>${formatDate(transaction.transactionDate)}</td>
+    if (!transactions || transactions.length === 0) {
+        tbody.html('<tr><td colspan="8" class="text-center text-muted">No recent transactions</td></tr>');
+        return;
+    }
+    
+    // Filter and group transactions based on type
+    let filteredTransactions = transactions;
+    
+    switch(filterType) {
+        case 'actual':
+            filteredTransactions = transactions.filter(t => 
+                t.dataSource === 'ICDN_ACTUAL' || t.dataSource === 'BATCH_PAYMENT'
+            );
+            break;
+        case 'calculated':
+            filteredTransactions = transactions.filter(t => 
+                t.dataSource === 'COMMISSION_PAYMENT'
+            );
+            break;
+        case 'grouped':
+            displayGroupedTransactions(transactions);
+            return;
+    }
+    
+    filteredTransactions.forEach(function(transaction) {
+        const sourceInfo = getDataSourceInfo(transaction);
+        const statusInfo = getTransactionStatus(transaction);
+        const reconciliationStatus = getReconciliationStatus(transaction);
+        
+        const row = `
+            <tr class="transaction-row ${sourceInfo.rowClass}" data-source="${transaction.dataSource}" data-type="${transaction.transactionType}">
+                <td>${formatDate(transaction.transactionDate)}</td>
+                <td>
+                    <span class="badge ${sourceInfo.badgeClass}">
+                        ${formatTransactionType(transaction.transactionType)}
+                    </span>
+                </td>
+                <td class="${getAmountClass(transaction.amount)}">£${formatNumber(transaction.amount)}</td>
+                <td>£${formatNumber(transaction.commissionAmount || 0)}</td>
+                <td>£${formatNumber(transaction.netToOwnerAmount || 0)}</td>
+                <td>${transaction.categoryName || 'N/A'}</td>
+                <td>
+                    <span class="badge ${sourceInfo.sourceBadgeClass}" title="${sourceInfo.description}">
+                        ${sourceInfo.sourceLabel}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge ${statusInfo.badgeClass}" title="${statusInfo.description}">
+                        ${statusInfo.label}
+                    </span>
+                    ${reconciliationStatus.icon}
+                </td>
+            </tr>
+        `;
+        tbody.append(row);
+    });
+}
+
+function displayGroupedTransactions(transactions) {
+    const tbody = $('#recentTransactionsBody');
+    tbody.empty();
+    
+    // Group transactions by date and related transactions
+    const groupedByDate = {};
+    transactions.forEach(transaction => {
+        const dateKey = transaction.transactionDate;
+        if (!groupedByDate[dateKey]) {
+            groupedByDate[dateKey] = [];
+        }
+        groupedByDate[dateKey].push(transaction);
+    });
+    
+    // Display grouped transactions
+    Object.keys(groupedByDate).sort((a, b) => new Date(b) - new Date(a)).forEach(date => {
+        const dayTransactions = groupedByDate[date];
+        
+        // Calculate daily totals
+        const totalInvoices = dayTransactions.filter(t => t.transactionType === 'invoice').reduce((sum, t) => sum + (t.amount || 0), 0);
+        const totalPayments = dayTransactions.filter(t => t.transactionType.includes('payment_to_')).reduce((sum, t) => sum + (t.amount || 0), 0);
+        const totalCommissions = dayTransactions.filter(t => t.transactionType === 'commission_payment').reduce((sum, t) => sum + (t.amount || 0), 0);
+        
+        // Add group header
+        const variance = Math.abs(totalInvoices - totalPayments - totalCommissions);
+        const varianceClass = variance > 1 ? 'text-danger' : 'text-success';
+        
+        tbody.append(`
+            <tr class="table-secondary group-header">
+                <td colspan="8">
+                    <strong>${formatDate(date)}</strong> - 
+                    Invoiced: £${formatNumber(totalInvoices)} | 
+                    Paid: £${formatNumber(totalPayments)} | 
+                    Commission: £${formatNumber(totalCommissions)} 
+                    <span class="${varianceClass}">
+                        ${variance > 1 ? `(Variance: £${formatNumber(variance)})` : '✓'}
+                    </span>
+                </td>
+            </tr>
+        `);
+        
+        // Add individual transactions with indentation
+        dayTransactions.forEach(function(transaction) {
+            const sourceInfo = getDataSourceInfo(transaction);
+            
+            tbody.append(`
+                <tr class="transaction-row grouped-row">
+                    <td class="ps-4">↳</td>
                     <td>
-                        <span class="badge badge-${getTransactionTypeClass(transaction.transactionType)}">
-                            ${transaction.transactionType}
+                        <span class="badge ${sourceInfo.badgeClass}">
+                            ${formatTransactionType(transaction.transactionType)}
                         </span>
                     </td>
                     <td>£${formatNumber(transaction.amount)}</td>
                     <td>£${formatNumber(transaction.commissionAmount || 0)}</td>
                     <td>£${formatNumber(transaction.netToOwnerAmount || 0)}</td>
                     <td>${transaction.categoryName || 'N/A'}</td>
+                    <td>
+                        <span class="badge ${sourceInfo.sourceBadgeClass}">
+                            ${sourceInfo.sourceLabel}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge ${sourceInfo.statusBadgeClass || 'bg-secondary'}">
+                            ${getTransactionPurpose(transaction)}
+                        </span>
+                    </td>
                 </tr>
-            `;
-            tbody.append(row);
+            `);
         });
-    } else {
-        tbody.html('<tr><td colspan="6" class="text-center text-muted">No recent transactions</td></tr>');
+    });
+}
+
+// Enhanced helper functions
+function getDataSourceInfo(transaction) {
+    const dataSource = transaction.dataSource || 'UNKNOWN';
+    
+    switch(dataSource) {
+        case 'ICDN_ACTUAL':
+            return {
+                sourceLabel: 'ACTUAL',
+                sourceBadgeClass: 'bg-success',
+                badgeClass: 'bg-success',
+                rowClass: 'table-light',
+                description: 'Real invoice/transaction from PayProp ICDN'
+            };
+        case 'COMMISSION_PAYMENT':
+            return {
+                sourceLabel: 'CALCULATED',
+                sourceBadgeClass: 'bg-info',
+                badgeClass: 'bg-info',
+                rowClass: '',
+                description: 'System-calculated commission based on property rates'
+            };
+        case 'BATCH_PAYMENT':
+            return {
+                sourceLabel: 'ACTUAL',
+                sourceBadgeClass: 'bg-success',
+                badgeClass: 'bg-primary',
+                rowClass: 'table-light',
+                description: 'Real payment from PayProp batch payments'
+            };
+        case 'PAYMENT_INSTRUCTION':
+            return {
+                sourceLabel: 'INSTRUCTION',
+                sourceBadgeClass: 'bg-warning',
+                badgeClass: 'bg-warning',
+                rowClass: '',
+                description: 'Payment instruction (what should be paid)'
+            };
+        default:
+            return {
+                sourceLabel: 'UNKNOWN',
+                sourceBadgeClass: 'bg-secondary',
+                badgeClass: 'bg-secondary',
+                rowClass: '',
+                description: 'Unknown data source'
+            };
     }
+}
+
+function getTransactionStatus(transaction) {
+    const isActual = transaction.isActualTransaction;
+    const isInstruction = transaction.isInstruction;
+    
+    if (transaction.dataSource === 'COMMISSION_PAYMENT') {
+        return {
+            label: 'SYNTHETIC',
+            badgeClass: 'bg-warning',
+            description: 'System-generated commission calculation'
+        };
+    }
+    
+    if (isActual) {
+        return {
+            label: 'COMPLETED',
+            badgeClass: 'bg-success',
+            description: 'Real transaction completed in PayProp'
+        };
+    }
+    
+    if (isInstruction) {
+        return {
+            label: 'INSTRUCTION',
+            badgeClass: 'bg-info',
+            description: 'Payment instruction awaiting completion'
+        };
+    }
+    
+    return {
+        label: 'PROCESSED',
+        badgeClass: 'bg-secondary',
+        description: 'Transaction processed'
+    };
+}
+
+function getReconciliationStatus(transaction) {
+    const hasReconciliationDate = transaction.reconciliationDate;
+    const hasInstructionDate = transaction.instructionDate;
+    
+    if (hasReconciliationDate && hasInstructionDate) {
+        const reconDate = new Date(transaction.reconciliationDate);
+        const instrDate = new Date(transaction.instructionDate);
+        const daysDiff = Math.abs((reconDate - instrDate) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff > 7) {
+            return { icon: '<i class="fas fa-exclamation-triangle text-warning ms-1" title="Delayed reconciliation"></i>' };
+        }
+    }
+    
+    if (hasReconciliationDate) {
+        return { icon: '<i class="fas fa-check-circle text-success ms-1" title="Reconciled"></i>' };
+    }
+    
+    return { icon: '' };
+}
+
+function getAmountClass(amount) {
+    if (!amount) return '';
+    return amount > 1000 ? 'fw-bold' : '';
+}
+
+function getTransactionPurpose(transaction) {
+    if (transaction.transactionType === 'commission_payment') {
+        return 'Commission';
+    }
+    if (transaction.transactionType === 'invoice') {
+        return transaction.categoryName === 'Deposit' ? 'Deposit' : 'Income';
+    }
+    if (transaction.transactionType.includes('payment_to_')) {
+        return 'Outgoing';
+    }
+    return 'Other';
+}
+
+// Filter button functions
+function filterTransactions(filterType) {
+    // Update active button
+    $('.btn-group .btn').removeClass('active');
+    $(`#filter${filterType.charAt(0).toUpperCase() + filterType.slice(1)}`).addClass('active');
+    
+    // Display filtered transactions
+    displayTransactions(allTransactionsData, filterType);
+}
+
+// Enhanced formatting functions  
+function formatTransactionType(type) {
+    const typeMap = {
+        'invoice': 'Invoice',
+        'commission_payment': 'Commission',
+        'payment_to_beneficiary': 'To Beneficiary',
+        'payment_to_agency': 'To Agency',
+        'payment_to_contractor': 'To Contractor',
+        'payment_property_account': 'Property Account',
+        'payment_deposit_account': 'Deposit Account',
+        'credit_note': 'Credit Note',
+        'debit_note': 'Debit Note',
+        'deposit': 'Deposit',
+        'refund': 'Refund',
+        'adjustment': 'Adjustment',
+        'transfer': 'Transfer'
+    };
+    
+    return typeMap[type] || type;
 }
 
 function updateMaintenanceDisplay(data) {

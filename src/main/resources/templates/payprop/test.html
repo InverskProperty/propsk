@@ -189,6 +189,45 @@
             color: white;
             border-radius: 6px 6px 0 0;
         }
+        
+        .endpoint-tree {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .endpoint-item {
+            transition: background-color 0.2s;
+        }
+        
+        .endpoint-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .endpoint-category {
+            border-left: 3px solid var(--primary-color);
+            padding-left: 1rem;
+        }
+        
+        .bulk-test-progress {
+            position: sticky;
+            top: 20px;
+            z-index: 10;
+        }
+        
+        .test-worker-info {
+            font-size: 0.8rem;
+            color: #666;
+        }
+        
+        .parameter-preview {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 0.5rem;
+            margin-top: 0.5rem;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
     </style>
 </head>
 <body>
@@ -278,6 +317,21 @@
                             <li class="nav-item">
                                 <a class="nav-link" data-bs-toggle="tab" href="#blocksTab">
                                     <i class="fas fa-building"></i> Block Testing
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#endpointDiscoveryTab">
+                                    <i class="fas fa-globe"></i> Endpoint Discovery
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#bulkTestTab">
+                                    <i class="fas fa-rocket"></i> Bulk Testing
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#invoiceInvestigationTab">
+                                    <i class="fas fa-file-invoice-dollar text-warning"></i> Invoice Investigation
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -728,6 +782,399 @@
                                 </div>
                                 
                                 <div id="blockTestResult" class="result-display d-none"></div>
+                            </div>
+                            
+                            <!-- Endpoint Discovery Tab -->
+                            <div class="tab-pane fade" id="endpointDiscoveryTab">
+                                <h5><i class="fas fa-globe"></i> Comprehensive Endpoint Discovery</h5>
+                                <p class="text-muted">Automatically discover and test all available PayProp API endpoints</p>
+                                
+                                <!-- Discovery Controls -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-search"></i> Endpoint Discovery</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <label class="form-label">Discovery Method</label>
+                                                <select id="discoveryMethod" class="form-select">
+                                                    <option value="api_spec">From API Specification</option>
+                                                    <option value="live_probe">Live API Probing</option>
+                                                    <option value="combined">Combined (Spec + Probe)</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">Test Depth</label>
+                                                <select id="testDepth" class="form-select">
+                                                    <option value="basic">Basic (GET only)</option>
+                                                    <option value="standard">Standard (GET + POST)</option>
+                                                    <option value="comprehensive">Comprehensive (All methods)</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label">Response Detail</label>
+                                                <select id="responseDetail" class="form-select">
+                                                    <option value="summary">Summary Only</option>
+                                                    <option value="headers">Include Headers</option>
+                                                    <option value="full">Full Response Body</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="quick-actions mt-3">
+                                            <button class="btn btn-primary" onclick="discoverAllEndpoints()">
+                                                <i class="fas fa-search"></i> Discover All Endpoints
+                                            </button>
+                                            <button class="btn btn-info" onclick="loadKnownEndpoints()">
+                                                <i class="fas fa-list"></i> Load Known Endpoints
+                                            </button>
+                                            <button class="btn btn-success" onclick="testAllDiscovered()">
+                                                <i class="fas fa-play"></i> Test All Discovered
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Endpoint Categories -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-tags"></i> Endpoint Categories</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="catPayments" checked>
+                                                    <label class="form-check-label" for="catPayments">Payments</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="catInvoices" checked>
+                                                    <label class="form-check-label" for="catInvoices">Invoices</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="catProperties" checked>
+                                                    <label class="form-check-label" for="catProperties">Properties</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="catBeneficiaries" checked>
+                                                    <label class="form-check-label" for="catBeneficiaries">Beneficiaries</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="catReports" checked>
+                                                    <label class="form-check-label" for="catReports">Reports</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="catMeta" checked>
+                                                    <label class="form-check-label" for="catMeta">Meta/Admin</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Live Endpoint Tree -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-sitemap"></i> Discovered Endpoints</h6>
+                                        <div class="float-end">
+                                            <span class="badge bg-primary" id="endpointCount">0</span> endpoints found
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="endpointTree" class="endpoint-tree">
+                                            <div class="text-muted text-center py-4">
+                                                <i class="fas fa-search fa-2x mb-2"></i><br>
+                                                Click "Discover All Endpoints" to begin
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="endpointDiscoveryResult" class="result-display d-none"></div>
+                            </div>
+                            
+                            <!-- Bulk Testing Tab -->
+                            <div class="tab-pane fade" id="bulkTestTab">
+                                <h5><i class="fas fa-rocket"></i> Bulk Endpoint Testing</h5>
+                                <p class="text-muted">Run comprehensive tests across multiple endpoints with various parameters</p>
+                                
+                                <!-- Test Configuration -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-cog"></i> Test Configuration</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <label class="form-label">Test Suite</label>
+                                                <select id="bulkTestSuite" class="form-select">
+                                                    <option value="payment_full">Payment Endpoints (Full)</option>
+                                                    <option value="payment_core">Payment Endpoints (Core)</option>
+                                                    <option value="invoice_full">Invoice Endpoints (Full)</option>
+                                                    <option value="transaction_full">Transaction Endpoints (Full)</option>
+                                                    <option value="all_readonly">All Read-Only Endpoints</option>
+                                                    <option value="all_safe">All Safe Endpoints</option>
+                                                    <option value="custom">Custom Selection</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Parameter Strategy</label>
+                                                <select id="parameterStrategy" class="form-select">
+                                                    <option value="minimal">Minimal Parameters</option>
+                                                    <option value="common">Common Parameters</option>
+                                                    <option value="comprehensive">Comprehensive Parameters</option>
+                                                    <option value="edge_cases">Edge Cases</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Concurrency</label>
+                                                <select id="bulkConcurrency" class="form-select">
+                                                    <option value="1">Sequential (1 at a time)</option>
+                                                    <option value="3">Low (3 concurrent)</option>
+                                                    <option value="5" selected>Medium (5 concurrent)</option>
+                                                    <option value="10">High (10 concurrent)</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label">Timeout (seconds)</label>
+                                                <input type="number" id="bulkTimeout" class="form-control" value="30" min="5" max="300">
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row mt-3">
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="includeErrorTest" checked>
+                                                    <label class="form-check-label" for="includeErrorTest">
+                                                        Include Error Condition Testing
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="validateResponseSchema" checked>
+                                                    <label class="form-check-label" for="validateResponseSchema">
+                                                        Validate Response Schema
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="quick-actions mt-3">
+                                            <button class="btn btn-success" onclick="startBulkTest()">
+                                                <i class="fas fa-rocket"></i> Start Bulk Test
+                                            </button>
+                                            <button class="btn btn-info" onclick="previewBulkTest()">
+                                                <i class="fas fa-eye"></i> Preview Test Plan
+                                            </button>
+                                            <button class="btn btn-warning" onclick="pauseBulkTest()" id="pauseBulkBtn" disabled>
+                                                <i class="fas fa-pause"></i> Pause
+                                            </button>
+                                            <button class="btn btn-danger" onclick="stopBulkTest()" id="stopBulkBtn" disabled>
+                                                <i class="fas fa-stop"></i> Stop
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Test Progress -->
+                                <div class="card mb-4" id="bulkTestProgress" style="display: none;">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-chart-line"></i> Test Progress</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <h4 class="text-primary" id="testsCompleted">0</h4>
+                                                    <small>Completed</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <h4 class="text-success" id="testsSucceeded">0</h4>
+                                                    <small>Succeeded</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <h4 class="text-danger" id="testsFailed">0</h4>
+                                                    <small>Failed</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <div class="text-center">
+                                                    <h4 class="text-info" id="testsRemaining">0</h4>
+                                                    <small>Remaining</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="progress mt-3">
+                                            <div class="progress-bar" id="bulkTestProgressBar" style="width: 0%"></div>
+                                        </div>
+                                        <div class="mt-2 text-center" id="currentTestInfo">
+                                            <small class="text-muted">Ready to start...</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Results Summary -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-chart-bar"></i> Results Summary</h6>
+                                        <div class="float-end">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="exportBulkResults()">
+                                                <i class="fas fa-download"></i> Export
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="bulkTestSummary" class="d-none">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <canvas id="endpointStatusChart" width="300" height="200"></canvas>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <canvas id="responseTimeChart" width="300" height="200"></canvas>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="bulkTestResults" class="mt-3">
+                                            <div class="text-muted text-center py-4">
+                                                <i class="fas fa-rocket fa-2x mb-2"></i><br>
+                                                Start a bulk test to see results
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="bulkTestResult" class="result-display d-none"></div>
+                            </div>
+                            
+                            <!-- Invoice Investigation Tab -->
+                            <div class="tab-pane fade" id="invoiceInvestigationTab">
+                                <div class="alert alert-warning">
+                                    <h5><i class="fas fa-exclamation-triangle"></i> Critical Data Gap Identified</h5>
+                                    <p><strong>Your system is missing invoice instruction data from <code>/export/invoices</code></strong></p>
+                                    <p>You're currently only getting completed invoices from ICDN, not the underlying recurring instructions.</p>
+                                </div>
+                                
+                                <h5><i class="fas fa-file-invoice-dollar"></i> Invoice Data Investigation</h5>
+                                <p class="text-muted">Test and compare invoice instruction data vs current ICDN transaction data</p>
+                                
+                                <!-- Invoice Instructions Test -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-search"></i> Invoice Instructions Analysis</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h6>Test Invoice Instructions Endpoint</h6>
+                                                <p class="small text-muted">This should show recurring rent, parking charges, etc.</p>
+                                                <button class="btn btn-primary" onclick="testInvoiceInstructions()">
+                                                    <i class="fas fa-play"></i> Test /export/invoices
+                                                </button>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6>Compare with Current ICDN Data</h6>
+                                                <p class="small text-muted">Compare instruction vs completed invoice data</p>
+                                                <button class="btn btn-info" onclick="compareInvoiceData()">
+                                                    <i class="fas fa-balance-scale"></i> Compare Data Sources
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row mt-3">
+                                            <div class="col-md-12">
+                                                <h6>Invoice Categories</h6>
+                                                <div class="btn-group" role="group">
+                                                    <button class="btn btn-outline-secondary btn-sm" onclick="testInvoiceCategories()">
+                                                        <i class="fas fa-tags"></i> Test /invoices/categories
+                                                    </button>
+                                                    <button class="btn btn-outline-secondary btn-sm" onclick="testInvoiceInstructionsExport()">
+                                                        <i class="fas fa-download"></i> Test /export/invoice-instructions
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Data Gap Analysis -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-chart-line"></i> Data Gap Analysis</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="text-center p-3 border rounded">
+                                                    <h5 class="text-primary">Current System</h5>
+                                                    <p class="small">ICDN "invoice" transactions</p>
+                                                    <p class="text-muted">✅ What WAS invoiced<br>❌ What SHOULD BE invoiced</p>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="text-center p-3 border rounded">
+                                                    <h5 class="text-warning">Missing Data</h5>
+                                                    <p class="small">Invoice instructions</p>
+                                                    <p class="text-muted">❌ Monthly rent rules<br>❌ Parking charges<br>❌ Service charges</p>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="text-center p-3 border rounded">
+                                                    <h5 class="text-success">With Fix</h5>
+                                                    <p class="small">Complete invoice lifecycle</p>
+                                                    <p class="text-muted">✅ Instruction → Invoice → Payment<br>✅ Gap detection</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mt-3">
+                                            <button class="btn btn-warning" onclick="generateInvoiceGapReport()">
+                                                <i class="fas fa-exclamation-triangle"></i> Generate Gap Analysis Report
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Commission Accuracy Check -->
+                                <div class="card mb-4">
+                                    <div class="card-header">
+                                        <h6><i class="fas fa-calculator"></i> Commission Calculation Audit</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="alert alert-info">
+                                            <strong>Concern:</strong> Are commissions calculated on instruction amounts or completed invoice amounts?
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <button class="btn btn-outline-primary" onclick="auditCommissionCalculation()">
+                                                    <i class="fas fa-audit"></i> Audit Commission Logic
+                                                </button>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <button class="btn btn-outline-warning" onclick="findCommissionVariances()">
+                                                    <i class="fas fa-search-dollar"></i> Find Variances
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="invoiceInvestigationResult" class="result-display d-none"></div>
                             </div>
                             
                             <!-- Raw API Tab -->
@@ -1759,6 +2206,1097 @@
         
         // Initialize the enhanced block testing when page loads
         enhanceBlockTestingResults();
+        
+        // ===== COMPREHENSIVE ENDPOINT DISCOVERY FUNCTIONS =====
+        
+        // Known PayProp endpoints from API specification
+        const KNOWN_ENDPOINTS = {
+            payments: [
+                { path: '/export/payments', method: 'GET', category: 'payments', description: 'Export payment data' },
+                { path: '/entity/payment', method: 'GET', category: 'payments', description: 'List payments' },
+                { path: '/entity/payment', method: 'POST', category: 'payments', description: 'Create payment' },
+                { path: '/entity/payment/{external_id}', method: 'GET', category: 'payments', description: 'Get payment by ID' },
+                { path: '/entity/payment/{external_id}', method: 'PUT', category: 'payments', description: 'Update payment' },
+                { path: '/entity/adhoc-payment', method: 'POST', category: 'payments', description: 'Create adhoc payment' },
+                { path: '/entity/secondary-payment', method: 'POST', category: 'payments', description: 'Create secondary payment' },
+                { path: '/entity/secondary-payment/{external_id}', method: 'GET', category: 'payments', description: 'Get secondary payment' },
+                { path: '/entity/secondary-payment/{external_id}', method: 'PUT', category: 'payments', description: 'Update secondary payment' },
+                { path: '/posted-payments', method: 'POST', category: 'payments', description: 'Create posted payment' },
+                { path: '/posted-payments/types', method: 'GET', category: 'payments', description: 'Get posted payment types' },
+                { path: '/payments/categories', method: 'GET', category: 'payments', description: 'Get payment categories' },
+                { path: '/payments/categories', method: 'POST', category: 'payments', description: 'Create payment category' },
+                { path: '/payments/categories/{external_id}', method: 'PUT', category: 'payments', description: 'Update payment category' },
+                { path: '/report/all-payments', method: 'GET', category: 'payments', description: 'All payments report' }
+            ],
+            invoices: [
+                { path: '/export/invoices', method: 'GET', category: 'invoices', description: '🚨 CRITICAL MISSING: Invoice instructions (rent, parking, etc)', priority: 'HIGH' },
+                { path: '/export/invoice-instructions', method: 'GET', category: 'invoices', description: 'Export invoice instructions' },
+                { path: '/entity/invoice', method: 'GET', category: 'invoices', description: 'List invoices' },
+                { path: '/entity/invoice', method: 'POST', category: 'invoices', description: 'Create invoice' },
+                { path: '/entity/invoice/{external_id}', method: 'GET', category: 'invoices', description: 'Get invoice by ID' },
+                { path: '/entity/invoice/{external_id}', method: 'PUT', category: 'invoices', description: 'Update invoice' },
+                { path: '/entity/adhoc-invoice', method: 'POST', category: 'invoices', description: 'Create adhoc invoice' },
+                { path: '/invoices/categories', method: 'GET', category: 'invoices', description: 'Get invoice categories' },
+                { path: '/invoices/categories', method: 'POST', category: 'invoices', description: 'Create invoice category' },
+                { path: '/invoices/categories/{external_id}', method: 'PUT', category: 'invoices', description: 'Update invoice category' },
+                { path: '/documents/pdf/agency-invoice', method: 'GET', category: 'invoices', description: 'Generate agency invoice PDF' }
+            ],
+            properties: [
+                { path: '/export/properties', method: 'GET', category: 'properties', description: 'Export property data' },
+                { path: '/entity/property', method: 'GET', category: 'properties', description: 'List properties' },
+                { path: '/entity/property', method: 'POST', category: 'properties', description: 'Create property' },
+                { path: '/entity/property/{external_id}', method: 'GET', category: 'properties', description: 'Get property by ID' },
+                { path: '/entity/property/{external_id}', method: 'PUT', category: 'properties', description: 'Update property' }
+            ],
+            beneficiaries: [
+                { path: '/export/beneficiaries', method: 'GET', category: 'beneficiaries', description: 'Export beneficiary data' },
+                { path: '/entity/beneficiary', method: 'GET', category: 'beneficiaries', description: 'List beneficiaries' },
+                { path: '/entity/beneficiary', method: 'POST', category: 'beneficiaries', description: 'Create beneficiary' },
+                { path: '/entity/beneficiary/{external_id}', method: 'GET', category: 'beneficiaries', description: 'Get beneficiary by ID' },
+                { path: '/entity/beneficiary/{external_id}', method: 'PUT', category: 'beneficiaries', description: 'Update beneficiary' }
+            ],
+            reports: [
+                { path: '/report/icdn', method: 'GET', category: 'reports', description: 'ICDN transactions report' },
+                { path: '/documents/pdf/owner-statement', method: 'GET', category: 'reports', description: 'Generate owner statement PDF' }
+            ],
+            meta: [
+                { path: '/meta/me', method: 'GET', category: 'meta', description: 'Get current user info and scopes' },
+                { path: '/meta/scopes', method: 'GET', category: 'meta', description: 'Get available scopes' }
+            ]
+        };
+        
+        // Global variables for endpoint discovery
+        let discoveredEndpoints = [];
+        let bulkTestQueue = [];
+        let bulkTestResults = [];
+        let bulkTestRunning = false;
+        let bulkTestPaused = false;
+        
+        // Endpoint Discovery Functions
+        async function discoverAllEndpoints() {
+            const method = document.getElementById('discoveryMethod').value;
+            const testDepth = document.getElementById('testDepth').value;
+            
+            showResult('endpointDiscoveryResult', { status: 'INFO', message: 'Starting endpoint discovery...' }, '🔍 Discovery Progress');
+            
+            try {
+                if (method === 'api_spec' || method === 'combined') {
+                    await discoverFromApiSpec();
+                }
+                
+                if (method === 'live_probe' || method === 'combined') {
+                    await discoverByProbing();
+                }
+                
+                displayEndpointTree();
+                updateEndpointCount();
+                
+                showResult('endpointDiscoveryResult', {
+                    status: 'SUCCESS',
+                    discovered_count: discoveredEndpoints.length,
+                    endpoints: discoveredEndpoints,
+                    categories: getEndpointCategories()
+                }, '✅ Discovery Complete');
+                
+            } catch (error) {
+                showResult('endpointDiscoveryResult', {
+                    status: 'ERROR',
+                    error: error.message,
+                    partial_results: discoveredEndpoints
+                }, '❌ Discovery Error');
+            }
+        }
+        
+        async function discoverFromApiSpec() {
+            const categories = getSelectedCategories();
+            discoveredEndpoints = [];
+            
+            categories.forEach(category => {
+                if (KNOWN_ENDPOINTS[category]) {
+                    discoveredEndpoints.push(...KNOWN_ENDPOINTS[category]);
+                }
+            });
+            
+            // Test accessibility of known endpoints
+            for (let endpoint of discoveredEndpoints) {
+                try {
+                    const testResult = await testEndpointAccessibility(endpoint);
+                    endpoint.accessible = testResult.accessible;
+                    endpoint.status_code = testResult.status_code;
+                    endpoint.response_time = testResult.response_time;
+                } catch (error) {
+                    endpoint.accessible = false;
+                    endpoint.error = error.message;
+                }
+            }
+        }
+        
+        async function discoverByProbing() {
+            // Live API probing - try common endpoint patterns
+            const basePatterns = [
+                '/api', '/v1', '/v1.1', '/v2',
+                '/entity', '/export', '/report', '/documents',
+                '/meta', '/auth', '/oauth'
+            ];
+            
+            const entityTypes = [
+                'payment', 'invoice', 'property', 'beneficiary', 'tenant',
+                'maintenance', 'batch', 'transaction', 'category'
+            ];
+            
+            for (let pattern of basePatterns) {
+                for (let entity of entityTypes) {
+                    const endpoints = [
+                        { path: `${pattern}/${entity}`, method: 'GET' },
+                        { path: `${pattern}/${entity}s`, method: 'GET' },
+                        { path: `${pattern}/${entity}/categories`, method: 'GET' }
+                    ];
+                    
+                    for (let endpoint of endpoints) {
+                        try {
+                            const result = await testEndpointAccessibility(endpoint);
+                            if (result.accessible) {
+                                endpoint.category = guessCategory(endpoint.path);
+                                endpoint.description = `Discovered: ${endpoint.path}`;
+                                endpoint.accessible = true;
+                                endpoint.status_code = result.status_code;
+                                discoveredEndpoints.push(endpoint);
+                            }
+                        } catch (error) {
+                            // Ignore failed probes
+                        }
+                    }
+                }
+            }
+        }
+        
+        async function testEndpointAccessibility(endpoint) {
+            const startTime = performance.now();
+            
+            try {
+                const response = await fetch(`/api/payprop/oauth/test-endpoint`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        [csrfHeader]: csrfToken
+                    },
+                    body: JSON.stringify({
+                        endpoint: endpoint.path,
+                        method: endpoint.method
+                    }),
+                    credentials: 'include'
+                });
+                
+                const responseTime = Math.round(performance.now() - startTime);
+                const accessible = response.status < 500; // 2xx, 3xx, 4xx are accessible
+                
+                return {
+                    accessible,
+                    status_code: response.status,
+                    response_time: responseTime
+                };
+            } catch (error) {
+                return {
+                    accessible: false,
+                    status_code: null,
+                    response_time: null,
+                    error: error.message
+                };
+            }
+        }
+        
+        function loadKnownEndpoints() {
+            const categories = getSelectedCategories();
+            discoveredEndpoints = [];
+            
+            categories.forEach(category => {
+                if (KNOWN_ENDPOINTS[category]) {
+                    discoveredEndpoints.push(...KNOWN_ENDPOINTS[category].map(ep => ({
+                        ...ep,
+                        accessible: null, // Unknown until tested
+                        source: 'known'
+                    })));
+                }
+            });
+            
+            displayEndpointTree();
+            updateEndpointCount();
+            
+            showResult('endpointDiscoveryResult', {
+                status: 'SUCCESS',
+                message: 'Loaded known endpoints from API specification',
+                count: discoveredEndpoints.length,
+                endpoints: discoveredEndpoints
+            }, '📋 Known Endpoints Loaded');
+        }
+        
+        async function testAllDiscovered() {
+            if (discoveredEndpoints.length === 0) {
+                alert('No endpoints discovered. Please run discovery first.');
+                return;
+            }
+            
+            const testDepth = document.getElementById('testDepth').value;
+            const responseDetail = document.getElementById('responseDetail').value;
+            
+            const testResults = [];
+            
+            for (let endpoint of discoveredEndpoints) {
+                try {
+                    const result = await testSingleEndpoint(endpoint, testDepth, responseDetail);
+                    testResults.push(result);
+                    
+                    // Update endpoint with test results
+                    endpoint.test_result = result;
+                    endpoint.last_tested = new Date().toISOString();
+                } catch (error) {
+                    testResults.push({
+                        endpoint: endpoint.path,
+                        method: endpoint.method,
+                        error: error.message,
+                        success: false
+                    });
+                }
+            }
+            
+            displayEndpointTree(); // Refresh with test results
+            
+            showResult('endpointDiscoveryResult', {
+                status: 'SUCCESS',
+                message: 'Completed testing all discovered endpoints',
+                test_results: testResults,
+                summary: generateTestSummary(testResults)
+            }, '🧪 All Endpoints Tested');
+        }
+        
+        async function testSingleEndpoint(endpoint, testDepth, responseDetail) {
+            const params = new URLSearchParams({
+                endpoint: endpoint.path,
+                method: endpoint.method,
+                testDepth: testDepth,
+                responseDetail: responseDetail
+            });
+            
+            const response = await fetchWithCSRF(`/api/payprop/oauth/test-single-endpoint?${params}`, {
+                method: 'POST'
+            });
+            
+            return response.data;
+        }
+        
+        // Bulk Testing Functions
+        async function startBulkTest() {
+            const testSuite = document.getElementById('bulkTestSuite').value;
+            const paramStrategy = document.getElementById('parameterStrategy').value;
+            const concurrency = parseInt(document.getElementById('bulkConcurrency').value);
+            const timeout = parseInt(document.getElementById('bulkTimeout').value) * 1000;
+            
+            // Build test queue based on selected suite
+            bulkTestQueue = buildTestQueue(testSuite, paramStrategy);
+            bulkTestResults = [];
+            bulkTestRunning = true;
+            bulkTestPaused = false;
+            
+            // Update UI
+            document.getElementById('bulkTestProgress').style.display = 'block';
+            document.getElementById('pauseBulkBtn').disabled = false;
+            document.getElementById('stopBulkBtn').disabled = false;
+            updateBulkTestProgress();
+            
+            // Start testing with specified concurrency
+            const workers = [];
+            for (let i = 0; i < concurrency; i++) {
+                workers.push(runBulkTestWorker(i, timeout));
+            }
+            
+            try {
+                await Promise.all(workers);
+                
+                if (bulkTestRunning) {
+                    showBulkTestResults();
+                    showResult('bulkTestResult', {
+                        status: 'SUCCESS',
+                        message: 'Bulk testing completed successfully',
+                        total_tests: bulkTestResults.length,
+                        summary: generateBulkTestSummary()
+                    }, '🎉 Bulk Test Complete');
+                }
+            } catch (error) {
+                showResult('bulkTestResult', {
+                    status: 'ERROR',
+                    error: error.message,
+                    partial_results: bulkTestResults
+                }, '❌ Bulk Test Error');
+            } finally {
+                bulkTestRunning = false;
+                document.getElementById('pauseBulkBtn').disabled = true;
+                document.getElementById('stopBulkBtn').disabled = true;
+            }
+        }
+        
+        async function runBulkTestWorker(workerId, timeout) {
+            while (bulkTestRunning && bulkTestQueue.length > 0) {
+                if (bulkTestPaused) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    continue;
+                }
+                
+                const testCase = bulkTestQueue.shift();
+                if (!testCase) break;
+                
+                document.getElementById('currentTestInfo').innerHTML = 
+                    `<small class="text-muted">Worker ${workerId}: Testing ${testCase.method} ${testCase.endpoint}</small>`;
+                
+                try {
+                    const startTime = performance.now();
+                    
+                    const result = await Promise.race([
+                        executeBulkTestCase(testCase),
+                        new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('Timeout')), timeout)
+                        )
+                    ]);
+                    
+                    const duration = Math.round(performance.now() - startTime);
+                    
+                    bulkTestResults.push({
+                        ...testCase,
+                        success: true,
+                        result: result,
+                        duration: duration,
+                        worker_id: workerId,
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                } catch (error) {
+                    bulkTestResults.push({
+                        ...testCase,
+                        success: false,
+                        error: error.message,
+                        worker_id: workerId,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+                
+                updateBulkTestProgress();
+            }
+        }
+        
+        async function executeBulkTestCase(testCase) {
+            const params = new URLSearchParams();
+            params.append('endpoint', testCase.endpoint);
+            params.append('method', testCase.method);
+            
+            if (testCase.parameters) {
+                Object.entries(testCase.parameters).forEach(([key, value]) => {
+                    params.append(key, value);
+                });
+            }
+            
+            const response = await fetchWithCSRF(`/api/payprop/oauth/raw-api-call?${params}`, {
+                method: 'POST'
+            });
+            
+            return response.data;
+        }
+        
+        function buildTestQueue(testSuite, paramStrategy) {
+            const queue = [];
+            let endpoints = [];
+            
+            // Select endpoints based on test suite
+            switch (testSuite) {
+                case 'payment_full':
+                    endpoints = KNOWN_ENDPOINTS.payments;
+                    break;
+                case 'payment_core':
+                    endpoints = KNOWN_ENDPOINTS.payments.filter(ep => 
+                        ['GET', 'POST'].includes(ep.method) && 
+                        !ep.path.includes('{external_id}')
+                    );
+                    break;
+                case 'invoice_full':
+                    endpoints = KNOWN_ENDPOINTS.invoices;
+                    break;
+                case 'transaction_full':
+                    endpoints = [...KNOWN_ENDPOINTS.payments, ...KNOWN_ENDPOINTS.invoices];
+                    break;
+                case 'all_readonly':
+                    endpoints = Object.values(KNOWN_ENDPOINTS).flat().filter(ep => ep.method === 'GET');
+                    break;
+                case 'all_safe':
+                    endpoints = Object.values(KNOWN_ENDPOINTS).flat().filter(ep => 
+                        ['GET'].includes(ep.method)
+                    );
+                    break;
+                case 'custom':
+                    endpoints = discoveredEndpoints.filter(ep => ep.selected);
+                    break;
+                default:
+                    endpoints = Object.values(KNOWN_ENDPOINTS).flat();
+            }
+            
+            // Generate test cases with different parameter combinations
+            endpoints.forEach(endpoint => {
+                const paramSets = generateParameterSets(endpoint, paramStrategy);
+                
+                paramSets.forEach(paramSet => {
+                    queue.push({
+                        endpoint: endpoint.path,
+                        method: endpoint.method,
+                        category: endpoint.category,
+                        description: endpoint.description,
+                        parameters: paramSet,
+                        test_name: `${endpoint.method} ${endpoint.path} (${paramSet.name || 'default'})`
+                    });
+                });
+            });
+            
+            return queue;
+        }
+        
+        function generateParameterSets(endpoint, strategy) {
+            const baseSets = [{ name: 'minimal' }];
+            
+            if (strategy === 'minimal') return baseSets;
+            
+            const commonParams = [];
+            
+            // Add common parameters based on endpoint type
+            if (endpoint.path.includes('export') || endpoint.path.includes('report')) {
+                commonParams.push(
+                    { name: 'with_dates', from_date: '2025-01-01', to_date: '2025-12-31' },
+                    { name: 'with_pagination', rows: 10, page: 1 },
+                    { name: 'comprehensive', from_date: '2025-01-01', to_date: '2025-12-31', rows: 5 }
+                );
+            }
+            
+            if (endpoint.path.includes('payment')) {
+                commonParams.push(
+                    { name: 'with_beneficiary_info', include_beneficiary_info: true },
+                    { name: 'with_property_filter', property_id: 'test123' }
+                );
+            }
+            
+            if (strategy === 'edge_cases') {
+                commonParams.push(
+                    { name: 'edge_large_page', rows: 1000 },
+                    { name: 'edge_future_date', from_date: '2030-01-01', to_date: '2030-12-31' },
+                    { name: 'edge_invalid_property', property_id: 'invalid_id_12345' }
+                );
+            }
+            
+            return [...baseSets, ...commonParams];
+        }
+        
+        // Helper Functions
+        function getSelectedCategories() {
+            const categories = [];
+            if (document.getElementById('catPayments').checked) categories.push('payments');
+            if (document.getElementById('catInvoices').checked) categories.push('invoices');
+            if (document.getElementById('catProperties').checked) categories.push('properties');
+            if (document.getElementById('catBeneficiaries').checked) categories.push('beneficiaries');
+            if (document.getElementById('catReports').checked) categories.push('reports');
+            if (document.getElementById('catMeta').checked) categories.push('meta');
+            return categories;
+        }
+        
+        function guessCategory(path) {
+            if (path.includes('payment')) return 'payments';
+            if (path.includes('invoice')) return 'invoices';
+            if (path.includes('property')) return 'properties';
+            if (path.includes('beneficiary')) return 'beneficiaries';
+            if (path.includes('report')) return 'reports';
+            if (path.includes('meta') || path.includes('auth')) return 'meta';
+            return 'unknown';
+        }
+        
+        function displayEndpointTree() {
+            const tree = document.getElementById('endpointTree');
+            const categorized = {};
+            
+            discoveredEndpoints.forEach(endpoint => {
+                const category = endpoint.category || 'uncategorized';
+                if (!categorized[category]) categorized[category] = [];
+                categorized[category].push(endpoint);
+            });
+            
+            let html = '';
+            Object.entries(categorized).forEach(([category, endpoints]) => {
+                html += `
+                    <div class="endpoint-category mb-3">
+                        <h6 class="text-primary">
+                            <i class="fas fa-folder"></i> ${category.charAt(0).toUpperCase() + category.slice(1)}
+                            <span class="badge bg-secondary ms-2">${endpoints.length}</span>
+                        </h6>
+                        <div class="endpoint-list ms-3">
+                `;
+                
+                endpoints.forEach(endpoint => {
+                    const statusIcon = getEndpointStatusIcon(endpoint);
+                    const statusClass = getEndpointStatusClass(endpoint);
+                    
+                    html += `
+                        <div class="endpoint-item d-flex justify-content-between align-items-center py-2 border-bottom">
+                            <div class="endpoint-info">
+                                <span class="badge bg-${getMethodColor(endpoint.method)} me-2">${endpoint.method}</span>
+                                <code class="text-muted">${endpoint.path}</code>
+                                <small class="text-muted ms-2">${endpoint.description || ''}</small>
+                            </div>
+                            <div class="endpoint-status">
+                                ${statusIcon}
+                                ${endpoint.response_time ? `<small class="text-muted ms-1">${endpoint.response_time}ms</small>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div></div>';
+            });
+            
+            tree.innerHTML = html || '<div class="text-muted text-center py-4">No endpoints discovered</div>';
+        }
+        
+        function getEndpointStatusIcon(endpoint) {
+            if (endpoint.accessible === true) return '<i class="fas fa-check-circle text-success"></i>';
+            if (endpoint.accessible === false) return '<i class="fas fa-times-circle text-danger"></i>';
+            if (endpoint.test_result?.success === true) return '<i class="fas fa-check-circle text-success"></i>';
+            if (endpoint.test_result?.success === false) return '<i class="fas fa-exclamation-circle text-warning"></i>';
+            return '<i class="fas fa-question-circle text-muted"></i>';
+        }
+        
+        function getEndpointStatusClass(endpoint) {
+            if (endpoint.accessible === true || endpoint.test_result?.success === true) return 'text-success';
+            if (endpoint.accessible === false || endpoint.test_result?.success === false) return 'text-danger';
+            return 'text-muted';
+        }
+        
+        function getMethodColor(method) {
+            switch (method) {
+                case 'GET': return 'primary';
+                case 'POST': return 'success';
+                case 'PUT': return 'warning';
+                case 'DELETE': return 'danger';
+                default: return 'secondary';
+            }
+        }
+        
+        function updateEndpointCount() {
+            document.getElementById('endpointCount').textContent = discoveredEndpoints.length;
+        }
+        
+        function updateBulkTestProgress() {
+            const completed = bulkTestResults.length;
+            const total = completed + bulkTestQueue.length;
+            const succeeded = bulkTestResults.filter(r => r.success).length;
+            const failed = bulkTestResults.filter(r => !r.success).length;
+            const remaining = bulkTestQueue.length;
+            
+            document.getElementById('testsCompleted').textContent = completed;
+            document.getElementById('testsSucceeded').textContent = succeeded;
+            document.getElementById('testsFailed').textContent = failed;
+            document.getElementById('testsRemaining').textContent = remaining;
+            
+            const progressPercent = total > 0 ? (completed / total) * 100 : 0;
+            document.getElementById('bulkTestProgressBar').style.width = `${progressPercent}%`;
+        }
+        
+        function generateTestSummary(testResults) {
+            const total = testResults.length;
+            const successful = testResults.filter(r => r.success !== false).length;
+            const failed = total - successful;
+            
+            return {
+                total,
+                successful,
+                failed,
+                success_rate: total > 0 ? Math.round((successful / total) * 100) : 0
+            };
+        }
+        
+        function generateBulkTestSummary() {
+            const total = bulkTestResults.length;
+            const successful = bulkTestResults.filter(r => r.success).length;
+            const failed = total - successful;
+            const avgDuration = bulkTestResults.reduce((sum, r) => sum + (r.duration || 0), 0) / total;
+            
+            return {
+                total,
+                successful,
+                failed,
+                success_rate: Math.round((successful / total) * 100),
+                average_response_time: Math.round(avgDuration),
+                categories_tested: [...new Set(bulkTestResults.map(r => r.category))],
+                endpoints_tested: [...new Set(bulkTestResults.map(r => r.endpoint))]
+            };
+        }
+        
+        function showBulkTestResults() {
+            document.getElementById('bulkTestSummary').classList.remove('d-none');
+            
+            const resultsDiv = document.getElementById('bulkTestResults');
+            const summary = generateBulkTestSummary();
+            
+            let html = `
+                <div class="row">
+                    <div class="col-md-12">
+                        <h6>Test Summary</h6>
+                        <p class="mb-1"><strong>Total Tests:</strong> ${summary.total}</p>
+                        <p class="mb-1"><strong>Success Rate:</strong> ${summary.success_rate}%</p>
+                        <p class="mb-1"><strong>Average Response Time:</strong> ${summary.average_response_time}ms</p>
+                        <p class="mb-3"><strong>Categories:</strong> ${summary.categories_tested.join(', ')}</p>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Method</th>
+                                <th>Endpoint</th>
+                                <th>Duration</th>
+                                <th>Result</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            bulkTestResults.forEach(result => {
+                const statusIcon = result.success ? 
+                    '<i class="fas fa-check-circle text-success"></i>' : 
+                    '<i class="fas fa-times-circle text-danger"></i>';
+                const statusClass = result.success ? 'table-success' : 'table-danger';
+                
+                html += `
+                    <tr class="${statusClass}">
+                        <td>${statusIcon}</td>
+                        <td><span class="badge bg-${getMethodColor(result.method)}">${result.method}</span></td>
+                        <td><code>${result.endpoint}</code></td>
+                        <td>${result.duration || '-'}ms</td>
+                        <td>${result.success ? 'Success' : result.error || 'Failed'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table></div>';
+            resultsDiv.innerHTML = html;
+        }
+        
+        // Control Functions
+        function previewBulkTest() {
+            const testSuite = document.getElementById('bulkTestSuite').value;
+            const paramStrategy = document.getElementById('parameterStrategy').value;
+            
+            const previewQueue = buildTestQueue(testSuite, paramStrategy);
+            
+            showResult('bulkTestResult', {
+                status: 'INFO',
+                message: 'Bulk test preview',
+                test_suite: testSuite,
+                parameter_strategy: paramStrategy,
+                total_tests: previewQueue.length,
+                test_cases: previewQueue.slice(0, 10), // Show first 10
+                note: previewQueue.length > 10 ? `Showing first 10 of ${previewQueue.length} tests` : ''
+            }, '👀 Bulk Test Preview');
+        }
+        
+        function pauseBulkTest() {
+            bulkTestPaused = !bulkTestPaused;
+            const btn = document.getElementById('pauseBulkBtn');
+            btn.innerHTML = bulkTestPaused ? 
+                '<i class="fas fa-play"></i> Resume' : 
+                '<i class="fas fa-pause"></i> Pause';
+        }
+        
+        function stopBulkTest() {
+            bulkTestRunning = false;
+            bulkTestPaused = false;
+            bulkTestQueue = [];
+            
+            document.getElementById('pauseBulkBtn').disabled = true;
+            document.getElementById('stopBulkBtn').disabled = true;
+            document.getElementById('currentTestInfo').innerHTML = '<small class="text-muted">Stopped</small>';
+        }
+        
+        function exportBulkResults() {
+            if (bulkTestResults.length === 0) {
+                alert('No test results to export');
+                return;
+            }
+            
+            const exportData = {
+                summary: generateBulkTestSummary(),
+                test_results: bulkTestResults,
+                export_timestamp: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `payprop-bulk-test-results-${new Date().toISOString().slice(0,19)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function getEndpointCategories() {
+            const categories = {};
+            discoveredEndpoints.forEach(endpoint => {
+                const category = endpoint.category || 'uncategorized';
+                if (!categories[category]) categories[category] = 0;
+                categories[category]++;
+            });
+            return categories;
+        }
+        
+        // ===== INVOICE INVESTIGATION FUNCTIONS =====
+        
+        async function testInvoiceInstructions() {
+            try {
+                showResult('invoiceInvestigationResult', { status: 'INFO', message: 'Testing /export/invoices endpoint...' }, '🔍 Invoice Instructions Test');
+                
+                const response = await fetchWithCSRF('/api/payprop/oauth/raw-api-call?endpoint=/export/invoices&rows=10', {
+                    method: 'POST'
+                });
+                
+                const invoiceInstructions = response.data;
+                
+                // Analyze the data
+                const analysis = analyzeInvoiceInstructions(invoiceInstructions);
+                
+                showResult('invoiceInvestigationResult', {
+                    status: 'SUCCESS',
+                    endpoint: '/export/invoices',
+                    total_instructions: invoiceInstructions.length,
+                    analysis: analysis,
+                    sample_data: invoiceInstructions.slice(0, 3),
+                    critical_finding: invoiceInstructions.length > 0 ? 
+                        'FOUND INVOICE INSTRUCTIONS - This data is missing from your sync!' :
+                        'No invoice instructions found - check endpoint availability'
+                }, '📋 Invoice Instructions Found');
+                
+            } catch (error) {
+                showResult('invoiceInvestigationResult', {
+                    status: 'ERROR',
+                    error: error.message,
+                    note: 'This might indicate the endpoint is not available or requires different parameters'
+                }, '❌ Invoice Instructions Test Failed');
+            }
+        }
+        
+        async function compareInvoiceData() {
+            try {
+                showResult('invoiceInvestigationResult', { status: 'INFO', message: 'Comparing invoice instructions vs ICDN data...' }, '🔍 Data Comparison');
+                
+                // Get invoice instructions
+                const instructionsResponse = await fetchWithCSRF('/api/payprop/oauth/raw-api-call?endpoint=/export/invoices&rows=25', {
+                    method: 'POST'
+                });
+                
+                // Get ICDN data for comparison
+                const icdnResponse = await fetchWithCSRF('/api/payprop/oauth/raw-api-call?endpoint=/report/icdn&rows=25&type=invoice', {
+                    method: 'POST'
+                });
+                
+                const comparison = {
+                    instructions: {
+                        count: instructionsResponse.data.length,
+                        sample: instructionsResponse.data.slice(0, 2),
+                        analysis: analyzeInvoiceInstructions(instructionsResponse.data)
+                    },
+                    icdn: {
+                        count: icdnResponse.data.length,
+                        sample: icdnResponse.data.slice(0, 2),
+                        analysis: analyzeICDNData(icdnResponse.data)
+                    },
+                    critical_gaps: identifyDataGaps(instructionsResponse.data, icdnResponse.data)
+                };
+                
+                showResult('invoiceInvestigationResult', {
+                    status: 'WARNING',
+                    comparison: comparison,
+                    recommendation: 'Add /export/invoices to your sync process to capture instruction data'
+                }, '⚠️ Data Comparison Results');
+                
+            } catch (error) {
+                showResult('invoiceInvestigationResult', {
+                    status: 'ERROR',
+                    error: error.message
+                }, '❌ Comparison Failed');
+            }
+        }
+        
+        async function testInvoiceCategories() {
+            try {
+                const response = await fetchWithCSRF('/api/payprop/oauth/raw-api-call?endpoint=/invoices/categories', {
+                    method: 'POST'
+                });
+                
+                showResult('invoiceInvestigationResult', {
+                    status: 'SUCCESS',
+                    endpoint: '/invoices/categories',
+                    categories: response.data,
+                    note: 'These categories classify different types of invoices (rent, parking, services, etc.)'
+                }, '🏷️ Invoice Categories');
+                
+            } catch (error) {
+                showResult('invoiceInvestigationResult', {
+                    status: 'ERROR',
+                    error: error.message
+                }, '❌ Invoice Categories Test Failed');
+            }
+        }
+        
+        async function testInvoiceInstructionsExport() {
+            try {
+                const response = await fetchWithCSRF('/api/payprop/oauth/raw-api-call?endpoint=/export/invoice-instructions&rows=10', {
+                    method: 'POST'
+                });
+                
+                showResult('invoiceInvestigationResult', {
+                    status: 'SUCCESS',
+                    endpoint: '/export/invoice-instructions',
+                    instructions: response.data,
+                    note: 'This endpoint may provide detailed instruction history'
+                }, '📤 Invoice Instructions Export');
+                
+            } catch (error) {
+                showResult('invoiceInvestigationResult', {
+                    status: 'ERROR',
+                    error: error.message
+                }, '❌ Instructions Export Failed');
+            }
+        }
+        
+        async function auditCommissionCalculation() {
+            try {
+                showResult('invoiceInvestigationResult', { status: 'INFO', message: 'Auditing commission calculation logic...' }, '🔍 Commission Audit');
+                
+                // Get some ICDN invoice data to analyze
+                const response = await fetchWithCSRF('/api/payprop/oauth/raw-api-call?endpoint=/report/icdn&type=invoice&rows=10', {
+                    method: 'POST'
+                });
+                
+                const auditResults = analyzeCommissionCalculation(response.data);
+                
+                showResult('invoiceInvestigationResult', {
+                    status: auditResults.concerns.length > 0 ? 'WARNING' : 'SUCCESS',
+                    audit_results: auditResults,
+                    recommendation: auditResults.concerns.length > 0 ? 
+                        'Review commission calculation logic - potential issues found' :
+                        'Commission calculation appears consistent'
+                }, '📊 Commission Audit Results');
+                
+            } catch (error) {
+                showResult('invoiceInvestigationResult', {
+                    status: 'ERROR',
+                    error: error.message
+                }, '❌ Commission Audit Failed');
+            }
+        }
+        
+        async function generateInvoiceGapReport() {
+            try {
+                showResult('invoiceInvestigationResult', { status: 'INFO', message: 'Generating comprehensive gap analysis...' }, '🔍 Gap Analysis');
+                
+                const gapReport = {
+                    timestamp: new Date().toISOString(),
+                    critical_findings: [
+                        {
+                            issue: 'Missing Invoice Instructions',
+                            severity: 'HIGH',
+                            description: 'System not importing from /export/invoices - missing recurring rent, parking charges, service charges',
+                            impact: 'Cannot detect missing invoices, payment variances, or forecast cash flow',
+                            recommendation: 'Add /export/invoices to PayPropFinancialSyncService.syncComprehensiveFinancialData()'
+                        },
+                        {
+                            issue: 'Invoice vs Payment Gap',
+                            severity: 'MEDIUM', 
+                            description: 'No validation that ICDN invoices match original instructions',
+                            impact: 'Commission may be calculated on wrong amounts',
+                            recommendation: 'Implement instruction vs completed invoice variance checking'
+                        },
+                        {
+                            issue: 'Missing Invoice Categories',
+                            severity: 'MEDIUM',
+                            description: 'Not syncing /invoices/categories for proper categorization',
+                            impact: 'Cannot properly classify different charge types',
+                            recommendation: 'Add invoice category sync to workflow'
+                        }
+                    ],
+                    current_data_sources: [
+                        'ICDN (/report/icdn) - Completed invoices only',
+                        'Batch Payments (/report/all-payments) - Payment records',
+                        'Properties (/export/properties) - Commission rates'
+                    ],
+                    missing_data_sources: [
+                        '/export/invoices - Invoice instructions (CRITICAL)',
+                        '/invoices/categories - Invoice categorization',
+                        '/export/invoice-instructions - Detailed instruction history'
+                    ],
+                    business_impact: {
+                        missing_payments_detection: 'Cannot identify when invoices should have been generated but weren\'t',
+                        amount_variance_detection: 'Cannot detect when invoice amounts differ from instructions',
+                        cash_flow_forecasting: 'Cannot predict future invoice generation based on recurring rules',
+                        aging_analysis: 'Cannot determine how long invoices remain outstanding'
+                    }
+                };
+                
+                showResult('invoiceInvestigationResult', {
+                    status: 'WARNING',
+                    gap_report: gapReport
+                }, '🚨 Critical Gap Analysis Report');
+                
+            } catch (error) {
+                showResult('invoiceInvestigationResult', {
+                    status: 'ERROR',
+                    error: error.message
+                }, '❌ Gap Analysis Failed');
+            }
+        }
+        
+        // Helper functions for invoice analysis
+        function analyzeInvoiceInstructions(instructions) {
+            if (!instructions || instructions.length === 0) return { note: 'No instructions found' };
+            
+            const analysis = {
+                total_instructions: instructions.length,
+                frequencies: {},
+                categories: {},
+                amount_ranges: { min: null, max: null, total: 0 },
+                enabled_count: 0,
+                recurring_count: 0
+            };
+            
+            instructions.forEach(instruction => {
+                // Analyze frequency
+                const freq = instruction.frequency || 'unknown';
+                analysis.frequencies[freq] = (analysis.frequencies[freq] || 0) + 1;
+                
+                // Analyze categories
+                const category = instruction.category || 'unknown';
+                analysis.categories[category] = (analysis.categories[category] || 0) + 1;
+                
+                // Analyze amounts
+                const amount = parseFloat(instruction.amount) || 0;
+                if (amount > 0) {
+                    analysis.amount_ranges.min = analysis.amount_ranges.min === null ? amount : Math.min(analysis.amount_ranges.min, amount);
+                    analysis.amount_ranges.max = analysis.amount_ranges.max === null ? amount : Math.max(analysis.amount_ranges.max, amount);
+                    analysis.amount_ranges.total += amount;
+                }
+                
+                // Count enabled and recurring
+                if (instruction.enabled) analysis.enabled_count++;
+                if (freq !== 'O' && freq !== 'unknown') analysis.recurring_count++;
+            });
+            
+            return analysis;
+        }
+        
+        function analyzeICDNData(icdnData) {
+            if (!icdnData || icdnData.length === 0) return { note: 'No ICDN data found' };
+            
+            const analysis = {
+                total_records: icdnData.length,
+                types: {},
+                amount_total: 0,
+                date_range: { earliest: null, latest: null }
+            };
+            
+            icdnData.forEach(record => {
+                const type = record.type || 'unknown';
+                analysis.types[type] = (analysis.types[type] || 0) + 1;
+                
+                const amount = parseFloat(record.amount) || 0;
+                analysis.amount_total += amount;
+                
+                const date = record.date;
+                if (date) {
+                    if (!analysis.date_range.earliest || date < analysis.date_range.earliest) {
+                        analysis.date_range.earliest = date;
+                    }
+                    if (!analysis.date_range.latest || date > analysis.date_range.latest) {
+                        analysis.date_range.latest = date;
+                    }
+                }
+            });
+            
+            return analysis;
+        }
+        
+        function identifyDataGaps(instructions, icdnData) {
+            const gaps = [];
+            
+            if (instructions.length === 0) {
+                gaps.push({
+                    type: 'CRITICAL',
+                    issue: 'No invoice instructions found',
+                    description: 'Cannot compare instruction vs completion data'
+                });
+            } else if (icdnData.length === 0) {
+                gaps.push({
+                    type: 'WARNING', 
+                    issue: 'No ICDN data found',
+                    description: 'Cannot validate invoice completion'
+                });
+            } else {
+                // Could implement more sophisticated matching here
+                gaps.push({
+                    type: 'INFO',
+                    issue: 'Data comparison needs enhancement',
+                    description: `Found ${instructions.length} instructions vs ${icdnData.length} ICDN records - need property/tenant matching logic`
+                });
+            }
+            
+            return gaps;
+        }
+        
+        function analyzeCommissionCalculation(invoiceData) {
+            const analysis = {
+                total_invoices: invoiceData.length,
+                commission_concerns: [],
+                amount_distribution: {},
+                recommendations: []
+            };
+            
+            invoiceData.forEach((invoice, index) => {
+                const amount = parseFloat(invoice.amount) || 0;
+                
+                // Check for potential commission calculation issues
+                if (amount > 0) {
+                    // Round amounts might indicate calculated values vs actual
+                    if (amount % 1 === 0) {
+                        analysis.commission_concerns.push({
+                            invoice_id: invoice.id,
+                            issue: 'Round number amount',
+                            amount: amount,
+                            note: 'May indicate calculated rather than actual invoice amount'
+                        });
+                    }
+                    
+                    // Group by amount ranges
+                    const range = Math.floor(amount / 100) * 100;
+                    const rangeKey = `${range}-${range + 99}`;
+                    analysis.amount_distribution[rangeKey] = (analysis.amount_distribution[rangeKey] || 0) + 1;
+                }
+            });
+            
+            // Generate recommendations
+            if (analysis.commission_concerns.length > 0) {
+                analysis.recommendations.push('Review commission calculation - some amounts appear calculated rather than from original invoices');
+            }
+            
+            if (Object.keys(analysis.amount_distribution).length > 10) {
+                analysis.recommendations.push('Wide amount distribution suggests diverse invoice types - ensure commission rates vary by property');
+            }
+            
+            return {
+                analysis: analysis,
+                concerns: analysis.commission_concerns,
+                recommendations: analysis.recommendations
+            };
+        }
         
         // Add quick test scenarios for blocks
         async function runQuickBlockTest(scenario) {
