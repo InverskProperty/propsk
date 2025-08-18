@@ -1098,10 +1098,14 @@ function populateBlockDropdown(propertyId) {
     // Fetch available blocks for this portfolio
     fetch(`/portfolio/internal/blocks/portfolio/${portfolioId}/with-counts`)
         .then(response => response.json())
-        .then(blocks => {
+        .then(blocksData => {
+            // ✅ FIX: Extract blocks array from API response wrapper
+            const blocks = blocksData.blocks || blocksData || [];
+            console.log('Block dropdown - extracted blocks:', blocks);
+            
             let html = '';
             
-            if (blocks.length === 0) {
+            if (!Array.isArray(blocks) || blocks.length === 0) {
                 html = '<div class="dropdown-item text-muted">No blocks available</div>';
             } else {
                 blocks.forEach(block => {
