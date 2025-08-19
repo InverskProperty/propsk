@@ -42,7 +42,7 @@ public class PayPropRawBeneficiariesImportService {
         result.setEndpoint("/export/beneficiaries");
         
         try {
-            String endpoint = "/export/beneficiaries?owners=true&include_details=true";
+            String endpoint = "/export/beneficiaries?owners=true";
             List<Map<String, Object>> beneficiaries = apiClient.fetchAllPages(endpoint, this::processBeneficiaryItem);
             
             result.setTotalFetched(beneficiaries.size());

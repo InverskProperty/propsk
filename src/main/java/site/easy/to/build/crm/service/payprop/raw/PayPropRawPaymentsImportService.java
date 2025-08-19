@@ -48,8 +48,8 @@ public class PayPropRawPaymentsImportService {
         result.setEndpoint("/export/payments");
         
         try {
-            // Fetch all payment distributions
-            String endpoint = "/export/payments?include_details=true";
+            // Fetch all payment distributions using same parameters as working system
+            String endpoint = "/export/payments?include_beneficiary_info=true";
             List<Map<String, Object>> payments = apiClient.fetchAllPages(endpoint, this::processPaymentItem);
             
             result.setTotalFetched(payments.size());

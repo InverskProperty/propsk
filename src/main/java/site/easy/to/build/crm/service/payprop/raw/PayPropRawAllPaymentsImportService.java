@@ -50,8 +50,18 @@ public class PayPropRawAllPaymentsImportService {
         result.setEndpoint("/report/all-payments");
         
         try {
-            // Fetch all payment transactions (last 93 days)
-            String endpoint = "/report/all-payments?days=93&include_details=true";
+            // Fetch all payment transactions using same parameters as working system
+            // Use last 93 days with proper date formatting
+            LocalDateTime endDateTime = LocalDateTime.now();
+            LocalDateTime startDateTime = endDateTime.minusDays(93);
+            
+            String endpoint = "/report/all-payments" +
+                "?from_date=" + startDateTime.toLocalDate().toString() +
+                "&to_date=" + endDateTime.toLocalDate().toString() +
+                "&filter_by=reconciliation_date" +
+                "&include_beneficiary_info=true";
+                
+            log.info("📡 Using endpoint: {}", endpoint);
             List<Map<String, Object>> payments = apiClient.fetchAllPages(endpoint, this::processPaymentItem);
             
             result.setTotalFetched(payments.size());

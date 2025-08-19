@@ -43,7 +43,7 @@ public class PayPropRawTenantsImportService {
         result.setEndpoint("/export/tenants");
         
         try {
-            String endpoint = "/export/tenants?include_details=true";
+            String endpoint = "/export/tenants";
             List<Map<String, Object>> tenants = apiClient.fetchAllPages(endpoint, this::processTenantItem);
             
             result.setTotalFetched(tenants.size());
