@@ -131,6 +131,9 @@ public class PayPropRawBeneficiariesImportService {
     private void setBeneficiaryParameters(PreparedStatement stmt, Map<String, Object> beneficiary) 
             throws SQLException {
         
+        // Extract nested objects safely if they exist
+        Map<String, Object> bankDetails = getMapValue(beneficiary, "bank_details");
+        
         int paramIndex = 1;
         
         // Map PayProp API fields to actual database columns (9 total parameters)
@@ -139,9 +142,18 @@ public class PayPropRawBeneficiariesImportService {
         stmt.setString(paramIndex++, getStringValue(beneficiary, "name")); // name
         stmt.setString(paramIndex++, getStringValue(beneficiary, "email")); // email
         stmt.setString(paramIndex++, getStringValue(beneficiary, "phone")); // phone
-        stmt.setString(paramIndex++, getStringValue(beneficiary, "bank_account_name")); // bank_account_name
-        stmt.setString(paramIndex++, getStringValue(beneficiary, "bank_account_number")); // bank_account_number
-        stmt.setString(paramIndex++, getStringValue(beneficiary, "bank_sort_code")); // bank_sort_code
+        
+        // Bank details can be nested or at root level
+        stmt.setString(paramIndex++, getStringValue(bankDetails, "account_name") != null 
+            ? getStringValue(bankDetails, "account_name") 
+            : getStringValue(beneficiary, "bank_account_name")); // bank_account_name
+        stmt.setString(paramIndex++, getStringValue(bankDetails, "account_number") != null 
+            ? getStringValue(bankDetails, "account_number") 
+            : getStringValue(beneficiary, "bank_account_number")); // bank_account_number
+        stmt.setString(paramIndex++, getStringValue(bankDetails, "sort_code") != null 
+            ? getStringValue(bankDetails, "sort_code") 
+            : getStringValue(beneficiary, "bank_sort_code")); // bank_sort_code
+            
         stmt.setString(paramIndex++, "active"); // sync_status (default)
     }
     

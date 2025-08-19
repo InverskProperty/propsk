@@ -132,6 +132,9 @@ public class PayPropRawTenantsImportService {
     private void setTenantParameters(PreparedStatement stmt, Map<String, Object> tenant) 
             throws SQLException {
         
+        // Extract nested objects safely if they exist
+        Map<String, Object> contactInfo = getMapValue(tenant, "contact_info");
+        
         int paramIndex = 1;
         
         // Map PayProp API fields to actual database columns (8 total parameters)
@@ -140,8 +143,15 @@ public class PayPropRawTenantsImportService {
         stmt.setString(paramIndex++, getStringValue(tenant, "last_name")); // last_name
         stmt.setString(paramIndex++, getStringValue(tenant, "business_name")); // business_name
         stmt.setString(paramIndex++, getStringValue(tenant, "display_name")); // display_name
-        stmt.setString(paramIndex++, getStringValue(tenant, "email")); // email
-        stmt.setString(paramIndex++, getStringValue(tenant, "phone")); // phone
+        
+        // Email and phone can be nested or at root level
+        stmt.setString(paramIndex++, getStringValue(contactInfo, "email_address") != null 
+            ? getStringValue(contactInfo, "email_address") 
+            : getStringValue(tenant, "email")); // email
+        stmt.setString(paramIndex++, getStringValue(contactInfo, "phone_number") != null 
+            ? getStringValue(contactInfo, "phone_number") 
+            : getStringValue(tenant, "phone")); // phone
+            
         stmt.setString(paramIndex++, "active"); // sync_status (default)
     }
     

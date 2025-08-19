@@ -157,6 +157,11 @@ public class PayPropRawPaymentsImportService {
     private void setPaymentParameters(PreparedStatement stmt, Map<String, Object> payment) 
             throws SQLException {
         
+        // Extract nested objects safely (like invoices service does)
+        Map<String, Object> property = getMapValue(payment, "property");
+        Map<String, Object> tenant = getMapValue(payment, "tenant");
+        Map<String, Object> category = getMapValue(payment, "category");
+        
         int paramIndex = 1;
         
         // Map PayProp API fields to actual database columns (27 total parameters)
@@ -164,7 +169,7 @@ public class PayPropRawPaymentsImportService {
         stmt.setString(paramIndex++, getStringValue(payment, "beneficiary")); // beneficiary
         stmt.setString(paramIndex++, getStringValue(payment, "beneficiary_reference")); // beneficiary_reference
         stmt.setString(paramIndex++, getStringValue(payment, "category")); // category
-        stmt.setString(paramIndex++, getStringValue(payment, "category_payprop_id")); // category_payprop_id
+        stmt.setString(paramIndex++, getStringValue(category, "id")); // category_payprop_id (from nested object)
         stmt.setString(paramIndex++, getStringValue(payment, "description")); // description
         setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "enabled")); // enabled
         stmt.setString(paramIndex++, getStringValue(payment, "frequency")); // frequency
@@ -181,10 +186,10 @@ public class PayPropRawPaymentsImportService {
         stmt.setString(paramIndex++, getStringValue(payment, "reference")); // reference
         setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "vat")); // vat
         stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "vat_amount")); // vat_amount
-        stmt.setString(paramIndex++, getStringValue(payment, "property_payprop_id")); // property_payprop_id
-        stmt.setString(paramIndex++, getStringValue(payment, "tenant_payprop_id")); // tenant_payprop_id
-        stmt.setString(paramIndex++, getStringValue(payment, "property_name")); // property_name
-        stmt.setString(paramIndex++, getStringValue(payment, "tenant_name")); // tenant_name
+        stmt.setString(paramIndex++, getStringValue(property, "id")); // property_payprop_id (from nested object)
+        stmt.setString(paramIndex++, getStringValue(tenant, "id")); // tenant_payprop_id (from nested object)
+        stmt.setString(paramIndex++, getStringValue(property, "name")); // property_name (from nested object)
+        stmt.setString(paramIndex++, getStringValue(tenant, "display_name")); // tenant_name (from nested object)
         stmt.setString(paramIndex++, "active"); // sync_status (default)
         setIntegerParameter(stmt, paramIndex++, getIntegerValue(payment, "rule_priority")); // rule_priority
     }
@@ -262,7 +267,12 @@ public class PayPropRawPaymentsImportService {
             return null;
         }
         try {
-            return Integer.valueOf(map.get(key).toString());
+            // Handle decimal values that should be integers (e.g., 0.0 -> 0)
+            String valueStr = map.get(key).toString();
+            if (valueStr.contains(".")) {
+                return Integer.valueOf(Double.valueOf(valueStr).intValue());
+            }
+            return Integer.valueOf(valueStr);
         } catch (NumberFormatException e) {
             log.warn("Failed to convert {} to Integer: {}", key, map.get(key));
             return null;
@@ -288,6 +298,19 @@ public class PayPropRawPaymentsImportService {
         } catch (Exception e) {
             log.warn("Failed to convert {} to Date: {}", key, map.get(key));
             return null;
+        }
+    }
+    
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getMapValue(Map<String, Object> map, String key) {
+        if (map == null || !map.containsKey(key) || map.get(key) == null) {
+            return Map.of(); // Empty map for null safety
+        }
+        try {
+            return (Map<String, Object>) map.get(key);
+        } catch (ClassCastException e) {
+            log.warn("Value for key {} is not a Map: {}", key, map.get(key));
+            return Map.of();
         }
     }
 }
