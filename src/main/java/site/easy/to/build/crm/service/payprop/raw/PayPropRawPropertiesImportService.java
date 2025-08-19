@@ -223,11 +223,33 @@ public class PayPropRawPropertiesImportService {
      * Clear existing properties for full refresh
      */
     private void clearExistingProperties() throws SQLException {
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(
-                 "DELETE FROM payprop_export_properties")) {
-            int deletedCount = stmt.executeUpdate();
-            log.info("Cleared {} existing properties for fresh import", deletedCount);
+        try (Connection conn = dataSource.getConnection()) {
+            // Clear child tables first to avoid foreign key constraint violations
+            log.info("Clearing raw import tables for fresh import...");
+            
+            // Clear all dependent tables first
+            String[] childTables = {
+                "payprop_export_invoices",
+                "payprop_report_all_payments", 
+                "payprop_export_payments",
+                "payprop_export_beneficiaries",
+                "payprop_export_tenants"
+            };
+            
+            for (String table : childTables) {
+                try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM " + table)) {
+                    int deletedCount = stmt.executeUpdate();
+                    log.debug("Cleared {} records from {}", deletedCount, table);
+                }
+            }
+            
+            // Finally clear the parent properties table
+            try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM payprop_export_properties")) {
+                int deletedCount = stmt.executeUpdate();
+                log.info("Cleared {} existing properties for fresh import", deletedCount);
+            }
+            
+            log.info("✅ All raw import tables cleared successfully");
         }
     }
     
