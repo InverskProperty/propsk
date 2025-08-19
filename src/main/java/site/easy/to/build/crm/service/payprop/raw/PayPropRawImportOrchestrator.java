@@ -138,6 +138,10 @@ public class PayPropRawImportOrchestrator {
             // NEW FINANCIAL ENDPOINTS - CAPTURE THE MISSING £995 DATA!
             log.info("💰 PHASE 1B: NEW FINANCIAL ENDPOINTS - Searching for £995 mystery data!");
             
+            // COMMENTED OUT: PayProp permission-restricted endpoints (403 errors)
+            // These require higher-tier API access that this account doesn't have
+            
+            /* DISABLED - PayProp API Permission Denied (403)
             // Import tenant balances (MOST LIKELY to contain £995!)
             PayPropRawImportResult tenantBalancesResult = tenantBalancesImportService.importAllTenantBalances();
             orchestrationResult.addImportResult("tenant_balances", tenantBalancesResult);
@@ -152,14 +156,6 @@ public class PayPropRawImportOrchestrator {
             
             if (!tenantStatementResult.isSuccess()) {
                 throw new RuntimeException("Tenant statements import failed: " + tenantStatementResult.getErrorMessage());
-            }
-            
-            // Import beneficiary balances
-            PayPropRawImportResult beneficiaryBalancesResult = beneficiaryBalancesImportService.importAllBeneficiaryBalances();
-            orchestrationResult.addImportResult("beneficiary_balances", beneficiaryBalancesResult);
-            
-            if (!beneficiaryBalancesResult.isSuccess()) {
-                throw new RuntimeException("Beneficiary balances import failed: " + beneficiaryBalancesResult.getErrorMessage());
             }
             
             // Import invoice instructions (alternative to invoices)
@@ -185,6 +181,17 @@ public class PayPropRawImportOrchestrator {
             if (!processingSummaryResult.isSuccess()) {
                 throw new RuntimeException("Processing summaries import failed: " + processingSummaryResult.getErrorMessage());
             }
+            */
+            
+            // Import beneficiary balances (this one might work)
+            PayPropRawImportResult beneficiaryBalancesResult = beneficiaryBalancesImportService.importAllBeneficiaryBalances();
+            orchestrationResult.addImportResult("beneficiary_balances", beneficiaryBalancesResult);
+            
+            if (!beneficiaryBalancesResult.isSuccess()) {
+                throw new RuntimeException("Beneficiary balances import failed: " + beneficiaryBalancesResult.getErrorMessage());
+            }
+            
+            log.info("⚠️ NOTE: 5 premium financial endpoints skipped due to PayProp API permissions");
             
             log.info("✅ PHASE 1 Complete: ALL RAW DATA imported successfully");
             log.info("   ORIGINAL ENDPOINTS:");
@@ -194,13 +201,9 @@ public class PayPropRawImportOrchestrator {
             log.info("   Payment Distributions: {} items", paymentsResult.getTotalImported());
             log.info("   Beneficiaries: {} items", beneficiariesResult.getTotalImported());
             log.info("   Tenants: {} items", tenantsResult.getTotalImported());
-            log.info("   NEW FINANCIAL ENDPOINTS (THE £995 MYSTERY SOLVERS!):");
-            log.info("   Tenant Balances: {} items (CONTAINS £995!)", tenantBalancesResult.getTotalImported());
-            log.info("   Tenant Statements: {} items", tenantStatementResult.getTotalImported());
+            log.info("   NEW FINANCIAL ENDPOINTS:");
             log.info("   Beneficiary Balances: {} items", beneficiaryBalancesResult.getTotalImported());
-            log.info("   Invoice Instructions Alt: {} items", invoiceInstructionsResult.getTotalImported());
-            log.info("   Agency Income: {} items", agencyIncomeResult.getTotalImported());
-            log.info("   Processing Summaries: {} items", processingSummaryResult.getTotalImported());
+            log.info("   ⚠️ SKIPPED: 5 premium endpoints (tenant-balances, tenant-statement, invoice-instructions, agency-income, processing-summary)");
             
             // PHASE 2: Business Logic Application
             log.info("🧠 PHASE 2: Business Logic - Solving £995 vs £1,075 mystery");
