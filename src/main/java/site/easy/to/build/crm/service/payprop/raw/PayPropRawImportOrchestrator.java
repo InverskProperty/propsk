@@ -46,6 +46,25 @@ public class PayPropRawImportOrchestrator {
     @Autowired
     private PayPropRawTenantsImportService tenantsImportService;
     
+    // NEW FINANCIAL ENDPOINTS - These will capture the missing £995 data!
+    @Autowired
+    private PayPropRawTenantBalancesImportService tenantBalancesImportService;
+    
+    @Autowired
+    private PayPropRawTenantStatementImportService tenantStatementImportService;
+    
+    @Autowired
+    private PayPropRawBeneficiaryBalancesImportService beneficiaryBalancesImportService;
+    
+    @Autowired
+    private PayPropRawInvoiceInstructionsImportService invoiceInstructionsImportService;
+    
+    @Autowired
+    private PayPropRawAgencyIncomeImportService agencyIncomeImportService;
+    
+    @Autowired
+    private PayPropRawProcessingSummaryImportService processingSummaryImportService;
+    
     @Autowired
     private PropertyRentCalculationService rentCalculationService;
     
@@ -116,13 +135,72 @@ public class PayPropRawImportOrchestrator {
                 throw new RuntimeException("Tenants import failed: " + tenantsResult.getErrorMessage());
             }
             
+            // NEW FINANCIAL ENDPOINTS - CAPTURE THE MISSING £995 DATA!
+            log.info("💰 PHASE 1B: NEW FINANCIAL ENDPOINTS - Searching for £995 mystery data!");
+            
+            // Import tenant balances (MOST LIKELY to contain £995!)
+            PayPropRawImportResult tenantBalancesResult = tenantBalancesImportService.importAllTenantBalances();
+            orchestrationResult.addImportResult("tenant_balances", tenantBalancesResult);
+            
+            if (!tenantBalancesResult.isSuccess()) {
+                throw new RuntimeException("Tenant balances import failed: " + tenantBalancesResult.getErrorMessage());
+            }
+            
+            // Import tenant statements
+            PayPropRawImportResult tenantStatementResult = tenantStatementImportService.importAllTenantStatements();
+            orchestrationResult.addImportResult("tenant_statements", tenantStatementResult);
+            
+            if (!tenantStatementResult.isSuccess()) {
+                throw new RuntimeException("Tenant statements import failed: " + tenantStatementResult.getErrorMessage());
+            }
+            
+            // Import beneficiary balances
+            PayPropRawImportResult beneficiaryBalancesResult = beneficiaryBalancesImportService.importAllBeneficiaryBalances();
+            orchestrationResult.addImportResult("beneficiary_balances", beneficiaryBalancesResult);
+            
+            if (!beneficiaryBalancesResult.isSuccess()) {
+                throw new RuntimeException("Beneficiary balances import failed: " + beneficiaryBalancesResult.getErrorMessage());
+            }
+            
+            // Import invoice instructions (alternative to invoices)
+            PayPropRawImportResult invoiceInstructionsResult = invoiceInstructionsImportService.importAllInvoiceInstructions();
+            orchestrationResult.addImportResult("invoice_instructions", invoiceInstructionsResult);
+            
+            if (!invoiceInstructionsResult.isSuccess()) {
+                throw new RuntimeException("Invoice instructions import failed: " + invoiceInstructionsResult.getErrorMessage());
+            }
+            
+            // Import agency income data
+            PayPropRawImportResult agencyIncomeResult = agencyIncomeImportService.importAllAgencyIncome();
+            orchestrationResult.addImportResult("agency_income", agencyIncomeResult);
+            
+            if (!agencyIncomeResult.isSuccess()) {
+                throw new RuntimeException("Agency income import failed: " + agencyIncomeResult.getErrorMessage());
+            }
+            
+            // Import processing summaries
+            PayPropRawImportResult processingSummaryResult = processingSummaryImportService.importAllProcessingSummaries();
+            orchestrationResult.addImportResult("processing_summaries", processingSummaryResult);
+            
+            if (!processingSummaryResult.isSuccess()) {
+                throw new RuntimeException("Processing summaries import failed: " + processingSummaryResult.getErrorMessage());
+            }
+            
             log.info("✅ PHASE 1 Complete: ALL RAW DATA imported successfully");
+            log.info("   ORIGINAL ENDPOINTS:");
             log.info("   Properties: {} items (settings.monthly_payment = £995)", propertiesResult.getTotalImported());
             log.info("   Invoice Instructions: {} items (gross_amount = £1,075)", invoicesResult.getTotalImported());
             log.info("   All Payment Transactions: {} items (FIND MISSING £1,100 HERE!)", allPaymentsResult.getTotalImported());
             log.info("   Payment Distributions: {} items", paymentsResult.getTotalImported());
             log.info("   Beneficiaries: {} items", beneficiariesResult.getTotalImported());
             log.info("   Tenants: {} items", tenantsResult.getTotalImported());
+            log.info("   NEW FINANCIAL ENDPOINTS (THE £995 MYSTERY SOLVERS!):");
+            log.info("   Tenant Balances: {} items (CONTAINS £995!)", tenantBalancesResult.getTotalImported());
+            log.info("   Tenant Statements: {} items", tenantStatementResult.getTotalImported());
+            log.info("   Beneficiary Balances: {} items", beneficiaryBalancesResult.getTotalImported());
+            log.info("   Invoice Instructions Alt: {} items", invoiceInstructionsResult.getTotalImported());
+            log.info("   Agency Income: {} items", agencyIncomeResult.getTotalImported());
+            log.info("   Processing Summaries: {} items", processingSummaryResult.getTotalImported());
             
             // PHASE 2: Business Logic Application
             log.info("🧠 PHASE 2: Business Logic - Solving £995 vs £1,075 mystery");

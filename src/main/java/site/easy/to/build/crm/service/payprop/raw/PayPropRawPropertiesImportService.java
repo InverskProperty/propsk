@@ -49,9 +49,9 @@ public class PayPropRawPropertiesImportService {
         result.setEndpoint("/export/properties");
         
         try {
-            // Fetch all properties using existing API client
+            // Fetch all properties using existing API client with contract amount (monthly rent)
             List<Map<String, Object>> properties = apiClient.fetchAllPages(
-                "/export/properties?include_commission=true", 
+                "/export/properties?include_commission=true&include_contract_amount=true&include_balance=true", 
                 this::processPropertyItem
             );
             
