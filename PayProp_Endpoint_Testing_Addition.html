@@ -1,0 +1,508 @@
+<!-- PayProp Comprehensive Endpoint Testing Section -->
+<!-- Add this section to your existing test.html file -->
+
+<div class="test-card">
+    <div class="test-card-header">
+        <h3><i class="fas fa-network-wired"></i> PayProp API Endpoint Testing</h3>
+        <p class="mb-0">Test all 37+ PayProp endpoints to identify available capabilities and permissions</p>
+    </div>
+    <div class="test-card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h5>Quick Tests</h5>
+                <button class="btn btn-primary mb-2" onclick="testCriticalMissingEndpoints()">
+                    <i class="fas fa-exclamation-triangle"></i> Test Critical Missing Endpoints
+                </button>
+                <button class="btn btn-warning mb-2" onclick="testAllEndpoints()">
+                    <i class="fas fa-globe"></i> Test ALL 37+ Endpoints
+                </button>
+                <button class="btn btn-info mb-2" onclick="listAllEndpoints()">
+                    <i class="fas fa-list"></i> List All Available Endpoints
+                </button>
+            </div>
+            <div class="col-md-6">
+                <h5>Individual Endpoint Testing</h5>
+                <div class="mb-2">
+                    <select id="endpointSelect" class="form-select">
+                        <option value="">Select an endpoint to test...</option>
+                        <option value="export-invoices">🚨 /export/invoices (CRITICAL MISSING)</option>
+                        <option value="export-payments">🚨 /export/payments (Payment Distribution)</option>
+                        <option value="export-properties">✅ /export/properties (Currently Used)</option>
+                        <option value="export-beneficiaries">📊 /export/beneficiaries</option>
+                        <option value="export-tenants">📊 /export/tenants</option>
+                        <option value="report-all-payments">✅ /report/all-payments (Currently Used)</option>
+                        <option value="report-icdn">✅ /report/icdn (Currently Used)</option>
+                        <option value="invoices-categories">🔍 /invoices/categories</option>
+                        <option value="payments-categories">🔍 /payments/categories</option>
+                        <option value="report-commission-summary">💰 /reports/commission-summary</option>
+                        <option value="report-payment-variance">⚠️ /reports/payment-variance</option>
+                        <option value="report-tenant-arrears">📈 /reports/tenant-arrears</option>
+                        <option value="payments-adhoc">💳 /payments/adhoc</option>
+                        <option value="payments-secondary">🔄 /payments/secondary</option>
+                        <option value="webhooks-configuration">📡 /webhooks/configuration</option>
+                    </select>
+                </div>
+                <button class="btn btn-outline-primary" onclick="testSingleEndpoint()">
+                    <i class="fas fa-play"></i> Test Selected Endpoint
+                </button>
+            </div>
+        </div>
+        
+        <div id="endpointTestResults" class="result-display mt-3" style="display: none;"></div>
+    </div>
+</div>
+
+<!-- Endpoint Testing Results Summary -->
+<div class="test-card">
+    <div class="test-card-header">
+        <h3><i class="fas fa-chart-bar"></i> Endpoint Testing Summary</h3>
+    </div>
+    <div class="test-card-body">
+        <div class="row" id="endpointSummaryCards">
+            <!-- Summary cards will be populated by JavaScript -->
+        </div>
+        <div id="endpointDetailedResults" class="mt-3"></div>
+    </div>
+</div>
+
+<script>
+// PayProp Endpoint Testing JavaScript Functions
+
+let allEndpointResults = {};
+
+async function testCriticalMissingEndpoints() {
+    showLoadingState('endpointTestResults', 'Testing critical missing endpoints...');
+    
+    try {
+        const response = await fetch('/api/payprop/endpoint-test/test-critical-missing', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            }
+        });
+        
+        const result = await response.json();
+        displayEndpointResults(result, 'Critical Missing Endpoints Test');
+        
+    } catch (error) {
+        showErrorResult('endpointTestResults', 'Error testing critical endpoints: ' + error.message);
+    }
+}
+
+async function testAllEndpoints() {
+    showLoadingState('endpointTestResults', 'Testing all 37+ PayProp endpoints... This may take 2-3 minutes with rate limiting.');
+    
+    try {
+        const response = await fetch('/api/payprop/endpoint-test/test-all', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            }
+        });
+        
+        const result = await response.json();
+        allEndpointResults = result;
+        displayComprehensiveResults(result);
+        
+    } catch (error) {
+        showErrorResult('endpointTestResults', 'Error testing all endpoints: ' + error.message);
+    }
+}
+
+async function testSingleEndpoint() {
+    const selectedEndpoint = document.getElementById('endpointSelect').value;
+    
+    if (!selectedEndpoint) {
+        alert('Please select an endpoint to test');
+        return;
+    }
+    
+    showLoadingState('endpointTestResults', `Testing ${selectedEndpoint}...`);
+    
+    try {
+        const response = await fetch('/api/payprop/endpoint-test/test-single', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            },
+            body: JSON.stringify({
+                endpointKey: selectedEndpoint
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        displaySingleEndpointResult(result, selectedEndpoint);
+        
+    } catch (error) {
+        showErrorResult('endpointTestResults', 'Error testing endpoint: ' + error.message);
+    }
+}
+
+async function listAllEndpoints() {
+    showLoadingState('endpointTestResults', 'Loading endpoint list...');
+    
+    try {
+        const response = await fetch('/api/payprop/endpoint-test/list-endpoints', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken
+            }
+        });
+        
+        const result = await response.json();
+        displayEndpointList(result);
+        
+    } catch (error) {
+        showErrorResult('endpointTestResults', 'Error loading endpoint list: ' + error.message);
+    }
+}
+
+function displayEndpointResults(result, title) {
+    const container = document.getElementById('endpointTestResults');
+    container.style.display = 'block';
+    
+    if (!result.success) {
+        container.innerHTML = `
+            <div class="result-error">
+                <h5>${title} - Error</h5>
+                <p><strong>Error:</strong> ${result.error}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `<div class="result-success">
+        <h5>${title} - Results</h5>
+        <p><strong>Endpoints Tested:</strong> ${result.critical_endpoints_tested || Object.keys(result.results || {}).length}</p>
+    `;
+    
+    if (result.results) {
+        html += '<div class="mt-3"><h6>Individual Results:</h6>';
+        
+        for (const [endpointKey, endpointResult] of Object.entries(result.results)) {
+            const statusClass = endpointResult.success ? 'text-success' : 'text-danger';
+            const statusIcon = endpointResult.success ? '✅' : '❌';
+            
+            html += `
+                <div class="border-bottom pb-2 mb-2">
+                    <strong class="${statusClass}">${statusIcon} ${endpointKey}</strong><br>
+                    <small class="text-muted">Endpoint: ${endpointResult.endpoint || 'N/A'}</small><br>
+                    <small class="text-muted">Permission: ${endpointResult.expected_permission || 'N/A'}</small>
+            `;
+            
+            if (endpointResult.success) {
+                html += `<br><small class="text-success">Status: ${endpointResult.status_code}, Response Time: ${endpointResult.response_time_ms}ms</small>`;
+                if (endpointResult.has_data_array || endpointResult.has_data_object) {
+                    html += `<br><small class="text-info">✅ Contains Data</small>`;
+                }
+            } else {
+                html += `<br><small class="text-danger">Error: ${endpointResult.error}</small>`;
+                if (endpointResult.suggestion) {
+                    html += `<br><small class="text-warning">💡 ${endpointResult.suggestion}</small>`;
+                }
+            }
+            
+            html += '</div>';
+        }
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function displayComprehensiveResults(result) {
+    // Update summary cards
+    const summaryContainer = document.getElementById('endpointSummaryCards');
+    summaryContainer.innerHTML = `
+        <div class="col-md-3">
+            <div class="card text-center bg-success text-white">
+                <div class="card-body">
+                    <h4>${result.successful || 0}</h4>
+                    <p>Successful</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-warning text-dark">
+                <div class="card-body">
+                    <h4>${result.unauthorized || 0}</h4>
+                    <p>Unauthorized</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-info text-white">
+                <div class="card-body">
+                    <h4>${result.not_found || 0}</h4>
+                    <p>Not Found</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center bg-danger text-white">
+                <div class="card-body">
+                    <h4>${result.errors || 0}</h4>
+                    <p>Other Errors</p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Show detailed results
+    displayEndpointResults(result, 'Comprehensive Endpoint Test');
+    
+    // Create analysis
+    const analysisHtml = generateEndpointAnalysis(result);
+    const detailedContainer = document.getElementById('endpointDetailedResults');
+    detailedContainer.innerHTML = analysisHtml;
+}
+
+function displaySingleEndpointResult(result, endpointKey) {
+    const container = document.getElementById('endpointTestResults');
+    container.style.display = 'block';
+    
+    const statusClass = result.success ? 'result-success' : 'result-error';
+    const statusIcon = result.success ? '✅' : '❌';
+    
+    let html = `<div class="${statusClass}">
+        <h5>${statusIcon} ${endpointKey} Test Result</h5>
+        <p><strong>Endpoint:</strong> ${result.endpoint || 'N/A'}</p>
+        <p><strong>Expected Permission:</strong> ${result.expected_permission || 'N/A'}</p>
+    `;
+    
+    if (result.success) {
+        html += `
+            <p><strong>Status Code:</strong> ${result.status_code}</p>
+            <p><strong>Response Time:</strong> ${result.response_time_ms}ms</p>
+            <p><strong>Has Data:</strong> ${result.has_data ? 'Yes' : 'No'}</p>
+        `;
+        
+        if (result.sample_response) {
+            html += `
+                <details class="mt-3">
+                    <summary><strong>Sample Response</strong></summary>
+                    <pre class="mt-2" style="background: #f8f9fa; padding: 1rem; border-radius: 4px; font-size: 0.8rem;">${result.sample_response}</pre>
+                </details>
+            `;
+        }
+    } else {
+        html += `
+            <p><strong>Error:</strong> ${result.error}</p>
+            <p><strong>Error Type:</strong> ${result.error_type || 'Unknown'}</p>
+        `;
+        
+        if (result.suggestion) {
+            html += `<p><strong>💡 Suggestion:</strong> ${result.suggestion}</p>`;
+        }
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function displayEndpointList(result) {
+    const container = document.getElementById('endpointTestResults');
+    container.style.display = 'block';
+    
+    if (!result.success) {
+        container.innerHTML = `
+            <div class="result-error">
+                <h5>Error Loading Endpoints</h5>
+                <p>${result.error}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="result-success">
+            <h5>Available PayProp Endpoints (${result.total_endpoints})</h5>
+            <div class="table-responsive mt-3">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Key</th>
+                            <th>Endpoint</th>
+                            <th>Method</th>
+                            <th>Description</th>
+                            <th>Permission</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    `;
+    
+    for (const [key, endpoint] of Object.entries(result.endpoints)) {
+        const criticalClass = key.includes('export-invoices') || key.includes('export-payments') ? 'table-warning' : '';
+        
+        html += `
+            <tr class="${criticalClass}">
+                <td><code>${key}</code></td>
+                <td><code>${endpoint.path}</code></td>
+                <td><span class="badge bg-secondary">${endpoint.method}</span></td>
+                <td>${endpoint.description}</td>
+                <td><small>${endpoint.permission}</small></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="testSpecificEndpoint('${key}')">
+                        Test
+                    </button>
+                </td>
+            </tr>
+        `;
+    }
+    
+    html += `
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+async function testSpecificEndpoint(endpointKey) {
+    // Set the select dropdown and trigger test
+    document.getElementById('endpointSelect').value = endpointKey;
+    await testSingleEndpoint();
+}
+
+function generateEndpointAnalysis(result) {
+    if (!result.results) return '';
+    
+    const successfulEndpoints = [];
+    const failedEndpoints = [];
+    const criticalMissing = [];
+    
+    for (const [key, endpointResult] of Object.entries(result.results)) {
+        if (endpointResult.success) {
+            successfulEndpoints.push(key);
+        } else {
+            failedEndpoints.push({ key, error: endpointResult.error, suggestion: endpointResult.suggestion });
+        }
+        
+        // Check for critical endpoints
+        if ((key.includes('export-invoices') || key.includes('export-payments') || key.includes('invoices-categories')) && !endpointResult.success) {
+            criticalMissing.push(key);
+        }
+    }
+    
+    let html = `
+        <div class="mt-4">
+            <h5>🔍 Analysis & Recommendations</h5>
+    `;
+    
+    if (criticalMissing.length > 0) {
+        html += `
+            <div class="alert alert-danger">
+                <h6>🚨 Critical Missing Capabilities</h6>
+                <p>These endpoints are essential for complete PayProp integration:</p>
+                <ul>
+                    ${criticalMissing.map(key => `<li><strong>${key}</strong> - Required for missing data gap identified in documentation</li>`).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    
+    if (successfulEndpoints.length > 0) {
+        html += `
+            <div class="alert alert-success">
+                <h6>✅ Available Capabilities (${successfulEndpoints.length})</h6>
+                <p>These endpoints are working and can be implemented:</p>
+                <div class="row">
+                    ${successfulEndpoints.map(key => `<div class="col-md-6"><code>${key}</code></div>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (failedEndpoints.length > 0) {
+        html += `
+            <div class="alert alert-warning">
+                <h6>⚠️ Issues Found (${failedEndpoints.length})</h6>
+                <p>These endpoints may require additional permissions or don't exist in your PayProp setup:</p>
+        `;
+        
+        failedEndpoints.forEach(item => {
+            html += `<div class="mb-2"><strong>${item.key}:</strong> ${item.error}`;
+            if (item.suggestion) {
+                html += `<br><small class="text-muted">💡 ${item.suggestion}</small>`;
+            }
+            html += '</div>';
+        });
+        
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    return html;
+}
+
+function showLoadingState(containerId, message) {
+    const container = document.getElementById(containerId);
+    container.style.display = 'block';
+    container.innerHTML = `
+        <div class="text-center p-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">${message}</p>
+        </div>
+    `;
+}
+
+function showErrorResult(containerId, errorMessage) {
+    const container = document.getElementById(containerId);
+    container.style.display = 'block';
+    container.innerHTML = `
+        <div class="result-error">
+            <h5>❌ Error</h5>
+            <p>${errorMessage}</p>
+        </div>
+    `;
+}
+
+// Auto-populate endpoint select on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Endpoint select is already populated in HTML
+});
+</script>
+
+<!-- Add this CSS to your existing styles if needed -->
+<style>
+.table-warning {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+}
+
+.result-display {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+details summary {
+    cursor: pointer;
+    font-weight: bold;
+}
+
+details[open] summary {
+    margin-bottom: 0.5rem;
+}
+
+.card {
+    margin-bottom: 1rem;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+</style>
