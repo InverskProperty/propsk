@@ -171,7 +171,7 @@ public class PayPropApiClient {
             try {
                 // Build endpoint with date parameters
                 String endpoint = baseEndpoint + 
-                    "?from_date=" + chunkStart.toLocalDate().toString() +
+                    "&from_date=" + chunkStart.toLocalDate().toString() +
                     "&to_date=" + currentEnd.toLocalDate().toString();
                 
                 log.info("📅 CHUNK {}: Fetching {} to {} ({})", 

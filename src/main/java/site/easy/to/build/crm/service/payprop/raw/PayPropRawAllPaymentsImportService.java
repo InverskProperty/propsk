@@ -53,14 +53,14 @@ public class PayPropRawAllPaymentsImportService {
         result.setEndpoint("/report/all-payments");
         
         try {
-            // Fetch all payment transactions using 2-year historical chunking
-            // PayProp has a 93-day limit for report endpoints, so we chunk the requests
-            String baseEndpoint = "/report/all-payments" +
+            // Fetch ALL payment transactions without any date constraints
+            // Remove historical chunking to get everything PayProp has
+            String endpoint = "/report/all-payments" +
                 "?filter_by=reconciliation_date" +
                 "&include_beneficiary_info=true";
                 
-            log.info("🕐 Starting 2-year historical import for all payments");
-            List<Map<String, Object>> payments = apiClient.fetchHistoricalPages(baseEndpoint, 2, this::processPaymentItem);
+            log.info("🔄 Starting COMPLETE all-payments import (no date restrictions)");
+            List<Map<String, Object>> payments = apiClient.fetchAllPages(endpoint, this::processPaymentItem);
             
             result.setTotalFetched(payments.size());
             log.info("📦 PayProp API returned: {} payment transactions", payments.size());
