@@ -48,15 +48,12 @@ public class PayPropRawProcessingSummaryImportService {
         result.setEndpoint("/report/processing-summary");
         
         try {
-            // Use last 93 days to match other reports
-            LocalDateTime endDateTime = LocalDateTime.now();
-            LocalDateTime startDateTime = endDateTime.minusDays(93);
-            
-            String endpoint = "/report/processing-summary" +
-                "?from_date=" + startDateTime.toLocalDate().toString() +
-                "&to_date=" + endDateTime.toLocalDate().toString();
+            // Fetch processing summaries using 2-year historical chunking
+            // PayProp has a 93-day limit for report endpoints, so we chunk the requests
+            String baseEndpoint = "/report/processing-summary";
                 
-            List<Map<String, Object>> processingSummaries = apiClient.fetchAllPages(endpoint, this::processProcessingSummaryItem);
+            log.info("🕐 Starting 2-year historical import for processing summaries");
+            List<Map<String, Object>> processingSummaries = apiClient.fetchHistoricalPages(baseEndpoint, 2, this::processProcessingSummaryItem);
             
             result.setTotalFetched(processingSummaries.size());
             log.info("📦 PayProp API returned: {} processing summary records", processingSummaries.size());

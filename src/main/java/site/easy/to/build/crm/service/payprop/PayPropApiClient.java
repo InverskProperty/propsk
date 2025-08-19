@@ -14,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,7 +37,7 @@ public class PayPropApiClient {
     // Constants for API behavior
     private static final int MAX_PAGES = 1000; // Increased from 100 to capture all data
     private static final int DEFAULT_PAGE_SIZE = 25;
-    private static final int RATE_LIMIT_DELAY_MS = 250;
+    private static final int RATE_LIMIT_DELAY_MS = 500; // Increased from 250ms to avoid 5 req/sec PayProp limit
     
     @Autowired
     private RestTemplate restTemplate;
@@ -133,6 +134,79 @@ public class PayPropApiClient {
         
         log.info("✅ Pagination complete: {} total items fetched in {} API calls", 
             allResults.size(), totalApiCalls);
+        
+        return allResults;
+    }
+    
+    /**
+     * Fetch historical data from a PayProp report endpoint using chunked date ranges
+     * PayProp report endpoints have a 93-day limit, so we chunk the requests
+     * 
+     * @param baseEndpoint The base API endpoint (e.g., "/report/icdn")
+     * @param yearsBack Number of years of historical data to fetch (e.g., 2)
+     * @param mapper Function to transform raw API response items to desired type
+     * @return List of all items from all historical chunks
+     */
+    public <T> List<T> fetchHistoricalPages(String baseEndpoint, int yearsBack, Function<Map<String, Object>, T> mapper) {
+        List<T> allResults = new ArrayList<>();
+        LocalDateTime endDate = LocalDateTime.now();
+        LocalDateTime startDate = endDate.minusYears(yearsBack);
+        
+        log.info("🕐 Starting historical chunked fetch from endpoint: {} (going back {} years)", baseEndpoint, yearsBack);
+        
+        // Work backwards in 93-day chunks from today
+        LocalDateTime currentEnd = endDate;
+        int chunkNumber = 0;
+        int totalApiCalls = 0;
+        
+        while (currentEnd.isAfter(startDate)) {
+            // Calculate chunk start (93 days before current end, but not before overall start)
+            LocalDateTime chunkStart = currentEnd.minusDays(93);
+            if (chunkStart.isBefore(startDate)) {
+                chunkStart = startDate;
+            }
+            
+            chunkNumber++;
+            
+            try {
+                // Build endpoint with date parameters
+                String endpoint = baseEndpoint + 
+                    "?from_date=" + chunkStart.toLocalDate().toString() +
+                    "&to_date=" + currentEnd.toLocalDate().toString();
+                
+                log.info("📅 CHUNK {}: Fetching {} to {} ({})", 
+                    chunkNumber, chunkStart.toLocalDate(), currentEnd.toLocalDate(), endpoint);
+                
+                // Fetch all pages for this chunk
+                List<T> chunkResults = fetchAllPages(endpoint, mapper);
+                allResults.addAll(chunkResults);
+                totalApiCalls += (chunkResults.size() / DEFAULT_PAGE_SIZE) + 1; // Estimate API calls
+                
+                log.info("✅ CHUNK {} complete: {} records added", chunkNumber, chunkResults.size());
+                
+                // Move to previous chunk (subtract 93 days from current start)
+                currentEnd = chunkStart.minusSeconds(1); // Avoid overlap
+                
+                // Rate limiting between chunks
+                if (currentEnd.isAfter(startDate)) {
+                    Thread.sleep(RATE_LIMIT_DELAY_MS * 2); // Extra delay between chunks
+                }
+                
+            } catch (InterruptedException e) {
+                log.error("Historical chunked fetch interrupted: {}", e.getMessage());
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                log.error("Failed to fetch historical chunk {} ({} to {}): {}", 
+                    chunkNumber, chunkStart.toLocalDate(), currentEnd.toLocalDate(), e.getMessage());
+                
+                // For report endpoints, don't break - just log and continue with next chunk
+                currentEnd = chunkStart.minusSeconds(1);
+            }
+        }
+        
+        log.info("🎯 Historical chunked fetch complete: {} total records from {} chunks over {} years", 
+            allResults.size(), chunkNumber, yearsBack);
         
         return allResults;
     }

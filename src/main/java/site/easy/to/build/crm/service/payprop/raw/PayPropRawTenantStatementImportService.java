@@ -48,15 +48,12 @@ public class PayPropRawTenantStatementImportService {
         result.setEndpoint("/report/tenant/statement");
         
         try {
-            // Use last 93 days to match other reports
-            LocalDateTime endDateTime = LocalDateTime.now();
-            LocalDateTime startDateTime = endDateTime.minusDays(93);
-            
-            String endpoint = "/report/tenant/statement" +
-                "?from_date=" + startDateTime.toLocalDate().toString() +
-                "&to_date=" + endDateTime.toLocalDate().toString();
+            // Fetch tenant statements using 2-year historical chunking
+            // PayProp has a 93-day limit for report endpoints, so we chunk the requests
+            String baseEndpoint = "/report/tenant/statement";
                 
-            List<Map<String, Object>> tenantStatements = apiClient.fetchAllPages(endpoint, this::processTenantStatementItem);
+            log.info("🕐 Starting 2-year historical import for tenant statements");
+            List<Map<String, Object>> tenantStatements = apiClient.fetchHistoricalPages(baseEndpoint, 2, this::processTenantStatementItem);
             
             result.setTotalFetched(tenantStatements.size());
             log.info("📦 PayProp API returned: {} tenant statement entries", tenantStatements.size());

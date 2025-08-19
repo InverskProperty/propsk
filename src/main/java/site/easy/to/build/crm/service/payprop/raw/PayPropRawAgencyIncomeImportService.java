@@ -48,15 +48,12 @@ public class PayPropRawAgencyIncomeImportService {
         result.setEndpoint("/report/agency/income");
         
         try {
-            // Use last 93 days to match other reports
-            LocalDateTime endDateTime = LocalDateTime.now();
-            LocalDateTime startDateTime = endDateTime.minusDays(93);
-            
-            String endpoint = "/report/agency/income" +
-                "?from_date=" + startDateTime.toLocalDate().toString() +
-                "&to_date=" + endDateTime.toLocalDate().toString();
+            // Fetch agency income using 2-year historical chunking
+            // PayProp has a 93-day limit for report endpoints, so we chunk the requests
+            String baseEndpoint = "/report/agency/income";
                 
-            List<Map<String, Object>> agencyIncomeRecords = apiClient.fetchAllPages(endpoint, this::processAgencyIncomeItem);
+            log.info("🕐 Starting 2-year historical import for agency income");
+            List<Map<String, Object>> agencyIncomeRecords = apiClient.fetchHistoricalPages(baseEndpoint, 2, this::processAgencyIncomeItem);
             
             result.setTotalFetched(agencyIncomeRecords.size());
             log.info("📦 PayProp API returned: {} agency income records", agencyIncomeRecords.size());
