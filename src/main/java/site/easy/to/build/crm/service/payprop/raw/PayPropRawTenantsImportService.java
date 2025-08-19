@@ -94,13 +94,9 @@ public class PayPropRawTenantsImportService {
         
         String insertSql = """
             INSERT INTO payprop_export_tenants (
-                payprop_id, name, first_name, last_name, email, phone, mobile,
-                date_of_birth, national_id, status, property_payprop_id,
-                lease_start_date, lease_end_date, deposit_amount, monthly_rent,
-                address_line1, address_line2, address_city, address_state,
-                address_country, address_postal_code, emergency_contact_name,
-                emergency_contact_phone, created_date, modified_date, import_timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                payprop_id, first_name, last_name, business_name, display_name, 
+                email, phone, sync_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """;
         
         int importedCount = 0;
@@ -136,49 +132,17 @@ public class PayPropRawTenantsImportService {
     private void setTenantParameters(PreparedStatement stmt, Map<String, Object> tenant) 
             throws SQLException {
         
-        Map<String, Object> address = getMapValue(tenant, "address");
-        Map<String, Object> lease = getMapValue(tenant, "lease");
-        Map<String, Object> emergencyContact = getMapValue(tenant, "emergency_contact");
-        
         int paramIndex = 1;
         
-        // Basic tenant info
-        stmt.setString(paramIndex++, getStringValue(tenant, "id"));
-        stmt.setString(paramIndex++, getStringValue(tenant, "name"));
-        stmt.setString(paramIndex++, getStringValue(tenant, "first_name"));
-        stmt.setString(paramIndex++, getStringValue(tenant, "last_name"));
-        stmt.setString(paramIndex++, getStringValue(tenant, "email"));
-        stmt.setString(paramIndex++, getStringValue(tenant, "phone"));
-        stmt.setString(paramIndex++, getStringValue(tenant, "mobile"));
-        
-        // Personal details
-        stmt.setDate(paramIndex++, getDateValue(tenant, "date_of_birth"));
-        stmt.setString(paramIndex++, getStringValue(tenant, "national_id"));
-        stmt.setString(paramIndex++, getStringValue(tenant, "status"));
-        stmt.setString(paramIndex++, getStringValue(tenant, "property_id"));
-        
-        // Lease details
-        stmt.setDate(paramIndex++, getDateValue(lease, "start_date"));
-        stmt.setDate(paramIndex++, getDateValue(lease, "end_date"));
-        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(lease, "deposit_amount"));
-        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(lease, "monthly_rent"));
-        
-        // Address
-        stmt.setString(paramIndex++, getStringValue(address, "line1"));
-        stmt.setString(paramIndex++, getStringValue(address, "line2"));
-        stmt.setString(paramIndex++, getStringValue(address, "city"));
-        stmt.setString(paramIndex++, getStringValue(address, "state"));
-        stmt.setString(paramIndex++, getStringValue(address, "country"));
-        stmt.setString(paramIndex++, getStringValue(address, "postal_code"));
-        
-        // Emergency contact
-        stmt.setString(paramIndex++, getStringValue(emergencyContact, "name"));
-        stmt.setString(paramIndex++, getStringValue(emergencyContact, "phone"));
-        
-        // Timestamps
-        stmt.setTimestamp(paramIndex++, getTimestampValue(tenant, "created"));
-        stmt.setTimestamp(paramIndex++, getTimestampValue(tenant, "modified"));
-        stmt.setTimestamp(paramIndex++, Timestamp.valueOf(LocalDateTime.now()));
+        // Map PayProp API fields to actual database columns (8 total parameters)
+        stmt.setString(paramIndex++, getStringValue(tenant, "id")); // payprop_id
+        stmt.setString(paramIndex++, getStringValue(tenant, "first_name")); // first_name
+        stmt.setString(paramIndex++, getStringValue(tenant, "last_name")); // last_name
+        stmt.setString(paramIndex++, getStringValue(tenant, "business_name")); // business_name
+        stmt.setString(paramIndex++, getStringValue(tenant, "display_name")); // display_name
+        stmt.setString(paramIndex++, getStringValue(tenant, "email")); // email
+        stmt.setString(paramIndex++, getStringValue(tenant, "phone")); // phone
+        stmt.setString(paramIndex++, "active"); // sync_status (default)
     }
     
     // Helper methods (reused pattern)

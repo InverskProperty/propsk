@@ -108,12 +108,13 @@ public class PayPropRawPaymentsImportService {
         
         String insertSql = """
             INSERT INTO payprop_export_payments (
-                payprop_id, payment_type, description, amount, percentage, 
-                minimum_amount, maximum_amount, priority, active,
-                property_payprop_id, beneficiary_payprop_id, category,
-                frequency, payment_day, payment_method, currency,
-                created_date, modified_date, import_timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                payprop_id, beneficiary, beneficiary_reference, category, category_payprop_id,
+                description, enabled, frequency, frequency_code, from_date, to_date,
+                gross_amount, gross_percentage, group_id, maintenance_ticket_id,
+                no_commission, no_commission_amount, payment_day, reference,
+                vat, vat_amount, property_payprop_id, tenant_payprop_id,
+                property_name, tenant_name, sync_status, rule_priority
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
         
         int importedCount = 0;
@@ -158,34 +159,34 @@ public class PayPropRawPaymentsImportService {
         
         int paramIndex = 1;
         
-        // Core payment distribution fields
-        stmt.setString(paramIndex++, getStringValue(payment, "id"));
-        stmt.setString(paramIndex++, getStringValue(payment, "type"));
-        stmt.setString(paramIndex++, getStringValue(payment, "description"));
-        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "amount"));
-        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "percentage"));
-        
-        // Amount constraints
-        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "minimum_amount"));
-        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "maximum_amount"));
-        stmt.setInt(paramIndex++, getIntValue(payment, "priority"));
-        setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "active"));
-        
-        // Foreign key relationships
-        stmt.setString(paramIndex++, getStringValue(payment, "property_id"));
-        stmt.setString(paramIndex++, getStringValue(payment, "beneficiary_id"));
-        stmt.setString(paramIndex++, getStringValue(payment, "category"));
-        
-        // Payment scheduling
-        stmt.setString(paramIndex++, getStringValue(payment, "frequency"));
-        stmt.setInt(paramIndex++, getIntValue(payment, "payment_day"));
-        stmt.setString(paramIndex++, getStringValue(payment, "payment_method"));
-        stmt.setString(paramIndex++, getStringValue(payment, "currency"));
-        
-        // Timestamps
-        stmt.setTimestamp(paramIndex++, getTimestampValue(payment, "created"));
-        stmt.setTimestamp(paramIndex++, getTimestampValue(payment, "modified"));
-        stmt.setTimestamp(paramIndex++, Timestamp.valueOf(LocalDateTime.now()));
+        // Map PayProp API fields to actual database columns (27 total parameters)
+        stmt.setString(paramIndex++, getStringValue(payment, "id")); // payprop_id
+        stmt.setString(paramIndex++, getStringValue(payment, "beneficiary")); // beneficiary
+        stmt.setString(paramIndex++, getStringValue(payment, "beneficiary_reference")); // beneficiary_reference
+        stmt.setString(paramIndex++, getStringValue(payment, "category")); // category
+        stmt.setString(paramIndex++, getStringValue(payment, "category_payprop_id")); // category_payprop_id
+        stmt.setString(paramIndex++, getStringValue(payment, "description")); // description
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "enabled")); // enabled
+        stmt.setString(paramIndex++, getStringValue(payment, "frequency")); // frequency
+        stmt.setString(paramIndex++, getStringValue(payment, "frequency_code")); // frequency_code
+        stmt.setDate(paramIndex++, getDateValue(payment, "from_date")); // from_date
+        stmt.setDate(paramIndex++, getDateValue(payment, "to_date")); // to_date
+        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "gross_amount")); // gross_amount
+        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "gross_percentage")); // gross_percentage
+        stmt.setString(paramIndex++, getStringValue(payment, "group_id")); // group_id
+        stmt.setString(paramIndex++, getStringValue(payment, "maintenance_ticket_id")); // maintenance_ticket_id
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "no_commission")); // no_commission
+        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "no_commission_amount")); // no_commission_amount
+        setIntegerParameter(stmt, paramIndex++, getIntegerValue(payment, "payment_day")); // payment_day
+        stmt.setString(paramIndex++, getStringValue(payment, "reference")); // reference
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "vat")); // vat
+        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "vat_amount")); // vat_amount
+        stmt.setString(paramIndex++, getStringValue(payment, "property_payprop_id")); // property_payprop_id
+        stmt.setString(paramIndex++, getStringValue(payment, "tenant_payprop_id")); // tenant_payprop_id
+        stmt.setString(paramIndex++, getStringValue(payment, "property_name")); // property_name
+        stmt.setString(paramIndex++, getStringValue(payment, "tenant_name")); // tenant_name
+        stmt.setString(paramIndex++, "active"); // sync_status (default)
+        setIntegerParameter(stmt, paramIndex++, getIntegerValue(payment, "rule_priority")); // rule_priority
     }
     
     // Helper methods (same as other import services)
@@ -253,6 +254,27 @@ public class PayPropRawPaymentsImportService {
             stmt.setNull(paramIndex, java.sql.Types.BOOLEAN);
         } else {
             stmt.setBoolean(paramIndex, value);
+        }
+    }
+    
+    private Integer getIntegerValue(Map<String, Object> map, String key) {
+        if (map == null || !map.containsKey(key) || map.get(key) == null) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(map.get(key).toString());
+        } catch (NumberFormatException e) {
+            log.warn("Failed to convert {} to Integer: {}", key, map.get(key));
+            return null;
+        }
+    }
+    
+    private void setIntegerParameter(PreparedStatement stmt, int paramIndex, Integer value) 
+            throws SQLException {
+        if (value == null) {
+            stmt.setNull(paramIndex, java.sql.Types.INTEGER);
+        } else {
+            stmt.setInt(paramIndex, value);
         }
     }
 }
