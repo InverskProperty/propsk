@@ -160,8 +160,7 @@ public class PayPropRawAllPaymentsImportService {
                     
                     // Execute batch every 25 items
                     if (importedCount % 25 == 0) {
-                        stmt.executeBatch();
-                        log.debug("Imported batch: {} payments processed", importedCount);
+                        executeBatchWithOrphanHandling(stmt, importedCount);
                     }
                     
                 } catch (Exception e) {
@@ -180,7 +179,7 @@ public class PayPropRawAllPaymentsImportService {
             
             // Execute remaining batch
             if (importedCount % 25 != 0) {
-                stmt.executeBatch();
+                executeBatchWithOrphanHandling(stmt, importedCount);
             }
             
             log.info("✅ Database import completed: {} payment transactions", importedCount);
@@ -375,6 +374,45 @@ public class PayPropRawAllPaymentsImportService {
         } catch (Exception e) {
             log.warn("Failed to convert nested value to Date: {}", current);
             return null;
+        }
+    }
+    
+    /**
+     * Execute batch with graceful handling of orphaned payments (foreign key failures)
+     * Continues processing even if some payments fail due to missing property references
+     */
+    private void executeBatchWithOrphanHandling(PreparedStatement stmt, int batchCount) {
+        try {
+            stmt.executeBatch();
+            log.debug("✅ Imported batch: {} payments processed successfully", batchCount);
+            
+        } catch (java.sql.BatchUpdateException e) {
+            // Handle foreign key constraint violations gracefully
+            if (e.getMessage().contains("foreign key constraint fails")) {
+                log.warn("⚠️  Batch had foreign key failures - some payments reference missing properties");
+                log.warn("   Continuing import... orphaned payments will be tracked");
+                
+                // Record this as an orphaned batch issue
+                issueTracker.recordIssue(
+                    PayPropImportIssueTracker.IssueType.CONSTRAINT_VIOLATION,
+                    "/report/all-payments",
+                    "batch-" + batchCount,
+                    null,
+                    "Batch contained payments referencing missing properties: " + e.getMessage(),
+                    PayPropImportIssueTracker.BusinessImpact.FINANCIAL_DATA_PARTIAL
+                );
+                
+                // Continue processing - don't fail the entire import
+                log.info("🔄 Continuing import despite orphaned payments in batch {}", batchCount);
+                
+            } else {
+                // For other types of batch failures, re-throw
+                throw new RuntimeException("Non-foreign-key batch failure: " + e.getMessage(), e);
+            }
+            
+        } catch (Exception e) {
+            // For non-batch exceptions, re-throw
+            throw new RuntimeException("Unexpected batch execution failure: " + e.getMessage(), e);
         }
     }
 }
