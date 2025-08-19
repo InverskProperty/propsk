@@ -36,6 +36,9 @@ public class PayPropRawPaymentsImportService {
     @Autowired
     private DataSource dataSource;
     
+    @Autowired
+    private PayPropImportIssueTracker issueTracker;
+    
     /**
      * Import all payment distributions from PayProp /export/payments endpoint
      */
@@ -124,6 +127,21 @@ public class PayPropRawPaymentsImportService {
             
             for (Map<String, Object> payment : payments) {
                 try {
+                    String paymentId = getStringValue(payment, "id");
+                    
+                    // Handle empty/null IDs (PayProp data quality issue)
+                    if (paymentId == null || paymentId.trim().isEmpty()) {
+                        issueTracker.recordIssue(
+                            PayPropImportIssueTracker.IssueType.EMPTY_ID,
+                            "/export/payments",
+                            paymentId,
+                            payment,
+                            "PayProp sent payment distribution record without ID",
+                            PayPropImportIssueTracker.BusinessImpact.FINANCIAL_DATA_MISSING
+                        );
+                        continue;
+                    }
+                    
                     setPaymentParameters(stmt, payment);
                     stmt.addBatch();
                     importedCount++;
@@ -160,6 +178,7 @@ public class PayPropRawPaymentsImportService {
         // Extract nested objects safely (like invoices service does)
         Map<String, Object> property = getMapValue(payment, "property");
         Map<String, Object> tenant = getMapValue(payment, "tenant");
+        // Category can be a string or object - handle both cases
         Map<String, Object> category = getMapValue(payment, "category");
         
         int paramIndex = 1;
@@ -169,7 +188,10 @@ public class PayPropRawPaymentsImportService {
         stmt.setString(paramIndex++, getStringValue(payment, "beneficiary")); // beneficiary
         stmt.setString(paramIndex++, getStringValue(payment, "beneficiary_reference")); // beneficiary_reference
         stmt.setString(paramIndex++, getStringValue(payment, "category")); // category
-        stmt.setString(paramIndex++, getStringValue(category, "id")); // category_payprop_id (from nested object)
+        // Category can be string ("Commission") or object - handle both
+        stmt.setString(paramIndex++, getStringValue(category, "id") != null 
+            ? getStringValue(category, "id") 
+            : getStringValue(payment, "category")); // category_payprop_id
         stmt.setString(paramIndex++, getStringValue(payment, "description")); // description
         setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "enabled")); // enabled
         stmt.setString(paramIndex++, getStringValue(payment, "frequency")); // frequency
@@ -309,7 +331,10 @@ public class PayPropRawPaymentsImportService {
         try {
             return (Map<String, Object>) map.get(key);
         } catch (ClassCastException e) {
-            log.warn("Value for key {} is not a Map: {}", key, map.get(key));
+            // Don't log warnings for expected string values like "category": "Commission"
+            if (!"category".equals(key)) {
+                log.warn("Value for key {} is not a Map: {}", key, map.get(key));
+            }
             return Map.of();
         }
     }

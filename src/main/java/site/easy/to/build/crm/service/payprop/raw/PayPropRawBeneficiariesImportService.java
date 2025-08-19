@@ -33,6 +33,9 @@ public class PayPropRawBeneficiariesImportService {
     @Autowired
     private DataSource dataSource;
     
+    @Autowired
+    private PayPropImportIssueTracker issueTracker;
+    
     @Transactional
     public PayPropRawImportResult importAllBeneficiaries() {
         log.info("🔄 Starting raw beneficiaries import from PayProp");
@@ -96,6 +99,15 @@ public class PayPropRawBeneficiariesImportService {
                 payprop_id, beneficiary_type, name, email, phone,
                 bank_account_name, bank_account_number, bank_sort_code, sync_status
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                beneficiary_type = VALUES(beneficiary_type),
+                name = VALUES(name),
+                email = VALUES(email),
+                phone = VALUES(phone),
+                bank_account_name = VALUES(bank_account_name),
+                bank_account_number = VALUES(bank_account_number),
+                bank_sort_code = VALUES(bank_sort_code),
+                sync_status = VALUES(sync_status)
         """;
         
         int importedCount = 0;
@@ -105,6 +117,19 @@ public class PayPropRawBeneficiariesImportService {
             
             for (Map<String, Object> beneficiary : beneficiaries) {
                 try {
+                    String beneficiaryId = getStringValue(beneficiary, "id");
+                    if (beneficiaryId == null || beneficiaryId.trim().isEmpty()) {
+                        issueTracker.recordIssue(
+                            PayPropImportIssueTracker.IssueType.EMPTY_ID,
+                            "/export/beneficiaries",
+                            beneficiaryId,
+                            beneficiary,
+                            "PayProp sent beneficiary record without ID",
+                            PayPropImportIssueTracker.BusinessImpact.BENEFICIARY_MISSING
+                        );
+                        continue;
+                    }
+                    
                     setBeneficiaryParameters(stmt, beneficiary);
                     stmt.addBatch();
                     importedCount++;
@@ -113,6 +138,14 @@ public class PayPropRawBeneficiariesImportService {
                         stmt.executeBatch();
                     }
                 } catch (Exception e) {
+                    issueTracker.recordIssue(
+                        PayPropImportIssueTracker.IssueType.MAPPING_ERROR,
+                        "/export/beneficiaries",
+                        getStringValue(beneficiary, "id"),
+                        beneficiary,
+                        e.getMessage(),
+                        PayPropImportIssueTracker.BusinessImpact.BENEFICIARY_MISSING
+                    );
                     log.error("Failed to prepare beneficiary for import: {}", 
                         beneficiary.get("id"), e);
                 }

@@ -49,6 +49,9 @@ public class PayPropRawImportOrchestrator {
     @Autowired
     private PropertyRentCalculationService rentCalculationService;
     
+    @Autowired
+    private PayPropImportIssueTracker issueTracker;
+    
     /**
      * Execute complete PayProp raw import and business logic processing
      * This is the main entry point that solves the £995 vs £1,075 problem
@@ -56,6 +59,9 @@ public class PayPropRawImportOrchestrator {
     @Transactional
     public PayPropRawImportOrchestrationResult executeCompleteImport() {
         log.info("🚀 Starting complete PayProp raw import orchestration");
+        
+        // Start issue tracking for this import run
+        issueTracker.startImportRun();
         
         PayPropRawImportOrchestrationResult orchestrationResult = new PayPropRawImportOrchestrationResult();
         orchestrationResult.setStartTime(LocalDateTime.now());
@@ -133,7 +139,13 @@ public class PayPropRawImportOrchestrator {
             log.info("   Authoritative amounts calculated: {}", rentResult.getDecisionsCalculated());
             log.info("   Property entities updated: {}", rentResult.getPropertiesUpdated());
             
-            // PHASE 3: Success Summary
+            // PHASE 3: Generate Import Issues Summary
+            PayPropImportSummary importSummary = issueTracker.generateImportSummary();
+            orchestrationResult.setImportSummary(importSummary);
+            
+            log.info("📊 Import Issues Summary:\n{}", importSummary.getFormattedSummary());
+            
+            // PHASE 4: Success Summary
             orchestrationResult.setSuccess(true);
             orchestrationResult.setEndTime(LocalDateTime.now());
             
@@ -251,6 +263,7 @@ public class PayPropRawImportOrchestrator {
         private String errorMessage;
         private Map<String, PayPropRawImportResult> importResults;
         private PropertyRentCalculationResult rentCalculationResult;
+        private PayPropImportSummary importSummary;
         
         public PayPropRawImportOrchestrationResult() {
             this.success = false;
@@ -286,6 +299,9 @@ public class PayPropRawImportOrchestrator {
         
         public PropertyRentCalculationResult getRentCalculationResult() { return rentCalculationResult; }
         public void setRentCalculationResult(PropertyRentCalculationResult rentCalculationResult) { this.rentCalculationResult = rentCalculationResult; }
+        
+        public PayPropImportSummary getImportSummary() { return importSummary; }
+        public void setImportSummary(PayPropImportSummary importSummary) { this.importSummary = importSummary; }
         
         public String getSummary() {
             if (success) {

@@ -37,6 +37,9 @@ public class PayPropRawAllPaymentsImportService {
     @Autowired
     private DataSource dataSource;
     
+    @Autowired
+    private PayPropImportIssueTracker issueTracker;
+    
     /**
      * Import all payment transactions from PayProp /report/all-payments endpoint
      * Uses 93-day filter to get recent payments
@@ -141,6 +144,21 @@ public class PayPropRawAllPaymentsImportService {
             
             for (Map<String, Object> payment : payments) {
                 try {
+                    String paymentId = getStringValue(payment, "id");
+                    
+                    // Handle empty/null IDs (PayProp data quality issue)
+                    if (paymentId == null || paymentId.trim().isEmpty()) {
+                        issueTracker.recordIssue(
+                            PayPropImportIssueTracker.IssueType.EMPTY_ID,
+                            "/report/all-payments",
+                            paymentId,
+                            payment,
+                            "PayProp sent payment record without ID",
+                            PayPropImportIssueTracker.BusinessImpact.FINANCIAL_DATA_MISSING
+                        );
+                        continue;
+                    }
+                    
                     setPaymentParameters(stmt, payment);
                     stmt.addBatch();
                     importedCount++;
@@ -152,6 +170,14 @@ public class PayPropRawAllPaymentsImportService {
                     }
                     
                 } catch (Exception e) {
+                    issueTracker.recordIssue(
+                        PayPropImportIssueTracker.IssueType.MAPPING_ERROR,
+                        "/report/all-payments",
+                        getStringValue(payment, "id"),
+                        payment,
+                        e.getMessage(),
+                        PayPropImportIssueTracker.BusinessImpact.FINANCIAL_DATA_MISSING
+                    );
                     log.error("Failed to prepare payment for import: {}", 
                         payment.get("id"), e);
                 }
