@@ -399,7 +399,7 @@ public class PayPropRawAllPaymentsImportService {
                     "batch-" + batchCount,
                     null,
                     "Batch contained payments referencing missing properties: " + e.getMessage(),
-                    PayPropImportIssueTracker.BusinessImpact.FINANCIAL_DATA_PARTIAL
+                    PayPropImportIssueTracker.BusinessImpact.FINANCIAL_DATA_MISSING
                 );
                 
                 // Continue processing - don't fail the entire import
