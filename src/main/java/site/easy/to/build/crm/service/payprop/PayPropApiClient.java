@@ -34,7 +34,7 @@ public class PayPropApiClient {
     private static final Logger log = LoggerFactory.getLogger(PayPropApiClient.class);
     
     // Constants for API behavior
-    private static final int MAX_PAGES = 100;
+    private static final int MAX_PAGES = 1000; // Increased from 100 to capture all data
     private static final int DEFAULT_PAGE_SIZE = 25;
     private static final int RATE_LIMIT_DELAY_MS = 250;
     
