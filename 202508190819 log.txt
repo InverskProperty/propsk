@@ -1,0 +1,703 @@
+	at java.base/java.lang.Thread.run(Unknown Source) ~[na:na]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1741) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:894) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:390) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:341) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.valves.RemoteIpValve.invoke(RemoteIpValve.java:738) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:166) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:268) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:352) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:191) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:233) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:222) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$0(ObservationFilterChainDecorator.java:321) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.session.DisableEncodeUrlFilter.doFilterInternal(DisableEncodeUrlFilter.java:42) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:62) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:69) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:82) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.header.HeaderWriterFilter.doFilterInternal(HeaderWriterFilter.java:75) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.header.HeaderWriterFilter.doHeadersAfter(HeaderWriterFilter.java:90) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.csrf.CsrfFilter.doFilterInternal(CsrfFilter.java:117) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:93) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:107) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter.doFilterInternal(OAuth2AuthorizationRequestRedirectFilter.java:181) ~[spring-security-oauth2-client-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:221) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:227) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at site.easy.to.build.crm.config.SecurityConfig$1.doFilterInternal(SecurityConfig.java:148) ~[classes!/:0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:221) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:227) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.savedrequest.RequestCacheAwareFilter.doFilter(RequestCacheAwareFilter.java:63) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter.doFilter(SecurityContextHolderAwareRequestFilter.java:179) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AnonymousAuthenticationFilter.doFilter(AnonymousAuthenticationFilter.java:100) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.intercept.AuthorizationFilter.doFilter(AuthorizationFilter.java:100) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator.lambda$wrapSecured$0(ObservationFilterChainDecorator.java:80) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:338) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$FilterObservation$SimpleFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:477) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.FilterChainProxy.lambda$doFilterInternal$3(FilterChainProxy.java:231) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:205) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1011) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:974) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1081) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:797) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:884) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:152) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:207) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at site.easy.to.build.crm.controller.PayPropOAuth2Controller.testNewRawImport(PayPropOAuth2Controller.java:515) ~[classes!/:0]
+	at java.base/java.util.Map.of(Unknown Source) ~[na:na]
+	at java.base/java.util.ImmutableCollections$MapN.<init>(Unknown Source) ~[na:na]
+	at java.base/java.util.Objects.requireNonNull(Unknown Source) ~[na:na]
+java.lang.NullPointerException: null
+2025-08-19T07:10:25.598Z ERROR 1 --- [io-10000-exec-9] s.e.t.b.c.c.PayPropOAuth2Controller      : ❌ New raw import test failed: null
+	at java.base/java.lang.Thread.run(Unknown Source) ~[na:na]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1741) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:894) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:390) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:341) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.valves.RemoteIpValve.invoke(RemoteIpValve.java:738) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:166) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:268) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:352) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:191) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:233) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:222) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$0(ObservationFilterChainDecorator.java:321) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.session.DisableEncodeUrlFilter.doFilterInternal(DisableEncodeUrlFilter.java:42) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:62) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:69) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:82) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.header.HeaderWriterFilter.doFilterInternal(HeaderWriterFilter.java:75) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.header.HeaderWriterFilter.doHeadersAfter(HeaderWriterFilter.java:90) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.csrf.CsrfFilter.doFilterInternal(CsrfFilter.java:117) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:93) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:107) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter.doFilterInternal(OAuth2AuthorizationRequestRedirectFilter.java:181) ~[spring-security-oauth2-client-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:221) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:227) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at site.easy.to.build.crm.config.SecurityConfig$1.doFilterInternal(SecurityConfig.java:148) ~[classes!/:0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:221) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:227) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.savedrequest.RequestCacheAwareFilter.doFilter(RequestCacheAwareFilter.java:63) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter.doFilter(SecurityContextHolderAwareRequestFilter.java:179) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AnonymousAuthenticationFilter.doFilter(AnonymousAuthenticationFilter.java:100) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.intercept.AuthorizationFilter.doFilter(AuthorizationFilter.java:100) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator.lambda$wrapSecured$0(ObservationFilterChainDecorator.java:80) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:338) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$FilterObservation$SimpleFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:477) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.FilterChainProxy.lambda$doFilterInternal$3(FilterChainProxy.java:231) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:205) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1011) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:974) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1081) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:797) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:884) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:152) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:207) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at site.easy.to.build.crm.controller.PayPropOAuth2Controller.testNewRawImport(PayPropOAuth2Controller.java:514) ~[classes!/:0]
+	at site.easy.to.build.crm.service.payprop.raw.PayPropRawImportOrchestrator$$SpringCGLIB$$0.executeCompleteImport(<generated>) ~[classes!/:0]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:702) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:750) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.0.9.jar!/:6.0.9]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:391) ~[spring-tx-6.0.9.jar!/:6.0.9]
+	at org.springframework.transaction.interceptor.TransactionInterceptor$1.proceedWithInvocation(TransactionInterceptor.java:123) ~[spring-tx-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:750) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:343) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at site.easy.to.build.crm.service.payprop.raw.PayPropRawImportOrchestrator.executeCompleteImport(PayPropRawImportOrchestrator.java:71) ~[classes!/:0]
+java.lang.RuntimeException: Properties import failed: Cannot delete or update a parent row: a foreign key constraint fails (`railway`.`payprop_export_invoices`, CONSTRAINT `payprop_export_invoices_ibfk_1` FOREIGN KEY (`property_payprop_id`) REFERENCES `payprop_export_properties` (`payprop_id`))
+2025-08-19T07:10:25.561Z ERROR 1 --- [io-10000-exec-9] t.b.c.s.p.r.PayPropRawImportOrchestrator : ❌ PayProp raw import orchestration failed
+	at java.base/java.lang.Thread.run(Unknown Source) ~[na:na]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1741) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:894) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:390) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:341) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.valves.RemoteIpValve.invoke(RemoteIpValve.java:738) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:166) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:268) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:352) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:191) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:233) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:222) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$0(ObservationFilterChainDecorator.java:321) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.session.DisableEncodeUrlFilter.doFilterInternal(DisableEncodeUrlFilter.java:42) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:62) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:69) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:82) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.header.HeaderWriterFilter.doFilterInternal(HeaderWriterFilter.java:75) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.header.HeaderWriterFilter.doHeadersAfter(HeaderWriterFilter.java:90) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.csrf.CsrfFilter.doFilterInternal(CsrfFilter.java:117) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:93) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:107) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter.doFilterInternal(OAuth2AuthorizationRequestRedirectFilter.java:181) ~[spring-security-oauth2-client-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:221) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:227) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at site.easy.to.build.crm.config.SecurityConfig$1.doFilterInternal(SecurityConfig.java:148) ~[classes!/:0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:221) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:227) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.savedrequest.RequestCacheAwareFilter.doFilter(RequestCacheAwareFilter.java:63) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter.doFilter(SecurityContextHolderAwareRequestFilter.java:179) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AnonymousAuthenticationFilter.doFilter(AnonymousAuthenticationFilter.java:100) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.intercept.AuthorizationFilter.doFilter(AuthorizationFilter.java:100) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator.lambda$wrapSecured$0(ObservationFilterChainDecorator.java:80) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:338) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$FilterObservation$SimpleFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:477) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.FilterChainProxy.lambda$doFilterInternal$3(FilterChainProxy.java:231) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:205) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1011) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:974) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1081) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:797) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:884) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:152) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:207) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at site.easy.to.build.crm.controller.PayPropOAuth2Controller.testNewRawImport(PayPropOAuth2Controller.java:514) ~[classes!/:0]
+	at site.easy.to.build.crm.service.payprop.raw.PayPropRawImportOrchestrator$$SpringCGLIB$$0.executeCompleteImport(<generated>) ~[classes!/:0]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:702) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:750) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.0.9.jar!/:6.0.9]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:391) ~[spring-tx-6.0.9.jar!/:6.0.9]
+	at org.springframework.transaction.interceptor.TransactionInterceptor$1.proceedWithInvocation(TransactionInterceptor.java:123) ~[spring-tx-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:750) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:343) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at site.easy.to.build.crm.service.payprop.raw.PayPropRawImportOrchestrator.executeCompleteImport(PayPropRawImportOrchestrator.java:67) ~[classes!/:0]
+	at site.easy.to.build.crm.service.payprop.raw.PayPropRawPropertiesImportService$$SpringCGLIB$$0.importAllProperties(<generated>) ~[classes!/:0]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:702) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:750) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.0.9.jar!/:6.0.9]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:391) ~[spring-tx-6.0.9.jar!/:6.0.9]
+	at org.springframework.transaction.interceptor.TransactionInterceptor$1.proceedWithInvocation(TransactionInterceptor.java:123) ~[spring-tx-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.CglibAopProxy$CglibMethodInvocation.proceed(CglibAopProxy.java:750) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:343) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at site.easy.to.build.crm.service.payprop.raw.PayPropRawPropertiesImportService.importAllProperties(PayPropRawPropertiesImportService.java:59) ~[classes!/:0]
+	at site.easy.to.build.crm.service.payprop.raw.PayPropRawPropertiesImportService.importPropertiesToDatabase(PayPropRawPropertiesImportService.java:100) ~[classes!/:0]
+	at site.easy.to.build.crm.service.payprop.raw.PayPropRawPropertiesImportService.clearExistingProperties(PayPropRawPropertiesImportService.java:229) ~[classes!/:0]
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeUpdate(HikariProxyPreparedStatement.java) ~[HikariCP-5.0.1.jar!/:na]
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeUpdate(ProxyPreparedStatement.java:61) ~[HikariCP-5.0.1.jar!/:na]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeUpdate(ClientPreparedStatement.java:994) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeLargeUpdate(ClientPreparedStatement.java:1320) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeUpdateInternal(ClientPreparedStatement.java:1009) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeUpdateInternal(ClientPreparedStatement.java:1061) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeInternal(ClientPreparedStatement.java:916) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:118) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+java.sql.SQLIntegrityConstraintViolationException: Cannot delete or update a parent row: a foreign key constraint fails (`railway`.`payprop_export_invoices`, CONSTRAINT `payprop_export_invoices_ibfk_1` FOREIGN KEY (`property_payprop_id`) REFERENCES `payprop_export_properties` (`payprop_id`))
+2025-08-19T07:10:25.523Z ERROR 1 --- [io-10000-exec-9] .s.p.r.PayPropRawPropertiesImportService : ❌ Raw properties import failed
+2025-08-19T07:10:22.111Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Pagination complete: 264 total items fetched in 11 API calls
+2025-08-19T07:10:22.111Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : No more pages available, ending pagination
+2025-08-19T07:10:22.111Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 11 processed: 14 items (✅ 14 mapped, ❌ 0 errors)
+2025-08-19T07:10:22.111Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'items' field with 14 items
+2025-08-19T07:10:21.137Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 11 from: https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&page=11&rows=25
+2025-08-19T07:10:20.887Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 10 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:10:20.887Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'items' field with 25 items
+2025-08-19T07:10:19.867Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 10 from: https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&page=10&rows=25
+2025-08-19T07:10:19.617Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 9 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:10:19.617Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'items' field with 25 items
+2025-08-19T07:10:18.582Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 9 from: https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&page=9&rows=25
+2025-08-19T07:10:18.332Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 8 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:10:18.332Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'items' field with 25 items
+2025-08-19T07:10:17.283Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 8 from: https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&page=8&rows=25
+2025-08-19T07:10:17.033Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 7 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:10:17.032Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'items' field with 25 items
+2025-08-19T07:10:16.032Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 7 from: https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&page=7&rows=25
+2025-08-19T07:10:15.782Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 6 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:10:15.781Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'items' field with 25 items
+2025-08-19T07:10:14.665Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 6 from: https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&page=6&rows=25
+2025-08-19T07:10:14.415Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 5 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:10:14.415Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'items' field with 25 items
+2025-08-19T07:10:13.351Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 5 from: https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&page=5&rows=25
+2025-08-19T07:10:13.100Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 4 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:10:13.100Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'items' field with 25 items
+2025-08-19T07:10:11.842Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 4 from: https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&page=4&rows=25
+2025-08-19T07:10:11.592Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 3 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:10:11.591Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'items' field with 25 items
+2025-08-19T07:10:10.149Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 3 from: https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&page=3&rows=25
+2025-08-19T07:10:09.899Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 2 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:10:09.899Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'items' field with 25 items
+2025-08-19T07:10:08.473Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 2 from: https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&page=2&rows=25
+2025-08-19T07:10:08.223Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 1 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:10:08.222Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'items' field with 25 items
+2025-08-19T07:10:06.361Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 1 from: https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&page=1&rows=25
+2025-08-19T07:10:06.358Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : 🔄 Starting paginated fetch from endpoint: /export/properties?include_commission=true
+2025-08-19T07:10:06.358Z  INFO 1 --- [io-10000-exec-9] .s.p.r.PayPropRawPropertiesImportService : 🔄 Starting raw properties import from PayProp
+2025-08-19T07:10:06.347Z  INFO 1 --- [io-10000-exec-9] t.b.c.s.p.r.PayPropRawImportOrchestrator : 📥 PHASE 1: Raw Data Import - Preserving exact PayProp structure
+2025-08-19T07:10:06.347Z  INFO 1 --- [io-10000-exec-9] t.b.c.s.p.r.PayPropRawImportOrchestrator : 🚀 Starting complete PayProp raw import orchestration
+🔍 Principal: Name: [112288746717746453477], Granted Authorities: [[OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]], User Attributes: [{at_hash=gtpLlIDCD0OqFcNpWrcpag, sub=112288746717746453477, email_verified=true, iss=https://accounts.google.com, given_name=Sajid, nonce=GLDLN_mOxCCKAaM-I27z8jETzaG6BNO_fYQtPTdLHVo, picture=https://lh3.googleusercontent.com/a/ACg8ocKfl9OyMi0eSEeJxeL5A4Bq4jVlT8rPglwdm2loP-ogFxXj=s96-c, aud=[815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com], azp=815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com, name=Sajid Kazmi, hd=propsk.com, exp=2025-08-19T08:06:41Z, family_name=Kazmi, iat=2025-08-19T07:06:41Z, email=management@propsk.com}]
+🔍 Is authenticated: true
+🔍 Auth authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid, ROLE_MANAGER, ROLE_ADMIN, ROLE_SUPER_ADMIN]
+🔍 Auth type: OAuth2AuthenticationToken
+🔍 Request method: POST
+🔍 PAYPROP DEBUG: Processing /api/payprop/oauth/test-new-raw-import
+=== END STATS ===
+Synced Properties: 285
+Vacant Properties: 27
+Occupied Properties: 258
+Total Properties: 285
+=== HOME PAGE PROPERTY STATS ===
+DEBUG: Found 27 vacant properties using junction table
+DEBUG: Found 258 occupied properties using junction table
+=== END MAINTENANCE STATS ===
+Awaiting Bids: 0
+Emergency: 0
+In Progress: 0
+Open: 2
+=== MAINTENANCE STATS ===
+⚠️ User does not have calendar scope access
+   Has valid refresh token: true
+⚠️ Access token has expired
+   Access token is valid: false
+   Refresh token present: true
+   Access token expiration: 2025-08-18T03:54:17.887960Z
+   Access token present: true
+   OAuth user email: management@propsk.com
+🔍 DEBUG: Checking OAuth token validity...
+   Has calendar scope: false
+   OAuth user scopes: [openid, profile, email]
+   OAuth user email: management@propsk.com
+   OAuth user found: true
+   OAuth user has refresh token: true
+   OAuth user has access token: true
+   OAuth user email: management@propsk.com
+   OAuth user ID: 33
+   OAuth user found by email: true
+   Extracted email from OAuth principal: management@propsk.com
+🔍 DEBUG: Getting OAuth user from authentication...
+✅ User is authenticated via OAuth (Google)
+   Google Calendar service available: true
+   Is OAuth user: true
+   Authentication type: OAuth2AuthenticationToken
+📅 DEBUG: Checking Google Calendar access...
+✅ Returning linked user ID: 54
+   OAuth user's user_id field: 54
+   OAuth user table ID: 33
+   OAuth user found: true
+   OAuth user has refresh token: true
+   OAuth user has access token: true
+   OAuth user email: management@propsk.com
+   OAuth user ID: 33
+   OAuth user found by email: true
+   Extracted email from OAuth principal: management@propsk.com
+🔍 DEBUG: Getting OAuth user from authentication...
+   Processing OAuth authentication...
+   Is authenticated: true
+   Authentication name: 112288746717746453477
+   Authentication type: OAuth2AuthenticationToken
+🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called (LEGACY INT VERSION)
+=== END STATS ===
+Synced Properties: 285
+Vacant Properties: 27
+Occupied Properties: 258
+Total Properties: 285
+=== HOME PAGE PROPERTY STATS ===
+DEBUG: Found 27 vacant properties using junction table
+DEBUG: Found 258 occupied properties using junction table
+=== END MAINTENANCE STATS ===
+Awaiting Bids: 0
+Emergency: 0
+In Progress: 0
+Open: 2
+=== MAINTENANCE STATS ===
+⚠️ User does not have calendar scope access
+   Has valid refresh token: true
+⚠️ Access token has expired
+   Access token is valid: false
+   Refresh token present: true
+   Access token expiration: 2025-08-18T03:54:17.887960Z
+   Access token present: true
+   OAuth user email: management@propsk.com
+🔍 DEBUG: Checking OAuth token validity...
+   Has calendar scope: false
+   OAuth user scopes: [openid, profile, email]
+   OAuth user email: management@propsk.com
+   OAuth user found: true
+   OAuth user has refresh token: true
+   OAuth user has access token: true
+   OAuth user email: management@propsk.com
+   OAuth user ID: 33
+   OAuth user found by email: true
+   Extracted email from OAuth principal: management@propsk.com
+🔍 DEBUG: Getting OAuth user from authentication...
+✅ User is authenticated via OAuth (Google)
+   Google Calendar service available: true
+   Is OAuth user: true
+   Authentication type: OAuth2AuthenticationToken
+📅 DEBUG: Checking Google Calendar access...
+✅ Returning linked user ID: 54
+   OAuth user's user_id field: 54
+   OAuth user table ID: 33
+   OAuth user found: true
+   OAuth user has refresh token: true
+   OAuth user has access token: true
+   OAuth user email: management@propsk.com
+   OAuth user ID: 33
+   OAuth user found by email: true
+   Extracted email from OAuth principal: management@propsk.com
+🔍 DEBUG: Getting OAuth user from authentication...
+   Processing OAuth authentication...
+   Is authenticated: true
+   Authentication name: 112288746717746453477
+   Authentication type: OAuth2AuthenticationToken
+🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called (LEGACY INT VERSION)
+✅ User is active, redirecting to home page
+🔍 DEBUG: New authentication authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid, ROLE_MANAGER, ROLE_ADMIN, ROLE_SUPER_ADMIN]
+✅ SecurityContext updated with new authentication
+🔍 DEBUG: Final combined authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid, ROLE_MANAGER, ROLE_ADMIN, ROLE_SUPER_ADMIN]
+🔍 DEBUG: Original OAuth authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]
+🔍 DEBUG: Converted authorities: [ROLE_MANAGER, ROLE_ADMIN, ROLE_SUPER_ADMIN]
+🔍 DEBUG: User roles from DB: [ROLE_MANAGER, ROLE_ADMIN, ROLE_SUPER_ADMIN]
+🔍 DEBUG: User status: ACTIVE
+🔍 DEBUG: User email: management@propsk.com
+🔍 DEBUG: User ID: 54
+✅ Using existing OAuth user
+♻️ Using existing user: 54 - management@propsk.com
+   User has OAuth user: true
+   User status: ACTIVE
+✅ User found via OAuth method: 54 - management@propsk.com
+   User found by ID: true
+   Current user ID from auth: 54
+🔍 DEBUG: Authentication analysis:
+✅ Validated secure user ID: 54
+✅ Returning linked user ID: 54
+   OAuth user's user_id field: 54
+   OAuth user table ID: 33
+   OAuth user found: true
+   OAuth user has refresh token: true
+   OAuth user has access token: true
+   OAuth user email: management@propsk.com
+   OAuth user ID: 33
+   OAuth user found by email: true
+   Extracted email from OAuth principal: management@propsk.com
+🔍 DEBUG: Getting OAuth user from authentication...
+   Processing OAuth authentication...
+   Is authenticated: true
+   Authentication name: 112288746717746453477
+   Authentication type: OAuth2AuthenticationToken
+🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called (LEGACY INT VERSION)
+🔐 DEBUG: AuthenticationUtils.getLoggedInUserIdSecure() called (NEW SECURE VERSION)
+📧 Processing OAuth login for: management@propsk.com
+   OAuth user has refresh token: true
+   OAuth user has access token: true
+   OAuth user scopes: [openid, profile, email]
+   OAuth user email: management@propsk.com
+🔍 DEBUG: OAuth user from authentication: true
+   OAuth user has refresh token: true
+   OAuth user has access token: true
+   OAuth user email: management@propsk.com
+   OAuth user ID: 33
+   OAuth user found by email: true
+   Extracted email from OAuth principal: management@propsk.com
+🔍 DEBUG: Getting OAuth user from authentication...
+   Session user ID: -1
+   Previous regular account login: false
+🔍 DEBUG: Session analysis:
+   Refresh token expires at: null
+   Refresh token present: true
+   Access token scopes: [https://www.googleapis.com/auth/userinfo.profile, https://www.googleapis.com/auth/userinfo.email, https://www.googleapis.com/auth/gmail.send, https://www.googleapis.com/auth/spreadsheets, openid, https://www.googleapis.com/auth/drive]
+   Access token expires at: 2025-08-19T08:06:40.468217856Z
+   Access token present: true
+🔐 DEBUG: OAuth tokens received from Google:
+🔐 OAuth Login Success Handler - Starting authentication process
+2025-08-19T07:06:41.879Z DEBUG 1 --- [o-10000-exec-11] .s.o.c.w.OAuth2LoginAuthenticationFilter : Set SecurityContextHolder to OAuth2AuthenticationToken [Principal=Name: [112288746717746453477], Granted Authorities: [[OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]], User Attributes: [{at_hash=gtpLlIDCD0OqFcNpWrcpag, sub=112288746717746453477, email_verified=true, iss=https://accounts.google.com, given_name=Sajid, nonce=GLDLN_mOxCCKAaM-I27z8jETzaG6BNO_fYQtPTdLHVo, picture=https://lh3.googleusercontent.com/a/ACg8ocKfl9OyMi0eSEeJxeL5A4Bq4jVlT8rPglwdm2loP-ogFxXj=s96-c, aud=[815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com], azp=815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com, name=Sajid Kazmi, hd=propsk.com, exp=2025-08-19T08:06:41Z, family_name=Kazmi, iat=2025-08-19T07:06:41Z, email=management@propsk.com}], Credentials=[PROTECTED], Authenticated=true, Details=WebAuthenticationDetails [RemoteIpAddress=172.70.242.158, SessionId=4DFB50CCE3AB509AF45340F1FF3254EF], Granted Authorities=[OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]]

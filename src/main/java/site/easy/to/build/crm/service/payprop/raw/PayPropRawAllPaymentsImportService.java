@@ -121,12 +121,17 @@ public class PayPropRawAllPaymentsImportService {
         
         String insertSql = """
             INSERT INTO payprop_report_all_payments (
-                payprop_id, payment_date, payment_type, tenant_name, beneficiary_name,
-                amount, transaction_fee, service_fee, commission_amount, net_amount,
-                status, category, source, property_payprop_id, tenant_payprop_id,
-                beneficiary_payprop_id, reference, description, currency, reconciled,
-                bank_reference, payment_method, created_date, modified_date, import_timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                payprop_id, amount, description, due_date, has_tax, reference,
+                service_fee, transaction_fee, tax_amount, part_of_amount,
+                beneficiary_payprop_id, beneficiary_name, beneficiary_type,
+                category_payprop_id, category_name, incoming_transaction_id,
+                incoming_transaction_amount, incoming_transaction_deposit_id, incoming_transaction_reconciliation_date,
+                incoming_transaction_status, incoming_transaction_type, bank_statement_date, bank_statement_id,
+                incoming_property_payprop_id, incoming_property_name, incoming_tenant_payprop_id, incoming_tenant_name,
+                payment_batch_id, payment_batch_amount, payment_batch_status, payment_batch_transfer_date,
+                payment_instruction_id, secondary_payment_is_child, secondary_payment_is_parent, secondary_payment_parent_id,
+                reconciliation_date, sync_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
         
         int importedCount = 0;
@@ -171,42 +176,62 @@ public class PayPropRawAllPaymentsImportService {
         
         int paramIndex = 1;
         
-        // Core payment fields
-        stmt.setString(paramIndex++, getStringValue(payment, "id"));
-        stmt.setDate(paramIndex++, getDateValue(payment, "payment_date"));
-        stmt.setString(paramIndex++, getStringValue(payment, "type"));
-        stmt.setString(paramIndex++, getStringValue(payment, "tenant_name"));
-        stmt.setString(paramIndex++, getStringValue(payment, "beneficiary_name"));
+        // Map PayProp API fields to database columns (37 total parameters)
+        stmt.setString(paramIndex++, getStringValue(payment, "id")); // payprop_id
+        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "amount")); // amount
+        stmt.setString(paramIndex++, getStringValue(payment, "description")); // description
+        stmt.setDate(paramIndex++, getDateValue(payment, "due_date")); // due_date
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "has_tax")); // has_tax
+        stmt.setString(paramIndex++, getStringValue(payment, "reference")); // reference
+        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "service_fee")); // service_fee
+        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "transaction_fee")); // transaction_fee
+        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "tax_amount")); // tax_amount
+        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "part_of_amount")); // part_of_amount
         
-        // Financial amounts
-        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "amount"));
-        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "transaction_fee"));
-        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "service_fee"));
-        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "commission_amount"));
-        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(payment, "net_amount"));
+        // Beneficiary info
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "beneficiary", "id")); // beneficiary_payprop_id
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "beneficiary", "name")); // beneficiary_name
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "beneficiary", "type")); // beneficiary_type
         
-        // Status and categorization
-        stmt.setString(paramIndex++, getStringValue(payment, "status"));
-        stmt.setString(paramIndex++, getStringValue(payment, "category"));
-        stmt.setString(paramIndex++, getStringValue(payment, "source"));
+        // Category info  
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "category", "id")); // category_payprop_id
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "category", "name")); // category_name
         
-        // Foreign key relationships
-        stmt.setString(paramIndex++, getStringValue(payment, "property_id"));
-        stmt.setString(paramIndex++, getStringValue(payment, "tenant_id"));
-        stmt.setString(paramIndex++, getStringValue(payment, "beneficiary_id"));
+        // Incoming transaction details
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "incoming_transaction", "id")); // incoming_transaction_id
+        stmt.setBigDecimal(paramIndex++, getNestedBigDecimalValue(payment, "incoming_transaction", "amount")); // incoming_transaction_amount
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "incoming_transaction", "deposit_id")); // incoming_transaction_deposit_id
+        stmt.setDate(paramIndex++, getNestedDateValue(payment, "incoming_transaction", "reconciliation_date")); // incoming_transaction_reconciliation_date
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "incoming_transaction", "status")); // incoming_transaction_status
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "incoming_transaction", "type")); // incoming_transaction_type
         
-        // Additional details
-        stmt.setString(paramIndex++, getStringValue(payment, "reference"));
-        stmt.setString(paramIndex++, getStringValue(payment, "description"));
-        stmt.setString(paramIndex++, getStringValue(payment, "currency"));
-        setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "reconciled"));
-        stmt.setString(paramIndex++, getStringValue(payment, "bank_reference"));
-        stmt.setString(paramIndex++, getStringValue(payment, "payment_method"));
+        // Bank statement info
+        stmt.setDate(paramIndex++, getNestedDateValue(payment, "bank_statement", "date")); // bank_statement_date
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "bank_statement", "id")); // bank_statement_id
         
-        // Timestamps
-        stmt.setTimestamp(paramIndex++, getTimestampValue(payment, "created"));
-        stmt.setTimestamp(paramIndex++, getTimestampValue(payment, "modified"));
-        stmt.setTimestamp(paramIndex++, Timestamp.valueOf(LocalDateTime.now()));
+        // Property info from incoming transaction
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "incoming_transaction", "property", "id")); // incoming_property_payprop_id
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "incoming_transaction", "property", "name")); // incoming_property_name
+        
+        // Tenant info from incoming transaction  
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "incoming_transaction", "tenant", "id")); // incoming_tenant_payprop_id
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "incoming_transaction", "tenant", "name")); // incoming_tenant_name
+        
+        // Payment batch info
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "payment_batch", "id")); // payment_batch_id
+        stmt.setBigDecimal(paramIndex++, getNestedBigDecimalValue(payment, "payment_batch", "amount")); // payment_batch_amount
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "payment_batch", "status")); // payment_batch_status
+        stmt.setDate(paramIndex++, getNestedDateValue(payment, "payment_batch", "transfer_date")); // payment_batch_transfer_date
+        
+        // Payment instruction and secondary payment info
+        stmt.setString(paramIndex++, getStringValue(payment, "payment_instruction_id")); // payment_instruction_id
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "secondary_payment_is_child")); // secondary_payment_is_child
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "secondary_payment_is_parent")); // secondary_payment_is_parent
+        stmt.setString(paramIndex++, getStringValue(payment, "secondary_payment_parent_id")); // secondary_payment_parent_id
+        
+        // Final fields
+        stmt.setDate(paramIndex++, getDateValue(payment, "reconciliation_date")); // reconciliation_date
+        stmt.setString(paramIndex++, "active"); // sync_status (default)
     }
     
     // Helper methods (same as other import services)
@@ -275,6 +300,60 @@ public class PayPropRawAllPaymentsImportService {
             stmt.setNull(paramIndex, java.sql.Types.BOOLEAN);
         } else {
             stmt.setBoolean(paramIndex, value);
+        }
+    }
+    
+    // Nested value helper methods for complex PayProp data structures
+    private String getNestedStringValue(Map<String, Object> map, String... keys) {
+        if (map == null || keys.length == 0) return null;
+        
+        Object current = map;
+        for (String key : keys) {
+            if (!(current instanceof Map)) return null;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> currentMap = (Map<String, Object>) current;
+            current = currentMap.get(key);
+            if (current == null) return null;
+        }
+        return current.toString();
+    }
+    
+    private BigDecimal getNestedBigDecimalValue(Map<String, Object> map, String... keys) {
+        if (map == null || keys.length == 0) return null;
+        
+        Object current = map;
+        for (String key : keys) {
+            if (!(current instanceof Map)) return null;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> currentMap = (Map<String, Object>) current;
+            current = currentMap.get(key);
+            if (current == null) return null;
+        }
+        try {
+            return new BigDecimal(current.toString());
+        } catch (NumberFormatException e) {
+            log.warn("Failed to convert nested value to BigDecimal: {}", current);
+            return null;
+        }
+    }
+    
+    private java.sql.Date getNestedDateValue(Map<String, Object> map, String... keys) {
+        if (map == null || keys.length == 0) return null;
+        
+        Object current = map;
+        for (String key : keys) {
+            if (!(current instanceof Map)) return null;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> currentMap = (Map<String, Object>) current;
+            current = currentMap.get(key);
+            if (current == null) return null;
+        }
+        try {
+            String dateStr = current.toString();
+            return java.sql.Date.valueOf(dateStr);
+        } catch (Exception e) {
+            log.warn("Failed to convert nested value to Date: {}", current);
+            return null;
         }
     }
 }

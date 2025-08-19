@@ -1,0 +1,396 @@
+java.lang.RuntimeException: All payments import failed: Unknown column 'payment_date' in 'field list'	
+
+at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+2025-08-19T07:28:53.942Z ERROR 1 --- [io-10000-exec-4] s.e.t.b.c.c.PayPropOAuth2Controller      : ❌ New raw import test failed: null
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+2025-08-19T07:28:53.908Z ERROR 1 --- [io-10000-exec-4] t.b.c.s.p.r.PayPropRawImportOrchestrator : ❌ PayProp raw import orchestration failed
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:53.906Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : ❌ Raw all-payments import failed
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:53.619Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: 2JkQwEyp1b
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:53.184Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: EJAjK7o9Xj
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:52.748Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: RXEKWwqKZO
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:52.317Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: VJjknxvOXE
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:51.880Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: nZ3OAqQrZN
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:51.058Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: QZGKLqGnZ9
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:50.625Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: 71eGPdeqJ5
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:50.193Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: eJPVdqnl1G
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:49.761Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: G1OBWdr7XM
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:49.329Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: VJjkvAyRXE
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:48.894Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: AJ5DbNp9ZM
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:48.460Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: 6JmG90x01v
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:48.028Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: 71eG2bEvJ5
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:47.592Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: V1Rko3W8ZP
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:47.157Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: zZy5g0lKZd
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:46.726Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: b1gBkl50XG
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:46.267Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: RZQ7aDGMXm
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:45.835Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: 71eGbEevJ5
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:45.401Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: nXW6dA24JG
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:44.968Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: wZ7DVAEPJD
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:44.530Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: V1zzAB3o1O
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:44.095Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: YZ2nlYdjZQ
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:43.657Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: wZ7DQzKPJD
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:43.214Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: 8JLyYAGRXR
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:42.776Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: n18dN7gv19
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:42.341Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: 0JY6Q6e7Xo
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:41.907Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: gXV6Gb7vX3
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:41.467Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: RZQ7nKEWXm
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:41.019Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: d1bjAO8V1v
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+2025-08-19T07:28:40.583Z ERROR 1 --- [io-10000-exec-4] s.p.r.PayPropRawAllPaymentsImportService : Failed to prepare payment for import: yZqzQedVJV
+2025-08-19T07:28:40.111Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 31 processed: 16 items (✅ 16 mapped, ❌ 0 errors)
+2025-08-19T07:28:38.700Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 30 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:37.125Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 29 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:35.591Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 28 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:34.073Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 27 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:32.565Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 26 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:31.067Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 25 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:29.564Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 24 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:28.045Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 23 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:26.571Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 22 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:25.071Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 21 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:23.570Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 20 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:22.045Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 19 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:20.578Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 18 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:19.108Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 17 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:17.603Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 16 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:16.130Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 15 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:14.629Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 14 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:13.071Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 13 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:11.552Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 12 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:10.056Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 11 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:08.556Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 10 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:07.024Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 9 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:05.537Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 8 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:03.431Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 7 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:28:01.277Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 6 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:27:59.698Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 5 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:27:58.195Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 4 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:27:56.671Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 3 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:27:55.153Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 2 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+2025-08-19T07:27:53.657Z  INFO 1 --- [io-10000-exec-4] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 1 processed: 25 items (✅ 25 mapped, ❌ 0 errors)
+   Errors: 1
+❌ Error refreshing token for management@propsk.com: OAuth tokens expired. Please re-authenticate with Google to continue using Google services.
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+  "error_description": "Bad Request"
+  "error": "invalid_grant",
+
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+java.lang.NullPointerException: null
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'payment_date' in 'field list'
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at com.mysql.cj.jdbc.exceptions.SQLError.createBatchUpdateException(SQLError.java:224) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+java.lang.Exception: Apparent connection leak detected
+
+
+
