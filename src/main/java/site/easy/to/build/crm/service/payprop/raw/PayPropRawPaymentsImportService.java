@@ -277,4 +277,17 @@ public class PayPropRawPaymentsImportService {
             stmt.setInt(paramIndex, value);
         }
     }
+    
+    private java.sql.Date getDateValue(Map<String, Object> map, String key) {
+        if (map == null || !map.containsKey(key) || map.get(key) == null) {
+            return null;
+        }
+        try {
+            String dateStr = map.get(key).toString();
+            return java.sql.Date.valueOf(dateStr);
+        } catch (Exception e) {
+            log.warn("Failed to convert {} to Date: {}", key, map.get(key));
+            return null;
+        }
+    }
 }
