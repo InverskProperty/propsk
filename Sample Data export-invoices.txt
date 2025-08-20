@@ -1,0 +1,960 @@
+Sample Data: export-invoices
+Description: Invoice instructions - THE MISSING DATA
+
+Items Retrieved: 244
+
+Sample Items (244)
+[
+  {
+    "account_type": "direct deposit",
+    "category": {
+      "id": "Vv2XlY1ema",
+      "name": "Rent"
+    },
+    "debit_order": false,
+    "description": "",
+    "frequency": "Monthly",
+    "frequency_code": "M",
+    "from_date": "2025-04-07",
+    "gross_amount": 1075,
+    "id": "BRXEzNG51O",
+    "invoice_type": "Rent",
+    "payment_day": 6,
+    "property": {
+      "address": {
+        "city": "Croydon",
+        "country_code": "UK",
+        "created": "2025-04-07T00:00:00",
+        "email": null,
+        "fax": null,
+        "first_line": "71b Shrubbery Road",
+        "id": "7nZ34Y2rJN",
+        "latitude": null,
+        "longitude": null,
+        "modified": "2025-07-01T00:00:00",
+        "phone": null,
+        "postal_code": "CR0 2RX",
+        "second_line": null,
+        "state": "Greater London",
+        "third_line": null,
+        "zip_code": "CR0 2RX"
+      },
+      "create_date": "2025-04-07T00:00:00",
+      "description": "",
+      "end_date": "9999-12-31T00:00:00",
+      "id": "K3Jwqg8W1E",
+      "modify_date": "2025-07-01T00:00:00",
+      "name": "71b Shrubbery Road, Croydon",
+      "property_image": null,
+      "start_date": "2025-04-07T00:00:00"
+    },
+    "reference": "",
+    "tenant": {
+      "business_name": "Regan Denise",
+      "display_name": "Regan Denise",
+      "email": "tlsjdgzv@me.com",
+      "first_name": "Denise",
+      "id": "v0Zo3rbbZD",
+      "last_name": "Regan"
+    },
+    "to_date": null,
+    "vat": false,
+    "vat_amount": 0
+  },
+
+Sample Data: export-payments
+Description: Payment distribution rules
+
+Items Retrieved: 779
+
+Sample Items (779)
+[
+  {
+    "beneficiary": "Natalie Turner [B]",
+    "beneficiary_reference": "53997590",
+    "category": "Owner",
+    "category_id": "Vv2XlY1ema",
+    "description": "",
+    "enabled": true,
+    "frequency": "Monthly",
+    "frequency_code": "M",
+    "from_date": "2019-02-13",
+    "gross_amount": 0,
+    "gross_percentage": 100,
+    "group_id": null,
+    "id": "Kd1b2BGY1v",
+    "maintenance_ticket_id": null,
+    "no_commission": false,
+    "no_commission_amount": 0,
+    "payment_day": 0,
+    "property": {
+      "address": {
+        "city": "Canterbury",
+        "country_code": "UK",
+        "created": "2019-02-07T00:00:00",
+        "email": "ituy15yt3@hotmail.co.uk",
+        "fax": "1285 215831",
+        "first_line": "88a Satchwell Road",
+        "id": "90JYeqaPJo",
+        "latitude": null,
+        "longitude": null,
+        "modified": "2019-02-07T00:00:00",
+        "phone": "1285 191569",
+        "postal_code": "CT1 8WM",
+        "second_line": null,
+        "state": "Kent",
+        "third_line": null,
+        "zip_code": "CT1 8WM"
+      },
+      "create_date": "2019-02-07T00:00:00",
+      "description": "",
+      "end_date": "9999-12-31T00:00:00",
+      "id": "WzJBxGM1QB",
+      "modify_date": "2019-02-07T00:00:00",
+      "name": "88a Satchwell Road, Canterbury",
+      "property_image": null,
+      "start_date": "2019-02-07T00:00:00"
+    },
+    "to_date": null,
+    "use_money_from": "",
+    "vat": false,
+    "vat_amount": 0,
+    "vat_percentage": 0
+  },
+
+
+
+2025-08-20T01:27:44.635Z DEBUG 1 --- [io-10000-exec-6] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 183 from: https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments?filter_by=reconciliation_date&from_date=2023-08-20&to_date=2025-08-20&rows=5&page=183&rows=25
+2025-08-20T01:27:44.135Z ERROR 1 --- [io-10000-exec-6] s.e.t.b.c.s.payprop.PayPropApiClient     : Failed to fetch page 182 from /report/all-payments?filter_by=reconciliation_date&from_date=2023-08-20&to_date=2025-08-20&rows=5: PayProp API error: {"errors":[{"message":"Report period cannot exceed 93 days"}],"status":400}
+2025-08-20T01:27:44.135Z ERROR 1 --- [io-10000-exec-6] s.e.t.b.c.s.payprop.PayPropApiClient     : PayProp API error: 400 BAD_REQUEST - {"errors":[{"message":"Report period cannot exceed 93 days"}],"status":400}
+2025-08-20T01:27:43.430Z DEBUG 1 --- [io-10000-exec-6] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 182 from: https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments?filter_by=reconciliation_date&from_date=2023-08-20&to_date=2025-08-20&rows=5&page=182&rows=25
+2025-08-20T01:27:42.930Z ERROR 1 --- [io-10000-exec-6] s.e.t.b.c.s.payprop.PayPropApiClient     : Failed to fetch page 181 from /report/all-payments?filter_by=reconciliation_date&from_date=2023-08-20&to_date=2025-08-20&rows=5: PayProp API error: {"errors":[{"message":"Report period cannot exceed 93 days"}],"status":400}
+2025-08-20T01:27:42.930Z ERROR 1 --- [io-10000-exec-6] s.e.t.b.c.s.payprop.PayPropApiClient     : PayProp API error: 400 BAD_REQUEST - {"errors":[{"message":"Report period cannot exceed 93 days"}],"status":400}
+2025-08-20T01:27:42.232Z DEBUG 1 --- [io-10000-exec-6] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 181 from: https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments?filter_by=reconciliation_date&from_date=2023-08-20&to_date=2025-08-20&rows=5&page=181&rows=25
+
+📊 Sample Data: report-all-payments
+Description: ALL payment transactions (FIXED PAGINATION)
+
+Items Retrieved: 10
+
+Sample Items (10)
+[
+  {
+    "amount": "15.50",
+    "beneficiary": {
+      "id": "DWzJBkWXQB",
+      "name": null,
+      "type": "agency"
+    },
+    "category": {
+      "id": "Kd71e915Ma",
+      "name": "Commission"
+    },
+    "description": "",
+    "due_date": "2025-06-12",
+    "has_tax": true,
+    "id": "AJ5wQ4pv1M",
+    "incoming_transaction": {
+      "amount": "126.00",
+      "bank_statement": {
+        "date": "2025-06-12",
+        "id": ""
+      },
+      "deposit_id": "CDD496",
+      "id": "QZG3ePDkZ9",
+      "property": {
+        "id": "8EJAAwgeJj",
+        "name": "Chesterfield Street 57, Flat 8, Romford"
+      },
+      "reconciliation_date": "2025-06-12",
+      "status": "paid",
+      "tenant": {
+        "id": "D6JmWjbk1v",
+        "name": "Andrews Holly"
+      },
+      "type": "instant bank transfer"
+    },
+    "part_of_amount": "0.00",
+    "payment_batch": {
+      "amount": "0.00",
+      "id": "",
+      "status": "not approved",
+      "transfer_date": "2025-06-12"
+    },
+    "payment_instruction": {
+      "id": "MZnNrqYxZ7"
+    },
+    "reference": "35914740",
+    "secondary_payment": {
+      "is_child": false,
+      "is_parent": false,
+      "parent_payment_id": null
+    },
+    "service_fee": "0.54",
+    "tax_amount": "2.58",
+    "transaction_fee": "0.32"
+  },
+  {
+    "amount": "110.50",
+    "beneficiary": {
+      "id": "ge1aw7OJEG",
+      "name": "Helen Mackenzie",
+      "type": "beneficiary"
+    },
+    "category": {
+      "id": "DWzJBaZQBp",
+      "name": "Contractor"
+    },
+    "description": "",
+    "due_date": "2025-06-02",
+    "has_tax": false,
+    "id": "yJ6ypEYbZj",
+    "incoming_transaction": {
+      "amount": "126.00",
+      "bank_statement": {
+        "date": "2025-06-12",
+        "id": ""
+      },
+      "deposit_id": "CDD496",
+      "id": "QZG3ePDkZ9",
+      "property": {
+        "id": "8EJAAwgeJj",
+        "name": "Chesterfield Street 57, Flat 8, Romford"
+      },
+      "reconciliation_date": "2025-06-12",
+      "status": "paid",
+      "tenant": {
+        "id": "D6JmWjbk1v",
+        "name": "Andrews Holly"
+      },
+      "type": "instant bank transfer"
+    },
+    "part_of_amount": "126.00",
+    "payment_batch": {
+      "amount": "0.00",
+      "id": "",
+      "status": "not approved",
+      "transfer_date": "2025-06-12"
+    },
+    "payment_instruction": {
+      "id": "6JmPbDaVZv"
+    },
+    "reference": "33065580",
+    "secondary_payment": {
+      "is_child": false,
+      "is_parent": false,
+      "parent_payment_id": null
+    },
+    "service_fee": "0.00",
+    "transaction_fee": "0.36"
+  },
+  {
+    "amount": "847.70",
+    "beneficiary": {
+      "id": "d71eAO6x15",
+      "name": "Claire Cummins",
+      "type": "beneficiary"
+    },
+    "category": {
+      "id": "Vv2XlY1ema",
+      "name": "Owner"
+    },
+    "description": "",
+    "due_date": "2025-06-12",
+    "has_tax": false,
+    "id": "wZ74b2xrJD",
+    "incoming_transaction": {
+      "amount": "980.00",
+      "bank_statement": {
+        "date": "2025-06-12",
+        "id": "7Z4jyKOzXP"
+      },
+      "deposit_id": "CDD513",
+      "id": "AXNBjNPjXk",
+      "property": {
+        "id": "RV1R5nz5XP",
+        "name": "Clavell Street 51, Flat 20, Cranbrook"
+      },
+      "reconciliation_date": "2025-06-12",
+      "status": "paid",
+      "tenant": {
+        "id": "agXVgmeB13",
+        "name": "White Robert"
+      },
+      "type": "incoming payment"
+    },
+    "part_of_amount": "0.00",
+    "payment_batch": {
+      "amount": "847.70",
+      "id": "gXVv7OdnX3",
+      "status": "paid",
+      "transfer_date": "2025-06-12"
+    },
+    "payment_instruction": {
+      "id": "V1zvjNyl1O"
+    },
+    "reference": "92779061",
+    "secondary_payment": {
+      "is_child": false,
+      "is_parent": false,
+      "parent_payment_id": null
+    },
+    "service_fee": "0.00",
+    "transaction_fee": "0.36"
+  }
+]
+
+📊 Sample Data: export-properties
+Description: Property settings and metadata
+
+Items Retrieved: 264
+
+Sample Items (264)
+[
+  {
+    "account_balance": 0,
+    "address": {
+      "city": "Essex",
+      "country_code": "UK",
+      "created": "2025-07-07T00:00:00",
+      "email": "",
+      "fax": "",
+      "first_line": "10 Ditton Court Road",
+      "id": "K3JwW0RGJE",
+      "latitude": null,
+      "longitude": null,
+      "modified": "2025-07-07T00:00:00",
+      "phone": "",
+      "postal_code": "SS0 7HG",
+      "second_line": "Westcliff on Sea",
+      "state": "N/A",
+      "third_line": "",
+      "zip_code": "SS0 7HG"
+    },
+    "allow_payments": true,
+    "approval_required": false,
+    "comment": "My flat",
+    "commission": null,
+    "customer_id": "CRM_34",
+    "customer_reference": "PROP_10BDITTO",
+    "hold_all_owner_funds": false,
+    "id": "PYZ2VG9VZQ",
+    "listed_from": "2025-07-06",
+    "listed_until": null,
+    "monthly_payment_required": 1200,
+    "property_account_minimum_balance": "0.00",
+    "property_name": "10b ditton court road",
+    "responsible_agent": "Propsk",
+    "responsible_agent_id": null,
+    "responsible_user": null
+  },
+  {
+    "account_balance": 0,
+    "address": {
+      "city": "Croydon",
+      "country_code": "UK",
+      "created": "2025-04-07T00:00:00",
+      "email": "",
+      "fax": "",
+      "first_line": "71b Shrubbery Road",
+      "id": "7nZ34Y2rJN",
+      "latitude": null,
+      "longitude": null,
+      "modified": "2025-07-01T00:00:00",
+      "phone": "",
+      "postal_code": "CR0 2RX",
+      "second_line": "",
+      "state": "Greater London",
+      "third_line": "",
+      "zip_code": "CR0 2RX"
+    },
+    "allow_payments": true,
+    "approval_required": false,
+    "comment": "",
+    "commission": {
+      "amount": "0.00",
+      "percentage": "15.00"
+    },
+    "customer_id": null,
+    "customer_reference": null,
+    "hold_all_owner_funds": false,
+    "id": "K3Jwqg8W1E",
+    "listed_from": "2025-04-07",
+    "listed_until": null,
+    "monthly_payment_required": 995,
+    "property_account_minimum_balance": "0.00",
+    "property_name": "71b Shrubbery Road, Croydon",
+    "responsible_agent": "Eva Appleton",
+    "responsible_agent_id": null,
+    "responsible_user": null
+  },
+  {
+    "account_balance": 0,
+    "address": {
+      "city": "Canterbury",
+      "country_code": "UK",
+      "created": "2019-02-07T00:00:00",
+      "email": "ituy15yt3@hotmail.co.uk",
+      "fax": "1285 215831",
+      "first_line": "88a Satchwell Road",
+      "id": "90JYeqaPJo",
+      "latitude": null,
+      "longitude": null,
+      "modified": "2019-02-07T00:00:00",
+      "phone": "1285 191569",
+      "postal_code": "CT1 8WM",
+      "second_line": "",
+      "state": "Kent",
+      "third_line": "",
+      "zip_code": "CT1 8WM"
+    },
+    "allow_payments": true,
+    "approval_required": false,
+    "comment": "",
+    "commission": {
+      "amount": "0.00",
+      "percentage": "9.00"
+    },
+    "customer_id": null,
+    "customer_reference": null,
+    "hold_all_owner_funds": false,
+    "id": "WzJBxGM1QB",
+    "listed_from": "2019-02-07",
+    "listed_until": null,
+    "monthly_payment_required": 960,
+    "property_account_minimum_balance": "0.00",
+    "property_name": "88a Satchwell Road, Canterbury",
+    "responsible_agent": "Rebecca Abercorn Road",
+    "responsible_agent_id": null,
+    "responsible_user": null
+  }
+]
+
+📊 Sample Data: export-properties
+Description: Property settings and metadata
+
+Items Retrieved: 264
+
+Sample Items (264)
+[
+  {
+    "account_balance": 0,
+    "address": {
+      "city": "Essex",
+      "country_code": "UK",
+      "created": "2025-07-07T00:00:00",
+      "email": "",
+      "fax": "",
+      "first_line": "10 Ditton Court Road",
+      "id": "K3JwW0RGJE",
+      "latitude": null,
+      "longitude": null,
+      "modified": "2025-07-07T00:00:00",
+      "phone": "",
+      "postal_code": "SS0 7HG",
+      "second_line": "Westcliff on Sea",
+      "state": "N/A",
+      "third_line": "",
+      "zip_code": "SS0 7HG"
+    },
+    "allow_payments": true,
+    "approval_required": false,
+    "comment": "My flat",
+    "commission": null,
+    "customer_id": "CRM_34",
+    "customer_reference": "PROP_10BDITTO",
+    "hold_all_owner_funds": false,
+    "id": "PYZ2VG9VZQ",
+    "listed_from": "2025-07-06",
+    "listed_until": null,
+    "monthly_payment_required": 1200,
+    "property_account_minimum_balance": "0.00",
+    "property_name": "10b ditton court road",
+    "responsible_agent": "Propsk",
+    "responsible_agent_id": null,
+    "responsible_user": null
+  },
+  {
+    "account_balance": 0,
+    "address": {
+      "city": "Croydon",
+      "country_code": "UK",
+      "created": "2025-04-07T00:00:00",
+      "email": "",
+      "fax": "",
+      "first_line": "71b Shrubbery Road",
+      "id": "7nZ34Y2rJN",
+      "latitude": null,
+      "longitude": null,
+      "modified": "2025-07-01T00:00:00",
+      "phone": "",
+      "postal_code": "CR0 2RX",
+      "second_line": "",
+      "state": "Greater London",
+      "third_line": "",
+      "zip_code": "CR0 2RX"
+    },
+    "allow_payments": true,
+    "approval_required": false,
+    "comment": "",
+    "commission": {
+      "amount": "0.00",
+      "percentage": "15.00"
+    },
+    "customer_id": null,
+    "customer_reference": null,
+    "hold_all_owner_funds": false,
+    "id": "K3Jwqg8W1E",
+    "listed_from": "2025-04-07",
+    "listed_until": null,
+    "monthly_payment_required": 995,
+    "property_account_minimum_balance": "0.00",
+    "property_name": "71b Shrubbery Road, Croydon",
+    "responsible_agent": "Eva Appleton",
+    "responsible_agent_id": null,
+    "responsible_user": null
+  },
+  {
+    "account_balance": 0,
+    "address": {
+      "city": "Canterbury",
+      "country_code": "UK",
+      "created": "2019-02-07T00:00:00",
+      "email": "ituy15yt3@hotmail.co.uk",
+      "fax": "1285 215831",
+      "first_line": "88a Satchwell Road",
+      "id": "90JYeqaPJo",
+      "latitude": null,
+      "longitude": null,
+      "modified": "2019-02-07T00:00:00",
+      "phone": "1285 191569",
+      "postal_code": "CT1 8WM",
+      "second_line": "",
+      "state": "Kent",
+      "third_line": "",
+      "zip_code": "CT1 8WM"
+    },
+    "allow_payments": true,
+    "approval_required": false,
+    "comment": "",
+    "commission": {
+      "amount": "0.00",
+      "percentage": "9.00"
+    },
+    "customer_id": null,
+    "customer_reference": null,
+    "hold_all_owner_funds": false,
+    "id": "WzJBxGM1QB",
+    "listed_from": "2019-02-07",
+    "listed_until": null,
+    "monthly_payment_required": 960,
+    "property_account_minimum_balance": "0.00",
+    "property_name": "88a Satchwell Road, Canterbury",
+    "responsible_agent": "Rebecca Abercorn Road",
+    "responsible_agent_id": null,
+    "responsible_user": null
+  }
+]
+
+
+📊 Sample Data: export-beneficiaries
+Description: Owner/beneficiary information
+
+Items Retrieved: 174
+
+Sample Items (174)
+[
+  {
+    "billing_address": {
+      "city": "Wandsworth",
+      "country_code": "UK",
+      "created": "2020-12-01T00:00:00",
+      "email": "ocr8yke4@hotmail.co.uk",
+      "fax": "1808 250946",
+      "first_line": "Withielgoose House",
+      "id": "WrJvxqlB1l",
+      "latitude": null,
+      "longitude": null,
+      "modified": "2025-04-11T00:00:00",
+      "phone": "1808 289832",
+      "postal_code": "SW18 1FB",
+      "second_line": "Little Hunter Street",
+      "state": "Greater London",
+      "third_line": "",
+      "zip_code": "SW18 1FB"
+    },
+    "business_name": "",
+    "comment": null,
+    "customer_id": null,
+    "customer_reference": "",
+    "email_address": "yl3su73@btinternet.com",
+    "email_cc_address": "laurencebrown30@hotmail.com",
+    "first_name": "Alexander",
+    "id": "v0Zom2pQXD",
+    "id_reg_number": "QPOFHXZZLR",
+    "id_type_id": "",
+    "is_active_owner": true,
+    "is_owner": false,
+    "last_name": "Guy",
+    "mobile_number": "447976629158",
+    "notify_email": true,
+    "notify_sms": true,
+    "owner_app": false,
+    "properties": [
+      {
+        "account_balance": 127.86,
+        "allow_payments": true,
+        "approval_required": false,
+        "comment": "",
+        "customer_reference": null,
+        "hold_all_owner_funds": false,
+        "id": "v2XlYypa1e",
+        "listed_from": "2020-12-01",
+        "listed_until": null,
+        "monthly_payment_required": "850.00",
+        "property_account_minimum_balance": "0.00",
+        "property_name": "Brindley Road 62, Hammersmith",
+        "responsible_agent": "Simon Bowyer",
+        "responsible_agent_id": null,
+        "responsible_user": null
+      }
+    ],
+    "vat_number": "837886389"
+  },
+  {
+    "billing_address": {
+      "city": "Camberwell",
+      "country_code": "UK",
+      "created": "2025-04-07T00:00:00",
+      "email": "5dsw1ai011m@hotmail.com",
+      "fax": "(020) 3754 1252",
+      "first_line": "Unit 6",
+      "id": "mGX0zRbLZ3",
+      "latitude": null,
+      "longitude": null,
+      "modified": "2025-06-06T00:00:00",
+      "phone": "(020) 3109 7574",
+      "postal_code": "SE16 5PV",
+      "second_line": "20 Fulham Broadway",
+      "state": "Greater London",
+      "third_line": "",
+      "zip_code": "SE16 5PV"
+    },
+    "business_name": "",
+    "comment": null,
+    "customer_id": null,
+    "customer_reference": "",
+    "email_address": "jjn1z917@hotmail.com",
+    "email_cc_address": "",
+    "first_name": "Alice",
+    "id": "D6JmB6dPXv",
+    "id_reg_number": "AMMLJKDIGE",
+    "id_type_id": "",
+    "is_active_owner": true,
+    "is_owner": false,
+    "last_name": "Rutter",
+    "mobile_number": "447780999087",
+    "notify_email": true,
+    "notify_sms": true,
+    "owner_app": false,
+    "properties": [
+      {
+        "account_balance": 0,
+        "allow_payments": true,
+        "approval_required": false,
+        "comment": "",
+        "customer_reference": null,
+        "hold_all_owner_funds": false,
+        "id": "lMZnBk82Z7",
+        "listed_from": "2025-04-07",
+        "listed_until": null,
+        "monthly_payment_required": "1100.00",
+        "property_account_minimum_balance": "0.00",
+        "property_name": "Newcastle Street 94, Flat 26, Ealing",
+        "responsible_agent": "Andrea Hampton",
+        "responsible_agent_id": null,
+        "responsible_user": null
+      }
+    ],
+    "vat_number": "829236567"
+  },
+  {
+    "billing_address": {
+      "city": "Hounslow",
+      "country_code": "UK",
+      "created": "2024-06-21T00:00:00",
+      "email": "dr5phbgbyq9wl@outlook.com",
+      "fax": "(020) 7652 2099",
+      "first_line": "60 Plough Court",
+      "id": "BRXEpg3nJO",
+      "latitude": null,
+      "longitude": null,
+      "modified": "2024-06-21T00:00:00",
+      "phone": "(020) 7543 1620",
+      "postal_code": "TW7 5SN",
+      "second_line": "",
+      "state": "Greater London",
+      "third_line": "",
+      "zip_code": "TW7 5SN"
+    },
+    "business_name": "",
+    "comment": null,
+    "customer_id": null,
+    "customer_reference": "",
+    "email_address": "jiw56eivtvx@gmail.com",
+    "email_cc_address": "",
+    "first_name": "Ben",
+    "id": "oRZQ8Bbz1m",
+    "id_reg_number": "HQDMMLSTUQ",
+    "id_type_id": "",
+    "is_active_owner": true,
+    "is_owner": false,
+    "last_name": "Gallagher",
+    "mobile_number": "447749194431",
+    "notify_email": true,
+    "notify_sms": true,
+    "owner_app": false,
+    "properties": [
+      {
+        "account_balance": 0,
+        "allow_payments": true,
+        "approval_required": false,
+        "comment": "",
+        "customer_reference": null,
+        "hold_all_owner_funds": false,
+        "id": "w7Z4kyV41P",
+        "listed_from": "2024-06-12",
+        "listed_until": null,
+        "monthly_payment_required": "995.00",
+        "property_account_minimum_balance": "0.00",
+        "property_name": "Brunehild Street 8, Manston",
+        "responsible_agent": "Stacey Thomas",
+        "responsible_agent_id": null,
+        "responsible_user": null
+      }
+    ],
+    "vat_number": "743024395"
+  }
+]
+
+
+ample Data: export-tenants
+Description: Tenant information
+
+Items Retrieved: 541
+
+Sample Items (541)
+[
+  {
+    "address": {
+      "city": "Merton",
+      "country_code": "UK",
+      "created": "2019-02-07T00:00:00",
+      "email": "a316asl2n1g3@hotmail.com",
+      "fax": "(020) 3496 6863",
+      "first_line": "Flat 9",
+      "id": "7QZGNeEY19",
+      "latitude": null,
+      "longitude": null,
+      "modified": "2019-06-19T00:00:00",
+      "phone": "(020) 3959 1519",
+      "postal_code": "SM4 6TG",
+      "second_line": "80 Eversholt Row",
+      "state": "Greater London",
+      "third_line": "",
+      "zip_code": "SM4 6TG"
+    },
+    "business_name": "Abercorn Road Peter",
+    "comment": "",
+    "customer_id": null,
+    "date_of_birth": null,
+    "display_name": "Abercorn Road Peter",
+    "email_address": "yqqabi29ve2fv@googlemail.com",
+    "email_cc_address": "",
+    "first_name": "Peter",
+    "id": "lwZ7pPYDJD",
+    "id_reg_no": "432214408095",
+    "id_type_id": "zKd1b21vGg",
+    "invoice_lead_days": 0,
+    "last_name": "Abercorn Road",
+    "mobile_number": "447713786864",
+    "notify_email": true,
+    "notify_sms": false,
+    "properties": [
+      {
+        "account_balance": 0,
+        "address": {
+          "city": "Camden Town",
+          "country_code": "UK",
+          "created": "2019-02-07T00:00:00",
+          "email": "bohg7lw@yahoo.co.uk",
+          "fax": "(020) 7842 6753",
+          "first_line": "16 West Mews",
+          "id": "WrJvp4je1l",
+          "latitude": null,
+          "longitude": null,
+          "modified": "2019-02-07T00:00:00",
+          "phone": "(020) 7111 3781",
+          "postal_code": "WC1A 6XQ",
+          "second_line": "",
+          "state": "Greater London",
+          "third_line": "",
+          "zip_code": "WC1A 6XQ"
+        },
+        "allow_payments": true,
+        "approval_required": false,
+        "comment": "",
+        "customer_reference": null,
+        "hold_all_owner_funds": false,
+        "id": "RwXxGq0JA6",
+        "listed_from": "2019-02-07",
+        "listed_until": null,
+        "monthly_payment_required": "975.00",
+        "property_account_minimum_balance": "0.00",
+        "property_name": "West Mews 16, Camden Town",
+        "responsible_agent": "Damian Mcgregor",
+        "responsible_agent_id": null,
+        "responsible_user": null,
+        "tenant": {
+          "deposit_id": "CDD59",
+          "end_date": null,
+          "start_date": "2019-02-07"
+        }
+      }
+    ],
+    "reference": "",
+    "status": "Inactive",
+    "vat_number": ""
+  },
+
+📊 Sample Data: invoices-categories
+Description: Invoice category reference data
+
+Items Retrieved: 10
+
+Sample Items (10)
+[
+  {
+    "id": "woRZQl1mA4",
+    "is_active": true,
+    "is_system": false,
+    "name": "Deposit"
+  },
+  {
+    "id": "mGX0MKg13x",
+    "is_active": true,
+    "is_system": false,
+    "name": "Deposit to Landlord"
+  },
+  {
+    "id": "6EyJ6RJjbv",
+    "is_active": true,
+    "is_system": true,
+    "name": "Holding deposit"
+  }
+]
+
+📊 Sample Data: payments-categories
+Description: Payment category reference data
+
+Items Retrieved: 21
+
+Sample Items (21)
+[
+  {
+    "id": "woRZQl1mA4",
+    "is_active": true,
+    "is_system": false,
+    "name": "Agent"
+  },
+  {
+    "id": "Kd71e915Ma",
+    "is_active": true,
+    "is_system": true,
+    "name": "Commission"
+  },
+  {
+    "id": "DWzJBaZQBp",
+    "is_active": true,
+    "is_system": false,
+    "name": "Contractor"
+  }
+]
+
+📊 Sample Data: report-icdn
+Description: ICDN financial transactions
+
+Items Retrieved: 10
+
+Sample Items (10)
+[
+  {
+    "amount": "1148.07",
+    "category": {
+      "id": "woRZQl1mA4",
+      "name": "Deposit"
+    },
+    "date": "2025-05-23",
+    "deposit_id": "CDD532",
+    "description": "",
+    "has_tax": false,
+    "id": "v1pABPyGZd",
+    "invoice_group_id": "LJMK8eyj1q",
+    "matched_amount": "1148.07",
+    "property": {
+      "id": "K3Jwqg8W1E",
+      "name": "71b Shrubbery Road, Croydon"
+    },
+    "tenant": {
+      "id": "v0Zo3rbbZD",
+      "name": "Regan Denise"
+    },
+    "type": "invoice"
+  },
+  {
+    "amount": "1075.00",
+    "category": {
+      "id": "Vv2XlY1ema",
+      "name": "Rent"
+    },
+    "date": "2025-06-06",
+    "deposit_id": "CDD532",
+    "description": "",
+    "has_tax": false,
+    "id": "nXW83rqM1G",
+    "invoice_group_id": "n183z3vWX9",
+    "matched_amount": "1075.00",
+    "property": {
+      "id": "K3Jwqg8W1E",
+      "name": "71b Shrubbery Road, Croydon"
+    },
+    "tenant": {
+      "id": "v0Zo3rbbZD",
+      "name": "Regan Denise"
+    },
+    "type": "invoice"
+  },
+  {
+    "amount": "300.00",
+    "category": {
+      "id": "Vv2XlY1ema",
+      "name": "Rent"
+    },
+    "date": "2025-05-20",
+    "deposit_id": "CDD2",
+    "description": "",
+    "has_tax": false,
+    "id": "QZr67WyQZN",
+    "invoice_group_id": null,
+    "matched_amount": "300.00",
+    "property": {
+      "id": "WzJBxGM1QB",
+      "name": "88a Satchwell Road, Canterbury"
+    },
+    "tenant": {
+      "id": "d71ev8ylZ5",
+      "name": "Thomson George"
+    },
+    "type": "debit note"
+  }
+]

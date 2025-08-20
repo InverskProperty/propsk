@@ -345,14 +345,24 @@ public class PayPropRawImportSimpleController {
                 "/report/all-payments?filter_by=reconciliation_date&rows=25", 
                 2, // 2 years back
                 (Map<String, Object> payment) -> {
-                    // Simple data processing - just return the payment data
+                    // Extract nested data safely
+                    Map<String, Object> beneficiary = (Map<String, Object>) payment.get("beneficiary");
+                    Map<String, Object> paymentBatch = (Map<String, Object>) payment.get("payment_batch");
+                    Map<String, Object> incomingTransaction = (Map<String, Object>) payment.get("incoming_transaction");
+                    Map<String, Object> property = incomingTransaction != null ? 
+                        (Map<String, Object>) incomingTransaction.get("property") : null;
+                    
                     return Map.of(
-                        "id", payment.get("id"),
-                        "amount", payment.get("amount"),
-                        "description", payment.get("description"),
-                        "payment_batch_id", payment.get("payment_batch_id"),
-                        "beneficiary_name", payment.get("beneficiary_name"),
-                        "property_name", payment.getOrDefault("incoming_property_name", "N/A")
+                        "id", payment.getOrDefault("id", ""),
+                        "amount", payment.getOrDefault("amount", "0.00"),
+                        "description", payment.getOrDefault("description", ""),
+                        "due_date", payment.getOrDefault("due_date", ""),
+                        "payment_batch_id", paymentBatch != null ? paymentBatch.getOrDefault("id", "") : "",
+                        "payment_batch_status", paymentBatch != null ? paymentBatch.getOrDefault("status", "") : "",
+                        "beneficiary_name", beneficiary != null ? beneficiary.getOrDefault("name", "Unknown") : "Unknown",
+                        "beneficiary_type", beneficiary != null ? beneficiary.getOrDefault("type", "") : "",
+                        "property_name", property != null ? property.getOrDefault("name", "N/A") : "N/A",
+                        "reconciliation_date", incomingTransaction != null ? incomingTransaction.getOrDefault("reconciliation_date", "") : ""
                     );
                 });
             
