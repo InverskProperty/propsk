@@ -345,25 +345,8 @@ public class PayPropRawImportSimpleController {
                 "/report/all-payments?filter_by=reconciliation_date&rows=25", 
                 2, // 2 years back
                 (Map<String, Object> payment) -> {
-                    // Extract nested data safely
-                    Map<String, Object> beneficiary = (Map<String, Object>) payment.get("beneficiary");
-                    Map<String, Object> paymentBatch = (Map<String, Object>) payment.get("payment_batch");
-                    Map<String, Object> incomingTransaction = (Map<String, Object>) payment.get("incoming_transaction");
-                    Map<String, Object> property = incomingTransaction != null ? 
-                        (Map<String, Object>) incomingTransaction.get("property") : null;
-                    
-                    return Map.of(
-                        "id", payment.getOrDefault("id", ""),
-                        "amount", payment.getOrDefault("amount", "0.00"),
-                        "description", payment.getOrDefault("description", ""),
-                        "due_date", payment.getOrDefault("due_date", ""),
-                        "payment_batch_id", paymentBatch != null ? paymentBatch.getOrDefault("id", "") : "",
-                        "payment_batch_status", paymentBatch != null ? paymentBatch.getOrDefault("status", "") : "",
-                        "beneficiary_name", beneficiary != null ? beneficiary.getOrDefault("name", "Unknown") : "Unknown",
-                        "beneficiary_type", beneficiary != null ? beneficiary.getOrDefault("type", "") : "",
-                        "property_name", property != null ? property.getOrDefault("name", "N/A") : "N/A",
-                        "reconciliation_date", incomingTransaction != null ? incomingTransaction.getOrDefault("reconciliation_date", "") : ""
-                    );
+                    // Return raw payment data - no processing for now
+                    return payment;
                 });
             
             Map<String, Object> result = Map.of(
