@@ -1473,6 +1473,43 @@ ORDER BY transaction_count DESC;</code></pre>
                                 
                                 <div id="endpointTestResults" class="result-display mt-3" style="display: none;"></div>
                                 
+                                <!-- Raw Import System Testing -->
+                                <div class="mt-4">
+                                    <h6><i class="fas fa-database"></i> Raw Import System (Enhanced)</h6>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <button class="btn btn-success mb-2" onclick="testRawImportSystem()">
+                                                <i class="fas fa-download"></i> Test Enhanced Raw Import
+                                            </button>
+                                            <button class="btn btn-warning mb-2" onclick="fixAllPaymentsPagination()">
+                                                <i class="fas fa-wrench"></i> Fix All-Payments (Get ALL not 60)
+                                            </button>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <button class="btn btn-info mb-2" onclick="getSampleDataFromEndpoint()">
+                                                <i class="fas fa-eye"></i> Get Sample Data
+                                            </button>
+                                            <button class="btn btn-outline-primary mb-2" onclick="testCurrentFinancialSync()">
+                                                <i class="fas fa-sync"></i> Test Current Financial Sync
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="mb-2">
+                                        <select id="sampleEndpointSelect" class="form-select">
+                                            <option value="">Select endpoint for sample data...</option>
+                                            <option value="export-invoices">🚨 export-invoices (Critical Missing)</option>
+                                            <option value="export-payments">🚨 export-payments (Payment Distribution)</option>
+                                            <option value="report-all-payments">🔧 report-all-payments (Fixed Pagination)</option>
+                                            <option value="export-properties">✅ export-properties</option>
+                                            <option value="export-beneficiaries">📊 export-beneficiaries</option>
+                                            <option value="export-tenants">📊 export-tenants</option>
+                                            <option value="invoices-categories">🏷️ invoices-categories</option>
+                                            <option value="payments-categories">🏷️ payments-categories</option>
+                                            <option value="report-icdn">📈 report-icdn</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
                                 <!-- Endpoint Testing Results Summary -->
                                 <div class="mt-4" id="endpointSummarySection" style="display: none;">
                                     <h6><i class="fas fa-chart-bar"></i> Testing Summary</h6>
@@ -4411,6 +4448,223 @@ ORDER BY transaction_count DESC;</code></pre>
                     <p>${errorMessage}</p>
                 </div>
             `;
+        }
+
+        // ===== Enhanced Raw Import System Functions =====
+
+        async function testRawImportSystem() {
+            showLoadingState('endpointTestResults', 'Testing enhanced raw import system with all working endpoints...');
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/sync-all-endpoints', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                displayRawImportResults(result, 'Enhanced Raw Import System Test');
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error testing raw import system: ' + error.message);
+            }
+        }
+
+        async function fixAllPaymentsPagination() {
+            showLoadingState('endpointTestResults', 'Fixing all-payments pagination to get ALL payments (not just 60)...');
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/fix-all-payments-pagination', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                displayRawImportResults(result, 'All-Payments Pagination Fix');
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error fixing all-payments pagination: ' + error.message);
+            }
+        }
+
+        async function getSampleDataFromEndpoint() {
+            const selectedEndpoint = document.getElementById('sampleEndpointSelect').value;
+            
+            if (!selectedEndpoint) {
+                alert('Please select an endpoint to get sample data from');
+                return;
+            }
+            
+            showLoadingState('endpointTestResults', `Getting sample data from ${selectedEndpoint}...`);
+            
+            try {
+                const response = await fetch(`/api/payprop/raw-import/sample-data/${selectedEndpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                displaySampleDataResults(result, selectedEndpoint);
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error getting sample data: ' + error.message);
+            }
+        }
+
+        async function testCurrentFinancialSync() {
+            showLoadingState('endpointTestResults', 'Testing current PayProp financial sync service...');
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/test-current-financial-sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                displayRawImportResults(result, 'Current Financial Sync Test');
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error testing current financial sync: ' + error.message);
+            }
+        }
+
+        function displayRawImportResults(result, title) {
+            const container = document.getElementById('endpointTestResults');
+            container.style.display = 'block';
+            
+            if (!result.success) {
+                container.innerHTML = `
+                    <div class="result-error">
+                        <h5>${title} - Error</h5>
+                        <p><strong>Error:</strong> ${result.error}</p>
+                        ${result.note ? `<p><strong>Note:</strong> ${result.note}</p>` : ''}
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `<div class="result-success">
+                <h5>${title} - Results</h5>
+                <p><strong>Status:</strong> ${result.message}</p>
+            `;
+            
+            // Show summary if available
+            if (result.summary) {
+                html += `
+                    <div class="mt-3">
+                        <h6>📊 Summary:</h6>
+                        <ul>
+                            <li><strong>Total Endpoints:</strong> ${result.summary.total_endpoints || 'N/A'}</li>
+                            <li><strong>Successful:</strong> ${result.summary.successful || 'N/A'}</li>
+                            <li><strong>Errors:</strong> ${result.summary.errors || 'N/A'}</li>
+                            <li><strong>Duration:</strong> ${result.summary.duration_ms || 'N/A'}ms</li>
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            // Show endpoint results if available
+            if (result.endpoint_results) {
+                html += '<div class="mt-3"><h6>📋 Endpoint Results:</h6>';
+                
+                for (const [endpointKey, endpointResult] of Object.entries(result.endpoint_results)) {
+                    const statusClass = endpointResult.success ? 'text-success' : 'text-danger';
+                    const statusIcon = endpointResult.success ? '✅' : '❌';
+                    
+                    html += `
+                        <div class="border-bottom pb-2 mb-2">
+                            <strong class="${statusClass}">${statusIcon} ${endpointKey}</strong><br>
+                            <small class="text-muted">Endpoint: ${endpointResult.endpoint || 'N/A'}</small><br>
+                            <small class="text-muted">Description: ${endpointResult.description || 'N/A'}</small>
+                    `;
+                    
+                    if (endpointResult.success) {
+                        html += `<br><small class="text-success">Items: ${endpointResult.total_items}</small>`;
+                    } else {
+                        html += `<br><small class="text-danger">Error: ${endpointResult.error}</small>`;
+                    }
+                    
+                    html += '</div>';
+                }
+                html += '</div>';
+            }
+            
+            // Show special results for all-payments fix
+            if (result.all_payments_result) {
+                html += `
+                    <div class="mt-3 alert alert-info">
+                        <h6>🔧 All-Payments Fix Results:</h6>
+                        <p><strong>Total Payments Retrieved:</strong> ${result.all_payments_result.totalProcessed || 'N/A'}</p>
+                        <p><strong>Note:</strong> ${result.note || 'All payments pagination has been fixed'}</p>
+                    </div>
+                `;
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function displaySampleDataResults(result, endpointKey) {
+            const container = document.getElementById('endpointTestResults');
+            container.style.display = 'block';
+            
+            if (!result.success) {
+                container.innerHTML = `
+                    <div class="result-error">
+                        <h5>Sample Data Error</h5>
+                        <p><strong>Error:</strong> ${result.error}</p>
+                        <p><strong>Endpoint:</strong> ${endpointKey}</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <div class="result-success">
+                    <h5>📊 Sample Data: ${endpointKey}</h5>
+                    <p><strong>Description:</strong> ${result.description}</p>
+                    <p><strong>Items Retrieved:</strong> ${result.sample_data.totalProcessed || 'N/A'}</p>
+            `;
+            
+            // Show first few items if available
+            if (result.sample_data.items && result.sample_data.items.length > 0) {
+                html += `
+                    <details class="mt-3">
+                        <summary><strong>Sample Items (${result.sample_data.items.length})</strong></summary>
+                        <pre class="mt-2" style="background: #f8f9fa; padding: 1rem; border-radius: 4px; font-size: 0.8rem; max-height: 400px; overflow-y: auto;">${JSON.stringify(result.sample_data.items.slice(0, 3), null, 2)}</pre>
+                    </details>
+                `;
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
         }
     </script>
 </body>
