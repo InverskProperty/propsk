@@ -46,13 +46,13 @@ public class PayPropRawImportSimpleController {
         WORKING_ENDPOINTS.put("export-invoices", new EndpointConfig(
             "/export/invoices", 
             "Invoice instructions - THE MISSING DATA",
-            Map.of("include_categories", "true", "rows", "25")
+            Map.of("rows", "25")  // Fixed: removed invalid include_categories
         ));
         
         WORKING_ENDPOINTS.put("export-payments", new EndpointConfig(
             "/export/payments", 
             "Payment distribution rules",
-            Map.of("include_beneficiary_info", "true", "rows", "25")
+            Map.of("rows", "25")  // Fixed: removed invalid include_beneficiary_info
         ));
         
         WORKING_ENDPOINTS.put("export-properties", new EndpointConfig(
