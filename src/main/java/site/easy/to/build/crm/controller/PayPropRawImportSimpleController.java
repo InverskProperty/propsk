@@ -359,6 +359,13 @@ public class PayPropRawImportSimpleController {
             response.put("all_payments_result", result);
             response.put("note", "Uses fetchHistoricalPages to properly handle PayProp's 93-day limit");
             
+            // Add sample data structure for examination
+            if (!allPayments.isEmpty()) {
+                Map<String, Object> sampleRecord = allPayments.get(0);
+                response.put("sample_record_structure", sampleRecord);
+                response.put("total_fields_in_record", sampleRecord.size());
+            }
+            
             log.info("🎯 ALL PAYMENTS FIXED: Retrieved {} payments total using historical chunking", 
                      result.getOrDefault("totalProcessed", 0));
             
