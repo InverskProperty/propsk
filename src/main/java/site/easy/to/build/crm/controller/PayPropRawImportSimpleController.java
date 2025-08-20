@@ -13,6 +13,7 @@ import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Enhanced PayProp Raw Import Controller
@@ -269,7 +270,11 @@ public class PayPropRawImportSimpleController {
             log.info("📄 Starting paginated fetch of ALL payments with params: {}", params);
             
             // This will automatically fetch ALL pages until no more data
-            Map<String, Object> result = apiClient.fetchPaginatedData("/report/all-payments", params, 
+            List<Map<String, Object>> allPayments = apiClient.fetchAllPages(
+                "/report/all-payments?from_date=" + params.get("from_date") + 
+                "&to_date=" + params.get("to_date") + 
+                "&filter_by=" + params.get("filter_by") + 
+                "&rows=" + params.get("rows"), 
                 (Map<String, Object> payment) -> {
                     // Simple data processing - just return the payment data
                     return Map.of(
@@ -281,6 +286,11 @@ public class PayPropRawImportSimpleController {
                         "property_name", payment.getOrDefault("incoming_property_name", "N/A")
                     );
                 });
+            
+            Map<String, Object> result = Map.of(
+                "totalProcessed", allPayments.size(),
+                "items", allPayments
+            );
             
             response.put("success", true);
             response.put("message", "ALL payments fetched with fixed pagination");
@@ -321,8 +331,21 @@ public class PayPropRawImportSimpleController {
             Map<String, String> sampleParams = new HashMap<>(config.parameters);
             sampleParams.put("rows", "5"); // Just 5 samples
             
-            Map<String, Object> result = apiClient.fetchPaginatedData(config.path, sampleParams,
+            String endpointUrl = config.path;
+            if (!sampleParams.isEmpty()) {
+                endpointUrl += "?" + sampleParams.entrySet().stream()
+                    .map(entry -> entry.getKey() + "=" + entry.getValue())
+                    .reduce((a, b) -> a + "&" + b)
+                    .orElse("");
+            }
+            
+            List<Map<String, Object>> items = apiClient.fetchAllPages(endpointUrl,
                 (Map<String, Object> item) -> item // Return raw item
+            );
+            
+            Map<String, Object> result = Map.of(
+                "totalProcessed", items.size(),
+                "items", items
             );
             
             Map<String, Object> response = new HashMap<>();
@@ -408,18 +431,31 @@ public class PayPropRawImportSimpleController {
         log.debug("🔄 Syncing endpoint: {} with params: {}", config.path, config.parameters);
         
         try {
-            Map<String, Object> result = apiClient.fetchPaginatedData(config.path, config.parameters,
+            String endpointUrl = config.path;
+            if (!config.parameters.isEmpty()) {
+                endpointUrl += "?" + config.parameters.entrySet().stream()
+                    .map(entry -> entry.getKey() + "=" + entry.getValue())
+                    .reduce((a, b) -> a + "&" + b)
+                    .orElse("");
+            }
+            
+            List<Map<String, Object>> items = apiClient.fetchAllPages(endpointUrl,
                 (Map<String, Object> item) -> {
                     // For now, just return the raw item
                     // In full implementation, this would map to database entities
                     return item;
                 });
             
+            Map<String, Object> result = Map.of(
+                "totalProcessed", items.size(),
+                "items", items
+            );
+            
             return Map.of(
                 "success", true,
                 "endpoint", config.path,
                 "description", config.description,
-                "total_items", result.getOrDefault("totalProcessed", 0),
+                "total_items", items.size(),
                 "summary", result
             );
             
