@@ -1,0 +1,65 @@
+ADDITIONAL FIXES NEEDED FOR COMPLETE COVERAGE:
+Fix 1: Chunked Upload with Token Refresh
+javapublic void uploadLargeFileWithRefresh(OAuthUser oAuthUser, File largeFile) {
+    long fileSize = largeFile.length();
+    long chunkSize = 50 * 1024 * 1024; // 50MB chunks
+    long uploaded = 0;
+    
+    while (uploaded < fileSize) {
+        // Refresh token before each chunk
+        String freshToken = oAuthUserService.refreshAccessTokenIfNeeded(oAuthUser);
+        
+        // Upload chunk with fresh token
+        uploadChunk(freshToken, largeFile, uploaded, chunkSize);
+        uploaded += chunkSize;
+        
+        // If chunk took > 30 mins, force refresh for next chunk
+        if (shouldForceRefresh()) {
+            oAuthUser.setAccessTokenExpiration(Instant.now().minusSeconds(1));
+        }
+    }
+}
+Fix 2: Time-Based Force Refresh
+javapublic class TokenAwareApiExecutor {
+    private final Map<Integer, Instant> lastRefreshTime = new ConcurrentHashMap<>();
+    
+    public <T> T executeWithTokenRefresh(OAuthUser oAuthUser, Function<String, T> operation) {
+        Instant lastRefresh = lastRefreshTime.get(oAuthUser.getId());
+        
+        // Force refresh if last refresh was > 45 minutes ago
+        if (lastRefresh != null && 
+            Duration.between(lastRefresh, Instant.now()).toMinutes() > 45) {
+            forceTokenRefresh(oAuthUser);
+            lastRefreshTime.put(oAuthUser.getId(), Instant.now());
+        }
+        
+        // ... rest of implementation
+    }
+}
+Fix 3: Resumable Operations
+javapublic class ResumableOperationService {
+    
+    public void executeLongOperation(OAuthUser oAuthUser, LongOperation operation) {
+        String operationId = UUID.randomUUID().toString();
+        int checkpoint = 0;
+        
+        while (!operation.isComplete()) {
+            try {
+                // Get fresh token for each checkpoint
+                String token = tokenExecutor.executeWithTokenRefresh(oAuthUser, 
+                    t -> t);
+                
+                // Execute next chunk of work
+                checkpoint = operation.executeChunk(token, checkpoint);
+                
+                // Save checkpoint in case of failure
+                saveCheckpoint(operationId, checkpoint);
+                
+            } catch (Exception e) {
+                // Can resume from checkpoint
+                log.error("Operation failed at checkpoint {}, can resume", checkpoint);
+                throw e;
+            }
+        }
+    }
+}
