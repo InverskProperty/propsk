@@ -250,6 +250,7 @@ public class PayPropRawImportSimpleController {
     
     /**
      * FIXED: Get ALL payments with proper pagination (not just 60)
+     * Uses fetchHistoricalPages to handle 93-day limit properly
      */
     @PostMapping("/fix-all-payments-pagination")
     @ResponseBody
@@ -259,22 +260,13 @@ public class PayPropRawImportSimpleController {
         Map<String, Object> response = new HashMap<>();
         
         try {
-            // Use proven PayPropApiClient with proper pagination
-            Map<String, String> params = Map.of(
-                "from_date", LocalDate.now().minusYears(2).toString(),
-                "to_date", LocalDate.now().toString(),
-                "filter_by", "reconciliation_date",
-                "rows", "25" // Will paginate through ALL pages
-            );
+            log.info("📄 Starting historical fetch of ALL payments using 93-day chunking");
             
-            log.info("📄 Starting paginated fetch of ALL payments with params: {}", params);
-            
-            // This will automatically fetch ALL pages until no more data
-            List<Map<String, Object>> allPayments = apiClient.fetchAllPages(
-                "/report/all-payments?from_date=" + params.get("from_date") + 
-                "&to_date=" + params.get("to_date") + 
-                "&filter_by=" + params.get("filter_by") + 
-                "&rows=" + params.get("rows"), 
+            // FIXED: Use fetchHistoricalPages to handle 93-day limit
+            // This will automatically chunk 2 years into 93-day periods
+            List<Map<String, Object>> allPayments = apiClient.fetchHistoricalPages(
+                "/report/all-payments?filter_by=reconciliation_date&rows=25", 
+                2, // 2 years back
                 (Map<String, Object> payment) -> {
                     // Simple data processing - just return the payment data
                     return Map.of(
@@ -293,11 +285,11 @@ public class PayPropRawImportSimpleController {
             );
             
             response.put("success", true);
-            response.put("message", "ALL payments fetched with fixed pagination");
+            response.put("message", "ALL payments fetched with FIXED 93-day chunking");
             response.put("all_payments_result", result);
-            response.put("note", "This shows how to get ALL payments, not just first 60");
+            response.put("note", "Uses fetchHistoricalPages to properly handle PayProp's 93-day limit");
             
-            log.info("🎯 ALL PAYMENTS FIXED: Retrieved {} payments total", 
+            log.info("🎯 ALL PAYMENTS FIXED: Retrieved {} payments total using historical chunking", 
                      result.getOrDefault("totalProcessed", 0));
             
             return ResponseEntity.ok(response);
@@ -327,21 +319,48 @@ public class PayPropRawImportSimpleController {
         }
         
         try {
-            // Get just first page for sample
-            Map<String, String> sampleParams = new HashMap<>(config.parameters);
-            sampleParams.put("rows", "5"); // Just 5 samples
+            List<Map<String, Object>> items;
             
-            String endpointUrl = config.path;
-            if (!sampleParams.isEmpty()) {
-                endpointUrl += "?" + sampleParams.entrySet().stream()
-                    .map(entry -> entry.getKey() + "=" + entry.getValue())
-                    .reduce((a, b) -> a + "&" + b)
-                    .orElse("");
+            // Handle report endpoints with 93-day limit
+            if (config.path.startsWith("/report/") && config.parameters.containsKey("from_date")) {
+                log.info("📅 Using fetchHistoricalPages for sample from report endpoint: {}", config.path);
+                
+                // Build base endpoint for sample - just get recent data (30 days)
+                String baseEndpoint = config.path;
+                if (config.parameters.containsKey("filter_by")) {
+                    baseEndpoint += "?filter_by=" + config.parameters.get("filter_by");
+                    baseEndpoint += "&rows=5"; // Just 5 samples
+                } else {
+                    baseEndpoint += "?rows=5";
+                }
+                
+                // For samples, just get recent 93 days (minimum fetchHistoricalPages period)
+                items = apiClient.fetchHistoricalPages(baseEndpoint, 1, // 1 year but will be limited by sample size
+                    (Map<String, Object> item) -> item // Return raw item
+                );
+                
+                // Limit to first 10 items for sample
+                if (items.size() > 10) {
+                    items = items.subList(0, 10);
+                }
+                
+            } else {
+                // Regular endpoint - get just first page for sample
+                Map<String, String> sampleParams = new HashMap<>(config.parameters);
+                sampleParams.put("rows", "5"); // Just 5 samples
+                
+                String endpointUrl = config.path;
+                if (!sampleParams.isEmpty()) {
+                    endpointUrl += "?" + sampleParams.entrySet().stream()
+                        .map(entry -> entry.getKey() + "=" + entry.getValue())
+                        .reduce((a, b) -> a + "&" + b)
+                        .orElse("");
+                }
+                
+                items = apiClient.fetchAllPages(endpointUrl,
+                    (Map<String, Object> item) -> item // Return raw item
+                );
             }
-            
-            List<Map<String, Object>> items = apiClient.fetchAllPages(endpointUrl,
-                (Map<String, Object> item) -> item // Return raw item
-            );
             
             Map<String, Object> result = Map.of(
                 "totalProcessed", items.size(),
@@ -426,25 +445,50 @@ public class PayPropRawImportSimpleController {
     
     /**
      * Private helper to sync a single endpoint using proven patterns
+     * FIXED: Uses fetchHistoricalPages for report endpoints with 93-day limit
      */
     private Map<String, Object> syncSingleEndpoint(EndpointConfig config) {
         log.debug("🔄 Syncing endpoint: {} with params: {}", config.path, config.parameters);
         
         try {
-            String endpointUrl = config.path;
-            if (!config.parameters.isEmpty()) {
-                endpointUrl += "?" + config.parameters.entrySet().stream()
-                    .map(entry -> entry.getKey() + "=" + entry.getValue())
-                    .reduce((a, b) -> a + "&" + b)
-                    .orElse("");
-            }
+            List<Map<String, Object>> items;
             
-            List<Map<String, Object>> items = apiClient.fetchAllPages(endpointUrl,
-                (Map<String, Object> item) -> {
-                    // For now, just return the raw item
-                    // In full implementation, this would map to database entities
-                    return item;
-                });
+            // FIXED: Use fetchHistoricalPages for report endpoints with date ranges
+            if (config.path.startsWith("/report/") && config.parameters.containsKey("from_date")) {
+                log.info("📅 Using fetchHistoricalPages for report endpoint: {}", config.path);
+                
+                // Build base endpoint with filter_by parameter
+                String baseEndpoint = config.path;
+                if (config.parameters.containsKey("filter_by")) {
+                    baseEndpoint += "?filter_by=" + config.parameters.get("filter_by");
+                    baseEndpoint += "&rows=" + config.parameters.getOrDefault("rows", "25");
+                } else {
+                    baseEndpoint += "?rows=" + config.parameters.getOrDefault("rows", "25");
+                }
+                
+                // Use fetchHistoricalPages with 2 years back (automatically chunks into 93-day periods)
+                items = apiClient.fetchHistoricalPages(baseEndpoint, 2, 
+                    (Map<String, Object> item) -> {
+                        // Return raw item for now
+                        return item;
+                    });
+                    
+            } else {
+                // Use regular fetchAllPages for non-report endpoints
+                String endpointUrl = config.path;
+                if (!config.parameters.isEmpty()) {
+                    endpointUrl += "?" + config.parameters.entrySet().stream()
+                        .map(entry -> entry.getKey() + "=" + entry.getValue())
+                        .reduce((a, b) -> a + "&" + b)
+                        .orElse("");
+                }
+                
+                items = apiClient.fetchAllPages(endpointUrl,
+                    (Map<String, Object> item) -> {
+                        // Return raw item for now
+                        return item;
+                    });
+            }
             
             Map<String, Object> result = Map.of(
                 "totalProcessed", items.size(),
