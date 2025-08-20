@@ -29,6 +29,10 @@ public class PayPropRawImportSimpleController {
     
     private static final Logger log = LoggerFactory.getLogger(PayPropRawImportSimpleController.class);
     
+    // Import cancellation control
+    private volatile boolean cancelImport = false;
+    private volatile String currentImportStatus = "idle";
+    
     @Autowired
     private PayPropApiClient apiClient;
     
@@ -131,10 +135,52 @@ public class PayPropRawImportSimpleController {
         endpoints.put("test_single", "/api/payprop/raw-import/test-single/{endpoint}");
         endpoints.put("sample_data", "/api/payprop/raw-import/sample-data/{endpoint}");
         endpoints.put("fix_all_payments", "/api/payprop/raw-import/fix-all-payments-pagination");
+        endpoints.put("cancel_import", "/api/payprop/raw-import/cancel-import");
+        endpoints.put("reset_import", "/api/payprop/raw-import/reset-import");
         
         status.put("available_endpoints", endpoints);
+        status.put("import_status", currentImportStatus);
+        status.put("cancel_available", !currentImportStatus.equals("idle"));
         
         return status;
+    }
+    
+    /**
+     * Cancel running import
+     */
+    @PostMapping("/cancel-import")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> cancelImport() {
+        log.warn("🛑 CANCEL REQUESTED - Stopping import");
+        
+        this.cancelImport = true;
+        this.currentImportStatus = "cancelling";
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Import cancellation requested - will stop after current endpoint");
+        response.put("status", "cancelling");
+        
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Reset import state
+     */
+    @PostMapping("/reset-import")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> resetImport() {
+        log.info("🔄 Resetting import state");
+        
+        this.cancelImport = false;
+        this.currentImportStatus = "idle";
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("message", "Import state reset");
+        response.put("status", "idle");
+        
+        return ResponseEntity.ok(response);
     }
     
     /**
@@ -145,11 +191,16 @@ public class PayPropRawImportSimpleController {
     public ResponseEntity<Map<String, Object>> syncAllWorkingEndpoints() {
         log.info("🚀 Starting sync of ALL {} working PayProp endpoints", WORKING_ENDPOINTS.size());
         
+        // Reset cancellation state and set status
+        this.cancelImport = false;
+        this.currentImportStatus = "running";
+        
         Map<String, Object> response = new HashMap<>();
         Map<String, Object> endpointResults = new HashMap<>();
         
         int successCount = 0;
         int errorCount = 0;
+        int cancelledCount = 0;
         long startTime = System.currentTimeMillis();
         
         try {
@@ -157,6 +208,19 @@ public class PayPropRawImportSimpleController {
                 String endpointKey = entry.getKey();
                 EndpointConfig config = entry.getValue();
                 
+                // Check for cancellation before processing each endpoint
+                if (this.cancelImport) {
+                    log.warn("🛑 Import cancelled - stopping at endpoint: {}", endpointKey);
+                    endpointResults.put(endpointKey, Map.of(
+                        "success", false,
+                        "cancelled", true,
+                        "message", "Import cancelled by user"
+                    ));
+                    cancelledCount++;
+                    break;
+                }
+                
+                this.currentImportStatus = "running: " + endpointKey;
                 log.info("🔄 Syncing {} - {}", endpointKey, config.description);
                 
                 try {
@@ -188,18 +252,27 @@ public class PayPropRawImportSimpleController {
             
             long duration = System.currentTimeMillis() - startTime;
             
-            response.put("success", errorCount == 0);
-            response.put("message", String.format("Sync completed: %d successful, %d errors", successCount, errorCount));
+            boolean wasCancelled = cancelledCount > 0;
+            response.put("success", errorCount == 0 && !wasCancelled);
+            response.put("cancelled", wasCancelled);
+            response.put("message", String.format("Sync %s: %d successful, %d errors, %d cancelled", 
+                wasCancelled ? "CANCELLED" : "completed", successCount, errorCount, cancelledCount));
             response.put("summary", Map.of(
                 "total_endpoints", WORKING_ENDPOINTS.size(),
                 "successful", successCount,
                 "errors", errorCount,
+                "cancelled", cancelledCount,
                 "duration_ms", duration
             ));
             response.put("endpoint_results", endpointResults);
             
-            log.info("🎯 ALL ENDPOINTS SYNC COMPLETE: {} successful, {} errors in {}ms", 
-                     successCount, errorCount, duration);
+            if (wasCancelled) {
+                log.warn("🛑 SYNC CANCELLED: {} successful, {} errors, {} cancelled in {}ms", 
+                         successCount, errorCount, cancelledCount, duration);
+            } else {
+                log.info("🎯 ALL ENDPOINTS SYNC COMPLETE: {} successful, {} errors in {}ms", 
+                         successCount, errorCount, duration);
+            }
             
             return ResponseEntity.ok(response);
             
@@ -208,6 +281,10 @@ public class PayPropRawImportSimpleController {
             response.put("success", false);
             response.put("error", e.getMessage());
             return ResponseEntity.status(500).body(response);
+        } finally {
+            // Reset status when done
+            this.currentImportStatus = "idle";
+            this.cancelImport = false;
         }
     }
     

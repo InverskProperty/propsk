@@ -1481,6 +1481,17 @@ ORDER BY transaction_count DESC;</code></pre>
                                             <button class="btn btn-success mb-2" onclick="testRawImportSystem()">
                                                 <i class="fas fa-download"></i> Test Enhanced Raw Import
                                             </button>
+                                            <button class="btn btn-primary mb-2 ms-2" onclick="checkImportStatus()">
+                                                <i class="fas fa-info-circle"></i> Check Status
+                                            </button>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <button class="btn btn-warning mb-2" onclick="cancelImport()" id="cancelBtn" disabled>
+                                                <i class="fas fa-stop-circle"></i> Cancel Import
+                                            </button>
+                                            <button class="btn btn-secondary mb-2 ms-2" onclick="resetImport()">
+                                                <i class="fas fa-refresh"></i> Reset
+                                            </button>
                                             <button class="btn btn-warning mb-2" onclick="fixAllPaymentsPagination()">
                                                 <i class="fas fa-wrench"></i> Fix All-Payments (Get ALL not 60)
                                             </button>
@@ -4473,6 +4484,120 @@ ORDER BY transaction_count DESC;</code></pre>
                 
             } catch (error) {
                 showErrorResult('endpointTestResults', 'Error testing raw import system: ' + error.message);
+            }
+        }
+
+        // Import control functions
+        async function checkImportStatus() {
+            try {
+                const response = await fetch('/api/payprop/raw-import/status', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                
+                // Update UI based on status
+                const cancelBtn = document.getElementById('cancelBtn');
+                const isRunning = result.import_status !== 'idle';
+                cancelBtn.disabled = !isRunning;
+                
+                // Show status
+                const statusHtml = `
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> Import Status</h6>
+                        <p><strong>Status:</strong> ${result.import_status}</p>
+                        <p><strong>Cancel Available:</strong> ${result.cancel_available ? 'Yes' : 'No'}</p>
+                        <p><strong>Working Endpoints:</strong> ${result.working_endpoints}</p>
+                    </div>
+                `;
+                
+                document.getElementById('endpointTestResults').innerHTML = statusHtml;
+                document.getElementById('endpointTestResults').style.display = 'block';
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error checking import status: ' + error.message);
+            }
+        }
+
+        async function cancelImport() {
+            if (!confirm('Are you sure you want to cancel the running import?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/cancel-import', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                
+                const statusHtml = `
+                    <div class="alert alert-warning">
+                        <h6><i class="fas fa-stop-circle"></i> Import Cancellation</h6>
+                        <p>${result.message}</p>
+                        <p><strong>Status:</strong> ${result.status}</p>
+                    </div>
+                `;
+                
+                document.getElementById('endpointTestResults').innerHTML = statusHtml;
+                document.getElementById('endpointTestResults').style.display = 'block';
+                
+                // Disable cancel button
+                document.getElementById('cancelBtn').disabled = true;
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error cancelling import: ' + error.message);
+            }
+        }
+
+        async function resetImport() {
+            try {
+                const response = await fetch('/api/payprop/raw-import/reset-import', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                
+                const statusHtml = `
+                    <div class="alert alert-success">
+                        <h6><i class="fas fa-refresh"></i> Import Reset</h6>
+                        <p>${result.message}</p>
+                        <p><strong>Status:</strong> ${result.status}</p>
+                    </div>
+                `;
+                
+                document.getElementById('endpointTestResults').innerHTML = statusHtml;
+                document.getElementById('endpointTestResults').style.display = 'block';
+                
+                // Disable cancel button
+                document.getElementById('cancelBtn').disabled = true;
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error resetting import: ' + error.message);
             }
         }
 
