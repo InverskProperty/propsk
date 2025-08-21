@@ -145,9 +145,9 @@ public class PayPropRawBeneficiariesCompleteImportService {
                     stmt.setString(14, getString(beneficiary, "id_reg_no"));
                     stmt.setString(15, getString(beneficiary, "id_type_id"));
                     stmt.setString(16, getString(beneficiary, "vat_number"));
-                    stmt.setBoolean(17, getBoolean(beneficiary, "notify_email"));
-                    stmt.setBoolean(18, getBoolean(beneficiary, "notify_sms"));
-                    stmt.setInt(19, getInteger(beneficiary, "invoice_lead_days"));
+                    setBooleanOrNull(stmt, 17, getBoolean(beneficiary, "notify_email"));
+                    setBooleanOrNull(stmt, 18, getBoolean(beneficiary, "notify_sms"));
+                    setIntOrNull(stmt, 19, getInteger(beneficiary, "invoice_lead_days"));
                     
                     // Extract and flatten nested address object
                     Map<String, Object> address = getNestedObject(beneficiary, "address");
@@ -161,8 +161,8 @@ public class PayPropRawBeneficiariesCompleteImportService {
                         stmt.setString(26, getString(address, "country_code"));
                         stmt.setString(27, getString(address, "postal_code"));
                         stmt.setString(28, getString(address, "zip_code"));
-                        stmt.setBigDecimal(29, getBigDecimal(address, "latitude"));
-                        stmt.setBigDecimal(30, getBigDecimal(address, "longitude"));
+                        setBigDecimalOrNull(stmt, 29, getBigDecimal(address, "latitude"));
+                        setBigDecimalOrNull(stmt, 30, getBigDecimal(address, "longitude"));
                         stmt.setString(31, getString(address, "phone"));
                         stmt.setString(32, getString(address, "fax"));
                         stmt.setString(33, getString(address, "email"));
@@ -191,14 +191,14 @@ public class PayPropRawBeneficiariesCompleteImportService {
                     // Extract properties array summary
                     List<Map<String, Object>> properties = getPropertiesArray(beneficiary, "properties");
                     if (properties != null && !properties.isEmpty()) {
-                        stmt.setInt(36, properties.size());
+                        setIntOrNull(stmt, 36, properties.size());
                         
                         // Calculate total account balance from all properties
                         BigDecimal totalBalance = properties.stream()
                             .map(prop -> getBigDecimal(prop, "account_balance"))
                             .filter(balance -> balance != null)
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
-                        stmt.setBigDecimal(37, totalBalance);
+                        setBigDecimalOrNull(stmt, 37, totalBalance);
                         
                         // Store full properties array as JSON for complex analysis
                         String propertiesJson = objectMapper.writeValueAsString(properties);
@@ -312,5 +312,31 @@ public class PayPropRawBeneficiariesCompleteImportService {
             return (List<Map<String, Object>>) value;
         }
         return null;
+    }
+    
+    // Safe setter methods for null handling
+    
+    private void setIntOrNull(PreparedStatement stmt, int parameterIndex, Integer value) throws SQLException {
+        if (value != null) {
+            stmt.setInt(parameterIndex, value);
+        } else {
+            stmt.setNull(parameterIndex, java.sql.Types.INTEGER);
+        }
+    }
+    
+    private void setBooleanOrNull(PreparedStatement stmt, int parameterIndex, Boolean value) throws SQLException {
+        if (value != null) {
+            stmt.setBoolean(parameterIndex, value);
+        } else {
+            stmt.setNull(parameterIndex, java.sql.Types.BOOLEAN);
+        }
+    }
+    
+    private void setBigDecimalOrNull(PreparedStatement stmt, int parameterIndex, BigDecimal value) throws SQLException {
+        if (value != null) {
+            stmt.setBigDecimal(parameterIndex, value);
+        } else {
+            stmt.setNull(parameterIndex, java.sql.Types.DECIMAL);
+        }
     }
 }
