@@ -15,8 +15,10 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * PayProp Raw Tenants Complete Import Service
@@ -92,6 +94,9 @@ public class PayPropRawTenantsCompleteImportService {
      * Import tenants to the new complete table with proper nested structure flattening
      */
     private int importTenantsToCompleteTable(List<Map<String, Object>> tenants) throws SQLException {
+        
+        // Track missing property IDs for analysis
+        Set<String> missingPropertyIds = new HashSet<>();
         
         // Clear existing data for fresh import (foreign key constraints will reveal dependency issues)
         try (Connection conn = dataSource.getConnection()) {
@@ -240,8 +245,49 @@ public class PayPropRawTenantsCompleteImportService {
                     log.debug("✅ Imported tenant: {} ({})", name, getString(tenant, "id"));
                         
                 } catch (Exception e) {
-                    log.error("❌ Failed to import tenant {}: {}", 
-                        getString(tenant, "id"), e.getMessage());
+                    String tenantId = getString(tenant, "id");
+                    String tenantName = (getString(tenant, "first_name") + " " + getString(tenant, "last_name")).trim();
+                    if (tenantName.isEmpty()) tenantName = getString(tenant, "business_name");
+                    if (tenantName == null || tenantName.trim().isEmpty()) tenantName = getString(tenant, "display_name");
+                    if (tenantName == null || tenantName.trim().isEmpty()) tenantName = getString(tenant, "email_address");
+                    if (tenantName == null || tenantName.trim().isEmpty()) tenantName = "Unknown";
+                    
+                    // If this is a foreign key constraint error, log detailed information
+                    if (e.getMessage().contains("fk_tenant_current_property")) {
+                        List<Map<String, Object>> properties = getPropertiesArray(tenant, "properties");
+                        if (properties != null && !properties.isEmpty()) {
+                            Map<String, Object> currentProperty = properties.get(0);
+                            String missingPropertyId = getString(currentProperty, "id");
+                            
+                            log.error("❌ FOREIGN KEY FAILURE - Tenant {} ({}) references missing property: {}", 
+                                tenantId, tenantName, missingPropertyId);
+                            
+                            // Track this missing property ID
+                            missingPropertyIds.add(missingPropertyId);
+                            
+                            // Log full tenant record for analysis
+                            try {
+                                String tenantJson = objectMapper.writeValueAsString(tenant);
+                                log.error("🔍 FULL TENANT RECORD: {}", tenantJson);
+                            } catch (Exception jsonError) {
+                                log.error("🔍 TENANT BASIC INFO: id={}, name={}, email={}, properties_count={}", 
+                                    tenantId, tenantName, getString(tenant, "email_address"), 
+                                    properties != null ? properties.size() : 0);
+                            }
+                            
+                            // Log property details from tenant's properties array
+                            log.error("🏠 MISSING PROPERTY DETAILS: id={}, name={}, address={}", 
+                                missingPropertyId,
+                                getString(currentProperty, "name"),
+                                getString(currentProperty, "address"));
+                        } else {
+                            log.error("❌ FOREIGN KEY FAILURE - Tenant {} ({}) has no properties array", 
+                                tenantId, tenantName);
+                        }
+                    } else {
+                        log.error("❌ Failed to import tenant {} ({}): {}", 
+                            tenantId, tenantName, e.getMessage());
+                    }
                     // Continue with next tenant
                 }
             }
@@ -249,6 +295,14 @@ public class PayPropRawTenantsCompleteImportService {
         
         log.info("📊 Tenants import summary: {} total, {} imported", 
             tenants.size(), importedCount);
+            
+        // Log missing property analysis
+        if (!missingPropertyIds.isEmpty()) {
+            log.error("🔍 MISSING PROPERTY ANALYSIS:");
+            log.error("   - Total unique missing properties: {}", missingPropertyIds.size());
+            log.error("   - Missing property IDs: {}", missingPropertyIds);
+            log.error("   - This indicates data inconsistency between /export/properties and /export/tenants endpoints");
+        }
         
         return importedCount;
     }
