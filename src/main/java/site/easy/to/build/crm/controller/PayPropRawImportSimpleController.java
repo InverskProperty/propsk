@@ -75,6 +75,12 @@ public class PayPropRawImportSimpleController {
             Map.of("include_commission", "true", "rows", "25")
         ));
         
+        WORKING_ENDPOINTS.put("export-properties-archived", new EndpointConfig(
+            "/export/properties", 
+            "ARCHIVED Property settings and metadata",
+            Map.of("include_commission", "true", "rows", "25", "is_archived", "true")
+        ));
+        
         WORKING_ENDPOINTS.put("export-beneficiaries", new EndpointConfig(
             "/export/beneficiaries", 
             "Owner/beneficiary information",
