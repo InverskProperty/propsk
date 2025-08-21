@@ -1504,6 +1504,9 @@ ORDER BY transaction_count DESC;</code></pre>
                                             <button class="btn btn-primary mb-2" onclick="testCompleteTenantsImport()">
                                                 <i class="fas fa-user-friends"></i> Test Complete Tenants Import
                                             </button>
+                                            <button class="btn btn-warning mb-2" onclick="testCompletePropertiesImport()">
+                                                <i class="fas fa-home"></i> Test Complete Properties Import
+                                            </button>
                                         </div>
                                         <div class="col-md-6">
                                             <button class="btn btn-info mb-2" onclick="getSampleDataFromEndpoint()">
@@ -4706,6 +4709,30 @@ ORDER BY transaction_count DESC;</code></pre>
             }
         }
 
+        async function testCompletePropertiesImport() {
+            showLoadingState('endpointTestResults', 'Testing complete properties import - resolving tenant foreign key constraints...');
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/test-complete-properties', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                displayCompletePropertiesResults(result);
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error testing complete properties import: ' + error.message);
+            }
+        }
+
         async function getSampleDataFromEndpoint() {
             const selectedEndpoint = document.getElementById('sampleEndpointSelect').value;
             
@@ -5157,6 +5184,74 @@ ORDER BY transaction_count DESC;</code></pre>
                         <p><strong>Check imported tenants:</strong></p>
                         <code>SELECT COUNT(*) FROM payprop_export_tenants_complete;</code><br>
                         <code>SELECT first_name, last_name, email, current_property_id, monthly_rent_amount FROM payprop_export_tenants_complete LIMIT 5;</code>
+                    </div>
+                </div>
+            `;
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function displayCompletePropertiesResults(result) {
+            const container = document.getElementById('endpointTestResults');
+            container.style.display = 'block';
+            
+            if (!result.success) {
+                container.innerHTML = `
+                    <div class="result-error">
+                        <h5>🏠 Complete Properties Import - Error</h5>
+                        <p><strong>Error:</strong> ${result.error}</p>
+                        ${result.details ? `<p><strong>Details:</strong> ${result.details}</p>` : ''}
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <div class="result-success">
+                    <h5>🏠 Complete Properties Import Results</h5>
+                    <p><strong>Endpoint:</strong> ${result.endpoint || '/export/properties'}</p>
+                    <p><strong>Total Fetched:</strong> ${result.totalFetched || 'N/A'} properties</p>
+                    <p><strong>Total Imported:</strong> ${result.totalImported || 'N/A'} properties</p>
+                    <p><strong>Processing Time:</strong> ${result.processingTime || 'N/A'}ms</p>
+                    <p><strong>Import Status:</strong> <span class="badge bg-success">Complete</span></p>
+            `;
+            
+            // Show success details
+            if (result.details) {
+                html += `
+                    <div class="mt-3">
+                        <h6>📋 Import Summary:</h6>
+                        <div class="alert alert-success">
+                            <p>${result.details}</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Show table information
+            html += `
+                <div class="mt-3">
+                    <h6>🗄️ Database Table:</h6>
+                    <div class="alert alert-info">
+                        <p><strong>Table:</strong> <code>payprop_export_properties</code></p>
+                        <p><strong>Features:</strong> 35+ fields with nested address/settings flattening, monthly payment data</p>
+                        <p><strong>Method:</strong> Using proven beneficiaries import pattern</p>
+                        <p><strong>Purpose:</strong> Resolves tenant foreign key constraints</p>
+                    </div>
+                </div>
+            `;
+            
+            // Show scaling progress
+            html += `
+                <div class="mt-3">
+                    <h6>🚀 Next Steps:</h6>
+                    <div class="alert alert-warning">
+                        <p><strong>Order Matters:</strong> Properties must be imported before tenants</p>
+                        <p><strong>After this import:</strong> Re-run tenants import to resolve foreign key failures</p>
+                        <p><strong>Check imported properties:</strong></p>
+                        <code>SELECT COUNT(*) FROM payprop_export_properties;</code><br>
+                        <code>SELECT name, settings_monthly_payment, address_city FROM payprop_export_properties LIMIT 5;</code>
                     </div>
                 </div>
             `;

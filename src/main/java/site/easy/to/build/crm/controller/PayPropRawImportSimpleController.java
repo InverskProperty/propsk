@@ -49,6 +49,9 @@ public class PayPropRawImportSimpleController {
     @Autowired
     private site.easy.to.build.crm.service.payprop.raw.PayPropRawTenantsCompleteImportService tenantsCompleteImportService;
     
+    @Autowired
+    private site.easy.to.build.crm.service.payprop.raw.PayPropRawPropertiesCompleteImportService propertiesCompleteImportService;
+    
     // List of working endpoints from our test results
     private static final Map<String, EndpointConfig> WORKING_ENDPOINTS = new HashMap<>();
     
@@ -766,6 +769,52 @@ public class PayPropRawImportSimpleController {
         } catch (Exception e) {
             long endTime = System.currentTimeMillis();
             log.error("❌ Complete tenants import test failed", e);
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            response.put("processingTime", endTime - startTime);
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * Test complete properties import - NEW ENDPOINT 
+     * Uses the proven pattern to import properties and resolve tenant foreign key constraints
+     */
+    @PostMapping("/test-complete-properties")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testCompletePropertiesImport() {
+        log.info("🏠 Testing complete properties import - resolves tenant foreign key constraints");
+        
+        Map<String, Object> response = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            // Call the new complete import service
+            site.easy.to.build.crm.service.payprop.raw.PayPropRawImportResult result = 
+                propertiesCompleteImportService.importPropertiesComplete();
+            
+            long endTime = System.currentTimeMillis();
+            long processingTime = endTime - startTime;
+            
+            response.put("success", result.isSuccess());
+            response.put("endpoint", result.getEndpoint());
+            response.put("totalFetched", result.getTotalFetched());
+            response.put("totalImported", result.getTotalImported());
+            response.put("processingTime", processingTime);
+            response.put("details", result.getDetails());
+            
+            if (!result.isSuccess()) {
+                response.put("error", result.getErrorMessage());
+            }
+            
+            log.info("🎯 PROPERTIES COMPLETE: {} properties imported to complete table in {}ms", 
+                     result.getTotalImported(), processingTime);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            long endTime = System.currentTimeMillis();
+            log.error("❌ Complete properties import test failed", e);
             response.put("success", false);
             response.put("error", e.getMessage());
             response.put("processingTime", endTime - startTime);
