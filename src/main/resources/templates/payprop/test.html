@@ -1495,6 +1495,9 @@ ORDER BY transaction_count DESC;</code></pre>
                                             <button class="btn btn-warning mb-2" onclick="fixAllPaymentsPagination()">
                                                 <i class="fas fa-wrench"></i> Fix All-Payments (Get ALL not 60)
                                             </button>
+                                            <button class="btn btn-outline-info mb-2" onclick="testLimitedAllPayments()">
+                                                <i class="fas fa-vial"></i> Test All-Payments (Limited + Output)
+                                            </button>
                                         </div>
                                         <div class="col-md-6">
                                             <button class="btn btn-info mb-2" onclick="getSampleDataFromEndpoint()">
@@ -4625,6 +4628,30 @@ ORDER BY transaction_count DESC;</code></pre>
             }
         }
 
+        async function testLimitedAllPayments() {
+            showLoadingState('endpointTestResults', 'Testing all-payments with limited records for structure inspection...');
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/test-limited-all-payments', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                displayLimitedAllPaymentsResults(result);
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error testing limited all-payments: ' + error.message);
+            }
+        }
+
         async function getSampleDataFromEndpoint() {
             const selectedEndpoint = document.getElementById('sampleEndpointSelect').value;
             
@@ -4829,6 +4856,72 @@ ORDER BY transaction_count DESC;</code></pre>
                         <summary><strong>Sample Items (${result.sample_data.items.length})</strong></summary>
                         <pre class="mt-2" style="background: #f8f9fa; padding: 1rem; border-radius: 4px; font-size: 0.8rem; max-height: 400px; overflow-y: auto;">${JSON.stringify(result.sample_data.items.slice(0, 3), null, 2)}</pre>
                     </details>
+                `;
+            }
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function displayLimitedAllPaymentsResults(result) {
+            const container = document.getElementById('endpointTestResults');
+            container.style.display = 'block';
+            
+            if (!result.success) {
+                container.innerHTML = `
+                    <div class="result-error">
+                        <h5>🧪 Limited All-Payments Test - Error</h5>
+                        <p><strong>Error:</strong> ${result.error}</p>
+                        ${result.details ? `<p><strong>Details:</strong> ${result.details}</p>` : ''}
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <div class="result-success">
+                    <h5>🧪 Limited All-Payments Test Results</h5>
+                    <p><strong>Total Records Available:</strong> ${result.totalRecords || 'N/A'}</p>
+                    <p><strong>Limited To:</strong> ${result.limitedCount || 'N/A'} records for inspection</p>
+                    <p><strong>Processing Time:</strong> ${result.processingTime || 'N/A'}ms</p>
+                    <p><strong>Data Structure:</strong> ${result.fieldsPerRecord || 'N/A'} fields per record</p>
+            `;
+            
+            // Show the actual records with detailed structure
+            if (result.sampleRecords && result.sampleRecords.length > 0) {
+                html += `
+                    <div class="mt-3">
+                        <h6>📋 Sample Records (${result.sampleRecords.length}):</h6>
+                        <div class="alert alert-info">
+                            <p><strong>Note:</strong> Import stopped after ${result.limitedCount} records to examine structure without timeout.</p>
+                            <button class="btn btn-sm btn-outline-primary" onclick="toggleSampleData('limitedPaymentRecords')">Show/Hide Raw Data Structure</button>
+                        </div>
+                        <div id="limitedPaymentRecords" style="display:none;" class="mt-2">
+                            <pre style="background: #2d3748; color: #e2e8f0; padding: 1rem; border-radius: 4px; font-size: 0.8rem; max-height: 500px; overflow-y: auto;">${JSON.stringify(result.sampleRecords, null, 2)}</pre>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Show field analysis if available
+            if (result.fieldAnalysis) {
+                html += `
+                    <div class="mt-3">
+                        <h6>🔍 Field Analysis:</h6>
+                        <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; font-size: 0.9rem;">
+                            <pre>${JSON.stringify(result.fieldAnalysis, null, 2)}</pre>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Show any nested structure warnings
+            if (result.nestedStructureWarning) {
+                html += `
+                    <div class="alert alert-warning mt-3">
+                        <h6>⚠️ Nested Structure Detected:</h6>
+                        <p>${result.nestedStructureWarning}</p>
+                    </div>
                 `;
             }
             

@@ -12,6 +12,7 @@ import site.easy.to.build.crm.service.payprop.PayPropFinancialSyncService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -472,6 +473,177 @@ public class PayPropRawImportSimpleController {
                 "endpoint", endpointKey
             ));
         }
+    }
+    
+    /**
+     * Test all-payments with limited records to examine structure without timeout
+     */
+    @PostMapping("/test-limited-all-payments")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testLimitedAllPayments() {
+        log.info("🧪 Testing all-payments with limited records for structure inspection");
+        
+        Map<String, Object> response = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            // Get the all-payments config
+            EndpointConfig config = WORKING_ENDPOINTS.get("report-all-payments");
+            if (config == null) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", "All-payments endpoint not configured"
+                ));
+            }
+            
+            // Build endpoint with limited pages to avoid timeout
+            String baseEndpoint = config.path;
+            if (config.parameters.containsKey("filter_by")) {
+                baseEndpoint += "?filter_by=" + config.parameters.get("filter_by");
+            }
+            baseEndpoint += "&rows=25"; // Standard page size
+            
+            log.info("📡 Fetching limited all-payments data from: {}", baseEndpoint);
+            
+            // Use fetchHistoricalPages but limit to just recent data (1 month back)
+            // and stop after a few records to examine structure
+            List<Map<String, Object>> items = new ArrayList<>();
+            boolean foundData = false;
+            int maxRecords = 10; // Limit to 10 records for structure inspection
+            
+            // Get just the first chunk of recent data
+            try {
+                LocalDateTime endDate = LocalDateTime.now();
+                LocalDateTime startDate = endDate.minusMonths(1); // Just 1 month back
+                
+                String endpoint = baseEndpoint + 
+                    "&from_date=" + startDate.toLocalDate().toString() +
+                    "&to_date=" + endDate.toLocalDate().toString();
+                
+                log.info("🔍 Limited fetch from: {}", endpoint);
+                
+                // Fetch just first page to examine structure
+                List<Map<String, Object>> pageItems = apiClient.fetchAllPages(endpoint,
+                    (Map<String, Object> item) -> {
+                        if (items.size() < maxRecords) {
+                            return item; // Return raw item
+                        }
+                        return null; // Stop processing once we hit limit
+                    });
+                
+                // Filter out nulls and limit
+                items = pageItems.stream()
+                    .filter(Objects::nonNull)
+                    .limit(maxRecords)
+                    .collect(Collectors.toList());
+                
+                foundData = !items.isEmpty();
+                
+            } catch (Exception e) {
+                log.warn("⚠️ Limited fetch interrupted (expected): {}", e.getMessage());
+                // This is expected when we hit our limit - not an error
+            }
+            
+            long endTime = System.currentTimeMillis();
+            long processingTime = endTime - startTime;
+            
+            // Analyze the structure
+            Map<String, Object> fieldAnalysis = analyzeRecordStructure(items);
+            String nestedWarning = checkForNestedStructures(items);
+            
+            response.put("success", true);
+            response.put("totalRecords", "Limited test - not full count");
+            response.put("limitedCount", maxRecords);
+            response.put("actualRetrieved", items.size());
+            response.put("processingTime", processingTime);
+            response.put("fieldsPerRecord", items.isEmpty() ? 0 : items.get(0).size());
+            response.put("sampleRecords", items.size() > 3 ? items.subList(0, 3) : items); // Show max 3 for display
+            response.put("fieldAnalysis", fieldAnalysis);
+            
+            if (nestedWarning != null) {
+                response.put("nestedStructureWarning", nestedWarning);
+            }
+            
+            log.info("🎯 LIMITED ALL-PAYMENTS TEST: Retrieved {} records in {}ms for structure inspection", 
+                     items.size(), processingTime);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            long endTime = System.currentTimeMillis();
+            log.error("❌ Limited all-payments test failed", e);
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            response.put("details", "Failed during limited structure test");
+            response.put("processingTime", endTime - startTime);
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * Analyze record structure for nested objects and field types
+     */
+    private Map<String, Object> analyzeRecordStructure(List<Map<String, Object>> items) {
+        if (items.isEmpty()) {
+            return Map.of("status", "No records to analyze");
+        }
+        
+        Map<String, Object> analysis = new HashMap<>();
+        Map<String, Object> firstRecord = items.get(0);
+        
+        Map<String, String> fieldTypes = new HashMap<>();
+        Map<String, Boolean> hasNestedStructure = new HashMap<>();
+        
+        for (Map.Entry<String, Object> entry : firstRecord.entrySet()) {
+            String fieldName = entry.getKey();
+            Object value = entry.getValue();
+            
+            if (value == null) {
+                fieldTypes.put(fieldName, "null");
+                hasNestedStructure.put(fieldName, false);
+            } else if (value instanceof Map) {
+                fieldTypes.put(fieldName, "nested_object");
+                hasNestedStructure.put(fieldName, true);
+            } else if (value instanceof List) {
+                fieldTypes.put(fieldName, "array");
+                hasNestedStructure.put(fieldName, true);
+            } else {
+                fieldTypes.put(fieldName, value.getClass().getSimpleName());
+                hasNestedStructure.put(fieldName, false);
+            }
+        }
+        
+        analysis.put("totalFields", firstRecord.size());
+        analysis.put("fieldTypes", fieldTypes);
+        analysis.put("nestedFields", hasNestedStructure.entrySet().stream()
+            .filter(Map.Entry::getValue)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList()));
+        
+        return analysis;
+    }
+    
+    /**
+     * Check for complex nested structures that might need flattening
+     */
+    private String checkForNestedStructures(List<Map<String, Object>> items) {
+        if (items.isEmpty()) return null;
+        
+        Map<String, Object> firstRecord = items.get(0);
+        List<String> nestedFields = new ArrayList<>();
+        
+        for (Map.Entry<String, Object> entry : firstRecord.entrySet()) {
+            if (entry.getValue() instanceof Map || entry.getValue() instanceof List) {
+                nestedFields.add(entry.getKey());
+            }
+        }
+        
+        if (!nestedFields.isEmpty()) {
+            return String.format("Found %d nested fields: %s. These may need flattening for database storage.", 
+                nestedFields.size(), String.join(", ", nestedFields));
+        }
+        
+        return null;
     }
     
     /**

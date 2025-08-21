@@ -1,0 +1,285 @@
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v3.1.0)
+🔄 Loading PayProp tokens from database...
+✅ Loaded existing PayProp tokens from database
+   Token expires at: 2025-08-21T23:03:51
+   Has refresh token: true
+     ==> No open ports detected, continuing to scan...
+     ==> Docs on specifying a port: https://render.com/docs/web-services#port-binding
+2025-08-21T09:57:33.720Z  WARN 1 --- [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+=== FIXED: Customer security filter chain - NO /portfolio/** interference ===
+=== FIXED: Main security filter chain - HANDLES /portfolio/** routes ===
+========================================
+🚀 CRM Application Started Successfully
+========================================
+🔍 Checking Google OAuth token status...
+📊 Google OAuth Token Status Report
+=====================================
+🔄 Starting scheduled Google token refresh check...
+📧 User: management@propsk.com
+   Has refresh token: false
+   ⚠️ Status: NO REFRESH TOKEN - needs re-authentication
+   Granted scopes: [openid, profile, email]
+=====================================
+📊 Summary:
+   Total OAuth users: 1
+   ✅ Valid tokens: 0
+   ⚠️ Expiring within 1 hour: 0
+   🟡 Expiring within 24 hours: 0
+   ❌ Expired tokens: 0
+   🔄 No refresh token (need re-auth): 1
+=====================================
+🔄 Refreshing expiring tokens...
+🔄 Starting scheduled Google token refresh check...
+⏭️ Skipping user management@propsk.com - no refresh token
+📊 Token refresh summary:
+   Total users: 1
+   Refreshed: 0
+   Skipped (no refresh token): 1
+   Errors: 0
+✅ Scheduled token refresh check completed
+⏭️ Skipping user management@propsk.com - no refresh token
+📊 Token refresh summary:
+   Total users: 1
+   Refreshed: 0
+   Skipped (no refresh token): 1
+   Errors: 0
+✅ Scheduled token refresh check completed
+✅ Startup checks completed
+========================================
+     ==> Your service is live 🎉
+     ==> 
+     ==> ///////////////////////////////////////////////////////////
+     ==> 
+     ==> Available at your primary URL https://spoutproperty-hub.onrender.com
+     ==> 
+     ==> ///////////////////////////////////////////////////////////
+     ==> Detected service running on port 10000
+     ==> Docs on specifying a port: https://render.com/docs/web-services#port-binding
+2025-08-21T10:06:20.008Z DEBUG 1 --- [io-10000-exec-9] .s.o.c.w.OAuth2LoginAuthenticationFilter : Set SecurityContextHolder to OAuth2AuthenticationToken [Principal=Name: [112288746717746453477], Granted Authorities: [[OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]], User Attributes: [{at_hash=K0n7cucbGidB5Y5ls09Xaw, sub=112288746717746453477, email_verified=true, iss=https://accounts.google.com, given_name=Sajid, nonce=ybSBjF4LwCgWWPJayqSVoQE8urtHIGWuYgDYNtBvZuM, picture=https://lh3.googleusercontent.com/a/ACg8ocKfl9OyMi0eSEeJxeL5A4Bq4jVlT8rPglwdm2loP-ogFxXj=s96-c, aud=[815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com], azp=815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com, name=Sajid Kazmi, hd=propsk.com, exp=2025-08-21T11:06:18Z, family_name=Kazmi, iat=2025-08-21T10:06:18Z, email=management@propsk.com}], Credentials=[PROTECTED], Authenticated=true, Details=WebAuthenticationDetails [RemoteIpAddress=172.70.243.89, SessionId=CA0235CC98410014024902ED12EFBCE1], Granted Authorities=[OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]]
+🔐 OAuth Login Success Handler - Starting authentication process
+🔐 DEBUG: OAuth tokens received from Google:
+   Access token present: true
+   Access token expires at: 2025-08-21T11:06:18.318245880Z
+   Access token scopes: [https://www.googleapis.com/auth/userinfo.profile, https://www.googleapis.com/auth/userinfo.email, https://www.googleapis.com/auth/gmail.send, https://www.googleapis.com/auth/spreadsheets, openid, https://www.googleapis.com/auth/drive]
+   Access token value (first 20 chars): ya29.A0AS3H6NzKUubba...
+   Refresh token present: true
+   Refresh token expires at: null
+   Refresh token value (first 20 chars): 1//0371QEzuE1lrVCgYI...
+🔍 DEBUG: Session analysis:
+   Previous regular account login: false
+   Session user ID: -1
+🔍 DEBUG: Getting OAuth user from authentication...
+   Extracted email from OAuth principal: management@propsk.com
+   OAuth user found by email: true
+   OAuth user ID: 34
+   OAuth user email: management@propsk.com
+   OAuth user has access token: true
+   OAuth user has refresh token: false
+🔍 DEBUG: OAuth user from authentication: true
+   OAuth user email: management@propsk.com
+   OAuth user scopes: [openid, profile, email]
+   OAuth user has access token: true
+   OAuth user has refresh token: false
+📧 Processing OAuth login for: management@propsk.com
+🔐 DEBUG: AuthenticationUtils.getLoggedInUserIdSecure() called (NEW SECURE VERSION)
+🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called (LEGACY INT VERSION)
+   Authentication type: OAuth2AuthenticationToken
+   Authentication name: 112288746717746453477
+   Is authenticated: true
+   Processing OAuth authentication...
+🔍 DEBUG: Getting OAuth user from authentication...
+   Extracted email from OAuth principal: management@propsk.com
+   OAuth user found by email: true
+   OAuth user ID: 34
+   OAuth user email: management@propsk.com
+   OAuth user has access token: true
+   OAuth user has refresh token: false
+   OAuth user found: true
+   OAuth user table ID: 34
+   OAuth user's user_id field: 54
+✅ Returning linked user ID: 54
+✅ Validated secure user ID: 54
+🔍 DEBUG: Authentication analysis:
+   Current user ID from auth: 54
+   User found by ID: true
+✅ User found via OAuth method: 54 - management@propsk.com
+   User status: ACTIVE
+   User has OAuth user: true
+♻️ Using existing user: 54 - management@propsk.com
+✅ Using existing OAuth user
+🔍 DEBUG: User ID: 54
+🔍 DEBUG: User email: management@propsk.com
+🔍 DEBUG: User status: ACTIVE
+🔍 DEBUG: User roles from DB: [ROLE_MANAGER, ROLE_ADMIN, ROLE_SUPER_ADMIN]
+🔍 DEBUG: Converted authorities: [ROLE_MANAGER, ROLE_ADMIN, ROLE_SUPER_ADMIN]
+🔍 DEBUG: Original OAuth authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]
+🔍 DEBUG: Final combined authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid, ROLE_MANAGER, ROLE_ADMIN, ROLE_SUPER_ADMIN]
+✅ SecurityContext updated with new authentication
+🔍 DEBUG: New authentication authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid, ROLE_MANAGER, ROLE_ADMIN, ROLE_SUPER_ADMIN]
+✅ User is active, redirecting to home page
+🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called (LEGACY INT VERSION)
+   Authentication type: OAuth2AuthenticationToken
+   Authentication name: 112288746717746453477
+   Is authenticated: true
+   Processing OAuth authentication...
+🔍 DEBUG: Getting OAuth user from authentication...
+   Extracted email from OAuth principal: management@propsk.com
+   OAuth user found by email: true
+   OAuth user ID: 34
+   OAuth user email: management@propsk.com
+   OAuth user has access token: true
+   OAuth user has refresh token: false
+   OAuth user found: true
+   OAuth user table ID: 34
+   OAuth user's user_id field: 54
+✅ Returning linked user ID: 54
+📅 DEBUG: Checking Google Calendar access...
+   Authentication type: OAuth2AuthenticationToken
+   Is OAuth user: true
+   Google Calendar service available: true
+✅ User is authenticated via OAuth (Google)
+🔍 DEBUG: Getting OAuth user from authentication...
+   Extracted email from OAuth principal: management@propsk.com
+   OAuth user found by email: true
+   OAuth user ID: 34
+   OAuth user email: management@propsk.com
+   OAuth user has access token: true
+   OAuth user has refresh token: false
+   OAuth user found: true
+   OAuth user email: management@propsk.com
+   OAuth user scopes: [openid, profile, email]
+   Has calendar scope: false
+🔍 DEBUG: Checking OAuth token validity...
+   OAuth user email: management@propsk.com
+   Access token present: true
+   Access token expiration: 2025-08-21T10:35:44.798521Z
+   Refresh token present: false
+   Access token is valid: true
+✅ Access token is still valid, no refresh needed
+⚠️ User does not have calendar scope access
+=== MAINTENANCE STATS ===
+Open: 2
+In Progress: 0
+Emergency: 0
+Awaiting Bids: 0
+=== END MAINTENANCE STATS ===
+DEBUG: Found 258 occupied properties using junction table
+DEBUG: Found 27 vacant properties using junction table
+=== HOME PAGE PROPERTY STATS ===
+Total Properties: 285
+Occupied Properties: 258
+Vacant Properties: 27
+Synced Properties: 285
+=== END STATS ===
+2025-08-21T10:09:38.053Z DEBUG 1 --- [io-10000-exec-7] .s.o.c.w.OAuth2LoginAuthenticationFilter : Set SecurityContextHolder to OAuth2AuthenticationToken [Principal=Name: [114738897312032777033], Granted Authorities: [[OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]], User Attributes: [{at_hash=mhkilaIF0eZ_Z_qGTbSsgQ, sub=114738897312032777033, email_verified=true, iss=https://accounts.google.com, given_name=Sajid, nonce=doffRus-CVbqWpAYpgpGnvAeBmJG0hUtZIcxVPujkJ0, picture=https://lh3.googleusercontent.com/a/ACg8ocJff0jGLeWeFRpUDUMNulSJQsPSai0zDiwqYftZbXtv3hDSJw=s96-c, aud=[815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com], azp=815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com, name=Sajid Kazmi, hd=propsk.com, exp=2025-08-21T11:09:38Z, family_name=Kazmi, iat=2025-08-21T10:09:38Z, email=sajidkazmi@propsk.com}], Credentials=[PROTECTED], Authenticated=true, Details=WebAuthenticationDetails [RemoteIpAddress=172.68.192.208, SessionId=6FA736ADC83894325443C0342298A056], Granted Authorities=[OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]]
+🔐 OAuth Login Success Handler - Starting authentication process
+🔐 DEBUG: OAuth tokens received from Google:
+   Access token present: true
+   Access token expires at: 2025-08-21T11:09:37.050031364Z
+   Access token scopes: [https://www.googleapis.com/auth/userinfo.profile, https://www.googleapis.com/auth/userinfo.email, https://www.googleapis.com/auth/gmail.send, https://www.googleapis.com/auth/spreadsheets, openid, https://www.googleapis.com/auth/drive]
+   Access token value (first 20 chars): ya29.A0AS3H6NxqHwZFP...
+   Refresh token present: true
+   Refresh token expires at: null
+   Refresh token value (first 20 chars): 1//03T_oipibenyyCgYI...
+🔍 DEBUG: Session analysis:
+   Previous regular account login: false
+   Session user ID: -1
+🔍 DEBUG: Getting OAuth user from authentication...
+   Extracted email from OAuth principal: sajidkazmi@propsk.com
+   OAuth user found by email: false
+🔍 DEBUG: OAuth user from authentication: false
+📧 Processing OAuth login for: sajidkazmi@propsk.com
+🔐 DEBUG: AuthenticationUtils.getLoggedInUserIdSecure() called (NEW SECURE VERSION)
+🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called (LEGACY INT VERSION)
+   Authentication type: OAuth2AuthenticationToken
+   Authentication name: 114738897312032777033
+   Is authenticated: true
+   Processing OAuth authentication...
+🔍 DEBUG: Getting OAuth user from authentication...
+   Extracted email from OAuth principal: sajidkazmi@propsk.com
+   OAuth user found by email: false
+   OAuth user found: false
+❌ No OAuth user found, returning -1
+🚨 SECURITY: No valid user found for authentication
+🔍 DEBUG: Authentication analysis:
+   Current user ID from auth: null
+🔍 User not found via OAuth method, searching by email: sajidkazmi@propsk.com
+✅ Found existing user by email: 53 - sajidkazmi@propsk.com
+   User status: ACTIVE
+   User roles: [ROLE_EMPLOYEE, ROLE_SUPER_ADMIN]
+   User has OAuth user: false
+♻️ Using existing user: 53 - sajidkazmi@propsk.com
+🔧 Creating new OAuth user for existing user
+🔄 Updating OAuth user tokens...
+✅ Access token updated - expires at: 2025-08-21T11:09:37.050031364Z
+✅ Refresh token provided by Google
+✅ Refresh token updated - expires at: null
+🔄 OAuth token update complete
+🔍 DEBUG: User ID: 53
+🔍 DEBUG: User email: sajidkazmi@propsk.com
+🔍 DEBUG: User status: ACTIVE
+🔍 DEBUG: User roles from DB: [ROLE_EMPLOYEE, ROLE_SUPER_ADMIN]
+🔍 DEBUG: Converted authorities: [ROLE_EMPLOYEE, ROLE_SUPER_ADMIN]
+🔍 DEBUG: Original OAuth authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]
+🔍 DEBUG: Final combined authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid, ROLE_EMPLOYEE, ROLE_SUPER_ADMIN]
+✅ SecurityContext updated with new authentication
+🔍 DEBUG: New authentication authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid, ROLE_EMPLOYEE, ROLE_SUPER_ADMIN]
+✅ User is active, redirecting to home page
+🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called (LEGACY INT VERSION)
+   Authentication type: OAuth2AuthenticationToken
+   Authentication name: 114738897312032777033
+   Is authenticated: true
+   Processing OAuth authentication...
+🔍 DEBUG: Getting OAuth user from authentication...
+   Extracted email from OAuth principal: sajidkazmi@propsk.com
+   OAuth user found by email: true
+   OAuth user ID: 35
+   OAuth user email: sajidkazmi@propsk.com
+   OAuth user has access token: true
+   OAuth user has refresh token: true
+   OAuth user found: true
+   OAuth user table ID: 35
+   OAuth user's user_id field: 53
+✅ Returning linked user ID: 53
+📅 DEBUG: Checking Google Calendar access...
+   Authentication type: OAuth2AuthenticationToken
+   Is OAuth user: true
+   Google Calendar service available: true
+✅ User is authenticated via OAuth (Google)
+🔍 DEBUG: Getting OAuth user from authentication...
+   Extracted email from OAuth principal: sajidkazmi@propsk.com
+   OAuth user found by email: true
+   OAuth user ID: 35
+   OAuth user email: sajidkazmi@propsk.com
+   OAuth user has access token: true
+   OAuth user has refresh token: true
+   OAuth user found: true
+   OAuth user email: sajidkazmi@propsk.com
+   OAuth user scopes: [openid, profile, email]
+   Has calendar scope: false
+🔍 DEBUG: Checking OAuth token validity...
+   OAuth user email: sajidkazmi@propsk.com
+   Access token present: true
+   Access token expiration: 2025-08-21T11:09:37.050031Z
+   Refresh token present: true
+   Access token is valid: true
+✅ Access token is still valid, no refresh needed
+⚠️ User does not have calendar scope access
+=== MAINTENANCE STATS ===
+Open: 2
+In Progress: 0
+Emergency: 0
+Awaiting Bids: 0
+=== END MAINTENANCE STATS ===
+DEBUG: Found 258 occupied properties using junction table
+DEBUG: Found 27 vacant properties using junction table
+=== HOME PAGE PROPERTY STATS ===
+Total Properties: 0
+Occupied Properties: 0
+Vacant Properties: 0
+Synced Properties: 0
+=== END STATS ===
