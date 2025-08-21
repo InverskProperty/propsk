@@ -74,9 +74,19 @@ public class PayPropRawPropertiesCompleteImportService {
             );
             log.info("📦 PayProp API returned: {} ARCHIVED properties", archivedProperties.size());
             
-            // STEP 3: Combine both lists
+            // STEP 3: Mark archive status and combine lists
             List<Map<String, Object>> allProperties = new ArrayList<>();
+            
+            // Mark active properties
+            for (Map<String, Object> property : activeProperties) {
+                property.put("is_archived", false);
+            }
             allProperties.addAll(activeProperties);
+            
+            // Mark archived properties  
+            for (Map<String, Object> property : archivedProperties) {
+                property.put("is_archived", true);
+            }
             allProperties.addAll(archivedProperties);
             
             result.setTotalFetched(allProperties.size());
@@ -157,8 +167,8 @@ public class PayPropRawPropertiesCompleteImportService {
                 settings_verify_payments, settings_minimum_balance, settings_listing_from,
                 settings_approval_required,
                 commission_percentage, commission_amount, commission_id,
-                imported_at, sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                imported_at, sync_status, is_archived
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
         
         int importedCount = 0;
@@ -246,6 +256,7 @@ public class PayPropRawPropertiesCompleteImportService {
                     // Meta fields
                     stmt.setTimestamp(35, Timestamp.valueOf(LocalDateTime.now()));
                     stmt.setString(36, "active");
+                    setBooleanOrNull(stmt, 37, getBoolean(property, "is_archived"));
                     
                     stmt.executeUpdate();
                     importedCount++;
