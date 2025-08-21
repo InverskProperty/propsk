@@ -43,6 +43,9 @@ public class PayPropRawImportSimpleController {
     @Autowired
     private AuthenticationUtils authenticationUtils;
     
+    @Autowired
+    private site.easy.to.build.crm.service.payprop.raw.PayPropRawBeneficiariesCompleteImportService beneficiariesCompleteImportService;
+    
     // List of working endpoints from our test results
     private static final Map<String, EndpointConfig> WORKING_ENDPOINTS = new HashMap<>();
     
@@ -675,6 +678,51 @@ public class PayPropRawImportSimpleController {
         }
         
         return null;
+    }
+    
+    /**
+     * Test complete beneficiaries import with new table structure - PROOF OF CONCEPT
+     */
+    @PostMapping("/test-complete-beneficiaries")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testCompleteBeneficiariesImport() {
+        log.info("🏦 Testing complete beneficiaries import - PROOF OF CONCEPT");
+        
+        Map<String, Object> response = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            // Call the new complete import service
+            site.easy.to.build.crm.service.payprop.raw.PayPropRawImportResult result = 
+                beneficiariesCompleteImportService.importBeneficiariesComplete();
+            
+            long endTime = System.currentTimeMillis();
+            long processingTime = endTime - startTime;
+            
+            response.put("success", result.isSuccess());
+            response.put("endpoint", result.getEndpoint());
+            response.put("totalFetched", result.getTotalFetched());
+            response.put("totalImported", result.getTotalImported());
+            response.put("processingTime", processingTime);
+            response.put("details", result.getDetails());
+            
+            if (!result.isSuccess()) {
+                response.put("error", result.getErrorMessage());
+            }
+            
+            log.info("🎯 PROOF OF CONCEPT COMPLETE: {} beneficiaries imported to complete table in {}ms", 
+                     result.getTotalImported(), processingTime);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            long endTime = System.currentTimeMillis();
+            log.error("❌ Complete beneficiaries import test failed", e);
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            response.put("processingTime", endTime - startTime);
+            return ResponseEntity.status(500).body(response);
+        }
     }
     
     /**
