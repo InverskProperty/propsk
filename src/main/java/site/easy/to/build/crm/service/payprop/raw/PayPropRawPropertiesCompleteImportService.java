@@ -95,12 +95,20 @@ public class PayPropRawPropertiesCompleteImportService {
         
         // Clear existing data for fresh import - handle known dependencies
         try (Connection conn = dataSource.getConnection()) {
-            // Clear known dependent table first: invoices depend on properties
+            // Clear known dependent tables first: multiple tables depend on properties
             try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM payprop_export_invoices")) {
                 int deletedCount = stmt.executeUpdate();
                 log.info("Cleared {} existing invoices (dependent on properties)", deletedCount);
             } catch (SQLException e) {
                 log.info("⚠️ Could not clear invoices (table may not exist yet): {}", e.getMessage());
+                // Continue - table might not exist yet
+            }
+            
+            try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM payprop_export_payments")) {
+                int deletedCount = stmt.executeUpdate();
+                log.info("Cleared {} existing payments (dependent on properties)", deletedCount);
+            } catch (SQLException e) {
+                log.info("⚠️ Could not clear payments (table may not exist yet): {}", e.getMessage());
                 // Continue - table might not exist yet
             }
             
