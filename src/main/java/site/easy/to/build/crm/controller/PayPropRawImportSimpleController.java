@@ -509,7 +509,7 @@ public class PayPropRawImportSimpleController {
             // and stop after a few records to examine structure
             List<Map<String, Object>> items = new ArrayList<>();
             boolean foundData = false;
-            int maxRecords = 10; // Limit to 10 records for structure inspection
+            final int maxRecords = 10; // Limit to 10 records for structure inspection
             
             // Get just the first chunk of recent data
             try {
@@ -522,18 +522,13 @@ public class PayPropRawImportSimpleController {
                 
                 log.info("🔍 Limited fetch from: {}", endpoint);
                 
-                // Fetch just first page to examine structure
+                // Fetch first page and limit results
                 List<Map<String, Object>> pageItems = apiClient.fetchAllPages(endpoint,
-                    (Map<String, Object> item) -> {
-                        if (items.size() < maxRecords) {
-                            return item; // Return raw item
-                        }
-                        return null; // Stop processing once we hit limit
-                    });
+                    (Map<String, Object> item) -> item // Return raw item
+                );
                 
-                // Filter out nulls and limit
+                // Limit to maxRecords after fetching
                 items = pageItems.stream()
-                    .filter(Objects::nonNull)
                     .limit(maxRecords)
                     .collect(Collectors.toList());
                 
