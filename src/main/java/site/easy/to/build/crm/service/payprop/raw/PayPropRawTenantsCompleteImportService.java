@@ -119,7 +119,7 @@ public class PayPropRawTenantsCompleteImportService {
                 monthly_rent_amount, deposit_amount, notify_email, notify_sms,
                 preferred_contact_method, tenant_status, is_active, credit_score,
                 reference, comment, properties_json, imported_at, sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
         
         int importedCount = 0;
@@ -196,13 +196,13 @@ public class PayPropRawTenantsCompleteImportService {
                         
                         // Store full properties array as JSON for complex analysis
                         String propertiesJson = objectMapper.writeValueAsString(properties);
-                        stmt.setString(43, propertiesJson);
+                        stmt.setString(44, propertiesJson); // properties_json is parameter 44
                     } else {
                         // No properties - set tenancy fields to null
                         for (int i = 30; i <= 35; i++) {
                             stmt.setNull(i, i >= 34 ? java.sql.Types.DECIMAL : java.sql.Types.VARCHAR);
                         }
-                        stmt.setNull(43, java.sql.Types.LONGVARCHAR); // properties_json
+                        stmt.setString(44, null); // properties_json as null
                     }
                     
                     // Notification preferences
@@ -210,14 +210,15 @@ public class PayPropRawTenantsCompleteImportService {
                     setBooleanOrNull(stmt, 37, getBoolean(tenant, "notify_sms"));
                     stmt.setString(38, "email"); // default preferred_contact_method
                     
-                    // Status and meta fields
+                    // Status and meta fields  
                     stmt.setString(39, getString(tenant, "status"));
                     stmt.setBoolean(40, true); // is_active - default to true
                     stmt.setNull(41, java.sql.Types.DECIMAL); // credit_score - not in API
                     stmt.setString(42, getString(tenant, "reference"));
-                    stmt.setString(44, getString(tenant, "comment")); // Skip 43 which is properties_json set above
+                    stmt.setString(43, getString(tenant, "comment")); // comment field
+                    // properties_json is set above at parameter 44
                     
-                    // Meta fields
+                    // Meta fields (imported_at=45, sync_status=46)
                     stmt.setTimestamp(45, Timestamp.valueOf(LocalDateTime.now()));
                     stmt.setString(46, "active");
                     
