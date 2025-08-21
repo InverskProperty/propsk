@@ -15,6 +15,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -53,30 +54,45 @@ public class PayPropRawPropertiesCompleteImportService {
         result.setEndpoint("/export/properties");
         
         try {
-            // Use the proven working endpoint configuration from your controller
-            String endpoint = "/export/properties?rows=25";
+            log.info("🔄 Starting properties import: ACTIVE + ARCHIVED properties");
             
-            log.info("🔄 Starting properties import using proven working pattern");
+            // STEP 1: Import active properties
+            String activeEndpoint = "/export/properties?rows=25&is_archived=false";
+            log.info("📦 Step 1: Fetching ACTIVE properties from {}", activeEndpoint);
             
-            // Use fetchAllPages (not fetchHistoricalPages) - this is an export endpoint, not report
-            List<Map<String, Object>> properties = apiClient.fetchAllPages(endpoint, 
+            List<Map<String, Object>> activeProperties = apiClient.fetchAllPages(activeEndpoint, 
                 (Map<String, Object> item) -> item // Return raw item - no processing
             );
+            log.info("📦 PayProp API returned: {} ACTIVE properties", activeProperties.size());
             
-            result.setTotalFetched(properties.size());
-            log.info("📦 PayProp API returned: {} properties", properties.size());
+            // STEP 2: Import archived properties
+            String archivedEndpoint = "/export/properties?rows=25&is_archived=true";
+            log.info("📦 Step 2: Fetching ARCHIVED properties from {}", archivedEndpoint);
+            
+            List<Map<String, Object>> archivedProperties = apiClient.fetchAllPages(archivedEndpoint, 
+                (Map<String, Object> item) -> item // Return raw item - no processing
+            );
+            log.info("📦 PayProp API returned: {} ARCHIVED properties", archivedProperties.size());
+            
+            // STEP 3: Combine both lists
+            List<Map<String, Object>> allProperties = new ArrayList<>();
+            allProperties.addAll(activeProperties);
+            allProperties.addAll(archivedProperties);
+            
+            result.setTotalFetched(allProperties.size());
+            log.info("📦 TOTAL properties (active + archived): {}", allProperties.size());
             
             // Import to new complete database table
-            int importedCount = importPropertiesToCompleteTable(properties);
+            int importedCount = importPropertiesToCompleteTable(allProperties);
             result.setTotalImported(importedCount);
             
             result.setSuccess(true);
             result.setEndTime(LocalDateTime.now());
-            result.setDetails(String.format("Complete properties imported: %d fetched, %d imported", 
-                properties.size(), importedCount));
+            result.setDetails(String.format("Complete properties imported: %d active + %d archived = %d total, %d imported", 
+                activeProperties.size(), archivedProperties.size(), allProperties.size(), importedCount));
             
-            log.info("✅ COMPLETE properties import completed: {} fetched, {} imported", 
-                properties.size(), importedCount);
+            log.info("✅ COMPLETE properties import completed: {} active + {} archived = {} total, {} imported", 
+                activeProperties.size(), archivedProperties.size(), allProperties.size(), importedCount);
             
         } catch (Exception e) {
             log.error("❌ Complete properties import failed", e);
