@@ -92,10 +92,20 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
         if (oAuth2AccessToken != null) {
             System.out.println("   Access token expires at: " + oAuth2AccessToken.getExpiresAt());
             System.out.println("   Access token scopes: " + oAuth2AccessToken.getScopes());
+            System.out.println("   Access token value (first 20 chars): " + 
+                (oAuth2AccessToken.getTokenValue() != null ? oAuth2AccessToken.getTokenValue().substring(0, Math.min(20, oAuth2AccessToken.getTokenValue().length())) + "..." : "null"));
         }
         System.out.println("   Refresh token present: " + (oAuth2RefreshToken != null));
         if (oAuth2RefreshToken != null) {
             System.out.println("   Refresh token expires at: " + oAuth2RefreshToken.getExpiresAt());
+            System.out.println("   Refresh token value (first 20 chars): " + 
+                (oAuth2RefreshToken.getTokenValue() != null ? oAuth2RefreshToken.getTokenValue().substring(0, Math.min(20, oAuth2RefreshToken.getTokenValue().length())) + "..." : "null"));
+        } else {
+            System.out.println("   ⚠️ NO REFRESH TOKEN - This means:");
+            System.out.println("      1. User previously authorized and Google didn't provide new refresh token");
+            System.out.println("      2. OAuth request didn't include access_type=offline");
+            System.out.println("      3. OAuth request didn't include prompt=consent");
+            System.out.println("      4. User needs to revoke app access in Google and re-authenticate");
         }
 
         HttpSession session = request.getSession();

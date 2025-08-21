@@ -27,17 +27,15 @@ public class OAuth2ClientIdInitializer implements EnvironmentPostProcessor {
     private static final String GOOGLE_GRANT_TYPE_PROPERTY = "spring.security.oauth2.client.registration.google.authorization-grant-type";
     private static final String DEFAULT_GOOGLE_GRANT_TYPE = "authorization_code";
 
-    // FIXED: Enhanced authorization URI to always request refresh tokens
-    private static final String GOOGLE_AUTHORIZATION_URI_PROPERTY = "spring.security.oauth2.client.provider.google.authorization-uri";
-    private static final String DEFAULT_GOOGLE_AUTHORIZATION_URI = "https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&prompt=consent";
+    // CRITICAL: Add authorization-grant-type for refresh tokens
+    private static final String GOOGLE_AUTHORIZATION_PARAMS_PROPERTY = "spring.security.oauth2.client.provider.google.authorization-uri-params.access_type";
+    private static final String DEFAULT_ACCESS_TYPE = "offline";
+    
+    private static final String GOOGLE_PROMPT_PROPERTY = "spring.security.oauth2.client.provider.google.authorization-uri-params.prompt";
+    private static final String DEFAULT_PROMPT = "consent";
 
-    // FIXED: Enhanced URI template for better refresh token handling
-    private static final String GOOGLE_URI_TEMPLATE_PROPERTY = "spring.security.oauth2.client.registration.google.authorization-uri-template";
-    private static final String DEFAULT_GOOGLE_URI_TEMPLATE = "https://accounts.google.com/o/oauth2/auth?access_type=offline&prompt=consent&response_type=code&client_id={clientId}&scope={scopes}&state={state}&redirect_uri={redirectUri}";
-
-    // FIXED: Add approval prompt to force consent screen
-    private static final String GOOGLE_APPROVAL_PROMPT_PROPERTY = "spring.security.oauth2.client.registration.google.approval-prompt";
-    private static final String DEFAULT_GOOGLE_APPROVAL_PROMPT = "force";
+    private static final String GOOGLE_INCLUDE_GRANTED_SCOPES_PROPERTY = "spring.security.oauth2.client.provider.google.authorization-uri-params.include_granted_scopes";
+    private static final String DEFAULT_INCLUDE_GRANTED_SCOPES = "true";
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
@@ -48,9 +46,11 @@ public class OAuth2ClientIdInitializer implements EnvironmentPostProcessor {
         initGoogleOauthCredential(environment, GOOGLE_SCOPE_PROPERTY, DEFAULT_GOOGLE_SCOPE);
         initGoogleOauthCredential(environment, GOOGLE_REDIRECT_URI_PROPERTY, DEFAULT_GOOGLE_REDIRECT_URI);
         initGoogleOauthCredential(environment, GOOGLE_GRANT_TYPE_PROPERTY, DEFAULT_GOOGLE_GRANT_TYPE);
-        initGoogleOauthCredential(environment, GOOGLE_AUTHORIZATION_URI_PROPERTY, DEFAULT_GOOGLE_AUTHORIZATION_URI);
-        initGoogleOauthCredential(environment, GOOGLE_URI_TEMPLATE_PROPERTY, DEFAULT_GOOGLE_URI_TEMPLATE);
-        initGoogleOauthCredential(environment, GOOGLE_APPROVAL_PROMPT_PROPERTY, DEFAULT_GOOGLE_APPROVAL_PROMPT);
+        
+        // CRITICAL: Set authorization parameters for refresh tokens
+        initGoogleOauthCredential(environment, GOOGLE_AUTHORIZATION_PARAMS_PROPERTY, DEFAULT_ACCESS_TYPE);
+        initGoogleOauthCredential(environment, GOOGLE_PROMPT_PROPERTY, DEFAULT_PROMPT);
+        initGoogleOauthCredential(environment, GOOGLE_INCLUDE_GRANTED_SCOPES_PROPERTY, DEFAULT_INCLUDE_GRANTED_SCOPES);
         
         System.out.println("✅ OAuth2 configuration initialized with:");
         System.out.println("   - access_type=offline (to request refresh tokens)");
