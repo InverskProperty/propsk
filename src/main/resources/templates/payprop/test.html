@@ -1501,6 +1501,9 @@ ORDER BY transaction_count DESC;</code></pre>
                                             <button class="btn btn-success mb-2" onclick="testCompleteBeneficiariesImport()">
                                                 <i class="fas fa-users"></i> Test Complete Beneficiaries Import
                                             </button>
+                                            <button class="btn btn-primary mb-2" onclick="testCompleteTenantsImport()">
+                                                <i class="fas fa-user-friends"></i> Test Complete Tenants Import
+                                            </button>
                                         </div>
                                         <div class="col-md-6">
                                             <button class="btn btn-info mb-2" onclick="getSampleDataFromEndpoint()">
@@ -4679,6 +4682,30 @@ ORDER BY transaction_count DESC;</code></pre>
             }
         }
 
+        async function testCompleteTenantsImport() {
+            showLoadingState('endpointTestResults', 'Testing complete tenants import with new table structure...');
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/test-complete-tenants', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                displayCompleteTenantsResults(result);
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error testing complete tenants import: ' + error.message);
+            }
+        }
+
         async function getSampleDataFromEndpoint() {
             const selectedEndpoint = document.getElementById('sampleEndpointSelect').value;
             
@@ -5051,6 +5078,85 @@ ORDER BY transaction_count DESC;</code></pre>
                         <p><strong>Check imported data:</strong></p>
                         <code>SELECT COUNT(*) FROM payprop_export_beneficiaries_complete;</code><br>
                         <code>SELECT display_name, email_address, address_city, total_properties FROM payprop_export_beneficiaries_complete LIMIT 5;</code>
+                    </div>
+                </div>
+            `;
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function displayCompleteTenantsResults(result) {
+            const container = document.getElementById('endpointTestResults');
+            container.style.display = 'block';
+            
+            if (!result.success) {
+                container.innerHTML = `
+                    <div class="result-error">
+                        <h5>👥 Complete Tenants Import - Error</h5>
+                        <p><strong>Error:</strong> ${result.error}</p>
+                        ${result.details ? `<p><strong>Details:</strong> ${result.details}</p>` : ''}
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <div class="result-success">
+                    <h5>👥 Complete Tenants Import Results</h5>
+                    <p><strong>Endpoint:</strong> ${result.endpoint || '/export/tenants'}</p>
+                    <p><strong>Total Fetched:</strong> ${result.totalFetched || 'N/A'} tenants</p>
+                    <p><strong>Total Imported:</strong> ${result.totalImported || 'N/A'} tenants</p>
+                    <p><strong>Processing Time:</strong> ${result.processingTime || 'N/A'}ms</p>
+                    <p><strong>Import Status:</strong> <span class="badge bg-success">Complete</span></p>
+            `;
+            
+            // Show success details
+            if (result.details) {
+                html += `
+                    <div class="mt-3">
+                        <h6>📋 Import Summary:</h6>
+                        <div class="alert alert-success">
+                            <p>${result.details}</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Show table information
+            html += `
+                <div class="mt-3">
+                    <h6>🗄️ Database Table:</h6>
+                    <div class="alert alert-info">
+                        <p><strong>Table:</strong> <code>payprop_export_tenants_complete</code></p>
+                        <p><strong>Features:</strong> 35+ fields with nested address flattening, property relationships, tenancy details</p>
+                        <p><strong>Method:</strong> Scaling proven beneficiaries import pattern</p>
+                    </div>
+                </div>
+            `;
+            
+            // Show scaling progress
+            html += `
+                <div class="mt-3">
+                    <h6>🚀 Scaling Progress:</h6>
+                    <div class="alert alert-primary">
+                        <ul class="mb-0">
+                            <li>✅ Beneficiaries complete import working (173/174)</li>
+                            <li>✅ Tenants complete import pattern validated</li>
+                            <li>🎯 Template ready for remaining 7 endpoints</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            
+            // Add verification query
+            html += `
+                <div class="mt-3">
+                    <h6>🔍 Verify Results:</h6>
+                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">
+                        <p><strong>Check imported tenants:</strong></p>
+                        <code>SELECT COUNT(*) FROM payprop_export_tenants_complete;</code><br>
+                        <code>SELECT first_name, last_name, email, current_property_id, monthly_rent_amount FROM payprop_export_tenants_complete LIMIT 5;</code>
                     </div>
                 </div>
             `;

@@ -216,9 +216,13 @@ public class PayPropRawBeneficiariesCompleteImportService {
                     stmt.executeUpdate();
                     importedCount++;
                     
-                    log.debug("✅ Imported beneficiary: {} ({})", 
-                        getString(beneficiary, "display_name"), 
-                        getString(beneficiary, "id"));
+                    // Get the best available name for logging
+                    String name = (getString(beneficiary, "first_name") + " " + getString(beneficiary, "last_name")).trim();
+                    if (name.isEmpty()) name = getString(beneficiary, "business_name");
+                    if (name == null || name.trim().isEmpty()) name = getString(beneficiary, "email_address");
+                    if (name == null || name.trim().isEmpty()) name = "Unknown";
+                    
+                    log.debug("✅ Imported beneficiary: {} ({})", name, getString(beneficiary, "id"));
                         
                 } catch (Exception e) {
                     log.error("❌ Failed to import beneficiary {}: {}", 
