@@ -170,9 +170,22 @@ public class PayPropRawBeneficiariesCompleteImportService {
                         stmt.setTimestamp(35, getTimestamp(address, "modified"));
                     } else {
                         // Set address fields to null if no address object
-                        for (int i = 20; i <= 35; i++) {
-                            stmt.setNull(i, java.sql.Types.VARCHAR);
-                        }
+                        stmt.setNull(20, java.sql.Types.VARCHAR); // address_id
+                        stmt.setNull(21, java.sql.Types.VARCHAR); // address_first_line
+                        stmt.setNull(22, java.sql.Types.VARCHAR); // address_second_line
+                        stmt.setNull(23, java.sql.Types.VARCHAR); // address_third_line
+                        stmt.setNull(24, java.sql.Types.VARCHAR); // address_city
+                        stmt.setNull(25, java.sql.Types.VARCHAR); // address_state
+                        stmt.setNull(26, java.sql.Types.VARCHAR); // address_country_code
+                        stmt.setNull(27, java.sql.Types.VARCHAR); // address_postal_code
+                        stmt.setNull(28, java.sql.Types.VARCHAR); // address_zip_code
+                        stmt.setNull(29, java.sql.Types.DECIMAL); // address_latitude
+                        stmt.setNull(30, java.sql.Types.DECIMAL); // address_longitude
+                        stmt.setNull(31, java.sql.Types.VARCHAR); // address_phone
+                        stmt.setNull(32, java.sql.Types.VARCHAR); // address_fax
+                        stmt.setNull(33, java.sql.Types.VARCHAR); // address_email
+                        stmt.setNull(34, java.sql.Types.TIMESTAMP); // address_created
+                        stmt.setNull(35, java.sql.Types.TIMESTAMP); // address_modified
                     }
                     
                     // Extract properties array summary
@@ -193,7 +206,7 @@ public class PayPropRawBeneficiariesCompleteImportService {
                     } else {
                         stmt.setNull(36, java.sql.Types.INTEGER);
                         stmt.setNull(37, java.sql.Types.DECIMAL);
-                        stmt.setNull(38, java.sql.Types.JSON);
+                        stmt.setNull(38, java.sql.Types.LONGVARCHAR); // Use LONGVARCHAR for JSON compatibility
                     }
                     
                     // Meta fields
