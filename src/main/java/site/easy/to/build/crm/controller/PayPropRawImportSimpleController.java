@@ -511,32 +511,60 @@ public class PayPropRawImportSimpleController {
             boolean foundData = false;
             final int maxRecords = 10; // Limit to 10 records for structure inspection
             
-            // Get just the first chunk of recent data
-            try {
-                LocalDateTime endDate = LocalDateTime.now();
-                LocalDateTime startDate = endDate.minusMonths(1); // Just 1 month back
+            // Get just the first chunk of data - try different date ranges if needed
+            String[] dateRanges = {
+                "1 month", "6 months", "2 years"  // Try progressively wider ranges
+            };
+            
+            for (String range : dateRanges) {
+                if (!items.isEmpty()) break; // Found data, stop searching
                 
-                String endpoint = baseEndpoint + 
-                    "&from_date=" + startDate.toLocalDate().toString() +
-                    "&to_date=" + endDate.toLocalDate().toString();
-                
-                log.info("🔍 Limited fetch from: {}", endpoint);
-                
-                // Fetch first page and limit results
-                List<Map<String, Object>> pageItems = apiClient.fetchAllPages(endpoint,
-                    (Map<String, Object> item) -> item // Return raw item
-                );
-                
-                // Limit to maxRecords after fetching
-                items = pageItems.stream()
-                    .limit(maxRecords)
-                    .collect(Collectors.toList());
-                
-                foundData = !items.isEmpty();
-                
-            } catch (Exception e) {
-                log.warn("⚠️ Limited fetch interrupted (expected): {}", e.getMessage());
-                // This is expected when we hit our limit - not an error
+                try {
+                    LocalDateTime endDate = LocalDateTime.now();
+                    LocalDateTime startDate;
+                    
+                    switch (range) {
+                        case "1 month" -> startDate = endDate.minusMonths(1);
+                        case "6 months" -> startDate = endDate.minusMonths(6);
+                        case "2 years" -> startDate = endDate.minusYears(2);
+                        default -> startDate = endDate.minusMonths(1);
+                    }
+                    
+                    String endpoint = baseEndpoint + 
+                        "&from_date=" + startDate.toLocalDate().toString() +
+                        "&to_date=" + endDate.toLocalDate().toString();
+                    
+                    log.info("🔍 Limited fetch attempt with {} range from: {}", range, endpoint);
+                    
+                    // Fetch first page and limit results
+                    List<Map<String, Object>> pageItems = apiClient.fetchAllPages(endpoint,
+                        (Map<String, Object> item) -> item // Return raw item
+                    );
+                    
+                    log.info("📊 Found {} items with {} date range", pageItems.size(), range);
+                    
+                    // Limit to maxRecords after fetching
+                    items = pageItems.stream()
+                        .limit(maxRecords)
+                        .collect(Collectors.toList());
+                    
+                    if (!items.isEmpty()) {
+                        foundData = true;
+                        response.put("dateRangeUsed", range);
+                        response.put("actualDateRange", startDate.toLocalDate() + " to " + endDate.toLocalDate());
+                        break;
+                    }
+                    
+                } catch (Exception e) {
+                    log.warn("⚠️ Limited fetch with {} range interrupted: {}", range, e.getMessage());
+                    // Continue to next range
+                }
+            }
+            
+            // If still no data found, log the issue
+            if (items.isEmpty()) {
+                log.warn("⚠️ No payment data found in any date range - may indicate data availability issue");
+                response.put("dataAvailabilityWarning", "No payment records found in staging environment for any tested date range");
             }
             
             long endTime = System.currentTimeMillis();
@@ -554,6 +582,27 @@ public class PayPropRawImportSimpleController {
             response.put("fieldsPerRecord", items.isEmpty() ? 0 : items.get(0).size());
             response.put("sampleRecords", items.size() > 3 ? items.subList(0, 3) : items); // Show max 3 for display
             response.put("fieldAnalysis", fieldAnalysis);
+            
+            // Add diagnostic information
+            response.put("endpointTested", baseEndpoint);
+            response.put("dataFound", foundData);
+            
+            if (!foundData) {
+                response.put("troubleshooting", Map.of(
+                    "issue", "No payment data found in staging environment",
+                    "possibleCauses", List.of(
+                        "PayProp staging environment may not have recent payment data",
+                        "Different date field might be needed (try 'payment_date' instead of 'reconciliation_date')",
+                        "Staging data might be older than tested date ranges",
+                        "API permissions might not include payment data access"
+                    ),
+                    "suggestedActions", List.of(
+                        "Check if production environment has data",
+                        "Try the regular 'Fix All-Payments' button to test historical chunking",
+                        "Contact PayProp support about staging data availability"
+                    )
+                ));
+            }
             
             if (nestedWarning != null) {
                 response.put("nestedStructureWarning", nestedWarning);

@@ -4925,6 +4925,29 @@ ORDER BY transaction_count DESC;</code></pre>
                 `;
             }
             
+            // Show troubleshooting information if no data found
+            if (result.troubleshooting) {
+                html += `
+                    <div class="alert alert-info mt-3">
+                        <h6>🔍 No Data Found - Troubleshooting:</h6>
+                        <p><strong>Issue:</strong> ${result.troubleshooting.issue}</p>
+                        
+                        <p><strong>Possible Causes:</strong></p>
+                        <ul>
+                            ${result.troubleshooting.possibleCauses.map(cause => `<li>${cause}</li>`).join('')}
+                        </ul>
+                        
+                        <p><strong>Suggested Actions:</strong></p>
+                        <ul>
+                            ${result.troubleshooting.suggestedActions.map(action => `<li>${action}</li>`).join('')}
+                        </ul>
+                        
+                        <p><strong>Endpoint Tested:</strong> <code>${result.endpointTested || 'N/A'}</code></p>
+                        ${result.dateRangeUsed ? `<p><strong>Date Range:</strong> ${result.actualDateRange} (${result.dateRangeUsed})</p>` : ''}
+                    </div>
+                `;
+            }
+            
             html += '</div>';
             container.innerHTML = html;
         }
