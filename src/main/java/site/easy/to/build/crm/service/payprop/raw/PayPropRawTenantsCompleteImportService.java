@@ -93,11 +93,16 @@ public class PayPropRawTenantsCompleteImportService {
      */
     private int importTenantsToCompleteTable(List<Map<String, Object>> tenants) throws SQLException {
         
-        // Clear existing data for fresh import
+        // Clear existing data for fresh import (foreign key constraints will reveal dependency issues)
         try (Connection conn = dataSource.getConnection()) {
             try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM payprop_export_tenants_complete")) {
                 int deletedCount = stmt.executeUpdate();
                 log.info("Cleared {} existing tenants for fresh import", deletedCount);
+            } catch (SQLException e) {
+                // Log foreign key constraint details to understand dependencies
+                log.warn("⚠️ Foreign key constraint during tenants delete: {}", e.getMessage());
+                log.info("🔍 This reveals dependency: another table references tenants");
+                throw e; // Re-throw to show the actual constraint issue
             }
         }
         
