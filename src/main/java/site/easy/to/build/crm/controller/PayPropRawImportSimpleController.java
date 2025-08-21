@@ -511,17 +511,25 @@ public class PayPropRawImportSimpleController {
             boolean foundData = false;
             final int maxRecords = 10; // Limit to 10 records for structure inspection
             
-            // Use fetchHistoricalPages for report endpoints (handles 93-day chunking automatically)
+            // Simple approach: Test a specific 3-month period from 2024 (safe 90-day range)
             try {
-                log.info("🔍 Using fetchHistoricalPages for limited all-payments test");
+                // Use Q2 2024: April 1 to June 30, 2024 (exactly 90 days - under the 93-day limit)
+                String startDate = "2024-04-01";
+                String endDate = "2024-06-30";
                 
-                // Use fetchHistoricalPages with 6 months back (automatically chunks into 93-day periods)
-                // This method handles the 93-day limit properly
-                List<Map<String, Object>> allItems = apiClient.fetchHistoricalPages(baseEndpoint, 1, // 1 year back max
+                String endpoint = baseEndpoint + 
+                    "&from_date=" + startDate +
+                    "&to_date=" + endDate;
+                
+                log.info("🔍 Limited fetch from safe 90-day period: {} to {}", startDate, endDate);
+                log.info("🔍 Testing endpoint: {}", endpoint);
+                
+                // Use fetchAllPages with a safe date range (90 days < 93 day limit)
+                List<Map<String, Object>> allItems = apiClient.fetchAllPages(endpoint,
                     (Map<String, Object> item) -> item // Return raw item
                 );
                 
-                log.info("📊 Found {} total items using historical chunking", allItems.size());
+                log.info("📊 Found {} total items from Q2 2024", allItems.size());
                 
                 // Limit to maxRecords for structure inspection
                 items = allItems.stream()
@@ -532,13 +540,17 @@ public class PayPropRawImportSimpleController {
                 
                 if (foundData) {
                     response.put("totalItemsAvailable", allItems.size());
-                    response.put("methodUsed", "fetchHistoricalPages with 93-day chunking");
+                    response.put("testPeriod", "Q2 2024 (April-June)");
+                    response.put("dateRange", startDate + " to " + endDate);
+                    response.put("daysCovered", "90 days (under 93-day limit)");
                 } else {
-                    response.put("dataAvailabilityWarning", "No payment records found using historical chunking method");
+                    response.put("dataAvailabilityWarning", "No payment records found in Q2 2024 period");
+                    response.put("testPeriod", "Q2 2024 (April-June)");
+                    response.put("dateRange", startDate + " to " + endDate);
                 }
                 
             } catch (Exception e) {
-                log.warn("⚠️ Limited fetchHistoricalPages interrupted: {}", e.getMessage());
+                log.warn("⚠️ Q2 2024 fetch failed: {}", e.getMessage());
                 response.put("fetchError", e.getMessage());
             }
             
