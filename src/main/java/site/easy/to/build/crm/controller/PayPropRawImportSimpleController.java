@@ -511,60 +511,35 @@ public class PayPropRawImportSimpleController {
             boolean foundData = false;
             final int maxRecords = 10; // Limit to 10 records for structure inspection
             
-            // Get just the first chunk of data - try different date ranges if needed
-            String[] dateRanges = {
-                "1 month", "6 months", "2 years"  // Try progressively wider ranges
-            };
-            
-            for (String range : dateRanges) {
-                if (!items.isEmpty()) break; // Found data, stop searching
+            // Use fetchHistoricalPages for report endpoints (handles 93-day chunking automatically)
+            try {
+                log.info("🔍 Using fetchHistoricalPages for limited all-payments test");
                 
-                try {
-                    LocalDateTime endDate = LocalDateTime.now();
-                    LocalDateTime startDate;
-                    
-                    switch (range) {
-                        case "1 month" -> startDate = endDate.minusMonths(1);
-                        case "6 months" -> startDate = endDate.minusMonths(6);
-                        case "2 years" -> startDate = endDate.minusYears(2);
-                        default -> startDate = endDate.minusMonths(1);
-                    }
-                    
-                    String endpoint = baseEndpoint + 
-                        "&from_date=" + startDate.toLocalDate().toString() +
-                        "&to_date=" + endDate.toLocalDate().toString();
-                    
-                    log.info("🔍 Limited fetch attempt with {} range from: {}", range, endpoint);
-                    
-                    // Fetch first page and limit results
-                    List<Map<String, Object>> pageItems = apiClient.fetchAllPages(endpoint,
-                        (Map<String, Object> item) -> item // Return raw item
-                    );
-                    
-                    log.info("📊 Found {} items with {} date range", pageItems.size(), range);
-                    
-                    // Limit to maxRecords after fetching
-                    items = pageItems.stream()
-                        .limit(maxRecords)
-                        .collect(Collectors.toList());
-                    
-                    if (!items.isEmpty()) {
-                        foundData = true;
-                        response.put("dateRangeUsed", range);
-                        response.put("actualDateRange", startDate.toLocalDate() + " to " + endDate.toLocalDate());
-                        break;
-                    }
-                    
-                } catch (Exception e) {
-                    log.warn("⚠️ Limited fetch with {} range interrupted: {}", range, e.getMessage());
-                    // Continue to next range
+                // Use fetchHistoricalPages with 6 months back (automatically chunks into 93-day periods)
+                // This method handles the 93-day limit properly
+                List<Map<String, Object>> allItems = apiClient.fetchHistoricalPages(baseEndpoint, 1, // 1 year back max
+                    (Map<String, Object> item) -> item // Return raw item
+                );
+                
+                log.info("📊 Found {} total items using historical chunking", allItems.size());
+                
+                // Limit to maxRecords for structure inspection
+                items = allItems.stream()
+                    .limit(maxRecords)
+                    .collect(Collectors.toList());
+                
+                foundData = !items.isEmpty();
+                
+                if (foundData) {
+                    response.put("totalItemsAvailable", allItems.size());
+                    response.put("methodUsed", "fetchHistoricalPages with 93-day chunking");
+                } else {
+                    response.put("dataAvailabilityWarning", "No payment records found using historical chunking method");
                 }
-            }
-            
-            // If still no data found, log the issue
-            if (items.isEmpty()) {
-                log.warn("⚠️ No payment data found in any date range - may indicate data availability issue");
-                response.put("dataAvailabilityWarning", "No payment records found in staging environment for any tested date range");
+                
+            } catch (Exception e) {
+                log.warn("⚠️ Limited fetchHistoricalPages interrupted: {}", e.getMessage());
+                response.put("fetchError", e.getMessage());
             }
             
             long endTime = System.currentTimeMillis();
