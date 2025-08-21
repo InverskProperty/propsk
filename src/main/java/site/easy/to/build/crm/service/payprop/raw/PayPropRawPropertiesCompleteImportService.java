@@ -93,16 +93,26 @@ public class PayPropRawPropertiesCompleteImportService {
      */
     private int importPropertiesToCompleteTable(List<Map<String, Object>> properties) throws SQLException {
         
-        // Clear existing data for fresh import (foreign key constraints will reveal dependency issues)
+        // Clear existing data for fresh import - handle known dependencies
         try (Connection conn = dataSource.getConnection()) {
+            // Clear known dependent table first: invoices depend on properties
+            try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM payprop_export_invoices")) {
+                int deletedCount = stmt.executeUpdate();
+                log.info("Cleared {} existing invoices (dependent on properties)", deletedCount);
+            } catch (SQLException e) {
+                log.info("⚠️ Could not clear invoices (table may not exist yet): {}", e.getMessage());
+                // Continue - table might not exist yet
+            }
+            
+            // Now clear properties table
             try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM payprop_export_properties")) {
                 int deletedCount = stmt.executeUpdate();
                 log.info("Cleared {} existing properties for fresh import", deletedCount);
             } catch (SQLException e) {
-                // Log foreign key constraint details to understand dependencies
-                log.warn("⚠️ Foreign key constraint during properties delete: {}", e.getMessage());
-                log.info("🔍 This reveals dependency: another table references properties");
-                throw e; // Re-throw to show the actual constraint issue
+                // Log any remaining foreign key constraint details
+                log.warn("⚠️ Still blocked by foreign key constraint: {}", e.getMessage());
+                log.info("🔍 This reveals additional dependency we haven't handled yet");
+                throw e; // Re-throw to discover more dependencies
             }
         }
         
