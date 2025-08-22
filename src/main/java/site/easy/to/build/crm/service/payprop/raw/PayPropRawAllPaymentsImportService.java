@@ -53,14 +53,16 @@ public class PayPropRawAllPaymentsImportService {
         result.setEndpoint("/report/all-payments");
         
         try {
-            // Fetch ALL payment transactions without any date constraints
-            // Remove historical chunking to get everything PayProp has
-            String endpoint = "/report/all-payments" +
-                "?filter_by=reconciliation_date" +
-                "&include_beneficiary_info=true";
+            // Fetch ALL payment transactions using historical chunking to handle 93-day limit
+            // PayProp's /report/all-payments endpoint requires date ranges
+            String baseEndpoint = "/report/all-payments?filter_by=reconciliation_date&include_beneficiary_info=true";
                 
-            log.info("🔄 Starting COMPLETE all-payments import (no date restrictions)");
-            List<Map<String, Object>> payments = apiClient.fetchAllPages(endpoint, this::processPaymentItem);
+            log.info("🔄 Starting COMPLETE all-payments import using 93-day historical chunking");
+            List<Map<String, Object>> payments = apiClient.fetchHistoricalPages(
+                baseEndpoint, 
+                2, // 2 years back 
+                this::processPaymentItem
+            );
             
             result.setTotalFetched(payments.size());
             log.info("📦 PayProp API returned: {} payment transactions", payments.size());
@@ -244,10 +246,10 @@ public class PayPropRawAllPaymentsImportService {
         stmt.setDate(paramIndex++, getNestedDateValue(payment, "payment_batch", "transfer_date")); // payment_batch_transfer_date
         
         // Payment instruction and secondary payment info
-        stmt.setString(paramIndex++, getStringValue(payment, "payment_instruction_id")); // payment_instruction_id
-        setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "secondary_payment_is_child")); // secondary_payment_is_child
-        setBooleanParameter(stmt, paramIndex++, getBooleanValue(payment, "secondary_payment_is_parent")); // secondary_payment_is_parent
-        stmt.setString(paramIndex++, getStringValue(payment, "secondary_payment_parent_id")); // secondary_payment_parent_id
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "payment_instruction", "id")); // payment_instruction_id
+        setBooleanParameter(stmt, paramIndex++, getNestedBooleanValue(payment, "secondary_payment", "is_child")); // secondary_payment_is_child
+        setBooleanParameter(stmt, paramIndex++, getNestedBooleanValue(payment, "secondary_payment", "is_parent")); // secondary_payment_is_parent
+        stmt.setString(paramIndex++, getNestedStringValue(payment, "secondary_payment", "parent_payment_id")); // secondary_payment_parent_id
         
         // Final fields
         stmt.setDate(paramIndex++, getDateValue(payment, "reconciliation_date")); // reconciliation_date
@@ -375,6 +377,24 @@ public class PayPropRawAllPaymentsImportService {
             log.warn("Failed to convert nested value to Date: {}", current);
             return null;
         }
+    }
+    
+    private Boolean getNestedBooleanValue(Map<String, Object> map, String... keys) {
+        if (map == null || keys.length == 0) return null;
+        
+        Object current = map;
+        for (String key : keys) {
+            if (!(current instanceof Map)) return null;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> currentMap = (Map<String, Object>) current;
+            current = currentMap.get(key);
+            if (current == null) return null;
+        }
+        
+        if (current instanceof Boolean) {
+            return (Boolean) current;
+        }
+        return Boolean.parseBoolean(current.toString());
     }
     
     /**
