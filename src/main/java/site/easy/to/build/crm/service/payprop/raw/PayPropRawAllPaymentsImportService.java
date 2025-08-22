@@ -200,11 +200,9 @@ public class PayPropRawAllPaymentsImportService {
             log.info("   Actually inserted: {}", actuallyInserted);
             log.info("   Failed FK constraints: {}", attemptedCount - actuallyInserted);
             
-            // Update the final count with ACTUAL inserts, not attempts
-            importedCount = actuallyInserted;
         }
         
-        return importedCount;
+        return actuallyInserted;
     }
     
     /**
