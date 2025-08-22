@@ -19,12 +19,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * PayProp Raw Payments Complete Import Service
+ * PayProp Raw Payment Rules Complete Import Service
  * 
- * Imports complete payments data from /export/payments into payprop_export_payments table.
+ * Imports payment distribution rules from /export/payments into payprop_export_payments table.
+ * This is NOT transaction data - it's payment distribution rules/configuration.
+ * For actual transaction data, use /report/all-payments endpoint.
+ * 
  * ZERO BUSINESS LOGIC - stores exactly as PayProp returns with proper nested structure flattening.
- * 
- * Based on proven invoices import service template.
  */
 @Service
 public class PayPropRawPaymentsCompleteImportService {
@@ -113,13 +114,13 @@ public class PayPropRawPaymentsCompleteImportService {
         
         String insertSql = """
             INSERT INTO payprop_export_payments (
-                payprop_id, payment_date, reconciliation_date, remittance_date, amount, 
-                balance, reference, description, payment_type, reconciliation_category,
-                property_payprop_id, tenant_payprop_id, category_payprop_id,
-                property_name, tenant_display_name, tenant_email, tenant_business_name,
-                tenant_first_name, tenant_last_name, category_name,
+                payprop_id, beneficiary, beneficiary_reference, category, description, 
+                enabled, frequency, frequency_code, from_date, to_date, 
+                gross_amount, gross_percentage, payment_day, reference, vat, 
+                vat_amount, vat_percentage, property_payprop_id, property_name, 
+                category_payprop_id, category_name, 
                 imported_at, sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
         
         int importedCount = 0;
@@ -129,77 +130,88 @@ public class PayPropRawPaymentsCompleteImportService {
             
             for (Map<String, Object> payment : payments) {
                 try {
-                    // Extract basic payment fields
-                    stmt.setString(1, getString(payment, "id"));
-                    stmt.setDate(2, getDate(payment, "payment_date"));
-                    stmt.setDate(3, getDate(payment, "reconciliation_date"));
-                    stmt.setDate(4, getDate(payment, "remittance_date"));
-                    setBigDecimalOrNull(stmt, 5, getBigDecimal(payment, "amount"));
-                    setBigDecimalOrNull(stmt, 6, getBigDecimal(payment, "balance"));
-                    stmt.setString(7, getString(payment, "reference"));
-                    stmt.setString(8, getString(payment, "description"));
-                    stmt.setString(9, getString(payment, "payment_type"));
-                    stmt.setString(10, getString(payment, "reconciliation_category"));
+                    // Extract basic payment distribution rule fields
+                    stmt.setString(1, getString(payment, "id")); // payprop_id
+                    stmt.setString(2, getString(payment, "beneficiary")); // beneficiary
+                    stmt.setString(3, getString(payment, "beneficiary_reference")); // beneficiary_reference
+                    stmt.setString(4, getString(payment, "category")); // category
+                    stmt.setString(5, getString(payment, "description")); // description
+                    
+                    // Boolean fields with safe conversion
+                    Object enabledObj = payment.get("enabled");
+                    stmt.setBoolean(6, enabledObj != null && Boolean.parseBoolean(enabledObj.toString())); // enabled
+                    
+                    stmt.setString(7, getString(payment, "frequency")); // frequency
+                    stmt.setString(8, getString(payment, "frequency_code")); // frequency_code
+                    stmt.setDate(9, getDate(payment, "from_date")); // from_date
+                    stmt.setDate(10, getDate(payment, "to_date")); // to_date
+                    
+                    // Financial fields
+                    setBigDecimalOrNull(stmt, 11, getBigDecimal(payment, "gross_amount")); // gross_amount
+                    setBigDecimalOrNull(stmt, 12, getBigDecimal(payment, "gross_percentage")); // gross_percentage
+                    
+                    // Payment day as integer
+                    Object paymentDayObj = payment.get("payment_day");
+                    if (paymentDayObj != null) {
+                        try {
+                            stmt.setInt(13, Integer.parseInt(paymentDayObj.toString())); // payment_day
+                        } catch (NumberFormatException e) {
+                            stmt.setNull(13, java.sql.Types.INTEGER);
+                        }
+                    } else {
+                        stmt.setNull(13, java.sql.Types.INTEGER);
+                    }
+                    
+                    stmt.setString(14, getString(payment, "reference")); // reference
+                    
+                    // VAT fields
+                    Object vatObj = payment.get("vat");
+                    stmt.setBoolean(15, vatObj != null && Boolean.parseBoolean(vatObj.toString())); // vat
+                    setBigDecimalOrNull(stmt, 16, getBigDecimal(payment, "vat_amount")); // vat_amount
+                    setBigDecimalOrNull(stmt, 17, getBigDecimal(payment, "vat_percentage")); // vat_percentage
                     
                     // Extract and flatten nested property object
                     Map<String, Object> property = getNestedObject(payment, "property");
                     if (property != null) {
-                        stmt.setString(11, getString(property, "id")); // property_payprop_id
-                        stmt.setString(14, getString(property, "name")); // property_name
+                        stmt.setString(18, getString(property, "id")); // property_payprop_id
+                        stmt.setString(19, getString(property, "name")); // property_name
                     } else {
-                        stmt.setNull(11, java.sql.Types.VARCHAR);
-                        stmt.setNull(14, java.sql.Types.VARCHAR);
-                    }
-                    
-                    // Extract and flatten nested tenant object  
-                    Map<String, Object> tenant = getNestedObject(payment, "tenant");
-                    if (tenant != null) {
-                        stmt.setString(12, getString(tenant, "id")); // tenant_payprop_id
-                        stmt.setString(15, getString(tenant, "display_name")); // tenant_display_name
-                        stmt.setString(16, getString(tenant, "email")); // tenant_email
-                        stmt.setString(17, getString(tenant, "business_name")); // tenant_business_name
-                        stmt.setString(18, getString(tenant, "first_name")); // tenant_first_name
-                        stmt.setString(19, getString(tenant, "last_name")); // tenant_last_name
-                    } else {
-                        stmt.setNull(12, java.sql.Types.VARCHAR);
-                        stmt.setNull(15, java.sql.Types.VARCHAR);
-                        stmt.setNull(16, java.sql.Types.VARCHAR);
-                        stmt.setNull(17, java.sql.Types.VARCHAR);
                         stmt.setNull(18, java.sql.Types.VARCHAR);
                         stmt.setNull(19, java.sql.Types.VARCHAR);
                     }
                     
                     // Extract and flatten nested category object
-                    Map<String, Object> category = getNestedObject(payment, "category");
-                    if (category != null) {
-                        stmt.setString(13, getString(category, "id")); // category_payprop_id
-                        stmt.setString(20, getString(category, "name")); // category_name
+                    Map<String, Object> categoryObj = getNestedObject(payment, "category");
+                    if (categoryObj != null) {
+                        stmt.setString(20, getString(categoryObj, "id")); // category_payprop_id
+                        stmt.setString(21, getString(categoryObj, "name")); // category_name
                     } else {
-                        stmt.setNull(13, java.sql.Types.VARCHAR);
                         stmt.setNull(20, java.sql.Types.VARCHAR);
+                        stmt.setNull(21, java.sql.Types.VARCHAR);
                     }
                     
                     // Meta fields
-                    stmt.setTimestamp(21, Timestamp.valueOf(LocalDateTime.now()));
-                    stmt.setString(22, "active");
+                    stmt.setTimestamp(22, Timestamp.valueOf(LocalDateTime.now())); // imported_at
+                    stmt.setString(23, "active"); // sync_status
                     
                     stmt.executeUpdate();
                     importedCount++;
                     
-                    // Get the payment description for logging
+                    // Get the payment distribution rule details for logging
                     String description = getString(payment, "description");
                     if (description == null || description.trim().isEmpty()) description = getString(payment, "reference");
-                    if (description == null || description.trim().isEmpty()) description = getString(payment, "payment_type");
-                    if (description == null || description.trim().isEmpty()) description = "Unknown Payment";
+                    if (description == null || description.trim().isEmpty()) description = getString(payment, "beneficiary");
+                    if (description == null || description.trim().isEmpty()) description = "Unknown Payment Rule";
                     
-                    // Log the payment amount with enhanced details
-                    BigDecimal amount = getBigDecimal(payment, "amount");
-                    String paymentType = getString(payment, "payment_type");
+                    // Log the payment rule with enhanced details
+                    BigDecimal grossAmount = getBigDecimal(payment, "gross_amount");
+                    BigDecimal grossPercentage = getBigDecimal(payment, "gross_percentage");
+                    String beneficiary = getString(payment, "beneficiary");
+                    String category = getString(payment, "category");
                     String propertyName = property != null ? getString(property, "name") : "No Property";
-                    String tenantName = tenant != null ? getString(tenant, "display_name") : "No Tenant";
                     
-                    log.debug("✅ Imported payment: {} | Type: {} | £{} | Property: {} | Tenant: {} | ID: {}", 
-                        description, paymentType, amount, propertyName, tenantName, getString(payment, "id"));
+                    log.debug("✅ Imported payment rule: {} | Beneficiary: {} | Category: {} | Amount: £{} | Percentage: {}% | Property: {} | ID: {}", 
+                        description, beneficiary, category, grossAmount, grossPercentage, propertyName, getString(payment, "id"));
                         
                 } catch (Exception e) {
                     log.error("❌ Failed to import payment {}: {}", 
@@ -209,7 +221,7 @@ public class PayPropRawPaymentsCompleteImportService {
             }
         }
         
-        log.info("📊 Payments import summary: {} total, {} imported", 
+        log.info("📊 Payment distribution rules import summary: {} total, {} imported", 
             payments.size(), importedCount);
         
         return importedCount;
