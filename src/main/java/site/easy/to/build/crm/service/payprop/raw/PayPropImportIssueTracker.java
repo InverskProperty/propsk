@@ -253,13 +253,6 @@ public class PayPropImportIssueTracker {
     }
     
     /**
-     * Get current import run ID
-     */
-    public String getCurrentImportRunId() {
-        return currentImportRunId;
-    }
-    
-    /**
      * Generate unique import run ID based on timestamp
      */
     private String generateImportRunId() {
