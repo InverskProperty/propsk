@@ -116,11 +116,11 @@ public class PayPropRawPaymentsCompleteImportService {
             INSERT INTO payprop_export_payments (
                 payprop_id, beneficiary, beneficiary_reference, category, description, 
                 enabled, frequency, frequency_code, from_date, to_date, 
-                gross_amount, gross_percentage, payment_day, reference, vat, 
-                vat_amount, vat_percentage, property_payprop_id, property_name, 
-                category_payprop_id, category_name, 
+                gross_amount, gross_percentage, group_id, maintenance_ticket_id, 
+                no_commission, no_commission_amount, payment_day, reference, vat, 
+                vat_amount, property_payprop_id, property_name, category_payprop_id,
                 imported_at, sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
         
         int importedCount = 0;
@@ -150,49 +150,50 @@ public class PayPropRawPaymentsCompleteImportService {
                     setBigDecimalOrNull(stmt, 11, getBigDecimal(payment, "gross_amount")); // gross_amount
                     setBigDecimalOrNull(stmt, 12, getBigDecimal(payment, "gross_percentage")); // gross_percentage
                     
+                    // Additional PayProp fields
+                    stmt.setString(13, getString(payment, "group_id")); // group_id
+                    stmt.setString(14, getString(payment, "maintenance_ticket_id")); // maintenance_ticket_id
+                    
+                    // Boolean commission fields
+                    Object noCommissionObj = payment.get("no_commission");
+                    stmt.setBoolean(15, noCommissionObj != null && Boolean.parseBoolean(noCommissionObj.toString())); // no_commission
+                    setBigDecimalOrNull(stmt, 16, getBigDecimal(payment, "no_commission_amount")); // no_commission_amount
+                    
                     // Payment day as integer
                     Object paymentDayObj = payment.get("payment_day");
                     if (paymentDayObj != null) {
                         try {
-                            stmt.setInt(13, Integer.parseInt(paymentDayObj.toString())); // payment_day
+                            stmt.setInt(17, Integer.parseInt(paymentDayObj.toString())); // payment_day
                         } catch (NumberFormatException e) {
-                            stmt.setNull(13, java.sql.Types.INTEGER);
+                            stmt.setNull(17, java.sql.Types.INTEGER);
                         }
                     } else {
-                        stmt.setNull(13, java.sql.Types.INTEGER);
+                        stmt.setNull(17, java.sql.Types.INTEGER);
                     }
                     
-                    stmt.setString(14, getString(payment, "reference")); // reference
+                    stmt.setString(18, getString(payment, "reference")); // reference
                     
                     // VAT fields
                     Object vatObj = payment.get("vat");
-                    stmt.setBoolean(15, vatObj != null && Boolean.parseBoolean(vatObj.toString())); // vat
-                    setBigDecimalOrNull(stmt, 16, getBigDecimal(payment, "vat_amount")); // vat_amount
-                    setBigDecimalOrNull(stmt, 17, getBigDecimal(payment, "vat_percentage")); // vat_percentage
+                    stmt.setBoolean(19, vatObj != null && Boolean.parseBoolean(vatObj.toString())); // vat
+                    setBigDecimalOrNull(stmt, 20, getBigDecimal(payment, "vat_amount")); // vat_amount
                     
                     // Extract and flatten nested property object
                     Map<String, Object> property = getNestedObject(payment, "property");
                     if (property != null) {
-                        stmt.setString(18, getString(property, "id")); // property_payprop_id
-                        stmt.setString(19, getString(property, "name")); // property_name
+                        stmt.setString(21, getString(property, "id")); // property_payprop_id
+                        stmt.setString(22, getString(property, "name")); // property_name
                     } else {
-                        stmt.setNull(18, java.sql.Types.VARCHAR);
-                        stmt.setNull(19, java.sql.Types.VARCHAR);
+                        stmt.setNull(21, java.sql.Types.VARCHAR);
+                        stmt.setNull(22, java.sql.Types.VARCHAR);
                     }
                     
-                    // Extract and flatten nested category object
-                    Map<String, Object> categoryObj = getNestedObject(payment, "category");
-                    if (categoryObj != null) {
-                        stmt.setString(20, getString(categoryObj, "id")); // category_payprop_id
-                        stmt.setString(21, getString(categoryObj, "name")); // category_name
-                    } else {
-                        stmt.setNull(20, java.sql.Types.VARCHAR);
-                        stmt.setNull(21, java.sql.Types.VARCHAR);
-                    }
+                    // Extract category_id (not nested object, just the category_id field)
+                    stmt.setString(23, getString(payment, "category_id")); // category_payprop_id
                     
                     // Meta fields
-                    stmt.setTimestamp(22, Timestamp.valueOf(LocalDateTime.now())); // imported_at
-                    stmt.setString(23, "active"); // sync_status
+                    stmt.setTimestamp(24, Timestamp.valueOf(LocalDateTime.now())); // imported_at
+                    stmt.setString(25, "active"); // sync_status
                     
                     stmt.executeUpdate();
                     importedCount++;
