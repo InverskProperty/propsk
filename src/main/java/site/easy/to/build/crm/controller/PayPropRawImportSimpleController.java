@@ -61,6 +61,9 @@ public class PayPropRawImportSimpleController {
     @Autowired
     private site.easy.to.build.crm.service.payprop.raw.PayPropRawAllPaymentsImportService allPaymentsImportService;
     
+    @Autowired
+    private site.easy.to.build.crm.service.payprop.raw.PayPropRawIcdnImportService icdnImportService;
+    
     // List of working endpoints from our test results
     private static final Map<String, EndpointConfig> WORKING_ENDPOINTS = new HashMap<>();
     
@@ -973,6 +976,55 @@ public class PayPropRawImportSimpleController {
         } catch (Exception e) {
             long endTime = System.currentTimeMillis();
             log.error("❌ Complete all-payments import test failed", e);
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            response.put("processingTime", endTime - startTime);
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * Test complete ICDN import - Invoice, Credit, Debit Notes data
+     * Source of missing payment_instruction_id references for payment transactions
+     */
+    @PostMapping("/test-complete-icdn")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testCompleteIcdnImport() {
+        log.info("📄 Testing complete ICDN import - Invoice, Credit, Debit Notes data");
+        
+        Map<String, Object> response = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            // Call the ICDN import service
+            site.easy.to.build.crm.service.payprop.raw.PayPropRawImportResult result = 
+                icdnImportService.importIcdnComplete();
+            
+            long endTime = System.currentTimeMillis();
+            long processingTime = endTime - startTime;
+            
+            // Build response
+            response.put("success", result.isSuccess());
+            response.put("endpoint", result.getEndpoint());
+            response.put("totalFetched", result.getTotalFetched());
+            response.put("totalImported", result.getTotalImported());
+            response.put("details", result.getDetails());
+            response.put("processingTime", processingTime);
+            response.put("startTime", result.getStartTime());
+            response.put("endTime", result.getEndTime());
+            
+            if (!result.isSuccess()) {
+                response.put("error", result.getErrorMessage());
+                return ResponseEntity.status(500).body(response);
+            }
+            
+            log.info("✅ Complete ICDN import test completed: {} records imported in {}ms", 
+                     result.getTotalImported(), processingTime);
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            long endTime = System.currentTimeMillis();
+            log.error("❌ Complete ICDN import test failed", e);
             response.put("success", false);
             response.put("error", e.getMessage());
             response.put("processingTime", endTime - startTime);

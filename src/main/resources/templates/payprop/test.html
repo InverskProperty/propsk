@@ -1517,6 +1517,9 @@ ORDER BY transaction_count DESC;</code></pre>
                                             <button class="btn btn-info mb-2" onclick="testCompleteAllPaymentsImport()">
                                                 <i class="fas fa-money-bill-wave"></i> Test Complete All-Payments Import (7,414 Transactions)
                                             </button>
+                                            <button class="btn btn-secondary mb-2" onclick="testCompleteIcdnImport()">
+                                                <i class="fas fa-file-invoice"></i> Test Complete ICDN Import (Invoice, Credit, Debit Notes)
+                                            </button>
                                         </div>
                                         <div class="col-md-6">
                                             <button class="btn btn-info mb-2" onclick="getSampleDataFromEndpoint()">
@@ -4816,6 +4819,30 @@ ORDER BY transaction_count DESC;</code></pre>
             }
         }
 
+        async function testCompleteIcdnImport() {
+            showLoadingState('endpointTestResults', 'Testing complete ICDN import - Invoice, Credit, Debit Notes data with historical chunking...');
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/test-complete-icdn', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                displayCompleteIcdnResults(result);
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error testing complete ICDN import: ' + error.message);
+            }
+        }
+
         async function getSampleDataFromEndpoint() {
             const selectedEndpoint = document.getElementById('sampleEndpointSelect').value;
             
@@ -5539,6 +5566,101 @@ ORDER BY transaction_count DESC;</code></pre>
                         <code>SELECT description, amount, reconciliation_date, beneficiary_name, incoming_property_name FROM payprop_report_all_payments LIMIT 5;</code><br>
                         <code>SELECT SUM(amount) as total_amount FROM payprop_report_all_payments;</code><br>
                         <code>SELECT COUNT(*) as chunk_count FROM payprop_report_all_payments GROUP BY DATE(reconciliation_date);</code>
+                    </div>
+                </div>
+            `;
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function displayCompleteIcdnResults(result) {
+            const container = document.getElementById('endpointTestResults');
+            container.style.display = 'block';
+            
+            if (!result.success) {
+                container.innerHTML = `
+                    <div class="result-error">
+                        <h5>📄 Complete ICDN Import - Error</h5>
+                        <p><strong>Error:</strong> ${result.error}</p>
+                        ${result.details ? `<p><strong>Details:</strong> ${result.details}</p>` : ''}
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <div class="result-success">
+                    <h5>📄 Complete ICDN Import Results - Invoice, Credit, Debit Notes</h5>
+                    <p><strong>Endpoint:</strong> ${result.endpoint || '/report/icdn'}</p>
+                    <p><strong>Total Fetched:</strong> ${result.totalFetched || 'N/A'} records</p>
+                    <p><strong>Total Imported:</strong> ${result.totalImported || 'N/A'} records</p>
+                    <p><strong>Processing Time:</strong> ${result.processingTime || 'N/A'}ms</p>
+                    <p><strong>Import Status:</strong> <span class="badge bg-success">Complete</span></p>
+                    <p><strong>Data Type:</strong> <span class="badge bg-secondary">Payment Instruction References</span></p>
+            `;
+            
+            // Show success details
+            if (result.details) {
+                html += `
+                    <div class="mt-3">
+                        <h6>📋 Import Summary:</h6>
+                        <div class="alert alert-success">
+                            <p>${result.details}</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Show timing information
+            if (result.startTime && result.endTime) {
+                html += `
+                    <div class="mt-3">
+                        <h6>⏱️ Timing Information:</h6>
+                        <p><strong>Start Time:</strong> ${result.startTime}</p>
+                        <p><strong>End Time:</strong> ${result.endTime}</p>
+                    </div>
+                `;
+            }
+            
+            // Show table information
+            html += `
+                <div class="mt-3">
+                    <h6>🗄️ Database Table:</h6>
+                    <div class="alert alert-info">
+                        <p><strong>Table:</strong> <code>payprop_report_icdn</code></p>
+                        <p><strong>Features:</strong> Invoice, Credit, Debit Notes with payment instruction references</p>
+                        <p><strong>Critical Fields:</strong> <code>payprop_id</code>, <code>amount</code>, <code>type</code>, <code>invoice_group_id</code></p>
+                        <p><strong>Purpose:</strong> Source of payment_instruction_id values that payment transactions reference</p>
+                        <p><strong>Nested Data:</strong> Flattens category, property, and tenant information</p>
+                    </div>
+                </div>
+            `;
+            
+            html += `
+                <div class="mt-3">
+                    <h6>📊 ICDN Data Significance:</h6>
+                    <div class="alert alert-warning">
+                        <ul class="small mb-0">
+                            <li><strong>Critical for Payment Linking:</strong> ICDN records contain payment_instruction_id values that payment transactions reference</li>
+                            <li><strong>Financial Document Trail:</strong> Includes invoices, credit notes, and debit notes with their financial details</li>
+                            <li><strong>Property & Tenant Linkage:</strong> Links financial documents to specific properties and tenants</li>
+                            <li><strong>Resolves FK Constraints:</strong> Provides the missing references for successful payment transaction imports</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            
+            // Show verification query
+            html += `
+                <div class="mt-3">
+                    <h6>🔍 Verify Results:</h6>
+                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">
+                        <p><strong>Check imported ICDN data:</strong></p>
+                        <code>SELECT COUNT(*) FROM payprop_report_icdn;</code><br>
+                        <code>SELECT payprop_id, amount, type, description, property_name, tenant_name FROM payprop_report_icdn LIMIT 5;</code><br>
+                        <code>SELECT type, COUNT(*) as count FROM payprop_report_icdn GROUP BY type;</code><br>
+                        <code>SELECT COUNT(DISTINCT payprop_id) as unique_payment_instructions FROM payprop_report_icdn;</code>
                     </div>
                 </div>
             `;
