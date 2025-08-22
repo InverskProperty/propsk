@@ -51,7 +51,8 @@ public class PayPropRawIcdnImportService {
         
         try {
             // Fetch ALL ICDN records using historical chunking
-            String baseEndpoint = "/report/icdn";
+            // Add initial query parameter to match pattern used by working all-payments service
+            String baseEndpoint = "/report/icdn?rows=25";
                 
             log.info("🔄 Starting COMPLETE ICDN import using historical chunking");
             List<Map<String, Object>> icdnRecords = apiClient.fetchHistoricalPages(
