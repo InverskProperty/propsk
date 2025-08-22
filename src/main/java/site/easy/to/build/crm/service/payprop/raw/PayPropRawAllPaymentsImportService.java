@@ -134,7 +134,10 @@ public class PayPropRawAllPaymentsImportService {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
         
-        int importedCount = 0;
+        int attemptedCount = 0;
+        int actuallyInserted = 0;
+        int emptyIdSkipped = 0;
+        int mappingErrors = 0;
         
         try (Connection conn = dataSource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(insertSql)) {
@@ -145,6 +148,7 @@ public class PayPropRawAllPaymentsImportService {
                     
                     // Handle empty/null IDs (PayProp data quality issue)
                     if (paymentId == null || paymentId.trim().isEmpty()) {
+                        emptyIdSkipped++;
                         issueTracker.recordIssue(
                             PayPropImportIssueTracker.EMPTY_ID,
                             "/report/all-payments",
@@ -158,14 +162,16 @@ public class PayPropRawAllPaymentsImportService {
                     
                     setPaymentParameters(stmt, payment);
                     stmt.addBatch();
-                    importedCount++;
+                    attemptedCount++;
                     
                     // Execute batch every 25 items
-                    if (importedCount % 25 == 0) {
-                        executeBatchWithOrphanHandling(stmt, importedCount);
+                    if (attemptedCount % 25 == 0) {
+                        int batchInserted = executeBatchWithAccurateCount(stmt, attemptedCount);
+                        actuallyInserted += batchInserted;
                     }
                     
                 } catch (Exception e) {
+                    mappingErrors++;
                     issueTracker.recordIssue(
                         PayPropImportIssueTracker.MAPPING_ERROR,
                         "/report/all-payments",
@@ -180,11 +186,22 @@ public class PayPropRawAllPaymentsImportService {
             }
             
             // Execute remaining batch
-            if (importedCount % 25 != 0) {
-                executeBatchWithOrphanHandling(stmt, importedCount);
+            if (attemptedCount % 25 != 0) {
+                int finalBatchInserted = executeBatchWithAccurateCount(stmt, attemptedCount);
+                actuallyInserted += finalBatchInserted;
             }
             
-            log.info("✅ Database import completed: {} payment transactions", importedCount);
+            // Provide accurate summary
+            log.info("📊 ACCURATE IMPORT SUMMARY:");
+            log.info("   Total fetched from API: {}", payments.size());
+            log.info("   Skipped (empty ID): {}", emptyIdSkipped);
+            log.info("   Mapping errors: {}", mappingErrors);
+            log.info("   Attempted to insert: {}", attemptedCount);
+            log.info("   Actually inserted: {}", actuallyInserted);
+            log.info("   Failed FK constraints: {}", attemptedCount - actuallyInserted);
+            
+            // Update the final count with ACTUAL inserts, not attempts
+            importedCount = actuallyInserted;
         }
         
         return importedCount;
@@ -398,41 +415,87 @@ public class PayPropRawAllPaymentsImportService {
     }
     
     /**
-     * Execute batch with graceful handling of orphaned payments (foreign key failures)
-     * Continues processing even if some payments fail due to missing property references
+     * Execute batch with accurate success counting and detailed error reporting
+     * Returns the actual number of successfully inserted records
      */
-    private void executeBatchWithOrphanHandling(PreparedStatement stmt, int batchCount) {
+    private int executeBatchWithAccurateCount(PreparedStatement stmt, int batchCount) {
         try {
-            stmt.executeBatch();
-            log.debug("✅ Imported batch: {} payments processed successfully", batchCount);
+            int[] updateCounts = stmt.executeBatch();
+            int successfulInserts = 0;
+            
+            // Count actual successful inserts
+            for (int count : updateCounts) {
+                if (count > 0) successfulInserts++;
+            }
+            
+            log.debug("✅ Batch {}: {} records attempted, {} successfully inserted", 
+                batchCount, updateCounts.length, successfulInserts);
+            return successfulInserts;
             
         } catch (java.sql.BatchUpdateException e) {
-            // Handle foreign key constraint violations gracefully
-            if (e.getMessage().contains("foreign key constraint fails")) {
-                log.warn("⚠️  Batch had foreign key failures - some payments reference missing properties");
-                log.warn("   Continuing import... orphaned payments will be tracked");
+            int[] updateCounts = e.getUpdateCounts();
+            int successfulInserts = 0;
+            int failedInserts = 0;
+            
+            // Count what actually succeeded vs failed
+            for (int count : updateCounts) {
+                if (count > 0) {
+                    successfulInserts++;
+                } else if (count == PreparedStatement.EXECUTE_FAILED) {
+                    failedInserts++;
+                }
+            }
+            
+            // Detailed error analysis
+            String errorMessage = e.getMessage();
+            if (errorMessage.contains("foreign key constraint fails")) {
+                // Extract which FK constraint failed
+                String constraintDetails = extractConstraintDetails(errorMessage);
                 
-                // Record this as an orphaned batch issue
+                log.warn("⚠️  Batch {}: FK constraint failures - {}", batchCount, constraintDetails);
+                log.warn("   {} succeeded, {} failed due to missing references", successfulInserts, failedInserts);
+                
                 issueTracker.recordIssue(
                     PayPropImportIssueTracker.CONSTRAINT_VIOLATION,
                     "/report/all-payments",
                     "batch-" + batchCount,
                     null,
-                    "Batch contained payments referencing missing properties: " + e.getMessage(),
+                    String.format("FK constraint failure: %s. %d succeeded, %d failed", 
+                        constraintDetails, successfulInserts, failedInserts),
                     PayPropImportIssueTracker.FINANCIAL_DATA_MISSING
                 );
                 
-                // Continue processing - don't fail the entire import
-                log.info("🔄 Continuing import despite orphaned payments in batch {}", batchCount);
-                
             } else {
-                // For other types of batch failures, re-throw
-                throw new RuntimeException("Non-foreign-key batch failure: " + e.getMessage(), e);
+                log.error("❌ Batch {}: Non-FK error - {}", batchCount, errorMessage);
+                throw new RuntimeException("Non-foreign-key batch failure: " + errorMessage, e);
             }
             
+            return successfulInserts;
+            
         } catch (Exception e) {
-            // For non-batch exceptions, re-throw
+            log.error("❌ Batch {}: Unexpected error - {}", batchCount, e.getMessage());
             throw new RuntimeException("Unexpected batch execution failure: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Extract specific foreign key constraint details from error message
+     */
+    private String extractConstraintDetails(String errorMessage) {
+        if (errorMessage.contains("payment_instruction_id")) {
+            return "payment_instruction_id → payprop_export_invoices (Missing invoice instructions)";
+        } else if (errorMessage.contains("incoming_property_payprop_id")) {
+            return "incoming_property_payprop_id → payprop_export_properties (Missing properties)";
+        } else {
+            // Try to extract constraint name from message
+            if (errorMessage.contains("CONSTRAINT `")) {
+                int start = errorMessage.indexOf("CONSTRAINT `") + 12;
+                int end = errorMessage.indexOf("`", start);
+                if (end > start) {
+                    return "Constraint: " + errorMessage.substring(start, end);
+                }
+            }
+            return "Unknown FK constraint";
         }
     }
 }
