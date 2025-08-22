@@ -1508,6 +1508,9 @@ ORDER BY transaction_count DESC;</code></pre>
                                             <button class="btn btn-warning mb-2" onclick="testCompletePropertiesImport()">
                                                 <i class="fas fa-home"></i> Test Complete Properties Import
                                             </button>
+                                            <button class="btn btn-danger mb-2" onclick="testCompleteInvoicesImport()">
+                                                <i class="fas fa-receipt"></i> Test Complete Invoices Import (£1,075 DATA)
+                                            </button>
                                         </div>
                                         <div class="col-md-6">
                                             <button class="btn btn-info mb-2" onclick="getSampleDataFromEndpoint()">
@@ -4735,6 +4738,30 @@ ORDER BY transaction_count DESC;</code></pre>
             }
         }
 
+        async function testCompleteInvoicesImport() {
+            showLoadingState('endpointTestResults', 'Testing complete invoices import - CRITICAL £1,075 DATA...');
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/test-complete-invoices', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                displayCompleteInvoicesResults(result);
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error testing complete invoices import: ' + error.message);
+            }
+        }
+
         async function getSampleDataFromEndpoint() {
             const selectedEndpoint = document.getElementById('sampleEndpointSelect').value;
             
@@ -5254,6 +5281,73 @@ ORDER BY transaction_count DESC;</code></pre>
                         <p><strong>Check imported properties:</strong></p>
                         <code>SELECT COUNT(*) FROM payprop_export_properties;</code><br>
                         <code>SELECT name, settings_monthly_payment, address_city FROM payprop_export_properties LIMIT 5;</code>
+                    </div>
+                </div>
+            `;
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function displayCompleteInvoicesResults(result) {
+            const container = document.getElementById('endpointTestResults');
+            container.style.display = 'block';
+            
+            if (!result.success) {
+                container.innerHTML = `
+                    <div class="result-error">
+                        <h5>🧾 Complete Invoices Import - Error</h5>
+                        <p><strong>Error:</strong> ${result.error}</p>
+                        ${result.details ? `<p><strong>Details:</strong> ${result.details}</p>` : ''}
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <div class="result-success">
+                    <h5>🧾 Complete Invoices Import Results - CRITICAL £1,075 DATA</h5>
+                    <p><strong>Endpoint:</strong> ${result.endpoint || '/export/invoices'}</p>
+                    <p><strong>Total Fetched:</strong> ${result.totalFetched || 'N/A'} invoices</p>
+                    <p><strong>Total Imported:</strong> ${result.totalImported || 'N/A'} invoices</p>
+                    <p><strong>Processing Time:</strong> ${result.processingTime || 'N/A'}ms</p>
+                    <p><strong>Import Status:</strong> <span class="badge bg-success">Complete</span></p>
+            `;
+            
+            // Show success details
+            if (result.details) {
+                html += `
+                    <div class="mt-3">
+                        <h6>📋 Import Summary:</h6>
+                        <div class="alert alert-success">
+                            <p>${result.details}</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Show table information
+            html += `
+                <div class="mt-3">
+                    <h6>🗄️ Database Table:</h6>
+                    <div class="alert alert-info">
+                        <p><strong>Table:</strong> <code>payprop_export_invoices</code></p>
+                        <p><strong>Features:</strong> 26 fields with property/tenant foreign keys</p>
+                        <p><strong>Critical Field:</strong> <code>gross_amount</code> - Contains the authoritative £1,075 rent amount</p>
+                        <p><strong>Purpose:</strong> Source of missing rent amounts for business logic</p>
+                    </div>
+                </div>
+            `;
+            
+            // Show verification query
+            html += `
+                <div class="mt-3">
+                    <h6>🔍 Verify Results:</h6>
+                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">
+                        <p><strong>Check imported data:</strong></p>
+                        <code>SELECT COUNT(*) FROM payprop_export_invoices;</code><br>
+                        <code>SELECT description, gross_amount, property_name, tenant_display_name FROM payprop_export_invoices LIMIT 5;</code><br>
+                        <code>SELECT * FROM payprop_export_invoices WHERE gross_amount = 1075.00;</code>
                     </div>
                 </div>
             `;
