@@ -1511,6 +1511,9 @@ ORDER BY transaction_count DESC;</code></pre>
                                             <button class="btn btn-danger mb-2" onclick="testCompleteInvoicesImport()">
                                                 <i class="fas fa-receipt"></i> Test Complete Invoices Import (£1,075 DATA)
                                             </button>
+                                            <button class="btn btn-success mb-2" onclick="testCompletePaymentsImport()">
+                                                <i class="fas fa-credit-card"></i> Test Complete Payments Import
+                                            </button>
                                         </div>
                                         <div class="col-md-6">
                                             <button class="btn btn-info mb-2" onclick="getSampleDataFromEndpoint()">
@@ -4762,6 +4765,30 @@ ORDER BY transaction_count DESC;</code></pre>
             }
         }
 
+        async function testCompletePaymentsImport() {
+            showLoadingState('endpointTestResults', 'Testing complete payments import - Transaction data...');
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/test-complete-payments', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                displayCompletePaymentsResults(result);
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error testing complete payments import: ' + error.message);
+            }
+        }
+
         async function getSampleDataFromEndpoint() {
             const selectedEndpoint = document.getElementById('sampleEndpointSelect').value;
             
@@ -5348,6 +5375,73 @@ ORDER BY transaction_count DESC;</code></pre>
                         <code>SELECT COUNT(*) FROM payprop_export_invoices;</code><br>
                         <code>SELECT description, gross_amount, property_name, tenant_display_name FROM payprop_export_invoices LIMIT 5;</code><br>
                         <code>SELECT * FROM payprop_export_invoices WHERE gross_amount = 1075.00;</code>
+                    </div>
+                </div>
+            `;
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function displayCompletePaymentsResults(result) {
+            const container = document.getElementById('endpointTestResults');
+            container.style.display = 'block';
+            
+            if (!result.success) {
+                container.innerHTML = `
+                    <div class="result-error">
+                        <h5>💳 Complete Payments Import - Error</h5>
+                        <p><strong>Error:</strong> ${result.error}</p>
+                        ${result.details ? `<p><strong>Details:</strong> ${result.details}</p>` : ''}
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <div class="result-success">
+                    <h5>💳 Complete Payments Import Results - Transaction Data</h5>
+                    <p><strong>Endpoint:</strong> ${result.endpoint || '/export/payments'}</p>
+                    <p><strong>Total Fetched:</strong> ${result.totalFetched || 'N/A'} payments</p>
+                    <p><strong>Total Imported:</strong> ${result.totalImported || 'N/A'} payments</p>
+                    <p><strong>Processing Time:</strong> ${result.processingTime || 'N/A'}ms</p>
+                    <p><strong>Import Status:</strong> <span class="badge bg-success">Complete</span></p>
+            `;
+            
+            // Show success details
+            if (result.details) {
+                html += `
+                    <div class="mt-3">
+                        <h6>📋 Import Summary:</h6>
+                        <div class="alert alert-success">
+                            <p>${result.details}</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Show table information
+            html += `
+                <div class="mt-3">
+                    <h6>🗄️ Database Table:</h6>
+                    <div class="alert alert-info">
+                        <p><strong>Table:</strong> <code>payprop_export_payments</code></p>
+                        <p><strong>Features:</strong> 22 fields with property/tenant foreign keys</p>
+                        <p><strong>Critical Fields:</strong> <code>amount</code>, <code>payment_date</code>, <code>payment_type</code></p>
+                        <p><strong>Purpose:</strong> Source of actual payment transactions and amounts</p>
+                    </div>
+                </div>
+            `;
+            
+            // Show verification query
+            html += `
+                <div class="mt-3">
+                    <h6>🔍 Verify Results:</h6>
+                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">
+                        <p><strong>Check imported data:</strong></p>
+                        <code>SELECT COUNT(*) FROM payprop_export_payments;</code><br>
+                        <code>SELECT description, amount, payment_type, property_name, tenant_display_name FROM payprop_export_payments LIMIT 5;</code><br>
+                        <code>SELECT SUM(amount) as total_payments FROM payprop_export_payments;</code>
                     </div>
                 </div>
             `;

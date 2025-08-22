@@ -195,12 +195,17 @@ public class PayPropRawInvoicesCompleteImportService {
                     // Get the invoice description for logging
                     String description = getString(invoice, "description");
                     if (description == null || description.trim().isEmpty()) description = getString(invoice, "reference");
+                    if (description == null || description.trim().isEmpty()) description = getString(invoice, "invoice_type");
                     if (description == null || description.trim().isEmpty()) description = "Unknown Invoice";
                     
-                    // Log the CRITICAL rent amount
+                    // Log the CRITICAL rent amount with enhanced details
                     BigDecimal grossAmount = getBigDecimal(invoice, "gross_amount");
-                    log.debug("✅ Imported invoice: {} - £{} ({})", 
-                        description, grossAmount, getString(invoice, "id"));
+                    String invoiceType = getString(invoice, "invoice_type");
+                    String propertyName = property != null ? getString(property, "name") : "No Property";
+                    String tenantName = tenant != null ? getString(tenant, "display_name") : "No Tenant";
+                    
+                    log.debug("✅ Imported invoice: {} | Type: {} | £{} | Property: {} | Tenant: {} | ID: {}", 
+                        description, invoiceType, grossAmount, propertyName, tenantName, getString(invoice, "id"));
                         
                 } catch (Exception e) {
                     log.error("❌ Failed to import invoice {}: {}", 

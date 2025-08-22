@@ -55,6 +55,9 @@ public class PayPropRawImportSimpleController {
     @Autowired
     private site.easy.to.build.crm.service.payprop.raw.PayPropRawInvoicesCompleteImportService invoicesCompleteImportService;
     
+    @Autowired
+    private site.easy.to.build.crm.service.payprop.raw.PayPropRawPaymentsCompleteImportService paymentsCompleteImportService;
+    
     // List of working endpoints from our test results
     private static final Map<String, EndpointConfig> WORKING_ENDPOINTS = new HashMap<>();
     
@@ -870,6 +873,54 @@ public class PayPropRawImportSimpleController {
         } catch (Exception e) {
             long endTime = System.currentTimeMillis();
             log.error("❌ Complete invoices import test failed", e);
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            response.put("processingTime", endTime - startTime);
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * Test complete payments import - Transaction data
+     * Source of actual payment amounts and transaction history
+     */
+    @PostMapping("/test-complete-payments")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testCompletePaymentsImport() {
+        log.info("💳 Testing complete payments import - Transaction data");
+        
+        Map<String, Object> response = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            // Call the new complete import service
+            site.easy.to.build.crm.service.payprop.raw.PayPropRawImportResult result = 
+                paymentsCompleteImportService.importPaymentsComplete();
+            
+            long endTime = System.currentTimeMillis();
+            long processingTime = endTime - startTime;
+            
+            // Build response
+            response.put("success", result.isSuccess());
+            response.put("endpoint", result.getEndpoint());
+            response.put("totalFetched", result.getTotalFetched());
+            response.put("totalImported", result.getTotalImported());
+            response.put("details", result.getDetails());
+            response.put("processingTime", processingTime);
+            response.put("startTime", result.getStartTime());
+            response.put("endTime", result.getEndTime());
+            
+            if (!result.isSuccess()) {
+                response.put("error", result.getErrorMessage());
+                return ResponseEntity.status(500).body(response);
+            }
+            
+            log.info("✅ Complete payments import test completed successfully in {}ms", processingTime);
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            long endTime = System.currentTimeMillis();
+            log.error("❌ Complete payments import test failed", e);
             response.put("success", false);
             response.put("error", e.getMessage());
             response.put("processingTime", endTime - startTime);
