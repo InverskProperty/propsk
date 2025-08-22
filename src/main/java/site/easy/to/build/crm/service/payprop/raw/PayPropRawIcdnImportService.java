@@ -118,13 +118,12 @@ public class PayPropRawIcdnImportService {
         
         String insertSql = """
             INSERT INTO payprop_report_icdn (
-                payprop_id, amount, description, date, deposit_id, has_tax,
-                invoice_group_id, matched_amount, type,
-                category_payprop_id, category_name,
+                payprop_id, transaction_type, amount, transaction_date, description,
                 property_payprop_id, property_name,
                 tenant_payprop_id, tenant_name,
+                category_payprop_id, category_name,
                 imported_at, sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
         
         int attemptedCount = 0;
@@ -204,26 +203,12 @@ public class PayPropRawIcdnImportService {
         
         int paramIndex = 1;
         
-        // Basic ICDN fields
+        // Basic ICDN fields matching the actual table structure
         stmt.setString(paramIndex++, getStringValue(record, "id")); // payprop_id
+        stmt.setString(paramIndex++, getStringValue(record, "type")); // transaction_type 
         setBigDecimalOrNull(stmt, paramIndex++, getBigDecimalValue(record, "amount")); // amount
+        stmt.setDate(paramIndex++, getDateValue(record, "date")); // transaction_date
         stmt.setString(paramIndex++, getStringValue(record, "description")); // description
-        stmt.setDate(paramIndex++, getDateValue(record, "date")); // date
-        stmt.setString(paramIndex++, getStringValue(record, "deposit_id")); // deposit_id
-        setBooleanParameter(stmt, paramIndex++, getBooleanValue(record, "has_tax")); // has_tax
-        stmt.setString(paramIndex++, getStringValue(record, "invoice_group_id")); // invoice_group_id
-        setBigDecimalOrNull(stmt, paramIndex++, getBigDecimalValue(record, "matched_amount")); // matched_amount
-        stmt.setString(paramIndex++, getStringValue(record, "type")); // type
-        
-        // Extract and flatten nested category object
-        Map<String, Object> category = getNestedObject(record, "category");
-        if (category != null) {
-            stmt.setString(paramIndex++, getStringValue(category, "id")); // category_payprop_id
-            stmt.setString(paramIndex++, getStringValue(category, "name")); // category_name
-        } else {
-            stmt.setNull(paramIndex++, java.sql.Types.VARCHAR);
-            stmt.setNull(paramIndex++, java.sql.Types.VARCHAR);
-        }
         
         // Extract and flatten nested property object
         Map<String, Object> property = getNestedObject(record, "property");
@@ -240,6 +225,16 @@ public class PayPropRawIcdnImportService {
         if (tenant != null) {
             stmt.setString(paramIndex++, getStringValue(tenant, "id")); // tenant_payprop_id
             stmt.setString(paramIndex++, getStringValue(tenant, "name")); // tenant_name
+        } else {
+            stmt.setNull(paramIndex++, java.sql.Types.VARCHAR);
+            stmt.setNull(paramIndex++, java.sql.Types.VARCHAR);
+        }
+        
+        // Extract and flatten nested category object
+        Map<String, Object> category = getNestedObject(record, "category");
+        if (category != null) {
+            stmt.setString(paramIndex++, getStringValue(category, "id")); // category_payprop_id
+            stmt.setString(paramIndex++, getStringValue(category, "name")); // category_name
         } else {
             stmt.setNull(paramIndex++, java.sql.Types.VARCHAR);
             stmt.setNull(paramIndex++, java.sql.Types.VARCHAR);
