@@ -147,19 +147,43 @@ public class PayPropRawInvoicesCompleteImportService {
                     setBooleanOrNull(stmt, 13, getBoolean(invoice, "vat"));
                     setBigDecimalOrNull(stmt, 14, getBigDecimal(invoice, "vat_amount"));
                     
-                    // Foreign key relationships (DO NOT DUPLICATE DATA)
-                    stmt.setString(15, getString(invoice, "property_payprop_id"));
-                    stmt.setString(16, getString(invoice, "tenant_payprop_id"));
-                    stmt.setString(17, getString(invoice, "category_payprop_id"));
+                    // Extract and flatten nested property object
+                    Map<String, Object> property = getNestedObject(invoice, "property");
+                    if (property != null) {
+                        stmt.setString(15, getString(property, "id")); // property_payprop_id
+                        stmt.setString(18, getString(property, "name")); // property_name
+                    } else {
+                        stmt.setNull(15, java.sql.Types.VARCHAR);
+                        stmt.setNull(18, java.sql.Types.VARCHAR);
+                    }
                     
-                    // Display fields from nested objects (for display only)
-                    stmt.setString(18, getString(invoice, "property_name"));
-                    stmt.setString(19, getString(invoice, "tenant_display_name"));
-                    stmt.setString(20, getString(invoice, "tenant_email"));
-                    stmt.setString(21, getString(invoice, "tenant_business_name"));
-                    stmt.setString(22, getString(invoice, "tenant_first_name"));
-                    stmt.setString(23, getString(invoice, "tenant_last_name"));
-                    stmt.setString(24, getString(invoice, "category_name"));
+                    // Extract and flatten nested tenant object  
+                    Map<String, Object> tenant = getNestedObject(invoice, "tenant");
+                    if (tenant != null) {
+                        stmt.setString(16, getString(tenant, "id")); // tenant_payprop_id
+                        stmt.setString(19, getString(tenant, "display_name")); // tenant_display_name
+                        stmt.setString(20, getString(tenant, "email")); // tenant_email
+                        stmt.setString(21, getString(tenant, "business_name")); // tenant_business_name
+                        stmt.setString(22, getString(tenant, "first_name")); // tenant_first_name
+                        stmt.setString(23, getString(tenant, "last_name")); // tenant_last_name
+                    } else {
+                        stmt.setNull(16, java.sql.Types.VARCHAR);
+                        stmt.setNull(19, java.sql.Types.VARCHAR);
+                        stmt.setNull(20, java.sql.Types.VARCHAR);
+                        stmt.setNull(21, java.sql.Types.VARCHAR);
+                        stmt.setNull(22, java.sql.Types.VARCHAR);
+                        stmt.setNull(23, java.sql.Types.VARCHAR);
+                    }
+                    
+                    // Extract and flatten nested category object
+                    Map<String, Object> category = getNestedObject(invoice, "category");
+                    if (category != null) {
+                        stmt.setString(17, getString(category, "id")); // category_payprop_id
+                        stmt.setString(24, getString(category, "name")); // category_name
+                    } else {
+                        stmt.setNull(17, java.sql.Types.VARCHAR);
+                        stmt.setNull(24, java.sql.Types.VARCHAR);
+                    }
                     
                     // Meta fields
                     stmt.setTimestamp(25, Timestamp.valueOf(LocalDateTime.now()));
@@ -236,6 +260,15 @@ public class PayPropRawInvoicesCompleteImportService {
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+    
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getNestedObject(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value instanceof Map) {
+            return (Map<String, Object>) value;
+        }
+        return null;
     }
     
     // Safe setter methods for null handling
