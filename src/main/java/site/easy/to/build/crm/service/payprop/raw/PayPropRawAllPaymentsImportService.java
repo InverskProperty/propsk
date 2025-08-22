@@ -146,12 +146,12 @@ public class PayPropRawAllPaymentsImportService {
                     // Handle empty/null IDs (PayProp data quality issue)
                     if (paymentId == null || paymentId.trim().isEmpty()) {
                         issueTracker.recordIssue(
-                            PayPropImportIssueTracker.IssueType.EMPTY_ID,
+                            PayPropImportIssueTracker.EMPTY_ID,
                             "/report/all-payments",
                             paymentId,
                             payment,
                             "PayProp sent payment record without ID",
-                            PayPropImportIssueTracker.BusinessImpact.FINANCIAL_DATA_MISSING
+                            PayPropImportIssueTracker.FINANCIAL_DATA_MISSING
                         );
                         continue;
                     }
@@ -167,12 +167,12 @@ public class PayPropRawAllPaymentsImportService {
                     
                 } catch (Exception e) {
                     issueTracker.recordIssue(
-                        PayPropImportIssueTracker.IssueType.MAPPING_ERROR,
+                        PayPropImportIssueTracker.MAPPING_ERROR,
                         "/report/all-payments",
                         getStringValue(payment, "id"),
                         payment,
                         e.getMessage(),
-                        PayPropImportIssueTracker.BusinessImpact.FINANCIAL_DATA_MISSING
+                        PayPropImportIssueTracker.FINANCIAL_DATA_MISSING
                     );
                     log.error("Failed to prepare payment for import: {}", 
                         payment.get("id"), e);
@@ -414,12 +414,12 @@ public class PayPropRawAllPaymentsImportService {
                 
                 // Record this as an orphaned batch issue
                 issueTracker.recordIssue(
-                    PayPropImportIssueTracker.IssueType.CONSTRAINT_VIOLATION,
+                    PayPropImportIssueTracker.CONSTRAINT_VIOLATION,
                     "/report/all-payments",
                     "batch-" + batchCount,
                     null,
                     "Batch contained payments referencing missing properties: " + e.getMessage(),
-                    PayPropImportIssueTracker.BusinessImpact.FINANCIAL_DATA_MISSING
+                    PayPropImportIssueTracker.FINANCIAL_DATA_MISSING
                 );
                 
                 // Continue processing - don't fail the entire import

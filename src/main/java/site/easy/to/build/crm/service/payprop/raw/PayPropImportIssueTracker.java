@@ -27,6 +27,17 @@ public class PayPropImportIssueTracker {
     
     private static final Logger log = LoggerFactory.getLogger(PayPropImportIssueTracker.class);
     
+    // Issue Type Constants
+    public static final String EMPTY_ID = "EMPTY_ID";
+    public static final String MAPPING_ERROR = "MAPPING_ERROR";
+    public static final String CONSTRAINT_VIOLATION = "CONSTRAINT_VIOLATION";
+    public static final String API_ERROR = "API_ERROR";
+    
+    // Business Impact Constants  
+    public static final String FINANCIAL_DATA_MISSING = "FINANCIAL_DATA_MISSING";
+    public static final String DATA_INTEGRITY_ISSUE = "DATA_INTEGRITY_ISSUE";
+    public static final String REFERENCE_MISSING = "REFERENCE_MISSING";
+    
     @Autowired
     private DataSource dataSource;
     
@@ -42,11 +53,85 @@ public class PayPropImportIssueTracker {
     }
     
     /**
+     * Start tracking for a new import run with custom ID
+     */
+    public void startImportRun(String customRunId) {
+        currentImportRunId = customRunId;
+        log.info("🔍 Started import issue tracking for custom run: {}", currentImportRunId);
+    }
+    
+    /**
+     * Get current import run ID (auto-generates if none exists)
+     */
+    public String getCurrentImportRunId() {
+        if (currentImportRunId == null) {
+            currentImportRunId = generateImportRunId();
+            log.info("🔍 Auto-generated import run ID: {}", currentImportRunId);
+        }
+        return currentImportRunId;
+    }
+    
+    /**
+     * Record an import issue with optional parent run ID for linking
+     */
+    public void recordIssue(String issueType, String endpoint, String problematicId, 
+                           Map<String, Object> originalData, String errorMessage, 
+                           String businessImpact, String parentImportRunId) {
+        
+        // Smart Auto-Generation: Create run ID if none exists
+        if (currentImportRunId == null) {
+            currentImportRunId = generateImportRunId();
+            log.info("🔍 Auto-generated import run ID: {} for endpoint: {}", currentImportRunId, endpoint);
+        }
+        
+        try (Connection conn = dataSource.getConnection()) {
+            String sql = """
+                INSERT INTO payprop_import_issues 
+                (import_run_id, parent_import_run_id, endpoint, issue_type, problematic_id, original_data, 
+                 error_message, business_impact) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """;
+            
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, currentImportRunId);
+                stmt.setString(2, parentImportRunId); // Can be null for individual imports
+                stmt.setString(3, endpoint);
+                stmt.setString(4, issueType);
+                stmt.setString(5, problematicId);
+                stmt.setString(6, objectMapper.writeValueAsString(originalData));
+                stmt.setString(7, errorMessage);
+                stmt.setString(8, businessImpact);
+                
+                stmt.executeUpdate();
+                
+                log.warn("📝 Recorded import issue: {} for {} (ID: {}, Parent: {}) - {}", 
+                    issueType, endpoint, problematicId, parentImportRunId, errorMessage);
+                
+            } catch (Exception e) {
+                // Fallback: try without parent_import_run_id column if it doesn't exist
+                log.warn("⚠️ Failed to record issue with parent ID, trying without: {}", e.getMessage());
+                recordIssueFallback(currentImportRunId, endpoint, issueType, problematicId, originalData, errorMessage, businessImpact);
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to record import issue: {}", e.getMessage());
+        }
+    }
+    
+    /**
      * Record an import issue for later analysis
+     * Auto-generates import_run_id if none exists (Smart Auto-Generation)
      */
     public void recordIssue(String issueType, String endpoint, String problematicId, 
                            Map<String, Object> originalData, String errorMessage, 
                            String businessImpact) {
+        
+        // Smart Auto-Generation: Create run ID if none exists
+        if (currentImportRunId == null) {
+            currentImportRunId = generateImportRunId();
+            log.info("🔍 Auto-generated import run ID: {} for endpoint: {}", currentImportRunId, endpoint);
+        }
+        
         try (Connection conn = dataSource.getConnection()) {
             String sql = """
                 INSERT INTO payprop_import_issues 
@@ -73,6 +158,40 @@ public class PayPropImportIssueTracker {
         } catch (Exception e) {
             log.error("❌ Failed to record import issue: {}", e.getMessage());
             // Don't rethrow - recording issues shouldn't break imports
+        }
+    }
+    
+    /**
+     * Fallback method to record issues without parent_import_run_id column
+     */
+    private void recordIssueFallback(String runId, String endpoint, String issueType, 
+                                   String problematicId, Map<String, Object> originalData,
+                                   String errorMessage, String businessImpact) {
+        try (Connection conn = dataSource.getConnection()) {
+            String sql = """
+                INSERT INTO payprop_import_issues 
+                (import_run_id, endpoint, issue_type, problematic_id, original_data, 
+                 error_message, business_impact) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """;
+            
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, runId);
+                stmt.setString(2, endpoint);
+                stmt.setString(3, issueType);
+                stmt.setString(4, problematicId);
+                stmt.setString(5, objectMapper.writeValueAsString(originalData));
+                stmt.setString(6, errorMessage);
+                stmt.setString(7, businessImpact);
+                
+                stmt.executeUpdate();
+                
+                log.warn("📝 Recorded import issue (fallback): {} for {} (ID: {}) - {}", 
+                    issueType, endpoint, problematicId, businessImpact);
+                
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to record import issue even with fallback: {}", e.getMessage());
         }
     }
     
