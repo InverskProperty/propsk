@@ -119,11 +119,12 @@ public class PayPropRawIcdnImportService {
         String insertSql = """
             INSERT INTO payprop_report_icdn (
                 payprop_id, transaction_type, amount, transaction_date, description,
+                deposit_id, has_tax, invoice_group_id, matched_amount,
                 property_payprop_id, property_name,
                 tenant_payprop_id, tenant_name,
                 category_payprop_id, category_name,
                 imported_at, sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
         
         int attemptedCount = 0;
@@ -164,16 +165,23 @@ public class PayPropRawIcdnImportService {
                     
                 } catch (Exception e) {
                     mappingErrors++;
+                    String recordId = getStringValue(record, "id");
                     issueTracker.recordIssue(
                         PayPropImportIssueTracker.MAPPING_ERROR,
                         "/report/icdn",
-                        getStringValue(record, "id"),
+                        recordId,
                         record,
                         e.getMessage(),
                         PayPropImportIssueTracker.FINANCIAL_DATA_MISSING
                     );
-                    log.error("Failed to prepare ICDN record for import: {}", 
-                        record.get("id"), e);
+                    log.error("❌ ICDN MAPPING ERROR for record {}: {}", recordId, e.getMessage());
+                    log.error("   Record data: type={}, amount={}, date={}, property={}, tenant={}", 
+                        getStringValue(record, "type"),
+                        getStringValue(record, "amount"), 
+                        getStringValue(record, "date"),
+                        getNestedObjectField(record, "property", "name"),
+                        getNestedObjectField(record, "tenant", "name"));
+                    log.error("   Full exception:", e);
                 }
             }
             
@@ -209,6 +217,10 @@ public class PayPropRawIcdnImportService {
         setBigDecimalOrNull(stmt, paramIndex++, getBigDecimalValue(record, "amount")); // amount
         stmt.setDate(paramIndex++, getDateValue(record, "date")); // transaction_date
         stmt.setString(paramIndex++, getStringValue(record, "description")); // description
+        stmt.setString(paramIndex++, getStringValue(record, "deposit_id")); // deposit_id
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(record, "has_tax")); // has_tax
+        stmt.setString(paramIndex++, getStringValue(record, "invoice_group_id")); // invoice_group_id
+        setBigDecimalOrNull(stmt, paramIndex++, getBigDecimalValue(record, "matched_amount")); // matched_amount
         
         // Extract and flatten nested property object
         Map<String, Object> property = getNestedObject(record, "property");
@@ -331,5 +343,13 @@ public class PayPropRawIcdnImportService {
             return (Map<String, Object>) value;
         }
         return null;
+    }
+    
+    private String getNestedObjectField(Map<String, Object> map, String objectKey, String fieldKey) {
+        Map<String, Object> nestedObject = getNestedObject(map, objectKey);
+        if (nestedObject == null) {
+            return null;
+        }
+        return getStringValue(nestedObject, fieldKey);
     }
 }
