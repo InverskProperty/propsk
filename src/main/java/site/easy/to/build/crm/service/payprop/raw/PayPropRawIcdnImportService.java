@@ -132,26 +132,26 @@ public class PayPropRawIcdnImportService {
         int emptyIdSkipped = 0;
         int mappingErrors = 0;
         
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(insertSql)) {
-            
-            for (Map<String, Object> record : icdnRecords) {
-                try {
-                    String recordId = getStringValue(record, "id");
-                    
-                    // Handle empty/null IDs
-                    if (recordId == null || recordId.trim().isEmpty()) {
-                        emptyIdSkipped++;
-                        issueTracker.recordIssue(
-                            PayPropImportIssueTracker.EMPTY_ID,
-                            "/report/icdn",
-                            recordId,
-                            record,
-                            "PayProp sent ICDN record without ID",
-                            PayPropImportIssueTracker.FINANCIAL_DATA_MISSING
-                        );
-                        continue;
-                    }
+        for (Map<String, Object> record : icdnRecords) {
+            try {
+                String recordId = getStringValue(record, "id");
+                
+                // Handle empty/null IDs
+                if (recordId == null || recordId.trim().isEmpty()) {
+                    emptyIdSkipped++;
+                    issueTracker.recordIssue(
+                        PayPropImportIssueTracker.EMPTY_ID,
+                        "/report/icdn",
+                        recordId,
+                        record,
+                        "PayProp sent ICDN record without ID",
+                        PayPropImportIssueTracker.FINANCIAL_DATA_MISSING
+                    );
+                    continue;
+                }
+                
+                try (Connection conn = dataSource.getConnection();
+                     PreparedStatement stmt = conn.prepareStatement(insertSql)) {
                     
                     setIcdnParameters(stmt, record);
                     int insertResult = stmt.executeUpdate();
@@ -160,37 +160,37 @@ public class PayPropRawIcdnImportService {
                     if (insertResult > 0) {
                         actuallyInserted++;
                     }
-                    
-                } catch (Exception e) {
-                    mappingErrors++;
-                    String recordId = getStringValue(record, "id");
-                    issueTracker.recordIssue(
-                        PayPropImportIssueTracker.MAPPING_ERROR,
-                        "/report/icdn",
-                        recordId,
-                        record,
-                        e.getMessage(),
-                        PayPropImportIssueTracker.FINANCIAL_DATA_MISSING
-                    );
-                    log.error("❌ ICDN MAPPING ERROR for record {}: {}", recordId, e.getMessage());
-                    log.error("   Record data: type={}, amount={}, date={}, property={}, tenant={}", 
-                        getStringValue(record, "type"),
-                        getStringValue(record, "amount"), 
-                        getStringValue(record, "date"),
-                        getNestedObjectField(record, "property", "name"),
-                        getNestedObjectField(record, "tenant", "name"));
-                    log.error("   Full exception:", e);
                 }
+                
+            } catch (Exception e) {
+                mappingErrors++;
+                String recordId = getStringValue(record, "id");
+                issueTracker.recordIssue(
+                    PayPropImportIssueTracker.MAPPING_ERROR,
+                    "/report/icdn",
+                    recordId,
+                    record,
+                    e.getMessage(),
+                    PayPropImportIssueTracker.FINANCIAL_DATA_MISSING
+                );
+                log.error("❌ ICDN MAPPING ERROR for record {}: {}", recordId, e.getMessage());
+                log.error("   Record data: type={}, amount={}, date={}, property={}, tenant={}", 
+                    getStringValue(record, "type"),
+                    getStringValue(record, "amount"), 
+                    getStringValue(record, "date"),
+                    getNestedObjectField(record, "property", "name"),
+                    getNestedObjectField(record, "tenant", "name"));
+                log.error("   Full exception:", e);
             }
-            
-            // Provide accurate summary
-            log.info("📊 ACCURATE ICDN IMPORT SUMMARY:");
-            log.info("   Total fetched from API: {}", icdnRecords.size());
-            log.info("   Skipped (empty ID): {}", emptyIdSkipped);
-            log.info("   Mapping errors: {}", mappingErrors);
-            log.info("   Attempted to insert: {}", attemptedCount);
-            log.info("   Actually inserted: {}", actuallyInserted);
         }
+        
+        // Provide accurate summary
+        log.info("📊 ACCURATE ICDN IMPORT SUMMARY:");
+        log.info("   Total fetched from API: {}", icdnRecords.size());
+        log.info("   Skipped (empty ID): {}", emptyIdSkipped);
+        log.info("   Mapping errors: {}", mappingErrors);
+        log.info("   Attempted to insert: {}", attemptedCount);
+        log.info("   Actually inserted: {}", actuallyInserted);
         
         return actuallyInserted;
     }
