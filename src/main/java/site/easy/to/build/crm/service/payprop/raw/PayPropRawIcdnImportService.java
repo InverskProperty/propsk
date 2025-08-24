@@ -117,7 +117,7 @@ public class PayPropRawIcdnImportService {
         }
         
         String insertSql = """
-            INSERT INTO payprop_report_icdn (
+            INSERT IGNORE INTO payprop_report_icdn (
                 payprop_id, transaction_type, amount, transaction_date, description,
                 deposit_id, has_tax, invoice_group_id, matched_amount,
                 property_payprop_id, property_name,
@@ -154,13 +154,11 @@ public class PayPropRawIcdnImportService {
                     }
                     
                     setIcdnParameters(stmt, record);
-                    stmt.addBatch();
+                    int insertResult = stmt.executeUpdate();
                     attemptedCount++;
                     
-                    // Execute batch every 25 items
-                    if (attemptedCount % 25 == 0) {
-                        int batchInserted = executeBatch(stmt);
-                        actuallyInserted += batchInserted;
+                    if (insertResult > 0) {
+                        actuallyInserted++;
                     }
                     
                 } catch (Exception e) {
@@ -183,12 +181,6 @@ public class PayPropRawIcdnImportService {
                         getNestedObjectField(record, "tenant", "name"));
                     log.error("   Full exception:", e);
                 }
-            }
-            
-            // Execute remaining batch
-            if (attemptedCount % 25 != 0) {
-                int finalBatchInserted = executeBatch(stmt);
-                actuallyInserted += finalBatchInserted;
             }
             
             // Provide accurate summary
@@ -257,19 +249,6 @@ public class PayPropRawIcdnImportService {
         stmt.setString(paramIndex++, "active"); // sync_status
     }
     
-    /**
-     * Execute batch with simple success counting
-     */
-    private int executeBatch(PreparedStatement stmt) throws SQLException {
-        int[] updateCounts = stmt.executeBatch();
-        int successfulInserts = 0;
-        
-        for (int count : updateCounts) {
-            if (count > 0) successfulInserts++;
-        }
-        
-        return successfulInserts;
-    }
     
     // Helper methods (same as other import services)
     private String getStringValue(Map<String, Object> map, String key) {
