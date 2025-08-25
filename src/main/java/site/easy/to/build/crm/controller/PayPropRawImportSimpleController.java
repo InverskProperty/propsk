@@ -64,6 +64,9 @@ public class PayPropRawImportSimpleController {
     @Autowired
     private site.easy.to.build.crm.service.payprop.raw.PayPropRawIcdnImportService icdnImportService;
     
+    @Autowired
+    private site.easy.to.build.crm.service.payprop.raw.PayPropRawInvoiceInstructionsImportService invoiceInstructionsImportService;
+    
     // List of working endpoints from our test results
     private static final Map<String, EndpointConfig> WORKING_ENDPOINTS = new HashMap<>();
     
@@ -1025,6 +1028,48 @@ public class PayPropRawImportSimpleController {
         } catch (Exception e) {
             long endTime = System.currentTimeMillis();
             log.error("❌ Complete ICDN import test failed", e);
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            response.put("processingTime", endTime - startTime);
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * Test complete invoice instructions import - THE MISSING LINK for payment references
+     */
+    @PostMapping("/test-complete-invoice-instructions")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testCompleteInvoiceInstructionsImport() {
+        log.info("🔗 Testing complete invoice instructions import - THE MISSING PAYMENT INSTRUCTION IDs!");
+        
+        Map<String, Object> response = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            PayPropRawImportResult result = invoiceInstructionsImportService.importAllInvoiceInstructions();
+            
+            long endTime = System.currentTimeMillis();
+            
+            response.put("success", result.isSuccess());
+            response.put("endpoint", result.getEndpoint());
+            response.put("totalFetched", result.getTotalFetched());
+            response.put("totalImported", result.getTotalImported());
+            response.put("details", result.getDetails());
+            response.put("startTime", result.getStartTime());
+            response.put("endTime", result.getEndTime());
+            response.put("processingTime", endTime - startTime);
+            
+            if (!result.isSuccess()) {
+                response.put("error", result.getErrorMessage());
+                return ResponseEntity.status(500).body(response);
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            long endTime = System.currentTimeMillis();
+            log.error("❌ Complete invoice instructions import test failed", e);
             response.put("success", false);
             response.put("error", e.getMessage());
             response.put("processingTime", endTime - startTime);
