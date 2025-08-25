@@ -82,10 +82,9 @@ public class PayPropRawPaymentsCategoriesImportService {
     
     private int importCategoriesToDatabase(List<Map<String, Object>> categories) throws SQLException {
         
-        // For now, use the existing payprop_maintenance_categories table
-        // TODO: Create dedicated payprop_payment_categories table once we see the data structure
+        // Use the dedicated payprop_payments_categories table
         try (Connection conn = dataSource.getConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM payprop_maintenance_categories")) {
+            try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM payprop_payments_categories")) {
                 int deletedCount = stmt.executeUpdate();
                 log.info("Cleared {} existing payment categories for fresh import", deletedCount);
             }
@@ -96,7 +95,7 @@ public class PayPropRawPaymentsCategoriesImportService {
         }
         
         String insertSql = """
-            INSERT IGNORE INTO payprop_maintenance_categories (
+            INSERT IGNORE INTO payprop_payments_categories (
                 payprop_external_id, name, description, imported_at
             ) VALUES (?, ?, ?, ?)
         """;
