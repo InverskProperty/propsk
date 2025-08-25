@@ -1523,6 +1523,12 @@ ORDER BY transaction_count DESC;</code></pre>
                                             <button class="btn btn-warning mb-2" onclick="testCompleteInvoiceInstructionsImport()">
                                                 <i class="fas fa-link"></i> Test Invoice Instructions Import (MISSING PAYMENT LINKS!)
                                             </button>
+                                            <button class="btn btn-light mb-2" onclick="testCompleteInvoiceCategoriesImport()">
+                                                <i class="fas fa-tags"></i> Test Invoice Categories Import (Reference Data)
+                                            </button>
+                                            <button class="btn btn-light mb-2" onclick="testCompleteMaintenanceCategoriesImport()">
+                                                <i class="fas fa-wrench"></i> Test Maintenance Categories Import (Reference Data)
+                                            </button>
                                         </div>
                                         <div class="col-md-6">
                                             <button class="btn btn-info mb-2" onclick="getSampleDataFromEndpoint()">
@@ -5782,6 +5788,148 @@ ORDER BY transaction_count DESC;</code></pre>
                         <p><strong>Test payment linking (THE KEY TEST):</strong></p>
                         <code>SELECT COUNT(*) as matching_payments FROM payprop_report_all_payments p INNER JOIN payprop_export_invoice_instructions i ON p.payment_instruction_id = i.payprop_id;</code><br>
                         <code>SELECT p.payprop_id, p.payment_instruction_id, p.amount, i.frequency FROM payprop_report_all_payments p INNER JOIN payprop_export_invoice_instructions i ON p.payment_instruction_id = i.payprop_id LIMIT 5;</code>
+                    </div>
+                </div>
+            `;
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        async function testCompleteInvoiceCategoriesImport() {
+            showLoadingState('endpointTestResults', 'Testing complete invoice categories import - Reference data...');
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/test-complete-invoice-categories', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                displayCategoriesResults('Invoice Categories', result);
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error testing invoice categories import: ' + error.message);
+            }
+        }
+
+        async function testCompleteMaintenanceCategoriesImport() {
+            showLoadingState('endpointTestResults', 'Testing complete maintenance categories import - Reference data...');
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/test-complete-maintenance-categories', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                displayCategoriesResults('Maintenance Categories', result);
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error testing maintenance categories import: ' + error.message);
+            }
+        }
+
+        function displayCategoriesResults(categoryType, result) {
+            const container = document.getElementById('endpointTestResults');
+            container.style.display = 'block';
+            
+            if (!result.success) {
+                container.innerHTML = `
+                    <div class="result-error">
+                        <h5>📋 ${categoryType} Import - Error</h5>
+                        <p><strong>Error:</strong> ${result.error}</p>
+                        ${result.details ? `<p><strong>Details:</strong> ${result.details}</p>` : ''}
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <div class="result-success">
+                    <h5>📋 ${categoryType} Import Results - Reference Data</h5>
+                    <p><strong>Endpoint:</strong> ${result.endpoint || 'N/A'}</p>
+                    <p><strong>Total Fetched:</strong> ${result.totalFetched || 'N/A'} categories</p>
+                    <p><strong>Total Imported:</strong> ${result.totalImported || 'N/A'} categories</p>
+                    <p><strong>Processing Time:</strong> ${result.processingTime || 'N/A'}ms</p>
+                    <p><strong>Import Status:</strong> <span class="badge bg-success">Complete</span></p>
+                    <p><strong>Data Type:</strong> <span class="badge bg-info">Reference Categories</span></p>
+            `;
+            
+            // Show success details
+            if (result.details) {
+                html += `
+                    <div class="mt-3">
+                        <h6>📋 Import Summary:</h6>
+                        <pre style="background: #f8f9fa; padding: 1rem; border-radius: 4px; font-size: 0.85rem;">${result.details}</pre>
+                    </div>
+                `;
+            }
+            
+            // Show timing information if available
+            if (result.startTime && result.endTime) {
+                html += `
+                    <div class="mt-3">
+                        <h6>⏱️ Timing Information:</h6>
+                        <p><strong>Start Time:</strong> ${result.startTime}</p>
+                        <p><strong>End Time:</strong> ${result.endTime}</p>
+                    </div>
+                `;
+            }
+            
+            // Show table information based on category type
+            const tableName = categoryType.toLowerCase().includes('invoice') ? 'payprop_invoice_categories' : 'payprop_maintenance_categories';
+            const purpose = categoryType.toLowerCase().includes('invoice') ? 'Categorizes invoices and billing items' : 'Categorizes maintenance requests and tickets';
+            
+            html += `
+                <div class="mt-3">
+                    <h6>🗄️ Database Table:</h6>
+                    <div class="alert alert-info">
+                        <p><strong>Table:</strong> <code>${tableName}</code></p>
+                        <p><strong>Purpose:</strong> ${purpose}</p>
+                        <p><strong>Critical Fields:</strong> <code>payprop_external_id</code>, <code>name</code>, <code>is_active</code></p>
+                        <p><strong>Reference Link:</strong> Links to category fields in invoices and payments</p>
+                    </div>
+                </div>
+            `;
+            
+            html += `
+                <div class="mt-3">
+                    <h6>📊 Categories Significance:</h6>
+                    <div class="alert alert-success">
+                        <ul class="small mb-0">
+                            <li><strong>Reference Data:</strong> Provides standardized categorization for transactions</li>
+                            <li><strong>Reporting:</strong> Enables grouping and analysis by category type</li>
+                            <li><strong>Business Logic:</strong> Supports automated processing rules based on categories</li>
+                            <li><strong>Data Validation:</strong> Ensures consistent category naming across the system</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            
+            // Show verification query
+            html += `
+                <div class="mt-3">
+                    <h6>🔍 Verify Results:</h6>
+                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">
+                        <p><strong>Check imported categories:</strong></p>
+                        <code>SELECT COUNT(*) FROM ${tableName};</code><br>
+                        <code>SELECT payprop_external_id, name, is_active FROM ${tableName} LIMIT 10;</code><br>
+                        <code>SELECT is_active, COUNT(*) as count FROM ${tableName} GROUP BY is_active;</code>
                     </div>
                 </div>
             `;
