@@ -1047,7 +1047,8 @@ public class PayPropRawImportSimpleController {
         long startTime = System.currentTimeMillis();
         
         try {
-            PayPropRawImportResult result = invoiceInstructionsImportService.importAllInvoiceInstructions();
+            site.easy.to.build.crm.service.payprop.raw.PayPropRawImportResult result = 
+                invoiceInstructionsImportService.importAllInvoiceInstructions();
             
             long endTime = System.currentTimeMillis();
             
