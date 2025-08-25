@@ -115,8 +115,8 @@ public class PayPropRawImportSimpleController {
         ));
         
         // Category endpoints
-        WORKING_ENDPOINTS.put("invoice-categories", new EndpointConfig(
-            "/invoice-categories", 
+        WORKING_ENDPOINTS.put("invoices-categories", new EndpointConfig(
+            "/invoices/categories", 
             "Invoice category reference data",
             Map.of()
         ));

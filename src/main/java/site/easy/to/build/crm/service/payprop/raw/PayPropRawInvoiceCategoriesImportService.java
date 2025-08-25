@@ -42,10 +42,10 @@ public class PayPropRawInvoiceCategoriesImportService {
         
         PayPropRawImportResult result = new PayPropRawImportResult();
         result.setStartTime(LocalDateTime.now());
-        result.setEndpoint("/invoices-categories");
+        result.setEndpoint("/invoices/categories");
         
         try {
-            String endpoint = "/invoices-categories";
+            String endpoint = "/invoices/categories";
             List<Map<String, Object>> categories = apiClient.fetchAllPages(endpoint, this::processCategoryItem);
             
             result.setTotalFetched(categories.size());
@@ -98,8 +98,9 @@ public class PayPropRawInvoiceCategoriesImportService {
             INSERT IGNORE INTO payprop_invoice_categories (
                 payprop_external_id, name, description, is_active, 
                 is_system, parent_category_id, color_code, default_frequency,
-                category_group, imported_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                category_group, default_amount, is_rent_category, 
+                tax_applicable, commission_applicable, imported_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
         
         int importedCount = 0;
@@ -110,7 +111,7 @@ public class PayPropRawInvoiceCategoriesImportService {
                 if (categoryId == null || categoryId.trim().isEmpty()) {
                     issueTracker.recordIssue(
                         PayPropImportIssueTracker.IssueType.EMPTY_ID,
-                        "/invoices-categories",
+                        "/invoices/categories",
                         categoryId,
                         category,
                         "PayProp sent category without ID",
@@ -133,7 +134,7 @@ public class PayPropRawInvoiceCategoriesImportService {
             } catch (Exception e) {
                 issueTracker.recordIssue(
                     PayPropImportIssueTracker.IssueType.MAPPING_ERROR,
-                    "/invoices-categories",
+                    "/invoices/categories",
                     getStringValue(category, "id"),
                     category,
                     e.getMessage(),
@@ -161,6 +162,10 @@ public class PayPropRawInvoiceCategoriesImportService {
         stmt.setString(paramIndex++, getStringValue(category, "color_code")); // color_code
         stmt.setString(paramIndex++, getStringValue(category, "default_frequency")); // default_frequency
         stmt.setString(paramIndex++, getStringValue(category, "category_group")); // category_group
+        setDecimalParameter(stmt, paramIndex++, getDecimalValue(category, "default_amount")); // default_amount
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(category, "is_rent_category")); // is_rent_category
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(category, "tax_applicable")); // tax_applicable
+        setBooleanParameter(stmt, paramIndex++, getBooleanValue(category, "commission_applicable")); // commission_applicable
         stmt.setTimestamp(paramIndex++, Timestamp.valueOf(LocalDateTime.now())); // imported_at
     }
     
@@ -189,6 +194,30 @@ public class PayPropRawInvoiceCategoriesImportService {
             stmt.setNull(paramIndex, java.sql.Types.BOOLEAN);
         } else {
             stmt.setBoolean(paramIndex, value);
+        }
+    }
+    
+    private java.math.BigDecimal getDecimalValue(Map<String, Object> map, String key) {
+        if (map == null || !map.containsKey(key) || map.get(key) == null) {
+            return null;
+        }
+        Object value = map.get(key);
+        if (value instanceof java.math.BigDecimal) {
+            return (java.math.BigDecimal) value;
+        }
+        try {
+            return new java.math.BigDecimal(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+    
+    private void setDecimalParameter(PreparedStatement stmt, int paramIndex, java.math.BigDecimal value) 
+            throws SQLException {
+        if (value == null) {
+            stmt.setNull(paramIndex, java.sql.Types.DECIMAL);
+        } else {
+            stmt.setBigDecimal(paramIndex, value);
         }
     }
 }

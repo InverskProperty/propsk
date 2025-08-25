@@ -114,7 +114,9 @@ public class PayPropApiClient {
                 break;
             } catch (Exception e) {
                 log.error("Failed to fetch page {} from {}: {}", page, endpoint, e.getMessage());
-                // Decide whether to continue or break based on error type
+                
+                // Check for 404 errors (can be wrapped in RuntimeException)
+                boolean is404 = false;
                 if (e instanceof HttpClientErrorException) {
                     HttpClientErrorException httpError = (HttpClientErrorException) e;
                     if (httpError.getStatusCode() == HttpStatus.UNAUTHORIZED || 
@@ -122,10 +124,22 @@ public class PayPropApiClient {
                         log.error("Authentication/Authorization error, stopping pagination");
                         break;
                     } else if (httpError.getStatusCode() == HttpStatus.NOT_FOUND) {
-                        log.debug("404 error on page {}, likely no more pages available, stopping pagination", page);
-                        break;
+                        is404 = true;
                     }
+                } else if (e.getCause() instanceof HttpClientErrorException) {
+                    HttpClientErrorException httpError = (HttpClientErrorException) e.getCause();
+                    if (httpError.getStatusCode() == HttpStatus.NOT_FOUND) {
+                        is404 = true;
+                    }
+                } else if (e.getMessage() != null && e.getMessage().contains("404 NOT_FOUND")) {
+                    is404 = true;
                 }
+                
+                if (is404) {
+                    log.debug("404 error on page {}, likely no more pages available, stopping pagination", page);
+                    break;
+                }
+                
                 // For other errors, log and continue to next page
                 page++;
             }
