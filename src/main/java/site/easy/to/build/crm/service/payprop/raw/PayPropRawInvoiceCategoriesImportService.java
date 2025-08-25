@@ -42,10 +42,10 @@ public class PayPropRawInvoiceCategoriesImportService {
         
         PayPropRawImportResult result = new PayPropRawImportResult();
         result.setStartTime(LocalDateTime.now());
-        result.setEndpoint("/invoice-categories");
+        result.setEndpoint("/invoices-categories");
         
         try {
-            String endpoint = "/invoice-categories";
+            String endpoint = "/invoices-categories";
             List<Map<String, Object>> categories = apiClient.fetchAllPages(endpoint, this::processCategoryItem);
             
             result.setTotalFetched(categories.size());
@@ -110,7 +110,7 @@ public class PayPropRawInvoiceCategoriesImportService {
                 if (categoryId == null || categoryId.trim().isEmpty()) {
                     issueTracker.recordIssue(
                         PayPropImportIssueTracker.IssueType.EMPTY_ID,
-                        "/invoice-categories",
+                        "/invoices-categories",
                         categoryId,
                         category,
                         "PayProp sent category without ID",
@@ -133,7 +133,7 @@ public class PayPropRawInvoiceCategoriesImportService {
             } catch (Exception e) {
                 issueTracker.recordIssue(
                     PayPropImportIssueTracker.IssueType.MAPPING_ERROR,
-                    "/invoice-categories",
+                    "/invoices-categories",
                     getStringValue(category, "id"),
                     category,
                     e.getMessage(),

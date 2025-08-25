@@ -121,6 +121,9 @@ public class PayPropApiClient {
                         httpError.getStatusCode() == HttpStatus.FORBIDDEN) {
                         log.error("Authentication/Authorization error, stopping pagination");
                         break;
+                    } else if (httpError.getStatusCode() == HttpStatus.NOT_FOUND) {
+                        log.debug("404 error on page {}, likely no more pages available, stopping pagination", page);
+                        break;
                     }
                 }
                 // For other errors, log and continue to next page
