@@ -71,7 +71,7 @@ public class PayPropRawImportSimpleController {
     private site.easy.to.build.crm.service.payprop.raw.PayPropRawInvoiceCategoriesImportService invoiceCategoriesImportService;
     
     @Autowired
-    private site.easy.to.build.crm.service.payprop.raw.PayPropRawMaintenanceCategoriesImportService maintenanceCategoriesImportService;
+    private site.easy.to.build.crm.service.payprop.raw.PayPropRawPaymentsCategoriesImportService paymentsCategoriesImportService;
     
     // List of working endpoints from our test results
     private static final Map<String, EndpointConfig> WORKING_ENDPOINTS = new HashMap<>();
@@ -121,9 +121,9 @@ public class PayPropRawImportSimpleController {
             Map.of()
         ));
         
-        WORKING_ENDPOINTS.put("maintenance-categories", new EndpointConfig(
-            "/maintenance-categories", 
-            "Maintenance category reference data", 
+        WORKING_ENDPOINTS.put("payments-categories", new EndpointConfig(
+            "/payments/categories", 
+            "Payment category reference data",
             Map.of()
         ));
         
@@ -1128,19 +1128,19 @@ public class PayPropRawImportSimpleController {
     }
     
     /**
-     * Test complete maintenance categories import - Reference data for maintenance categorization
+     * Test complete payments categories import - Reference data for payment categorization
      */
-    @PostMapping("/test-complete-maintenance-categories")
+    @PostMapping("/test-complete-payments-categories")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> testCompleteMaintenanceCategoriesImport() {
-        log.info("🔧 Testing complete maintenance categories import - Reference data for maintenance categorization");
+    public ResponseEntity<Map<String, Object>> testCompletePaymentsCategoriesImport() {
+        log.info("💳 Testing complete payments categories import - Reference data for payment categorization");
         
         Map<String, Object> response = new HashMap<>();
         long startTime = System.currentTimeMillis();
         
         try {
             site.easy.to.build.crm.service.payprop.raw.PayPropRawImportResult result = 
-                maintenanceCategoriesImportService.importAllMaintenanceCategories();
+                paymentsCategoriesImportService.importAllPaymentsCategories();
             
             long endTime = System.currentTimeMillis();
             
@@ -1162,13 +1162,14 @@ public class PayPropRawImportSimpleController {
             
         } catch (Exception e) {
             long endTime = System.currentTimeMillis();
-            log.error("❌ Complete maintenance categories import test failed", e);
+            log.error("❌ Complete payments categories import test failed", e);
             response.put("success", false);
             response.put("error", e.getMessage());
             response.put("processingTime", endTime - startTime);
             return ResponseEntity.status(500).body(response);
         }
     }
+    
     
     /**
      * Test single endpoint without storing data

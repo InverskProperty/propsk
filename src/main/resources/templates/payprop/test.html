@@ -1526,8 +1526,8 @@ ORDER BY transaction_count DESC;</code></pre>
                                             <button class="btn btn-light mb-2" onclick="testCompleteInvoiceCategoriesImport()">
                                                 <i class="fas fa-tags"></i> Test Invoice Categories Import (Reference Data)
                                             </button>
-                                            <button class="btn btn-light mb-2" onclick="testCompleteMaintenanceCategoriesImport()">
-                                                <i class="fas fa-wrench"></i> Test Maintenance Categories Import (Reference Data)
+                                            <button class="btn btn-light mb-2" onclick="testCompletePaymentsCategoriesImport()">
+                                                <i class="fas fa-money-bill"></i> Test Payments Categories Import (Reference Data)
                                             </button>
                                         </div>
                                         <div class="col-md-6">
@@ -5820,11 +5820,11 @@ ORDER BY transaction_count DESC;</code></pre>
             }
         }
 
-        async function testCompleteMaintenanceCategoriesImport() {
-            showLoadingState('endpointTestResults', 'Testing complete maintenance categories import - Reference data...');
+        async function testCompletePaymentsCategoriesImport() {
+            showLoadingState('endpointTestResults', 'Testing complete payments categories import - Reference data...');
             
             try {
-                const response = await fetch('/api/payprop/raw-import/test-complete-maintenance-categories', {
+                const response = await fetch('/api/payprop/raw-import/test-complete-payments-categories', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -5837,10 +5837,10 @@ ORDER BY transaction_count DESC;</code></pre>
                 }
                 
                 const result = await response.json();
-                displayCategoriesResults('Maintenance Categories', result);
+                displayCategoriesResults('Payments Categories', result);
                 
             } catch (error) {
-                showErrorResult('endpointTestResults', 'Error testing maintenance categories import: ' + error.message);
+                showErrorResult('endpointTestResults', 'Error testing payments categories import: ' + error.message);
             }
         }
 
