@@ -280,5 +280,6 @@ public class PayPropImportIssueTracker {
         public static final String BENEFICIARY_MISSING = "Beneficiary information missing - payments may not be properly attributed";
         public static final String PROPERTY_MISSING = "Property information missing - portfolio reports may be incomplete";
         public static final String TENANT_MISSING = "Tenant information missing - rental tracking may be affected";
+        public static final String REFERENCE_DATA_MISSING = "Reference data missing - categorization may be incomplete";
     }
 }
