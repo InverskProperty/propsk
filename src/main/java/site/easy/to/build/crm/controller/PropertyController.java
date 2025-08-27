@@ -18,6 +18,7 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.entity.Ticket;
 import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.property.PropertyServiceImpl;
 import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.service.ticket.TicketService;
@@ -400,11 +401,14 @@ public class PropertyController {
 
         // Add maintenance statistics and recent tickets
         try {
-            List<Ticket> emergencyTickets = ticketService.getTicketsByPropertyIdAndType(id, "emergency");
-            List<Ticket> urgentTickets = ticketService.getTicketsByPropertyIdAndType(id, "urgent");
-            List<Ticket> routineTickets = ticketService.getTicketsByPropertyIdAndType(id, "routine");
-            List<Ticket> maintenanceTickets = ticketService.getTicketsByPropertyIdAndType(id, "maintenance");
-            List<Ticket> allPropertyTickets = ticketService.getTicketsByPropertyId(id);
+            // Use the property's actual ID for ticket lookup (PayProp properties use fake hash IDs)
+            Long propertyIdForTickets = property.getId();
+            
+            List<Ticket> emergencyTickets = ticketService.getTicketsByPropertyIdAndType(propertyIdForTickets, "emergency");
+            List<Ticket> urgentTickets = ticketService.getTicketsByPropertyIdAndType(propertyIdForTickets, "urgent");
+            List<Ticket> routineTickets = ticketService.getTicketsByPropertyIdAndType(propertyIdForTickets, "routine");
+            List<Ticket> maintenanceTickets = ticketService.getTicketsByPropertyIdAndType(propertyIdForTickets, "maintenance");
+            List<Ticket> allPropertyTickets = ticketService.getTicketsByPropertyId(propertyIdForTickets);
             
             model.addAttribute("emergencyMaintenanceCount", emergencyTickets.size());
             model.addAttribute("urgentMaintenanceCount", urgentTickets.size());

@@ -1,8 +1,10 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import site.easy.to.build.crm.entity.FinancialTransaction;
@@ -11,10 +13,12 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.repository.PaymentRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.property.PropertyServiceImpl;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,18 +41,33 @@ public class FinancialController {
     
     @Autowired
     private PaymentRepository paymentRepository;
+    
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+    
+    @Value("${crm.data.source:LEGACY}")
+    private String dataSource;
 
     /**
      * Get financial summary for a specific property
+     * Supports both PayProp ID strings and numeric property IDs
      */
     @GetMapping("/property/{id}/financial-summary")
     public ResponseEntity<Map<String, Object>> getPropertyFinancialSummary(
-            @PathVariable("id") Long propertyId, 
+            @PathVariable("id") String id, 
             Authentication authentication) {
         
         try {
-            // Check if property exists
-            Property property = propertyService.findById(propertyId);
+            // Find property by ID or PayProp ID
+            Property property = null;
+            if (id.length() > 5 && !id.matches("\\d+")) {
+                // PayProp ID string format
+                property = ((PropertyServiceImpl) propertyService).findByPayPropIdString(id);
+            } else {
+                // Numeric ID
+                property = propertyService.findById(Long.parseLong(id));
+            }
+            
             if (property == null) {
                 return ResponseEntity.notFound().build();
             }
@@ -61,8 +80,8 @@ public class FinancialController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
             }
             
-            // Get financial data
-            Map<String, Object> financialData = calculatePropertyFinancialSummary(propertyId);
+            // Get financial data using property object
+            Map<String, Object> financialData = calculatePropertyFinancialSummary(property);
             
             return ResponseEntity.ok(financialData);
             
@@ -103,39 +122,179 @@ public class FinancialController {
     }
 
     /**
-     * Calculate financial summary for a specific property
+     * Calculate financial summary for a specific property using PayProp data
      */
-    private Map<String, Object> calculatePropertyFinancialSummary(Long propertyId) {
+    private Map<String, Object> calculatePropertyFinancialSummary(Property property) {
         Map<String, Object> summary = new HashMap<>();
         
         try {
-            // Get the property first to get its PayProp ID
-            Property property = propertyService.findById(propertyId);
-            if (property == null || property.getPayPropId() == null) {
-                // Return zeros if no property or no PayProp ID
-                summary.put("totalIncome", BigDecimal.ZERO);
-                summary.put("totalCommissions", BigDecimal.ZERO);
-                summary.put("netOwnerIncome", BigDecimal.ZERO);
-                summary.put("transactionCount", 0);
-                summary.put("paymentCount", 0);
-                summary.put("recentTransactions", List.of());
-                summary.put("currentMonthIncome", BigDecimal.ZERO);
-                return summary;
+            if (property == null) {
+                return getEmptyFinancialSummary();
             }
             
-            // Use PayProp ID to find financial transactions
-            String payPropId = property.getPayPropId();
+            // Use PayProp data if available and configured
+            if ("PAYPROP".equals(dataSource) && property.getPayPropId() != null) {
+                return calculatePayPropFinancialSummary(property);
+            } else {
+                // Fallback to legacy calculation
+                return calculateLegacyFinancialSummary(property);
+            }
             
-            // Get financial transactions using PayProp ID
-            List<FinancialTransaction> allTransactions = financialTransactionRepository.findAll();
-            List<FinancialTransaction> propertyTransactions = allTransactions.stream()
-                .filter(t -> payPropId.equals(t.getPropertyId()))
+        } catch (Exception e) {
+            summary = getEmptyFinancialSummary();
+            summary.put("error", "Calculation error: " + e.getMessage());
+        }
+        
+        return summary;
+    }
+    
+    /**
+     * Calculate financial summary using PayProp transaction data
+     */
+    private Map<String, Object> calculatePayPropFinancialSummary(Property property) {
+        Map<String, Object> summary = new HashMap<>();
+        String payPropId = property.getPayPropId();
+        
+        try {
+            // Query PayProp all-payments table for comprehensive transaction data
+            String paymentsQuery = """
+                SELECT 
+                    pap.payprop_id,
+                    pap.amount,
+                    pap.commission_amount,
+                    pap.net_amount,
+                    pap.transaction_type,
+                    pap.transaction_date,
+                    pap.description,
+                    pap.reference,
+                    pap.invoice_category,
+                    pap.payment_category,
+                    pap.balance_impact,
+                    pap.is_incoming,
+                    pap.incoming_transaction_id,
+                    pap.created_at
+                FROM payprop_report_all_payments pap 
+                WHERE pap.payprop_id = ? 
+                ORDER BY pap.transaction_date DESC, pap.created_at DESC
+                LIMIT 100
+                """;
+                
+            List<Map<String, Object>> transactions = jdbcTemplate.queryForList(paymentsQuery, payPropId);
+            
+            // Calculate totals
+            BigDecimal totalIncoming = BigDecimal.ZERO;
+            BigDecimal totalOutgoing = BigDecimal.ZERO;
+            BigDecimal totalCommissions = BigDecimal.ZERO;
+            BigDecimal currentBalance = BigDecimal.ZERO;
+            
+            // Month-to-date calculations
+            LocalDate monthStart = LocalDate.now().withDayOfMonth(1);
+            BigDecimal monthlyIncoming = BigDecimal.ZERO;
+            BigDecimal monthlyOutgoing = BigDecimal.ZERO;
+            
+            // Transaction categorization
+            Map<String, BigDecimal> incomeByCategory = new HashMap<>();
+            Map<String, BigDecimal> expensesByCategory = new HashMap<>();
+            
+            for (Map<String, Object> transaction : transactions) {
+                BigDecimal amount = (BigDecimal) transaction.get("amount");
+                BigDecimal commissionAmount = (BigDecimal) transaction.get("commission_amount");
+                Boolean isIncoming = (Boolean) transaction.get("is_incoming");
+                String category = (String) transaction.get("invoice_category");
+                LocalDateTime transactionDate = (LocalDateTime) transaction.get("transaction_date");
+                
+                if (amount != null) {
+                    if (Boolean.TRUE.equals(isIncoming)) {
+                        totalIncoming = totalIncoming.add(amount);
+                        if (category != null) {
+                            incomeByCategory.merge(category, amount, BigDecimal::add);
+                        }
+                        
+                        // Monthly calculation
+                        if (transactionDate != null && !transactionDate.toLocalDate().isBefore(monthStart)) {
+                            monthlyIncoming = monthlyIncoming.add(amount);
+                        }
+                    } else {
+                        totalOutgoing = totalOutgoing.add(amount);
+                        if (category != null) {
+                            expensesByCategory.merge(category, amount, BigDecimal::add);
+                        }
+                        
+                        // Monthly calculation
+                        if (transactionDate != null && !transactionDate.toLocalDate().isBefore(monthStart)) {
+                            monthlyOutgoing = monthlyOutgoing.add(amount);
+                        }
+                    }
+                }
+                
+                if (commissionAmount != null) {
+                    totalCommissions = totalCommissions.add(commissionAmount);
+                }
+            }
+            
+            // Get current account balance from ICDN data
+            String balanceQuery = """
+                SELECT 
+                    SUM(CASE WHEN pi.distribution_type = 'Revenue' THEN pi.amount ELSE -pi.amount END) as current_balance
+                FROM payprop_report_icdn pi 
+                WHERE pi.payprop_id = ?
+                """;
+                
+            try {
+                BigDecimal balance = jdbcTemplate.queryForObject(balanceQuery, BigDecimal.class, payPropId);
+                currentBalance = balance != null ? balance : BigDecimal.ZERO;
+            } catch (Exception e) {
+                currentBalance = BigDecimal.ZERO;
+            }
+            
+            // Get recent transaction details for display
+            List<Map<String, Object>> recentTransactions = transactions.stream()
+                .limit(10)
                 .collect(Collectors.toList());
             
-            // Get payments using PayProp ID
-            List<Payment> allPayments = paymentRepository.findAll();
-            List<Payment> propertyPayments = allPayments.stream()
-                .filter(p -> payPropId.equals(p.getPropertyId()))
+            // Build comprehensive summary
+            summary.put("totalIncoming", totalIncoming);
+            summary.put("totalOutgoing", totalOutgoing);
+            summary.put("netIncome", totalIncoming.subtract(totalOutgoing));
+            summary.put("totalCommissions", totalCommissions);
+            summary.put("currentBalance", currentBalance);
+            summary.put("transactionCount", transactions.size());
+            
+            // Monthly data
+            summary.put("monthlyIncoming", monthlyIncoming);
+            summary.put("monthlyOutgoing", monthlyOutgoing);
+            summary.put("monthlyNet", monthlyIncoming.subtract(monthlyOutgoing));
+            
+            // Category breakdowns
+            summary.put("incomeByCategory", incomeByCategory);
+            summary.put("expensesByCategory", expensesByCategory);
+            
+            // Transaction details
+            summary.put("recentTransactions", recentTransactions);
+            
+            // Property info
+            summary.put("propertyName", property.getPropertyName());
+            summary.put("payPropId", payPropId);
+            summary.put("monthlyRent", property.getMonthlyPayment());
+            
+        } catch (Exception e) {
+            return getEmptyFinancialSummary();
+        }
+        
+        return summary;
+    }
+    
+    /**
+     * Legacy financial calculation using original tables
+     */
+    private Map<String, Object> calculateLegacyFinancialSummary(Property property) {
+        Map<String, Object> summary = new HashMap<>();
+        
+        try {
+            // Get financial transactions using legacy approach
+            List<FinancialTransaction> allTransactions = financialTransactionRepository.findAll();
+            List<FinancialTransaction> propertyTransactions = allTransactions.stream()
+                .filter(t -> property.getId().toString().equals(t.getPropertyId()))
                 .collect(Collectors.toList());
             
             // Calculate totals from financial transactions
@@ -149,57 +308,37 @@ public class FinancialController {
                 .map(FinancialTransaction::getCommissionAmount)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-                
-            BigDecimal netOwnerIncome = propertyTransactions.stream()
-                .map(FinancialTransaction::getNetToOwnerAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
             
-            // Get recent transactions (last 5)
-            List<FinancialTransaction> recentTransactions = propertyTransactions.stream()
-                .sorted((t1, t2) -> {
-                    if (t1.getTransactionDate() == null && t2.getTransactionDate() == null) return 0;
-                    if (t1.getTransactionDate() == null) return 1;
-                    if (t2.getTransactionDate() == null) return -1;
-                    return t2.getTransactionDate().compareTo(t1.getTransactionDate());
-                })
-                .limit(60)
-                .collect(Collectors.toList());
-            
-            // Prepare response
-            summary.put("totalIncome", totalIncome);
+            summary.put("totalIncoming", totalIncome);
             summary.put("totalCommissions", totalCommissions);
-            summary.put("netOwnerIncome", netOwnerIncome);
+            summary.put("netIncome", totalIncome.subtract(totalCommissions));
             summary.put("transactionCount", propertyTransactions.size());
-            summary.put("paymentCount", propertyPayments.size());
-            summary.put("recentTransactions", recentTransactions);
-            
-            // Calculate current month stats
-            LocalDate now = LocalDate.now();
-            LocalDate monthStart = now.withDayOfMonth(1);
-            
-            BigDecimal currentMonthIncome = propertyTransactions.stream()
-                .filter(t -> t.getTransactionDate() != null && 
-                           !t.getTransactionDate().isBefore(monthStart) &&
-                           "invoice".equals(t.getTransactionType()))
-                .map(FinancialTransaction::getAmount)
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-                
-            summary.put("currentMonthIncome", currentMonthIncome);
+            summary.put("recentTransactions", propertyTransactions.stream().limit(10).collect(Collectors.toList()));
             
         } catch (Exception e) {
-            // Return safe defaults if calculation fails
-            summary.put("totalIncome", BigDecimal.ZERO);
-            summary.put("totalCommissions", BigDecimal.ZERO);
-            summary.put("netOwnerIncome", BigDecimal.ZERO);
-            summary.put("transactionCount", 0);
-            summary.put("paymentCount", 0);
-            summary.put("recentTransactions", List.of());
-            summary.put("currentMonthIncome", BigDecimal.ZERO);
-            summary.put("error", "Calculation error: " + e.getMessage());
+            return getEmptyFinancialSummary();
         }
         
+        return summary;
+    }
+    
+    /**
+     * Return empty financial summary with safe defaults
+     */
+    private Map<String, Object> getEmptyFinancialSummary() {
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("totalIncoming", BigDecimal.ZERO);
+        summary.put("totalOutgoing", BigDecimal.ZERO);
+        summary.put("netIncome", BigDecimal.ZERO);
+        summary.put("totalCommissions", BigDecimal.ZERO);
+        summary.put("currentBalance", BigDecimal.ZERO);
+        summary.put("transactionCount", 0);
+        summary.put("monthlyIncoming", BigDecimal.ZERO);
+        summary.put("monthlyOutgoing", BigDecimal.ZERO);
+        summary.put("monthlyNet", BigDecimal.ZERO);
+        summary.put("recentTransactions", List.of());
+        summary.put("incomeByCategory", new HashMap<>());
+        summary.put("expensesByCategory", new HashMap<>());
         return summary;
     }
     

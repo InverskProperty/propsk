@@ -972,17 +972,156 @@ function loadMaintenanceData() {
 let allTransactionsData = [];
 
 function updateFinancialDisplay(data) {
-    // Update metrics
-    $('#totalIncome').text('£' + formatNumber(data.totalIncome));
-    $('#totalCommissions').text('£' + formatNumber(data.totalCommissions));
-    $('#netOwnerIncome').text('£' + formatNumber(data.netOwnerIncome));
-    $('#transactionCount').text(data.transactionCount);
+    // Update metrics with PayProp enhanced data structure
+    $('#totalIncome').text('£' + formatNumber(data.totalIncoming || data.totalIncome || 0));
+    $('#totalCommissions').text('£' + formatNumber(data.totalCommissions || 0));
+    $('#netOwnerIncome').text('£' + formatNumber(data.netIncome || data.netOwnerIncome || 0));
+    $('#transactionCount').text(data.transactionCount || 0);
+    
+    // Add additional metrics if available (PayProp data)
+    if (data.currentBalance !== undefined) {
+        updateCurrentBalance(data.currentBalance);
+    }
+    if (data.monthlyIncoming !== undefined) {
+        updateMonthlyMetrics(data);
+    }
+    if (data.incomeByCategory) {
+        updateCategoryBreakdown(data);
+    }
     
     // Store transaction data globally for filtering
     allTransactionsData = data.recentTransactions || [];
     
     // Display transactions with enhanced formatting
     displayTransactions(allTransactionsData, 'all');
+}
+
+function updateCurrentBalance(balance) {
+    // Add current balance display if not already present
+    if ($('#currentBalance').length === 0) {
+        const balanceCard = `
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h4 class="text-info" id="currentBalance">£${formatNumber(balance)}</h4>
+                        <p class="text-muted">Current Balance</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        $('#financialMetrics .row').append(balanceCard);
+    } else {
+        $('#currentBalance').text('£' + formatNumber(balance));
+    }
+}
+
+function updateMonthlyMetrics(data) {
+    // Add monthly metrics section if not present
+    if ($('#monthlyMetrics').length === 0) {
+        const monthlySection = `
+            <div class="row mt-3" id="monthlyMetrics">
+                <div class="col-12">
+                    <h6 class="text-muted mb-2">This Month</h6>
+                </div>
+                <div class="col-md-4">
+                    <div class="card card-sm">
+                        <div class="card-body text-center p-2">
+                            <h6 class="text-success mb-0" id="monthlyIncoming">£${formatNumber(data.monthlyIncoming || 0)}</h6>
+                            <small class="text-muted">Income</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card card-sm">
+                        <div class="card-body text-center p-2">
+                            <h6 class="text-danger mb-0" id="monthlyOutgoing">£${formatNumber(data.monthlyOutgoing || 0)}</h6>
+                            <small class="text-muted">Expenses</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card card-sm">
+                        <div class="card-body text-center p-2">
+                            <h6 class="text-primary mb-0" id="monthlyNet">£${formatNumber(data.monthlyNet || 0)}</h6>
+                            <small class="text-muted">Net</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        $('#financialMetrics').after(monthlySection);
+    } else {
+        $('#monthlyIncoming').text('£' + formatNumber(data.monthlyIncoming || 0));
+        $('#monthlyOutgoing').text('£' + formatNumber(data.monthlyOutgoing || 0));
+        $('#monthlyNet').text('£' + formatNumber(data.monthlyNet || 0));
+    }
+}
+
+function updateCategoryBreakdown(data) {
+    // Add category breakdown if data is available
+    if (data.incomeByCategory || data.expensesByCategory) {
+        const hasIncomeCategories = data.incomeByCategory && Object.keys(data.incomeByCategory).length > 0;
+        const hasExpenseCategories = data.expensesByCategory && Object.keys(data.expensesByCategory).length > 0;
+        
+        if ((hasIncomeCategories || hasExpenseCategories) && $('#categoryBreakdown').length === 0) {
+            let categoriesHtml = `
+                <div class="row mt-4" id="categoryBreakdown">
+                    <div class="col-12">
+                        <h6 class="text-muted mb-2">Category Breakdown</h6>
+                    </div>
+            `;
+            
+            if (hasIncomeCategories) {
+                categoriesHtml += `
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header p-2">
+                                <h6 class="mb-0 text-success">Income Categories</h6>
+                            </div>
+                            <div class="card-body p-2">
+                                <ul class="list-unstyled mb-0" id="incomeCategories">
+                `;
+                
+                Object.entries(data.incomeByCategory).forEach(([category, amount]) => {
+                    categoriesHtml += `<li class="d-flex justify-content-between"><span>${category}:</span><span class="text-success">£${formatNumber(amount)}</span></li>`;
+                });
+                
+                categoriesHtml += `
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (hasExpenseCategories) {
+                categoriesHtml += `
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header p-2">
+                                <h6 class="mb-0 text-danger">Expense Categories</h6>
+                            </div>
+                            <div class="card-body p-2">
+                                <ul class="list-unstyled mb-0" id="expenseCategories">
+                `;
+                
+                Object.entries(data.expensesByCategory).forEach(([category, amount]) => {
+                    categoriesHtml += `<li class="d-flex justify-content-between"><span>${category}:</span><span class="text-danger">£${formatNumber(amount)}</span></li>`;
+                });
+                
+                categoriesHtml += `
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            categoriesHtml += `</div>`;
+            
+            $('#recentTransactionsTable').closest('.row').before(categoriesHtml);
+        }
+    }
 }
 
 function displayTransactions(transactions, filterType) {
@@ -1014,30 +1153,59 @@ function displayTransactions(transactions, filterType) {
     }
     
     filteredTransactions.forEach(function(transaction) {
-        const sourceInfo = getDataSourceInfo(transaction);
-        const statusInfo = getTransactionStatus(transaction);
-        const reconciliationStatus = getReconciliationStatus(transaction);
+        // Handle both PayProp and legacy transaction formats
+        const isPayPropTransaction = transaction.payprop_id !== undefined;
+        
+        let sourceInfo, statusInfo, reconciliationStatus;
+        
+        if (isPayPropTransaction) {
+            // PayProp transaction format
+            sourceInfo = getPayPropDataSourceInfo(transaction);
+            statusInfo = getPayPropTransactionStatus(transaction);
+            reconciliationStatus = { icon: '' }; // Simplified for PayProp
+        } else {
+            // Legacy transaction format
+            sourceInfo = getDataSourceInfo(transaction);
+            statusInfo = getTransactionStatus(transaction);
+            reconciliationStatus = getReconciliationStatus(transaction);
+        }
+        
+        // Extract values with fallbacks for both formats
+        const transactionDate = transaction.transaction_date || transaction.transactionDate;
+        const transactionType = transaction.transaction_type || transaction.transactionType;
+        const amount = transaction.amount;
+        const commissionAmount = transaction.commission_amount || transaction.commissionAmount;
+        const netAmount = transaction.net_amount || transaction.netToOwnerAmount;
+        const category = transaction.invoice_category || transaction.payment_category || transaction.categoryName;
+        const description = transaction.description || transaction.reference || '';
+        const isIncoming = transaction.is_incoming;
+        
+        // Determine transaction direction and styling
+        const amountClass = isIncoming === true ? 'text-success' : 
+                           isIncoming === false ? 'text-danger' : 
+                           getAmountClass(amount);
         
         const row = `
-            <tr class="transaction-row ${sourceInfo.rowClass}" data-source="${transaction.dataSource}" data-type="${transaction.transactionType}">
-                <td>${formatDate(transaction.transactionDate)}</td>
+            <tr class="transaction-row ${sourceInfo.rowClass || ''}" data-source="${transaction.dataSource || 'PAYPROP'}" data-type="${transactionType}">
+                <td>${formatDate(transactionDate)}</td>
                 <td>
-                    <span class="badge ${sourceInfo.badgeClass}">
-                        ${formatTransactionType(transaction.transactionType)}
+                    <span class="badge ${sourceInfo.badgeClass || 'badge-primary'}">
+                        ${formatTransactionType(transactionType)}
+                    </span>
+                    ${description ? `<br><small class="text-muted">${description}</small>` : ''}
+                </td>
+                <td class="${amountClass}">£${formatNumber(amount || 0)}</td>
+                <td>£${formatNumber(commissionAmount || 0)}</td>
+                <td>£${formatNumber(netAmount || 0)}</td>
+                <td>${category || 'N/A'}</td>
+                <td>
+                    <span class="badge ${sourceInfo.sourceBadgeClass || 'badge-info'}" title="${sourceInfo.description || 'PayProp Data'}">
+                        ${sourceInfo.sourceLabel || 'PayProp'}
                     </span>
                 </td>
-                <td class="${getAmountClass(transaction.amount)}">£${formatNumber(transaction.amount)}</td>
-                <td>£${formatNumber(transaction.commissionAmount || 0)}</td>
-                <td>£${formatNumber(transaction.netToOwnerAmount || 0)}</td>
-                <td>${transaction.categoryName || 'N/A'}</td>
                 <td>
-                    <span class="badge ${sourceInfo.sourceBadgeClass}" title="${sourceInfo.description}">
-                        ${sourceInfo.sourceLabel}
-                    </span>
-                </td>
-                <td>
-                    <span class="badge ${statusInfo.badgeClass}" title="${statusInfo.description}">
-                        ${statusInfo.label}
+                    <span class="badge ${statusInfo.badgeClass || 'badge-success'}" title="${statusInfo.description || 'Complete'}">
+                        ${statusInfo.label || 'Active'}
                     </span>
                     ${reconciliationStatus.icon}
                 </td>
@@ -1302,6 +1470,29 @@ function getTransactionTypeClass(type) {
         case 'debit_note': return 'warning';
         default: return 'secondary';
     }
+}
+
+// PayProp-specific helper functions
+function getPayPropDataSourceInfo(transaction) {
+    const isIncoming = transaction.is_incoming;
+    const transactionType = transaction.transaction_type || '';
+    
+    return {
+        rowClass: isIncoming ? 'table-success-light' : 'table-danger-light',
+        badgeClass: isIncoming ? 'badge-success' : 'badge-danger',
+        sourceBadgeClass: 'badge-info',
+        sourceLabel: 'PayProp',
+        description: 'PayProp API Data'
+    };
+}
+
+function getPayPropTransactionStatus(transaction) {
+    // For PayProp transactions, status is generally 'Active' since they're from live API
+    return {
+        badgeClass: 'badge-success',
+        label: 'Active',
+        description: 'Live PayProp Data'
+    };
 }
 
 function refreshFinancialData() {
