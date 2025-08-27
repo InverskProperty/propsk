@@ -1188,6 +1188,13 @@ public class PropertyController {
             int synced = 0;
             BigDecimal totalRentPotential = BigDecimal.ZERO;
             
+            // PayProp-specific statistics
+            int withAccountBalance = 0;
+            int withCommission = 0;
+            int archivedProperties = 0;
+            BigDecimal totalAccountBalance = BigDecimal.ZERO;
+            BigDecimal averageCommissionRate = BigDecimal.ZERO;
+            
             if (properties != null) {
                 for (Property property : properties) {
                     // Calculate occupancy
@@ -1206,10 +1213,31 @@ public class PropertyController {
                     if (property.getMonthlyPayment() != null) {
                         totalRentPotential = totalRentPotential.add(property.getMonthlyPayment());
                     }
+                    
+                    // PayProp-specific calculations
+                    if (property.getAccountBalance() != null) {
+                        withAccountBalance++;
+                        totalAccountBalance = totalAccountBalance.add(property.getAccountBalance());
+                    }
+                    
+                    if (property.getCommissionPercentage() != null) {
+                        withCommission++;
+                        averageCommissionRate = averageCommissionRate.add(property.getCommissionPercentage());
+                    }
+                    
+                    if ("Y".equals(property.getIsArchived())) {
+                        archivedProperties++;
+                    }
                 }
             }
             
             int readyForSync = totalProperties - synced;
+            
+            // Calculate averages
+            if (withCommission > 0) {
+                averageCommissionRate = averageCommissionRate.divide(
+                    BigDecimal.valueOf(withCommission), 2, RoundingMode.HALF_UP);
+            }
 
             // Add ALL required model attributes for templates
             model.addAttribute("totalProperties", totalProperties);
@@ -1221,6 +1249,12 @@ public class PropertyController {
             model.addAttribute("totalRentPotential", totalRentPotential);
             model.addAttribute("occupiedProperties", occupied);
             model.addAttribute("vacantProperties", vacant);
+            
+            // PayProp-specific model attributes
+            model.addAttribute("totalAccountBalance", totalAccountBalance);
+            model.addAttribute("averageCommissionRate", averageCommissionRate);
+            model.addAttribute("archivedProperties", archivedProperties);
+            model.addAttribute("activeProperties", totalProperties - archivedProperties);
             
         } catch (Exception e) {
             System.err.println("Error calculating portfolio statistics: " + e.getMessage());
