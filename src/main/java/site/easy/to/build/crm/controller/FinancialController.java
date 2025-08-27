@@ -57,8 +57,7 @@ public class FinancialController {
             @PathVariable("id") String id, 
             Authentication authentication) {
         
-        System.out.println("DEBUG: Financial summary endpoint called for ID: " + id);
-        System.out.println("DEBUG: Data source config: " + dataSource);
+        // Get financial summary for property
         
         try {
             // Find property by ID or PayProp ID
@@ -340,23 +339,17 @@ public class FinancialController {
     private Map<String, Object> calculatePropertyFinancialSummary(Property property) {
         Map<String, Object> summary = new HashMap<>();
         
-        System.out.println("DEBUG: calculatePropertyFinancialSummary called");
-        System.out.println("DEBUG: Property ID: " + (property != null ? property.getId() : "null"));
-        System.out.println("DEBUG: PayProp ID: " + (property != null ? property.getPayPropId() : "null"));
-        System.out.println("DEBUG: Data source: " + dataSource);
+        // Calculate financial summary for property
         
         try {
             if (property == null) {
-                System.out.println("DEBUG: Property is null, returning empty summary");
                 return getEmptyFinancialSummary();
             }
             
             // Use PayProp data if available and configured
             if ("PAYPROP".equals(dataSource) && property.getPayPropId() != null) {
-                System.out.println("DEBUG: Using PayProp data source");
                 return calculatePayPropFinancialSummary(property);
             } else {
-                System.out.println("DEBUG: Using legacy data source (dataSource=" + dataSource + ", payPropId=" + property.getPayPropId() + ")");
                 // Fallback to legacy calculation
                 return calculateLegacyFinancialSummary(property);
             }
@@ -394,18 +387,20 @@ public class FinancialController {
                     pap.category_name,
                     pap.incoming_property_name,
                     pap.incoming_tenant_name,
-                    pap.reconciliation_date,
+                    pap.payment_batch_transfer_date,
+                    pap.incoming_transaction_type,
+                    pap.beneficiary_name,
+                    pap.beneficiary_type,
                     pap.incoming_transaction_amount,
+                    pap.payment_batch_status,
                     pap.imported_at
                 FROM payprop_report_all_payments pap 
                 WHERE pap.incoming_property_payprop_id = ? 
-                ORDER BY pap.reconciliation_date DESC, pap.imported_at DESC
+                ORDER BY pap.payment_batch_transfer_date DESC, pap.imported_at DESC
                 LIMIT 100
                 """;
                 
-            System.out.println("DEBUG: Executing query for PayProp ID: " + payPropId);
             List<Map<String, Object>> transactions = jdbcTemplate.queryForList(paymentsQuery, payPropId);
-            System.out.println("DEBUG: Found " + transactions.size() + " transactions");
             
             // Calculate totals
             BigDecimal totalIncoming = BigDecimal.ZERO;
@@ -427,10 +422,10 @@ public class FinancialController {
                 BigDecimal serviceFee = (BigDecimal) transaction.get("service_fee");
                 BigDecimal transactionFee = (BigDecimal) transaction.get("transaction_fee");
                 String category = (String) transaction.get("category_name");
-                java.sql.Date reconciliationDate = (java.sql.Date) transaction.get("reconciliation_date");
+                java.sql.Date transferDate = (java.sql.Date) transaction.get("payment_batch_transfer_date");
                 
-                // Determine if incoming based on amount sign (negative = outgoing, positive = incoming)
-                boolean isIncoming = amount != null && amount.compareTo(BigDecimal.ZERO) > 0;
+                // Determine transaction type based on category
+                boolean isIncoming = "Owner".equals(category) || amount != null && amount.compareTo(BigDecimal.ZERO) > 0;
                 
                 if (amount != null) {
                     if (isIncoming) {
@@ -440,7 +435,7 @@ public class FinancialController {
                         }
                         
                         // Monthly calculation
-                        if (reconciliationDate != null && !reconciliationDate.toLocalDate().isBefore(monthStart)) {
+                        if (transferDate != null && !transferDate.toLocalDate().isBefore(monthStart)) {
                             monthlyIncoming = monthlyIncoming.add(amount);
                         }
                     } else {
@@ -452,7 +447,7 @@ public class FinancialController {
                         }
                         
                         // Monthly calculation
-                        if (reconciliationDate != null && !reconciliationDate.toLocalDate().isBefore(monthStart)) {
+                        if (transferDate != null && !transferDate.toLocalDate().isBefore(monthStart)) {
                             monthlyOutgoing = monthlyOutgoing.add(positiveAmount);
                         }
                     }

@@ -1170,15 +1170,16 @@ function displayTransactions(transactions, filterType) {
             reconciliationStatus = getReconciliationStatus(transaction);
         }
         
-        // Extract values with fallbacks for both formats
-        const transactionDate = transaction.transaction_date || transaction.transactionDate;
-        const transactionType = transaction.transaction_type || transaction.transactionType;
+        // Extract values with PayProp field names
+        const transactionDate = transaction.payment_batch_transfer_date || transaction.transaction_date || transaction.transactionDate;
+        const transactionType = transaction.incoming_transaction_type || transaction.transaction_type || transaction.transactionType || 'Payment';
         const amount = transaction.amount;
-        const commissionAmount = transaction.commission_amount || transaction.commissionAmount;
-        const netAmount = transaction.net_amount || transaction.netToOwnerAmount;
-        const category = transaction.invoice_category || transaction.payment_category || transaction.categoryName;
+        const commissionAmount = (transaction.service_fee || 0) + (transaction.transaction_fee || 0);
+        const netAmount = transaction.incoming_transaction_amount || transaction.amount;
+        const category = transaction.category_name || transaction.categoryName;
         const description = transaction.description || transaction.reference || '';
-        const isIncoming = transaction.is_incoming;
+        const beneficiaryName = transaction.beneficiary_name || transaction.incoming_tenant_name || '';
+        const isIncoming = transaction.category_name === 'Owner' || (transaction.is_incoming !== false && amount > 0);
         
         // Determine transaction direction and styling
         const amountClass = isIncoming === true ? 'text-success' : 
@@ -1192,6 +1193,7 @@ function displayTransactions(transactions, filterType) {
                     <span class="badge ${sourceInfo.badgeClass || 'badge-primary'}">
                         ${formatTransactionType(transactionType)}
                     </span>
+                    ${beneficiaryName ? `<br><small class="text-muted">To: ${beneficiaryName}</small>` : ''}
                     ${description ? `<br><small class="text-muted">${description}</small>` : ''}
                 </td>
                 <td class="${amountClass}">£${formatNumber(amount || 0)}</td>
