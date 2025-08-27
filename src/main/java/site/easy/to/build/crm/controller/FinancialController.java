@@ -125,6 +125,102 @@ public class FinancialController {
     }
     
     /**
+     * DEBUG: Add missing payprop_id column to property table
+     */
+    @GetMapping("/debug/add-payprop-column")
+    public ResponseEntity<Map<String, Object>> addPayPropColumn() {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            // First check if column exists
+            String checkQuery = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'property' AND COLUMN_NAME = 'payprop_id'";
+            Integer columnExists = jdbcTemplate.queryForObject(checkQuery, Integer.class);
+            
+            if (columnExists == 0) {
+                // Add the column
+                String addColumnQuery = "ALTER TABLE property ADD COLUMN payprop_id VARCHAR(32) NULL";
+                jdbcTemplate.execute(addColumnQuery);
+                result.put("column_added", true);
+                result.put("message", "payprop_id column added to property table");
+            } else {
+                result.put("column_added", false);
+                result.put("message", "payprop_id column already exists");
+            }
+            
+            result.put("status", "success");
+            
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+            result.put("status", "error");
+        }
+        
+        return ResponseEntity.ok(result);
+    }
+    
+    /**
+     * DEBUG: Populate PayProp IDs in property table from existing PayProp data
+     */
+    @GetMapping("/debug/populate-payprop-ids")
+    public ResponseEntity<Map<String, Object>> populatePayPropIds() {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            // Get unique PayProp IDs from the payments table
+            String getPayPropIdsQuery = """
+                SELECT DISTINCT pap.payprop_id, pep.name as property_name, pep.address_first_line, pep.address_city
+                FROM payprop_report_all_payments pap
+                LEFT JOIN payprop_entity_property pep ON pap.payprop_id = pep.payprop_id
+                WHERE pap.payprop_id IS NOT NULL
+                LIMIT 100
+                """;
+            
+            List<Map<String, Object>> payPropProperties = jdbcTemplate.queryForList(getPayPropIdsQuery);
+            result.put("found_payprop_properties", payPropProperties.size());
+            
+            int updatedCount = 0;
+            for (Map<String, Object> ppProperty : payPropProperties) {
+                String payPropId = (String) ppProperty.get("payprop_id");
+                String propertyName = (String) ppProperty.get("property_name");
+                String addressLine1 = (String) ppProperty.get("address_first_line");
+                String city = (String) ppProperty.get("address_city");
+                
+                if (payPropId != null) {
+                    // Try to match with existing properties by name or address
+                    String matchQuery = """
+                        UPDATE property 
+                        SET payprop_id = ?
+                        WHERE payprop_id IS NULL 
+                        AND (
+                            property_name LIKE ? 
+                            OR property_name LIKE ?
+                            OR (? IS NOT NULL AND property_name LIKE ?)
+                        )
+                        LIMIT 1
+                        """;
+                    
+                    int updated = jdbcTemplate.update(matchQuery, 
+                        payPropId,
+                        "%" + (addressLine1 != null ? addressLine1 : "") + "%",
+                        "%" + (propertyName != null ? propertyName : "") + "%",
+                        city,
+                        "%" + (city != null ? city : "") + "%"
+                    );
+                    updatedCount += updated;
+                }
+            }
+            
+            result.put("properties_updated", updatedCount);
+            result.put("status", "success");
+            
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+            result.put("status", "error");
+        }
+        
+        return ResponseEntity.ok(result);
+    }
+    
+    /**
      * DEBUG: Test endpoint to check PayProp data availability
      */
     @GetMapping("/debug/payprop-data")
