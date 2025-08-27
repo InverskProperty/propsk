@@ -141,12 +141,35 @@ public class FinancialController {
             Integer icdnCount = jdbcTemplate.queryForObject(icdenQuery, Integer.class);
             debug.put("payprop_icdn_count", icdnCount);
             
-            String propertyQuery = "SELECT COUNT(*) as property_count FROM property WHERE payprop_id IS NOT NULL";
-            Integer propCount = jdbcTemplate.queryForObject(propertyQuery, Integer.class);
-            debug.put("properties_with_payprop_id", propCount);
-            
             debug.put("data_source_setting", dataSource);
             debug.put("status", "success");
+            
+            // Check property table structure and PayProp ID field
+            try {
+                String propertyQuery = "SELECT COUNT(*) as property_count FROM property WHERE payprop_id IS NOT NULL";
+                Integer propCount = jdbcTemplate.queryForObject(propertyQuery, Integer.class);
+                debug.put("properties_with_payprop_id", propCount);
+            } catch (Exception propertyError) {
+                debug.put("property_query_error", propertyError.getMessage());
+                
+                // Try alternative column names
+                try {
+                    String altQuery1 = "SELECT COUNT(*) as property_count FROM property WHERE pay_prop_id IS NOT NULL";
+                    Integer altCount = jdbcTemplate.queryForObject(altQuery1, Integer.class);
+                    debug.put("properties_with_pay_prop_id", altCount);
+                } catch (Exception e1) {
+                    debug.put("pay_prop_id_error", e1.getMessage());
+                }
+                
+                // Check table structure
+                try {
+                    String columnQuery = "SHOW COLUMNS FROM property LIKE '%prop%'";
+                    List<Map<String, Object>> columns = jdbcTemplate.queryForList(columnQuery);
+                    debug.put("property_payprop_columns", columns);
+                } catch (Exception e2) {
+                    debug.put("column_check_error", e2.getMessage());
+                }
+            }
             
         } catch (Exception e) {
             debug.put("error", e.getMessage());
