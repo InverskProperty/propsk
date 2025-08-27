@@ -57,6 +57,9 @@ public class FinancialController {
             @PathVariable("id") String id, 
             Authentication authentication) {
         
+        System.out.println("DEBUG: Financial summary endpoint called for ID: " + id);
+        System.out.println("DEBUG: Data source config: " + dataSource);
+        
         try {
             // Find property by ID or PayProp ID
             Property property = null;
@@ -120,6 +123,38 @@ public class FinancialController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
+    
+    /**
+     * DEBUG: Test endpoint to check PayProp data availability
+     */
+    @GetMapping("/debug/payprop-data")
+    public ResponseEntity<Map<String, Object>> debugPayPropData() {
+        Map<String, Object> debug = new HashMap<>();
+        
+        try {
+            // Test if PayProp tables exist and have data
+            String testQuery = "SELECT COUNT(*) as payment_count FROM payprop_report_all_payments LIMIT 1";
+            Integer paymentCount = jdbcTemplate.queryForObject(testQuery, Integer.class);
+            debug.put("payprop_payments_count", paymentCount);
+            
+            String icdenQuery = "SELECT COUNT(*) as icdn_count FROM payprop_report_icdn LIMIT 1";
+            Integer icdnCount = jdbcTemplate.queryForObject(icdenQuery, Integer.class);
+            debug.put("payprop_icdn_count", icdnCount);
+            
+            String propertyQuery = "SELECT COUNT(*) as property_count FROM property WHERE payprop_id IS NOT NULL";
+            Integer propCount = jdbcTemplate.queryForObject(propertyQuery, Integer.class);
+            debug.put("properties_with_payprop_id", propCount);
+            
+            debug.put("data_source_setting", dataSource);
+            debug.put("status", "success");
+            
+        } catch (Exception e) {
+            debug.put("error", e.getMessage());
+            debug.put("status", "error");
+        }
+        
+        return ResponseEntity.ok(debug);
+    }
 
     /**
      * Calculate financial summary for a specific property using PayProp data
@@ -127,15 +162,23 @@ public class FinancialController {
     private Map<String, Object> calculatePropertyFinancialSummary(Property property) {
         Map<String, Object> summary = new HashMap<>();
         
+        System.out.println("DEBUG: calculatePropertyFinancialSummary called");
+        System.out.println("DEBUG: Property ID: " + (property != null ? property.getId() : "null"));
+        System.out.println("DEBUG: PayProp ID: " + (property != null ? property.getPayPropId() : "null"));
+        System.out.println("DEBUG: Data source: " + dataSource);
+        
         try {
             if (property == null) {
+                System.out.println("DEBUG: Property is null, returning empty summary");
                 return getEmptyFinancialSummary();
             }
             
             // Use PayProp data if available and configured
             if ("PAYPROP".equals(dataSource) && property.getPayPropId() != null) {
+                System.out.println("DEBUG: Using PayProp data source");
                 return calculatePayPropFinancialSummary(property);
             } else {
+                System.out.println("DEBUG: Using legacy data source (dataSource=" + dataSource + ", payPropId=" + property.getPayPropId() + ")");
                 // Fallback to legacy calculation
                 return calculateLegacyFinancialSummary(property);
             }
@@ -154,6 +197,10 @@ public class FinancialController {
     private Map<String, Object> calculatePayPropFinancialSummary(Property property) {
         Map<String, Object> summary = new HashMap<>();
         String payPropId = property.getPayPropId();
+        
+        System.out.println("DEBUG: calculatePayPropFinancialSummary called for property: " + property.getId());
+        System.out.println("DEBUG: PayProp ID: " + payPropId);
+        System.out.println("DEBUG: Data source setting: " + dataSource);
         
         try {
             // Query PayProp all-payments table for comprehensive transaction data
@@ -179,7 +226,9 @@ public class FinancialController {
                 LIMIT 100
                 """;
                 
+            System.out.println("DEBUG: Executing query for PayProp ID: " + payPropId);
             List<Map<String, Object>> transactions = jdbcTemplate.queryForList(paymentsQuery, payPropId);
+            System.out.println("DEBUG: Found " + transactions.size() + " transactions");
             
             // Calculate totals
             BigDecimal totalIncoming = BigDecimal.ZERO;
