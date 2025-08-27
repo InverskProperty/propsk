@@ -221,6 +221,49 @@ public class FinancialController {
     }
     
     /**
+     * DEBUG: Update properties table with correct PayProp IDs from export properties
+     */
+    @GetMapping("/debug/link-properties")
+    public ResponseEntity<Map<String, Object>> linkPropertiesToPayProp() {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            // Link properties to export properties by address matching
+            String linkQuery = """
+                UPDATE properties p
+                INNER JOIN payprop_export_properties pep ON (
+                    p.address_line_1 LIKE CONCAT('%', pep.address_first_line, '%')
+                    OR pep.address_first_line LIKE CONCAT('%', p.address_line_1, '%')
+                    OR (p.city = pep.address_city AND 
+                        (SUBSTRING_INDEX(p.address_line_1, ' ', 1) = SUBSTRING_INDEX(pep.address_first_line, ' ', 1)))
+                )
+                SET p.payprop_id = pep.payprop_id
+                WHERE p.payprop_id != pep.payprop_id
+                """;
+                
+            int updatedRows = jdbcTemplate.update(linkQuery);
+            result.put("properties_linked", updatedRows);
+            
+            // Check how many properties now have matching PayProp IDs
+            String checkQuery = """
+                SELECT COUNT(*) as linked_properties
+                FROM properties p
+                INNER JOIN payprop_export_properties pep ON p.payprop_id = pep.payprop_id
+                """;
+            Integer linkedCount = jdbcTemplate.queryForObject(checkQuery, Integer.class);
+            result.put("total_linked_properties", linkedCount);
+            
+            result.put("status", "success");
+            
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+            result.put("status", "error");
+        }
+        
+        return ResponseEntity.ok(result);
+    }
+    
+    /**
      * DEBUG: Test endpoint to check PayProp data availability
      */
     @GetMapping("/debug/payprop-data")
@@ -339,25 +382,24 @@ public class FinancialController {
         
         try {
             // Query PayProp all-payments table for comprehensive transaction data
+            // FIXED: Use incoming_property_payprop_id to link transactions to properties
             String paymentsQuery = """
                 SELECT 
                     pap.payprop_id,
                     pap.amount,
-                    pap.commission_amount,
-                    pap.net_amount,
-                    pap.transaction_type,
-                    pap.transaction_date,
+                    pap.service_fee,
+                    pap.transaction_fee,
                     pap.description,
                     pap.reference,
-                    pap.invoice_category,
-                    pap.payment_category,
-                    pap.balance_impact,
-                    pap.is_incoming,
-                    pap.incoming_transaction_id,
-                    pap.created_at
+                    pap.category_name,
+                    pap.incoming_property_name,
+                    pap.incoming_tenant_name,
+                    pap.reconciliation_date,
+                    pap.incoming_transaction_amount,
+                    pap.imported_at
                 FROM payprop_report_all_payments pap 
-                WHERE pap.payprop_id = ? 
-                ORDER BY pap.transaction_date DESC, pap.created_at DESC
+                WHERE pap.incoming_property_payprop_id = ? 
+                ORDER BY pap.reconciliation_date DESC, pap.imported_at DESC
                 LIMIT 100
                 """;
                 
@@ -382,37 +424,46 @@ public class FinancialController {
             
             for (Map<String, Object> transaction : transactions) {
                 BigDecimal amount = (BigDecimal) transaction.get("amount");
-                BigDecimal commissionAmount = (BigDecimal) transaction.get("commission_amount");
-                Boolean isIncoming = (Boolean) transaction.get("is_incoming");
-                String category = (String) transaction.get("invoice_category");
-                LocalDateTime transactionDate = (LocalDateTime) transaction.get("transaction_date");
+                BigDecimal serviceFee = (BigDecimal) transaction.get("service_fee");
+                BigDecimal transactionFee = (BigDecimal) transaction.get("transaction_fee");
+                String category = (String) transaction.get("category_name");
+                java.sql.Date reconciliationDate = (java.sql.Date) transaction.get("reconciliation_date");
+                
+                // Determine if incoming based on amount sign (negative = outgoing, positive = incoming)
+                boolean isIncoming = amount != null && amount.compareTo(BigDecimal.ZERO) > 0;
                 
                 if (amount != null) {
-                    if (Boolean.TRUE.equals(isIncoming)) {
+                    if (isIncoming) {
                         totalIncoming = totalIncoming.add(amount);
                         if (category != null) {
                             incomeByCategory.merge(category, amount, BigDecimal::add);
                         }
                         
                         // Monthly calculation
-                        if (transactionDate != null && !transactionDate.toLocalDate().isBefore(monthStart)) {
+                        if (reconciliationDate != null && !reconciliationDate.toLocalDate().isBefore(monthStart)) {
                             monthlyIncoming = monthlyIncoming.add(amount);
                         }
                     } else {
-                        totalOutgoing = totalOutgoing.add(amount);
+                        // Make outgoing amounts positive for display
+                        BigDecimal positiveAmount = amount.abs();
+                        totalOutgoing = totalOutgoing.add(positiveAmount);
                         if (category != null) {
-                            expensesByCategory.merge(category, amount, BigDecimal::add);
+                            expensesByCategory.merge(category, positiveAmount, BigDecimal::add);
                         }
                         
                         // Monthly calculation
-                        if (transactionDate != null && !transactionDate.toLocalDate().isBefore(monthStart)) {
-                            monthlyOutgoing = monthlyOutgoing.add(amount);
+                        if (reconciliationDate != null && !reconciliationDate.toLocalDate().isBefore(monthStart)) {
+                            monthlyOutgoing = monthlyOutgoing.add(positiveAmount);
                         }
                     }
                 }
                 
-                if (commissionAmount != null) {
-                    totalCommissions = totalCommissions.add(commissionAmount);
+                // Calculate commissions from fees
+                if (serviceFee != null) {
+                    totalCommissions = totalCommissions.add(serviceFee);
+                }
+                if (transactionFee != null) {
+                    totalCommissions = totalCommissions.add(transactionFee);
                 }
             }
             
