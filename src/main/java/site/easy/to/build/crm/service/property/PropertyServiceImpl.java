@@ -1,8 +1,11 @@
 package site.easy.to.build.crm.service.property;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.repository.PropertyRepository;
@@ -11,6 +14,9 @@ import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import site.easy.to.build.crm.entity.Customer;
 
+import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -23,12 +29,18 @@ public class PropertyServiceImpl implements PropertyService {
 
     private final PropertyRepository propertyRepository;
     private final CustomerPropertyAssignmentRepository assignmentRepository;
+    private final JdbcTemplate jdbcTemplate;
+    
+    @Value("${crm.data.source:LEGACY}")
+    private String dataSource;
 
     @Autowired
     public PropertyServiceImpl(PropertyRepository propertyRepository,
-                            CustomerPropertyAssignmentRepository assignmentRepository) {
+                            CustomerPropertyAssignmentRepository assignmentRepository,
+                            JdbcTemplate jdbcTemplate) {
         this.propertyRepository = propertyRepository;
         this.assignmentRepository = assignmentRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     // ✅ Core CRUD operations
@@ -39,7 +51,136 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     public List<Property> findAll() {
+        if ("PAYPROP".equals(dataSource)) {
+            return findAllFromPayProp();
+        }
         return propertyRepository.findAll();
+    }
+    
+    private List<Property> findAllFromPayProp() {
+        String sql = """
+            SELECT 
+                pep.payprop_id,
+                pep.name as property_name,
+                pep.address_first_line,
+                pep.address_second_line,
+                pep.address_third_line,
+                pep.address_city,
+                pep.address_state,
+                pep.address_country_code,
+                pep.address_postal_code,
+                pep.settings_monthly_payment,
+                pep.commission_percentage,
+                pep.commission_amount,
+                pep.is_archived,
+                pep.sync_status,
+                pep.imported_at,
+                
+                -- Current tenant information
+                tenant.tenant_name,
+                tenant.tenant_email,
+                tenant.tenancy_start_date,
+                tenant.tenancy_end_date,
+                tenant.monthly_rent_amount as tenant_rent,
+                
+                -- Recent rent from ICDN invoices (last 3 months)
+                COALESCE(rent_recent.recent_rent, tenant.monthly_rent_amount, pep.settings_monthly_payment, 0) as monthly_payment,
+                
+                -- Account balance from properties table
+                COALESCE(pep.balance_amount, 0) as account_balance
+                
+            FROM payprop_export_properties pep
+            
+            -- Current active tenant
+            LEFT JOIN (
+                SELECT 
+                    current_property_id,
+                    CONCAT(first_name, ' ', last_name) as tenant_name,
+                    email as tenant_email,
+                    tenancy_start_date,
+                    tenancy_end_date,
+                    monthly_rent_amount
+                FROM payprop_export_tenants_complete 
+                WHERE tenant_status = 'active'
+            ) tenant ON pep.payprop_id = tenant.current_property_id
+            
+            -- Recent rent calculation (last 3 months)
+            LEFT JOIN (
+                SELECT 
+                    property_payprop_id, 
+                    AVG(amount) as recent_rent
+                FROM payprop_report_icdn 
+                WHERE category_name = 'Rent' 
+                AND transaction_date >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
+                GROUP BY property_payprop_id
+            ) rent_recent ON pep.payprop_id = rent_recent.property_payprop_id
+            
+            ORDER BY pep.name
+            """;
+        
+        try {
+            return jdbcTemplate.query(sql, new PayPropPropertyRowMapper());
+        } catch (Exception e) {
+            System.err.println("Error querying PayProp properties, falling back to legacy data: " + e.getMessage());
+            return propertyRepository.findAll();
+        }
+    }
+    
+    private static class PayPropPropertyRowMapper implements RowMapper<Property> {
+        @Override
+        public Property mapRow(ResultSet rs, int rowNum) throws SQLException {
+            Property property = new Property();
+            
+            // Basic property info
+            property.setPayPropId(rs.getString("payprop_id"));
+            property.setPropertyName(rs.getString("property_name"));
+            property.setAddressLine1(rs.getString("address_first_line"));
+            property.setAddressLine2(rs.getString("address_second_line"));
+            property.setAddressLine3(rs.getString("address_third_line"));
+            property.setCity(rs.getString("address_city"));
+            property.setState(rs.getString("address_state"));
+            property.setCountryCode(rs.getString("address_country_code"));
+            property.setPostcode(rs.getString("address_postal_code"));
+            
+            // Financial information
+            BigDecimal monthlyPayment = rs.getBigDecimal("monthly_payment");
+            if (monthlyPayment != null) {
+                property.setMonthlyPayment(monthlyPayment);
+            }
+            
+            BigDecimal accountBalance = rs.getBigDecimal("account_balance");
+            if (accountBalance != null) {
+                property.setAccountBalance(accountBalance);
+            }
+            
+            BigDecimal commissionAmount = rs.getBigDecimal("commission_amount");
+            if (commissionAmount != null) {
+                property.setCommissionAmount(commissionAmount);
+            }
+            
+            BigDecimal commissionPercentage = rs.getBigDecimal("commission_percentage");
+            if (commissionPercentage != null) {
+                property.setCommissionPercentage(commissionPercentage);
+            }
+            
+            // Status flags
+            boolean isArchived = rs.getBoolean("is_archived");
+            property.setIsArchived(isArchived ? "Y" : "N");
+            
+            String syncStatus = rs.getString("sync_status");
+            property.setSyncStatus(syncStatus);
+            
+            // Timestamps
+            if (rs.getTimestamp("imported_at") != null) {
+                property.setCreatedAt(rs.getTimestamp("imported_at").toLocalDateTime());
+                property.setUpdatedAt(rs.getTimestamp("imported_at").toLocalDateTime());
+            }
+            
+            // Generate a fake ID for compatibility (using hash of PayProp ID)
+            property.setId((long) rs.getString("payprop_id").hashCode());
+            
+            return property;
+        }
     }
 
     @Override
@@ -305,6 +446,16 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     public long getTotalProperties() {
+        if ("PAYPROP".equals(dataSource)) {
+            try {
+                return jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM payprop_export_properties", 
+                    Long.class);
+            } catch (Exception e) {
+                System.err.println("Error counting PayProp properties: " + e.getMessage());
+                return propertyRepository.count();
+            }
+        }
         return propertyRepository.count();
     }
 

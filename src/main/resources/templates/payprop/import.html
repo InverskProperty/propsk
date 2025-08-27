@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <div class="row page-titles">
+                <div class="col-md-5 align-self-center">
+                    <h4 class="text-themecolor">PayProp Data Import</h4>
+                </div>
+                <div class="col-md-7 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0)">PayProp</a></li>
+                            <li class="breadcrumb-item active">Data Import</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4 class="card-title">PayProp Integration Status</h4>
+                            
+                            <div class="connection-status mb-4">
+                                <div th:if="${paypropConnected}" class="alert alert-success">
+                                    <i class="fas fa-check-circle"></i> PayProp OAuth2 Connected
+                                </div>
+                                <div th:unless="${paypropConnected}" class="alert alert-danger">
+                                    <i class="fas fa-times-circle"></i> PayProp Not Connected
+                                    <p class="mt-2">Please configure OAuth2 connection first.</p>
+                                </div>
+                            </div>
+
+                            <div th:if="${paypropConnected}">
+                                <h5 class="mb-3">Import Operations</h5>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="card border-left-primary">
+                                            <div class="card-body">
+                                                <h6 class="card-title">Complete System Sync</h6>
+                                                <p class="card-text">Import all data including payments, invoices, categories, and entity relationships.</p>
+                                                <button id="fullSyncBtn" class="btn btn-primary">
+                                                    <i class="fas fa-sync"></i> Start Full Sync
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <div class="card border-left-info">
+                                            <div class="card-body">
+                                                <h6 class="card-title">Critical Missing Data Only</h6>
+                                                <p class="card-text">Import only essential missing data for faster sync.</p>
+                                                <button id="criticalSyncBtn" class="btn btn-info">
+                                                    <i class="fas fa-download"></i> Sync Critical Data
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6 class="mb-0">Import Progress</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <div id="progressContainer" style="display: none;">
+                                                    <div class="progress mb-3">
+                                                        <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                                    </div>
+                                                    <div id="currentOperation" class="text-muted mb-2"></div>
+                                                    <button id="cancelBtn" class="btn btn-danger btn-sm" style="display: none;">
+                                                        <i class="fas fa-stop"></i> Cancel Import
+                                                    </button>
+                                                </div>
+                                                
+                                                <div id="results" class="mt-3">
+                                                    <div class="alert alert-info">
+                                                        <i class="fas fa-info-circle"></i> Ready to import data from PayProp
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{general/footer.html}"></div>
+
+<script>
+let currentImportId = null;
+let progressInterval = null;
+let csrfToken = null;
+let csrfHeader = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
+    csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content;
+});
+
+async function fetchWithCSRF(url, options = {}) {
+    if (!options.headers) options.headers = {};
+    if (csrfToken && csrfHeader) options.headers[csrfHeader] = csrfToken;
+    options.credentials = 'include';
+    return fetch(url, options);
+}
+
+document.getElementById('fullSyncBtn')?.addEventListener('click', function() {
+    startImport('full');
+});
+
+document.getElementById('criticalSyncBtn')?.addEventListener('click', function() {
+    startImport('critical');
+});
+
+document.getElementById('cancelBtn')?.addEventListener('click', function() {
+    cancelImport();
+});
+
+async function startImport(type) {
+    const endpoint = type === 'full' 
+        ? '/api/payprop/raw-import/sync-all-endpoints'
+        : '/api/payprop/raw-import/sync-critical-missing';
+    
+    showProgress();
+    updateStatus('Initializing import...', 'info');
+    
+    try {
+        const response = await fetchWithCSRF(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            if (data.importId) {
+                currentImportId = data.importId;
+                document.getElementById('cancelBtn').style.display = 'inline-block';
+                startProgressMonitoring();
+                updateStatus('Import started successfully', 'success');
+            } else {
+                updateStatus('Import completed immediately: ' + JSON.stringify(data), 'success');
+                hideProgress();
+            }
+        } else {
+            updateStatus('Import failed: ' + (data.error || data.message), 'error');
+            hideProgress();
+        }
+    } catch (error) {
+        updateStatus('Import error: ' + error.message, 'error');
+        hideProgress();
+    }
+}
+
+function startProgressMonitoring() {
+    if (!currentImportId) return;
+    
+    progressInterval = setInterval(async () => {
+        try {
+            const response = await fetchWithCSRF(`/api/payprop/raw-import/status/${currentImportId}`);
+            const status = await response.json();
+            
+            if (response.ok) {
+                updateProgressBar(status.progress || 0);
+                document.getElementById('currentOperation').textContent = status.currentOperation || 'Processing...';
+                
+                if (status.completed) {
+                    clearInterval(progressInterval);
+                    hideProgress();
+                    updateStatus('Import completed successfully!', 'success');
+                    
+                    if (status.results) {
+                        displayResults(status.results);
+                    }
+                } else if (status.error) {
+                    clearInterval(progressInterval);
+                    hideProgress();
+                    updateStatus('Import failed: ' + status.error, 'error');
+                }
+            }
+        } catch (error) {
+            console.error('Error monitoring progress:', error);
+        }
+    }, 2000);
+}
+
+async function cancelImport() {
+    if (!currentImportId) return;
+    
+    try {
+        const response = await fetchWithCSRF(`/api/payprop/raw-import/cancel/${currentImportId}`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            clearInterval(progressInterval);
+            hideProgress();
+            updateStatus('Import cancelled', 'warning');
+        }
+    } catch (error) {
+        updateStatus('Error cancelling import: ' + error.message, 'error');
+    }
+}
+
+function showProgress() {
+    document.getElementById('progressContainer').style.display = 'block';
+    document.getElementById('fullSyncBtn').disabled = true;
+    document.getElementById('criticalSyncBtn').disabled = true;
+    updateProgressBar(0);
+}
+
+function hideProgress() {
+    document.getElementById('progressContainer').style.display = 'none';
+    document.getElementById('cancelBtn').style.display = 'none';
+    document.getElementById('fullSyncBtn').disabled = false;
+    document.getElementById('criticalSyncBtn').disabled = false;
+    currentImportId = null;
+    
+    if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+    }
+}
+
+function updateProgressBar(percent) {
+    const progressBar = document.getElementById('progressBar');
+    progressBar.style.width = percent + '%';
+    progressBar.setAttribute('aria-valuenow', percent);
+}
+
+function updateStatus(message, type) {
+    const resultsDiv = document.getElementById('results');
+    const alertClass = type === 'error' ? 'alert-danger' : 
+                     type === 'success' ? 'alert-success' : 
+                     type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    const icon = type === 'error' ? 'fas fa-exclamation-circle' : 
+                type === 'success' ? 'fas fa-check-circle' : 
+                type === 'warning' ? 'fas fa-exclamation-triangle' : 'fas fa-info-circle';
+    
+    const timestamp = new Date().toLocaleTimeString();
+    
+    resultsDiv.innerHTML = `
+        <div class="alert ${alertClass}">
+            <i class="${icon}"></i> [${timestamp}] ${message}
+        </div>
+    `;
+}
+
+function displayResults(results) {
+    const resultsDiv = document.getElementById('results');
+    let html = '<div class="alert alert-success"><i class="fas fa-check-circle"></i> Import Summary:</div>';
+    
+    if (results.summary) {
+        html += '<div class="table-responsive"><table class="table table-bordered table-sm">';
+        html += '<thead><tr><th>Operation</th><th>Status</th><th>Records</th></tr></thead><tbody>';
+        
+        Object.entries(results.summary).forEach(([operation, data]) => {
+            const status = data.error ? 'Error' : 'Success';
+            const statusClass = data.error ? 'text-danger' : 'text-success';
+            const count = data.recordsProcessed || data.count || 0;
+            
+            html += `<tr>
+                <td>${operation}</td>
+                <td class="${statusClass}">${status}</td>
+                <td>${count}</td>
+            </tr>`;
+        });
+        
+        html += '</tbody></table></div>';
+    }
+    
+    resultsDiv.innerHTML = html;
+}
+
+async function checkConnectionStatus() {
+    try {
+        const response = await fetchWithCSRF('/payprop/import/status', { method: 'POST' });
+        const data = await response.json();
+        
+        if (!data.connected) {
+            updateStatus('PayProp connection lost. Please reconnect.', 'error');
+        }
+    } catch (error) {
+        console.error('Error checking connection:', error);
+    }
+}
+
+setInterval(checkConnectionStatus, 30000);
+</script>
+
+<style>
+.border-left-primary { border-left: 4px solid #007bff !important; }
+.border-left-info { border-left: 4px solid #17a2b8 !important; }
+.progress { height: 20px; }
+.connection-status .alert { padding: 1rem; font-size: 1.1rem; }
+</style>
+
+</body>
+</html>

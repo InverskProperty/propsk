@@ -1,0 +1,617 @@
+🏗️  SPRING BOOT PROJECT STRUCTURE
+📍 Base: C:\Users\sajid\crecrm
+
+=== JAVA SOURCE FILES ===
+├── 📁 config/
+│   ├── 📄 CrmUserDetails.java
+│   ├── 📄 CustomAccessDeniedHandler.java
+│   ├── 📄 CustomerLoginFailureHandler.java
+│   ├── 📄 CustomerLoginSuccessHandler.java
+│   ├── 📄 CustomerUserDetails.java
+│   ├── 📄 RestTemplateConfig.java
+│   ├── 📄 SecurityConfig.java
+│   ├── 📄 TestSecurityConfig.java
+│   ├── 📄 TicketSyncConfig.java
+├── 📁 controller/
+│   ├── 📄 AccountConnectionController.java
+│   ├── 📄 BatchPaymentTestController.java
+│   ├── 📄 BridgeMigrationController.java
+│   ├── 📄 ContractController.java
+│   ├── 📄 ContractorController.java
+│   ├── 📄 CustomerController.java
+│   ├── 📄 CustomerEmailSettingController.java
+│   ├── 📄 CustomerFilesController.java
+│   ├── 📄 CustomerLoginController.java
+│   ├── 📄 CustomerProfileController.java
+│   ├── 📄 CustomerRegistrationController.java
+│   ├── 📄 CustomErrorController.java
+│   ├── 📄 DebugController.java
+│   ├── 📄 EmailSettingsController.java
+│   ├── 📄 EmailTemplatesController.java
+│   ├── 📄 EmployeeController.java
+│   ├── 📄 FinancialController.java
+│   ├── 📄 GlobalController.java
+│   ├── 📄 GlobalControllerAdvice.java
+│   ├── 📄 GoogleApiTestController.java
+│   ├── 📄 GoogleSettingsController.java
+│   ├── 📄 HomePageController.java
+│   ├── 📄 LeadController.java
+│   ├── 📄 LogoutController.java
+│   ├── 📄 ManagerController.java
+│   ├── 📄 PasswordTestController.java
+│   ├── 📄 PayPropAdminController.java
+│   ├── 📄 PayPropEndpointTestController.java
+│   ├── 📄 PayPropMaintenanceController.java
+│   ├── 📄 PayPropOAuth2Controller.java
+│   ├── 📄 PayPropPaymentsSyncController.java
+│   ├── 📄 PayPropRawImportSimpleController.java
+│   ├── 📄 PayPropRawImportTestController.java
+│   ├── 📄 PayPropSyncController.java
+│   ├── 📄 PayPropTestPageController.java
+│   ├── 📄 PayPropWebhookController.java
+│   ├── 📄 PortfolioController.java
+│   ├── 📄 PropertyApiController.java
+│   ├── 📄 PropertyController.java
+│   ├── 📄 PropertyOwnerController.java
+│   ├── 📄 RegisterController.java
+│   ├── 📄 SimplePortfolioTestController.java
+│   ├── 📄 StatementController.java
+│   ├── 📄 TenantController.java
+│   ├── 📄 TicketController.java
+│   ├── 📄 TokenRefreshController.java
+│   ├── 📄 UrlAccessController.java
+│   ├── 📄 UserProfileController.java
+├── 📁 converter/
+│   ├── 📄 StringSetConverter.java
+│   ├── 📄 YesNoConverter.java
+├── 📁 cron/
+│   ├── 📄 ContractExpirationChecker.java
+├── 📁 customValidations/
+│   ├── 📄 EndTimeAfterStartTime.java
+│   ├── 📄 EndTimeAfterStartTimeValidator.java
+│   ├── 📄 FutureDate.java
+│   ├── 📄 FutureDateValidator.java
+│   ├── 📄 SameDay.java
+│   ├── 📄 SameDayValidator.java
+├── 📁 entity/
+│   ├── 📄 AccountType.java
+│   ├── 📄 AssignmentType.java
+│   ├── 📄 BatchPayment.java
+│   ├── 📄 Beneficiary.java
+│   ├── 📄 BeneficiaryBalance.java
+│   ├── 📄 BeneficiaryType.java
+│   ├── 📄 BeneficiaryTypeConverter.java
+│   ├── 📄 Block.java
+│   ├── 📄 BlockType.java
+│   ├── 📄 Contract.java
+│   ├── 📄 Contractor.java
+│   ├── 📄 ContractorBid.java
+│   ├── 📄 Customer.java
+│   ├── 📄 CustomerLoginInfo.java
+│   ├── 📄 CustomerPropertyAssignment.java
+│   ├── 📄 CustomerType.java
+│   ├── 📄 EmailTemplate.java
+│   ├── 📄 File.java
+│   ├── 📄 FinancialTransaction.java
+│   ├── 📄 Frequency.java
+│   ├── 📄 GoogleDriveFile.java
+│   ├── 📄 Lead.java
+│   ├── 📄 LeadAction.java
+│   ├── 📄 OAuthUser.java
+│   ├── 📄 Payment.java
+│   ├── 📄 PaymentCategory.java
+│   ├── 📄 PaymentMethod.java
+│   ├── 📄 PayPropTagLink.java
+│   ├── 📄 PayPropToken.java
+│   ├── 📄 Portfolio.java
+│   ├── 📄 PortfolioAnalytics.java
+│   ├── 📄 PortfolioAssignmentType.java
+│   ├── 📄 PortfolioSyncLog.java
+│   ├── 📄 PortfolioType.java
+│   ├── 📄 Property.java
+│   ├── 📄 PropertyOwner.java
+│   ├── 📄 PropertyPortfolioAssignment.java
+│   ├── 📄 Role.java
+│   ├── 📄 SyncStatus.java
+│   ├── 📄 TagNamespace.java
+│   ├── 📄 Tenant.java
+│   ├── 📄 Ticket.java
+│   ├── 📄 User.java
+│   ├── 📄 UserProfile.java
+│   ├── 📄 WeatherData.java
+├── 📁 repository/
+│   ├── 📄 BatchPaymentRepository.java
+│   ├── 📄 BeneficiaryBalanceRepository.java
+│   ├── 📄 BeneficiaryRepository.java
+│   ├── 📄 BlockRepository.java
+│   ├── 📄 ContractorBidRepository.java
+│   ├── 📄 ContractorRepository.java
+│   ├── 📄 ContractRepository.java
+│   ├── 📄 CustomerLoginInfoRepository.java
+│   ├── 📄 CustomerPropertyAssignmentRepository.java
+│   ├── 📄 CustomerRepository.java
+│   ├── 📄 EmailTemplateRepository.java
+│   ├── 📄 FileRepository.java
+│   ├── 📄 FinancialTransactionRepository.java
+│   ├── 📄 GoogleDriveFileRepository.java
+│   ├── 📄 LeadActionRepository.java
+│   ├── 📄 LeadRepository.java
+│   ├── 📄 OAuthUserRepository.java
+│   ├── 📄 PaymentCategoryRepository.java
+│   ├── 📄 PaymentRepository.java
+│   ├── 📄 PayPropTagLinkRepository.java
+│   ├── 📄 PayPropTokenRepository.java
+│   ├── 📄 PortfolioAnalyticsRepository.java
+│   ├── 📄 PortfolioRepository.java
+│   ├── 📄 PortfolioSyncLogRepository.java
+│   ├── 📄 PropertyOwnerRepository.java
+│   ├── 📄 PropertyPortfolioAssignmentRepository.java
+│   ├── 📄 PropertyRepository.java
+│   ├── 📄 RoleRepository.java
+│   ├── 📄 TenantRepository.java
+│   ├── 📄 TicketRepository.java
+│   ├── 📄 UserProfileRepository.java
+│   ├── 📄 UserRepository.java
+📁 src/main/java/.../crm
+│   ├── 📄 CrmApplication.java
+│   ├── 📄 PayPropRawImportSimpleController_Enhanced.java
+│   ├── 📄 PayPropTagGenerator_Test_Examples.java
+├── 📁 scheduler/
+│   ├── 📄 PortfolioAnalyticsScheduler.java
+├── 📁 util/
+│   ├── 📄 AuthenticationUtils.java
+│   ├── 📄 AuthorizationUtil.java
+│   ├── 📄 DatabaseUtil.java
+│   ├── 📄 DateUtil.java
+│   ├── 📄 EmailTokenUtils.java
+│   ├── 📄 FileUtil.java
+│   ├── 📄 LogEntityChanges.java
+│   ├── 📄 PayPropTagGenerator.java
+│   ├── 📄 SessionUtils.java
+│   ├── 📄 StringUtils.java
+│   ├── 📄 TomcatWebAppValidator.java
+  ├── 📁 init/
+  │   ├── 📄 OAuth2ClientIdInitializer.java
+  ├── 📁 oauth2/
+  │   ├── 📄 CustomOAuth2User.java
+  │   ├── 📄 CustomOAuth2UserService.java
+  │   ├── 📄 OAuthLoginSuccessHandler.java
+  ├── 📁 migration/
+  │   ├── 📄 TagMigrationController.java
+  ├── 📁 portfolio/
+  │   ├── 📄 BlockController.java
+  │   ├── 📄 BlockPayPropController.java
+  │   ├── 📄 PortfolioAdminController.java
+  │   ├── 📄 PortfolioAssignmentController.java
+  │   ├── 📄 PortfolioControllerBase.java
+  │   ├── 📄 PortfolioPayPropController.java
+  ├── 📁 tag/
+  │   ├── 📄 TagNamespaceController.java
+  ├── 📁 contract/
+  │   ├── 📄 StartDateBeforeEndDate.java
+  │   ├── 📄 StartDateBeforeEndDateValidator.java
+  ├── 📁 customer/
+  │   ├── 📄 UniqueEmail.java
+  │   ├── 📄 UniqueEmailValidator.java
+  ├── 📁 user/
+  │   ├── 📄 UniqueEmail.java
+  │   ├── 📄 UniqueEmailValidator.java
+  │   ├── 📄 UniqueUsername.java
+  │   ├── 📄 UniqueUsernameValidator.java
+  ├── 📁 settings/
+  │   ├── 📄 ContractEmailSettings.java
+  │   ├── 📄 EmailSettings.java
+  │   ├── 📄 LeadEmailSettings.java
+  │   ├── 📄 TicketEmailSettings.java
+  ├── 📁 config/
+  │   ├── 📄 GoogleApiConfig.java
+  │   ├── 📄 GoogleApiProperties.java
+  │   ├── 📄 GoogleAuthorizationCodeFlowWrapper.java
+  ├── 📁 controller/
+  │   ├── 📄 GoogleCalendarController.java
+  │   ├── 📄 GoogleDriveController.java
+  │   ├── 📄 GoogleGmailController.java
+  ├── 📁 dao/
+  │   ├── 📄 EventDateTime.java
+  ├── 📁 service/
+  │   ├── 📄 GoogleCalendarApiService.java
+  │   ├── 📄 GoogleCalendarApiServiceImpl.java
+  │   ├── 📄 GoogleTokenRefreshScheduler.java
+  │   ├── 📄 TokenAwareApiExecutor.java
+  ├── 📁 util/
+  │   ├── 📄 GoogleApiHelper.java
+  │   ├── 📄 GsonUtil.java
+  │   ├── 📄 PageTokenManager.java
+  │   ├── 📄 StringSetWrapper.java
+  │   ├── 📄 TimeDateUtil.java
+  │   ├── 📄 TimeZoneLabel.java
+  ├── 📁 settings/
+  │   ├── 📄 ContractEmailSettingsRepository.java
+  │   ├── 📄 LeadEmailSettingsRepository.java
+  │   ├── 📄 TicketEmailSettingsRepository.java
+  ├── 📁 assignment/
+  │   ├── 📄 CustomerPropertyAssignmentService.java
+  ├── 📁 block/
+  │   ├── 📄 BlockTagService.java
+  ├── 📁 contract/
+  │   ├── 📄 ContractService.java
+  │   ├── 📄 ContractServiceImpl.java
+  ├── 📁 contractor/
+  │   ├── 📄 ContractorBidService.java
+  │   ├── 📄 ContractorBidServiceImpl.java
+  │   ├── 📄 ContractorService.java
+  │   ├── 📄 ContractorServiceImpl.java
+  │   ├── 📄 dashboard.java
+  ├── 📁 customer/
+  │   ├── 📄 BridgeMigrationResult.java
+  │   ├── 📄 CustomerEntityBridgeService.java
+  │   ├── 📄 CustomerLoginInfoService.java
+  │   ├── 📄 CustomerLoginInfoServiceImpl.java
+  │   ├── 📄 CustomerService.java
+  │   ├── 📄 CustomerServiceImpl.java
+  ├── 📁 drive/
+  │   ├── 📄 CustomerDriveOrganizationService.java
+  │   ├── 📄 GoogleDriveFileService.java
+  │   ├── 📄 GoogleDriveFileServiceImpl.java
+  ├── 📁 email/
+  │   ├── 📄 EmailService.java
+  │   ├── 📄 EmailServiceImpl.java
+  │   ├── 📄 EmailTemplateService.java
+  │   ├── 📄 EmailTemplateServiceImpl.java
+  ├── 📁 file/
+  │   ├── 📄 FileService.java
+  │   ├── 📄 FileServiceImpl.java
+  ├── 📁 lead/
+  │   ├── 📄 LeadActionService.java
+  │   ├── 📄 LeadActionServiceImpl.java
+  │   ├── 📄 LeadService.java
+  │   ├── 📄 LeadServiceImpl.java
+  ├── 📁 migration/
+  │   ├── 📄 PayPropTagMigrationService.java
+  │   ├── 📄 TagNamespaceMigrationService.java
+  ├── 📁 payprop/
+  │   ├── 📄 PayPropAddressDTO.java
+  │   ├── 📄 PayPropApiClient.java
+  │   ├── 📄 PayPropBeneficiaryDTO.java
+  │   ├── 📄 PayPropBlockSyncService.java
+  │   ├── 📄 PayPropChangeDetection.java
+  │   ├── 📄 PayPropConflictResolver.java
+  │   ├── 📄 PayPropEntityResolutionService.java
+  │   ├── 📄 PayPropFinancialSyncService.java
+  │   ├── 📄 PayPropMaintenanceSyncService.java
+  │   ├── 📄 PayPropOAuth2Service.java
+  │   ├── 📄 PayPropPortfolioMigrationService.java
+  │   ├── 📄 PayPropPortfolioSyncService.java
+  │   ├── 📄 PayPropPropertyDTO.java
+  │   ├── 📄 PayPropRealTimeSyncService.java
+  │   ├── 📄 PayPropSettingsDTO.java
+  │   ├── 📄 PayPropSyncException.java
+  │   ├── 📄 PayPropSyncLogger.java
+  │   ├── 📄 PayPropSyncMonitoringService.java
+  │   ├── 📄 PayPropSyncOrchestrator.java
+  │   ├── 📄 PayPropSyncScheduler.java
+  │   ├── 📄 PayPropSyncService.java
+  │   ├── 📄 PayPropTagDTO.java
+  │   ├── 📄 PayPropTenantDTO.java
+  │   ├── 📄 PayPropValidationHelper.java
+  │   ├── 📄 SyncResult.java
+  │   ├── 📄 SyncResultType.java
+  ├── 📁 portfolio/
+  │   ├── 📄 PortfolioAssignmentService.java
+  │   ├── 📄 PortfolioBlockService.java
+  │   ├── 📄 PortfolioBlockServiceImpl.java
+  │   ├── 📄 PortfolioService.java
+  │   ├── 📄 PortfolioServiceImpl.java
+  ├── 📁 property/
+  │   ├── 📄 PropertyOwnerService.java
+  │   ├── 📄 PropertyOwnerServiceImpl.java
+  │   ├── 📄 PropertyService.java
+  │   ├── 📄 PropertyServiceImpl.java
+  │   ├── 📄 TenantService.java
+  │   ├── 📄 TenantServiceImpl.java
+  ├── 📁 role/
+  │   ├── 📄 RoleService.java
+  │   ├── 📄 RoleServiceImpl.java
+  ├── 📁 settings/
+  │   ├── 📄 ContractEmailSettingsService.java
+  │   ├── 📄 LeadEmailSettingsService.java
+  │   ├── 📄 TicketEmailSettingsService.java
+  ├── 📁 sheets/
+  │   ├── 📄 GoogleSheetsStatementService.java
+  ├── 📁 tag/
+  │   ├── 📄 TagNamespaceService.java
+  ├── 📁 ticket/
+  │   ├── 📄 TicketService.java
+  │   ├── 📄 TicketServiceImpl.java
+  ├── 📁 user/
+  │   ├── 📄 OAuthUserService.java
+  │   ├── 📄 OAuthUserServiceImpl.java
+  │   ├── 📄 UserProfileService.java
+  │   ├── 📄 UserProfileServiceImpl.java
+  │   ├── 📄 UserService.java
+  │   ├── 📄 UserServiceImpl.java
+  ├── 📁 weather/
+  │   ├── 📄 WeatherService.java
+    ├── 📁 calendar/
+    │   ├── 📄 AppointmentSlot.java
+    │   ├── 📄 Event.java
+    │   ├── 📄 EventAttendee.java
+    │   ├── 📄 EventDateTime.java
+    │   ├── 📄 EventDisplay.java
+    │   ├── 📄 EventDisplayList.java
+    │   ├── 📄 EventList.java
+    ├── 📁 drive/
+    │   ├── 📄 GoogleDriveFile.java
+    │   ├── 📄 GoogleDriveFolder.java
+    ├── 📁 gmail/
+    │   ├── 📄 Attachment.java
+    │   ├── 📄 Body.java
+    │   ├── 📄 CustomHeader.java
+    │   ├── 📄 EmailPage.java
+    │   ├── 📄 GmailApiMessage.java
+    │   ├── 📄 GmailEmailInfo.java
+    │   ├── 📄 GoogleGmailEmail.java
+    │   ├── 📄 Part.java
+    │   ├── 📄 Payload.java
+    ├── 📁 acess/
+    │   ├── 📄 GoogleAccessService.java
+    │   ├── 📄 GoogleAccessServiceImpl.java
+    ├── 📁 calendar/
+    │   ├── 📄 GoogleCalendarApiService.java
+    │   ├── 📄 GoogleCalendarApiServiceImpl.java
+    ├── 📁 drive/
+    │   ├── 📄 GoogleDriveApiService.java
+    │   ├── 📄 GoogleDriveApiServiceImpl.java
+    ├── 📁 gmail/
+    │   ├── 📄 GmailEmailService.java
+    │   ├── 📄 GoogleGmailApiService.java
+    │   ├── 📄 GoogleGmailApiServiceImpl.java
+    │   ├── 📄 GoogleGmailLabelService.java
+    │   ├── 📄 GoogleGmailLabelServiceImpl.java
+    ├── 📁 business/
+    │   ├── 📄 PropertyRentCalculationResult.java
+    │   ├── 📄 PropertyRentCalculationService.java
+    ├── 📁 raw/
+    │   ├── 📄 PayPropImportIssueTracker.java
+    │   ├── 📄 PayPropImportSummary.java
+    │   ├── 📄 PayPropRawAgencyIncomeImportService.java
+    │   ├── 📄 PayPropRawAllPaymentsImportService.java
+    │   ├── 📄 PayPropRawBeneficiariesCompleteImportService.java
+    │   ├── 📄 PayPropRawBeneficiariesImportService.java
+    │   ├── 📄 PayPropRawBeneficiaryBalancesImportService.java
+    │   ├── 📄 PayPropRawIcdnImportService.java
+    │   ├── 📄 PayPropRawImportOrchestrator.java
+    │   ├── 📄 PayPropRawImportResult.java
+    │   ├── 📄 PayPropRawInvoiceCategoriesImportService.java
+    │   ├── 📄 PayPropRawInvoiceInstructionsImportService.java
+    │   ├── 📄 PayPropRawInvoicesCompleteImportService.java
+    │   ├── 📄 PayPropRawInvoicesImportService.java
+    │   ├── 📄 PayPropRawMaintenanceCategoriesImportService.java
+    │   ├── 📄 PayPropRawPaymentsCategoriesImportService.java
+    │   ├── 📄 PayPropRawPaymentsCompleteImportService.java
+    │   ├── 📄 PayPropRawPaymentsImportService.java
+    │   ├── 📄 PayPropRawProcessingSummaryImportService.java
+    │   ├── 📄 PayPropRawPropertiesCompleteImportService.java
+    │   ├── 📄 PayPropRawPropertiesImportService.java
+    │   ├── 📄 PayPropRawTenantBalancesImportService.java
+    │   ├── 📄 PayPropRawTenantsCompleteImportService.java
+    │   ├── 📄 PayPropRawTenantsImportService.java
+    │   ├── 📄 PayPropRawTenantStatementImportService.java
+        ├── 📁 portfolio/
+        │   ├── 📄 UserService.java
+              ├── 📁 crm/
+              │   ├── 📄 CrmApplicationTests.java
+                  ├── 📁 migration/
+                  │   ├── 📄 TagNamespaceMigrationServiceTest.java
+                  ├── 📁 tag/
+                  │   ├── 📄 TagNamespaceServiceTest.java
+
+=== HTML TEMPLATES ===
+├── 📁 admin/
+│   ├── 📄 payprop-dashboard.html
+│   ├── 📄 payprop-payments-dashboard.html
+├── 📁 calendar/
+│   ├── 📄 calendar.html
+│   ├── 📄 event-form.html
+├── 📁 contract/
+│   ├── 📄 contracts.html
+│   ├── 📄 create.html
+│   ├── 📄 show-details.html
+│   ├── 📄 update.html
+├── 📁 contractor/
+│   ├── 📄 dashboard.html
+├── 📁 customer/
+│   ├── 📄 all-customers.html
+│   ├── 📄 create-customer.html
+│   ├── 📄 customer-details.html
+│   ├── 📄 customer-list.html
+│   ├── 📄 email-form.html
+│   ├── 📄 files-dashboard.html
+│   ├── 📄 manager-all-customers.html
+│   ├── 📄 register-customer.html
+│   ├── 📄 update-customer.html
+├── 📁 customer-info/
+│   ├── 📄 contract-detail.html
+│   ├── 📄 lead-detail.html
+│   ├── 📄 my-contracts.html
+│   ├── 📄 my-leads.html
+│   ├── 📄 my-tickets.html
+│   ├── 📄 ticket-detail.html
+├── 📁 email-template/
+│   ├── 📄 create-template.html
+│   ├── 📄 email-tags.html
+│   ├── 📄 show-all.html
+│   ├── 📄 show-tags.html
+│   ├── 📄 show-template.html
+│   ├── 📄 update-template.html
+├── 📁 error/
+│   ├── 📄 400.html
+│   ├── 📄 500.html
+│   ├── 📄 503.html
+│   ├── 📄 access-denied.html
+│   ├── 📄 account-inactive.html
+│   ├── 📄 account-suspended.html
+│   ├── 📄 error.html
+│   ├── 📄 not-found.html
+├── 📁 general/
+│   ├── 📄 footer.html
+│   ├── 📄 head.html
+│   ├── 📄 header.html
+│   ├── 📄 left-sidebar.html
+│   ├── 📄 page-titles.html
+│   ├── 📄 right-sidebar.html
+├── 📁 gmail/
+│   ├── 📄 email-details.html
+│   ├── 📄 email-form-draft.html
+│   ├── 📄 email-form.html
+│   ├── 📄 emails-label.html
+│   ├── 📄 emails.html
+│   ├── 📄 error.html
+├── 📁 google-drive/
+│   ├── 📄 create-file.html
+│   ├── 📄 create-folder.html
+│   ├── 📄 list-files-in-folder.html
+│   ├── 📄 list-files.html
+│   ├── 📄 property-files.html
+├── 📁 lead/
+│   ├── 📄 create-lead.html
+│   ├── 📄 show-details.html
+│   ├── 📄 show-my-leads.html
+│   ├── 📄 update-lead.html
+├── 📁 manager/
+│   ├── 📄 all-users.html
+│   ├── 📄 dashboard.html
+│   ├── 📄 register-user.html
+│   ├── 📄 show-user.html
+│   ├── 📄 update-user.html
+├── 📁 payprop/
+│   ├── 📄 maintenance-dashboard.html
+│   ├── 📄 oauth-status.html
+│   ├── 📄 sync-dashboard.html
+│   ├── 📄 test.html
+├── 📁 portfolio/
+│   ├── 📄 all-portfolios.html
+│   ├── 📄 assign-properties.html
+│   ├── 📄 create-portfolio.html
+│   ├── 📄 employee-dashboard.html
+│   ├── 📄 portfolio-details.html
+│   ├── 📄 property-owner-dashboard.html
+├── 📁 property/
+│   ├── 📄 all-properties.html
+│   ├── 📄 create-property.html
+│   ├── 📄 portfolio-overview.html
+│   ├── 📄 property-details.html
+│   ├── 📄 sync-status.html
+│   ├── 📄 update-property.html
+│   ├── 📄 vacant-properties.html
+├── 📁 property-owner/
+│   ├── 📄 dashboard.html
+│   ├── 📄 financials.html
+│   ├── 📄 properties.html
+│   ├── 📄 tenants.html
+│   ├── 📄 test.html
+📁 templates
+│   ├── 📄 change-password.html
+│   ├── 📄 coming-soon.html
+│   ├── 📄 connect-accounts.html
+│   ├── 📄 customer-dashboard.html
+│   ├── 📄 customer-login.html
+│   ├── 📄 customer-profile.html
+│   ├── 📄 customer-register.html
+│   ├── 📄 google-error.html
+│   ├── 📄 google-settings.html
+│   ├── 📄 index.html
+│   ├── 📄 login.html
+│   ├── 📄 logout.html
+│   ├── 📄 profile.html
+│   ├── 📄 register.html
+│   ├── 📄 set-employee-password.html
+│   ├── 📄 set-password.html
+│   ├── 📄 testnew.html
+├── 📁 settings/
+│   ├── 📄 customer-email.html
+│   ├── 📄 email.html
+├── 📁 statements/
+│   ├── 📄 generate-statement.html
+├── 📁 tenant/
+│   ├── 📄 dashboard.html
+├── 📁 ticket/
+│   ├── 📄 create-ticket.html
+│   ├── 📄 my-tickets.html
+│   ├── 📄 show-ticket.html
+│   ├── 📄 update-ticket.html
+│   ├── 📄 view-bids.html
+├── 📁 url/
+│   ├── 📄 all.html
+  ├── 📁 customer/
+  │   ├── 📄 contractors.html
+  │   ├── 📄 create-contractor.html
+  │   ├── 📄 email-property-owners.html
+  │   ├── 📄 email-tenants.html
+  │   ├── 📄 property-owners.html
+  │   ├── 📄 tenants.html
+  ├── 📁 ticket/
+  │   ├── 📄 contractor-bids.html
+  │   ├── 📄 maintenance-history.html
+  │   ├── 📄 pending-bids.html
+  ├── 📁 template/
+  │   ├── 📄 filter-menu.html
+  │   ├── 📄 side-bar-labels.html
+    ├── 📁 manager/
+    │   ├── 📄 all-tickets.html
+
+=== CONFIGURATION FILES ===
+  ├── 📄 pom.xml
+  ├── 📄 src/main/resources/application.properties
+
+=== SQL MIGRATION FILES ===
+  ├── 📄 add_block_support_to_assignments.sql
+  ├── 📄 add_last_sync_at_column.sql
+  ├── 📄 add_payprop_columns.sql
+  ├── 📄 check_oauth_users.sql
+  ├── 📄 check_property_references.sql
+  ├── 📄 clear_oauth_tokens.sql
+  ├── 📄 clear_portfolios_and_assignments.sql
+  ├── 📄 complete_portfolio_cleanup.sql
+  ├── 📄 sql\create_payprop_import_issues_table.sql
+  ├── 📄 current_railway_schema.sql
+  ├── 📄 current_schema.sql
+  ├── 📄 data.sql
+  ├── 📄 database_schema_payment_rules.sql
+  ├── 📄 database_schema_payments.sql
+  ├── 📄 dynamic_schema_analysis.sql
+  ├── 📄 fix_block_assignment_migration.sql
+  ├── 📄 fix_sync_status_case.sql
+  ├── 📄 grant_manager_admin_roles.sql
+  ├── 📄 migrate_blocks_to_simple_owner_tags.sql
+  ├── 📄 migrate_blocks_to_unified_tags.sql
+  ├── 📄 PayProp_Complete_Raw_Tables_Update.sql
+  ├── 📄 PayProp_Phase2_Migration_Fix.sql
+  ├── 📄 PayProp_Phase2_Migration_Script.sql
+  ├── 📄 payprop_report_icdn_table.sql
+  ├── 📄 property_test_data.sql
+  ├── 📄 quick_fix.sql
+  ├── 📄 schema_export.sql
+  ├── 📄 schema_only.sql
+  ├── 📄 schema.sql
+  ├── 📄 src\main\resources\schema.sql
+  ├── 📄 specific_schema.sql
+  ├── 📄 src\main\resources\migration\V2__Add_Property_Tenant_Contractor_Tables.sql
+  ├── 📄 src\main\resources\db\migration\V3__Add_Customer_Classification_PayProp.sql
+
+=== PROJECT SUMMARY ===
+📊 Java files: 345
+📊 HTML templates: 125
+📊 SQL files: 33
+
+=== KEY DIRECTORIES ===
+  📁 controller: 5 locations
+  📁 service: 29 locations
+  📁 entity: 2 locations
+  📁 repository: 2 locations
+  📁 config: 4 locations
+  📁 util: 2 locations
+  📁 google: 12 locations
+
+✅ Structure analysis complete!
+PS C:\Users\sajid\crecrm>
