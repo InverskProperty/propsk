@@ -167,9 +167,6 @@ public class PropertyServiceImpl implements PropertyService {
             boolean isArchived = rs.getBoolean("is_archived");
             property.setIsArchived(isArchived ? "Y" : "N");
             
-            String syncStatus = rs.getString("sync_status");
-            property.setSyncStatus(syncStatus);
-            
             // Timestamps
             if (rs.getTimestamp("imported_at") != null) {
                 property.setCreatedAt(rs.getTimestamp("imported_at").toLocalDateTime());
