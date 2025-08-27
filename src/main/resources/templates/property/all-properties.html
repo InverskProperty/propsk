@@ -456,7 +456,7 @@
                                             th:data-occupied="${property.isOccupied ?: false}"
                                             th:data-synced="${property.payPropId != null}">
                                             <td>
-                                                <a th:href="${home + 'employee/property/' + property.id}" 
+                                                <a th:href="${home + 'employee/property/' + (property.payPropId != null ? property.payPropId : property.id)}" 
                                                    class="table-property-name">
                                                     <strong th:text="${property.propertyName}">Property Name</strong>
                                                 </a>
@@ -544,7 +544,7 @@
                                             </td>
                                             <td>
                                                 <div class="btn-group-vertical" role="group">
-                                                    <a th:href="${home + 'employee/property/' + property.id}" 
+                                                    <a th:href="${home + 'employee/property/' + (property.payPropId != null ? property.payPropId : property.id)}" 
                                                        class="btn btn-sm btn-info mb-1" title="View Details">
                                                         <i class="fas fa-eye"></i>
                                                     </a>

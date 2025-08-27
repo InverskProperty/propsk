@@ -282,8 +282,27 @@ public class PropertyController {
     // ================================
 
     @GetMapping("/{id}")
-    public String showPropertyDetail(@PathVariable("id") Long id, Model model, Authentication authentication) {
-        Property property = propertyService.findById(id);
+    public String showPropertyDetail(@PathVariable("id") String id, Model model, Authentication authentication) {
+        Property property = null;
+        
+        // Try PayProp ID first (if it looks like a PayProp ID)
+        if (id.length() > 5 && !id.matches("\\d+")) {
+            // Looks like a PayProp ID
+            if (propertyService instanceof PropertyServiceImpl) {
+                property = ((PropertyServiceImpl) propertyService).findByPayPropIdString(id);
+            }
+        } else {
+            // Looks like a numeric ID - try legacy lookup
+            try {
+                Long numericId = Long.valueOf(id);
+                property = propertyService.findById(numericId);
+            } catch (NumberFormatException e) {
+                // If it fails as numeric, try as PayProp ID
+                if (propertyService instanceof PropertyServiceImpl) {
+                    property = ((PropertyServiceImpl) propertyService).findByPayPropIdString(id);
+                }
+            }
+        }
         if (property == null) {
             return "error/not-found";
         }

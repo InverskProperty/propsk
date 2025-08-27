@@ -17,6 +17,9 @@ public interface PropertyService {
     void deleteById(Long id);
     Property getPropertyById(Long propertyId);
     Customer getCurrentTenant(Long propertyId);
+    
+    // PayProp-specific methods  
+    default Property findByPayPropIdString(String payPropId) { return null; }
 
     // PayProp integration methods
     Optional<Property> findByPayPropId(String payPropId);
