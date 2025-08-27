@@ -161,13 +161,29 @@ public class FinancialController {
                     debug.put("pay_prop_id_error", e1.getMessage());
                 }
                 
-                // Check table structure
+                // Check table structure - try a different approach
                 try {
-                    String columnQuery = "SHOW COLUMNS FROM property LIKE '%prop%'";
-                    List<Map<String, Object>> columns = jdbcTemplate.queryForList(columnQuery);
+                    String columnQuery = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'property' AND COLUMN_NAME LIKE '%prop%'";
+                    List<String> columns = jdbcTemplate.queryForList(columnQuery, String.class);
                     debug.put("property_payprop_columns", columns);
+                    
+                    // Also get a sample of actual columns
+                    String allColumnsQuery = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'property' LIMIT 10";
+                    List<String> allColumns = jdbcTemplate.queryForList(allColumnsQuery, String.class);
+                    debug.put("property_sample_columns", allColumns);
+                    
                 } catch (Exception e2) {
                     debug.put("column_check_error", e2.getMessage());
+                    
+                    // Try basic table check
+                    try {
+                        String basicQuery = "SELECT COUNT(*) FROM property LIMIT 1";
+                        Integer count = jdbcTemplate.queryForObject(basicQuery, Integer.class);
+                        debug.put("property_table_exists", true);
+                        debug.put("property_row_count", count);
+                    } catch (Exception e3) {
+                        debug.put("property_table_exists", false);
+                    }
                 }
             }
             
