@@ -25,7 +25,7 @@ public class TestSecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .anyRequest().permitAll() // Allow all requests without authentication
             )
-            .headers(headers -> headers.frameOptions().disable()); // Allow frames for testing
+            .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable())); // Allow frames for testing
         
         return http.build();
     }

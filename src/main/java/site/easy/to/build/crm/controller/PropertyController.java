@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Property;
@@ -46,18 +47,21 @@ public class PropertyController {
     private final UserService userService;
     private final TicketService ticketService;
     private final AuthenticationUtils authenticationUtils;
+    private final JdbcTemplate jdbcTemplate;
 
     @Autowired
     public PropertyController(PropertyService propertyService,
                             TenantService tenantService,
                             UserService userService, 
                             TicketService ticketService,
-                            AuthenticationUtils authenticationUtils) {
+                            AuthenticationUtils authenticationUtils,
+                            JdbcTemplate jdbcTemplate) {
         this.propertyService = propertyService;
         this.tenantService = tenantService;
         this.userService = userService;
         this.ticketService = ticketService;
         this.authenticationUtils = authenticationUtils;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     // ================================
