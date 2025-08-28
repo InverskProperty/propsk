@@ -57,7 +57,7 @@ public class FinancialController {
             @PathVariable("id") String id, 
             Authentication authentication) {
         
-        // Get financial summary for property
+        System.out.println("DEBUG: Financial summary endpoint called for ID: " + id);
         
         try {
             // Find property by ID or PayProp ID
@@ -66,12 +66,28 @@ public class FinancialController {
                 // PayProp ID string format
                 property = ((PropertyServiceImpl) propertyService).findByPayPropIdString(id);
             } else {
-                // Numeric ID
-                property = propertyService.findById(Long.parseLong(id));
+                // Numeric ID (including negative hash IDs)
+                try {
+                    property = propertyService.findById(Long.parseLong(id));
+                } catch (NumberFormatException e) {
+                    // Invalid ID format
+                    Map<String, Object> error = new HashMap<>();
+                    error.put("error", "Invalid property ID format");
+                    return ResponseEntity.badRequest().body(error);
+                }
             }
             
             if (property == null) {
                 return ResponseEntity.notFound().build();
+            }
+            
+            // Check if property has PayProp ID
+            if (property.getPayPropId() == null || property.getPayPropId().trim().isEmpty()) {
+                // Return empty financial data instead of error
+                Map<String, Object> emptyData = getEmptyFinancialSummary();
+                emptyData.put("message", "Property has no PayProp integration");
+                emptyData.put("propertyName", property.getPropertyName());
+                return ResponseEntity.ok(emptyData);
             }
             
             // Basic authorization check
@@ -263,6 +279,49 @@ public class FinancialController {
     }
     
     /**
+     * DEBUG: Check specific property PayProp ID and matching
+     */
+    @GetMapping("/debug/property/{id}")
+    public ResponseEntity<Map<String, Object>> debugProperty(@PathVariable("id") String id) {
+        Map<String, Object> debug = new HashMap<>();
+        
+        try {
+            // Find property
+            Property property = propertyService.findById(Long.parseLong(id));
+            if (property == null) {
+                debug.put("error", "Property not found");
+                return ResponseEntity.ok(debug);
+            }
+            
+            debug.put("property_id", property.getId());
+            debug.put("property_name", property.getPropertyName());
+            debug.put("current_payprop_id", property.getPayPropId());
+            debug.put("address_line_1", property.getAddressLine1());
+            debug.put("city", property.getCity());
+            
+            // Try to find matching export property
+            String matchQuery = """
+                SELECT payprop_id, address_first_line, address_city, name
+                FROM payprop_export_properties 
+                WHERE address_first_line LIKE ? OR address_city = ?
+                LIMIT 3
+                """;
+            
+            List<Map<String, Object>> matches = jdbcTemplate.queryForList(matchQuery, 
+                "%" + property.getAddressLine1() + "%", 
+                property.getCity());
+            debug.put("potential_matches", matches);
+            
+            debug.put("status", "success");
+            
+        } catch (Exception e) {
+            debug.put("error", e.getMessage());
+        }
+        
+        return ResponseEntity.ok(debug);
+    }
+    
+    /**
      * DEBUG: Test endpoint to check PayProp data availability
      */
     @GetMapping("/debug/payprop-data")
@@ -339,17 +398,23 @@ public class FinancialController {
     private Map<String, Object> calculatePropertyFinancialSummary(Property property) {
         Map<String, Object> summary = new HashMap<>();
         
-        // Calculate financial summary for property
+        System.out.println("DEBUG: calculatePropertyFinancialSummary called");
+        System.out.println("DEBUG: Property ID: " + (property != null ? property.getId() : "null"));
+        System.out.println("DEBUG: PayProp ID: " + (property != null ? property.getPayPropId() : "null"));
+        System.out.println("DEBUG: Data source: " + dataSource);
         
         try {
             if (property == null) {
+                System.out.println("DEBUG: Property is null, returning empty summary");
                 return getEmptyFinancialSummary();
             }
             
             // Use PayProp data if available and configured
             if ("PAYPROP".equals(dataSource) && property.getPayPropId() != null) {
+                System.out.println("DEBUG: Using PayProp data source");
                 return calculatePayPropFinancialSummary(property);
             } else {
+                System.out.println("DEBUG: Using legacy data source (dataSource=" + dataSource + ", payPropId=" + property.getPayPropId() + ")");
                 // Fallback to legacy calculation
                 return calculateLegacyFinancialSummary(property);
             }
@@ -400,7 +465,9 @@ public class FinancialController {
                 LIMIT 100
                 """;
                 
+            System.out.println("DEBUG: Executing query for PayProp ID: " + payPropId);
             List<Map<String, Object>> transactions = jdbcTemplate.queryForList(paymentsQuery, payPropId);
+            System.out.println("DEBUG: Found " + transactions.size() + " transactions");
             
             // Calculate totals
             BigDecimal totalIncoming = BigDecimal.ZERO;
