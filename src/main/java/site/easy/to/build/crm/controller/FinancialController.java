@@ -439,132 +439,137 @@ public class FinancialController {
         System.out.println("DEBUG: Data source setting: " + dataSource);
         
         try {
-            // Query PayProp all-payments table for comprehensive transaction data
-            // FIXED: Use incoming_property_payprop_id to link transactions to properties
-            String paymentsQuery = """
+            // Query combined invoices and payments in chronological order
+            String chronologicalQuery = """
                 SELECT 
-                    pap.payprop_id,
-                    pap.amount,
-                    pap.service_fee,
-                    pap.transaction_fee,
-                    pap.description,
-                    pap.reference,
-                    pap.category_name,
-                    pap.incoming_property_name,
-                    pap.incoming_tenant_name,
-                    pap.payment_batch_transfer_date,
-                    pap.incoming_transaction_type,
-                    pap.beneficiary_name,
-                    pap.beneficiary_type,
-                    pap.incoming_transaction_amount,
-                    pap.payment_batch_status,
-                    pap.imported_at
-                FROM payprop_report_all_payments pap 
-                WHERE pap.incoming_property_payprop_id = ? 
-                ORDER BY pap.payment_batch_transfer_date DESC, pap.imported_at DESC
+                    date,
+                    type,
+                    tenant_name,
+                    amount,
+                    commission_amount,
+                    owner_amount,
+                    description,
+                    reference
+                FROM (
+                    -- Invoices
+                    SELECT 
+                        transaction_date as date,
+                        'Invoice' as type,
+                        tenant_name,
+                        amount,
+                        0 as commission_amount,
+                        0 as owner_amount,
+                        CONCAT(category_name, ' invoice') as description,
+                        reference
+                    FROM payprop_report_icdn 
+                    WHERE property_payprop_id = ?
+                    
+                    UNION ALL
+                    
+                    -- Payments with distributions
+                    SELECT 
+                        payment_batch_transfer_date as date,
+                        'Payment' as type,
+                        incoming_tenant_name as tenant_name,
+                        incoming_transaction_amount as amount,
+                        SUM(CASE WHEN category_name = 'Commission' THEN amount ELSE 0 END) as commission_amount,
+                        SUM(CASE WHEN category_name = 'Owner' THEN amount ELSE 0 END) as owner_amount,
+                        incoming_transaction_type as description,
+                        GROUP_CONCAT(DISTINCT reference) as reference
+                    FROM payprop_report_all_payments 
+                    WHERE incoming_property_payprop_id = ?
+                    GROUP BY payment_batch_transfer_date, incoming_tenant_name, incoming_transaction_amount, incoming_transaction_type
+                ) combined
+                ORDER BY date DESC
                 LIMIT 100
                 """;
                 
-            System.out.println("DEBUG: Executing query for PayProp ID: " + payPropId);
-            List<Map<String, Object>> transactions = jdbcTemplate.queryForList(paymentsQuery, payPropId);
+            System.out.println("DEBUG: Executing chronological query for PayProp ID: " + payPropId);
+            List<Map<String, Object>> transactions = jdbcTemplate.queryForList(chronologicalQuery, payPropId, payPropId);
             System.out.println("DEBUG: Found " + transactions.size() + " transactions");
             
-            // Calculate totals
-            BigDecimal totalIncoming = BigDecimal.ZERO;
-            BigDecimal totalOutgoing = BigDecimal.ZERO;
+            // Calculate totals from chronological data
+            BigDecimal totalInvoiced = BigDecimal.ZERO;
+            BigDecimal totalReceived = BigDecimal.ZERO;
             BigDecimal totalCommissions = BigDecimal.ZERO;
-            BigDecimal currentBalance = BigDecimal.ZERO;
+            BigDecimal totalToOwners = BigDecimal.ZERO;
             
             // Month-to-date calculations
             LocalDate monthStart = LocalDate.now().withDayOfMonth(1);
-            BigDecimal monthlyIncoming = BigDecimal.ZERO;
-            BigDecimal monthlyOutgoing = BigDecimal.ZERO;
+            BigDecimal monthlyInvoiced = BigDecimal.ZERO;
+            BigDecimal monthlyReceived = BigDecimal.ZERO;
             
             // Transaction categorization
-            Map<String, BigDecimal> incomeByCategory = new HashMap<>();
-            Map<String, BigDecimal> expensesByCategory = new HashMap<>();
+            Map<String, BigDecimal> invoicesByType = new HashMap<>();
+            Map<String, BigDecimal> paymentsByType = new HashMap<>();
             
             for (Map<String, Object> transaction : transactions) {
+                String type = (String) transaction.get("type");
                 BigDecimal amount = (BigDecimal) transaction.get("amount");
-                BigDecimal serviceFee = (BigDecimal) transaction.get("service_fee");
-                BigDecimal transactionFee = (BigDecimal) transaction.get("transaction_fee");
-                String category = (String) transaction.get("category_name");
-                java.sql.Date transferDate = (java.sql.Date) transaction.get("payment_batch_transfer_date");
-                
-                // Determine transaction type based on category
-                boolean isIncoming = "Owner".equals(category) || amount != null && amount.compareTo(BigDecimal.ZERO) > 0;
+                BigDecimal commissionAmount = (BigDecimal) transaction.get("commission_amount");
+                BigDecimal ownerAmount = (BigDecimal) transaction.get("owner_amount");
+                java.sql.Date transactionDate = (java.sql.Date) transaction.get("date");
+                String description = (String) transaction.get("description");
                 
                 if (amount != null) {
-                    if (isIncoming) {
-                        totalIncoming = totalIncoming.add(amount);
-                        if (category != null) {
-                            incomeByCategory.merge(category, amount, BigDecimal::add);
+                    if ("Invoice".equals(type)) {
+                        // Invoice - money owed
+                        totalInvoiced = totalInvoiced.add(amount);
+                        if (description != null) {
+                            invoicesByType.merge(description, amount, BigDecimal::add);
                         }
                         
                         // Monthly calculation
-                        if (transferDate != null && !transferDate.toLocalDate().isBefore(monthStart)) {
-                            monthlyIncoming = monthlyIncoming.add(amount);
+                        if (transactionDate != null && !transactionDate.toLocalDate().isBefore(monthStart)) {
+                            monthlyInvoiced = monthlyInvoiced.add(amount);
                         }
-                    } else {
-                        // Make outgoing amounts positive for display
-                        BigDecimal positiveAmount = amount.abs();
-                        totalOutgoing = totalOutgoing.add(positiveAmount);
-                        if (category != null) {
-                            expensesByCategory.merge(category, positiveAmount, BigDecimal::add);
+                    } else if ("Payment".equals(type)) {
+                        // Payment - money received
+                        totalReceived = totalReceived.add(amount);
+                        if (description != null) {
+                            paymentsByType.merge(description, amount, BigDecimal::add);
+                        }
+                        
+                        // Add commission and owner amounts
+                        if (commissionAmount != null) {
+                            totalCommissions = totalCommissions.add(commissionAmount);
+                        }
+                        if (ownerAmount != null) {
+                            totalToOwners = totalToOwners.add(ownerAmount);
                         }
                         
                         // Monthly calculation
-                        if (transferDate != null && !transferDate.toLocalDate().isBefore(monthStart)) {
-                            monthlyOutgoing = monthlyOutgoing.add(positiveAmount);
+                        if (transactionDate != null && !transactionDate.toLocalDate().isBefore(monthStart)) {
+                            monthlyReceived = monthlyReceived.add(amount);
                         }
                     }
                 }
-                
-                // Calculate commissions from fees
-                if (serviceFee != null) {
-                    totalCommissions = totalCommissions.add(serviceFee);
-                }
-                if (transactionFee != null) {
-                    totalCommissions = totalCommissions.add(transactionFee);
-                }
             }
             
-            // Get current account balance from ICDN data
-            String balanceQuery = """
-                SELECT 
-                    SUM(CASE WHEN pi.distribution_type = 'Revenue' THEN pi.amount ELSE -pi.amount END) as current_balance
-                FROM payprop_report_icdn pi 
-                WHERE pi.payprop_id = ?
-                """;
-                
-            try {
-                BigDecimal balance = jdbcTemplate.queryForObject(balanceQuery, BigDecimal.class, payPropId);
-                currentBalance = balance != null ? balance : BigDecimal.ZERO;
-            } catch (Exception e) {
-                currentBalance = BigDecimal.ZERO;
-            }
+            // Calculate outstanding balance (invoiced - received)
+            BigDecimal outstandingBalance = totalInvoiced.subtract(totalReceived);
             
-            // Get recent transaction details for display
+            // Get recent transaction details for display (already in chronological order)
             List<Map<String, Object>> recentTransactions = transactions.stream()
-                .limit(10)
+                .limit(20)  // Show more transactions for chronological view
                 .collect(Collectors.toList());
             
-            // Build comprehensive summary
-            summary.put("totalIncoming", totalIncoming);
-            summary.put("totalOutgoing", totalOutgoing);
-            summary.put("netIncome", totalIncoming.subtract(totalOutgoing));
+            // Build comprehensive summary with new structure
+            summary.put("totalInvoiced", totalInvoiced);
+            summary.put("totalReceived", totalReceived);
             summary.put("totalCommissions", totalCommissions);
-            summary.put("currentBalance", currentBalance);
+            summary.put("totalToOwners", totalToOwners);
+            summary.put("outstandingBalance", outstandingBalance);
             summary.put("transactionCount", transactions.size());
             
             // Monthly data
-            summary.put("monthlyIncoming", monthlyIncoming);
-            summary.put("monthlyOutgoing", monthlyOutgoing);
-            summary.put("monthlyNet", monthlyIncoming.subtract(monthlyOutgoing));
+            summary.put("monthlyInvoiced", monthlyInvoiced);
+            summary.put("monthlyReceived", monthlyReceived);
+            summary.put("monthlyNet", monthlyReceived.subtract(monthlyInvoiced));
             
             // Category breakdowns
-            summary.put("incomeByCategory", incomeByCategory);
-            summary.put("expensesByCategory", expensesByCategory);
+            summary.put("invoicesByType", invoicesByType);
+            summary.put("paymentsByType", paymentsByType);
             
             // Transaction details
             summary.put("recentTransactions", recentTransactions);

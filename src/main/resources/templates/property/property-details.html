@@ -620,8 +620,8 @@
                                                             <th>Type</th>
                                                             <th>Amount</th>
                                                             <th>Commission</th>
-                                                            <th>Net to Owner</th>
-                                                            <th>Category</th>
+                                                            <th>To Owner</th>
+                                                            <th>Reference</th>
                                                             <th>Source</th>
                                                             <th>Status</th>
                                                         </tr>
@@ -1170,46 +1170,45 @@ function displayTransactions(transactions, filterType) {
             reconciliationStatus = getReconciliationStatus(transaction);
         }
         
-        // Extract values with PayProp field names
-        const transactionDate = transaction.payment_batch_transfer_date || transaction.transaction_date || transaction.transactionDate;
-        const transactionType = transaction.incoming_transaction_type || transaction.transaction_type || transaction.transactionType || 'Payment';
+        // Extract values from chronological data structure
+        const transactionDate = transaction.date;
+        const transactionType = transaction.type;  // 'Invoice' or 'Payment'
         const amount = transaction.amount;
-        const commissionAmount = (transaction.service_fee || 0) + (transaction.transaction_fee || 0);
-        const netAmount = transaction.incoming_transaction_amount || transaction.amount;
-        const category = transaction.category_name || transaction.categoryName;
-        const description = transaction.description || transaction.reference || '';
-        const beneficiaryName = transaction.beneficiary_name || transaction.incoming_tenant_name || '';
-        const isIncoming = transaction.category_name === 'Owner' || (transaction.is_incoming !== false && amount > 0);
+        const commissionAmount = transaction.commission_amount || 0;
+        const ownerAmount = transaction.owner_amount || 0;
+        const tenantName = transaction.tenant_name || '';
+        const description = transaction.description || '';
+        const reference = transaction.reference || '';
         
-        // Determine transaction direction and styling
-        const amountClass = isIncoming === true ? 'text-success' : 
-                           isIncoming === false ? 'text-danger' : 
-                           getAmountClass(amount);
+        // Determine styling based on transaction type
+        const isInvoice = transactionType === 'Invoice';
+        const isPayment = transactionType === 'Payment';
+        const amountClass = isInvoice ? 'text-danger' : 'text-success';  // Invoices = red, Payments = green
+        const amountPrefix = isInvoice ? '-' : '+';
         
         const row = `
-            <tr class="transaction-row ${sourceInfo.rowClass || ''}" data-source="${transaction.dataSource || 'PAYPROP'}" data-type="${transactionType}">
+            <tr class="transaction-row ${isInvoice ? 'table-light' : ''}" data-type="${transactionType}">
                 <td>${formatDate(transactionDate)}</td>
                 <td>
-                    <span class="badge ${sourceInfo.badgeClass || 'badge-primary'}">
-                        ${formatTransactionType(transactionType)}
+                    <span class="badge ${isInvoice ? 'bg-warning' : 'bg-success'}">
+                        ${transactionType}
                     </span>
-                    ${beneficiaryName ? `<br><small class="text-muted">To: ${beneficiaryName}</small>` : ''}
+                    ${tenantName ? `<br><small class="text-muted">${tenantName}</small>` : ''}
                     ${description ? `<br><small class="text-muted">${description}</small>` : ''}
                 </td>
-                <td class="${amountClass}">£${formatNumber(amount || 0)}</td>
-                <td>£${formatNumber(commissionAmount || 0)}</td>
-                <td>£${formatNumber(netAmount || 0)}</td>
-                <td>${category || 'N/A'}</td>
+                <td class="${amountClass}">${amountPrefix}£${formatNumber(amount || 0)}</td>
+                <td>${isPayment ? '£' + formatNumber(commissionAmount) : '-'}</td>
+                <td>${isPayment ? '£' + formatNumber(ownerAmount) : '-'}</td>
+                <td>${reference || '-'}</td>
                 <td>
-                    <span class="badge ${sourceInfo.sourceBadgeClass || 'badge-info'}" title="${sourceInfo.description || 'PayProp Data'}">
-                        ${sourceInfo.sourceLabel || 'PayProp'}
+                    <span class="badge bg-info" title="PayProp Data">
+                        PayProp
                     </span>
                 </td>
                 <td>
-                    <span class="badge ${statusInfo.badgeClass || 'badge-success'}" title="${statusInfo.description || 'Complete'}">
-                        ${statusInfo.label || 'Active'}
+                    <span class="badge ${isInvoice ? 'bg-warning' : 'bg-success'}">
+                        ${isInvoice ? 'Outstanding' : 'Completed'}
                     </span>
-                    ${reconciliationStatus.icon}
                 </td>
             </tr>
         `;
