@@ -43,7 +43,7 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
         
         try {
             List<Portfolio> portfolios = portfolioService.findPortfoliosForUser(authentication);
-            List<Property> allProperties = propertyService.findAll();
+            List<Property> allProperties = propertyService.findActiveProperties(); // Only show assignable properties
             
             // Filter unassigned properties using junction table
             List<Property> unassignedProperties = allProperties.stream()
@@ -188,7 +188,7 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
                 // Shared portfolio - show all properties not in this portfolio
                 log.info("Portfolio {} is a shared portfolio", portfolioId);
                 
-                List<Property> allProperties = propertyService.findAll();
+                List<Property> allProperties = propertyService.findActiveProperties(); // Only show assignable properties
                 log.info("Total properties in system: {}", allProperties.size());
                 
                 // Get properties already in this portfolio

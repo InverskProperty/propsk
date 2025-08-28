@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
+import site.easy.to.build.crm.service.payprop.PayPropPropertiesImportToMainTableService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,6 +21,9 @@ public class PayPropImportPageController {
 
     @Autowired
     private PayPropOAuth2Service oAuth2Service;
+
+    @Autowired
+    private PayPropPropertiesImportToMainTableService propertiesImportService;
 
     @GetMapping("/import")
     public String showImportPage(Model model) {
@@ -37,5 +41,19 @@ public class PayPropImportPageController {
         response.put("connected", isConnected);
         response.put("status", isConnected ? "ready" : "not_connected");
         return response;
+    }
+
+    @PostMapping("/import/clear-and-reimport-properties")
+    @ResponseBody
+    public Map<String, Object> clearAndReimportProperties() {
+        boolean isConnected = oAuth2Service.hasValidTokens();
+        if (!isConnected) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", "PayProp not connected - please authenticate first");
+            return response;
+        }
+
+        return propertiesImportService.clearAndReimportProperties();
     }
 }

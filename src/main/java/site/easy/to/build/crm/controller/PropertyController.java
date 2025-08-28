@@ -114,7 +114,12 @@ public class PropertyController {
             }
             
             // Add comprehensive portfolio statistics
-            addComprehensivePortfolioStatistics(model, properties);
+            // For managers showing PayProp properties, use PayProp statistics directly
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                addPayPropPortfolioStatistics(model);
+            } else {
+                addComprehensivePortfolioStatistics(model, properties);
+            }
             
             // Add global maintenance statistics with batch queries
             try {
@@ -158,12 +163,14 @@ public class PropertyController {
         
         // Filter based on role
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            properties = allVacantProperties;
+            properties = allVacantProperties; // Managers see all vacant properties
         } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+            // For non-managers, filter only if properties have relationship data
             properties = allVacantProperties.stream()
                 .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(Long.valueOf(userId)))
                 .collect(Collectors.toList());
         } else {
+            // For employees, filter only if properties have createdBy data
             properties = allVacantProperties.stream()
                 .filter(p -> p.getCreatedBy() != null && p.getCreatedBy().equals((long) userId))
                 .collect(Collectors.toList());
@@ -196,12 +203,14 @@ public class PropertyController {
         
         // Filter based on role
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            properties = allOccupiedProperties;
+            properties = allOccupiedProperties; // Managers see all occupied properties
         } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+            // For non-managers, filter only if properties have relationship data
             properties = allOccupiedProperties.stream()
                 .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(Long.valueOf(userId)))
                 .collect(Collectors.toList());
         } else {
+            // For employees, filter only if properties have createdBy data
             properties = allOccupiedProperties.stream()
                 .filter(p -> p.getCreatedBy() != null && p.getCreatedBy().equals((long) userId))
                 .collect(Collectors.toList());
@@ -1485,6 +1494,32 @@ public class PropertyController {
         model.addAttribute("flatCount", 0);
         model.addAttribute("houseCount", 0);
         model.addAttribute("averageRent", BigDecimal.ZERO);
+    }
+    
+    // Add PayProp statistics directly (for manager views)
+    private void addPayPropPortfolioStatistics(Model model) {
+        try {
+            Map<String, Integer> stats = getPayPropStatistics();
+            
+            model.addAttribute("totalProperties", stats.get("activeProperties")); // Show active properties
+            model.addAttribute("occupiedCount", stats.get("occupiedProperties"));
+            model.addAttribute("vacantCount", stats.get("vacantProperties"));
+            model.addAttribute("occupiedProperties", stats.get("occupiedProperties"));
+            model.addAttribute("vacantProperties", stats.get("vacantProperties"));
+            model.addAttribute("activeProperties", stats.get("activeProperties"));
+            model.addAttribute("archivedProperties", stats.get("archivedProperties"));
+            model.addAttribute("allPropertiesCount", stats.get("totalProperties"));
+            
+            // Default values for other attributes
+            model.addAttribute("syncedCount", stats.get("activeProperties")); // Assume all PayProp properties are synced
+            model.addAttribute("syncedProperties", stats.get("activeProperties"));
+            model.addAttribute("readyForSync", 0);
+            model.addAttribute("totalRentPotential", BigDecimal.ZERO); // Could calculate from PayProp data
+            
+        } catch (Exception e) {
+            System.err.println("Error getting PayProp portfolio statistics: " + e.getMessage());
+            setDefaultModelAttributes(model);
+        }
     }
     
     // Get active tenant count for a specific property using PayProp data

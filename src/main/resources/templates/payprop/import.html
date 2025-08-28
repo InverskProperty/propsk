@@ -56,7 +56,7 @@
                                 <h5 class="mb-3">Import Operations</h5>
                                 
                                 <div class="row">
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <div class="card border-left-primary">
                                             <div class="card-body">
                                                 <h6 class="card-title">Complete System Sync</h6>
@@ -68,13 +68,25 @@
                                         </div>
                                     </div>
                                     
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <div class="card border-left-info">
                                             <div class="card-body">
                                                 <h6 class="card-title">Critical Missing Data Only</h6>
                                                 <p class="card-text">Import only essential missing data for faster sync.</p>
                                                 <button id="criticalSyncBtn" class="btn btn-info">
                                                     <i class="fas fa-download"></i> Sync Critical Data
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-4">
+                                        <div class="card border-left-danger">
+                                            <div class="card-body">
+                                                <h6 class="card-title">Clear & Reimport Properties</h6>
+                                                <p class="card-text">Clear main properties table and reimport all 352+ properties from PayProp.</p>
+                                                <button id="clearReimportBtn" class="btn btn-danger">
+                                                    <i class="fas fa-recycle"></i> Clear & Reimport
                                                 </button>
                                             </div>
                                         </div>
@@ -142,6 +154,10 @@ document.getElementById('fullSyncBtn')?.addEventListener('click', function() {
 
 document.getElementById('criticalSyncBtn')?.addEventListener('click', function() {
     startImport('critical');
+});
+
+document.getElementById('clearReimportBtn')?.addEventListener('click', function() {
+    clearAndReimportProperties();
 });
 
 document.getElementById('cancelBtn')?.addEventListener('click', function() {
@@ -216,6 +232,33 @@ function startProgressMonitoring() {
             console.error('Error monitoring progress:', error);
         }
     }, 2000);
+}
+
+async function clearAndReimportProperties() {
+    if (!confirm('⚠️ WARNING: This will CLEAR all existing properties and reimport from PayProp.\n\nThis action will:\n• Delete all existing properties (285)\n• Clear related data (tenants, assignments)\n• Reimport all 352+ properties from PayProp\n\nThis cannot be undone. Continue?')) {
+        return;
+    }
+    
+    updateStatus('Starting clear and reimport of properties table...', 'info');
+    
+    try {
+        const response = await fetchWithCSRF('/payprop/import/clear-and-reimport-properties', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            updateStatus(`✅ Properties cleared and reimported successfully! ${data.totalImported} properties imported.`, 'success');
+        } else {
+            updateStatus('❌ Clear and reimport failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        updateStatus('❌ Clear and reimport error: ' + error.message, 'error');
+    }
 }
 
 async function cancelImport() {
@@ -326,6 +369,7 @@ setInterval(checkConnectionStatus, 30000);
 <style>
 .border-left-primary { border-left: 4px solid #007bff !important; }
 .border-left-info { border-left: 4px solid #17a2b8 !important; }
+.border-left-danger { border-left: 4px solid #dc3545 !important; }
 .progress { height: 20px; }
 .connection-status .alert { padding: 1rem; font-size: 1.1rem; }
 </style>

@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.Objects;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -552,10 +553,27 @@ public class PropertyServiceImpl implements PropertyService {
     @Override
     public List<Property> findActiveProperties() {
         if ("PAYPROP".equals(dataSource)) {
-            // Use PayProp export data directly (consistent with occupied/vacant logic)
-            return findAllFromPayProp().stream()
-                .filter(p -> !"Y".equals(p.getIsArchived()))
+            // For portfolio assignments and other operations, we need properties that exist in both tables
+            // Get active properties from the properties table that also have PayProp data
+            String sql = """
+                SELECT DISTINCT p.id FROM properties p
+                INNER JOIN payprop_export_properties pep ON p.payprop_id = pep.payprop_id
+                WHERE p.is_archived = 'N' AND pep.is_archived = 0
+                """;
+            
+            List<Long> activeIds = jdbcTemplate.queryForList(sql, Long.class);
+            List<Property> activeProperties = activeIds.stream()
+                .map(id -> propertyRepository.findById(id).orElse(null))
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+                
+            // If no properties match (no sync between tables), fall back to properties table only
+            if (activeProperties.isEmpty()) {
+                System.out.println("WARNING: No properties found with matching PayProp data. Using legacy properties table.");
+                return propertyRepository.findByIsArchivedOrderByCreatedAtDesc("N");
+            }
+            
+            return activeProperties;
         }
         return propertyRepository.findByIsArchivedOrderByCreatedAtDesc("N");
     }
@@ -570,9 +588,9 @@ public class PropertyServiceImpl implements PropertyService {
     public List<Property> findOccupiedProperties() {
         try {
             if ("PAYPROP".equals(dataSource)) {
-                // Use PayProp data: properties with active rent instructions
+                // Use PayProp data: get property IDs first, then load full Property objects
                 String sql = """
-                    SELECT DISTINCT p.* FROM properties p
+                    SELECT DISTINCT p.id FROM properties p
                     INNER JOIN payprop_export_properties pep ON p.payprop_id = pep.payprop_id
                     WHERE pep.is_archived = 0
                     AND EXISTS (
@@ -581,21 +599,13 @@ public class PropertyServiceImpl implements PropertyService {
                         AND pei.invoice_type = 'Rent'
                         AND pei.sync_status = 'active'
                     )
-                    ORDER BY p.created_at DESC
                     """;
                 
-                List<Property> occupied = jdbcTemplate.query(sql, (rs, rowNum) -> {
-                    Property property = new Property();
-                    property.setId(rs.getLong("id"));
-                    property.setPropertyName(rs.getString("property_name"));
-                    property.setAddressLine1(rs.getString("address_line_1"));
-                    property.setCity(rs.getString("city"));
-                    property.setPostcode(rs.getString("postal_code"));
-                    property.setPayPropId(rs.getString("payprop_id"));
-                    property.setMonthlyPayment(rs.getBigDecimal("monthly_payment"));
-                    property.setIsArchived(rs.getString("is_archived"));
-                    return property;
-                });
+                List<Long> occupiedIds = jdbcTemplate.queryForList(sql, Long.class);
+                List<Property> occupied = occupiedIds.stream()
+                    .map(id -> propertyRepository.findById(id).orElse(null))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
                 
                 System.out.println("DEBUG: Found " + occupied.size() + " occupied properties using PayProp rent instructions");
                 return occupied;
@@ -623,9 +633,9 @@ public class PropertyServiceImpl implements PropertyService {
     public List<Property> findVacantProperties() {
         try {
             if ("PAYPROP".equals(dataSource)) {
-                // Use PayProp data: active properties without rent instructions
+                // Use PayProp data: get property IDs first, then load full Property objects
                 String sql = """
-                    SELECT DISTINCT p.* FROM properties p
+                    SELECT DISTINCT p.id FROM properties p
                     INNER JOIN payprop_export_properties pep ON p.payprop_id = pep.payprop_id
                     WHERE pep.is_archived = 0
                     AND NOT EXISTS (
@@ -634,21 +644,13 @@ public class PropertyServiceImpl implements PropertyService {
                         AND pei.invoice_type = 'Rent'
                         AND pei.sync_status = 'active'
                     )
-                    ORDER BY p.created_at DESC
                     """;
                 
-                List<Property> vacant = jdbcTemplate.query(sql, (rs, rowNum) -> {
-                    Property property = new Property();
-                    property.setId(rs.getLong("id"));
-                    property.setPropertyName(rs.getString("property_name"));
-                    property.setAddressLine1(rs.getString("address_line_1"));
-                    property.setCity(rs.getString("city"));
-                    property.setPostcode(rs.getString("postal_code"));
-                    property.setPayPropId(rs.getString("payprop_id"));
-                    property.setMonthlyPayment(rs.getBigDecimal("monthly_payment"));
-                    property.setIsArchived(rs.getString("is_archived"));
-                    return property;
-                });
+                List<Long> vacantIds = jdbcTemplate.queryForList(sql, Long.class);
+                List<Property> vacant = vacantIds.stream()
+                    .map(id -> propertyRepository.findById(id).orElse(null))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
                 
                 System.out.println("DEBUG: Found " + vacant.size() + " vacant properties using PayProp rent instructions");
                 return vacant;
