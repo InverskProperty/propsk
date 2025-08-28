@@ -7,6 +7,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 import site.easy.to.build.crm.service.payprop.PayPropPropertiesImportToMainTableService;
@@ -41,7 +42,7 @@ public class PayPropImportPageController {
         return "payprop/import-simple";
     }
 
-    @PostMapping("/import/status")
+    @RequestMapping(value = "/import/status", method = {RequestMethod.GET, RequestMethod.POST})
     @ResponseBody
     public Map<String, Object> getImportStatus() {
         Map<String, Object> response = new HashMap<>();
