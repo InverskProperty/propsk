@@ -559,28 +559,96 @@ public class PropertyServiceImpl implements PropertyService {
         return propertyRepository.findByEnablePayments("Y");
     }
 
-    // 🔧 FIXED: Junction table-based occupancy detection (WORKING - Returns 252 occupied properties)
+    // 🔧 UPDATED: PayProp-based occupancy detection using active rent instructions
     @Override
     public List<Property> findOccupiedProperties() {
         try {
-            List<Property> occupied = propertyRepository.findOccupiedProperties();
-            System.out.println("DEBUG: Found " + occupied.size() + " occupied properties using junction table");
-            return occupied;
+            if ("PAYPROP".equals(dataSource)) {
+                // Use PayProp data: properties with active rent instructions
+                String sql = """
+                    SELECT DISTINCT p.* FROM properties p
+                    INNER JOIN payprop_export_properties pep ON p.payprop_id = pep.payprop_id
+                    WHERE pep.is_archived = 0
+                    AND EXISTS (
+                        SELECT 1 FROM payprop_export_invoices pei 
+                        WHERE pei.property_payprop_id = pep.payprop_id 
+                        AND pei.invoice_type = 'Rent'
+                        AND pei.sync_status = 'active'
+                    )
+                    ORDER BY p.created_at DESC
+                    """;
+                
+                List<Property> occupied = jdbcTemplate.query(sql, (rs, rowNum) -> {
+                    Property property = new Property();
+                    property.setId(rs.getLong("id"));
+                    property.setPropertyName(rs.getString("property_name"));
+                    property.setAddressLine1(rs.getString("address_line_1"));
+                    property.setCity(rs.getString("city"));
+                    property.setPostalCode(rs.getString("postal_code"));
+                    property.setPayPropId(rs.getString("payprop_id"));
+                    property.setMonthlyPayment(rs.getBigDecimal("monthly_payment"));
+                    property.setIsArchived(rs.getString("is_archived"));
+                    return property;
+                });
+                
+                System.out.println("DEBUG: Found " + occupied.size() + " occupied properties using PayProp rent instructions");
+                return occupied;
+            } else {
+                // Fall back to legacy junction table logic
+                List<Property> occupied = propertyRepository.findOccupiedProperties();
+                System.out.println("DEBUG: Found " + occupied.size() + " occupied properties using legacy junction table");
+                return occupied;
+            }
         } catch (Exception e) {
-            System.err.println("Error finding occupied properties using junction table: " + e.getMessage());
+            System.err.println("Error finding occupied properties: " + e.getMessage());
+            e.printStackTrace();
             return new ArrayList<>();
         }
     }
 
-    // 🔧 FIXED: Junction table-based vacancy detection (WORKING - Returns 11 vacant properties)
+    // 🔧 UPDATED: PayProp-based vacancy detection using absence of active rent instructions
     @Override
     public List<Property> findVacantProperties() {
         try {
-            List<Property> vacant = propertyRepository.findVacantProperties();
-            System.out.println("DEBUG: Found " + vacant.size() + " vacant properties using junction table");
-            return vacant;
+            if ("PAYPROP".equals(dataSource)) {
+                // Use PayProp data: active properties without rent instructions
+                String sql = """
+                    SELECT DISTINCT p.* FROM properties p
+                    INNER JOIN payprop_export_properties pep ON p.payprop_id = pep.payprop_id
+                    WHERE pep.is_archived = 0
+                    AND NOT EXISTS (
+                        SELECT 1 FROM payprop_export_invoices pei 
+                        WHERE pei.property_payprop_id = pep.payprop_id 
+                        AND pei.invoice_type = 'Rent'
+                        AND pei.sync_status = 'active'
+                    )
+                    ORDER BY p.created_at DESC
+                    """;
+                
+                List<Property> vacant = jdbcTemplate.query(sql, (rs, rowNum) -> {
+                    Property property = new Property();
+                    property.setId(rs.getLong("id"));
+                    property.setPropertyName(rs.getString("property_name"));
+                    property.setAddressLine1(rs.getString("address_line_1"));
+                    property.setCity(rs.getString("city"));
+                    property.setPostalCode(rs.getString("postal_code"));
+                    property.setPayPropId(rs.getString("payprop_id"));
+                    property.setMonthlyPayment(rs.getBigDecimal("monthly_payment"));
+                    property.setIsArchived(rs.getString("is_archived"));
+                    return property;
+                });
+                
+                System.out.println("DEBUG: Found " + vacant.size() + " vacant properties using PayProp rent instructions");
+                return vacant;
+            } else {
+                // Fall back to legacy junction table logic
+                List<Property> vacant = propertyRepository.findVacantProperties();
+                System.out.println("DEBUG: Found " + vacant.size() + " vacant properties using legacy junction table");
+                return vacant;
+            }
         } catch (Exception e) {
-            System.err.println("Error finding vacant properties using junction table: " + e.getMessage());
+            System.err.println("Error finding vacant properties: " + e.getMessage());
+            e.printStackTrace();
             return propertyRepository.findByIsArchivedOrderByCreatedAtDesc("N");
         }
     }

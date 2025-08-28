@@ -1201,14 +1201,15 @@ public class PropertyController {
         }
     }
 
-    // Portfolio statistics calculation
+    // Portfolio statistics calculation with PayProp accuracy
     private void addComprehensivePortfolioStatistics(Model model, List<Property> properties) {
         try {
-            int totalProperties = properties != null ? properties.size() : 0;
+            // Get accurate PayProp statistics directly from database
+            Map<String, Integer> payPropStats = getPayPropStatistics();
             
-            // Use efficient single-pass calculation
-            int occupied = 0;
-            int vacant = 0;
+            int totalProperties = properties != null ? properties.size() : payPropStats.get("totalProperties");
+            
+            // Use efficient single-pass calculation for provided properties
             int synced = 0;
             BigDecimal totalRentPotential = BigDecimal.ZERO;
             
@@ -1221,13 +1222,6 @@ public class PropertyController {
             
             if (properties != null) {
                 for (Property property : properties) {
-                    // Calculate occupancy
-                    if (property.isOccupied() != null && property.isOccupied()) {
-                        occupied++;
-                    } else {
-                        vacant++;
-                    }
-                    
                     // Calculate synced properties
                     if (property.getPayPropId() != null) {
                         synced++;
@@ -1255,6 +1249,12 @@ public class PropertyController {
                 }
             }
             
+            // Use accurate PayProp counts for occupancy
+            int occupied = payPropStats.get("occupiedProperties");
+            int vacant = payPropStats.get("vacantProperties");
+            int active = payPropStats.get("activeProperties");
+            int archived = payPropStats.get("archivedProperties");
+            
             int readyForSync = totalProperties - synced;
             
             // Calculate averages
@@ -1263,8 +1263,8 @@ public class PropertyController {
                     BigDecimal.valueOf(withCommission), 2, RoundingMode.HALF_UP);
             }
 
-            // Add ALL required model attributes for templates
-            model.addAttribute("totalProperties", totalProperties);
+            // Add ALL required model attributes for templates with accurate PayProp data
+            model.addAttribute("totalProperties", payPropStats.get("totalProperties"));
             model.addAttribute("occupiedCount", occupied);
             model.addAttribute("vacantCount", vacant);
             model.addAttribute("syncedCount", synced);
@@ -1277,12 +1277,54 @@ public class PropertyController {
             // PayProp-specific model attributes
             model.addAttribute("totalAccountBalance", totalAccountBalance);
             model.addAttribute("averageCommissionRate", averageCommissionRate);
-            model.addAttribute("archivedProperties", archivedProperties);
-            model.addAttribute("activeProperties", totalProperties - archivedProperties);
+            model.addAttribute("archivedProperties", archived);
+            model.addAttribute("activeProperties", active);
             
         } catch (Exception e) {
             System.err.println("Error calculating portfolio statistics: " + e.getMessage());
             setDefaultModelAttributes(model);
+        }
+    }
+
+    // Get accurate PayProp statistics from database
+    private Map<String, Integer> getPayPropStatistics() {
+        Map<String, Integer> stats = new HashMap<>();
+        try {
+            // Get accurate PayProp counts
+            String sql = """
+                SELECT 
+                  (SELECT COUNT(*) FROM payprop_export_properties) as total_properties,
+                  (SELECT COUNT(*) FROM payprop_export_properties WHERE is_archived = 0) as active_properties,
+                  (SELECT COUNT(*) FROM payprop_export_properties WHERE is_archived = 1) as archived_properties,
+                  (SELECT COUNT(DISTINCT property_payprop_id) 
+                   FROM payprop_export_invoices 
+                   WHERE invoice_type = 'Rent' AND sync_status = 'active') as occupied_properties
+                """;
+            
+            jdbcTemplate.query(sql, rs -> {
+                int totalProperties = rs.getInt("total_properties");
+                int activeProperties = rs.getInt("active_properties");
+                int archivedProperties = rs.getInt("archived_properties");
+                int occupiedProperties = rs.getInt("occupied_properties");
+                int vacantProperties = activeProperties - occupiedProperties;
+                
+                stats.put("totalProperties", totalProperties);
+                stats.put("activeProperties", activeProperties);
+                stats.put("archivedProperties", archivedProperties);
+                stats.put("occupiedProperties", occupiedProperties);
+                stats.put("vacantProperties", vacantProperties);
+            });
+            
+            return stats;
+        } catch (Exception e) {
+            System.err.println("Error getting PayProp statistics: " + e.getMessage());
+            // Return safe defaults
+            stats.put("totalProperties", 0);
+            stats.put("activeProperties", 0);
+            stats.put("archivedProperties", 0);
+            stats.put("occupiedProperties", 0);
+            stats.put("vacantProperties", 0);
+            return stats;
         }
     }
 
