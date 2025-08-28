@@ -521,11 +521,13 @@ public class Property {
     }
 
     /**
-     * Check if property is occupied (has active tenants)
-     * This is a business logic method for property management
+     * @deprecated Use PropertyService.isPropertyOccupied() instead for accurate PayProp-based occupancy status
+     * This legacy method uses status field which may not be accurate for PayProp properties
      */
+    @Deprecated(since = "1.0", forRemoval = true)
     public Boolean isOccupied() {
-        // Logic based on property status and rental information
+        // LEGACY METHOD: Uses status field - may not be accurate for PayProp properties
+        // For accurate occupancy status, use PropertyService.isPropertyOccupied(payPropId)
         if (status != null) {
             return "occupied".equalsIgnoreCase(status) || 
                 "rented".equalsIgnoreCase(status) || 

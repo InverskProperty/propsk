@@ -663,6 +663,36 @@ public class PropertyServiceImpl implements PropertyService {
             return true;
         }
     }
+    
+    // ✅ PayProp-based occupancy check - ACCURATE
+    @Override
+    public boolean isPropertyOccupied(String payPropId) {
+        if (payPropId == null || payPropId.trim().isEmpty()) {
+            return false;
+        }
+        
+        try {
+            if ("PAYPROP".equals(dataSource)) {
+                // Use PayProp export_invoices for accurate occupancy status
+                String sql = """
+                    SELECT COUNT(*) > 0 
+                    FROM payprop_export_invoices pei 
+                    WHERE pei.property_payprop_id = ?
+                    AND pei.invoice_type = 'Rent'
+                    AND pei.sync_status = 'active'
+                    """;
+                
+                return jdbcTemplate.queryForObject(sql, Boolean.class, payPropId);
+            } else {
+                // Fallback to legacy logic for non-PayProp properties
+                Optional<Property> property = findByPayPropId(payPropId);
+                return property.map(Property::isOccupied).orElse(false);
+            }
+        } catch (Exception e) {
+            System.err.println("Error checking PayProp occupancy for property " + payPropId + ": " + e.getMessage());
+            return false;
+        }
+    }
 
     // ✅ Archive methods
     @Override

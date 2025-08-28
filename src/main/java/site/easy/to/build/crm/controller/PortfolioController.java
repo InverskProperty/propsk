@@ -1078,7 +1078,8 @@ public class PortfolioController {
                     dto.put("propertyType", property.getPropertyType());
                     dto.put("monthlyPayment", property.getMonthlyPayment());
                     dto.put("payPropId", property.getPayPropId());
-                    dto.put("isOccupied", property.isOccupied());
+                    // Use accurate PayProp-based occupancy status
+                    dto.put("isOccupied", propertyService.isPropertyOccupied(property.getPayPropId()));
                     
                     // Add owner info from junction table
                     try {

@@ -70,6 +70,9 @@ public interface PropertyService {
     // Status-based availability
     boolean isPropertyAvailableForTenant(Long propertyId);
     
+    // PayProp-based occupancy check
+    boolean isPropertyOccupied(String payPropId);
+    
     // Archive logic
     void archiveProperty(Long propertyId);
     void unarchiveProperty(Long propertyId);
