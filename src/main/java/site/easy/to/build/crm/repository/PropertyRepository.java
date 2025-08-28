@@ -102,9 +102,46 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
                    ")", nativeQuery = true)
     List<Property> findPropertiesWithNoPortfolioAssignments();
     
-    // 🔧 FIXED: Junction table-based occupancy detection (WORKING - 252 occupied properties)
+    // ✅ UPDATED: PayProp-based occupancy detection using active rent instructions
+    @Query(value = "SELECT DISTINCT p.* FROM properties p " +
+                   "INNER JOIN payprop_export_properties pep ON p.payprop_id = pep.payprop_id " +
+                   "WHERE pep.is_archived = 0 " +
+                   "AND EXISTS ( " +
+                   "    SELECT 1 FROM payprop_export_invoices pei " +
+                   "    WHERE pei.property_payprop_id = pep.payprop_id " +
+                   "    AND pei.invoice_type = 'Rent' " +
+                   "    AND pei.sync_status = 'active' " +
+                   ") " +
+                   "ORDER BY p.created_at DESC", nativeQuery = true)
+    List<Property> findOccupiedProperties();
+    
+    // ✅ UPDATED: PayProp-based vacancy detection - active properties WITHOUT rent instructions
+    @Query(value = "SELECT DISTINCT p.* FROM properties p " +
+                   "INNER JOIN payprop_export_properties pep ON p.payprop_id = pep.payprop_id " +
+                   "WHERE pep.is_archived = 0 " +
+                   "AND NOT EXISTS ( " +
+                   "    SELECT 1 FROM payprop_export_invoices pei " +
+                   "    WHERE pei.property_payprop_id = pep.payprop_id " +
+                   "    AND pei.invoice_type = 'Rent' " +
+                   "    AND pei.sync_status = 'active' " +
+                   ") " +
+                   "ORDER BY p.created_at DESC", nativeQuery = true)
+    List<Property> findVacantProperties();
+    
+    // ✅ UPDATED: Check individual property availability using PayProp data
+    @Query(value = "SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END " +
+                   "FROM payprop_export_invoices pei " +
+                   "INNER JOIN properties p ON p.payprop_id = pei.property_payprop_id " +
+                   "WHERE p.id = ?1 " +
+                   "AND pei.invoice_type = 'Rent' " +
+                   "AND pei.sync_status = 'active'", 
+           nativeQuery = true)
+    boolean hasNoActiveTenantsById(@Param("propertyId") Long propertyId);
+    
+    // ✅ FALLBACK: Legacy junction table methods for properties without PayProp IDs
     @Query(value = "SELECT DISTINCT p.* FROM properties p " +
                    "WHERE p.is_archived = 'N' " +
+                   "AND p.payprop_id IS NULL " +
                    "AND EXISTS ( " +
                    "    SELECT 1 FROM customer_property_assignments cpa " +
                    "    WHERE cpa.property_id = p.id " +
@@ -112,11 +149,11 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
                    "    AND (cpa.end_date IS NULL OR cpa.end_date > CURDATE()) " +
                    "    AND (cpa.start_date IS NULL OR cpa.start_date <= CURDATE()) " +
                    ")", nativeQuery = true)
-    List<Property> findOccupiedProperties();
+    List<Property> findLegacyOccupiedProperties();
     
-    // 🔧 FIXED: Junction table-based vacancy detection (WORKING - 11 vacant properties)
     @Query(value = "SELECT DISTINCT p.* FROM properties p " +
                    "WHERE p.is_archived = 'N' " +
+                   "AND p.payprop_id IS NULL " +
                    "AND NOT EXISTS ( " +
                    "    SELECT 1 FROM customer_property_assignments cpa " +
                    "    WHERE cpa.property_id = p.id " +
@@ -124,17 +161,7 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
                    "    AND (cpa.end_date IS NULL OR cpa.end_date > CURDATE()) " +
                    "    AND (cpa.start_date IS NULL OR cpa.start_date <= CURDATE()) " +
                    ")", nativeQuery = true)
-    List<Property> findVacantProperties();
-    
-    // 🔧 FIXED: Check individual property for active tenants using junction table
-    @Query(value = "SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE 0 END " +
-                   "FROM customer_property_assignments cpa " +
-                   "WHERE cpa.property_id = ?1 " +
-                   "AND cpa.assignment_type = 'TENANT' " +
-                   "AND (cpa.end_date IS NULL OR cpa.end_date > CURDATE()) " +
-                   "AND (cpa.start_date IS NULL OR cpa.start_date <= CURDATE())", 
-           nativeQuery = true)
-    boolean hasNoActiveTenantsById(@Param("propertyId") Long propertyId);
+    List<Property> findLegacyVacantProperties();
     
     // ✅ Debug query to show assignment counts with dates
     @Query(value = "SELECT " +

@@ -367,6 +367,9 @@
                         <button type="button" class="btn btn-secondary btn-sm ml-2" onclick="clearFilters()">
                             <i class="fas fa-times"></i> Clear Filters
                         </button>
+                        <button type="button" class="btn btn-info btn-sm ml-2" id="toggleArchived" onclick="toggleArchivedProperties()">
+                            <i class="fas fa-archive"></i> Show Archived
+                        </button>
                     </div>
                 </div>
             </div>
@@ -725,6 +728,43 @@ $(document).ready(function() {
 
     window.printTable = function() {
         window.print();
+    };
+
+    let showingArchived = false;
+    window.toggleArchivedProperties = function() {
+        const button = $('#toggleArchived');
+        const icon = button.find('i');
+        
+        if (showingArchived) {
+            // Hide archived properties
+            if (dataTable) {
+                dataTable.rows().every(function() {
+                    const $row = $(this.node());
+                    const isArchived = $row.find('.badge-danger:contains("Archived")').length > 0 ||
+                                     $row.find('.badge-secondary:contains("Archived")').length > 0;
+                    if (isArchived) {
+                        $row.hide();
+                    }
+                });
+                dataTable.draw();
+            }
+            button.removeClass('btn-warning').addClass('btn-info');
+            icon.removeClass('fa-eye-slash').addClass('fa-archive');
+            button.contents().last()[0].textContent = ' Show Archived';
+            showingArchived = false;
+        } else {
+            // Show all properties including archived
+            if (dataTable) {
+                dataTable.rows().every(function() {
+                    $(this.node()).show();
+                });
+                dataTable.draw();
+            }
+            button.removeClass('btn-info').addClass('btn-warning');
+            icon.removeClass('fa-archive').addClass('fa-eye-slash');
+            button.contents().last()[0].textContent = ' Hide Archived';
+            showingArchived = true;
+        }
     };
 
     // Load maintenance data

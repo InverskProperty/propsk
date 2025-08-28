@@ -216,17 +216,19 @@ public class HomePageController {
         
         // 🔧 FIXED: Property statistics using junction table (WORKING CORRECTLY)
         try {
+            // ✅ UPDATED: Use PayProp data for accurate property counts
+            List<Property> occupiedProperties = propertyService.findOccupiedProperties();
+            List<Property> vacantProperties = propertyService.findVacantProperties();
+            List<Property> activeProperties = propertyService.findActiveProperties();
+            
             // Get user's properties based on role
             List<Property> userProperties;
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                userProperties = propertyService.findAll();
+                // Managers see active properties total (not including archived)
+                userProperties = activeProperties;
             } else {
                 userProperties = propertyService.getRecentProperties((long) userId, 1000);
             }
-            
-            // 🔧 FIXED: Use junction table for accurate occupancy counts
-            List<Property> occupiedProperties = propertyService.findOccupiedProperties();
-            List<Property> vacantProperties = propertyService.findVacantProperties();
             
             int totalProperties = userProperties.size();
             int occupied = 0;

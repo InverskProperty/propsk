@@ -594,10 +594,16 @@ public class PropertyServiceImpl implements PropertyService {
                 System.out.println("DEBUG: Found " + occupied.size() + " occupied properties using PayProp rent instructions");
                 return occupied;
             } else {
-                // Fall back to legacy junction table logic
-                List<Property> occupied = propertyRepository.findOccupiedProperties();
-                System.out.println("DEBUG: Found " + occupied.size() + " occupied properties using legacy junction table");
-                return occupied;
+                // Hybrid approach: PayProp properties + Legacy properties
+                List<Property> payPropOccupied = propertyRepository.findOccupiedProperties();
+                List<Property> legacyOccupied = propertyRepository.findLegacyOccupiedProperties();
+                
+                List<Property> allOccupied = new ArrayList<>(payPropOccupied);
+                allOccupied.addAll(legacyOccupied);
+                
+                System.out.println("DEBUG: Found " + payPropOccupied.size() + " PayProp occupied + " + 
+                                 legacyOccupied.size() + " legacy occupied = " + allOccupied.size() + " total occupied properties");
+                return allOccupied;
             }
         } catch (Exception e) {
             System.err.println("Error finding occupied properties: " + e.getMessage());
@@ -641,10 +647,16 @@ public class PropertyServiceImpl implements PropertyService {
                 System.out.println("DEBUG: Found " + vacant.size() + " vacant properties using PayProp rent instructions");
                 return vacant;
             } else {
-                // Fall back to legacy junction table logic
-                List<Property> vacant = propertyRepository.findVacantProperties();
-                System.out.println("DEBUG: Found " + vacant.size() + " vacant properties using legacy junction table");
-                return vacant;
+                // Hybrid approach: PayProp properties + Legacy properties
+                List<Property> payPropVacant = propertyRepository.findVacantProperties();
+                List<Property> legacyVacant = propertyRepository.findLegacyVacantProperties();
+                
+                List<Property> allVacant = new ArrayList<>(payPropVacant);
+                allVacant.addAll(legacyVacant);
+                
+                System.out.println("DEBUG: Found " + payPropVacant.size() + " PayProp vacant + " + 
+                                 legacyVacant.size() + " legacy vacant = " + allVacant.size() + " total vacant properties");
+                return allVacant;
             }
         } catch (Exception e) {
             System.err.println("Error finding vacant properties: " + e.getMessage());
