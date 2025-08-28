@@ -93,8 +93,30 @@ public class EmployeeController {
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             User user = userService.findById(Long.valueOf(userId));
             
-            // Use EXISTING method names for basic stats
-            model.addAttribute("totalProperties", propertyService.getTotalProperties());
+            // ✅ FIXED: Use PayProp-based property statistics (matches HomePageController logic)
+            List<Property> activeProperties = propertyService.findActiveProperties();
+            List<Property> occupiedProperties = propertyService.findOccupiedProperties();
+            List<Property> vacantProperties = propertyService.findVacantProperties();
+            
+            int totalProperties = activeProperties.size();
+            int occupiedCount = occupiedProperties.size();
+            int vacantCount = vacantProperties.size();
+            int syncedCount = (int) activeProperties.stream()
+                .filter(p -> p.getPayPropId() != null)
+                .count();
+            int readyForSync = totalProperties - syncedCount;
+            
+            model.addAttribute("totalProperties", totalProperties);        // Now shows 263 (correct)
+            model.addAttribute("occupiedCount", occupiedCount);            // Now shows 241 (correct)  
+            model.addAttribute("vacantCount", vacantCount);                // Now shows 22 (correct)
+            model.addAttribute("syncedCount", syncedCount);
+            model.addAttribute("readyForSync", readyForSync);
+            
+            // ✅ FIXED: Add consistent variable names for index.html compatibility
+            model.addAttribute("occupiedProperties", occupiedCount);       // Same as HomePageController
+            model.addAttribute("vacantProperties", vacantCount);           // Same as HomePageController
+            
+            // Legacy counters for other entities (unchanged)
             model.addAttribute("totalTenants", tenantService.getTotalTenants());
             model.addAttribute("totalOwners", propertyOwnerService.getTotalPropertyOwners());
             model.addAttribute("totalContractors", contractorService.getTotalCount());

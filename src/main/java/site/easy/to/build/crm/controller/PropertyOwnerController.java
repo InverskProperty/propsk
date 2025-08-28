@@ -521,17 +521,13 @@ public class PropertyOwnerController {
                 }
             }
             
-            // Occupied properties (properties with at least 1 active tenant)
-            Set<Long> occupiedPropertyIds = allActiveTenants.stream()
-                .map(tenant -> tenant.getProperty().getId())
-                .collect(Collectors.toSet());
-            
+            // ✅ FIXED: Use PayProp-based occupancy logic instead of tenant-based logic
             List<Property> occupiedProperties = properties.stream()
-                .filter(p -> occupiedPropertyIds.contains(p.getId()))
+                .filter(p -> p.getPayPropId() != null && propertyService.isPropertyOccupied(p.getPayPropId()))
                 .collect(Collectors.toList());
             
             List<Property> vacantProperties = properties.stream()
-                .filter(p -> !occupiedPropertyIds.contains(p.getId()))
+                .filter(p -> p.getPayPropId() != null && !propertyService.isPropertyOccupied(p.getPayPropId()))
                 .collect(Collectors.toList());
             
             System.out.println("🔍 DEBUG: Occupied properties: " + occupiedProperties.size());
