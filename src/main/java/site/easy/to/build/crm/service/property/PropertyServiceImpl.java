@@ -551,6 +551,12 @@ public class PropertyServiceImpl implements PropertyService {
     // ✅ Status methods
     @Override
     public List<Property> findActiveProperties() {
+        if ("PAYPROP".equals(dataSource)) {
+            // Use PayProp export data directly (consistent with occupied/vacant logic)
+            return findAllFromPayProp().stream()
+                .filter(p -> !"Y".equals(p.getIsArchived()))
+                .collect(Collectors.toList());
+        }
         return propertyRepository.findByIsArchivedOrderByCreatedAtDesc("N");
     }
 
