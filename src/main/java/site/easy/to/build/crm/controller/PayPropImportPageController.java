@@ -27,8 +27,10 @@ public class PayPropImportPageController {
 
     @GetMapping("/import")
     public String showImportPage(Model model) {
-        boolean isConnected = oAuth2Service.hasValidTokens();
-        model.addAttribute("paypropConnected", isConnected);
+        // IMMEDIATE ACCESS: Skip OAuth check entirely on page load
+        // Connection status will be checked asynchronously via JavaScript
+        model.addAttribute("paypropConnected", null); // null = unknown status
+        model.addAttribute("checkConnectionAsync", true); // Signal to JS to check
         model.addAttribute("home", "/");
         return "payprop/import";
     }
@@ -37,9 +39,15 @@ public class PayPropImportPageController {
     @ResponseBody
     public Map<String, Object> getImportStatus() {
         Map<String, Object> response = new HashMap<>();
-        boolean isConnected = oAuth2Service.hasValidTokens();
-        response.put("connected", isConnected);
-        response.put("status", isConnected ? "ready" : "not_connected");
+        try {
+            boolean isConnected = oAuth2Service.hasValidTokens();
+            response.put("connected", isConnected);
+            response.put("status", isConnected ? "ready" : "not_connected");
+        } catch (Exception e) {
+            response.put("connected", false);
+            response.put("status", "error");
+            response.put("error", "Connection check failed: " + e.getMessage());
+        }
         return response;
     }
 

@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import site.easy.to.build.crm.repository.OAuthUserRepository;
 import site.easy.to.build.crm.repository.UserRepository;
 import site.easy.to.build.crm.entity.OAuthUser;
@@ -54,6 +55,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
     }
 
     @Override
+    @Transactional(readOnly = true)
     public OAuthUser findBtEmail(String email) {
         return oAuthUserRepository.findByEmail(email);
     }
@@ -66,6 +68,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
     /**
      * Check if the OAuth user has valid tokens for API access
      */
+    @Transactional(readOnly = true)
     public boolean hasValidTokens(OAuthUser oauthUser) {
         System.out.println("🔍 DEBUG: Checking OAuth token validity...");
         

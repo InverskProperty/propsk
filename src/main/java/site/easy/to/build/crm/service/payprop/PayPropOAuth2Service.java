@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
@@ -368,6 +369,7 @@ public class PayPropOAuth2Service {
     /**
      * Check if we have valid tokens that actually work with PayProp API
      */
+    @Transactional(readOnly = true)
     public boolean hasValidTokens() {
         // First check if tokens exist and are not expired
         boolean hasTokens = hasStoredTokens();
