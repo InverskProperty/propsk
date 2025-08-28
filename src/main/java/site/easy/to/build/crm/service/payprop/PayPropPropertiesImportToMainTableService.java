@@ -39,17 +39,20 @@ public class PayPropPropertiesImportToMainTableService {
     
     /**
      * Clear and reimport all properties from PayProp to the main properties table
+     * FIXED: No @Transactional to avoid holding connections during API calls
      */
-    @Transactional
     public Map<String, Object> clearAndReimportProperties() {
         log.info("🔄 Starting CLEAR AND REIMPORT of properties table from PayProp");
         
         try {
-            // Step 1: Clear existing data
+            // Step 1: Fetch data from PayProp API FIRST (don't hold DB connections)
+            List<Map<String, Object>> allProperties = fetchAllPropertiesFromPayProp();
+            
+            // Step 2: Clear existing data (quick DB operation)
             clearExistingProperties();
             
-            // Step 2: Import fresh PayProp data
-            int importedCount = importPropertiesFromPayProp();
+            // Step 3: Import the fetched data (quick DB operation)
+            int importedCount = importToMainPropertiesTable(allProperties);
             
             Map<String, Object> result = Map.of(
                 "success", true,
@@ -129,9 +132,10 @@ public class PayPropPropertiesImportToMainTableService {
     }
     
     /**
-     * Import all properties from PayProp (active + archived)
+     * Fetch all properties from PayProp API (active + archived)
+     * Separated from database operations to avoid connection pool issues
      */
-    private int importPropertiesFromPayProp() throws Exception {
+    private List<Map<String, Object>> fetchAllPropertiesFromPayProp() throws Exception {
         log.info("📦 Importing properties from PayProp API");
         
         // Step 1: Import active properties
@@ -167,10 +171,9 @@ public class PayPropPropertiesImportToMainTableService {
         }
         allProperties.addAll(archivedProperties);
         
-        log.info("📦 TOTAL properties to import: {}", allProperties.size());
+        log.info("📦 TOTAL properties fetched from PayProp: {}", allProperties.size());
         
-        // Step 4: Import to main properties table
-        return importToMainPropertiesTable(allProperties);
+        return allProperties;
     }
     
     /**
