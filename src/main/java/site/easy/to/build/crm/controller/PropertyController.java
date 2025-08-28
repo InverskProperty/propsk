@@ -89,7 +89,7 @@ public class PropertyController {
             try {
                 // Role-based property filtering
                 if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                    properties = propertyService.findAll();
+                    properties = propertyService.findActiveProperties(); // Only active (non-archived) properties
                 } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
                     properties = propertyService.findByPropertyOwnerId(Long.valueOf(userId));
                 } else {
@@ -220,7 +220,7 @@ public class PropertyController {
 
             List<Property> properties;
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                properties = propertyService.findAll();
+                properties = propertyService.findActiveProperties(); // Only active properties for portfolio overview
             } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
                 properties = propertyService.findByPropertyOwnerId(Long.valueOf(userId));
             } else {
@@ -1211,7 +1211,7 @@ public class PropertyController {
             // Get accurate PayProp statistics directly from database
             Map<String, Integer> payPropStats = getPayPropStatistics();
             
-            int totalProperties = properties != null ? properties.size() : payPropStats.get("totalProperties");
+            int totalProperties = properties != null ? properties.size() : payPropStats.get("activeProperties");
             
             // Use efficient single-pass calculation for provided properties
             int synced = 0;
@@ -1268,7 +1268,7 @@ public class PropertyController {
             }
 
             // Add ALL required model attributes for templates with accurate PayProp data
-            model.addAttribute("totalProperties", payPropStats.get("totalProperties"));
+            model.addAttribute("totalProperties", payPropStats.get("activeProperties")); // Show active properties only
             model.addAttribute("occupiedCount", occupied);
             model.addAttribute("vacantCount", vacant);
             model.addAttribute("syncedCount", synced);
@@ -1283,6 +1283,9 @@ public class PropertyController {
             model.addAttribute("averageCommissionRate", averageCommissionRate);
             model.addAttribute("archivedProperties", archived);
             model.addAttribute("activeProperties", active);
+            
+            // Add total including archived for reference (if needed)
+            model.addAttribute("allPropertiesCount", payPropStats.get("totalProperties")); // 353 total including archived
             
         } catch (Exception e) {
             System.err.println("Error calculating portfolio statistics: " + e.getMessage());

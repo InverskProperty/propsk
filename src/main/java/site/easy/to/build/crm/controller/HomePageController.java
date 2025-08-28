@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -45,11 +46,12 @@ public class HomePageController {
     private final CustomerLoginInfoService customerLoginInfoService;
     private final PropertyService propertyService;
     private final OAuthUserService oAuthUserService;
+    private final JdbcTemplate jdbcTemplate;
 
     @Autowired
     public HomePageController(TicketService ticketService, CustomerService customerService, ContractService contractService, LeadService leadService,
                               WeatherService weatherService, AuthenticationUtils authenticationUtils, GoogleCalendarApiService googleCalendarApiService,
-                              CustomerLoginInfoService customerLoginInfoService, PropertyService propertyService, OAuthUserService oAuthUserService) {
+                              CustomerLoginInfoService customerLoginInfoService, PropertyService propertyService, OAuthUserService oAuthUserService, JdbcTemplate jdbcTemplate) {
         this.ticketService = ticketService;
         this.customerService = customerService;
         this.contractService = contractService;
@@ -60,6 +62,7 @@ public class HomePageController {
         this.customerLoginInfoService = customerLoginInfoService;
         this.propertyService = propertyService;
         this.oAuthUserService = oAuthUserService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @GetMapping("/login")
@@ -214,33 +217,29 @@ public class HomePageController {
             }
         }
         
-        // 🔧 FIXED: Property statistics using junction table (WORKING CORRECTLY)
+        // 🔧 FIXED: Use accurate PayProp statistics (consistent with PropertyController)
         try {
-            // ✅ UPDATED: Use PayProp data for accurate property counts
-            List<Property> occupiedProperties = propertyService.findOccupiedProperties();
-            List<Property> vacantProperties = propertyService.findVacantProperties();
-            List<Property> activeProperties = propertyService.findActiveProperties();
+            int totalProperties, occupied, vacant, synced;
             
-            // Get user's properties based on role
-            List<Property> userProperties;
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                // Managers see active properties total (not including archived)
-                userProperties = activeProperties;
+                // Managers: Use direct PayProp statistics for accuracy
+                Map<String, Integer> payPropStats = getPayPropStatistics();
+                totalProperties = payPropStats.get("activeProperties"); // Active properties only (not archived)
+                occupied = payPropStats.get("occupiedProperties");
+                vacant = payPropStats.get("vacantProperties");
+                
+                // Get synced count from active properties
+                List<Property> activeProperties = propertyService.findActiveProperties();
+                synced = (int) activeProperties.stream()
+                    .filter(p -> p.getPayPropId() != null)
+                    .count();
             } else {
-                userProperties = propertyService.getRecentProperties((long) userId, 1000);
-            }
-            
-            int totalProperties = userProperties.size();
-            int occupied = 0;
-            int vacant = 0;
-            
-            // Filter based on user's properties if not manager
-            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                // Managers see all properties
-                occupied = occupiedProperties.size();
-                vacant = vacantProperties.size();
-            } else {
-                // Filter to user's properties only
+                // Non-managers: Use user-specific property filtering
+                List<Property> userProperties = propertyService.getRecentProperties((long) userId, 1000);
+                List<Property> occupiedProperties = propertyService.findOccupiedProperties();
+                List<Property> vacantProperties = propertyService.findVacantProperties();
+                
+                totalProperties = userProperties.size();
                 List<Long> userPropertyIds = userProperties.stream().map(Property::getId).toList();
                 
                 occupied = (int) occupiedProperties.stream()
@@ -250,20 +249,31 @@ public class HomePageController {
                 vacant = (int) vacantProperties.stream()
                     .filter(p -> userPropertyIds.contains(p.getId()))
                     .count();
+                
+                synced = (int) userProperties.stream()
+                    .filter(p -> p.getPayPropId() != null)
+                    .count();
             }
-
-            // Calculate synced properties
-            int synced = (int) userProperties.stream()
-                .filter(p -> p.getPayPropId() != null)
-                .count();
             
             int readyForSync = totalProperties - synced;
 
             // Calculate rent potential
-            BigDecimal totalRentPotential = userProperties.stream()
-                .map(Property::getMonthlyPayment)
-                .filter(rent -> rent != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal totalRentPotential;
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                // For managers, calculate from all active properties
+                List<Property> activeProperties = propertyService.findActiveProperties();
+                totalRentPotential = activeProperties.stream()
+                    .map(Property::getMonthlyPayment)
+                    .filter(rent -> rent != null)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            } else {
+                // For non-managers, calculate from user properties
+                List<Property> userProperties = propertyService.getRecentProperties((long) userId, 1000);
+                totalRentPotential = userProperties.stream()
+                    .map(Property::getMonthlyPayment)
+                    .filter(rent -> rent != null)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            }
 
             // 🔧 FIXED: Set correct property statistics
             model.addAttribute("totalProperties", totalProperties);
@@ -277,7 +287,16 @@ public class HomePageController {
             // Additional attributes for dashboard compatibility
             model.addAttribute("occupiedProperties", occupied);
             model.addAttribute("vacantProperties", vacant);
-            model.addAttribute("recentProperties", userProperties.stream().limit(5).collect(Collectors.toList()));
+            
+            // Recent properties for dashboard display
+            List<Property> recentProperties;
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                recentProperties = propertyService.findActiveProperties().stream().limit(5).collect(Collectors.toList());
+            } else {
+                List<Property> userProperties = propertyService.getRecentProperties((long) userId, 1000);
+                recentProperties = userProperties.stream().limit(5).collect(Collectors.toList());
+            }
+            model.addAttribute("recentProperties", recentProperties);
             
             // Debug logging
             System.out.println("=== HOME PAGE PROPERTY STATS ===");
@@ -393,5 +412,47 @@ public class HomePageController {
         defaultStats.put("totalMaintenance", 0L);
         defaultStats.put("completedThisMonth", 0L);
         return defaultStats;
+    }
+    
+    // Get accurate PayProp statistics from database (same as PropertyController)
+    private Map<String, Integer> getPayPropStatistics() {
+        Map<String, Integer> stats = new HashMap<>();
+        try {
+            // Get accurate PayProp counts
+            String sql = """
+                SELECT 
+                  (SELECT COUNT(*) FROM payprop_export_properties) as total_properties,
+                  (SELECT COUNT(*) FROM payprop_export_properties WHERE is_archived = 0) as active_properties,
+                  (SELECT COUNT(*) FROM payprop_export_properties WHERE is_archived = 1) as archived_properties,
+                  (SELECT COUNT(DISTINCT property_payprop_id) 
+                   FROM payprop_export_invoices 
+                   WHERE invoice_type = 'Rent' AND sync_status = 'active') as occupied_properties
+                """;
+            
+            jdbcTemplate.query(sql, rs -> {
+                int totalProperties = rs.getInt("total_properties");
+                int activeProperties = rs.getInt("active_properties");
+                int archivedProperties = rs.getInt("archived_properties");
+                int occupiedProperties = rs.getInt("occupied_properties");
+                int vacantProperties = activeProperties - occupiedProperties;
+                
+                stats.put("totalProperties", totalProperties);
+                stats.put("activeProperties", activeProperties);
+                stats.put("archivedProperties", archivedProperties);
+                stats.put("occupiedProperties", occupiedProperties);
+                stats.put("vacantProperties", vacantProperties);
+            });
+            
+            return stats;
+        } catch (Exception e) {
+            System.err.println("Error getting PayProp statistics: " + e.getMessage());
+            // Return safe defaults
+            stats.put("totalProperties", 0);
+            stats.put("activeProperties", 0);
+            stats.put("archivedProperties", 0);
+            stats.put("occupiedProperties", 0);
+            stats.put("vacantProperties", 0);
+            return stats;
+        }
     }
 }
