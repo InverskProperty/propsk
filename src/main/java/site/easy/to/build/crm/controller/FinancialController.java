@@ -466,7 +466,7 @@ public class FinancialController {
                     
                     UNION ALL
                     
-                    -- Payments with distributions
+                    -- Payments with distributions (grouped by transaction ID)
                     SELECT 
                         payment_batch_transfer_date as date,
                         'Payment' as type,
@@ -474,11 +474,11 @@ public class FinancialController {
                         incoming_transaction_amount as amount,
                         SUM(CASE WHEN category_name = 'Commission' THEN amount ELSE 0 END) as commission_amount,
                         SUM(CASE WHEN category_name = 'Owner' THEN amount ELSE 0 END) as owner_amount,
-                        incoming_transaction_type as description,
+                        MAX(incoming_transaction_type) as description,
                         GROUP_CONCAT(DISTINCT reference) as reference
                     FROM payprop_report_all_payments 
                     WHERE incoming_property_payprop_id = ?
-                    GROUP BY payment_batch_transfer_date, incoming_tenant_name, incoming_transaction_amount, incoming_transaction_type
+                    GROUP BY incoming_transaction_id, payment_batch_transfer_date, incoming_tenant_name, incoming_transaction_amount
                 ) combined
                 ORDER BY date DESC
                 LIMIT 100
@@ -557,8 +557,10 @@ public class FinancialController {
             // Build comprehensive summary with new structure
             summary.put("totalInvoiced", totalInvoiced);
             summary.put("totalReceived", totalReceived);
+            summary.put("totalIncoming", totalReceived);  // For frontend compatibility
             summary.put("totalCommissions", totalCommissions);
             summary.put("totalToOwners", totalToOwners);
+            summary.put("netIncome", totalToOwners);  // Net to owner for frontend
             summary.put("outstandingBalance", outstandingBalance);
             summary.put("transactionCount", transactions.size());
             

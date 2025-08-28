@@ -1190,24 +1190,28 @@ function displayTransactions(transactions, filterType) {
             <tr class="transaction-row ${isInvoice ? 'table-light' : ''}" data-type="${transactionType}">
                 <td>${formatDate(transactionDate)}</td>
                 <td>
-                    <span class="badge ${isInvoice ? 'bg-warning' : 'bg-success'}">
-                        ${transactionType}
-                    </span>
-                    ${tenantName ? `<br><small class="text-muted">${tenantName}</small>` : ''}
-                    ${description ? `<br><small class="text-muted">${description}</small>` : ''}
+                    <div class="d-flex align-items-center">
+                        <span class="badge ${isInvoice ? 'bg-warning' : 'bg-success'} me-2">
+                            ${transactionType}
+                        </span>
+                        <div>
+                            ${tenantName ? `<div class="fw-bold">${tenantName}</div>` : ''}
+                            ${description ? `<small class="text-muted">${description}</small>` : ''}
+                        </div>
+                    </div>
                 </td>
-                <td class="${amountClass}">${amountPrefix}£${formatNumber(amount || 0)}</td>
-                <td>${isPayment ? '£' + formatNumber(commissionAmount) : '-'}</td>
-                <td>${isPayment ? '£' + formatNumber(ownerAmount) : '-'}</td>
-                <td>${reference || '-'}</td>
-                <td>
-                    <span class="badge bg-info" title="PayProp Data">
+                <td class="${amountClass} fw-bold">${amountPrefix}£${formatNumber(amount || 0)}</td>
+                <td class="text-end">${isPayment ? '£' + formatNumber(commissionAmount) : '-'}</td>
+                <td class="text-end">${isPayment ? '£' + formatNumber(ownerAmount) : '-'}</td>
+                <td style="max-width: 120px;"><small class="text-truncate d-block">${reference || '-'}</small></td>
+                <td class="text-center">
+                    <span class="badge bg-info">
                         PayProp
                     </span>
                 </td>
-                <td>
+                <td class="text-center">
                     <span class="badge ${isInvoice ? 'bg-warning' : 'bg-success'}">
-                        ${isInvoice ? 'Outstanding' : 'Completed'}
+                        ${isInvoice ? 'Outstanding' : 'Paid'}
                     </span>
                 </td>
             </tr>
