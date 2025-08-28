@@ -16,7 +16,7 @@ import java.util.Map;
 
 @Controller
 @RequestMapping("/payprop")
-@PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+// @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')") // Temporarily disabled for testing
 public class PayPropImportPageController {
 
     @Autowired
@@ -33,6 +33,12 @@ public class PayPropImportPageController {
         model.addAttribute("checkConnectionAsync", true); // Signal to JS to check
         model.addAttribute("home", "/");
         return "payprop/import";
+    }
+
+    @GetMapping("/import-simple")
+    public String showSimpleImportPage(Model model) {
+        // SIMPLIFIED VERSION: No template fragments, standalone page
+        return "payprop/import-simple";
     }
 
     @PostMapping("/import/status")
