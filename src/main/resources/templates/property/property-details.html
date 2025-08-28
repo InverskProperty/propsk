@@ -932,8 +932,23 @@ $(document).ready(function() {
 });
 
 function loadFinancialData() {
+    // Check if jQuery is available
+    if (typeof $ === 'undefined') {
+        console.error('jQuery is not loaded yet, retrying in 500ms...');
+        setTimeout(loadFinancialData, 500);
+        return;
+    }
+    
     const propertyId = $('body').data('property-id');
     console.log('Property ID:', propertyId);
+    
+    // Validate property ID
+    if (!propertyId || propertyId === 'null' || propertyId < 0) {
+        console.error('Invalid property ID:', propertyId);
+        $('#recentTransactionsBody').html('<tr><td colspan="8" class="text-center text-danger">Invalid property ID</td></tr>');
+        return;
+    }
+    
     console.log('URL:', `/employee/property/${propertyId}/financial-summary`);
     
     $.ajax({

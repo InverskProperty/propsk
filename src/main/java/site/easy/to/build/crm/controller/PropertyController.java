@@ -287,8 +287,9 @@ public class PropertyController {
         Property property = null;
         
         // Try PayProp ID first (if it looks like a PayProp ID)
-        if (id.length() > 5 && !id.matches("\\d+")) {
-            // Looks like a PayProp ID
+        // PayProp IDs are typically alphanumeric strings longer than 5 chars and contain letters
+        if (id.length() > 5 && id.matches(".*[a-zA-Z].*")) {
+            // Contains letters - looks like a PayProp ID
             if (propertyService instanceof PropertyServiceImpl) {
                 property = ((PropertyServiceImpl) propertyService).findByPayPropIdString(id);
             }
