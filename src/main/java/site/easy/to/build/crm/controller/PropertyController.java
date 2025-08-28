@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -48,6 +49,9 @@ public class PropertyController {
     private final TicketService ticketService;
     private final AuthenticationUtils authenticationUtils;
     private final JdbcTemplate jdbcTemplate;
+    
+    @Value("${crm.data.source:LEGACY}")
+    private String dataSource;
 
     @Autowired
     public PropertyController(PropertyService propertyService,
@@ -263,7 +267,8 @@ public class PropertyController {
                 .collect(Collectors.toList());
         }
         
-        addComprehensivePortfolioStatistics(model, properties);
+        // For archived properties, calculate statistics based on the archived list
+        calculateFilteredPropertyStatistics(model, properties, "Archived Properties");
         model.addAttribute("properties", properties);
         model.addAttribute("pageTitle", "Archived Properties");
         return "property/all-properties";
@@ -276,7 +281,7 @@ public class PropertyController {
         }
 
         List<Property> properties = propertyService.findPropertiesReadyForSync();
-        addComprehensivePortfolioStatistics(model, properties);
+        calculateFilteredPropertyStatistics(model, properties, "Ready for Sync");
         model.addAttribute("properties", properties);
         model.addAttribute("pageTitle", "Properties Ready for PayProp Sync");
         return "property/all-properties";
@@ -400,8 +405,8 @@ public class PropertyController {
         model.addAttribute("user", loggedInUser);
         model.addAttribute("isOAuthUser", isOAuthUser);
 
-        // Add tenant count for this property
-        long tenantCount = tenantService.countByPropertyId(property.getId());
+        // Add tenant count for this property using PayProp data
+        long tenantCount = getActiveTenantCountForProperty(property);
         model.addAttribute("tenantCount", tenantCount);
 
         // Add maintenance statistics and recent tickets
@@ -642,7 +647,7 @@ public class PropertyController {
                 .collect(Collectors.toList());
         }
         
-        addComprehensivePortfolioStatistics(model, properties);
+        calculateFilteredPropertyStatistics(model, properties, "Search Results");
         model.addAttribute("properties", properties);
         model.addAttribute("searchPerformed", true);
         model.addAttribute("propertyName", propertyName);
@@ -1480,5 +1485,80 @@ public class PropertyController {
         model.addAttribute("flatCount", 0);
         model.addAttribute("houseCount", 0);
         model.addAttribute("averageRent", BigDecimal.ZERO);
+    }
+    
+    // Get active tenant count for a specific property using PayProp data
+    private long getActiveTenantCountForProperty(Property property) {
+        try {
+            // If property has PayProp ID, use PayProp invoice data
+            if (property.getPayPropId() != null && !"LEGACY".equals(dataSource)) {
+                String sql = """
+                    SELECT COUNT(DISTINCT tenant_payprop_id) 
+                    FROM payprop_export_invoices 
+                    WHERE property_payprop_id = ? 
+                    AND invoice_type = 'Rent' 
+                    AND sync_status = 'active'
+                    """;
+                
+                return jdbcTemplate.queryForObject(sql, Long.class, property.getPayPropId());
+            } else {
+                // Fallback to legacy tenant service for non-PayProp properties
+                return tenantService.countByPropertyId(property.getId());
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting tenant count for property " + property.getId() + ": " + e.getMessage());
+            // Fallback to legacy method on error
+            try {
+                return tenantService.countByPropertyId(property.getId());
+            } catch (Exception fallbackError) {
+                System.err.println("Fallback tenant count also failed: " + fallbackError.getMessage());
+                return 0;
+            }
+        }
+    }
+    
+    // Calculate statistics based on a filtered property list (for archived, search, etc.)
+    private void calculateFilteredPropertyStatistics(Model model, List<Property> properties, String context) {
+        try {
+            // Get global PayProp statistics for reference
+            Map<String, Integer> globalStats = getPayPropStatistics();
+            
+            // Calculate statistics for the filtered list
+            int totalProperties = properties.size();
+            int synced = (int) properties.stream().filter(p -> p.getPayPropId() != null).count();
+            
+            // Calculate rent potential for filtered properties
+            BigDecimal totalRentPotential = properties.stream()
+                .map(Property::getMonthlyPayment)
+                .filter(rent -> rent != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            // For archived properties, occupancy doesn't make sense, so use filtered stats
+            if ("Archived Properties".equals(context)) {
+                model.addAttribute("totalProperties", totalProperties); // Archived count
+                model.addAttribute("occupiedCount", 0); // Archived properties are not occupied
+                model.addAttribute("vacantCount", 0); // Archived properties are not vacant
+                model.addAttribute("archivedProperties", totalProperties); // Same as total for archived view
+            } else {
+                // For other filtered views, show global occupancy but filtered totals
+                model.addAttribute("totalProperties", totalProperties); // Filtered count
+                model.addAttribute("occupiedCount", globalStats.get("occupiedProperties")); // Global
+                model.addAttribute("vacantCount", globalStats.get("vacantProperties")); // Global
+                model.addAttribute("archivedProperties", globalStats.get("archivedProperties")); // Global
+            }
+            
+            model.addAttribute("syncedCount", synced);
+            model.addAttribute("syncedProperties", synced);
+            model.addAttribute("readyForSync", totalProperties - synced);
+            model.addAttribute("totalRentPotential", totalRentPotential);
+            model.addAttribute("occupiedProperties", model.getAttribute("occupiedCount"));
+            model.addAttribute("vacantProperties", model.getAttribute("vacantCount"));
+            model.addAttribute("activeProperties", globalStats.get("activeProperties"));
+            model.addAttribute("allPropertiesCount", globalStats.get("totalProperties"));
+            
+        } catch (Exception e) {
+            System.err.println("Error calculating filtered property statistics: " + e.getMessage());
+            setDefaultModelAttributes(model);
+        }
     }
 }
