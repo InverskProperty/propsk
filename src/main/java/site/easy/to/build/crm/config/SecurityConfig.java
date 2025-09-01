@@ -188,6 +188,7 @@ public class SecurityConfig {
                         // CRITICAL FIX: PayProp routes - MUST come BEFORE /portfolio/**
                         .requestMatchers("/api/payprop/sync/**").permitAll() // Allow sync endpoints without auth
                         .requestMatchers("/admin/payprop/**").hasAnyRole("MANAGER", "OIDC_USER")
+                        .requestMatchers("/payprop/**").hasAnyRole("MANAGER", "ADMIN", "SUPER_ADMIN", "OIDC_USER") // PayProp import pages
                         .requestMatchers("/api/payprop/oauth/**").hasAnyRole("MANAGER", "OIDC_USER")
                         .requestMatchers("/api/payprop/webhook/**").permitAll() // Webhooks need public access
                         .requestMatchers("/api/payprop/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
