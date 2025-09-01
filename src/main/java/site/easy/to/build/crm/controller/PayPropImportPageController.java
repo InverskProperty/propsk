@@ -3,6 +3,7 @@ package site.easy.to.build.crm.controller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -18,6 +19,7 @@ import java.util.Map;
 
 @Controller
 @RequestMapping("/payprop")
+@ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 // @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')") // Temporarily disabled for debugging
 public class PayPropImportPageController {
 
