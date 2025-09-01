@@ -430,15 +430,112 @@ async function clearAndReimportProperties() {
     hideProgress();
 }
 
-function runSelectedServices() {
+async function runSelectedServices() {
     const selectedServices = getSelectedServices();
     if (selectedServices.length === 0) {
         updateStatus('Please select at least one service to run', 'warning');
         return;
     }
     
-    updateStatus(`Running selected services: ${selectedServices.join(', ')}`, 'info');
-    // TODO: Implement individual service execution
+    updateStatus(`Starting selected services: ${selectedServices.join(', ')}`, 'info');
+    showProgress();
+    
+    const results = [];
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const service of selectedServices) {
+        try {
+            updateStatus(`Processing ${service}...`, 'info');
+            const result = await runSingleService(service);
+            results.push({ service, success: result.success, message: result.message });
+            
+            if (result.success) {
+                successCount++;
+            } else {
+                errorCount++;
+            }
+        } catch (error) {
+            results.push({ service, success: false, message: error.message });
+            errorCount++;
+        }
+    }
+    
+    hideProgress();
+    
+    // Display final results
+    const overallSuccess = errorCount === 0;
+    const statusType = overallSuccess ? 'success' : (successCount > 0 ? 'warning' : 'error');
+    const summary = `Completed: ${successCount} successful, ${errorCount} failed`;
+    
+    updateStatus(summary, statusType);
+    displayServiceResults(results);
+}
+
+async function runSingleService(service) {
+    const serviceMap = {
+        'maintenance-categories': '/api/payprop/maintenance/sync/categories',
+        'maintenance-tickets': '/api/payprop/maintenance/sync/import-tickets',
+        'contractor-bids': '/api/payprop/maintenance/sync/bidirectional',
+        'payments': '/api/payprop/raw-import/sync-all-endpoints',
+        'invoices': '/api/payprop/raw-import/sync-all-endpoints',
+        'bank-reconciliation': '/api/payprop/raw-import/sync-all-endpoints',
+        'properties': '/api/payprop/raw-import/sync-all-endpoints',
+        'portfolios': '/api/payprop/raw-import/sync-all-endpoints',
+        'tenancy-agreements': '/api/payprop/raw-import/sync-all-endpoints'
+    };
+    
+    const endpoint = serviceMap[service];
+    if (!endpoint) {
+        throw new Error(`Unknown service: ${service}`);
+    }
+    
+    const response = await fetchWithCSRF(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+        return {
+            success: data.success !== false,
+            message: data.message || `${service} completed successfully`
+        };
+    } else {
+        return {
+            success: false,
+            message: data.message || data.error || `Failed to run ${service}`
+        };
+    }
+}
+
+function displayServiceResults(results) {
+    const resultsDiv = document.getElementById('results');
+    if (!resultsDiv) return;
+    
+    let html = '<div class="mt-3"><h6>Service Execution Results:</h6>';
+    html += '<div class="table-responsive"><table class="table table-bordered table-sm">';
+    html += '<thead><tr><th>Service</th><th>Status</th><th>Message</th></tr></thead><tbody>';
+    
+    results.forEach(result => {
+        const statusClass = result.success ? 'text-success' : 'text-danger';
+        const statusIcon = result.success ? 'fas fa-check-circle' : 'fas fa-times-circle';
+        const statusText = result.success ? 'Success' : 'Failed';
+        
+        html += `<tr>
+            <td>${result.service}</td>
+            <td class="${statusClass}"><i class="${statusIcon}"></i> ${statusText}</td>
+            <td>${result.message}</td>
+        </tr>`;
+    });
+    
+    html += '</tbody></table></div></div>';
+    
+    const currentContent = resultsDiv.innerHTML;
+    resultsDiv.innerHTML = currentContent + html;
 }
 
 function getSelectedServices() {
