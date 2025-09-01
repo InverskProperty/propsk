@@ -352,6 +352,11 @@ function updateProgressBar(percent) {
 
 function updateStatus(message, type) {
     const resultsDiv = document.getElementById('results');
+    if (!resultsDiv) {
+        console.error('Results div not found');
+        return;
+    }
+    
     const alertClass = type === 'error' ? 'alert-danger' : 
                      type === 'success' ? 'alert-success' : 
                      type === 'warning' ? 'alert-warning' : 'alert-info';
@@ -371,6 +376,10 @@ function updateStatus(message, type) {
 
 function displayResults(results) {
     const resultsDiv = document.getElementById('results');
+    if (!resultsDiv) {
+        console.error('Results div not found');
+        return;
+    }
     let html = '<div class="alert alert-success"><i class="fas fa-check-circle"></i> Import Summary:</div>';
     
     if (results.summary) {
@@ -462,7 +471,11 @@ async function checkConnectionStatus() {
     }
 }
 
-setInterval(checkConnectionStatus, 30000);
+// Only start checking connection status after DOM is fully loaded
+$(document).ready(function() {
+    // Start checking connection status every 30 seconds
+    setInterval(checkConnectionStatus, 30000);
+});
 </script>
 
 <style>
