@@ -1,10 +1,15 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * PayProp Fallback Controller
@@ -23,6 +28,22 @@ public class PayPropFallbackController {
         model.addAttribute("home", "/");
         
         return "payprop/payprop-disabled";
+    }
+    
+    @GetMapping("/debug-auth")
+    @ResponseBody
+    public Map<String, Object> debugAuthentication(Authentication authentication) {
+        Map<String, Object> debug = new HashMap<>();
+        if (authentication != null) {
+            debug.put("authenticated", authentication.isAuthenticated());
+            debug.put("principal", authentication.getPrincipal().toString());
+            debug.put("authorities", authentication.getAuthorities().toString());
+            debug.put("authType", authentication.getClass().getSimpleName());
+        } else {
+            debug.put("error", "No authentication found");
+        }
+        debug.put("paypropEnabled", "FALSE - PayProp is disabled");
+        return debug;
     }
     
     @GetMapping("/**")
