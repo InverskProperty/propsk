@@ -326,16 +326,31 @@ async function cancelImport() {
 
 function showProgress() {
     document.getElementById('progressContainer').style.display = 'block';
-    document.getElementById('fullSyncBtn').disabled = true;
-    document.getElementById('criticalSyncBtn').disabled = true;
+    // Disable all action buttons during progress
+    const fullSyncBtn = document.getElementById('fullSyncBtn');
+    const clearReimportBtn = document.getElementById('clearReimportBtn');
+    const runSelectedBtn = document.getElementById('runSelectedBtn');
+    
+    if (fullSyncBtn) fullSyncBtn.disabled = true;
+    if (clearReimportBtn) clearReimportBtn.disabled = true;
+    if (runSelectedBtn) runSelectedBtn.disabled = true;
+    
     updateProgressBar(0);
 }
 
 function hideProgress() {
     document.getElementById('progressContainer').style.display = 'none';
     document.getElementById('cancelBtn').style.display = 'none';
-    document.getElementById('fullSyncBtn').disabled = false;
-    document.getElementById('criticalSyncBtn').disabled = false;
+    
+    // Re-enable all action buttons
+    const fullSyncBtn = document.getElementById('fullSyncBtn');
+    const clearReimportBtn = document.getElementById('clearReimportBtn');
+    const runSelectedBtn = document.getElementById('runSelectedBtn');
+    
+    if (fullSyncBtn) fullSyncBtn.disabled = false;
+    if (clearReimportBtn) clearReimportBtn.disabled = false;
+    if (runSelectedBtn) runSelectedBtn.disabled = false;
+    
     currentImportId = null;
     
     if (progressInterval) {
