@@ -473,6 +473,9 @@ async function checkConnectionStatus() {
 
 // Only start checking connection status after DOM is fully loaded
 $(document).ready(function() {
+    // CRITICAL FIX: Hide preloader to prevent infinite loading
+    $(".preloader").fadeOut();
+    
     // Start checking connection status every 30 seconds
     setInterval(checkConnectionStatus, 30000);
 });
