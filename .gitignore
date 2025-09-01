@@ -46,6 +46,7 @@ backup_*
 credentials.json
 secrets.*
 src/main/resources/application-local.properties
+start-app.bat
 Previous issues.txt
 render_deploy_*.txt
 latestlog.txt
