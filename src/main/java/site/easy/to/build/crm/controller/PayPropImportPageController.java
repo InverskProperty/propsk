@@ -40,6 +40,16 @@ public class PayPropImportPageController {
             logger.info("   Authorities: " + authentication.getAuthorities());
         }
         
+        // CRITICAL FIX: Use same manual authorization as /payprop/test
+        if (!site.easy.to.build.crm.util.AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
+            !site.easy.to.build.crm.util.AuthorizationUtil.hasRole(authentication, "ROLE_ADMIN") &&
+            !site.easy.to.build.crm.util.AuthorizationUtil.hasRole(authentication, "ROLE_SUPER_ADMIN")) {
+            logger.info("❌ PayProp Import: Access denied - user lacks required roles");
+            return "redirect:/access-denied";
+        }
+        
+        logger.info("✅ PayProp Import: Access granted - user has required roles");
+        
         try {
             boolean isConnected = oAuth2Service.hasValidTokens();
             logger.info("   PayProp connected: " + isConnected);
