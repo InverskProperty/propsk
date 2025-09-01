@@ -453,6 +453,48 @@ public class StatementController {
     }
 
     /**
+     * Debug endpoint to check customer data
+     */
+    @GetMapping("/debug/customers")
+    @ResponseBody
+    public ResponseEntity<Object> debugCustomers() {
+        try {
+            List<Customer> allCustomers = customerService.findAll();
+            List<Customer> propertyOwners = customerService.findPropertyOwners();
+            List<Customer> tenants = customerService.findTenants();
+            
+            Map<String, Object> debug = new HashMap<>();
+            debug.put("totalCustomers", allCustomers.size());
+            debug.put("propertyOwnersFound", propertyOwners.size());
+            debug.put("tenantsFound", tenants.size());
+            
+            // Sample data
+            debug.put("firstFiveCustomers", allCustomers.stream().limit(5).map(c -> 
+                Map.of(
+                    "customerId", c.getCustomerId(),
+                    "name", c.getName() != null ? c.getName() : "null",
+                    "customerType", c.getCustomerType() != null ? c.getCustomerType().toString() : "null",
+                    "isPropertyOwner", c.getIsPropertyOwner() != null ? c.getIsPropertyOwner() : "null",
+                    "isTenant", c.getIsTenant() != null ? c.getIsTenant() : "null"
+                )
+            ).collect(java.util.stream.Collectors.toList()));
+            
+            debug.put("propertyOwners", propertyOwners.stream().limit(10).map(c -> 
+                Map.of(
+                    "customerId", c.getCustomerId(),
+                    "name", c.getName() != null ? c.getName() : "null",
+                    "customerType", c.getCustomerType() != null ? c.getCustomerType().toString() : "null",
+                    "isPropertyOwner", c.getIsPropertyOwner() != null ? c.getIsPropertyOwner() : "null"
+                )
+            ).collect(java.util.stream.Collectors.toList()));
+            
+            return ResponseEntity.ok(debug);
+        } catch (Exception e) {
+            return ResponseEntity.ok(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
      * Preview statement data (before generating)
      */
     @GetMapping("/preview")

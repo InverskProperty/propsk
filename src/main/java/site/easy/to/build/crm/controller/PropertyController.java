@@ -329,7 +329,7 @@ public class PropertyController {
             return "error/not-found";
         }
         
-        System.out.println("✅ Property found: " + property.getName());
+        System.out.println("✅ Property found: " + property.getPropertyName());
 
         // FIXED: Handle OAuth users properly
         User loggedInUser = null;

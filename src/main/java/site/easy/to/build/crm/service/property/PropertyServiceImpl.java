@@ -702,9 +702,19 @@ public class PropertyServiceImpl implements PropertyService {
                 
                 return jdbcTemplate.queryForObject(sql, Boolean.class, payPropId);
             } else {
-                // Fallback to legacy logic for non-PayProp properties
+                // Fallback to status-based logic for non-PayProp properties
                 Optional<Property> property = findByPayPropId(payPropId);
-                return property.map(Property::isOccupied).orElse(false);
+                return property.map(p -> {
+                    String status = p.getStatus();
+                    if (status != null) {
+                        return "occupied".equalsIgnoreCase(status) || 
+                               "rented".equalsIgnoreCase(status) || 
+                               "let".equalsIgnoreCase(status);
+                    }
+                    // Additional fallback: if property is active and has monthly payment, likely occupied
+                    return p.isActive() && p.getMonthlyPayment() != null && 
+                           p.getMonthlyPayment().compareTo(java.math.BigDecimal.ZERO) > 0;
+                }).orElse(false);
             }
         } catch (Exception e) {
             System.err.println("Error checking PayProp occupancy for property " + payPropId + ": " + e.getMessage());

@@ -21,6 +21,8 @@ import java.util.Map;
 @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
 public class PayPropImportPageController {
 
+    private static final Logger logger = LoggerFactory.getLogger(PayPropImportPageController.class);
+
     @Autowired
     private PayPropOAuth2Service oAuth2Service;
 
