@@ -3,6 +3,7 @@ package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class PayPropMaintenanceSyncService {
     private PayPropApiClient apiClient;
     
     @Autowired
+    @Lazy
     private TicketService ticketService;
     
     @Autowired

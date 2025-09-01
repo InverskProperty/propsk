@@ -9,6 +9,7 @@ import site.easy.to.build.crm.repository.TicketRepository;
 import site.easy.to.build.crm.entity.Ticket;
 import site.easy.to.build.crm.service.property.PropertyService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import site.easy.to.build.crm.service.payprop.PayPropRealTimeSyncService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ public class TicketServiceImpl implements TicketService{
     private final PropertyService propertyService;
 
     @Autowired(required = false)
+    @Lazy
     private PayPropRealTimeSyncService realTimeSyncService;
 
     public TicketServiceImpl(TicketRepository ticketRepository, PropertyService propertyService) {

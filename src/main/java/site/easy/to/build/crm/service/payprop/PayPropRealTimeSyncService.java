@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
@@ -34,6 +35,7 @@ public class PayPropRealTimeSyncService {
     private PayPropApiClient apiClient;
     
     @Autowired
+    @Lazy
     private TicketService ticketService;
     
     @Autowired
