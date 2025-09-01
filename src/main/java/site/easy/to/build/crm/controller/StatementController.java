@@ -55,6 +55,32 @@ public class StatementController {
     public String showStatements(Model model, Authentication authentication) {
         System.out.println("=== DEBUG: StatementController.showStatements ===");
         
+        // Debug: Check total customers in database
+        try {
+            List<Customer> allCustomers = customerService.findAll();
+            System.out.println("🔍 Total customers in database: " + allCustomers.size());
+            
+            // Count by type
+            long propertyOwnersCount = allCustomers.stream()
+                .filter(c -> "PROPERTY_OWNER".equals(c.getCustomerType()) || Boolean.TRUE.equals(c.getIsPropertyOwner()))
+                .count();
+            long tenantsCount = allCustomers.stream()
+                .filter(c -> "TENANT".equals(c.getCustomerType()) || Boolean.TRUE.equals(c.getIsTenant()))
+                .count();
+                
+            System.out.println("   Property owners by query criteria: " + propertyOwnersCount);
+            System.out.println("   Tenants by query criteria: " + tenantsCount);
+            
+            // Show first few customers for debugging
+            System.out.println("   First 5 customers:");
+            allCustomers.stream().limit(5).forEach(c -> 
+                System.out.println("   - ID: " + c.getCustomerId() + ", Name: " + c.getName() + 
+                                 ", Type: " + c.getCustomerType() + ", IsOwner: " + c.getIsPropertyOwner() + 
+                                 ", IsTenant: " + c.getIsTenant()));
+        } catch (Exception e) {
+            System.out.println("Error checking customers: " + e.getMessage());
+        }
+        
         // Get OAuth user for Google Sheets access
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         
@@ -96,6 +122,20 @@ public class StatementController {
             if (isAdminOrEmployee(authentication)) {
                 List<Customer> propertyOwners = customerService.findPropertyOwners();
                 List<Customer> tenants = customerService.findTenants();
+                
+                System.out.println("🔍 StatementController - Property Owners Query Result:");
+                System.out.println("   Found " + propertyOwners.size() + " property owners");
+                for (Customer owner : propertyOwners) {
+                    System.out.println("   - ID: " + owner.getCustomerId() + ", Name: " + owner.getName() + 
+                                     ", Type: " + owner.getCustomerType() + ", IsPropertyOwner: " + owner.getIsPropertyOwner());
+                }
+                
+                System.out.println("🔍 StatementController - Tenants Query Result:");
+                System.out.println("   Found " + tenants.size() + " tenants");
+                for (Customer tenant : tenants) {
+                    System.out.println("   - ID: " + tenant.getCustomerId() + ", Name: " + tenant.getName() + 
+                                     ", Type: " + tenant.getCustomerType() + ", IsTenant: " + tenant.getIsTenant());
+                }
                 
                 model.addAttribute("propertyOwners", propertyOwners);
                 model.addAttribute("tenants", tenants);

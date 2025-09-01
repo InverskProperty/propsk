@@ -293,30 +293,43 @@ public class PropertyController {
 
     @GetMapping("/{id}")
     public String showPropertyDetail(@PathVariable("id") String id, Model model, Authentication authentication) {
+        System.out.println("🔍 PropertyController - Accessing property detail for ID: " + id);
+        System.out.println("   Authentication: " + (authentication != null ? authentication.getClass().getSimpleName() : "null"));
+        System.out.println("   Data source: " + dataSource);
+        
         Property property = null;
         
         // Try PayProp ID first (if it looks like a PayProp ID)
         // PayProp IDs are typically alphanumeric strings longer than 5 chars and contain letters
         if (id.length() > 5 && id.matches(".*[a-zA-Z].*")) {
             // Contains letters - looks like a PayProp ID
+            System.out.println("   ID looks like PayProp ID (contains letters)");
             if (propertyService instanceof PropertyServiceImpl) {
                 property = ((PropertyServiceImpl) propertyService).findByPayPropIdString(id);
+                System.out.println("   PayProp lookup result: " + (property != null ? "FOUND" : "NOT FOUND"));
             }
         } else {
             // Looks like a numeric ID - try legacy lookup
+            System.out.println("   ID looks like numeric ID");
             try {
                 Long numericId = Long.valueOf(id);
                 property = propertyService.findById(numericId);
+                System.out.println("   Numeric lookup result: " + (property != null ? "FOUND" : "NOT FOUND"));
             } catch (NumberFormatException e) {
                 // If it fails as numeric, try as PayProp ID
+                System.out.println("   Numeric parse failed, trying as PayProp ID");
                 if (propertyService instanceof PropertyServiceImpl) {
                     property = ((PropertyServiceImpl) propertyService).findByPayPropIdString(id);
+                    System.out.println("   Fallback PayProp lookup result: " + (property != null ? "FOUND" : "NOT FOUND"));
                 }
             }
         }
         if (property == null) {
+            System.out.println("❌ Property not found, returning 404");
             return "error/not-found";
         }
+        
+        System.out.println("✅ Property found: " + property.getName());
 
         // FIXED: Handle OAuth users properly
         User loggedInUser = null;

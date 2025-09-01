@@ -1,7 +1,10 @@
 package site.easy.to.build.crm.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,11 +25,30 @@ public class PayPropImportPageController {
     private PayPropOAuth2Service oAuth2Service;
 
     @GetMapping("/import")
-    public String showImportPage(Model model) {
-        boolean isConnected = oAuth2Service.hasValidTokens();
-        model.addAttribute("paypropConnected", isConnected);
-        model.addAttribute("home", "/");
-        return "payprop/import";
+    public String showImportPage(Model model, Authentication authentication) {
+        logger.info("🔍 PayProp Import Page Access Attempt");
+        logger.info("   URL: /payprop/import");
+        logger.info("   Authentication type: " + (authentication != null ? authentication.getClass().getSimpleName() : "null"));
+        logger.info("   Is authenticated: " + (authentication != null ? authentication.isAuthenticated() : false));
+        
+        if (authentication != null) {
+            logger.info("   Principal: " + authentication.getName());
+            logger.info("   Authorities: " + authentication.getAuthorities());
+        }
+        
+        try {
+            boolean isConnected = oAuth2Service.hasValidTokens();
+            logger.info("   PayProp connected: " + isConnected);
+            
+            model.addAttribute("paypropConnected", isConnected);
+            model.addAttribute("home", "/");
+            
+            logger.info("✅ Returning payprop/import template");
+            return "payprop/import";
+        } catch (Exception e) {
+            logger.error("❌ Error in showImportPage: " + e.getMessage(), e);
+            throw e;
+        }
     }
 
     @PostMapping("/import/status")
