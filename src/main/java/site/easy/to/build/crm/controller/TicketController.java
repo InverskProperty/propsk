@@ -815,6 +815,16 @@ public class TicketController {
         ticket.setEmployee(employee);
         ticket.setCreatedAt(LocalDateTime.now());
 
+        // ENHANCEMENT: Pre-populate PayProp fields if this is a maintenance ticket and PayProp is enabled
+        if (ticket.getType() != null && ticket.getType().toLowerCase().contains("maintenance")) {
+            try {
+                populatePayPropFieldsForNewTicket(ticket);
+            } catch (Exception e) {
+                System.err.println("Warning: Could not populate PayProp fields for new ticket: " + e.getMessage());
+                // Continue with ticket creation even if PayProp field population fails
+            }
+        }
+
         ticketService.save(ticket);
 
         // Sync ticket to PayProp if it's a maintenance ticket
@@ -1072,5 +1082,82 @@ public class TicketController {
                 }
             }
         }
+    }
+
+    /**
+     * Pre-populate PayProp fields for newly created maintenance tickets to improve export success rate.
+     * Uses the same logic as the improved export methods to resolve PayProp IDs proactively.
+     */
+    private void populatePayPropFieldsForNewTicket(Ticket ticket) {
+        if (ticket.getCustomer() == null || jdbcTemplate == null) {
+            return; // Cannot populate without customer or database access
+        }
+
+        Customer customer = ticket.getCustomer();
+        System.out.println("🔧 Pre-populating PayProp fields for new ticket with customer " + customer.getCustomerId());
+
+        // 1. Try to find PayProp property ID using customer_property_assignments
+        try {
+            String propertyQuery = "SELECT p.payprop_id FROM customer_property_assignments cpa " +
+                                  "JOIN properties p ON cpa.property_id = p.id " +
+                                  "WHERE cpa.customer_id = ? AND p.payprop_id IS NOT NULL " +
+                                  "ORDER BY cpa.is_primary DESC, cpa.created_at DESC LIMIT 1";
+                                  
+            List<String> propertyIds = jdbcTemplate.queryForList(propertyQuery, String.class, customer.getCustomerId());
+            if (!propertyIds.isEmpty()) {
+                String payPropPropertyId = propertyIds.get(0);
+                ticket.setPayPropPropertyId(payPropPropertyId);
+                System.out.println("✅ Set PayProp property ID: " + payPropPropertyId);
+            } else {
+                System.out.println("⚠️ No PayProp property ID found for customer " + customer.getCustomerId());
+            }
+        } catch (Exception e) {
+            System.err.println("Error finding PayProp property ID: " + e.getMessage());
+        }
+
+        // 2. Try to find PayProp tenant ID
+        try {
+            if (Boolean.TRUE.equals(customer.getIsTenant()) && customer.getPayPropEntityId() != null) {
+                ticket.setPayPropTenantId(customer.getPayPropEntityId());
+                System.out.println("✅ Set PayProp tenant ID from customer: " + customer.getPayPropEntityId());
+            } else {
+                // Check via assignments
+                String tenantQuery = "SELECT c.payprop_entity_id FROM customer_property_assignments cpa " +
+                                   "JOIN customers c ON cpa.customer_id = c.customer_id " +
+                                   "WHERE cpa.customer_id = ? AND cpa.assignment_type = 'TENANT' " +
+                                   "AND c.payprop_entity_id IS NOT NULL LIMIT 1";
+                                   
+                List<String> tenantIds = jdbcTemplate.queryForList(tenantQuery, String.class, customer.getCustomerId());
+                if (!tenantIds.isEmpty()) {
+                    String payPropTenantId = tenantIds.get(0);
+                    ticket.setPayPropTenantId(payPropTenantId);
+                    System.out.println("✅ Set PayProp tenant ID via assignment: " + payPropTenantId);
+                } else {
+                    System.out.println("⚠️ No PayProp tenant ID found for customer " + customer.getCustomerId());
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error finding PayProp tenant ID: " + e.getMessage());
+        }
+
+        // 3. Try to find PayProp category ID from maintenance_category field
+        try {
+            if (ticket.getMaintenanceCategory() != null && paymentCategoryRepository != null) {
+                PaymentCategory category = paymentCategoryRepository.findByCategoryName(ticket.getMaintenanceCategory());
+                if (category != null && category.getPayPropCategoryId() != null) {
+                    ticket.setPayPropCategoryId(category.getPayPropCategoryId());
+                    System.out.println("✅ Set PayProp category ID: " + category.getPayPropCategoryId());
+                } else {
+                    System.out.println("⚠️ No PayProp category ID found for maintenance category: " + ticket.getMaintenanceCategory());
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error finding PayProp category ID: " + e.getMessage());
+        }
+
+        // Set sync status to false initially (will be set to true after successful export)
+        ticket.setPayPropSynced(false);
+        
+        System.out.println("🔧 PayProp field population completed for ticket");
     }
 }
