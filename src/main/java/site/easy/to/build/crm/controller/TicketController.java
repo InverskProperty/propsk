@@ -24,6 +24,8 @@ import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.util.*;
 import site.easy.to.build.crm.service.contractor.ContractorBidService;
+import site.easy.to.build.crm.service.payprop.PayPropMaintenanceSyncService;
+import site.easy.to.build.crm.service.payprop.PayPropMaintenanceCategoryService;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -49,7 +51,9 @@ public class TicketController {
     private final GoogleGmailApiService googleGmailApiService;
     private final EntityManager entityManager;
     private final EmailService emailService;
-    private final PropertyService propertyService; // ADD THIS FIELD
+    private final PropertyService propertyService;
+    private final PayPropMaintenanceSyncService payPropMaintenanceSyncService;
+    private final PayPropMaintenanceCategoryService payPropMaintenanceCategoryService;
 
     // Update constructor to include PropertyService
     @Autowired
@@ -58,7 +62,9 @@ public class TicketController {
                             TicketEmailSettingsService ticketEmailSettingsService, 
                             GoogleGmailApiService googleGmailApiService, EntityManager entityManager,
                             EmailService emailService, ContractorBidService contractorBidService,
-                            PropertyService propertyService) { // ADD THIS PARAMETER
+                            PropertyService propertyService,
+                            PayPropMaintenanceSyncService payPropMaintenanceSyncService,
+                            PayPropMaintenanceCategoryService payPropMaintenanceCategoryService) {
         this.ticketService = ticketService;
         this.authenticationUtils = authenticationUtils;
         this.userService = userService;
@@ -68,7 +74,9 @@ public class TicketController {
         this.entityManager = entityManager;
         this.emailService = emailService;
         this.contractorBidService = contractorBidService;
-        this.propertyService = propertyService; // ADD THIS ASSIGNMENT
+        this.propertyService = propertyService;
+        this.payPropMaintenanceSyncService = payPropMaintenanceSyncService;
+        this.payPropMaintenanceCategoryService = payPropMaintenanceCategoryService;
     }
 
     @GetMapping("/show-ticket/{id}")
@@ -735,6 +743,17 @@ public class TicketController {
         model.addAttribute("employees",employees);
         model.addAttribute("customers",customers);
         model.addAttribute("ticket", new Ticket());
+        
+        // Add maintenance categories if service is available
+        try {
+            if (payPropMaintenanceCategoryService != null) {
+                model.addAttribute("maintenanceCategories", payPropMaintenanceCategoryService.getAllMaintenanceCategories());
+            }
+        } catch (Exception e) {
+            // Log error but continue - form will work without categories
+            System.err.println("Warning: Could not load maintenance categories: " + e.getMessage());
+        }
+        
         return "ticket/create-ticket";
     }
 
@@ -766,6 +785,16 @@ public class TicketController {
 
             model.addAttribute("employees",employees);
             model.addAttribute("customers",customers);
+            
+            // Add maintenance categories if service is available
+            try {
+                if (payPropMaintenanceCategoryService != null) {
+                    model.addAttribute("maintenanceCategories", payPropMaintenanceCategoryService.getAllMaintenanceCategories());
+                }
+            } catch (Exception e) {
+                System.err.println("Warning: Could not load maintenance categories: " + e.getMessage());
+            }
+            
             return "ticket/create-ticket";
         }
 
@@ -776,7 +805,7 @@ public class TicketController {
             return "error/500";
         }
         if(AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
-            if(userId != employeeId || customer.getUser().getId() != userId) {
+            if(userId != employeeId || (customer.getUser() != null && customer.getUser().getId() != userId)) {
                 return "error/500";
             }
         }
@@ -787,6 +816,17 @@ public class TicketController {
         ticket.setCreatedAt(LocalDateTime.now());
 
         ticketService.save(ticket);
+
+        // Sync ticket to PayProp if it's a maintenance ticket
+        try {
+            if (payPropMaintenanceSyncService != null && 
+                (ticket.getCategory() != null && ticket.getCategory().toLowerCase().contains("maintenance"))) {
+                payPropMaintenanceSyncService.createTicketInPayProp(ticket);
+            }
+        } catch (Exception e) {
+            // Log error but don't fail ticket creation if PayProp sync fails
+            System.err.println("Warning: Failed to sync ticket to PayProp: " + e.getMessage());
+        }
 
         return "redirect:/employee/ticket/assigned-tickets";
     }
@@ -885,7 +925,7 @@ public class TicketController {
             return "ticket/update-ticket";
         }
         if(manager.getId() == employeeId) {
-            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && customer.getUser().getId() != userId) {
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && (customer.getUser() != null && customer.getUser().getId() != userId)) {
                 return "error/500";
             }
         } else {
