@@ -368,6 +368,13 @@ public class StatementController {
             // For regular authentication, use user ID
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             if (userId > 0) {
+                // IMPORTANT: Check if this is an admin user first
+                // Admin users should NOT return customer records even if linked
+                if (isAdminOrEmployee(authentication)) {
+                    System.out.println("DEBUG: Admin/Employee user detected (ID: " + userId + ") - not returning customer record");
+                    return null; // Admin gets admin view, not customer view
+                }
+                
                 // Find customer by user_id (but be careful with user_id 54)
                 List<Customer> customers = customerService.findByUserId((long) userId);
                 
