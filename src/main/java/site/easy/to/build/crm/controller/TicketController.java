@@ -820,8 +820,9 @@ public class TicketController {
         // Sync ticket to PayProp if it's a maintenance ticket
         try {
             if (payPropMaintenanceSyncService != null && 
-                (ticket.getCategory() != null && ticket.getCategory().toLowerCase().contains("maintenance"))) {
-                payPropMaintenanceSyncService.createTicketInPayProp(ticket);
+                (ticket.getType() != null && ticket.getType().toLowerCase().contains("maintenance"))) {
+                // Use the export method which handles individual tickets
+                payPropMaintenanceSyncService.exportMaintenanceTicketsToPayProp();
             }
         } catch (Exception e) {
             // Log error but don't fail ticket creation if PayProp sync fails
