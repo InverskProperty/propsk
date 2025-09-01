@@ -490,6 +490,8 @@ async function runSingleService(service) {
         throw new Error(`Unknown service: ${service}`);
     }
     
+    console.log(`🔧 PayProp Debug: Calling service '${service}' at endpoint '${endpoint}'`);
+    
     const response = await fetchWithCSRF(endpoint, {
         method: 'POST',
         headers: {
@@ -497,7 +499,10 @@ async function runSingleService(service) {
         }
     });
     
+    console.log(`🔧 PayProp Debug: Response status ${response.status} for service '${service}'`);
+    
     const data = await response.json();
+    console.log(`🔧 PayProp Debug: Response data for '${service}':`, data);
     
     if (response.ok) {
         return {
