@@ -250,6 +250,9 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
                 if (user.getOauthUser() != null) {
                     loggedOAuthUser = user.getOauthUser();
                     System.out.println("✅ Using existing OAuth user");
+                    // CRITICAL FIX: Update tokens for existing OAuth user
+                    System.out.println("🔄 Updating tokens for existing OAuth user");
+                    oAuthUserService.updateOAuthUserTokens(loggedOAuthUser, oAuth2AccessToken, oAuth2RefreshToken);
                 } else {
                     // Create new OAuth user for existing user
                     System.out.println("🔧 Creating new OAuth user for existing user");
