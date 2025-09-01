@@ -619,37 +619,43 @@ public class PayPropMaintenanceSyncService {
      */
     private String findPayPropPropertyId(Ticket ticket) {
         try {
-            if (ticket.getCustomer() != null) {
-                // Check if customer has assigned properties
-                List<Customer> owners = customerService.findByEntityTypeAndEntityId(
-                    "Property", ticket.getCustomer().getCustomerId().longValue());
-                
-                if (!owners.isEmpty()) {
-                    // Get first property (you might want to be more specific)
-                    Customer owner = owners.get(0);
-                    if (owner.getAssignedPropertyId() != null) {
-                        Property property = propertyService.findById(owner.getAssignedPropertyId());
-                        if (property != null) {
-                            return property.getPayPropId();
-                        }
-                    }
-                }
-                
-                // Check if customer itself has a PayProp property reference
-                if (ticket.getCustomer().getPayPropEntityId() != null) {
-                    // This might be a property ID if customer was created from property
-                    Optional<Property> propertyOpt = propertyService.findByPayPropId(
-                        ticket.getCustomer().getPayPropEntityId());
-                    if (propertyOpt.isPresent()) {
-                        return ticket.getCustomer().getPayPropEntityId();
-                    }
+            if (ticket.getCustomer() == null) {
+                log.debug("🔍 Ticket {} has no customer", ticket.getTicketId());
+                return null;
+            }
+            
+            Customer customer = ticket.getCustomer();
+            log.debug("🔍 Finding PayProp property ID for customer {}", customer.getCustomerId());
+            
+            // Method 1: Check customer_property_assignments table for properties linked to this customer
+            String query = "SELECT p.payprop_id FROM customer_property_assignments cpa " +
+                          "JOIN properties p ON cpa.property_id = p.id " +
+                          "WHERE cpa.customer_id = ? AND p.payprop_id IS NOT NULL " +
+                          "ORDER BY cpa.is_primary DESC, cpa.created_at DESC LIMIT 1";
+                          
+            List<String> propertyIds = jdbcTemplate.queryForList(query, String.class, customer.getCustomerId());
+            if (!propertyIds.isEmpty()) {
+                String payPropId = propertyIds.get(0);
+                log.debug("✅ Found PayProp property ID via assignments: {}", payPropId);
+                return payPropId;
+            }
+            
+            // Method 2: If customer has assigned_property_id (legacy field), use that
+            if (customer.getAssignedPropertyId() != null) {
+                Property property = propertyService.findById(customer.getAssignedPropertyId());
+                if (property != null && property.getPayPropId() != null) {
+                    log.debug("✅ Found PayProp property ID via assigned_property_id: {}", property.getPayPropId());
+                    return property.getPayPropId();
                 }
             }
+            
+            log.warn("⚠️ Could not find PayProp property ID for customer {}", customer.getCustomerId());
+            return null;
+            
         } catch (Exception e) {
             log.error("❌ Error finding PayProp property ID: {}", e.getMessage());
+            return null;
         }
-        
-        return null;
     }
     
     /**
@@ -657,16 +663,40 @@ public class PayPropMaintenanceSyncService {
      */
     private String findPayPropTenantId(Ticket ticket) {
         try {
-            if (ticket.getCustomer() != null && 
-                Boolean.TRUE.equals(ticket.getCustomer().getIsTenant()) &&
-                ticket.getCustomer().getPayPropEntityId() != null) {
-                return ticket.getCustomer().getPayPropEntityId();
+            if (ticket.getCustomer() == null) {
+                log.debug("🔍 Ticket {} has no customer", ticket.getTicketId());
+                return null;
             }
+            
+            Customer customer = ticket.getCustomer();
+            log.debug("🔍 Finding PayProp tenant ID for customer {}", customer.getCustomerId());
+            
+            // Method 1: If customer is marked as tenant and has PayProp entity ID, use it directly
+            if (Boolean.TRUE.equals(customer.getIsTenant()) && customer.getPayPropEntityId() != null) {
+                log.debug("✅ Found PayProp tenant ID directly from customer: {}", customer.getPayPropEntityId());
+                return customer.getPayPropEntityId();
+            }
+            
+            // Method 2: Check if customer has TENANT assignment in customer_property_assignments 
+            String query = "SELECT c.payprop_entity_id FROM customer_property_assignments cpa " +
+                          "JOIN customers c ON cpa.customer_id = c.customer_id " +
+                          "WHERE cpa.customer_id = ? AND cpa.assignment_type = 'TENANT' " +
+                          "AND c.payprop_entity_id IS NOT NULL LIMIT 1";
+                          
+            List<String> tenantIds = jdbcTemplate.queryForList(query, String.class, customer.getCustomerId());
+            if (!tenantIds.isEmpty()) {
+                String payPropTenantId = tenantIds.get(0);
+                log.debug("✅ Found PayProp tenant ID via TENANT assignment: {}", payPropTenantId);
+                return payPropTenantId;
+            }
+            
+            log.warn("⚠️ Could not find PayProp tenant ID for customer {}", customer.getCustomerId());
+            return null;
+            
         } catch (Exception e) {
             log.error("❌ Error finding PayProp tenant ID: {}", e.getMessage());
+            return null;
         }
-        
-        return null;
     }
     
     /**
