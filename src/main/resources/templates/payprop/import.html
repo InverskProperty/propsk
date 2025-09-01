@@ -53,14 +53,89 @@
                             </div>
 
                             <div th:if="${paypropConnected}">
-                                <h5 class="mb-3">Import Operations</h5>
+                                <h5 class="mb-3">Import Services</h5>
                                 
+                                <!-- Service Selection -->
                                 <div class="row">
+                                    <div class="col-12">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6 class="mb-0">Select Import Services</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="row">
+                                                    <div class="col-md-4">
+                                                        <h6>Financial Services</h6>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" value="payments" id="importPayments">
+                                                            <label class="form-check-label" for="importPayments">Import Payments</label>
+                                                        </div>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" value="invoices" id="importInvoices">
+                                                            <label class="form-check-label" for="importInvoices">Import Invoices</label>
+                                                        </div>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" value="bank-reconciliation" id="importBankRecon">
+                                                            <label class="form-check-label" for="importBankRecon">Bank Reconciliation</label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <h6>Property & Portfolio Services</h6>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" value="properties" id="importProperties">
+                                                            <label class="form-check-label" for="importProperties">Import Properties</label>
+                                                        </div>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" value="portfolios" id="importPortfolios">
+                                                            <label class="form-check-label" for="importPortfolios">Import Portfolios</label>
+                                                        </div>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" value="tenancy-agreements" id="importTenancies">
+                                                            <label class="form-check-label" for="importTenancies">Tenancy Agreements</label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <h6>Maintenance & Ticketing Services</h6>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" value="maintenance-categories" id="importMaintenanceCategories">
+                                                            <label class="form-check-label" for="importMaintenanceCategories">Maintenance Categories</label>
+                                                        </div>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" value="maintenance-tickets" id="importMaintenanceTickets">
+                                                            <label class="form-check-label" for="importMaintenanceTickets">Maintenance Tickets</label>
+                                                        </div>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" value="contractor-bids" id="importContractorBids">
+                                                            <label class="form-check-label" for="importContractorBids">Contractor Bids</label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="row mt-3">
+                                                    <div class="col-12">
+                                                        <button id="runSelectedBtn" class="btn btn-primary me-2">
+                                                            <i class="fas fa-play"></i> Run Selected Services
+                                                        </button>
+                                                        <button id="selectAllBtn" class="btn btn-secondary me-2">
+                                                            <i class="fas fa-check-double"></i> Select All
+                                                        </button>
+                                                        <button id="clearAllBtn" class="btn btn-outline-secondary">
+                                                            <i class="fas fa-times"></i> Clear All
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Quick Actions -->
+                                <div class="row mt-3">
                                     <div class="col-md-6">
                                         <div class="card border-left-primary">
                                             <div class="card-body">
                                                 <h6 class="card-title">Complete System Sync</h6>
-                                                <p class="card-text">Import all data including payments, invoices, categories, and entity relationships.</p>
+                                                <p class="card-text">Import all available data from PayProp.</p>
                                                 <button id="fullSyncBtn" class="btn btn-primary">
                                                     <i class="fas fa-sync"></i> Start Full Sync
                                                 </button>
@@ -69,12 +144,12 @@
                                     </div>
                                     
                                     <div class="col-md-6">
-                                        <div class="card border-left-info">
+                                        <div class="card border-left-success">
                                             <div class="card-body">
-                                                <h6 class="card-title">Critical Missing Data Only</h6>
-                                                <p class="card-text">Import only essential missing data for faster sync.</p>
-                                                <button id="criticalSyncBtn" class="btn btn-info">
-                                                    <i class="fas fa-download"></i> Sync Critical Data
+                                                <h6 class="card-title">Clear & Reimport Properties</h6>
+                                                <p class="card-text">Clear existing properties and reimport from PayProp.</p>
+                                                <button id="clearReimportBtn" class="btn btn-success">
+                                                    <i class="fas fa-refresh"></i> Clear & Reimport
                                                 </button>
                                             </div>
                                         </div>
@@ -136,12 +211,25 @@ async function fetchWithCSRF(url, options = {}) {
     return fetch(url, options);
 }
 
+// Button event listeners
 document.getElementById('fullSyncBtn')?.addEventListener('click', function() {
     startImport('full');
 });
 
-document.getElementById('criticalSyncBtn')?.addEventListener('click', function() {
-    startImport('critical');
+document.getElementById('clearReimportBtn')?.addEventListener('click', function() {
+    clearAndReimportProperties();
+});
+
+document.getElementById('runSelectedBtn')?.addEventListener('click', function() {
+    runSelectedServices();
+});
+
+document.getElementById('selectAllBtn')?.addEventListener('click', function() {
+    selectAllServices();
+});
+
+document.getElementById('clearAllBtn')?.addEventListener('click', function() {
+    clearAllServices();
 });
 
 document.getElementById('cancelBtn')?.addEventListener('click', function() {
@@ -307,6 +395,60 @@ function displayResults(results) {
     resultsDiv.innerHTML = html;
 }
 
+async function clearAndReimportProperties() {
+    showProgress();
+    updateStatus('Clearing and reimporting properties...', 'info');
+    
+    try {
+        const response = await fetchWithCSRF('/payprop/import/clear-and-reimport-properties', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            updateStatus('Properties cleared and reimported successfully!', 'success');
+        } else {
+            updateStatus('Import failed: ' + (data.error || data.message), 'error');
+        }
+    } catch (error) {
+        updateStatus('Import error: ' + error.message, 'error');
+    }
+    
+    hideProgress();
+}
+
+function runSelectedServices() {
+    const selectedServices = getSelectedServices();
+    if (selectedServices.length === 0) {
+        updateStatus('Please select at least one service to run', 'warning');
+        return;
+    }
+    
+    updateStatus(`Running selected services: ${selectedServices.join(', ')}`, 'info');
+    // TODO: Implement individual service execution
+}
+
+function getSelectedServices() {
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+function selectAllServices() {
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = true);
+    updateStatus('All services selected', 'info');
+}
+
+function clearAllServices() {
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+    updateStatus('All services cleared', 'info');
+}
+
 async function checkConnectionStatus() {
     try {
         const response = await fetchWithCSRF('/payprop/import/status', { method: 'POST' });
@@ -326,8 +468,11 @@ setInterval(checkConnectionStatus, 30000);
 <style>
 .border-left-primary { border-left: 4px solid #007bff !important; }
 .border-left-info { border-left: 4px solid #17a2b8 !important; }
+.border-left-success { border-left: 4px solid #28a745 !important; }
 .progress { height: 20px; }
 .connection-status .alert { padding: 1rem; font-size: 1.1rem; }
+.form-check { margin-bottom: 0.5rem; }
+.card-header h6 { color: #495057; font-weight: 600; }
 </style>
 
 </body>
