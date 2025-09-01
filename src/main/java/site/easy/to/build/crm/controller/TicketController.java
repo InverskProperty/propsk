@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.util.Pair;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -26,6 +27,7 @@ import site.easy.to.build.crm.util.*;
 import site.easy.to.build.crm.service.contractor.ContractorBidService;
 import site.easy.to.build.crm.service.payprop.PayPropMaintenanceSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropMaintenanceCategoryService;
+import site.easy.to.build.crm.repository.PaymentCategoryRepository;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -54,6 +56,12 @@ public class TicketController {
     private final PropertyService propertyService;
     private final PayPropMaintenanceSyncService payPropMaintenanceSyncService;
     private final PayPropMaintenanceCategoryService payPropMaintenanceCategoryService;
+    
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+    
+    @Autowired
+    private PaymentCategoryRepository paymentCategoryRepository;
 
     // Update constructor to include PropertyService
     @Autowired

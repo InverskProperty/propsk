@@ -4,6 +4,7 @@ package site.easy.to.build.crm.service.payprop;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
@@ -56,6 +57,9 @@ public class PayPropMaintenanceSyncService {
     
     @Autowired
     private TagNamespaceService tagNamespaceService;
+    
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
     
     // ===== IMPORT FROM PAYPROP =====
     
