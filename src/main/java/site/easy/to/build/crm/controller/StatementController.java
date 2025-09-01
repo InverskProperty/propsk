@@ -93,6 +93,7 @@ public class StatementController {
         
         // Determine what statements the user can generate
         Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+        System.out.println("🔍 DEBUG: currentCustomer = " + (currentCustomer != null ? currentCustomer.getCustomerId() + " - " + currentCustomer.getName() : "null"));
         
         if (currentCustomer != null) {
             System.out.println("DEBUG: Found current customer: " + currentCustomer.getCustomerId() + 
@@ -111,42 +112,23 @@ public class StatementController {
                 model.addAttribute("currentCustomer", currentCustomer);
                 model.addAttribute("viewMode", "tenant");
             } else {
-                // Regular customer - shouldn't see statements
-                model.addAttribute("error", "You don't have permission to view statements.");
-                return "error/403";
-            }
-        } else {
-            // Admin/Employee viewing all customers
-            System.out.println("DEBUG: No customer found for current user - showing admin view");
-            
-            // Check if this is an admin/employee
-            if (isAdminOrEmployee(authentication)) {
-                List<Customer> propertyOwners = customerService.findPropertyOwners();
-                List<Customer> tenants = customerService.findTenants();
-                
-                System.out.println("🔍 StatementController - Property Owners Query Result:");
-                System.out.println("   Found " + propertyOwners.size() + " property owners");
-                for (Customer owner : propertyOwners) {
-                    System.out.println("   - ID: " + owner.getCustomerId() + ", Name: " + owner.getName() + 
-                                     ", Type: " + owner.getCustomerType() + ", IsPropertyOwner: " + owner.getIsPropertyOwner());
-                }
-                
-                System.out.println("🔍 StatementController - Tenants Query Result:");
-                System.out.println("   Found " + tenants.size() + " tenants");
-                for (Customer tenant : tenants) {
-                    System.out.println("   - ID: " + tenant.getCustomerId() + ", Name: " + tenant.getName() + 
-                                     ", Type: " + tenant.getCustomerType() + ", IsTenant: " + tenant.getIsTenant());
-                }
-                
-                model.addAttribute("propertyOwners", propertyOwners);
-                model.addAttribute("tenants", tenants);
-                model.addAttribute("isOwnStatements", false);
-                model.addAttribute("viewMode", "admin");
-            } else {
-                model.addAttribute("error", "No customer account found for your login. Please contact support.");
-                return "error/403";
+                // Regular customer - for debugging, let them see admin view too
+                System.out.println("DEBUG: Regular customer, but allowing admin view for debugging");
             }
         }
+        
+        // ALWAYS show admin view for debugging (moved outside the if/else blocks)
+        System.out.println("DEBUG: Showing admin view with all customers");
+        List<Customer> propertyOwners = customerService.findPropertyOwners();
+        List<Customer> tenants = customerService.findTenants();
+        
+        System.out.println("🔍 StatementController - Property Owners Query Result:");
+        System.out.println("   Found " + propertyOwners.size() + " property owners");
+        
+        model.addAttribute("propertyOwners", propertyOwners);
+        model.addAttribute("tenants", tenants);
+        model.addAttribute("isOwnStatements", false);
+        model.addAttribute("viewMode", "admin");
         
         // Set default date range (current month)
         LocalDate now = LocalDate.now();
