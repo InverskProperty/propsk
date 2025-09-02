@@ -83,18 +83,18 @@ public class PayPropOAuth2Service {
             System.out.println("   Token expires at: " + token.getExpiresAt());
             System.out.println("   Has refresh token: " + (token.getRefreshToken() != null));
             
-            // CRITICAL ADDITION: Validate tokens on startup
+            // STARTUP VALIDATION: Check token status but defer refresh to first API call
             try {
                 if (currentTokens.isExpired()) {
-                    System.out.println("🔄 Tokens expired, attempting refresh on startup...");
-                    refreshToken();
+                    System.out.println("⚠️ Tokens expired, will refresh on first API call");
                 } else if (currentTokens.isExpiringSoon()) {
-                    System.out.println("🔄 Tokens expiring soon, refreshing proactively...");
-                    refreshToken();
+                    System.out.println("⚠️ Tokens expiring soon, will refresh proactively on first API call");
+                } else {
+                    System.out.println("✅ Tokens are valid and not expiring soon");
                 }
             } catch (Exception e) {
                 System.err.println("⚠️ Token validation failed on startup: " + e.getMessage());
-                System.err.println("   Tokens may need reauthorization");
+                System.err.println("   Tokens will be validated on first API call");
             }
             
         } else {
