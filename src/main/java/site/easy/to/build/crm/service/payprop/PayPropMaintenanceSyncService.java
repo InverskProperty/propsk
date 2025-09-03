@@ -811,7 +811,7 @@ public class PayPropMaintenanceSyncService {
     private String findMaintenanceCategoryId(String categoryName) {
         if (categoryName == null) return null;
         
-        String sql = "SELECT payprop_external_id FROM payprop_maintenance_categories WHERE name = ? AND is_active = true";
+        String sql = "SELECT payprop_external_id FROM payprop_maintenance_categories WHERE LOWER(description) = LOWER(?) AND is_active = true";
         
         try (Connection conn = dataSource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
