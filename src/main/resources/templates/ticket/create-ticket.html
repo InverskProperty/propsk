@@ -70,11 +70,12 @@
                     <div class="card">
                         <div class="card-body">
                             <h4 class="card-title">Create New Ticket</h4>
-                            <form th:object="${ticket}" th:action="@{/employee/ticket/create-ticket}" method="post">
+                            <form th:object="${ticket}" th:action="@{/employee/ticket/create-ticket}" method="post" onsubmit="return validateForm()">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
 
                                 <label class="m-t-20" for="subject">Subject:</label>
                                 <div class="input-group">
-                                    <input type="text" id="subject" th:field="*{subject}" class="form-control">
+                                    <input type="text" id="subject" th:field="*{subject}" class="form-control" required placeholder="Enter ticket subject">
                                 </div>
                                 <div class="input-group">
                                     <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('subject')}" th:errors="*{subject}"></span>
@@ -82,7 +83,7 @@
 
                                 <label class="m-t-20" for="description">Description:</label>
                                 <div class="input-group">
-                                    <textarea class="textarea_editor form-control" id="description" rows="15" placeholder="Enter text ..." th:field="*{description}"></textarea>
+                                    <textarea class="textarea_editor form-control" id="description" rows="15" placeholder="Enter detailed description..." th:field="*{description}" required></textarea>
                                 </div>
                                 <div class="input-group">
                                     <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('description')}" th:errors="*{description}" autocomplete="off"></span>
@@ -185,14 +186,16 @@
 
                                 <label class="m-t-20" for="employeeId">Assign Employee:</label>
                                 <div class="input-group">
-                                    <select name="employeeId" id="employeeId" class="form-control">
+                                    <select name="employeeId" id="employeeId" class="form-control" required>
+                                        <option value="">-- Select Employee --</option>
                                         <option th:each="employee : ${employees}" th:text="${employee.username}" th:value="${employee.id}"></option>
                                     </select>
                                 </div>
 
                                 <label class="m-t-20" for="customerId">Customer:</label>
                                 <div class="input-group">
-                                    <select name="customerId" id="customerId" class="form-control">
+                                    <select name="customerId" id="customerId" class="form-control" required>
+                                        <option value="">-- Select Customer --</option>
                                         <option th:each="customer : ${customers}" th:text="${customer.name}" th:value="${customer.customerId}"></option>
                                     </select>
                                 </div>
@@ -259,11 +262,96 @@
 <script th:src="@{/js/library/wysihtml5-0.3.0.js}"></script>
 <script th:src="@{/js/library/bootstrap-wysihtml5.js}"></script>
 <script>
+    // Global validation function
+    function validateForm() {
+        console.log('🔍 Form validation started');
+        
+        var isValid = true;
+        var errorMessages = [];
+        
+        // Check required fields
+        var subject = $('#subject').val().trim();
+        var description = $('#description').val().trim();
+        var customerId = $('#customerId').val();
+        var employeeId = $('#employeeId').val();
+        
+        console.log('📝 Form values:', {
+            subject: subject,
+            description: description,
+            customerId: customerId,
+            employeeId: employeeId
+        });
+        
+        if (subject === '') {
+            errorMessages.push('Subject is required');
+            $('#subject').addClass('is-invalid');
+            isValid = false;
+        } else {
+            $('#subject').removeClass('is-invalid');
+        }
+        
+        if (description === '') {
+            errorMessages.push('Description is required');
+            $('#description').addClass('is-invalid');
+            isValid = false;
+        } else {
+            $('#description').removeClass('is-invalid');
+        }
+        
+        if (customerId === '' || customerId === null) {
+            errorMessages.push('Please select a customer');
+            $('#customerId').addClass('is-invalid');
+            isValid = false;
+        } else {
+            $('#customerId').removeClass('is-invalid');
+        }
+        
+        if (employeeId === '' || employeeId === null) {
+            errorMessages.push('Please assign an employee');
+            $('#employeeId').addClass('is-invalid');
+            isValid = false;
+        } else {
+            $('#employeeId').removeClass('is-invalid');
+        }
+        
+        // Check maintenance-specific fields
+        if ($('#type').val() === 'maintenance' && $('#maintenanceCategory').val() === '') {
+            errorMessages.push('Maintenance category is required for maintenance tickets');
+            $('#maintenanceCategory').addClass('is-invalid');
+            isValid = false;
+        } else {
+            $('#maintenanceCategory').removeClass('is-invalid');
+        }
+        
+        if (!isValid) {
+            console.log('❌ Validation failed:', errorMessages);
+            // Show errors in a more user-friendly way
+            var errorHtml = '<div class="alert alert-danger alert-dismissible fade show" role="alert">';
+            errorHtml += '<strong>Please fix the following errors:</strong><br>';
+            errorHtml += errorMessages.join('<br>');
+            errorHtml += '<button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>';
+            errorHtml += '</div>';
+            
+            $('.card-body').prepend(errorHtml);
+            $('html, body').animate({scrollTop: 0}, 500);
+            return false;
+        }
+        
+        console.log('✅ Validation passed, submitting form');
+        // Show loading state
+        $('button[type="submit"]').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Creating ticket...');
+        
+        return true;
+    }
+
     $(document).ready(function() {
+        console.log('🚀 Ticket form initialized');
+        
         $('.textarea_editor').wysihtml5();
         
         // Show/hide maintenance fields based on ticket type
         $('#type').on('change', function() {
+            console.log('🔧 Ticket type changed to:', this.value);
             const maintenanceFields = $('#maintenanceFields');
             if (this.value === 'maintenance' || this.value === 'emergency') {
                 maintenanceFields.show();
@@ -277,71 +365,13 @@
         // Initialize form on page load
         $('#type').trigger('change');
         
-        // Enhanced form validation
+        // Debug: Log when dropdowns are populated
+        $('#employeeId option').length > 1 && console.log('👥 Employees loaded:', $('#employeeId option').length - 1);
+        $('#customerId option').length > 1 && console.log('👤 Customers loaded:', $('#customerId option').length - 1);
+        
+        // Debug: Log form submission attempts
         $('form').on('submit', function(e) {
-            var isValid = true;
-            var errorMessages = [];
-            
-            // Check required fields
-            if ($('#subject').val().trim() === '') {
-                errorMessages.push('Subject is required');
-                $('#subject').addClass('is-invalid');
-                isValid = false;
-            } else {
-                $('#subject').removeClass('is-invalid');
-            }
-            
-            if ($('#description').val().trim() === '') {
-                errorMessages.push('Description is required');
-                $('#description').addClass('is-invalid');
-                isValid = false;
-            } else {
-                $('#description').removeClass('is-invalid');
-            }
-            
-            if ($('#customerId').val() === '' || $('#customerId').val() === null) {
-                errorMessages.push('Please select a customer');
-                $('#customerId').addClass('is-invalid');
-                isValid = false;
-            } else {
-                $('#customerId').removeClass('is-invalid');
-            }
-            
-            if ($('#employeeId').val() === '' || $('#employeeId').val() === null) {
-                errorMessages.push('Please assign an employee');
-                $('#employeeId').addClass('is-invalid');
-                isValid = false;
-            } else {
-                $('#employeeId').removeClass('is-invalid');
-            }
-            
-            // Check maintenance-specific fields
-            if ($('#type').val() === 'maintenance' && $('#maintenanceCategory').val() === '') {
-                errorMessages.push('Maintenance category is required for maintenance tickets');
-                $('#maintenanceCategory').addClass('is-invalid');
-                isValid = false;
-            } else {
-                $('#maintenanceCategory').removeClass('is-invalid');
-            }
-            
-            if (!isValid) {
-                e.preventDefault();
-                // Show errors in a more user-friendly way
-                var errorHtml = '<div class="alert alert-danger alert-dismissible fade show" role="alert">';
-                errorHtml += '<strong>Please fix the following errors:</strong><br>';
-                errorHtml += errorMessages.join('<br>');
-                errorHtml += '<button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>';
-                errorHtml += '</div>';
-                
-                $('.card-body').prepend(errorHtml);
-                $('html, body').animate({scrollTop: 0}, 500);
-                return false;
-            }
-            
-            // Show loading state
-            $(this).find('button[type="submit"]').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Creating ticket...');
-            
-            return true;
+            console.log('📤 Form submission attempted');
         });
     });
 </script>
