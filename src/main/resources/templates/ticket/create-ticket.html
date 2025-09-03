@@ -88,19 +88,20 @@
                                     <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('description')}" th:errors="*{description}" autocomplete="off"></span>
                                 </div>
 
-                                <label class="m-t-20" for="status">status:</label>
+                                <label class="m-t-20" for="status">Status:</label>
                                 <div class="input-group">
                                     <select id="status" th:field="*{status}" class="form-control">
+                                        <option value="new" selected>New</option>
                                         <option value="open">Open</option>
-                                        <option value="assigned">Assigned</option>
-                                        <option value="on-hold">On Hold</option>
                                         <option value="in-progress">In Progress</option>
+                                        <option value="on-hold">On Hold</option>
                                         <option value="resolved">Resolved</option>
                                         <option value="closed">Closed</option>
-                                        <option value="reopened">Reopened</option>
-                                        <option value="pending-customer-response">Pending Customer Response</option>
-                                        <option value="escalated">Escalated</option>
-                                        <option value="archived">Archived</option>
+                                        <option value="contractor-assigned">Contractor Assigned</option>
+                                        <option value="work-in-progress">Work In Progress</option>
+                                        <option value="awaiting-approval">Awaiting Approval</option>
+                                        <option value="awaiting-payment">Awaiting Payment</option>
+                                        <option value="completed">Completed</option>
                                     </select>
                                 </div>
                                 <div class="input-group">
@@ -111,11 +112,9 @@
                                 <div class="input-group">
                                     <select id="priority" th:field="*{priority}" class="form-control">
                                         <option value="low">Low</option>
-                                        <option value="medium">Medium</option>
+                                        <option value="medium" selected>Medium</option>
                                         <option value="high">High</option>
-                                        <option value="closed">Closed</option>
-                                        <option value="urgent">Urgent</option>
-                                        <option value="critical">Critical</option>
+                                        <option value="emergency">Emergency</option>
                                     </select>
                                 </div>
                                 <div class="input-group">
@@ -147,20 +146,23 @@
                                             <option value="plumbing">Plumbing</option>
                                             <option value="electrical">Electrical</option>
                                             <option value="heating">Heating</option>
-                                            <option value="general">General Maintenance</option>
                                             <option value="appliance">Appliance</option>
                                             <option value="external">External</option>
                                             <option value="internal">Internal</option>
+                                            <option value="gardening">Gardening</option>
+                                            <option value="cleaning">Cleaning</option>
+                                            <option value="pest_control">Pest Control</option>
+                                            <option value="security">Security</option>
+                                            <option value="general">General</option>
                                         </select>
                                     </div>
 
                                     <label class="m-t-20" for="urgencyLevel">Urgency Level:</label>
                                     <div class="input-group">
                                         <select id="urgencyLevel" th:field="*{urgencyLevel}" class="form-control">
-                                            <option value="routine">Routine</option>
+                                            <option value="routine" selected>Routine</option>
                                             <option value="urgent">Urgent</option>
                                             <option value="emergency">Emergency</option>
-                                            <option value="health-safety">Health & Safety</option>
                                         </select>
                                     </div>
 
@@ -265,9 +267,81 @@
             const maintenanceFields = $('#maintenanceFields');
             if (this.value === 'maintenance' || this.value === 'emergency') {
                 maintenanceFields.show();
+                $('#maintenanceCategory').prop('required', true);
             } else {
                 maintenanceFields.hide();
+                $('#maintenanceCategory').prop('required', false);
             }
+        });
+        
+        // Initialize form on page load
+        $('#type').trigger('change');
+        
+        // Enhanced form validation
+        $('form').on('submit', function(e) {
+            var isValid = true;
+            var errorMessages = [];
+            
+            // Check required fields
+            if ($('#subject').val().trim() === '') {
+                errorMessages.push('Subject is required');
+                $('#subject').addClass('is-invalid');
+                isValid = false;
+            } else {
+                $('#subject').removeClass('is-invalid');
+            }
+            
+            if ($('#description').val().trim() === '') {
+                errorMessages.push('Description is required');
+                $('#description').addClass('is-invalid');
+                isValid = false;
+            } else {
+                $('#description').removeClass('is-invalid');
+            }
+            
+            if ($('#customerId').val() === '' || $('#customerId').val() === null) {
+                errorMessages.push('Please select a customer');
+                $('#customerId').addClass('is-invalid');
+                isValid = false;
+            } else {
+                $('#customerId').removeClass('is-invalid');
+            }
+            
+            if ($('#employeeId').val() === '' || $('#employeeId').val() === null) {
+                errorMessages.push('Please assign an employee');
+                $('#employeeId').addClass('is-invalid');
+                isValid = false;
+            } else {
+                $('#employeeId').removeClass('is-invalid');
+            }
+            
+            // Check maintenance-specific fields
+            if ($('#type').val() === 'maintenance' && $('#maintenanceCategory').val() === '') {
+                errorMessages.push('Maintenance category is required for maintenance tickets');
+                $('#maintenanceCategory').addClass('is-invalid');
+                isValid = false;
+            } else {
+                $('#maintenanceCategory').removeClass('is-invalid');
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
+                // Show errors in a more user-friendly way
+                var errorHtml = '<div class="alert alert-danger alert-dismissible fade show" role="alert">';
+                errorHtml += '<strong>Please fix the following errors:</strong><br>';
+                errorHtml += errorMessages.join('<br>');
+                errorHtml += '<button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>';
+                errorHtml += '</div>';
+                
+                $('.card-body').prepend(errorHtml);
+                $('html, body').animate({scrollTop: 0}, 500);
+                return false;
+            }
+            
+            // Show loading state
+            $(this).find('button[type="submit"]').prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Creating ticket...');
+            
+            return true;
         });
     });
 </script>
