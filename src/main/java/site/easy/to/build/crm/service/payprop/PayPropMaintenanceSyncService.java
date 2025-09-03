@@ -73,8 +73,8 @@ public class PayPropMaintenanceSyncService {
         log.info("🏷️ Syncing maintenance categories from PayProp...");
         
         try {
-            // Use the correct endpoint: /payments/categories (not /maintenance/categories)
-            List<Map<String, Object>> categories = apiClient.fetchAllPages("/payments/categories", 
+            // Use the correct endpoint: /maintenance/categories (not /payments/categories)
+            List<Map<String, Object>> categories = apiClient.fetchAllPages("/maintenance/categories", 
                 item -> {
                     log.debug("Maintenance Category - ID: {} Name: {} Description: {}", 
                         item.get("id"), item.get("name"), item.get("description"));
