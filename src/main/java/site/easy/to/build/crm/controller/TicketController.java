@@ -43,6 +43,10 @@ import java.util.stream.Collectors;
 @Controller
 @RequestMapping("/employee/ticket")
 public class TicketController {
+    
+    static {
+        System.out.println("🎫 TicketController LOADED - Mapped to /employee/ticket");
+    }
 
     private final TicketService ticketService;
     private final AuthenticationUtils authenticationUtils;
@@ -771,6 +775,7 @@ public class TicketController {
                                @RequestParam Map<String, String> formParams, Model model,
                                @RequestParam("employeeId") int employeeId, Authentication authentication) {
         
+        System.out.println("🎫🎫🎫 TICKET CONTROLLER HIT! Spring routing is working! 🎫🎫🎫");
         System.out.println("🎫=== TICKET CREATION DEBUG START ===");
         System.out.println("📝 Subject: " + ticket.getSubject());
         System.out.println("📝 Description: " + ticket.getDescription());
