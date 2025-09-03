@@ -108,7 +108,7 @@ public class PayPropRawMaintenanceCategoriesImportService {
                 if (categoryId == null || categoryId.trim().isEmpty()) {
                     issueTracker.recordIssue(
                         PayPropImportIssueTracker.IssueType.EMPTY_ID,
-                        "/payments/categories",
+                        "/maintenance/categories",
                         categoryId,
                         category,
                         "PayProp sent category without ID",
@@ -117,10 +117,27 @@ public class PayPropRawMaintenanceCategoriesImportService {
                     continue;
                 }
                 
+                // PayProp puts category names in description field when name is null
+                String name = getStringValue(category, "name");
+                String description = getStringValue(category, "description");
+                String categoryName = (name != null && !name.trim().isEmpty()) ? name : description;
+                
+                if (categoryName == null || categoryName.trim().isEmpty()) {
+                    issueTracker.recordIssue(
+                        PayPropImportIssueTracker.IssueType.EMPTY_NAME,
+                        "/maintenance/categories",
+                        categoryId,
+                        category,
+                        "PayProp sent category without name or description",
+                        PayPropImportIssueTracker.BusinessImpact.REFERENCE_DATA_MISSING
+                    );
+                    continue;
+                }
+                
                 try (Connection conn = dataSource.getConnection();
                      PreparedStatement stmt = conn.prepareStatement(insertSql)) {
                     
-                    setCategoryParameters(stmt, category);
+                    setCategoryParameters(stmt, category, categoryName);
                     int result = stmt.executeUpdate();
                     
                     if (result > 0) {
@@ -145,13 +162,13 @@ public class PayPropRawMaintenanceCategoriesImportService {
         return importedCount;
     }
     
-    private void setCategoryParameters(PreparedStatement stmt, Map<String, Object> category) 
+    private void setCategoryParameters(PreparedStatement stmt, Map<String, Object> category, String categoryName) 
             throws SQLException {
         
         int paramIndex = 1;
         
         stmt.setString(paramIndex++, getStringValue(category, "id")); // payprop_external_id
-        stmt.setString(paramIndex++, getStringValue(category, "name")); // name
+        stmt.setString(paramIndex++, categoryName); // name (use resolved category name)
         stmt.setString(paramIndex++, getStringValue(category, "description")); // description
         stmt.setString(paramIndex++, "maintenance"); // category_type
         stmt.setBoolean(paramIndex++, true); // is_active

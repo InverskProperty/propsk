@@ -99,9 +99,12 @@ public class PayPropMaintenanceSyncService {
                 String name = getStringValue(categoryData, "name");
                 String description = getStringValue(categoryData, "description");
                 
-                if (externalId != null && name != null) {
+                // PayProp puts category names in description field when name is null
+                String categoryName = (name != null && !name.trim().isEmpty()) ? name : description;
+                
+                if (externalId != null && categoryName != null && !categoryName.trim().isEmpty()) {
                     int result = jdbcTemplate.update(insertSql, 
-                        externalId, name, description, "maintenance", true);
+                        externalId, categoryName, description, "maintenance", true);
                     
                     if (result > 0) {
                         created++;
