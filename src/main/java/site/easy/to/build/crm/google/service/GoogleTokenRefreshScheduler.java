@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.repository.OAuthUserRepository;
 import site.easy.to.build.crm.service.user.OAuthUserService;
+import site.easy.to.build.crm.util.MemoryDiagnostics;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -31,9 +32,11 @@ public class GoogleTokenRefreshScheduler {
      */
     @Scheduled(fixedDelay = 1800000) // 30 minutes in milliseconds
     public void refreshExpiringTokens() {
+        MemoryDiagnostics.forceGCAndLog("Before Scheduled Token Refresh");
         System.out.println("🔄 Starting scheduled Google token refresh check...");
         
         List<OAuthUser> allOAuthUsers = oAuthUserRepository.findAll();
+        MemoryDiagnostics.logMemoryUsage("After Loading All OAuth Users");
         int refreshedCount = 0;
         int errorCount = 0;
         int skipCount = 0;
@@ -57,8 +60,12 @@ public class GoogleTokenRefreshScheduler {
                     System.out.println("🔄 Refreshing token for user: " + oAuthUser.getEmail());
                     System.out.println("   Token expires at: " + expiresAt);
                     
+                    MemoryDiagnostics.logMemoryUsage("Before Token Refresh for " + oAuthUser.getEmail());
+                    
                     // Refresh the token
                     String newAccessToken = oAuthUserService.refreshAccessTokenIfNeeded(oAuthUser);
+                    
+                    MemoryDiagnostics.logMemoryUsage("After Token Refresh for " + oAuthUser.getEmail());
                     
                     if (newAccessToken != null && !newAccessToken.isEmpty()) {
                         System.out.println("✅ Successfully refreshed token for: " + oAuthUser.getEmail());
@@ -91,6 +98,8 @@ public class GoogleTokenRefreshScheduler {
         System.out.println("   Skipped (no refresh token): " + skipCount);
         System.out.println("   Errors: " + errorCount);
         System.out.println("✅ Scheduled token refresh check completed");
+        
+        MemoryDiagnostics.forceGCAndLog("After Scheduled Token Refresh Complete");
     }
     
     /**
@@ -105,9 +114,11 @@ public class GoogleTokenRefreshScheduler {
      * Refresh tokens for a specific user
      */
     public boolean refreshTokenForUser(String email) {
+        MemoryDiagnostics.forceGCAndLog("Before Manual Token Refresh for " + email);
         System.out.println("🔄 Manual token refresh for user: " + email);
         
         OAuthUser oAuthUser = oAuthUserRepository.findByEmail(email);
+        MemoryDiagnostics.logMemoryUsage("After Loading User for Manual Refresh");
         if (oAuthUser == null) {
             System.err.println("❌ User not found: " + email);
             return false;
@@ -121,13 +132,20 @@ public class GoogleTokenRefreshScheduler {
         }
         
         try {
+            MemoryDiagnostics.logMemoryUsage("Before Manual refreshAccessTokenIfNeeded Call");
+            
             String newAccessToken = oAuthUserService.refreshAccessTokenIfNeeded(oAuthUser);
+            
+            MemoryDiagnostics.logMemoryUsage("After Manual refreshAccessTokenIfNeeded Call");
+            
             if (newAccessToken != null && !newAccessToken.isEmpty()) {
                 System.out.println("✅ Successfully refreshed token for: " + email);
+                MemoryDiagnostics.forceGCAndLog("After Successful Manual Token Refresh");
                 return true;
             }
         } catch (Exception e) {
             System.err.println("❌ Failed to refresh token: " + e.getMessage());
+            MemoryDiagnostics.forceGCAndLog("After Failed Manual Token Refresh");
         }
         
         return false;

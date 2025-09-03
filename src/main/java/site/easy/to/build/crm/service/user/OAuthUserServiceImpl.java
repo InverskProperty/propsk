@@ -16,6 +16,7 @@ import site.easy.to.build.crm.repository.OAuthUserRepository;
 import site.easy.to.build.crm.repository.UserRepository;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.util.MemoryDiagnostics;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -107,6 +108,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
     @Override
     @ConditionalOnExpression("!T(site.easy.to.build.crm.util.StringUtils).isEmpty('${spring.security.oauth2.client.registration.google.client-id:}')")
     public String refreshAccessTokenIfNeeded(OAuthUser oauthUser) {
+        MemoryDiagnostics.logMemoryUsage("refreshAccessTokenIfNeeded START for " + oauthUser.getEmail());
         System.out.println("🔄 Token refresh attempt for user: " + oauthUser.getEmail());
         System.out.println("   Current time: " + Instant.now());
         System.out.println("   Token expires at: " + oauthUser.getAccessTokenExpiration());
@@ -132,14 +134,17 @@ public class OAuthUserServiceImpl implements OAuthUserService{
         
         try {
             System.out.println("🔄 Making refresh request to Google...");
+            MemoryDiagnostics.logMemoryUsage("Before GoogleRefreshTokenRequest Creation");
             
             GoogleTokenResponse tokenResponse = new GoogleRefreshTokenRequest(
-                new NetHttpTransport(),
+                HTTP_TRANSPORT, // CRITICAL: Use static transport instead of new NetHttpTransport()
                 GsonFactory.getDefaultInstance(),
                 oauthUser.getRefreshToken(),
                 clientId,
                 clientSecret
             ).execute();
+            
+            MemoryDiagnostics.logMemoryUsage("After GoogleRefreshTokenRequest Execute");
             
             String newAccessToken = tokenResponse.getAccessToken();
             long expiresIn = tokenResponse.getExpiresInSeconds();
@@ -158,14 +163,18 @@ public class OAuthUserServiceImpl implements OAuthUserService{
                 oauthUser.setRefreshToken(tokenResponse.getRefreshToken());
             }
             
+            MemoryDiagnostics.logMemoryUsage("Before Database Save");
             oAuthUserRepository.save(oauthUser);
             System.out.println("✅ Token saved to database");
             
+            MemoryDiagnostics.logMemoryUsage("refreshAccessTokenIfNeeded SUCCESS COMPLETE");
             return newAccessToken;
             
         } catch (IOException e) {
             System.err.println("❌ TOKEN REFRESH FAILED: " + e.getMessage());
             e.printStackTrace();
+            
+            MemoryDiagnostics.logMemoryUsage("After Token Refresh FAILURE");
             
             if (e.getMessage().contains("invalid_grant")) {
                 System.err.println("❌ REFRESH TOKEN INVALID - User must re-authenticate!");
@@ -183,8 +192,8 @@ public class OAuthUserServiceImpl implements OAuthUserService{
     @ConditionalOnExpression("!T(site.easy.to.build.crm.util.StringUtils).isEmpty('${spring.security.oauth2.client.registration.google.client-id:}')")
     public void revokeAccess(OAuthUser oAuthUser) {
         try {
-            final NetHttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
-            HttpRequestFactory requestFactory = httpTransport.createRequestFactory();
+            // CRITICAL: Use static transport to prevent memory leak
+            HttpRequestFactory requestFactory = HTTP_TRANSPORT.createRequestFactory();
 
             GenericUrl url = new GenericUrl("https://accounts.google.com/o/oauth2/revoke");
             url.set("token", oAuthUser.getAccessToken());

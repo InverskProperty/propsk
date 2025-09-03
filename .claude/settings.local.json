@@ -7,7 +7,8 @@
       "Bash(mvn compile:*)",
       "Bash(execute_migration.bat)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(gh api:*)"
     ],
     "deny": [],
     "ask": [],
