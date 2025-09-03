@@ -770,84 +770,152 @@ public class TicketController {
                                @RequestParam("customerId") Long customerId,
                                @RequestParam Map<String, String> formParams, Model model,
                                @RequestParam("employeeId") int employeeId, Authentication authentication) {
+        
+        System.out.println("🎫=== TICKET CREATION DEBUG START ===");
+        System.out.println("📝 Subject: " + ticket.getSubject());
+        System.out.println("📝 Description: " + ticket.getDescription());
+        System.out.println("👤 Customer ID: " + customerId);
+        System.out.println("👥 Employee ID: " + employeeId);
+        System.out.println("🏷️ Ticket Type: " + ticket.getType());
+        System.out.println("🔴 Status: " + ticket.getStatus());
+        System.out.println("⚡ Priority: " + ticket.getPriority());
+        System.out.println("📋 All Form Params: " + formParams);
 
-        int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User manager = userService.findById(Long.valueOf(userId));
-        if(manager == null) {
-            return "error/500";
-        }
-        if(manager.isInactiveUser()) {
-            return "error/account-inactive";
-        }
-        if(bindingResult.hasErrors()) {
-            List<User> employees = new ArrayList<>();
-            List<Customer> customers;
-
-            if(AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-                employees = userService.findAll();
-                customers = customerService.findAll();
-            } else {
-                employees.add(manager);
-                customers = customerService.findByUserId(manager.getId().longValue());
-            }
-
-            model.addAttribute("employees",employees);
-            model.addAttribute("customers",customers);
+        try {
+            System.out.println("🔍 Step 1: Getting authenticated user...");
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            System.out.println("✅ User ID: " + userId);
             
-            // Add maintenance categories if service is available
-            try {
-                if (payPropMaintenanceCategoryService != null) {
-                    model.addAttribute("maintenanceCategories", payPropMaintenanceCategoryService.getAllMaintenanceCategories());
-                }
-            } catch (Exception e) {
-                System.err.println("Warning: Could not load maintenance categories: " + e.getMessage());
-            }
-            
-            return "ticket/create-ticket";
-        }
-
-        User employee = userService.findById(Long.valueOf(employeeId));
-        Customer customer = customerService.findByCustomerId(customerId);
-
-        if(employee == null || customer == null) {
-            return "error/500";
-        }
-        if(AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
-            if(userId != employeeId || (customer.getUser() != null && customer.getUser().getId() != userId)) {
+            System.out.println("🔍 Step 2: Finding manager user...");
+            User manager = userService.findById(Long.valueOf(userId));
+            if(manager == null) {
+                System.err.println("❌ Manager not found for user ID: " + userId);
                 return "error/500";
             }
-        }
+            System.out.println("✅ Manager found: " + manager.getName());
+            
+            if(manager.isInactiveUser()) {
+                System.err.println("❌ Manager account is inactive");
+                return "error/account-inactive";
+            }
+            
+            System.out.println("🔍 Step 3: Checking binding result errors...");
+            if(bindingResult.hasErrors()) {
+                System.err.println("❌ Validation errors found:");
+                bindingResult.getAllErrors().forEach(error -> 
+                    System.err.println("  - " + error.getDefaultMessage()));
+                
+                List<User> employees = new ArrayList<>();
+                List<Customer> customers;
 
-        ticket.setCustomer(customer);
-        ticket.setManager(manager);
-        ticket.setEmployee(employee);
-        ticket.setCreatedAt(LocalDateTime.now());
+                if(AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                    employees = userService.findAll();
+                    customers = customerService.findAll();
+                } else {
+                    employees.add(manager);
+                    customers = customerService.findByUserId(manager.getId().longValue());
+                }
 
-        // ENHANCEMENT: Pre-populate PayProp fields if this is a maintenance ticket and PayProp is enabled
-        if (ticket.getType() != null && ticket.getType().toLowerCase().contains("maintenance")) {
+                model.addAttribute("employees",employees);
+                model.addAttribute("customers",customers);
+                
+                // Add maintenance categories if service is available
+                try {
+                    if (payPropMaintenanceCategoryService != null) {
+                        model.addAttribute("maintenanceCategories", payPropMaintenanceCategoryService.getAllMaintenanceCategories());
+                    }
+                } catch (Exception e) {
+                    System.err.println("Warning: Could not load maintenance categories: " + e.getMessage());
+                }
+                
+                return "ticket/create-ticket";
+            }
+            System.out.println("✅ No validation errors");
+
+            System.out.println("🔍 Step 4: Finding employee and customer...");
+            User employee = userService.findById(Long.valueOf(employeeId));
+            Customer customer = customerService.findByCustomerId(customerId);
+
+            if(employee == null) {
+                System.err.println("❌ Employee not found for ID: " + employeeId);
+                return "error/500";
+            }
+            if(customer == null) {
+                System.err.println("❌ Customer not found for ID: " + customerId);
+                return "error/500";
+            }
+            System.out.println("✅ Employee found: " + employee.getName());
+            System.out.println("✅ Customer found: " + customer.getName());
+            
+            System.out.println("🔍 Step 5: Checking authorization...");
+            if(AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+                if(userId != employeeId || (customer.getUser() != null && customer.getUser().getId() != userId)) {
+                    System.err.println("❌ Authorization failed for employee");
+                    return "error/500";
+                }
+            }
+            System.out.println("✅ Authorization passed");
+
+            System.out.println("🔍 Step 6: Setting ticket properties...");
+            ticket.setCustomer(customer);
+            ticket.setManager(manager);
+            ticket.setEmployee(employee);
+            ticket.setCreatedAt(LocalDateTime.now());
+            System.out.println("✅ Ticket properties set");
+
+            // ENHANCEMENT: Pre-populate PayProp fields if this is a maintenance ticket and PayProp is enabled
+            System.out.println("🔍 Step 7: PayProp field population...");
+            if (ticket.getType() != null && ticket.getType().toLowerCase().contains("maintenance")) {
+                try {
+                    populatePayPropFieldsForNewTicket(ticket);
+                    System.out.println("✅ PayProp fields populated");
+                } catch (Exception e) {
+                    System.err.println("⚠️ Warning: Could not populate PayProp fields for new ticket: " + e.getMessage());
+                    e.printStackTrace();
+                    // Continue with ticket creation even if PayProp field population fails
+                }
+            } else {
+                System.out.println("ℹ️ Skipping PayProp field population (not maintenance ticket)");
+            }
+
+            System.out.println("🔍 Step 8: Saving ticket to database...");
+            System.out.println("📋 Ticket before save - ID: " + ticket.getTicketId() + ", Subject: " + ticket.getSubject());
+            Ticket savedTicket = ticketService.save(ticket);
+            System.out.println("✅ Ticket saved successfully! New ID: " + savedTicket.getTicketId());
+
+            // Sync ticket to PayProp if it's a maintenance ticket
+            System.out.println("🔍 Step 9: PayProp sync...");
             try {
-                populatePayPropFieldsForNewTicket(ticket);
+                if (payPropMaintenanceSyncService != null && 
+                    (ticket.getType() != null && ticket.getType().toLowerCase().contains("maintenance"))) {
+                    System.out.println("🔄 Starting PayProp sync...");
+                    // Use the export method which handles individual tickets
+                    payPropMaintenanceSyncService.exportMaintenanceTicketsToPayProp();
+                    System.out.println("✅ PayProp sync completed");
+                } else {
+                    System.out.println("ℹ️ Skipping PayProp sync");
+                }
             } catch (Exception e) {
-                System.err.println("Warning: Could not populate PayProp fields for new ticket: " + e.getMessage());
-                // Continue with ticket creation even if PayProp field population fails
+                // Log error but don't fail ticket creation if PayProp sync fails
+                System.err.println("⚠️ Warning: Failed to sync ticket to PayProp: " + e.getMessage());
+                e.printStackTrace();
             }
-        }
 
-        ticketService.save(ticket);
-
-        // Sync ticket to PayProp if it's a maintenance ticket
-        try {
-            if (payPropMaintenanceSyncService != null && 
-                (ticket.getType() != null && ticket.getType().toLowerCase().contains("maintenance"))) {
-                // Use the export method which handles individual tickets
-                payPropMaintenanceSyncService.exportMaintenanceTicketsToPayProp();
-            }
+            System.out.println("🔍 Step 10: Preparing redirect...");
+            String redirectUrl = "redirect:/employee/ticket/assigned-tickets";
+            System.out.println("✅ Redirecting to: " + redirectUrl);
+            System.out.println("🎫=== TICKET CREATION DEBUG END SUCCESS ===");
+            
+            return redirectUrl;
+            
         } catch (Exception e) {
-            // Log error but don't fail ticket creation if PayProp sync fails
-            System.err.println("Warning: Failed to sync ticket to PayProp: " + e.getMessage());
+            System.err.println("💥 FATAL ERROR in ticket creation:");
+            System.err.println("Error message: " + e.getMessage());
+            System.err.println("Error class: " + e.getClass().getSimpleName());
+            e.printStackTrace();
+            System.out.println("🎫=== TICKET CREATION DEBUG END ERROR ===");
+            return "error/500";
         }
-
-        return "redirect:/employee/ticket/assigned-tickets";
     }
 
     @GetMapping("/update-ticket/{id}")
