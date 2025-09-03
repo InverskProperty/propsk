@@ -202,7 +202,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             request.execute();
         } catch (HttpResponseException e) {
             // Handle the error response if needed
-        } catch (GeneralSecurityException | IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
