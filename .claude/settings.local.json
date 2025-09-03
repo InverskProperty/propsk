@@ -8,7 +8,8 @@
       "Bash(execute_migration.bat)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(gh api:*)"
+      "Bash(gh api:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": [],

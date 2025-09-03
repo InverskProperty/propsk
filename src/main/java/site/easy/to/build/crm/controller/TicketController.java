@@ -1257,7 +1257,7 @@ public class TicketController {
             List<Map<String, Object>> paymentMaintenanceCategories = jdbcTemplate.queryForList(paymentSql);
             
             // Get categories from payprop_maintenance_categories table (correct one)
-            String maintenanceSql = "SELECT id, payprop_external_id, name, description, imported_at FROM payprop_maintenance_categories ORDER BY name";
+            String maintenanceSql = "SELECT id, payprop_external_id, name, description, category_type, is_active, created_at FROM payprop_maintenance_categories ORDER BY name";
             List<Map<String, Object>> payPropMaintenanceCategories = jdbcTemplate.queryForList(maintenanceSql);
             
             result.put("payment_table_maintenance_categories", paymentMaintenanceCategories.size());
@@ -1285,7 +1285,7 @@ public class TicketController {
         
         try {
             // Get categories from the correct payprop_maintenance_categories table
-            String sql = "SELECT payprop_external_id, name, description FROM payprop_maintenance_categories WHERE name IS NOT NULL ORDER BY name";
+            String sql = "SELECT payprop_external_id, name, description FROM payprop_maintenance_categories WHERE name IS NOT NULL AND is_active = 1 ORDER BY name";
             List<Map<String, Object>> categories = jdbcTemplate.queryForList(sql);
             
             result.put("success", true);

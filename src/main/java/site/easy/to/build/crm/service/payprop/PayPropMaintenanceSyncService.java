@@ -90,8 +90,8 @@ public class PayPropMaintenanceSyncService {
             int created = 0;
             String insertSql = """
                 INSERT IGNORE INTO payprop_maintenance_categories (
-                    payprop_external_id, name, description, imported_at
-                ) VALUES (?, ?, ?, ?)
+                    payprop_external_id, name, description, category_type, is_active
+                ) VALUES (?, ?, ?, ?, ?)
             """;
             
             for (Map<String, Object> categoryData : categories) {
@@ -101,7 +101,7 @@ public class PayPropMaintenanceSyncService {
                 
                 if (externalId != null && name != null) {
                     int result = jdbcTemplate.update(insertSql, 
-                        externalId, name, description, LocalDateTime.now());
+                        externalId, name, description, "maintenance", true);
                     
                     if (result > 0) {
                         created++;

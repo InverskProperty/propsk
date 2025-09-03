@@ -1,0 +1,748 @@
+=== END STATS ===
+🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called (LEGACY INT VERSION)
+   Authentication type: OAuth2AuthenticationToken
+   Authentication name: 114738897312032777033
+   Is authenticated: true
+   Processing OAuth authentication...
+🔍 DEBUG: Getting OAuth user from authentication...
+   Extracted email from OAuth principal: sajidkazmi@propsk.com
+   OAuth user found by email: true
+   OAuth user ID: 35
+   OAuth user email: sajidkazmi@propsk.com
+   OAuth user has access token: true
+   OAuth user has refresh token: true
+   OAuth user found: true
+   OAuth user table ID: 35
+   OAuth user's user_id field: 53
+✅ Returning linked user ID: 53
+=== EMPLOYEE MAINTENANCE STATS ===
+User ID: 53 (Manager: true)
+Open: 4
+In Progress: 0
+Emergency: 0
+Awaiting Bids: 0
+Total: 5
+=== END EMPLOYEE STATS ===
+✅ PayProp API connection verified!
+   Connected as: John Naylor (sajidkazmi@propsk.com)
+   User type: agency
+   Is admin: true
+   Agency: TAKEN: Propsk
+   Available scopes: create:attachment:upload, create:entity:adhoc-invoice, create:entity:adhoc-payment, create:entity:beneficiary, create:entity:invoice, create:entity:payment, create:entity:property, create:entity:tags, create:entity:tenant, create:maintenance:messages, create:maintenance:tickets, create:reminders:entity, create:transactions:credit-note, create:transactions:debit-note, delete:entity:tags, read:agency:global-beneficiaries, read:attachment:download, read:attachment:list, read:entity:beneficiary, read:entity:invoice, read:entity:payment, read:entity:property, read:entity:tags, read:entity:tenant, read:export:beneficiaries, read:export:invoices, read:export:payments, read:export:properties, read:export:tenants, read:invoices:categories, read:maintenance:categories, read:maintenance:messages, read:maintenance:tickets, read:meta:webhook-failures, read:meta:webhooks, read:payments:categories, read:reminders:entity, read:report:all-payments, read:report:beneficiary-balances, read:report:icdn, read:transactions:frequencies, read:transactions:tax, update:entity:property, update:entity:tags, update:maintenance:tickets, update:meta:webhooks, update:reminders:entity
+🔍 PayProp API connection test: SUCCESS
+🔐 DEBUG: AuthenticationUtils.getLoggedInUserId() called (LEGACY INT VERSION)
+   Authentication type: OAuth2AuthenticationToken
+   Authentication name: 114738897312032777033
+   Is authenticated: true
+   Processing OAuth authentication...
+🔍 DEBUG: Getting OAuth user from authentication...
+   Extracted email from OAuth principal: sajidkazmi@propsk.com
+   OAuth user found by email: true
+   OAuth user ID: 35
+   OAuth user email: sajidkazmi@propsk.com
+   OAuth user has access token: true
+   OAuth user has refresh token: true
+   OAuth user found: true
+   OAuth user table ID: 35
+   OAuth user's user_id field: 53
+✅ Returning linked user ID: 53
+=== EMPLOYEE MAINTENANCE STATS ===
+User ID: 53 (Manager: true)
+Open: 4
+In Progress: 0
+Emergency: 0
+Awaiting Bids: 0
+Total: 5
+=== END EMPLOYEE STATS ===
+🔍 PAYPROP DEBUG: Processing /api/payprop/maintenance/sync/categories
+🔍 Request method: POST
+🔍 Auth type: OAuth2AuthenticationToken
+🔍 Auth authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid, ROLE_MANAGER, ROLE_EMPLOYEE, ROLE_ADMIN, ROLE_SUPER_ADMIN]
+🔍 Is authenticated: true
+🔍 Principal: Name: [114738897312032777033], Granted Authorities: [[OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]], User Attributes: [{at_hash=gYHyCqt1ETdRp-KtOpuY4g, sub=114738897312032777033, email_verified=true, iss=https://accounts.google.com, given_name=Sajid, nonce=Ola5pP8stYeYjn6o7F4VxEBDma_Vi91UlBAVVc4xWFM, picture=https://lh3.googleusercontent.com/a/ACg8ocJff0jGLeWeFRpUDUMNulSJQsPSai0zDiwqYftZbXtv3hDSJw=s96-c, aud=[815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com], azp=815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com, name=Sajid Kazmi, hd=propsk.com, exp=2025-09-03T12:18:48Z, family_name=Kazmi, iat=2025-09-03T11:18:48Z, email=sajidkazmi@propsk.com}]
+2025-09-03T11:19:15.176Z  INFO 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : 🏷️ Syncing maintenance categories from PayProp...
+2025-09-03T11:19:15.177Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : 🔄 Starting paginated fetch from endpoint: /payments/categories
+2025-09-03T11:19:15.183Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 1 from: https://ukapi.staging.payprop.com/api/agency/v1.1/payments/categories?page=1&rows=25
+2025-09-03T11:19:16.151Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'categories' field with 21 items
+2025-09-03T11:19:16.151Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: woRZQl1mA4 Name: Agent Description: null
+2025-09-03T11:19:16.151Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: Kd71e915Ma Name: Commission Description: null
+2025-09-03T11:19:16.151Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: DWzJBaZQBp Name: Contractor Description: null
+2025-09-03T11:19:16.151Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: oz2JkGJbgm Name: Council Description: null
+2025-09-03T11:19:16.151Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: zKd1b21vGg Name: Deposit Description: null
+2025-09-03T11:19:16.151Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: Q0G1O71MNp Name: Deposit (Custodial) Description: null
+2025-09-03T11:19:16.151Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: 6RV1R21PDa Name: Deposit Return Description: null
+2025-09-03T11:19:16.151Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: mLZdGQE1nN Name: Deposit to Landlord Description: null
+2025-09-03T11:19:16.151Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: pKV1zyXOmN Name: Fee recovery Description: null
+2025-09-03T11:19:16.152Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: 5AJ5ja0XMk Name: Holding tenant deposit fee Description: null
+2025-09-03T11:19:16.152Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: WrJvyRQZlq Name: Inventory Fee Description: null
+2025-09-03T11:19:16.152Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: K3Jw4vKXEv Name: Let Only Fee Description: null
+2025-09-03T11:19:16.152Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: vagXVvX3RP Name: Levy Description: null
+2025-09-03T11:19:16.152Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: 7lwZ73ZDqv Name: Other Description: null
+2025-09-03T11:19:16.152Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: Vv2XlY1ema Name: Owner Description: null
+2025-09-03T11:19:16.152Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: WzJBER2ZQB Name: Professional Services fee Description: null
+2025-09-03T11:19:16.152Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: W5AJ5aJMk8 Name: Property account Description: null
+2025-09-03T11:19:16.152Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: agXVjdoX3R Name: Renewal fee Description: null
+2025-09-03T11:19:16.152Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: EyJ6nP3Jjb Name: Tenancy check out fee Description: null
+2025-09-03T11:19:16.152Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: KV1zNLb1Om Name: Tenancy Set Up Fee Description: null
+2025-09-03T11:19:16.152Z DEBUG 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: 6EyJ6RJjbv Name: Tenant Description: null
+2025-09-03T11:19:16.152Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 1 processed: 21 items (✅ 21 mapped, ❌ 0 errors)
+2025-09-03T11:19:16.153Z DEBUG 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : No more pages available, ending pagination
+2025-09-03T11:19:16.153Z  INFO 1 --- [io-10000-exec-9] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Pagination complete: 21 total items fetched in 1 API calls
+2025-09-03T11:19:16.153Z  INFO 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : 📦 PayProp API returned: 21 maintenance categories
+2025-09-03T11:19:16.173Z  INFO 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : Cleared 0 existing maintenance categories for fresh import
+2025-09-03T11:19:16.260Z ERROR 1 --- [io-10000-exec-9] .t.b.c.s.p.PayPropMaintenanceSyncService : ❌ Failed to sync maintenance categories: PreparedStatementCallback; bad SQL grammar [    INSERT IGNORE INTO payprop_maintenance_categories (
+        payprop_external_id, name, description, imported_at
+    ) VALUES (?, ?, ?, ?)
+]
+org.springframework.jdbc.BadSqlGrammarException: PreparedStatementCallback; bad SQL grammar [    INSERT IGNORE INTO payprop_maintenance_categories (
+        payprop_external_id, name, description, imported_at
+    ) VALUES (?, ?, ?, ?)
+]
+	at org.springframework.jdbc.support.SQLExceptionSubclassTranslator.doTranslate(SQLExceptionSubclassTranslator.java:101) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.support.AbstractFallbackSQLExceptionTranslator.translate(AbstractFallbackSQLExceptionTranslator.java:70) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.translateException(JdbcTemplate.java:1538) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.execute(JdbcTemplate.java:667) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.update(JdbcTemplate.java:960) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.update(JdbcTemplate.java:1015) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.update(JdbcTemplate.java:1025) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at site.easy.to.build.crm.service.payprop.PayPropMaintenanceSyncService.syncMaintenanceCategories(PayPropMaintenanceSyncService.java:103) ~[classes!/:0]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:343) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:698) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at site.easy.to.build.crm.service.payprop.PayPropMaintenanceSyncService$$SpringCGLIB$$1.syncMaintenanceCategories(<generated>) ~[classes!/:0]
+	at site.easy.to.build.crm.controller.PayPropMaintenanceController.syncMaintenanceCategories(PayPropMaintenanceController.java:298) ~[classes!/:0]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:207) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:152) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:884) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:797) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1081) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:974) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1011) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:205) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.security.web.FilterChainProxy.lambda$doFilterInternal$3(FilterChainProxy.java:231) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$FilterObservation$SimpleFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:477) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:338) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator.lambda$wrapSecured$0(ObservationFilterChainDecorator.java:80) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.intercept.AuthorizationFilter.doFilter(AuthorizationFilter.java:100) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AnonymousAuthenticationFilter.doFilter(AnonymousAuthenticationFilter.java:100) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter.doFilter(SecurityContextHolderAwareRequestFilter.java:179) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.savedrequest.RequestCacheAwareFilter.doFilter(RequestCacheAwareFilter.java:63) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:227) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:221) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at site.easy.to.build.crm.config.SecurityConfig$1.doFilterInternal(SecurityConfig.java:151) ~[classes!/:0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:227) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:221) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter.doFilterInternal(OAuth2AuthorizationRequestRedirectFilter.java:181) ~[spring-security-oauth2-client-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:107) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:93) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.csrf.CsrfFilter.doFilterInternal(CsrfFilter.java:117) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.header.HeaderWriterFilter.doHeadersAfter(HeaderWriterFilter.java:90) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.header.HeaderWriterFilter.doFilterInternal(HeaderWriterFilter.java:75) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:82) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:69) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:62) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.session.DisableEncodeUrlFilter.doFilterInternal(DisableEncodeUrlFilter.java:42) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$0(ObservationFilterChainDecorator.java:321) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:222) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:233) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:191) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:352) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:268) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:166) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.valves.RemoteIpValve.invoke(RemoteIpValve.java:738) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:341) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:390) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:894) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1741) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at java.base/java.lang.Thread.run(Unknown Source) ~[na:na]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'imported_at' in 'field list'
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeInternal(ClientPreparedStatement.java:916) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeUpdateInternal(ClientPreparedStatement.java:1061) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeUpdateInternal(ClientPreparedStatement.java:1009) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeLargeUpdate(ClientPreparedStatement.java:1320) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeUpdate(ClientPreparedStatement.java:994) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeUpdate(ProxyPreparedStatement.java:61) ~[HikariCP-5.0.1.jar!/:na]
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeUpdate(HikariProxyPreparedStatement.java) ~[HikariCP-5.0.1.jar!/:na]
+	at org.springframework.jdbc.core.JdbcTemplate.lambda$update$2(JdbcTemplate.java:965) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.execute(JdbcTemplate.java:651) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	... 151 common frames omitted
+🔍 PAYPROP DEBUG: Processing /api/payprop/maintenance/sync/import-tickets
+🔍 Request method: POST
+🔍 Auth type: OAuth2AuthenticationToken
+🔍 Auth authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid, ROLE_MANAGER, ROLE_EMPLOYEE, ROLE_ADMIN, ROLE_SUPER_ADMIN]
+🔍 Is authenticated: true
+🔍 Principal: Name: [114738897312032777033], Granted Authorities: [[OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]], User Attributes: [{at_hash=gYHyCqt1ETdRp-KtOpuY4g, sub=114738897312032777033, email_verified=true, iss=https://accounts.google.com, given_name=Sajid, nonce=Ola5pP8stYeYjn6o7F4VxEBDma_Vi91UlBAVVc4xWFM, picture=https://lh3.googleusercontent.com/a/ACg8ocJff0jGLeWeFRpUDUMNulSJQsPSai0zDiwqYftZbXtv3hDSJw=s96-c, aud=[815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com], azp=815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com, name=Sajid Kazmi, hd=propsk.com, exp=2025-09-03T12:18:48Z, family_name=Kazmi, iat=2025-09-03T11:18:48Z, email=sajidkazmi@propsk.com}]
+2025-09-03T11:19:16.399Z  INFO 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : 🎫 Starting maintenance tickets import from PayProp...
+2025-09-03T11:19:16.399Z  INFO 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : 🏷️ Syncing maintenance categories from PayProp...
+2025-09-03T11:19:16.399Z  INFO 1 --- [io-10000-exec-7] s.e.t.b.c.s.payprop.PayPropApiClient     : 🔄 Starting paginated fetch from endpoint: /payments/categories
+2025-09-03T11:19:16.399Z DEBUG 1 --- [io-10000-exec-7] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 1 from: https://ukapi.staging.payprop.com/api/agency/v1.1/payments/categories?page=1&rows=25
+2025-09-03T11:19:17.249Z DEBUG 1 --- [io-10000-exec-7] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'categories' field with 21 items
+2025-09-03T11:19:17.249Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: woRZQl1mA4 Name: Agent Description: null
+2025-09-03T11:19:17.249Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: Kd71e915Ma Name: Commission Description: null
+2025-09-03T11:19:17.249Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: DWzJBaZQBp Name: Contractor Description: null
+2025-09-03T11:19:17.249Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: oz2JkGJbgm Name: Council Description: null
+2025-09-03T11:19:17.249Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: zKd1b21vGg Name: Deposit Description: null
+2025-09-03T11:19:17.249Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: Q0G1O71MNp Name: Deposit (Custodial) Description: null
+2025-09-03T11:19:17.249Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: 6RV1R21PDa Name: Deposit Return Description: null
+2025-09-03T11:19:17.249Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: mLZdGQE1nN Name: Deposit to Landlord Description: null
+2025-09-03T11:19:17.249Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: pKV1zyXOmN Name: Fee recovery Description: null
+2025-09-03T11:19:17.249Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: 5AJ5ja0XMk Name: Holding tenant deposit fee Description: null
+2025-09-03T11:19:17.249Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: WrJvyRQZlq Name: Inventory Fee Description: null
+2025-09-03T11:19:17.250Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: K3Jw4vKXEv Name: Let Only Fee Description: null
+2025-09-03T11:19:17.250Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: vagXVvX3RP Name: Levy Description: null
+2025-09-03T11:19:17.250Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: 7lwZ73ZDqv Name: Other Description: null
+2025-09-03T11:19:17.250Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: Vv2XlY1ema Name: Owner Description: null
+2025-09-03T11:19:17.250Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: WzJBER2ZQB Name: Professional Services fee Description: null
+2025-09-03T11:19:17.250Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: W5AJ5aJMk8 Name: Property account Description: null
+2025-09-03T11:19:17.250Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: agXVjdoX3R Name: Renewal fee Description: null
+2025-09-03T11:19:17.250Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: EyJ6nP3Jjb Name: Tenancy check out fee Description: null
+2025-09-03T11:19:17.250Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: KV1zNLb1Om Name: Tenancy Set Up Fee Description: null
+2025-09-03T11:19:17.250Z DEBUG 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: 6EyJ6RJjbv Name: Tenant Description: null
+2025-09-03T11:19:17.250Z  INFO 1 --- [io-10000-exec-7] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 1 processed: 21 items (✅ 21 mapped, ❌ 0 errors)
+2025-09-03T11:19:17.250Z DEBUG 1 --- [io-10000-exec-7] s.e.t.b.c.s.payprop.PayPropApiClient     : No more pages available, ending pagination
+2025-09-03T11:19:17.250Z  INFO 1 --- [io-10000-exec-7] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Pagination complete: 21 total items fetched in 1 API calls
+2025-09-03T11:19:17.251Z  INFO 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : 📦 PayProp API returned: 21 maintenance categories
+2025-09-03T11:19:17.268Z  INFO 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : Cleared 0 existing maintenance categories for fresh import
+2025-09-03T11:19:17.278Z ERROR 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : ❌ Failed to sync maintenance categories: PreparedStatementCallback; bad SQL grammar [    INSERT IGNORE INTO payprop_maintenance_categories (
+        payprop_external_id, name, description, imported_at
+    ) VALUES (?, ?, ?, ?)
+]
+org.springframework.jdbc.BadSqlGrammarException: PreparedStatementCallback; bad SQL grammar [    INSERT IGNORE INTO payprop_maintenance_categories (
+        payprop_external_id, name, description, imported_at
+    ) VALUES (?, ?, ?, ?)
+]
+	at org.springframework.jdbc.support.SQLExceptionSubclassTranslator.doTranslate(SQLExceptionSubclassTranslator.java:101) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.support.AbstractFallbackSQLExceptionTranslator.translate(AbstractFallbackSQLExceptionTranslator.java:70) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.translateException(JdbcTemplate.java:1538) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.execute(JdbcTemplate.java:667) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.update(JdbcTemplate.java:960) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.update(JdbcTemplate.java:1015) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.update(JdbcTemplate.java:1025) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at site.easy.to.build.crm.service.payprop.PayPropMaintenanceSyncService.syncMaintenanceCategories(PayPropMaintenanceSyncService.java:103) ~[classes!/:0]
+	at site.easy.to.build.crm.service.payprop.PayPropMaintenanceSyncService.importMaintenanceTickets(PayPropMaintenanceSyncService.java:139) ~[classes!/:0]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:343) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:698) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at site.easy.to.build.crm.service.payprop.PayPropMaintenanceSyncService$$SpringCGLIB$$1.importMaintenanceTickets(<generated>) ~[classes!/:0]
+	at site.easy.to.build.crm.controller.PayPropMaintenanceController.importMaintenanceTickets(PayPropMaintenanceController.java:329) ~[classes!/:0]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:207) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:152) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:884) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:797) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1081) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:974) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1011) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:205) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.security.web.FilterChainProxy.lambda$doFilterInternal$3(FilterChainProxy.java:231) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$FilterObservation$SimpleFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:477) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:338) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator.lambda$wrapSecured$0(ObservationFilterChainDecorator.java:80) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.intercept.AuthorizationFilter.doFilter(AuthorizationFilter.java:100) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AnonymousAuthenticationFilter.doFilter(AnonymousAuthenticationFilter.java:100) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter.doFilter(SecurityContextHolderAwareRequestFilter.java:179) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.savedrequest.RequestCacheAwareFilter.doFilter(RequestCacheAwareFilter.java:63) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:227) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:221) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at site.easy.to.build.crm.config.SecurityConfig$1.doFilterInternal(SecurityConfig.java:151) ~[classes!/:0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:227) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:221) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter.doFilterInternal(OAuth2AuthorizationRequestRedirectFilter.java:181) ~[spring-security-oauth2-client-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:107) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:93) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.csrf.CsrfFilter.doFilterInternal(CsrfFilter.java:117) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.header.HeaderWriterFilter.doHeadersAfter(HeaderWriterFilter.java:90) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.header.HeaderWriterFilter.doFilterInternal(HeaderWriterFilter.java:75) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:82) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:69) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:62) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.session.DisableEncodeUrlFilter.doFilterInternal(DisableEncodeUrlFilter.java:42) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$0(ObservationFilterChainDecorator.java:321) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:222) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:233) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:191) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:352) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:268) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:166) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.valves.RemoteIpValve.invoke(RemoteIpValve.java:738) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:341) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:390) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:894) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1741) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at java.base/java.lang.Thread.run(Unknown Source) ~[na:na]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'imported_at' in 'field list'
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeInternal(ClientPreparedStatement.java:916) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeUpdateInternal(ClientPreparedStatement.java:1061) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeUpdateInternal(ClientPreparedStatement.java:1009) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeLargeUpdate(ClientPreparedStatement.java:1320) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeUpdate(ClientPreparedStatement.java:994) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeUpdate(ProxyPreparedStatement.java:61) ~[HikariCP-5.0.1.jar!/:na]
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeUpdate(HikariProxyPreparedStatement.java) ~[HikariCP-5.0.1.jar!/:na]
+	at org.springframework.jdbc.core.JdbcTemplate.lambda$update$2(JdbcTemplate.java:965) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.execute(JdbcTemplate.java:651) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	... 152 common frames omitted
+2025-09-03T11:19:17.281Z  INFO 1 --- [io-10000-exec-7] s.e.t.b.c.s.payprop.PayPropApiClient     : 🔄 Starting paginated fetch from endpoint: /maintenance/tickets
+2025-09-03T11:19:17.281Z DEBUG 1 --- [io-10000-exec-7] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 1 from: https://ukapi.staging.payprop.com/api/agency/v1.1/maintenance/tickets?page=1&rows=25
+2025-09-03T11:19:18.525Z DEBUG 1 --- [io-10000-exec-7] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'tickets' field with 3 items
+2025-09-03T11:19:18.525Z  INFO 1 --- [io-10000-exec-7] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 1 processed: 3 items (✅ 3 mapped, ❌ 0 errors)
+2025-09-03T11:19:18.526Z DEBUG 1 --- [io-10000-exec-7] s.e.t.b.c.s.payprop.PayPropApiClient     : No more pages available, ending pagination
+2025-09-03T11:19:18.526Z  INFO 1 --- [io-10000-exec-7] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Pagination complete: 3 total items fetched in 1 API calls
+2025-09-03T11:19:18.547Z  WARN 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : ⚠️ Could not resolve customer for ticket w7Z4z9zXPN
+2025-09-03T11:19:18.559Z  WARN 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : ⚠️ Could not resolve customer for ticket 5AJ5apeJMk
+2025-09-03T11:19:18.570Z  WARN 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : ⚠️ Could not resolve customer for ticket EyJ6PY71jb
+2025-09-03T11:19:18.570Z  INFO 1 --- [io-10000-exec-7] .t.b.c.s.p.PayPropMaintenanceSyncService : 🎫 Maintenance tickets import completed: 0 created, 0 updated, 3 skipped, 0 errors
+🔍 PAYPROP DEBUG: Processing /api/payprop/maintenance/sync/bidirectional
+🔍 Request method: POST
+🔍 Auth type: OAuth2AuthenticationToken
+🔍 Auth authorities: [OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid, ROLE_MANAGER, ROLE_EMPLOYEE, ROLE_ADMIN, ROLE_SUPER_ADMIN]
+🔍 Is authenticated: true
+🔍 Principal: Name: [114738897312032777033], Granted Authorities: [[OIDC_USER, SCOPE_https://www.googleapis.com/auth/drive, SCOPE_https://www.googleapis.com/auth/gmail.send, SCOPE_https://www.googleapis.com/auth/spreadsheets, SCOPE_https://www.googleapis.com/auth/userinfo.email, SCOPE_https://www.googleapis.com/auth/userinfo.profile, SCOPE_openid]], User Attributes: [{at_hash=gYHyCqt1ETdRp-KtOpuY4g, sub=114738897312032777033, email_verified=true, iss=https://accounts.google.com, given_name=Sajid, nonce=Ola5pP8stYeYjn6o7F4VxEBDma_Vi91UlBAVVc4xWFM, picture=https://lh3.googleusercontent.com/a/ACg8ocJff0jGLeWeFRpUDUMNulSJQsPSai0zDiwqYftZbXtv3hDSJw=s96-c, aud=[815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com], azp=815686341929-k53lkaij6cpq9tf9b26ha0gkbn4h5dgc.apps.googleusercontent.com, name=Sajid Kazmi, hd=propsk.com, exp=2025-09-03T12:18:48Z, family_name=Kazmi, iat=2025-09-03T11:18:48Z, email=sajidkazmi@propsk.com}]
+2025-09-03T11:19:18.626Z  INFO 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🎫 Starting maintenance tickets import from PayProp...
+2025-09-03T11:19:18.626Z  INFO 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🏷️ Syncing maintenance categories from PayProp...
+2025-09-03T11:19:18.626Z  INFO 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : 🔄 Starting paginated fetch from endpoint: /payments/categories
+2025-09-03T11:19:18.627Z DEBUG 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 1 from: https://ukapi.staging.payprop.com/api/agency/v1.1/payments/categories?page=1&rows=25
+2025-09-03T11:19:19.446Z DEBUG 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'categories' field with 21 items
+2025-09-03T11:19:19.446Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: woRZQl1mA4 Name: Agent Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: Kd71e915Ma Name: Commission Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: DWzJBaZQBp Name: Contractor Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: oz2JkGJbgm Name: Council Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: zKd1b21vGg Name: Deposit Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: Q0G1O71MNp Name: Deposit (Custodial) Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: 6RV1R21PDa Name: Deposit Return Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: mLZdGQE1nN Name: Deposit to Landlord Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: pKV1zyXOmN Name: Fee recovery Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: 5AJ5ja0XMk Name: Holding tenant deposit fee Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: WrJvyRQZlq Name: Inventory Fee Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: K3Jw4vKXEv Name: Let Only Fee Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: vagXVvX3RP Name: Levy Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: 7lwZ73ZDqv Name: Other Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: Vv2XlY1ema Name: Owner Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: WzJBER2ZQB Name: Professional Services fee Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: W5AJ5aJMk8 Name: Property account Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: agXVjdoX3R Name: Renewal fee Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: EyJ6nP3Jjb Name: Tenancy check out fee Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: KV1zNLb1Om Name: Tenancy Set Up Fee Description: null
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Maintenance Category - ID: 6EyJ6RJjbv Name: Tenant Description: null
+2025-09-03T11:19:19.447Z  INFO 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 1 processed: 21 items (✅ 21 mapped, ❌ 0 errors)
+2025-09-03T11:19:19.447Z DEBUG 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : No more pages available, ending pagination
+2025-09-03T11:19:19.448Z  INFO 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Pagination complete: 21 total items fetched in 1 API calls
+2025-09-03T11:19:19.448Z  INFO 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 📦 PayProp API returned: 21 maintenance categories
+2025-09-03T11:19:19.465Z  INFO 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : Cleared 0 existing maintenance categories for fresh import
+2025-09-03T11:19:19.475Z ERROR 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ❌ Failed to sync maintenance categories: PreparedStatementCallback; bad SQL grammar [    INSERT IGNORE INTO payprop_maintenance_categories (
+        payprop_external_id, name, description, imported_at
+    ) VALUES (?, ?, ?, ?)
+]
+org.springframework.jdbc.BadSqlGrammarException: PreparedStatementCallback; bad SQL grammar [    INSERT IGNORE INTO payprop_maintenance_categories (
+        payprop_external_id, name, description, imported_at
+    ) VALUES (?, ?, ?, ?)
+]
+	at org.springframework.jdbc.support.SQLExceptionSubclassTranslator.doTranslate(SQLExceptionSubclassTranslator.java:101) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.support.AbstractFallbackSQLExceptionTranslator.translate(AbstractFallbackSQLExceptionTranslator.java:70) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.translateException(JdbcTemplate.java:1538) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.execute(JdbcTemplate.java:667) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.update(JdbcTemplate.java:960) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.update(JdbcTemplate.java:1015) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.update(JdbcTemplate.java:1025) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at site.easy.to.build.crm.service.payprop.PayPropMaintenanceSyncService.syncMaintenanceCategories(PayPropMaintenanceSyncService.java:103) ~[classes!/:0]
+	at site.easy.to.build.crm.service.payprop.PayPropMaintenanceSyncService.importMaintenanceTickets(PayPropMaintenanceSyncService.java:139) ~[classes!/:0]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:343) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:698) ~[spring-aop-6.0.9.jar!/:6.0.9]
+	at site.easy.to.build.crm.service.payprop.PayPropMaintenanceSyncService$$SpringCGLIB$$1.importMaintenanceTickets(<generated>) ~[classes!/:0]
+	at site.easy.to.build.crm.controller.PayPropMaintenanceController.bidirectionalMaintenanceSync(PayPropMaintenanceController.java:392) ~[classes!/:0]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:na]
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source) ~[na:na]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:207) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:152) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:884) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:797) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1081) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:974) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1011) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.0.9.jar!/:6.0.9]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:205) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.security.web.FilterChainProxy.lambda$doFilterInternal$3(FilterChainProxy.java:231) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$FilterObservation$SimpleFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:477) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:338) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator.lambda$wrapSecured$0(ObservationFilterChainDecorator.java:80) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.intercept.AuthorizationFilter.doFilter(AuthorizationFilter.java:100) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:126) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:120) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AnonymousAuthenticationFilter.doFilter(AnonymousAuthenticationFilter.java:100) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter.doFilter(SecurityContextHolderAwareRequestFilter.java:179) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.savedrequest.RequestCacheAwareFilter.doFilter(RequestCacheAwareFilter.java:63) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:227) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:221) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at site.easy.to.build.crm.config.SecurityConfig$1.doFilterInternal(SecurityConfig.java:151) ~[classes!/:0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:227) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter.doFilter(AbstractAuthenticationProcessingFilter.java:221) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter.doFilterInternal(OAuth2AuthorizationRequestRedirectFilter.java:181) ~[spring-security-oauth2-client-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:107) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:93) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.csrf.CsrfFilter.doFilterInternal(CsrfFilter.java:117) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.header.HeaderWriterFilter.doHeadersAfter(HeaderWriterFilter.java:90) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.header.HeaderWriterFilter.doFilterInternal(HeaderWriterFilter.java:75) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:82) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:69) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:62) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:225) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.session.DisableEncodeUrlFilter.doFilterInternal(DisableEncodeUrlFilter.java:42) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:238) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$0(ObservationFilterChainDecorator.java:321) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:222) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:135) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:233) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:191) ~[spring-security-web-6.1.0.jar!/:6.1.0]
+	at org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:352) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:268) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.0.9.jar!/:6.0.9]
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:174) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:149) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:166) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.valves.RemoteIpValve.invoke(RemoteIpValve.java:738) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:341) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:390) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:894) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1741) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:61) ~[tomcat-embed-core-10.1.8.jar!/:na]
+	at java.base/java.lang.Thread.run(Unknown Source) ~[na:na]
+Caused by: java.sql.SQLSyntaxErrorException: Unknown column 'imported_at' in 'field list'
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:121) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeInternal(ClientPreparedStatement.java:916) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeUpdateInternal(ClientPreparedStatement.java:1061) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeUpdateInternal(ClientPreparedStatement.java:1009) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeLargeUpdate(ClientPreparedStatement.java:1320) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeUpdate(ClientPreparedStatement.java:994) ~[mysql-connector-j-8.0.33.jar!/:8.0.33]
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeUpdate(ProxyPreparedStatement.java:61) ~[HikariCP-5.0.1.jar!/:na]
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeUpdate(HikariProxyPreparedStatement.java) ~[HikariCP-5.0.1.jar!/:na]
+	at org.springframework.jdbc.core.JdbcTemplate.lambda$update$2(JdbcTemplate.java:965) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	at org.springframework.jdbc.core.JdbcTemplate.execute(JdbcTemplate.java:651) ~[spring-jdbc-6.0.9.jar!/:6.0.9]
+	... 152 common frames omitted
+2025-09-03T11:19:19.477Z  INFO 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : 🔄 Starting paginated fetch from endpoint: /maintenance/tickets
+2025-09-03T11:19:19.477Z DEBUG 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : Fetching page 1 from: https://ukapi.staging.payprop.com/api/agency/v1.1/maintenance/tickets?page=1&rows=25
+2025-09-03T11:19:20.742Z DEBUG 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Found 'tickets' field with 3 items
+2025-09-03T11:19:20.742Z  INFO 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : Page 1 processed: 3 items (✅ 3 mapped, ❌ 0 errors)
+2025-09-03T11:19:20.742Z DEBUG 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : No more pages available, ending pagination
+2025-09-03T11:19:20.743Z  INFO 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : ✅ Pagination complete: 3 total items fetched in 1 API calls
+2025-09-03T11:19:20.763Z  WARN 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ⚠️ Could not resolve customer for ticket w7Z4z9zXPN
+2025-09-03T11:19:20.774Z  WARN 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ⚠️ Could not resolve customer for ticket 5AJ5apeJMk
+2025-09-03T11:19:20.786Z  WARN 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ⚠️ Could not resolve customer for ticket EyJ6PY71jb
+2025-09-03T11:19:20.786Z  INFO 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🎫 Maintenance tickets import completed: 0 created, 0 updated, 3 skipped, 0 errors
+2025-09-03T11:19:20.786Z  INFO 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 📤 Exporting maintenance tickets to PayProp...
+2025-09-03T11:19:20.865Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🔍 Ticket 48 has no customer
+2025-09-03T11:19:20.865Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🔍 Ticket 48 has no customer
+2025-09-03T11:19:20.865Z DEBUG 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : Executing POST request to: https://ukapi.staging.payprop.com/api/agency/v1.1/maintenance/tickets
+2025-09-03T11:19:22.120Z ERROR 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : PayProp API POST error: 400 BAD_REQUEST - {"errors":[{"message":"Missing property.","path":"\/maintenance ticket\/category_id"},{"message":"Missing property.","path":"\/maintenance ticket\/property_id"},{"message":"Missing property.","path":"\/maintenance ticket\/tenant_id"}],"status":400}
+2025-09-03T11:19:22.121Z ERROR 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ❌ Failed to export ticket 48 to PayProp: PayProp API error: {"errors":[{"message":"Missing property.","path":"\/maintenance ticket\/category_id"},{"message":"Missing property.","path":"\/maintenance ticket\/property_id"},{"message":"Missing property.","path":"\/maintenance ticket\/tenant_id"}],"status":400}
+2025-09-03T11:19:22.152Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🔍 Ticket 49 has no customer
+2025-09-03T11:19:22.152Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🔍 Ticket 49 has no customer
+2025-09-03T11:19:22.152Z DEBUG 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : Executing POST request to: https://ukapi.staging.payprop.com/api/agency/v1.1/maintenance/tickets
+2025-09-03T11:19:22.857Z ERROR 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : PayProp API POST error: 400 BAD_REQUEST - {"errors":[{"message":"Missing property.","path":"\/maintenance ticket\/category_id"},{"message":"Missing property.","path":"\/maintenance ticket\/property_id"},{"message":"Missing property.","path":"\/maintenance ticket\/tenant_id"}],"status":400}
+2025-09-03T11:19:22.857Z ERROR 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ❌ Failed to export ticket 49 to PayProp: PayProp API error: {"errors":[{"message":"Missing property.","path":"\/maintenance ticket\/category_id"},{"message":"Missing property.","path":"\/maintenance ticket\/property_id"},{"message":"Missing property.","path":"\/maintenance ticket\/tenant_id"}],"status":400}
+2025-09-03T11:19:22.886Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🔍 Ticket 50 has no customer
+2025-09-03T11:19:22.886Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🔍 Ticket 50 has no customer
+2025-09-03T11:19:22.886Z DEBUG 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : Executing POST request to: https://ukapi.staging.payprop.com/api/agency/v1.1/maintenance/tickets
+2025-09-03T11:19:23.603Z ERROR 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : PayProp API POST error: 400 BAD_REQUEST - {"errors":[{"message":"Missing property.","path":"\/maintenance ticket\/category_id"},{"message":"Missing property.","path":"\/maintenance ticket\/property_id"},{"message":"Missing property.","path":"\/maintenance ticket\/tenant_id"}],"status":400}
+2025-09-03T11:19:23.604Z ERROR 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ❌ Failed to export ticket 50 to PayProp: PayProp API error: {"errors":[{"message":"Missing property.","path":"\/maintenance ticket\/category_id"},{"message":"Missing property.","path":"\/maintenance ticket\/property_id"},{"message":"Missing property.","path":"\/maintenance ticket\/tenant_id"}],"status":400}
+2025-09-03T11:19:23.633Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🔍 Finding PayProp property ID for customer 845
+2025-09-03T11:19:23.652Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ✅ Found PayProp property ID via assignments: v2XlYypa1e
+2025-09-03T11:19:23.652Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🔍 Finding PayProp tenant ID for customer 845
+2025-09-03T11:19:23.661Z  WARN 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ⚠️ Could not find PayProp tenant ID for customer 845
+2025-09-03T11:19:23.673Z DEBUG 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : Executing POST request to: https://ukapi.staging.payprop.com/api/agency/v1.1/maintenance/tickets
+2025-09-03T11:19:24.368Z ERROR 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : PayProp API POST error: 400 BAD_REQUEST - {"errors":[{"message":"Missing property.","path":"\/maintenance ticket\/category_id"},{"message":"Missing property.","path":"\/maintenance ticket\/tenant_id"}],"status":400}
+2025-09-03T11:19:24.369Z ERROR 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ❌ Failed to export ticket 51 to PayProp: PayProp API error: {"errors":[{"message":"Missing property.","path":"\/maintenance ticket\/category_id"},{"message":"Missing property.","path":"\/maintenance ticket\/tenant_id"}],"status":400}
+2025-09-03T11:19:24.397Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🔍 Finding PayProp property ID for customer 858
+2025-09-03T11:19:24.415Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ✅ Found PayProp property ID via assignments: GvJDbN9B1z
+2025-09-03T11:19:24.415Z DEBUG 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : 🔍 Finding PayProp tenant ID for customer 858
+2025-09-03T11:19:24.424Z  WARN 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ⚠️ Could not find PayProp tenant ID for customer 858
+2025-09-03T11:19:24.436Z DEBUG 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : Executing POST request to: https://ukapi.staging.payprop.com/api/agency/v1.1/maintenance/tickets
+2025-09-03T11:19:25.141Z ERROR 1 --- [io-10000-exec-3] s.e.t.b.c.s.payprop.PayPropApiClient     : PayProp API POST error: 400 BAD_REQUEST - {"errors":[{"message":"Missing property.","path":"\/maintenance ticket\/category_id"},{"message":"Missing property.","path":"\/maintenance ticket\/tenant_id"}],"status":400}
+2025-09-03T11:19:25.141Z ERROR 1 --- [io-10000-exec-3] .t.b.c.s.p.PayPropMaintenanceSyncService : ❌ Failed to export ticket 52 to PayProp: PayProp API error: {"errors":[{"message":"Missing property.","path":"\/maintenance ticket\/category_id"},{"message":"Missing property.","path":"\/maintenance ticket\/tenant_id"}],"status":400}
+✅ PayProp API connection verified!
+   Connected as: John Naylor (sajidkazmi@propsk.com)
