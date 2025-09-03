@@ -199,7 +199,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             MemoryDiagnostics.logMemoryUsage("refreshAccessTokenIfNeeded SUCCESS COMPLETE");
             return newAccessToken;
             
-        } catch (IOException | GeneralSecurityException e) {
+        } catch (IOException | RuntimeException e) {
             System.err.println("❌ TOKEN REFRESH FAILED: " + e.getMessage());
             e.printStackTrace();
             
@@ -232,7 +232,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             request.execute();
         } catch (HttpResponseException e) {
             // Handle the error response if needed
-        } catch (IOException | GeneralSecurityException e) {
+        } catch (IOException | RuntimeException e) {
             throw new RuntimeException(e);
         }
     }
