@@ -16,5 +16,5 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=build /app/target/crm.war app.war
 EXPOSE 8080
-# Configure JVM memory for Render.com (512MB limit) and PayProp sync operations
-CMD ["java", "-Xms256m", "-Xmx450m", "-XX:+UseG1GC", "-XX:MaxGCPauseMillis=100", "-XX:+UseStringDeduplication", "-jar", "app.war"]
+# Optimized JVM configuration without artificial memory limits
+CMD ["java", "-XX:+UseG1GC", "-XX:MaxGCPauseMillis=200", "-XX:+UseStringDeduplication", "-XX:+UseCompressedOops", "-jar", "app.war"]
