@@ -590,7 +590,7 @@ public class PropertyServiceImpl implements PropertyService {
                     property.setPropertyName(rs.getString("property_name"));
                     property.setAddressLine1(rs.getString("address_line_1"));
                     property.setCity(rs.getString("city"));
-                    property.setPostcode(rs.getString("postal_code"));
+                    property.setPostcode(rs.getString("postcode"));
                     property.setPayPropId(rs.getString("payprop_id"));
                     property.setMonthlyPayment(rs.getBigDecimal("monthly_payment"));
                     property.setIsArchived(rs.getString("is_archived"));
@@ -643,7 +643,7 @@ public class PropertyServiceImpl implements PropertyService {
                     property.setPropertyName(rs.getString("property_name"));
                     property.setAddressLine1(rs.getString("address_line_1"));
                     property.setCity(rs.getString("city"));
-                    property.setPostcode(rs.getString("postal_code"));
+                    property.setPostcode(rs.getString("postcode"));
                     property.setPayPropId(rs.getString("payprop_id"));
                     property.setMonthlyPayment(rs.getBigDecimal("monthly_payment"));
                     property.setIsArchived(rs.getString("is_archived"));
