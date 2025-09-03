@@ -45,13 +45,13 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
             List<Portfolio> portfolios = portfolioService.findPortfoliosForUser(authentication);
             List<Property> allProperties = propertyService.findAll();
             
-            // Filter unassigned properties using junction table
+            // Filter properties not assigned to any portfolio (truly unassigned)
             List<Property> unassignedProperties = allProperties.stream()
                 .filter(property -> !hasAnyPortfolioAssignment(property.getId()))
                 .filter(property -> !"Y".equals(property.getIsArchived()))
                 .collect(Collectors.toList());
             
-            log.info("Found {} unassigned properties using junction table logic", unassignedProperties.size());
+            log.info("Found {} truly unassigned properties (not in any portfolio)", unassignedProperties.size());
             
             model.addAttribute("portfolios", portfolios);
             model.addAttribute("unassignedProperties", unassignedProperties);
@@ -98,24 +98,37 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
                 // Get properties for this owner
                 allProperties = propertyService.findByPropertyOwnerId(ownerId.longValue());
                 
-                // Filter to get unassigned properties using junction table logic
+                // Get properties already in this specific portfolio
+                List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
+                Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
+                    .map(Property::getId)
+                    .collect(Collectors.toSet());
+                
+                // Filter to get properties NOT in this specific portfolio (available for assignment)
                 unassignedProperties = allProperties.stream()
-                    .filter(property -> !hasAnyPortfolioAssignment(property.getId()))
+                    .filter(property -> !assignedPropertyIds.contains(property.getId()))
                     .filter(property -> !"Y".equals(property.getIsArchived()))
                     .collect(Collectors.toList());
                     
-                log.info("Owner-specific portfolio {} for owner {} - showing {} total properties, {} unassigned", 
-                    portfolioId, ownerId, allProperties.size(), unassignedProperties.size());
+                log.info("Owner-specific portfolio {} for owner {} - showing {} total properties, {} already in this portfolio, {} available for assignment", 
+                    portfolioId, ownerId, allProperties.size(), propertiesInPortfolio.size(), unassignedProperties.size());
             } else {
-                // Shared portfolio - show all unassigned properties
+                // Shared portfolio - show properties not in this specific portfolio
                 allProperties = propertyService.findAll();
+                
+                // Get properties already in this specific portfolio
+                List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
+                Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
+                    .map(Property::getId)
+                    .collect(Collectors.toSet());
+                
                 unassignedProperties = allProperties.stream()
-                    .filter(property -> !hasAnyPortfolioAssignment(property.getId()))
+                    .filter(property -> !assignedPropertyIds.contains(property.getId()))
                     .filter(property -> !"Y".equals(property.getIsArchived()))
                     .collect(Collectors.toList());
                     
-                log.info("Shared portfolio {} - showing {} total properties, {} unassigned", 
-                    portfolioId, allProperties.size(), unassignedProperties.size());
+                log.info("Shared portfolio {} - showing {} total properties, {} already in this portfolio, {} available for assignment", 
+                    portfolioId, allProperties.size(), propertiesInPortfolio.size(), unassignedProperties.size());
             }
             
             model.addAttribute("targetPortfolio", targetPortfolio);

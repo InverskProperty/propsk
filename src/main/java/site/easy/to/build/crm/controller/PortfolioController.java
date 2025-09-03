@@ -2788,11 +2788,17 @@ public class PortfolioController {
         try {
             // Get user ID
             Long userId = (long) authenticationUtils.getLoggedInUserId(authentication);
+            System.out.println("🔍 DEBUG: Got user ID: " + userId);
             
             // 🔧 FIX: Use the proper PortfolioAssignmentService instead of duplicating logic
             System.out.println("🔄 Delegating to PortfolioAssignmentService for proper PayProp handling");
+            System.out.println("🔍 DEBUG: About to call portfolioAssignmentService.assignPropertiesToPortfolio()");
+            System.out.println("🔍 DEBUG: portfolioAssignmentService is null: " + (portfolioAssignmentService == null));
+            
             PortfolioAssignmentService.AssignmentResult result = 
                 portfolioAssignmentService.assignPropertiesToPortfolio(portfolioId, propertyIds, userId);
+                
+            System.out.println("🔍 DEBUG: Got result from PortfolioAssignmentService: " + result);
             
             assignedCount = result.getAssignedCount();
             syncedCount = result.getSyncedCount();

@@ -15,6 +15,7 @@ import site.easy.to.build.crm.entity.Contract;
 import site.easy.to.build.crm.service.user.OAuthUserService;
 import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentService;
 import site.easy.to.build.crm.entity.AssignmentType;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -201,13 +202,15 @@ public class CustomerServiceImpl implements CustomerService {
     public List<Customer> findPropertyOwners() {
         // Use assignment service to get all customers with OWNER assignment type
         try {
-            return assignmentService.getAssignmentsByType(AssignmentType.OWNER).stream()
-                .map(assignment -> assignment.getCustomer())
+            List<CustomerPropertyAssignment> ownerAssignments = assignmentService.getAssignmentsByType(AssignmentType.OWNER);
+            return ownerAssignments.stream()
+                .map(CustomerPropertyAssignment::getCustomer)
+                .filter(customer -> customer != null) // Safety check
                 .distinct()
                 .collect(Collectors.toList());
         } catch (Exception e) {
             // Fallback to old method if assignment service fails
-            log.warn("Assignment service failed, falling back to old method: " + e.getMessage());
+            log.warn("Assignment service failed for findPropertyOwners, falling back to old method: " + e.getMessage(), e);
             return customerRepository.findPropertyOwners();
         }
     }
@@ -216,13 +219,15 @@ public class CustomerServiceImpl implements CustomerService {
     public List<Customer> findTenants() {
         // Use assignment service to get all customers with TENANT assignment type
         try {
-            return assignmentService.getAssignmentsByType(AssignmentType.TENANT).stream()
-                .map(assignment -> assignment.getCustomer())
+            List<CustomerPropertyAssignment> tenantAssignments = assignmentService.getAssignmentsByType(AssignmentType.TENANT);
+            return tenantAssignments.stream()
+                .map(CustomerPropertyAssignment::getCustomer)
+                .filter(customer -> customer != null) // Safety check
                 .distinct()
                 .collect(Collectors.toList());
         } catch (Exception e) {
             // Fallback to old method if assignment service fails
-            log.warn("Assignment service failed, falling back to old method: " + e.getMessage());
+            log.warn("Assignment service failed for findTenants, falling back to old method: " + e.getMessage(), e);
             return customerRepository.findTenants();
         }
     }
@@ -231,13 +236,15 @@ public class CustomerServiceImpl implements CustomerService {
     public List<Customer> findContractors() {
         // Use assignment service to get all customers with CONTRACTOR assignment type
         try {
-            return assignmentService.getAssignmentsByType(AssignmentType.CONTRACTOR).stream()
-                .map(assignment -> assignment.getCustomer())
+            List<CustomerPropertyAssignment> contractorAssignments = assignmentService.getAssignmentsByType(AssignmentType.CONTRACTOR);
+            return contractorAssignments.stream()
+                .map(CustomerPropertyAssignment::getCustomer)
+                .filter(customer -> customer != null) // Safety check
                 .distinct()
                 .collect(Collectors.toList());
         } catch (Exception e) {
             // Fallback to old method if assignment service fails
-            log.warn("Assignment service failed, falling back to old method: " + e.getMessage());
+            log.warn("Assignment service failed for findContractors, falling back to old method: " + e.getMessage(), e);
             return customerRepository.findContractors();
         }
     }
