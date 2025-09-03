@@ -852,9 +852,11 @@ public class TicketController {
             System.out.println("✅ Customer found: " + customer.getName());
             
             System.out.println("🔍 Step 5: Checking authorization...");
-            if(AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+            if(AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                System.out.println("✅ Manager authorization - can assign to any employee/customer");
+            } else if(AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
                 if(userId != employeeId || (customer.getUser() != null && customer.getUser().getId() != userId)) {
-                    System.err.println("❌ Authorization failed for employee");
+                    System.err.println("❌ Authorization failed for employee - User: " + userId + ", Employee: " + employeeId);
                     return "error/500";
                 }
             }
