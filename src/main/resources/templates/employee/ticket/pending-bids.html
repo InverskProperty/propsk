@@ -345,6 +345,7 @@
 <script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
 
 <script>
+/*<![CDATA[*/
 $('#config-table').DataTable({
     responsive: true,
     order: [[6, 'desc']], // Sort by created date descending
@@ -352,6 +353,7 @@ $('#config-table').DataTable({
         { targets: [7], orderable: false } // Disable sorting on Actions column
     ]
 });
+/*]]>*/
 
 function showBidModal(ticketId, ticketSubject) {
     document.getElementById('ticketIdInput').value = ticketId;
