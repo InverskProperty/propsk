@@ -136,8 +136,15 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             System.out.println("🔄 Making refresh request to Google...");
             MemoryDiagnostics.logMemoryUsage("Before GoogleRefreshTokenRequest Creation");
             
+            // CRITICAL: Ensure HTTP_TRANSPORT is available, fallback if needed
+            NetHttpTransport transport = HTTP_TRANSPORT;
+            if (transport == null) {
+                System.err.println("⚠️ Static HTTP_TRANSPORT is null, creating new instance");
+                transport = GoogleNetHttpTransport.newTrustedTransport();
+            }
+            
             GoogleTokenResponse tokenResponse = new GoogleRefreshTokenRequest(
-                HTTP_TRANSPORT, // CRITICAL: Use static transport instead of new NetHttpTransport()
+                transport,
                 GsonFactory.getDefaultInstance(),
                 oauthUser.getRefreshToken(),
                 clientId,
@@ -170,7 +177,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             MemoryDiagnostics.logMemoryUsage("refreshAccessTokenIfNeeded SUCCESS COMPLETE");
             return newAccessToken;
             
-        } catch (IOException e) {
+        } catch (IOException | GeneralSecurityException e) {
             System.err.println("❌ TOKEN REFRESH FAILED: " + e.getMessage());
             e.printStackTrace();
             
@@ -192,8 +199,13 @@ public class OAuthUserServiceImpl implements OAuthUserService{
     @ConditionalOnExpression("!T(site.easy.to.build.crm.util.StringUtils).isEmpty('${spring.security.oauth2.client.registration.google.client-id:}')")
     public void revokeAccess(OAuthUser oAuthUser) {
         try {
-            // CRITICAL: Use static transport to prevent memory leak
-            HttpRequestFactory requestFactory = HTTP_TRANSPORT.createRequestFactory();
+            // CRITICAL: Use static transport to prevent memory leak, with null check
+            NetHttpTransport transport = HTTP_TRANSPORT;
+            if (transport == null) {
+                System.err.println("⚠️ Static HTTP_TRANSPORT is null for revoke, creating new instance");
+                transport = GoogleNetHttpTransport.newTrustedTransport();
+            }
+            HttpRequestFactory requestFactory = transport.createRequestFactory();
 
             GenericUrl url = new GenericUrl("https://accounts.google.com/o/oauth2/revoke");
             url.set("token", oAuthUser.getAccessToken());
@@ -202,7 +214,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             request.execute();
         } catch (HttpResponseException e) {
             // Handle the error response if needed
-        } catch (IOException e) {
+        } catch (IOException | GeneralSecurityException e) {
             throw new RuntimeException(e);
         }
     }
