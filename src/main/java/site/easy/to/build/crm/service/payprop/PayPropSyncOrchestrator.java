@@ -19,6 +19,7 @@ import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentServi
 import site.easy.to.build.crm.service.drive.CustomerDriveOrganizationService;
 import site.easy.to.build.crm.service.drive.GoogleDriveFileService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
+import site.easy.to.build.crm.util.MemoryDiagnostics;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -69,6 +70,8 @@ public class PayPropSyncOrchestrator {
                                   CustomerDriveOrganizationService customerDriveOrganizationService,
                                   GoogleDriveFileService googleDriveFileService,
                                   UserRepository userRepository) {
+        MemoryDiagnostics.logMemoryUsage("PayPropSyncOrchestrator Constructor Start");
+        
         this.payPropSyncService = payPropSyncService;
         this.syncLogger = syncLogger;
         this.customerService = customerService;
@@ -78,6 +81,8 @@ public class PayPropSyncOrchestrator {
         this.customerDriveOrganizationService = customerDriveOrganizationService;
         this.googleDriveFileService = googleDriveFileService;
         this.userRepository = userRepository;
+        
+        MemoryDiagnostics.logMemoryUsage("PayPropSyncOrchestrator Constructor Complete");
     }
 
     @Autowired

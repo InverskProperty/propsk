@@ -15,6 +15,7 @@ import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import site.easy.to.build.crm.config.oauth2.CustomOAuth2UserService;
 import site.easy.to.build.crm.config.oauth2.OAuthLoginSuccessHandler;
+import site.easy.to.build.crm.util.MemoryDiagnostics;
 
 // ADD THESE IMPORTS FOR THE DEBUG FILTER
 import org.springframework.security.core.Authentication;
@@ -46,6 +47,8 @@ public class SecurityConfig {
                           Environment environment,
                           CustomerLoginSuccessHandler customerLoginSuccessHandler,
                           CustomerLoginFailureHandler customerLoginFailureHandler) {
+        MemoryDiagnostics.logMemoryUsage("SecurityConfig Constructor Start");
+        
         this.oAuth2LoginSuccessHandler = oAuth2LoginSuccessHandler;
         this.oauthUserService = oauthUserService;
         this.crmUserDetails = crmUserDetails;

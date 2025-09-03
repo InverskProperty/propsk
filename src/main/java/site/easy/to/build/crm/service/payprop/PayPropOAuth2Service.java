@@ -14,6 +14,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.util.UriComponentsBuilder;
 import site.easy.to.build.crm.entity.PayPropToken;
 import site.easy.to.build.crm.repository.PayPropTokenRepository;
+import site.easy.to.build.crm.util.MemoryDiagnostics;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -52,21 +53,29 @@ public class PayPropOAuth2Service {
 
     @Autowired
     public PayPropOAuth2Service(RestTemplate restTemplate, PayPropTokenRepository tokenRepository, Environment environment) {
+        MemoryDiagnostics.logMemoryUsage("PayPropOAuth2Service Constructor Start");
+        
         this.restTemplate = restTemplate;
         this.tokenRepository = tokenRepository;
         this.environment = environment;
         
+        MemoryDiagnostics.logMemoryUsage("PayPropOAuth2Service Dependencies Injected");
+        
         // Load existing tokens from database on startup
         loadTokensFromDatabase();
+        
+        MemoryDiagnostics.logMemoryUsage("PayPropOAuth2Service Constructor Complete");
     }
     
     /**
      * Load tokens from database on service initialization
      */
     private void loadTokensFromDatabase() {
+        MemoryDiagnostics.logMemoryUsage("loadTokensFromDatabase Start");
         System.out.println("🔄 Loading PayProp tokens from database...");
         
         Optional<PayPropToken> savedToken = tokenRepository.findMostRecentActiveToken();
+        MemoryDiagnostics.logMemoryUsage("Database Token Query Complete");
         if (savedToken.isPresent()) {
             PayPropToken token = savedToken.get();
             
