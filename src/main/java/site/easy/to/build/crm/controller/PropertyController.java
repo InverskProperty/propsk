@@ -69,6 +69,42 @@ public class PropertyController {
     }
 
     // ================================
+    // UTILITY METHODS
+    // ================================
+    
+    /**
+     * Utility method to resolve property ID (handles both numeric and PayProp IDs)
+     */
+    private Property resolvePropertyById(String id) {
+        System.out.println("🔍 Resolving property ID: " + id);
+        
+        Property property = null;
+        
+        // Try PayProp ID first (if it looks like a PayProp ID)
+        if (id.length() > 5 && id.matches(".*[a-zA-Z].*")) {
+            System.out.println("   ID looks like PayProp ID (contains letters)");
+            if (propertyService instanceof PropertyServiceImpl) {
+                property = ((PropertyServiceImpl) propertyService).findByPayPropIdString(id);
+                System.out.println("   PayProp lookup result: " + (property != null ? "FOUND" : "NOT FOUND"));
+            }
+        } else {
+            System.out.println("   ID looks like numeric ID");
+            try {
+                Long numericId = Long.valueOf(id);
+                property = propertyService.findById(numericId);
+                System.out.println("   Numeric lookup result: " + (property != null ? "FOUND" : "NOT FOUND"));
+            } catch (NumberFormatException e) {
+                System.out.println("   Numeric parse failed, trying as PayProp ID");
+                if (propertyService instanceof PropertyServiceImpl) {
+                    property = ((PropertyServiceImpl) propertyService).findByPayPropIdString(id);
+                }
+            }
+        }
+        
+        return property;
+    }
+
+    // ================================
     // MAIN PROPERTY LISTING ENDPOINTS
     // ================================
 
@@ -503,9 +539,9 @@ public class PropertyController {
     }
 
     @GetMapping("/update/{id}")
-    public String showUpdatePropertyForm(@PathVariable("id") Long id, Model model, Authentication authentication) {
+    public String showUpdatePropertyForm(@PathVariable("id") String id, Model model, Authentication authentication) {
         try {
-            Property property = propertyService.findById(id);
+            Property property = resolvePropertyById(id);
             if (property == null) {
                 model.addAttribute("error", "Property not found");
                 return "error/not-found";
@@ -595,9 +631,9 @@ public class PropertyController {
     }
 
     @PostMapping("/delete/{id}")
-    public String deleteProperty(@PathVariable("id") Long id, Authentication authentication, 
+    public String deleteProperty(@PathVariable("id") String id, Authentication authentication, 
                                 RedirectAttributes redirectAttributes) {
-        Property property = propertyService.findById(id);
+        Property property = resolvePropertyById(id);
         if (property == null) {
             return "error/not-found";
         }
@@ -678,7 +714,7 @@ public class PropertyController {
     // ================================
 
     @PostMapping("/archive/{id}")
-    public String archiveProperty(@PathVariable("id") Long id, Authentication authentication,
+    public String archiveProperty(@PathVariable("id") String id, Authentication authentication,
                                  RedirectAttributes redirectAttributes) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
         User user = userService.findById(Long.valueOf(userId));
@@ -686,7 +722,7 @@ public class PropertyController {
             return "error/account-inactive";
         }
 
-        Property property = propertyService.findById(id);
+        Property property = resolvePropertyById(id);
         if (property == null) {
             return "error/not-found";
         }
@@ -830,8 +866,8 @@ public class PropertyController {
 
     @GetMapping("/api/{id}")
     @ResponseBody
-    public Property getPropertyApi(@PathVariable("id") Long id) {
-        Property property = propertyService.findById(id);
+    public Property getPropertyApi(@PathVariable("id") String id) {
+        Property property = resolvePropertyById(id);
         if (property == null) {
             throw new RuntimeException("Property not found");
         }
@@ -930,9 +966,9 @@ public class PropertyController {
 
     @GetMapping("/{id}/maintenance-summary")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> getMaintenanceSummary(@PathVariable("id") Long id, Authentication authentication) {
+    public ResponseEntity<Map<String, Object>> getMaintenanceSummary(@PathVariable("id") String id, Authentication authentication) {
         try {
-            Property property = propertyService.findById(id);
+            Property property = resolvePropertyById(id);
             if (property == null) {
                 return ResponseEntity.notFound().build();
             }

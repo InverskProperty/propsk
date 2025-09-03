@@ -2799,6 +2799,10 @@ public class PortfolioController {
                 portfolioAssignmentService.assignPropertiesToPortfolio(portfolioId, propertyIds, userId);
                 
             System.out.println("🔍 DEBUG: Got result from PortfolioAssignmentService: " + result);
+            System.out.println("🔍 DEBUG: Result assigned count: " + result.getAssignedCount());
+            System.out.println("🔍 DEBUG: Result synced count: " + result.getSyncedCount());
+            System.out.println("🔍 DEBUG: Result errors: " + result.getErrors());
+            System.out.println("🔍 DEBUG: Result skipped count: " + result.getSkippedCount());
             
             assignedCount = result.getAssignedCount();
             syncedCount = result.getSyncedCount();
@@ -3147,6 +3151,49 @@ public class PortfolioController {
         propertyData.put("currentTenant", null);
         
         return propertyData;
+    }
+
+    // ===== MAINTENANCE ENDPOINTS =====
+    
+    /**
+     * DANGER: Clear all portfolio assignments from the database
+     * WARNING: This cannot be undone and will remove ALL portfolio-property assignments
+     */
+    @PostMapping("/clear-all-assignments")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> clearAllPortfolioAssignments(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Get user ID
+            Long userId = AuthenticationUtils.getCurrentUserId(authentication);
+            if (userId == null) {
+                response.put("success", false);
+                response.put("message", "Authentication required");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            }
+            
+            // Call the service to clear all assignments
+            PortfolioAssignmentService.ClearResult result = portfolioAssignmentService.clearAllPortfolioAssignments(userId);
+            
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("totalCleared", result.getTotalCleared());
+            response.put("directFkCleared", result.getDirectFkCleared());
+            response.put("summary", result.getSummary());
+            
+            if (result.isSuccess()) {
+                return ResponseEntity.ok(response);
+            } else {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            }
+            
+        } catch (Exception e) {
+            logger.error("❌ Failed to clear portfolio assignments", e);
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
     }
 
     // ===== CONTROLLER SEPARATION COMPLETED =====

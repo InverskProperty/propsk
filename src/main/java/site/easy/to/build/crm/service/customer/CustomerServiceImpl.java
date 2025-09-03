@@ -202,14 +202,21 @@ public class CustomerServiceImpl implements CustomerService {
     public List<Customer> findPropertyOwners() {
         // Use assignment service to get all customers with OWNER assignment type
         try {
+            System.out.println("🔍 CustomerServiceImpl.findPropertyOwners() - Using NEW assignment service logic");
             List<CustomerPropertyAssignment> ownerAssignments = assignmentService.getAssignmentsByType(AssignmentType.OWNER);
-            return ownerAssignments.stream()
+            System.out.println("🔍 Found " + ownerAssignments.size() + " owner assignments from assignment service");
+            
+            List<Customer> customers = ownerAssignments.stream()
                 .map(CustomerPropertyAssignment::getCustomer)
                 .filter(customer -> customer != null) // Safety check
                 .distinct()
                 .collect(Collectors.toList());
+            
+            System.out.println("🔍 Returning " + customers.size() + " unique property owners");
+            return customers;
         } catch (Exception e) {
             // Fallback to old method if assignment service fails
+            System.out.println("🔍 Assignment service FAILED for findPropertyOwners, falling back to old method: " + e.getMessage());
             log.warn("Assignment service failed for findPropertyOwners, falling back to old method: " + e.getMessage(), e);
             return customerRepository.findPropertyOwners();
         }
@@ -219,14 +226,21 @@ public class CustomerServiceImpl implements CustomerService {
     public List<Customer> findTenants() {
         // Use assignment service to get all customers with TENANT assignment type
         try {
+            System.out.println("🔍 CustomerServiceImpl.findTenants() - Using NEW assignment service logic");
             List<CustomerPropertyAssignment> tenantAssignments = assignmentService.getAssignmentsByType(AssignmentType.TENANT);
-            return tenantAssignments.stream()
+            System.out.println("🔍 Found " + tenantAssignments.size() + " tenant assignments from assignment service");
+            
+            List<Customer> customers = tenantAssignments.stream()
                 .map(CustomerPropertyAssignment::getCustomer)
                 .filter(customer -> customer != null) // Safety check
                 .distinct()
                 .collect(Collectors.toList());
+            
+            System.out.println("🔍 Returning " + customers.size() + " unique tenants");
+            return customers;
         } catch (Exception e) {
             // Fallback to old method if assignment service fails
+            System.out.println("🔍 Assignment service FAILED for findTenants, falling back to old method: " + e.getMessage());
             log.warn("Assignment service failed for findTenants, falling back to old method: " + e.getMessage(), e);
             return customerRepository.findTenants();
         }

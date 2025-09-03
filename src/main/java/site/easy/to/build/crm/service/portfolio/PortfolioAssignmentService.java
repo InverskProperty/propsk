@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,6 +40,9 @@ public class PortfolioAssignmentService {
     @Autowired(required = false) // Make optional for non-PayProp environments
     @Lazy // Break circular dependency with PayPropPortfolioSyncService
     private PayPropPortfolioSyncService payPropSyncService;
+    
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
     
     // ==================== MAIN ASSIGNMENT METHODS ====================
     
@@ -969,6 +973,184 @@ public class PortfolioAssignmentService {
             assignmentRepository.save(assignment);
             
             return false;
+        }
+    }
+    
+    // ==================== MAINTENANCE METHODS ====================
+    
+    /**
+     * Clear all existing portfolio assignments from the database
+     * WARNING: This will remove ALL property-portfolio assignments and cannot be undone
+     */
+    @Transactional
+    public ClearResult clearAllPortfolioAssignments(Long userId) {
+        log.warn("🚨 CLEARING ALL PORTFOLIO ASSIGNMENTS - This cannot be undone!");
+        
+        ClearResult result = new ClearResult();
+        
+        try {
+            // Get count before clearing
+            List<PropertyPortfolioAssignment> allAssignments = assignmentRepository.findAll();
+            int totalCount = allAssignments.size();
+            
+            log.info("Found {} total portfolio assignments to clear", totalCount);
+            
+            // Clear all assignments
+            assignmentRepository.deleteAll();
+            
+            // Also clear any direct FK assignments in properties
+            List<Property> propertiesWithDirectAssignment = propertyService.findAll()
+                .stream()
+                .filter(p -> p.getPortfolio() != null)
+                .collect(Collectors.toList());
+            
+            log.info("Found {} properties with direct portfolio FK assignments", propertiesWithDirectAssignment.size());
+            
+            for (Property property : propertiesWithDirectAssignment) {
+                property.setPortfolio(null);
+                property.setPortfolioAssignmentDate(null);
+                propertyService.save(property);
+                result.incrementDirectFkCleared();
+            }
+            
+            result.setTotalCleared(totalCount);
+            result.setSuccess(true);
+            result.setMessage(String.format("Successfully cleared %d portfolio assignments and %d direct FK assignments", 
+                totalCount, result.getDirectFkCleared()));
+            
+            log.warn("🗑️ COMPLETED: Cleared {} portfolio assignments and {} direct FK assignments", 
+                totalCount, result.getDirectFkCleared());
+                
+        } catch (Exception e) {
+            result.setSuccess(false);
+            result.setMessage("Failed to clear portfolio assignments: " + e.getMessage());
+            log.error("❌ Failed to clear portfolio assignments", e);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Delete ALL portfolios and their assignments - complete cleanup
+     * WARNING: This will delete ALL portfolios, assignments, tag links, and sync logs
+     */
+    @Transactional
+    public ClearResult deleteAllPortfoliosAndAssignments(Long userId) {
+        log.warn("🚨 DELETING ALL PORTFOLIOS AND ASSIGNMENTS - This cannot be undone!");
+        
+        ClearResult result = new ClearResult();
+        int totalPortfolios = 0;
+        int totalAssignments = 0;
+        int tagLinksDeleted = 0;
+        int syncLogsDeleted = 0;
+        int directFkCleared = 0;
+        
+        try {
+            // Step 1: Count and delete all portfolio assignments
+            List<PropertyPortfolioAssignment> allAssignments = assignmentRepository.findAll();
+            totalAssignments = allAssignments.size();
+            log.info("Found {} portfolio assignments to delete", totalAssignments);
+            
+            if (totalAssignments > 0) {
+                assignmentRepository.deleteAll();
+                log.info("✅ Deleted {} portfolio assignments", totalAssignments);
+            }
+            
+            // Step 2: Delete PayProp tag links
+            List<Portfolio> allPortfolios = portfolioRepository.findAll();
+            totalPortfolios = allPortfolios.size();
+            log.info("Found {} portfolios to delete", totalPortfolios);
+            
+            for (Portfolio portfolio : allPortfolios) {
+                // Delete tag links for this portfolio
+                if (!portfolio.getPayPropTagLinks().isEmpty()) {
+                    tagLinksDeleted += portfolio.getPayPropTagLinks().size();
+                    portfolio.getPayPropTagLinks().clear();
+                    portfolioRepository.save(portfolio);
+                }
+            }
+            
+            // Step 3: Delete sync logs (if repository exists)
+            try {
+                // Use JdbcTemplate to delete sync logs directly
+                jdbcTemplate.execute("DELETE FROM portfolio_sync_logs");
+                List<Map<String, Object>> syncLogCount = jdbcTemplate.queryForList("SELECT ROW_COUNT() as deleted_count");
+                if (!syncLogCount.isEmpty()) {
+                    Object countObj = syncLogCount.get(0).get("deleted_count");
+                    if (countObj != null) {
+                        syncLogsDeleted = Integer.parseInt(countObj.toString());
+                    }
+                }
+                log.info("✅ Deleted {} portfolio sync logs", syncLogsDeleted);
+            } catch (Exception e) {
+                log.warn("Could not delete sync logs (table may not exist): {}", e.getMessage());
+            }
+            
+            // Step 4: Clear direct FK assignments in properties
+            List<Property> propertiesWithDirectAssignment = propertyService.findAll()
+                .stream()
+                .filter(p -> p.getPortfolio() != null)
+                .collect(Collectors.toList());
+            
+            directFkCleared = propertiesWithDirectAssignment.size();
+            log.info("Found {} properties with direct portfolio FK assignments", directFkCleared);
+            
+            for (Property property : propertiesWithDirectAssignment) {
+                property.setPortfolio(null);
+                property.setPortfolioAssignmentDate(null);
+                propertyService.save(property);
+            }
+            
+            // Step 5: Delete all portfolios
+            if (totalPortfolios > 0) {
+                portfolioRepository.deleteAll();
+                log.info("✅ Deleted {} portfolios", totalPortfolios);
+            }
+            
+            result.setSuccess(true);
+            result.setTotalCleared(totalAssignments);
+            result.setDirectFkCleared(directFkCleared);
+            result.setMessage(String.format(
+                "Successfully deleted %d portfolios, %d assignments, %d tag links, %d sync logs, and cleared %d direct FK assignments", 
+                totalPortfolios, totalAssignments, tagLinksDeleted, syncLogsDeleted, directFkCleared));
+            
+            log.warn("🗑️ COMPLETED FULL CLEANUP: {} portfolios, {} assignments, {} tag links, {} sync logs, {} direct FKs", 
+                totalPortfolios, totalAssignments, tagLinksDeleted, syncLogsDeleted, directFkCleared);
+                
+        } catch (Exception e) {
+            result.setSuccess(false);
+            result.setMessage("Failed to delete portfolios and assignments: " + e.getMessage());
+            log.error("❌ Failed to delete portfolios and assignments", e);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Result class for clear operations
+     */
+    public static class ClearResult {
+        private boolean success = false;
+        private String message;
+        private int totalCleared = 0;
+        private int directFkCleared = 0;
+        
+        public boolean isSuccess() { return success; }
+        public void setSuccess(boolean success) { this.success = success; }
+        
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
+        
+        public int getTotalCleared() { return totalCleared; }
+        public void setTotalCleared(int totalCleared) { this.totalCleared = totalCleared; }
+        
+        public int getDirectFkCleared() { return directFkCleared; }
+        public void setDirectFkCleared(int directFkCleared) { this.directFkCleared = directFkCleared; }
+        public void incrementDirectFkCleared() { this.directFkCleared++; }
+        
+        public String getSummary() {
+            return String.format("Success: %s, Total cleared: %d, Direct FK cleared: %d, Message: %s", 
+                success, totalCleared, directFkCleared, message);
         }
     }
     
