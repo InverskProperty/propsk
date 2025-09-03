@@ -739,7 +739,7 @@ public class PropertyController {
             return "redirect:/access-denied";
         }
 
-        propertyService.archiveProperty(id);
+        propertyService.archiveProperty(property.getId());
         redirectAttributes.addFlashAttribute("successMessage", "Property archived successfully!");
         return "redirect:/employee/property/" + id;
     }
@@ -992,10 +992,10 @@ public class PropertyController {
             Map<String, Object> response = new HashMap<>();
             
             try {
-                List<Ticket> emergencyTickets = ticketService.getTicketsByPropertyIdAndType(id, "emergency");
-                List<Ticket> urgentTickets = ticketService.getTicketsByPropertyIdAndType(id, "urgent");
-                List<Ticket> routineTickets = ticketService.getTicketsByPropertyIdAndType(id, "routine");
-                List<Ticket> maintenanceTickets = ticketService.getTicketsByPropertyIdAndType(id, "maintenance");
+                List<Ticket> emergencyTickets = ticketService.getTicketsByPropertyIdAndType(property.getId(), "emergency");
+                List<Ticket> urgentTickets = ticketService.getTicketsByPropertyIdAndType(property.getId(), "urgent");
+                List<Ticket> routineTickets = ticketService.getTicketsByPropertyIdAndType(property.getId(), "routine");
+                List<Ticket> maintenanceTickets = ticketService.getTicketsByPropertyIdAndType(property.getId(), "maintenance");
                 
                 response.put("emergencyMaintenanceCount", emergencyTickets.size());
                 response.put("urgentMaintenanceCount", urgentTickets.size());

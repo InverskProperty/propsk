@@ -3166,7 +3166,8 @@ public class PortfolioController {
         
         try {
             // Get user ID
-            Long userId = AuthenticationUtils.getCurrentUserId(authentication);
+            int userIdInt = authenticationUtils.getLoggedInUserId(authentication);
+            Long userId = Long.valueOf(userIdInt);
             if (userId == null) {
                 response.put("success", false);
                 response.put("message", "Authentication required");
@@ -3189,7 +3190,7 @@ public class PortfolioController {
             }
             
         } catch (Exception e) {
-            logger.error("❌ Failed to clear portfolio assignments", e);
+            log.error("❌ Failed to clear portfolio assignments", e);
             response.put("success", false);
             response.put("message", "Error: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
