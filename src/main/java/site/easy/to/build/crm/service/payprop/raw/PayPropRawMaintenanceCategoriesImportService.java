@@ -42,10 +42,10 @@ public class PayPropRawMaintenanceCategoriesImportService {
         
         PayPropRawImportResult result = new PayPropRawImportResult();
         result.setStartTime(LocalDateTime.now());
-        result.setEndpoint("/payments/categories");
+        result.setEndpoint("/maintenance/categories");
         
         try {
-            String endpoint = "/payments/categories";
+            String endpoint = "/maintenance/categories";
             List<Map<String, Object>> categories = apiClient.fetchAllPages(endpoint, this::processCategoryItem);
             
             result.setTotalFetched(categories.size());
@@ -96,8 +96,8 @@ public class PayPropRawMaintenanceCategoriesImportService {
         
         String insertSql = """
             INSERT IGNORE INTO payprop_maintenance_categories (
-                payprop_external_id, name, description, imported_at
-            ) VALUES (?, ?, ?, ?)
+                payprop_external_id, name, description, category_type, is_active
+            ) VALUES (?, ?, ?, ?, ?)
         """;
         
         int importedCount = 0;
@@ -153,7 +153,8 @@ public class PayPropRawMaintenanceCategoriesImportService {
         stmt.setString(paramIndex++, getStringValue(category, "id")); // payprop_external_id
         stmt.setString(paramIndex++, getStringValue(category, "name")); // name
         stmt.setString(paramIndex++, getStringValue(category, "description")); // description
-        stmt.setTimestamp(paramIndex++, Timestamp.valueOf(LocalDateTime.now())); // imported_at
+        stmt.setString(paramIndex++, "maintenance"); // category_type
+        stmt.setBoolean(paramIndex++, true); // is_active
     }
     
     // Helper methods
