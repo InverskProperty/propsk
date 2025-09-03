@@ -3,6 +3,7 @@ package site.easy.to.build.crm.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import site.easy.to.build.crm.validator.ValidMaintenanceCategory;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -84,8 +85,7 @@ public class Ticket {
     // ===== MAINTENANCE SPECIFIC FIELDS =====
     
     @Column(name = "maintenance_category", length = 50)
-    @Pattern(regexp = "^(plumbing|electrical|heating|general|emergency|appliance|external|internal)$", 
-             message = "Invalid maintenance category")
+    @ValidMaintenanceCategory
     private String maintenanceCategory;
     
     @Column(name = "urgency_level", length = 20)
