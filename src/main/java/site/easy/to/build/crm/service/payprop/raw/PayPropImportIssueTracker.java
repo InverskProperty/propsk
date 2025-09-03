@@ -264,6 +264,7 @@ public class PayPropImportIssueTracker {
      */
     public static class IssueType {
         public static final String EMPTY_ID = "EMPTY_ID";
+        public static final String EMPTY_NAME = "EMPTY_NAME";
         public static final String DUPLICATE_ID = "DUPLICATE_ID";
         public static final String INVALID_DATA = "INVALID_DATA";
         public static final String CONSTRAINT_VIOLATION = "CONSTRAINT_VIOLATION";

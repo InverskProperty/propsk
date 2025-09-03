@@ -11,6 +11,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.ticket.TicketService;
@@ -56,6 +61,9 @@ public class PayPropMaintenanceSyncService {
     
     @Autowired
     private PaymentCategoryRepository paymentCategoryRepository;
+    
+    @Autowired
+    private DataSource dataSource;
     
     @Autowired
     private TagNamespaceService tagNamespaceService;
@@ -601,10 +609,10 @@ public class PayPropMaintenanceSyncService {
         if (ticket.getPayPropCategoryId() != null) {
             payload.put("category_id", ticket.getPayPropCategoryId());
         } else if (ticket.getMaintenanceCategory() != null) {
-            // Try to find category by name
-            PaymentCategory category = paymentCategoryRepository.findByCategoryName(ticket.getMaintenanceCategory());
-            if (category != null && category.getPayPropCategoryId() != null) {
-                payload.put("category_id", category.getPayPropCategoryId());
+            // Find category ID from maintenance categories table
+            String categoryId = findMaintenanceCategoryId(ticket.getMaintenanceCategory());
+            if (categoryId != null) {
+                payload.put("category_id", categoryId);
             }
         }
         
@@ -795,6 +803,34 @@ public class PayPropMaintenanceSyncService {
             log.error("❌ Error finding manager user: {}", e.getMessage());
             return findDefaultUser();
         }
+    }
+
+    /**
+     * Find PayProp maintenance category ID by category name
+     */
+    private String findMaintenanceCategoryId(String categoryName) {
+        if (categoryName == null) return null;
+        
+        String sql = "SELECT payprop_external_id FROM payprop_maintenance_categories WHERE name = ? AND is_active = true";
+        
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, categoryName);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    String categoryId = rs.getString("payprop_external_id");
+                    log.debug("✅ Found PayProp category ID '{}' for maintenance category: {}", categoryId, categoryName);
+                    return categoryId;
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Error querying maintenance category for '{}': {}", categoryName, e.getMessage());
+        }
+        
+        log.warn("⚠️ No PayProp category ID found for maintenance category: {}", categoryName);
+        return null;
     }
 
     /**
