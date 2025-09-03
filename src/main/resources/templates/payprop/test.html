@@ -1529,6 +1529,9 @@ ORDER BY transaction_count DESC;</code></pre>
                                             <button class="btn btn-light mb-2" onclick="testCompletePaymentsCategoriesImport()">
                                                 <i class="fas fa-money-bill"></i> Test Payments Categories Import (Reference Data)
                                             </button>
+                                            <button class="btn btn-light mb-2" onclick="testCompleteMaintenanceCategoriesImport()">
+                                                <i class="fas fa-wrench"></i> Test Maintenance Categories Import (Reference Data)
+                                            </button>
                                         </div>
                                         <div class="col-md-6">
                                             <button class="btn btn-info mb-2" onclick="getSampleDataFromEndpoint()">
@@ -5841,6 +5844,30 @@ ORDER BY transaction_count DESC;</code></pre>
                 
             } catch (error) {
                 showErrorResult('endpointTestResults', 'Error testing payments categories import: ' + error.message);
+            }
+        }
+
+        async function testCompleteMaintenanceCategoriesImport() {
+            showLoadingState('endpointTestResults', 'Testing complete maintenance categories import - Reference data...');
+            
+            try {
+                const response = await fetch('/api/payprop/raw-import/test-complete-maintenance-categories', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        [csrfHeaderName]: csrfToken
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                displayCategoriesResults('Maintenance Categories', result);
+                
+            } catch (error) {
+                showErrorResult('endpointTestResults', 'Error testing maintenance categories import: ' + error.message);
             }
         }
 
