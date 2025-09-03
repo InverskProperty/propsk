@@ -770,10 +770,10 @@ public class TicketController {
     }
 
     @PostMapping("/create-ticket")
-    public String createTicket(@ModelAttribute("ticket") @Validated Ticket ticket, BindingResult bindingResult, 
+    public String createTicket(@ModelAttribute("ticket") Ticket ticket, BindingResult bindingResult, 
                                @RequestParam("customerId") Long customerId,
-                               @RequestParam Map<String, String> formParams, Model model,
-                               @RequestParam("employeeId") int employeeId, Authentication authentication) {
+                               @RequestParam("employeeId") int employeeId,
+                               Authentication authentication, Model model) {
         
         System.out.println("🎫🎫🎫 TICKET CONTROLLER HIT! Spring routing is working! 🎫🎫🎫");
         System.out.println("🎫=== TICKET CREATION DEBUG START ===");
@@ -784,7 +784,6 @@ public class TicketController {
         System.out.println("🏷️ Ticket Type: " + ticket.getType());
         System.out.println("🔴 Status: " + ticket.getStatus());
         System.out.println("⚡ Priority: " + ticket.getPriority());
-        System.out.println("📋 All Form Params: " + formParams);
 
         try {
             System.out.println("🔍 Step 1: Getting authenticated user...");
