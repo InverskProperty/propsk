@@ -66,54 +66,66 @@ public class PayPropMaintenanceSyncService {
     // ===== IMPORT FROM PAYPROP =====
     
     /**
-     * Sync maintenance categories from PayProp
+     * Sync maintenance categories from PayProp - CORRECTED VERSION
+     * Uses the proper payprop_maintenance_categories table
      */
     public SyncResult syncMaintenanceCategories() {
         log.info("🏷️ Syncing maintenance categories from PayProp...");
         
         try {
-            Map<String, Object> response = apiClient.get("/maintenance/categories");
+            // Use the correct endpoint: /payments/categories (not /maintenance/categories)
+            List<Map<String, Object>> categories = apiClient.fetchAllPages("/payments/categories", 
+                item -> {
+                    log.debug("Maintenance Category - ID: {} Name: {} Description: {}", 
+                        item.get("id"), item.get("name"), item.get("description"));
+                    return item;
+                });
             
-            List<Map<String, Object>> categories = extractCategoriesFromResponse(response);
+            log.info("📦 PayProp API returned: {} maintenance categories", categories.size());
             
-            int created = 0, updated = 0;
+            // Clear existing data for fresh import
+            int deletedCount = jdbcTemplate.update("DELETE FROM payprop_maintenance_categories");
+            log.info("Cleared {} existing maintenance categories for fresh import", deletedCount);
+            
+            int created = 0;
+            String insertSql = """
+                INSERT IGNORE INTO payprop_maintenance_categories (
+                    payprop_external_id, name, description, imported_at
+                ) VALUES (?, ?, ?, ?)
+            """;
             
             for (Map<String, Object> categoryData : categories) {
-                String externalId = (String) categoryData.get("id");
-                String name = (String) categoryData.get("name");
-                String description = (String) categoryData.get("description");
+                String externalId = getStringValue(categoryData, "id");
+                String name = getStringValue(categoryData, "name");
+                String description = getStringValue(categoryData, "description");
                 
                 if (externalId != null && name != null) {
-                    // For now, we'll store categories as PaymentCategory entities
-                    // Later, you might want a dedicated MaintenanceCategory entity
-                    PaymentCategory category = paymentCategoryRepository.findByPayPropCategoryId(externalId);
+                    int result = jdbcTemplate.update(insertSql, 
+                        externalId, name, description, LocalDateTime.now());
                     
-                    if (category == null) {
-                        category = new PaymentCategory();
-                        category.setPayPropCategoryId(externalId);
-                        category.setCategoryType("MAINTENANCE");
-                        category.setCreatedAt(LocalDateTime.now());
+                    if (result > 0) {
                         created++;
-                    } else {
-                        updated++;
                     }
-                    
-                    category.setCategoryName(name);
-                    category.setDescription(description);
-                    category.setIsActive("Y");
-                    category.setUpdatedAt(LocalDateTime.now());
-                    
-                    paymentCategoryRepository.save(category);
                 }
             }
             
+            log.info("✅ Maintenance categories sync completed: {} imported", created);
+            
             return SyncResult.success("Maintenance categories synced", 
-                Map.of("created", created, "updated", updated, "total", categories.size()));
+                Map.of("total_fetched", categories.size(), "imported", created, "deleted", deletedCount));
                 
         } catch (Exception e) {
             log.error("❌ Failed to sync maintenance categories: {}", e.getMessage(), e);
             return SyncResult.failure("Failed to sync maintenance categories: " + e.getMessage());
         }
+    }
+    
+    // Helper method
+    private String getStringValue(Map<String, Object> map, String key) {
+        if (map == null || !map.containsKey(key) || map.get(key) == null) {
+            return null;
+        }
+        return map.get(key).toString();
     }
     
     /**
@@ -262,13 +274,23 @@ public class PayPropMaintenanceSyncService {
             ticket.setPayPropLastSync(LocalDateTime.now());
             ticket.setPayPropSynced(true);
             
-            // Map category with namespace
+            // Map category from payprop_maintenance_categories table
             if (payPropCategoryId != null) {
-                PaymentCategory category = paymentCategoryRepository.findByPayPropCategoryId(payPropCategoryId);
-                if (category != null) {
-                    // Create namespaced maintenance tag
-                    String namespacedCategory = tagNamespaceService.createMaintenanceTag(category.getCategoryName());
-                    ticket.setMaintenanceCategory(namespacedCategory);
+                try {
+                    String categoryQuery = "SELECT name FROM payprop_maintenance_categories WHERE payprop_external_id = ? LIMIT 1";
+                    List<String> categoryNames = jdbcTemplate.queryForList(categoryQuery, String.class, payPropCategoryId);
+                    
+                    if (!categoryNames.isEmpty()) {
+                        String categoryName = categoryNames.get(0);
+                        // Create namespaced maintenance tag
+                        String namespacedCategory = tagNamespaceService.createMaintenanceTag(categoryName);
+                        ticket.setMaintenanceCategory(namespacedCategory);
+                        log.debug("✅ Mapped PayProp category {} to CRM category {}", payPropCategoryId, namespacedCategory);
+                    } else {
+                        log.warn("⚠️ PayProp category {} not found in payprop_maintenance_categories table", payPropCategoryId);
+                    }
+                } catch (Exception e) {
+                    log.error("❌ Error mapping PayProp category {}: {}", payPropCategoryId, e.getMessage());
                 }
             }
             

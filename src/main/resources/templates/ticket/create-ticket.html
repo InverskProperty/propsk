@@ -144,18 +144,14 @@
                                     <div class="input-group">
                                         <select id="maintenanceCategory" th:field="*{maintenanceCategory}" class="form-control">
                                             <option value="">Select Category</option>
-                                            <option value="plumbing">Plumbing</option>
-                                            <option value="electrical">Electrical</option>
-                                            <option value="heating">Heating</option>
-                                            <option value="appliance">Appliance</option>
-                                            <option value="external">External</option>
-                                            <option value="internal">Internal</option>
-                                            <option value="gardening">Gardening</option>
-                                            <option value="cleaning">Cleaning</option>
-                                            <option value="pest_control">Pest Control</option>
-                                            <option value="security">Security</option>
-                                            <option value="general">General</option>
+                                            <!-- Categories will be loaded dynamically from PayProp -->
                                         </select>
+                                    </div>
+                                    <div class="input-group">
+                                        <small class="text-muted">
+                                            <i class="fa fa-info-circle"></i> 
+                                            <span id="categoriesStatus">Loading categories from PayProp...</span>
+                                        </small>
                                     </div>
 
                                     <label class="m-t-20" for="urgencyLevel">Urgency Level:</label>
@@ -349,6 +345,9 @@
         
         $('.textarea_editor').wysihtml5();
         
+        // Load PayProp maintenance categories
+        loadMaintenanceCategories();
+        
         // Show/hide maintenance fields based on ticket type
         $('#type').on('change', function() {
             console.log('🔧 Ticket type changed to:', this.value);
@@ -374,6 +373,66 @@
             console.log('📤 Form submission attempted');
         });
     });
+
+    // Load maintenance categories from PayProp
+    async function loadMaintenanceCategories() {
+        console.log('🏷️ Loading maintenance categories from PayProp...');
+        const statusElement = $('#categoriesStatus');
+        const categorySelect = $('#maintenanceCategory');
+        
+        try {
+            const response = await fetch('/employee/ticket/maintenance-categories');
+            const data = await response.json();
+            
+            if (data.success && data.categories && data.categories.length > 0) {
+                // Clear existing options except the default one
+                categorySelect.find('option:not(:first)').remove();
+                
+                // Add PayProp categories
+                data.categories.forEach(category => {
+                    const option = $('<option></option>')
+                        .attr('value', category.name)
+                        .text(category.name + (category.description ? ' - ' + category.description : ''));
+                    categorySelect.append(option);
+                });
+                
+                statusElement.html(`<i class="fa fa-check-circle text-success"></i> ${data.categories.length} categories loaded from PayProp`);
+                console.log('✅ Loaded', data.categories.length, 'maintenance categories from PayProp');
+                
+            } else {
+                // Fallback to default categories if PayProp data not available
+                console.log('⚠️ No PayProp categories found, using fallback categories');
+                statusElement.html(`<i class="fa fa-exclamation-triangle text-warning"></i> Using default categories (PayProp data not available)`);
+                addFallbackCategories();
+            }
+            
+        } catch (error) {
+            console.error('❌ Error loading maintenance categories:', error);
+            statusElement.html(`<i class="fa fa-exclamation-circle text-danger"></i> Error loading categories, using defaults`);
+            addFallbackCategories();
+        }
+    }
+
+    // Fallback categories if PayProp data isn't available
+    function addFallbackCategories() {
+        const categorySelect = $('#maintenanceCategory');
+        const fallbackCategories = [
+            'plumbing', 'electrical', 'heating', 'appliance', 'external', 
+            'internal', 'gardening', 'cleaning', 'pest_control', 'security', 'general'
+        ];
+        
+        // Clear existing options except the default one
+        categorySelect.find('option:not(:first)').remove();
+        
+        fallbackCategories.forEach(category => {
+            const option = $('<option></option>')
+                .attr('value', category)
+                .text(category.charAt(0).toUpperCase() + category.slice(1).replace('_', ' '));
+            categorySelect.append(option);
+        });
+        
+        console.log('📋 Added fallback maintenance categories');
+    }
 </script>
 
 </body>

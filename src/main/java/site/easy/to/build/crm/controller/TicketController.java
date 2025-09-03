@@ -1242,4 +1242,63 @@ public class TicketController {
         
         System.out.println("🔧 PayProp field population completed for ticket");
     }
+
+    /**
+     * Debug endpoint to check current maintenance categories
+     */
+    @GetMapping("/debug-categories")
+    @ResponseBody
+    public Map<String, Object> debugCategories(Authentication authentication) {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            // Get categories from payment_categories table (for comparison)
+            String paymentSql = "SELECT id, pay_prop_category_id, category_name, category_type, description, is_active, created_at FROM payment_categories WHERE category_type = 'MAINTENANCE' ORDER BY category_name";
+            List<Map<String, Object>> paymentMaintenanceCategories = jdbcTemplate.queryForList(paymentSql);
+            
+            // Get categories from payprop_maintenance_categories table (correct one)
+            String maintenanceSql = "SELECT id, payprop_external_id, name, description, imported_at FROM payprop_maintenance_categories ORDER BY name";
+            List<Map<String, Object>> payPropMaintenanceCategories = jdbcTemplate.queryForList(maintenanceSql);
+            
+            result.put("payment_table_maintenance_categories", paymentMaintenanceCategories.size());
+            result.put("payprop_maintenance_categories", payPropMaintenanceCategories.size());
+            result.put("payment_categories_data", paymentMaintenanceCategories);
+            result.put("payprop_maintenance_data", payPropMaintenanceCategories);
+            result.put("success", true);
+            
+            return result;
+            
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            return result;
+        }
+    }
+
+    /**
+     * Get maintenance categories for dropdown
+     */
+    @GetMapping("/maintenance-categories")
+    @ResponseBody
+    public Map<String, Object> getMaintenanceCategories(Authentication authentication) {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            // Get categories from the correct payprop_maintenance_categories table
+            String sql = "SELECT payprop_external_id, name, description FROM payprop_maintenance_categories WHERE name IS NOT NULL ORDER BY name";
+            List<Map<String, Object>> categories = jdbcTemplate.queryForList(sql);
+            
+            result.put("success", true);
+            result.put("categories", categories);
+            result.put("count", categories.size());
+            
+            return result;
+            
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            result.put("categories", new ArrayList<>());
+            return result;
+        }
+    }
 }
