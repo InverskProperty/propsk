@@ -33,13 +33,39 @@ public class OAuthUserServiceImpl implements OAuthUserService{
 
     private static final String APPLICATION_NAME = "Your-Application-Name";
     private static final GsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
-    private static NetHttpTransport HTTP_TRANSPORT;
-    static {
-        try {
-            HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-        } catch (GeneralSecurityException | IOException e) {
-            e.printStackTrace();
-            HTTP_TRANSPORT = null;
+    
+    // CRITICAL FIX: Thread-safe singleton to prevent memory leaks
+    private static final class HttpTransportHolder {
+        private static volatile NetHttpTransport INSTANCE;
+        private static final Object LOCK = new Object();
+        
+        static NetHttpTransport getInstance() {
+            if (INSTANCE == null) {
+                synchronized (LOCK) {
+                    if (INSTANCE == null) {
+                        try {
+                            INSTANCE = GoogleNetHttpTransport.newTrustedTransport();
+                            System.out.println("✅ Created singleton HTTP transport instance");
+                            
+                            // Add shutdown hook for proper cleanup
+                            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                                try {
+                                    if (INSTANCE != null) {
+                                        INSTANCE.shutdown();
+                                        System.out.println("✅ HTTP transport shutdown completed");
+                                    }
+                                } catch (Exception e) {
+                                    System.err.println("⚠️ HTTP transport shutdown error: " + e.getMessage());
+                                }
+                            }));
+                        } catch (GeneralSecurityException | IOException e) {
+                            System.err.println("❌ CRITICAL: Failed to create HTTP transport: " + e.getMessage());
+                            throw new RuntimeException("Unable to initialize Google HTTP transport", e);
+                        }
+                    }
+                }
+            }
+            return INSTANCE;
         }
     }
 
@@ -136,16 +162,12 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             System.out.println("🔄 Making refresh request to Google...");
             MemoryDiagnostics.logMemoryUsage("Before GoogleRefreshTokenRequest Creation");
             
-            // CRITICAL: Ensure HTTP_TRANSPORT is available, fallback if needed
-            NetHttpTransport transport = HTTP_TRANSPORT;
-            if (transport == null) {
-                System.err.println("⚠️ Static HTTP_TRANSPORT is null, creating new instance");
-                transport = GoogleNetHttpTransport.newTrustedTransport();
-            }
+            // CRITICAL FIX: Use singleton transport to prevent memory leaks
+            NetHttpTransport transport = HttpTransportHolder.getInstance();
             
             GoogleTokenResponse tokenResponse = new GoogleRefreshTokenRequest(
                 transport,
-                GsonFactory.getDefaultInstance(),
+                JSON_FACTORY,
                 oauthUser.getRefreshToken(),
                 clientId,
                 clientSecret
@@ -199,12 +221,8 @@ public class OAuthUserServiceImpl implements OAuthUserService{
     @ConditionalOnExpression("!T(site.easy.to.build.crm.util.StringUtils).isEmpty('${spring.security.oauth2.client.registration.google.client-id:}')")
     public void revokeAccess(OAuthUser oAuthUser) {
         try {
-            // CRITICAL: Use static transport to prevent memory leak, with null check
-            NetHttpTransport transport = HTTP_TRANSPORT;
-            if (transport == null) {
-                System.err.println("⚠️ Static HTTP_TRANSPORT is null for revoke, creating new instance");
-                transport = GoogleNetHttpTransport.newTrustedTransport();
-            }
+            // CRITICAL FIX: Use singleton transport to prevent memory leaks
+            NetHttpTransport transport = HttpTransportHolder.getInstance();
             HttpRequestFactory requestFactory = transport.createRequestFactory();
 
             GenericUrl url = new GenericUrl("https://accounts.google.com/o/oauth2/revoke");
