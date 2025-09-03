@@ -13,6 +13,8 @@ import site.easy.to.build.crm.entity.Ticket;
 import site.easy.to.build.crm.entity.Lead;
 import site.easy.to.build.crm.entity.Contract;
 import site.easy.to.build.crm.service.user.OAuthUserService;
+import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentService;
+import site.easy.to.build.crm.entity.AssignmentType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,12 +30,14 @@ public class CustomerServiceImpl implements CustomerService {
     private static final Logger log = LoggerFactory.getLogger(CustomerServiceImpl.class);
     
     private final CustomerRepository customerRepository;
+    private final CustomerPropertyAssignmentService assignmentService;
     
     @Autowired(required = false)
     private OAuthUserService oAuthUserService;
 
-    public CustomerServiceImpl(CustomerRepository customerRepository) {
+    public CustomerServiceImpl(CustomerRepository customerRepository, CustomerPropertyAssignmentService assignmentService) {
         this.customerRepository = customerRepository;
+        this.assignmentService = assignmentService;
     }
 
     @Override
@@ -195,20 +199,47 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public List<Customer> findPropertyOwners() {
-        // Use the working repository method
-        return customerRepository.findPropertyOwners();
+        // Use assignment service to get all customers with OWNER assignment type
+        try {
+            return assignmentService.getAssignmentsByType(AssignmentType.OWNER).stream()
+                .map(assignment -> assignment.getCustomer())
+                .distinct()
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            // Fallback to old method if assignment service fails
+            log.warn("Assignment service failed, falling back to old method: " + e.getMessage());
+            return customerRepository.findPropertyOwners();
+        }
     }
 
     @Override
     public List<Customer> findTenants() {
-        // Use the working repository method
-        return customerRepository.findTenants();
+        // Use assignment service to get all customers with TENANT assignment type
+        try {
+            return assignmentService.getAssignmentsByType(AssignmentType.TENANT).stream()
+                .map(assignment -> assignment.getCustomer())
+                .distinct()
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            // Fallback to old method if assignment service fails
+            log.warn("Assignment service failed, falling back to old method: " + e.getMessage());
+            return customerRepository.findTenants();
+        }
     }
 
     @Override
     public List<Customer> findContractors() {
-        // Use the working repository method  
-        return customerRepository.findContractors();
+        // Use assignment service to get all customers with CONTRACTOR assignment type
+        try {
+            return assignmentService.getAssignmentsByType(AssignmentType.CONTRACTOR).stream()
+                .map(assignment -> assignment.getCustomer())
+                .distinct()
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            // Fallback to old method if assignment service fails
+            log.warn("Assignment service failed, falling back to old method: " + e.getMessage());
+            return customerRepository.findContractors();
+        }
     }
 
     @Override
