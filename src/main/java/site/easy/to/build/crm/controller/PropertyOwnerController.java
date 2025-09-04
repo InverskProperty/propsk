@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerLoginInfo;
+import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.PropertyOwner;
 import site.easy.to.build.crm.entity.Tenant;
@@ -253,13 +254,13 @@ public class PropertyOwnerController {
 
             List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
             
-            // Calculate occupancy for ALL properties first
+            // Calculate occupancy for ALL properties first - FIXED: Use CustomerService instead of empty TenantService
             List<Property> allOccupiedProperties = properties.stream()
-                .filter(p -> tenantService.findActiveTenantsForProperty(p.getId()).size() > 0)
+                .filter(p -> customerService.findActiveTenantsForProperty(p.getId()).size() > 0)
                 .collect(Collectors.toList());
             
             List<Property> allVacantProperties = properties.stream()
-                .filter(p -> tenantService.findActiveTenantsForProperty(p.getId()).size() == 0)
+                .filter(p -> customerService.findActiveTenantsForProperty(p.getId()).size() == 0)
                 .collect(Collectors.toList());
             
             // Filter by status if provided
@@ -326,9 +327,9 @@ public class PropertyOwnerController {
                 return "redirect:/access-denied";
             }
 
-            // Get tenants for this property
-            List<Tenant> tenants = tenantService.findByPropertyId(propertyId);
-            List<Tenant> activeTenants = tenantService.findActiveTenantsForProperty(propertyId);
+            // Get tenants for this property - FIXED: Use CustomerService instead of empty TenantService
+            List<Customer> tenantCustomers = customerService.findTenantsByProperty(propertyId);
+            List<Customer> activeTenantCustomers = customerService.findActiveTenantsForProperty(propertyId);
 
             // ✅ NEW: Add property-specific maintenance statistics
             try {
@@ -341,9 +342,9 @@ public class PropertyOwnerController {
 
             model.addAttribute("customer", customer);
             model.addAttribute("property", property);
-            model.addAttribute("tenants", tenants);
-            model.addAttribute("activeTenants", activeTenants);
-            model.addAttribute("isOccupied", !activeTenants.isEmpty());
+            model.addAttribute("tenants", tenantCustomers);
+            model.addAttribute("activeTenants", activeTenantCustomers);
+            model.addAttribute("isOccupied", !activeTenantCustomers.isEmpty());
             model.addAttribute("pageTitle", "Property Details");
 
             return "property-owner/property-details";
@@ -368,7 +369,7 @@ public class PropertyOwnerController {
             }
 
             List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
-            List<Tenant> tenants;
+            List<Customer> tenants; // FIXED: Use Customer instead of Tenant
 
             if (propertyId != null) {
                 // Verify property ownership
@@ -379,12 +380,13 @@ public class PropertyOwnerController {
                     return "redirect:/access-denied";
                 }
                 
-                tenants = tenantService.findByPropertyId(propertyId);
+                // FIXED: Use CustomerService instead of empty TenantService
+                tenants = customerService.findTenantsByProperty(propertyId);
                 model.addAttribute("selectedPropertyId", propertyId);
             } else {
-                // Get all tenants for all properties
+                // Get all tenants for all properties - FIXED: Use CustomerService
                 tenants = properties.stream()
-                    .flatMap(property -> tenantService.findByPropertyId(property.getId()).stream())
+                    .flatMap(property -> customerService.findTenantsByProperty(property.getId()).stream())
                     .collect(Collectors.toList());
             }
 
@@ -409,11 +411,12 @@ public class PropertyOwnerController {
             // 4. Total Monthly Income (sum of monthly payments from occupied properties)
             BigDecimal totalRentalIncome = properties.stream()
                 .filter(property -> {
-                    // Check if property has active tenants
+                    // Check if property has active tenants - FIXED: Use assignedPropertyId from Customer
                     return tenants.stream()
-                        .anyMatch(tenant -> tenant.getProperty() != null && 
-                                tenant.getProperty().getId().equals(property.getId()) &&
-                                (tenant.getMoveOutDate() == null || tenant.getMoveOutDate().isAfter(today)));
+                        .anyMatch(tenant -> tenant.getAssignedPropertyId() != null && 
+                                tenant.getAssignedPropertyId().equals(property.getId()) &&
+                                // Note: Customer doesn't have moveOutDate, so we'll assume all assigned tenants are active
+                                tenant.getCustomerType() == CustomerType.TENANT);
                 })
                 .map(Property::getMonthlyPayment)
                 .filter(payment -> payment != null)
@@ -504,13 +507,13 @@ public class PropertyOwnerController {
             System.out.println("🔍 DEBUG: Total monthly rent: " + totalMonthlyRent);
             
             // Get all active tenants for this owner's properties using existing service methods
-            List<Tenant> allActiveTenants = new ArrayList<>();
-            Map<Long, List<Tenant>> propertyToTenants = new HashMap<>();
+            List<Customer> allActiveTenants = new ArrayList<>(); // FIXED: Use Customer instead of Tenant
+            Map<Long, List<Customer>> propertyToTenants = new HashMap<>(); // FIXED: Use Customer instead of Tenant
             
             for (Property property : properties) {
                 try {
-                    // Use the existing findActiveTenantsForProperty method
-                    List<Tenant> activeTenants = tenantService.findActiveTenantsForProperty(property.getId());
+                    // FIXED: Use CustomerService instead of empty TenantService
+                    List<Customer> activeTenants = customerService.findActiveTenantsForProperty(property.getId());
                     propertyToTenants.put(property.getId(), activeTenants);
                     allActiveTenants.addAll(activeTenants);
                     System.out.println("🔍 DEBUG: Property " + property.getId() + " has " + activeTenants.size() + " active tenants");
@@ -561,7 +564,7 @@ public class PropertyOwnerController {
                     Map<String, Object> propertyData = new HashMap<>();
                     propertyData.put("property", property);
                     
-                    List<Tenant> propertyTenants = propertyToTenants.get(property.getId());
+                    List<Customer> propertyTenants = propertyToTenants.get(property.getId()); // FIXED: Use Customer instead of Tenant
                     boolean isOccupied = propertyTenants != null && !propertyTenants.isEmpty();
                     
                     propertyData.put("isOccupied", isOccupied);
