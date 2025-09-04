@@ -18,9 +18,11 @@ import site.easy.to.build.crm.service.payprop.PayPropApiClient;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
+import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.Tenant;
 import site.easy.to.build.crm.entity.PropertyOwner;
+import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import org.springframework.http.HttpStatus;
 
@@ -41,6 +43,7 @@ public class PayPropAdminController {
     private final PropertyService propertyService;
     private final TenantService tenantService;
     private final PropertyOwnerService propertyOwnerService;
+    private final CustomerService customerService;
     
     @Autowired
     private PayPropPortfolioMigrationService migrationService;
@@ -53,12 +56,14 @@ public class PayPropAdminController {
                                  PayPropSyncService syncService,
                                  PropertyService propertyService,
                                  TenantService tenantService,
-                                 PropertyOwnerService propertyOwnerService) {
+                                 PropertyOwnerService propertyOwnerService,
+                                 CustomerService customerService) {
         this.oAuth2Service = oAuth2Service;
         this.syncService = syncService;
         this.propertyService = propertyService;
         this.tenantService = tenantService;
         this.propertyOwnerService = propertyOwnerService;
+        this.customerService = customerService;
     }
 
     /**
