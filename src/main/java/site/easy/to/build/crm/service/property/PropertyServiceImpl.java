@@ -46,15 +46,8 @@ public class PropertyServiceImpl implements PropertyService {
     // ✅ Core CRUD operations
     @Override
     public Property findById(Long id) {
-        if ("PAYPROP".equals(dataSource)) {
-            // For PayProp data, try to find by PayProp ID first
-            // Check if this looks like a PayProp ID hash
-            List<Property> allProperties = findAllFromPayProp();
-            return allProperties.stream()
-                .filter(p -> p.getId().equals(id))
-                .findFirst()
-                .orElse(null);
-        }
+        // FIXED: Always use database lookup for findById() - database IDs are the primary identifiers
+        // PayProp data integration should be handled separately, not interfere with basic CRUD operations
         return propertyRepository.findById(id).orElse(null);
     }
     
@@ -77,9 +70,8 @@ public class PropertyServiceImpl implements PropertyService {
 
     @Override
     public List<Property> findAll() {
-        if ("PAYPROP".equals(dataSource)) {
-            return findAllFromPayProp();
-        }
+        // FIXED: Always use database properties for findAll() - ensures consistent IDs across the system
+        // PayProp data should enhance, not replace, the core property data
         return propertyRepository.findAll();
     }
     
