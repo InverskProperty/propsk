@@ -195,23 +195,14 @@ public class CustomerController {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
             User user = userService.findById(userId);
             
-            System.out.println("🔍 DEBUG: Property Owners - User ID: " + userId + ", Username: " + user.getUsername());
-            System.out.println("🔍 DEBUG: User roles: " + user.getRoles().stream().map(r -> r.getName()).collect(Collectors.toList()));
-            
             List<Customer> propertyOwners = customerService.findPropertyOwners();
-            System.out.println("🔍 DEBUG: Total property owners from repository: " + propertyOwners.size());
             
             // Filter by user's customers if not manager or super admin
-            boolean isManagerOrAdmin = user.getRoles().stream().anyMatch(r -> r.getName().contains("MANAGER") || r.getName().contains("SUPER_ADMIN"));
-            System.out.println("🔍 DEBUG: Is Manager or Super Admin: " + isManagerOrAdmin);
-            
-            if (!isManagerOrAdmin) {
+            if (!user.getRoles().stream().anyMatch(r -> r.getName().contains("MANAGER") || r.getName().contains("SUPER_ADMIN"))) {
                 List<Customer> userCustomers = customerService.findByUserId(userId);
-                System.out.println("🔍 DEBUG: User's assigned customers: " + userCustomers.size());
                 propertyOwners = propertyOwners.stream()
                     .filter(userCustomers::contains)
                     .collect(Collectors.toList());
-                System.out.println("🔍 DEBUG: Property owners after user filtering: " + propertyOwners.size());
             }
 
             // Filter by property ID if provided
@@ -245,16 +236,13 @@ public class CustomerController {
             
             // Apply search filter if provided
             if (search != null && !search.trim().isEmpty()) {
-                System.out.println("🔍 DEBUG: Applying search filter: " + search);
                 propertyOwners = propertyOwners.stream()
                     .filter(c -> c.getName().toLowerCase().contains(search.toLowerCase()) ||
                                 c.getEmail().toLowerCase().contains(search.toLowerCase()) ||
                                 (c.getCity() != null && c.getCity().toLowerCase().contains(search.toLowerCase())))
                     .collect(Collectors.toList());
-                System.out.println("🔍 DEBUG: Property owners after search filtering: " + propertyOwners.size());
             }
             
-            System.out.println("🔍 DEBUG: Final property owners count sent to template: " + propertyOwners.size());
             model.addAttribute("customers", propertyOwners);
             model.addAttribute("customerType", "Property Owner");
             model.addAttribute("pageTitle", "Property Owners");
@@ -567,6 +555,14 @@ public class CustomerController {
             User user = userService.findById(userId);
             
             List<Customer> tenants = customerService.findTenants();
+            
+            // Filter by user's customers if not manager or super admin
+            if (!user.getRoles().stream().anyMatch(r -> r.getName().contains("MANAGER") || r.getName().contains("SUPER_ADMIN"))) {
+                List<Customer> userCustomers = customerService.findByUserId(userId);
+                tenants = tenants.stream()
+                    .filter(userCustomers::contains)
+                    .collect(Collectors.toList());
+            }
 
             // Filter by property ID if provided
             if (propertyId != null) {
@@ -808,6 +804,14 @@ public class CustomerController {
             User user = userService.findById(userId);
             
             List<Customer> contractors = customerService.findContractors();
+            
+            // Filter by user's customers if not manager or super admin
+            if (!user.getRoles().stream().anyMatch(r -> r.getName().contains("MANAGER") || r.getName().contains("SUPER_ADMIN"))) {
+                List<Customer> userCustomers = customerService.findByUserId(userId);
+                contractors = contractors.stream()
+                    .filter(userCustomers::contains)
+                    .collect(Collectors.toList());
+            }
             
             // Apply search filter if provided
             if (search != null && !search.trim().isEmpty()) {

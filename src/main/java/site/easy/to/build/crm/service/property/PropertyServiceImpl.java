@@ -61,79 +61,18 @@ public class PropertyServiceImpl implements PropertyService {
     // Override method to find by PayProp ID directly
     @Override
     public Property findByPayPropIdString(String payPropId) {
-        if ("PAYPROP".equals(dataSource)) {
-            String sql = """
-                SELECT 
-                    pep.payprop_id,
-                    -- Create property name from address if name is null
-                    COALESCE(
-                        NULLIF(TRIM(pep.name), ''),
-                        CONCAT(pep.address_first_line, 
-                               CASE WHEN pep.address_city IS NOT NULL THEN CONCAT(', ', pep.address_city) ELSE '' END)
-                    ) as property_name,
-                    pep.address_first_line,
-                    pep.address_second_line,
-                    pep.address_third_line,
-                    pep.address_city,
-                    pep.address_state,
-                    pep.address_country_code,
-                    pep.address_postal_code,
-                    pep.settings_monthly_payment,
-                    pep.commission_percentage,
-                    pep.commission_amount,
-                    pep.is_archived,
-                    pep.sync_status,
-                    pep.imported_at,
-                    
-                    -- Current tenant information
-                    tenant.tenant_name,
-                    tenant.tenant_email,
-                    tenant.tenancy_start_date,
-                    tenant.tenancy_end_date,
-                    tenant.monthly_rent_amount as tenant_rent,
-                    
-                    -- Recent rent from ICDN invoices (last 3 months)
-                    COALESCE(rent_recent.recent_rent, tenant.monthly_rent_amount, pep.settings_monthly_payment, 0) as monthly_payment,
-                    
-                    -- Account balance from properties table
-                    COALESCE(pep.balance_amount, 0) as account_balance
-                    
-                FROM payprop_export_properties pep
-                
-                -- Current active tenant
-                LEFT JOIN (
-                    SELECT 
-                        current_property_id,
-                        CONCAT(first_name, ' ', last_name) as tenant_name,
-                        email as tenant_email,
-                        tenancy_start_date,
-                        tenancy_end_date,
-                        monthly_rent_amount
-                    FROM payprop_export_tenants_complete 
-                    WHERE tenant_status = 'active'
-                ) tenant ON pep.payprop_id = tenant.current_property_id
-                
-                -- Recent rent calculation (last 3 months)
-                LEFT JOIN (
-                    SELECT 
-                        property_payprop_id, 
-                        AVG(amount) as recent_rent
-                    FROM payprop_report_icdn 
-                    WHERE category_name = 'Rent' 
-                    AND transaction_date >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
-                    GROUP BY property_payprop_id
-                ) rent_recent ON pep.payprop_id = rent_recent.property_payprop_id
-                
-                WHERE pep.payprop_id = ?
-                """;
-            
-            try {
-                return jdbcTemplate.queryForObject(sql, new PayPropPropertyRowMapper(), payPropId);
-            } catch (Exception e) {
-                return null;
-            }
+        // FIXED: Always return the real database Property entity, not a fake constructed one
+        System.out.println("🔍 Looking up property by PayProp ID: " + payPropId);
+        
+        Property property = propertyRepository.findByPayPropId(payPropId).orElse(null);
+        
+        if (property != null) {
+            System.out.println("✅ Found real database property: ID=" + property.getId() + ", Name=" + property.getPropertyName());
+        } else {
+            System.out.println("❌ No database property found for PayProp ID: " + payPropId);
         }
-        return null;
+        
+        return property;
     }
 
     @Override
