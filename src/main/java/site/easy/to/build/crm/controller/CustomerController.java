@@ -21,7 +21,9 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Controller
@@ -101,6 +103,88 @@ public class CustomerController {
         }
     }
 
+    // ===== DEBUG ENDPOINTS =====
+    
+    @GetMapping("/debug/owners")
+    @ResponseBody
+    public Map<String, Object> debugOwners() {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            System.out.println("🔍 DEBUG: Testing assignment service for owners...");
+            
+            // Test assignment service directly
+            List<CustomerPropertyAssignment> ownerAssignments = customerPropertyAssignmentRepository.findByAssignmentType(AssignmentType.OWNER);
+            System.out.println("🔍 DEBUG: Found " + ownerAssignments.size() + " owner assignments from repository");
+            
+            List<Customer> customers = ownerAssignments.stream()
+                .map(CustomerPropertyAssignment::getCustomer)
+                .filter(customer -> customer != null)
+                .distinct()
+                .collect(Collectors.toList());
+            
+            System.out.println("🔍 DEBUG: Mapped to " + customers.size() + " unique customers");
+            
+            // Test service method
+            List<Customer> serviceResult = customerService.findPropertyOwners();
+            System.out.println("🔍 DEBUG: Service returned " + serviceResult.size() + " customers");
+            
+            result.put("repository_assignments", ownerAssignments.size());
+            result.put("unique_customers_from_repo", customers.size());
+            result.put("service_result_size", serviceResult.size());
+            result.put("first_few_customers", customers.stream().limit(3).map(c -> 
+                Map.of("id", c.getCustomerId(), "name", c.getName(), "email", c.getEmail())
+            ).collect(Collectors.toList()));
+            
+        } catch (Exception e) {
+            System.out.println("🔍 DEBUG ERROR: " + e.getMessage());
+            e.printStackTrace();
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
+    }
+    
+    @GetMapping("/debug/tenants") 
+    @ResponseBody
+    public Map<String, Object> debugTenants() {
+        Map<String, Object> result = new HashMap<>();
+        
+        try {
+            System.out.println("🔍 DEBUG: Testing assignment service for tenants...");
+            
+            // Test assignment service directly
+            List<CustomerPropertyAssignment> tenantAssignments = customerPropertyAssignmentRepository.findByAssignmentType(AssignmentType.TENANT);
+            System.out.println("🔍 DEBUG: Found " + tenantAssignments.size() + " tenant assignments from repository");
+            
+            List<Customer> customers = tenantAssignments.stream()
+                .map(CustomerPropertyAssignment::getCustomer)
+                .filter(customer -> customer != null)
+                .distinct()
+                .collect(Collectors.toList());
+            
+            System.out.println("🔍 DEBUG: Mapped to " + customers.size() + " unique customers");
+            
+            // Test service method
+            List<Customer> serviceResult = customerService.findTenants();
+            System.out.println("🔍 DEBUG: Service returned " + serviceResult.size() + " customers");
+            
+            result.put("repository_assignments", tenantAssignments.size());
+            result.put("unique_customers_from_repo", customers.size());
+            result.put("service_result_size", serviceResult.size());
+            result.put("first_few_customers", customers.stream().limit(3).map(c -> 
+                Map.of("id", c.getCustomerId(), "name", c.getName(), "email", c.getEmail())
+            ).collect(Collectors.toList()));
+            
+        } catch (Exception e) {
+            System.out.println("🔍 DEBUG ERROR: " + e.getMessage());
+            e.printStackTrace();
+            result.put("error", e.getMessage());
+        }
+        
+        return result;
+    }
+
     // ===== PROPERTY OWNERS SECTION =====
     
     @GetMapping("/property-owners")
@@ -112,35 +196,43 @@ public class CustomerController {
             User user = userService.findById(userId);
             
             List<Customer> propertyOwners = customerService.findPropertyOwners();
+            
+            // Filter by user's customers if not manager or super admin
+            if (!user.getRoles().stream().anyMatch(r -> r.getName().contains("MANAGER") || r.getName().contains("SUPER_ADMIN"))) {
+                List<Customer> userCustomers = customerService.findByUserId(userId);
+                propertyOwners = propertyOwners.stream()
+                    .filter(userCustomers::contains)
+                    .collect(Collectors.toList());
+            }
 
-                    // Filter by property ID if provided
-                    if (propertyId != null) {
-                        // Get customer IDs assigned as OWNER to this property from junction table
-                        List<CustomerPropertyAssignment> propertyAssignments = 
-                            customerPropertyAssignmentRepository.findByPropertyId(propertyId);
-                        
-                        List<Long> ownerCustomerIds = propertyAssignments.stream()
-                            .filter(assignment -> assignment.getAssignmentType() == AssignmentType.OWNER)
-                            .map(assignment -> assignment.getCustomer().getCustomerId())
-                            .collect(Collectors.toList());
-                        
-                        // Filter property owners based on junction table assignments
-                        propertyOwners = propertyOwners.stream()
-                            .filter(owner -> ownerCustomerIds.contains(owner.getCustomerId()))
-                            .collect(Collectors.toList());
-                            
-                        // Add property info to model for display
-                        try {
-                            Property property = propertyService.findById(propertyId);
-                            if (property != null) {
-                                model.addAttribute("filterProperty", property);
-                                model.addAttribute("pageTitle", "Property Owners for " + property.getPropertyName());
-                                model.addAttribute("backUrl", "/employee/property/" + propertyId);
-                            }
-                        } catch (Exception e) {
-                            // Property not found, continue with general listing
-                        }
+            // Filter by property ID if provided
+            if (propertyId != null) {
+                // Get customer IDs assigned as OWNER to this property from junction table
+                List<CustomerPropertyAssignment> propertyAssignments = 
+                    customerPropertyAssignmentRepository.findByPropertyId(propertyId);
+                
+                List<Long> ownerCustomerIds = propertyAssignments.stream()
+                    .filter(assignment -> assignment.getAssignmentType() == AssignmentType.OWNER)
+                    .map(assignment -> assignment.getCustomer().getCustomerId())
+                    .collect(Collectors.toList());
+                
+                // Filter property owners based on junction table assignments
+                propertyOwners = propertyOwners.stream()
+                    .filter(owner -> ownerCustomerIds.contains(owner.getCustomerId()))
+                    .collect(Collectors.toList());
+                    
+                // Add property info to model for display
+                try {
+                    Property property = propertyService.findById(propertyId);
+                    if (property != null) {
+                        model.addAttribute("filterProperty", property);
+                        model.addAttribute("pageTitle", "Property Owners for " + property.getPropertyName());
+                        model.addAttribute("backUrl", "/employee/property/" + propertyId);
                     }
+                } catch (Exception e) {
+                    // Property not found, continue with general listing
+                }
+            }
             
             // Apply search filter if provided
             if (search != null && !search.trim().isEmpty()) {

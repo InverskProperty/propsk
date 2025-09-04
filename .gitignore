@@ -36,6 +36,8 @@ build/
 .env
 .env.*
 *.env
+set-env-variables.bat
+set-env-variables.sh
 
 # Database backups (may contain sensitive data)
 *.sql
