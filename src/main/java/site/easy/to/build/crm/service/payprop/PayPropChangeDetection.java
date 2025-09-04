@@ -194,18 +194,20 @@ public class PayPropChangeDetection {
     }
 
 
-    private List<PropertyOwner> findModifiedPropertyOwners(LocalDateTime since) {
-        return propertyOwnerService.findAll().stream()
-            .filter(o -> o.getUpdatedAt() != null && o.getUpdatedAt().isAfter(since))
-            .filter(o -> o.getPayPropId() != null) // Only sync already synced owners
+    private List<Customer> findModifiedPropertyOwners(LocalDateTime since) {
+        // FIXED: Use Customer service instead of empty PropertyOwner table
+        return customerService.findPropertyOwners().stream()
+            .filter(c -> c.getUpdatedAt() != null && c.getUpdatedAt().isAfter(since))
+            .filter(c -> c.getPayPropEntityId() != null && !c.getPayPropEntityId().trim().isEmpty()) // Only sync already synced owners
             .toList();
     }
 
-    private List<PropertyOwner> findNewPropertyOwners(LocalDateTime since) {
-        return propertyOwnerService.findAll().stream()
-            .filter(o -> o.getCreatedAt() != null && o.getCreatedAt().isAfter(since))
-            .filter(o -> o.getPayPropId() == null) // Only new owners not yet synced
-            // Add readiness check when available: .filter(o -> o.isReadyForPayPropSync())
+    private List<Customer> findNewPropertyOwners(LocalDateTime since) {
+        // FIXED: Use Customer service instead of empty PropertyOwner table
+        return customerService.findPropertyOwners().stream()
+            .filter(c -> c.getCreatedAt() != null && c.getCreatedAt().isAfter(since))
+            .filter(c -> c.getPayPropEntityId() == null || c.getPayPropEntityId().trim().isEmpty()) // Only new owners not yet synced
+            // Add readiness check when available: .filter(c -> c.isReadyForPayPropSync())
             .toList();
     }
 

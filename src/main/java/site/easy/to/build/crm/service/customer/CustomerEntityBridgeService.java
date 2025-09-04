@@ -58,15 +58,16 @@ public class CustomerEntityBridgeService {
         User defaultUser = getDefaultCrmUser();
         
         // Migrate orphaned property owners
-        List<PropertyOwner> orphanedOwners = findOrphanedPropertyOwners();
-        for (PropertyOwner owner : orphanedOwners) {
-            try {
-                Customer customer = createCustomerFromPropertyOwner(owner, defaultUser);
-                result.addSuccess("PropertyOwner", owner.getId(), customer.getCustomerId().intValue());
-            } catch (Exception e) {
-                result.addError("PropertyOwner", owner.getId(), e.getMessage());
-            }
-        }
+        // SKIP: PropertyOwner table is empty (0 records) - migration completed to Customer table
+        List<PropertyOwner> orphanedOwners = findOrphanedPropertyOwners(); // Returns empty list
+        // for (PropertyOwner owner : orphanedOwners) { // This loop never executes
+        //     try {
+        //         Customer customer = createCustomerFromPropertyOwner(owner, defaultUser);
+        //         result.addSuccess("PropertyOwner", owner.getId(), customer.getCustomerId().intValue());
+        //     } catch (Exception e) {
+        //         result.addError("PropertyOwner", owner.getId(), e.getMessage());
+        //     }
+        // }
         
         // Migrate orphaned tenants
         List<Tenant> orphanedTenants = findOrphanedTenants();
@@ -95,13 +96,12 @@ public class CustomerEntityBridgeService {
 
     /**
      * Find PropertyOwners without corresponding Customer records
+     * FIXED: PropertyOwner table is empty - all data migrated to Customer table
      */
     public List<PropertyOwner> findOrphanedPropertyOwners() {
-        return propertyOwnerService.findAll().stream()
-            .filter(owner -> owner.getEmailAddress() != null && 
-                           !owner.getEmailAddress().trim().isEmpty() &&
-                           customerService.findByEmail(owner.getEmailAddress()) == null)
-            .toList();
+        // PropertyOwner table is empty (0 records) - migration completed
+        // All property owner data is now in customers table with customer_type='PROPERTY_OWNER'
+        return List.of(); // Return empty list instead of querying empty table
     }
 
     /**

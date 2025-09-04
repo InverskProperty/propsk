@@ -267,16 +267,17 @@ public class EmployeeController {
     }
 
     /**
-     * Get property owners data for AJAX requests (PropertyOwner entities)
+     * Get property owners data for AJAX requests (Customer entities with PROPERTY_OWNER type)
+     * FIXED: Use CustomerService instead of empty PropertyOwner table
      */
     @GetMapping("/api/property-owners")
     @ResponseBody
-    public ResponseEntity<List<PropertyOwner>> getPropertyOwnersApi(Authentication authentication) {
+    public ResponseEntity<List<Customer>> getPropertyOwnersApi(Authentication authentication) {
         if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        return ResponseEntity.ok(propertyOwnerService.findAll());
+        return ResponseEntity.ok(customerService.findPropertyOwners());
     }
 
     /**

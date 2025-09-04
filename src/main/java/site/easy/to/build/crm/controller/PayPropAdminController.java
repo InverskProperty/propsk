@@ -84,9 +84,14 @@ public class PayPropAdminController {
             List<Tenant> tenantsSynced = tenantService.findByPayPropIdIsNotNull();
             List<Tenant> tenantsReadyForSync = tenantService.findTenantsReadyForPayPropSync();
 
-            List<PropertyOwner> ownersNeedingSync = propertyOwnerService.findByPayPropIdIsNull();
-            List<PropertyOwner> ownersSynced = propertyOwnerService.findByPayPropIdIsNotNull();
-            List<PropertyOwner> ownersReadyForSync = propertyOwnerService.findPropertyOwnersReadyForSync();
+            // FIXED: Use CustomerService instead of empty PropertyOwnerService table
+            List<Customer> allPropertyOwners = customerService.findPropertyOwners();
+            long ownersSyncedCount = allPropertyOwners.stream()
+                .filter(customer -> customer.getPayPropEntityId() != null && !customer.getPayPropEntityId().trim().isEmpty())
+                .count();
+            long ownersNeedingSyncCount = allPropertyOwners.stream()
+                .filter(customer -> customer.getPayPropEntityId() == null || customer.getPayPropEntityId().trim().isEmpty())
+                .count();
 
             model.addAttribute("propertiesNeedingSync", propertiesNeedingSync.size());
             model.addAttribute("propertiesSynced", propertiesSynced.size());
@@ -96,9 +101,9 @@ public class PayPropAdminController {
             model.addAttribute("tenantsSynced", tenantsSynced.size());
             model.addAttribute("tenantsReadyForSync", tenantsReadyForSync.size());
 
-            model.addAttribute("ownersNeedingSync", ownersNeedingSync.size());
-            model.addAttribute("ownersSynced", ownersSynced.size());
-            model.addAttribute("ownersReadyForSync", ownersReadyForSync.size());
+            model.addAttribute("ownersNeedingSync", ownersNeedingSyncCount);
+            model.addAttribute("ownersSynced", ownersSyncedCount);
+            model.addAttribute("ownersReadyForSync", ownersNeedingSyncCount);
         } catch (Exception e) {
             log.error("Error loading dashboard statistics: {}", e.getMessage());
             model.addAttribute("dashboardError", "Error loading sync statistics: " + e.getMessage());
@@ -535,10 +540,19 @@ public class PayPropAdminController {
             }
 
             try {
-                beneficiaries.put("total", propertyOwnerService.getTotalPropertyOwners());
-                beneficiaries.put("needsSync", propertyOwnerService.findByPayPropIdIsNull().size());
-                beneficiaries.put("synced", propertyOwnerService.findByPayPropIdIsNotNull().size());
-                beneficiaries.put("readyForSync", propertyOwnerService.findPropertyOwnersReadyForSync().size());
+                // FIXED: Use CustomerService instead of empty PropertyOwnerService table
+                List<Customer> allPropertyOwners = customerService.findPropertyOwners();
+                long syncedCount = allPropertyOwners.stream()
+                    .filter(customer -> customer.getPayPropEntityId() != null && !customer.getPayPropEntityId().trim().isEmpty())
+                    .count();
+                long needsSyncCount = allPropertyOwners.stream()
+                    .filter(customer -> customer.getPayPropEntityId() == null || customer.getPayPropEntityId().trim().isEmpty())
+                    .count();
+                
+                beneficiaries.put("total", allPropertyOwners.size());
+                beneficiaries.put("needsSync", needsSyncCount);
+                beneficiaries.put("synced", syncedCount);
+                beneficiaries.put("readyForSync", needsSyncCount); // Customers ready for sync = those that need sync
             } catch (Exception e) {
                 log.error("Error getting beneficiary statistics: {}", e.getMessage());
                 beneficiaries.put("error", "Unable to load beneficiary statistics");

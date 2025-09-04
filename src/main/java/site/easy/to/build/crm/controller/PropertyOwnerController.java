@@ -456,12 +456,11 @@ public class PropertyOwnerController {
                 return "redirect:/customer-login?error=not_found";
             }
 
-            // Get PropertyOwner entity for additional details
-            PropertyOwner propertyOwner = propertyOwnerService.findByEmailAddress(customer.getEmail())
-                .orElse(null);
+            // REMOVED: PropertyOwner lookup (table is empty, all data is in Customer entity)
+            // PropertyOwner propertyOwner = propertyOwnerService.findByEmailAddress(customer.getEmail()).orElse(null);
 
             model.addAttribute("customer", customer);
-            model.addAttribute("propertyOwner", propertyOwner);
+            // All property owner details are available in the customer entity
             model.addAttribute("pageTitle", "My Profile");
 
             return "property-owner/profile";
