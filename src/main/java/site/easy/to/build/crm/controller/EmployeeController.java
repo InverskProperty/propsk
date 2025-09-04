@@ -116,11 +116,23 @@ public class EmployeeController {
             model.addAttribute("occupiedProperties", occupiedCount);       // Same as HomePageController
             model.addAttribute("vacantProperties", vacantCount);           // Same as HomePageController
             
-            // Legacy counters for other entities (unchanged)
-            model.addAttribute("totalTenants", tenantService.getTotalTenants());
-            model.addAttribute("totalOwners", propertyOwnerService.getTotalPropertyOwners());
-            model.addAttribute("totalContractors", contractorService.getTotalCount());
-            model.addAttribute("activeTickets", ticketService.getActiveTicketCount());
+            // ✅ FIXED: Use Customer entity counts instead of specialized entity counts
+            long totalTenants = customerService.findTenants().size();
+            long totalOwners = customerService.findPropertyOwners().size();
+            long totalContractors = customerService.findContractors().size();
+            long activeTickets = ticketService.getActiveTicketCount();
+            
+            System.out.println("=== EMPLOYEE DASHBOARD COUNTS ===");
+            System.out.println("Total Tenants (Customer): " + totalTenants);
+            System.out.println("Total Property Owners (Customer): " + totalOwners);
+            System.out.println("Total Contractors (Customer): " + totalContractors);
+            System.out.println("Active Tickets: " + activeTickets);
+            System.out.println("=== END DASHBOARD COUNTS ===");
+            
+            model.addAttribute("totalTenants", totalTenants);
+            model.addAttribute("totalOwners", totalOwners);
+            model.addAttribute("totalContractors", totalContractors);
+            model.addAttribute("activeTickets", activeTickets);
             
             // ✅ NEW: Add maintenance statistics for employee dashboard
             try {
