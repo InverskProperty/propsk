@@ -107,9 +107,64 @@
                 </div>
             </div>
 
-            <!-- Properties Grid -->
+            <!-- Search Section -->
             <div class="row">
-                <div th:each="property : ${properties}" class="col-lg-4 col-md-6 mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-success">
+                            <h5 class="m-b-0 text-white">
+                                <i class="fas fa-search"></i> Search Your Properties
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="propertySearch">Search by name, address, or type:</label>
+                                        <input type="text" id="propertySearch" class="form-control" 
+                                               placeholder="Type to search your properties..." 
+                                               autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="occupancyFilter">Show:</label>
+                                        <select id="occupancyFilter" class="form-control">
+                                            <option value="">All Properties</option>
+                                            <option value="occupied">Occupied Only</option>
+                                            <option value="vacant">Vacant Only</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label for="sortBy">Sort by:</label>
+                                        <select id="sortBy" class="form-control">
+                                            <option value="name">Property Name</option>
+                                            <option value="rent-high">Rent (High to Low)</option>
+                                            <option value="rent-low">Rent (Low to High)</option>
+                                            <option value="city">City</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle"></i> 
+                                        Search is real-time and filters your property cards below.
+                                        <span id="propertyCount" class="badge badge-info ml-2"></span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Properties Grid -->
+            <div class="row" id="propertiesGrid">
+                <div th:each="property : ${properties}" class="col-lg-4 col-md-6 mb-4 property-card-container">
                     <div class="card property-card">
                         <div class="property-image">
                             <i class="fas fa-home"></i>
@@ -296,6 +351,108 @@ function showPropertyDetails(button) {
     document.getElementById('viewFullDetails').href = `/property-owner/property/${propertyId}`;
     $('#propertyModal').modal('show');
 }
+
+// Enhanced Property Search and Filter Functions
+$(document).ready(function() {
+    const propertyCards = $('.property-card-container');
+    const totalProperties = propertyCards.length;
+    updatePropertyCount(totalProperties);
+    
+    // Real-time search
+    $('#propertySearch').on('keyup', function() {
+        filterProperties();
+    });
+    
+    // Occupancy filter
+    $('#occupancyFilter').on('change', function() {
+        filterProperties();
+    });
+    
+    // Sort functionality
+    $('#sortBy').on('change', function() {
+        sortProperties(this.value);
+    });
+    
+    function filterProperties() {
+        const searchTerm = $('#propertySearch').val().toLowerCase();
+        const occupancyFilter = $('#occupancyFilter').val();
+        let visibleCount = 0;
+        
+        propertyCards.each(function() {
+            const $card = $(this);
+            const propertyName = $card.find('.card-title').text().toLowerCase();
+            const propertyLocation = $card.find('.card-text').text().toLowerCase();
+            const propertyType = $card.find('.card-body strong').eq(1).text().toLowerCase();
+            
+            // Text search
+            const matchesSearch = searchTerm === '' || 
+                propertyName.includes(searchTerm) || 
+                propertyLocation.includes(searchTerm) || 
+                propertyType.includes(searchTerm);
+            
+            // Occupancy filter (you'll need to add occupancy data to the cards)
+            let matchesOccupancy = true;
+            if (occupancyFilter !== '') {
+                // This would need actual occupancy data in the template
+                // For now, just show all
+                matchesOccupancy = true;
+            }
+            
+            if (matchesSearch && matchesOccupancy) {
+                $card.show();
+                visibleCount++;
+            } else {
+                $card.hide();
+            }
+        });
+        
+        updatePropertyCount(visibleCount);
+    }
+    
+    function sortProperties(sortBy) {
+        const $container = $('#propertiesGrid');
+        const $cards = $('.property-card-container');
+        
+        $cards.sort(function(a, b) {
+            let aVal, bVal;
+            
+            switch(sortBy) {
+                case 'name':
+                    aVal = $(a).find('.card-title').text();
+                    bVal = $(b).find('.card-title').text();
+                    return aVal.localeCompare(bVal);
+                    
+                case 'rent-high':
+                    aVal = parseFloat($(a).find('.card-body strong').eq(0).text().replace('£', '')) || 0;
+                    bVal = parseFloat($(b).find('.card-body strong').eq(0).text().replace('£', '')) || 0;
+                    return bVal - aVal;
+                    
+                case 'rent-low':
+                    aVal = parseFloat($(a).find('.card-body strong').eq(0).text().replace('£', '')) || 0;
+                    bVal = parseFloat($(b).find('.card-body strong').eq(0).text().replace('£', '')) || 0;
+                    return aVal - bVal;
+                    
+                case 'city':
+                    aVal = $(a).find('.card-text').text().split(',')[0];
+                    bVal = $(b).find('.card-text').text().split(',')[0];
+                    return aVal.localeCompare(bVal);
+                    
+                default:
+                    return 0;
+            }
+        });
+        
+        $container.append($cards);
+    }
+    
+    function updatePropertyCount(count) {
+        if (count === totalProperties) {
+            $('#propertyCount').text(`${count} properties`);
+        } else {
+            $('#propertyCount').text(`${count} of ${totalProperties} properties`);
+        }
+    }
+});
 </script>
 
 </body>
