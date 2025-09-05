@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -74,32 +75,103 @@ public class PropertyController {
     }
 
     // ================================
+    // DEBUG ENDPOINTS  
+    // ================================
+    
+    /**
+     * Debug endpoint to check property owner mapping
+     */
+    @GetMapping("/debug-property-owner")
+    @ResponseBody
+    public String debugPropertyOwner(Authentication authentication) {
+        try {
+            StringBuilder debug = new StringBuilder();
+            debug.append("=== PROPERTY OWNER DEBUG ===<br>");
+            
+            // 1. Authentication info
+            debug.append("Authentication: ").append(authentication != null ? authentication.getName() : "NULL").append("<br>");
+            debug.append("Authorities: ").append(authentication != null ? authentication.getAuthorities() : "NULL").append("<br>");
+            
+            // 2. User ID lookup
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            debug.append("User ID from authenticationUtils: ").append(userId).append("<br>");
+            
+            if (userId == -1) {
+                return debug.append("❌ Could not get user ID").toString();
+            }
+            
+            // 3. User record lookup
+            User user = userService.findById(Long.valueOf(userId));
+            if (user == null) {
+                return debug.append("❌ User record not found for ID: ").append(userId).toString();
+            }
+            debug.append("User email: ").append(user.getEmail()).append("<br>");
+            
+            // 4. Customer lookup by email
+            Customer customer = customerService.findByEmail(user.getEmail());
+            if (customer == null) {
+                return debug.append("❌ Customer not found for email: ").append(user.getEmail()).toString();
+            }
+            debug.append("Customer ID: ").append(customer.getCustomerId()).append("<br>");
+            debug.append("Customer Type: ").append(customer.getCustomerType()).append("<br>");
+            
+            // 5. Property lookup
+            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            debug.append("Properties found: ").append(properties.size()).append("<br>");
+            
+            // 6. Assignment lookup
+            try {
+                debug.append("<br>--- ASSIGNMENT TABLE DEBUG ---<br>");
+                // We need to call the assignment service directly
+                debug.append("Customer assignments will be checked via PropertyService...<br>");
+                
+                for (int i = 0; i < Math.min(5, properties.size()); i++) {
+                    Property prop = properties.get(i);
+                    debug.append("Property ").append(i+1).append(": ID=").append(prop.getId())
+                          .append(", Name=").append(prop.getPropertyName()).append("<br>");
+                }
+                
+                return debug.toString();
+                
+            } catch (Exception e) {
+                return debug.append("❌ Assignment lookup error: ").append(e.getMessage()).toString();
+            }
+            
+        } catch (Exception e) {
+            return "❌ DEBUG ERROR: " + e.getMessage() + "<br>Stack: " + java.util.Arrays.toString(e.getStackTrace()).replaceAll(",", "<br>");
+        }
+    }
+
+    // ================================
     // UTILITY METHODS
     // ================================
     
     /**
-     * Find properties for a property owner by mapping User ID to Customer ID
-     * This handles the case where admin pages get User ID but need to find properties by Customer ID
+     * Find properties for a property owner using authentication email directly
+     * FIXED: Don't rely on User ID mapping, use email from authentication directly
      */
     private List<Property> findPropertiesForPropertyOwner(int userId) {
         try {
-            System.out.println("🔍 [PropertyController] Finding properties for property owner User ID: " + userId);
+            System.out.println("🔍 [PropertyController] Finding properties for property owner (User ID: " + userId + ")");
             
-            // Find the customer record associated with this user
-            User user = userService.findById(Long.valueOf(userId));
-            if (user == null) {
-                System.out.println("❌ [PropertyController] User not found: " + userId);
+            // FIXED: Get email directly from SecurityContext instead of User ID mapping
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null) {
+                System.out.println("❌ [PropertyController] No authentication context found");
                 return new ArrayList<>();
             }
             
-            // Find customer by email (since both tables should have matching emails)
-            Customer customer = customerService.findByEmail(user.getEmail());
+            String email = auth.getName();
+            System.out.println("🔍 [PropertyController] Using email from authentication: " + email);
+            
+            // Find customer directly by email
+            Customer customer = customerService.findByEmail(email);
             if (customer == null) {
-                System.out.println("❌ [PropertyController] Customer not found for email: " + user.getEmail());
+                System.out.println("❌ [PropertyController] Customer not found for email: " + email);
                 return new ArrayList<>();
             }
             
-            System.out.println("✅ [PropertyController] Mapped User ID " + userId + " → Customer ID " + customer.getCustomerId());
+            System.out.println("✅ [PropertyController] Found Customer ID " + customer.getCustomerId() + " for email " + email);
             
             // Now find properties owned by this customer using the assignment table
             List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
@@ -108,7 +180,7 @@ public class PropertyController {
             return properties;
             
         } catch (Exception e) {
-            System.err.println("❌ [PropertyController] Error finding properties for user " + userId + ": " + e.getMessage());
+            System.err.println("❌ [PropertyController] Error finding properties: " + e.getMessage());
             e.printStackTrace();
             return new ArrayList<>();
         }
