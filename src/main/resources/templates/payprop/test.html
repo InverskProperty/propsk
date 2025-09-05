@@ -1601,6 +1601,13 @@ ORDER BY transaction_count DESC;</code></pre>
                                     </div>
                                     <div class="row mt-3">
                                         <div class="col-12">
+                                            <label class="form-label">Request Body (JSON) - for POST/PUT requests</label>
+                                            <textarea id="rawRequestBody" class="form-control" rows="8" 
+                                                      placeholder='{"name": "123 Main Street", "address": {"city": "London", "postal_code": "SW1A 1AA", "country_code": "UK"}}'></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-3">
+                                        <div class="col-12">
                                             <button class="btn btn-primary" onclick="makeRawApiCall()">
                                                 <i class="fas fa-paper-plane"></i> Make API Call
                                             </button>
@@ -2104,6 +2111,7 @@ ORDER BY transaction_count DESC;</code></pre>
             const endpoint = document.getElementById('rawEndpoint').value;
             const method = document.getElementById('rawMethod').value;
             const parameters = document.getElementById('rawParameters').value;
+            const requestBody = document.getElementById('rawRequestBody').value;
             
             if (!endpoint) {
                 alert('Please enter an endpoint');
@@ -2113,7 +2121,8 @@ ORDER BY transaction_count DESC;</code></pre>
             const params = new URLSearchParams({
                 endpoint: endpoint,
                 method: method,
-                parameters: parameters
+                parameters: parameters,
+                requestBody: requestBody
             });
             
             const result = await fetchWithCSRF(`/api/payprop/oauth/raw-api-call?${params}`, {
