@@ -321,6 +321,38 @@
                                     </div>
                                 </div>
 
+                                <!-- PayProp Sync Options -->
+                                <div class="card mt-4">
+                                    <div class="card-header bg-primary">
+                                        <h5 class="text-white mb-0">
+                                            <i class="fas fa-sync-alt"></i> PayProp Integration
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input type="checkbox" class="form-check-input" id="syncToPayProp" name="syncToPayProp">
+                                                    <label class="form-check-label" for="syncToPayProp">
+                                                        <strong>Sync to PayProp immediately after creation</strong>
+                                                    </label>
+                                                    <small class="form-text text-muted d-block">
+                                                        When enabled, this property will be automatically synced to PayProp after creation
+                                                    </small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="alert alert-warning" id="syncRequirementsAlert" style="display: none;">
+                                                    <h6><i class="fas fa-exclamation-triangle"></i> Required for PayProp Sync:</h6>
+                                                    <ul class="mb-0" id="syncRequirementsList">
+                                                        <!-- Dynamically populated -->
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <!-- Form Actions -->
                                 <div class="card mt-4">
                                     <div class="card-body">
@@ -329,7 +361,7 @@
                                                 <a th:href="@{/employee/property/all-properties}" class="btn btn-secondary mr-2">
                                                     <i class="fas fa-times"></i> Cancel
                                                 </a>
-                                                <button type="submit" class="btn btn-success">
+                                                <button type="submit" class="btn btn-success" id="createPropertyBtn">
                                                     <i class="fas fa-save"></i> Create Property
                                                 </button>
                                             </div>
@@ -397,11 +429,76 @@ $(document).ready(function() {
         this.value = this.value.toUpperCase();
     });
 
+    // PayProp sync validation
+    function validatePayPropRequirements() {
+        const syncEnabled = $('#syncToPayProp').is(':checked');
+        
+        if (!syncEnabled) {
+            $('#syncRequirementsAlert').hide();
+            return true;
+        }
+
+        const requirements = [];
+        const payPropFields = [
+            { field: 'propertyName', label: 'Property Name', required: true },
+            { field: 'monthlyPayment', label: 'Monthly Payment', required: true },
+            { field: 'addressLine1', label: 'Address Line 1', required: true },
+            { field: 'city', label: 'City', required: true },
+            { field: 'postcode', label: 'Postcode', required: true },
+            { field: 'bedrooms', label: 'Number of Bedrooms', required: true },
+            { field: 'propertyType', label: 'Property Type', required: true }
+        ];
+
+        payPropFields.forEach(function(fieldConfig) {
+            const $field = $(`#${fieldConfig.field}, [name="${fieldConfig.field}"]`);
+            const hasValue = $field.val() && $field.val().trim() !== '';
+            
+            if (fieldConfig.required && !hasValue) {
+                requirements.push(fieldConfig.label);
+                $field.addClass('is-invalid');
+            } else {
+                $field.removeClass('is-invalid');
+            }
+        });
+
+        if (requirements.length > 0) {
+            $('#syncRequirementsAlert').show();
+            $('#syncRequirementsList').html(
+                requirements.map(req => `<li>${req}</li>`).join('')
+            );
+            return false;
+        } else {
+            $('#syncRequirementsAlert').hide();
+            return true;
+        }
+    }
+
+    // Handle sync toggle change
+    $('#syncToPayProp').change(function() {
+        validatePayPropRequirements();
+        
+        if ($(this).is(':checked')) {
+            $('#createPropertyBtn').html('<i class="fas fa-sync-alt"></i> Create & Sync to PayProp');
+            $('#createPropertyBtn').removeClass('btn-success').addClass('btn-primary');
+        } else {
+            $('#createPropertyBtn').html('<i class="fas fa-save"></i> Create Property');
+            $('#createPropertyBtn').removeClass('btn-primary').addClass('btn-success');
+        }
+    });
+
+    // Validate requirements when fields change
+    $('input, select, textarea').on('blur change', function() {
+        if ($('#syncToPayProp').is(':checked')) {
+            validatePayPropRequirements();
+        }
+    });
+
     // Form validation
     $('form').on('submit', function(e) {
         const requiredFields = ['propertyName', 'monthlyPayment'];
         let isValid = true;
         
+        // Basic required fields validation
         requiredFields.forEach(function(field) {
             const $field = $(`#${field}`);
             if (!$field.val()) {
@@ -411,6 +508,17 @@ $(document).ready(function() {
                 $field.removeClass('is-invalid');
             }
         });
+
+        // PayProp sync validation if enabled
+        if ($('#syncToPayProp').is(':checked')) {
+            const payPropValid = validatePayPropRequirements();
+            if (!payPropValid) {
+                isValid = false;
+                e.preventDefault();
+                alert('Please complete all required fields for PayProp sync before submitting.');
+                return;
+            }
+        }
 
         if (!isValid) {
             e.preventDefault();

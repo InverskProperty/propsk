@@ -466,9 +466,40 @@
                                     </div>
                                 </div>
 
+                                <!-- PayProp Sync Options -->
+                                <div class="form-section">
+                                    <h5><i class="fa fa-sync-alt"></i> PayProp Integration</h5>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input type="checkbox" class="form-check-input" id="syncToPayProp" name="syncToPayProp">
+                                                <label class="form-check-label" for="syncToPayProp">
+                                                    <strong>Sync to PayProp immediately after creation</strong>
+                                                </label>
+                                                <small class="field-help">
+                                                    When enabled, this customer will be automatically synced to PayProp after creation
+                                                </small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="alert alert-warning" id="customerSyncRequirementsAlert" style="display: none;">
+                                                <h6><i class="fa fa-exclamation-triangle"></i> Missing Required Fields:</h6>
+                                                <ul class="mb-0" id="customerSyncRequirementsList">
+                                                    <!-- Dynamically populated -->
+                                                </ul>
+                                            </div>
+                                            <div class="alert alert-success" id="customerSyncReadyAlert" style="display: none;">
+                                                <h6><i class="fa fa-check-circle"></i> Ready for PayProp Sync!</h6>
+                                                <p class="mb-0">All required fields are completed.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <!-- Submit Buttons -->
                                 <div class="form-group m-t-30">
-                                    <button type="submit" class="btn btn-success btn-lg">
+                                    <button type="submit" class="btn btn-success btn-lg" id="createCustomerBtn">
                                         <i class="fa fa-save"></i> 
                                         <span th:if="${isEdit}">Update Customer</span>
                                         <span th:unless="${isEdit}">Create Customer</span>
@@ -729,7 +760,70 @@ $(document).ready(function() {
         setTimeout(() => toast.remove(), 3000);
     }
 
-    // PayProp Validation
+    // PayProp Sync Validation
+    function validateCustomerPayPropRequirements() {
+        const syncEnabled = $('#syncToPayProp').is(':checked');
+        
+        if (!syncEnabled) {
+            $('#customerSyncRequirementsAlert, #customerSyncReadyAlert').hide();
+            return true;
+        }
+
+        const customerType = $('#customerTypeSelection').val();
+        const accountType = $('#accountType').val();
+        const errors = [];
+        
+        // Basic requirements
+        if (!customerType) errors.push('Customer type is required');
+        if (!accountType) errors.push('Account type is required');
+        
+        // Account-specific requirements
+        if (accountType === 'individual') {
+            if (!$('input[name="firstName"]').val()) errors.push('First name is required for individual accounts');
+            if (!$('input[name="lastName"]').val()) errors.push('Last name is required for individual accounts');
+        } else if (accountType === 'business') {
+            if (!$('input[name="businessName"]').val()) errors.push('Business name is required for business accounts');
+        }
+        
+        if (!$('input[name="email"]').val()) errors.push('Email is required');
+        
+        // Customer type specific requirements
+        if (customerType === 'TENANT') {
+            const email = $('input[name="email"]').val();
+            if (email && email.length > 50) errors.push('Tenant email must be 50 characters or less');
+            if (!$('#selectedPropertyId').val()) errors.push('Property assignment is required for tenants');
+        }
+        
+        if (customerType === 'PROPERTY_OWNER') {
+            if (!$('#paymentMethod').val()) errors.push('Payment method is required for property owners');
+            
+            const paymentMethod = $('#paymentMethod').val();
+            if (paymentMethod === 'local') {
+                if (!$('input[name="bankAccountName"]').val()) errors.push('Bank account name is required');
+                if (!$('input[name="bankAccountNumber"]').val()) errors.push('Bank account number is required');
+                if (!$('input[name="bankSortCode"]').val()) errors.push('Bank sort code is required');
+            } else if (paymentMethod === 'international') {
+                if (!$('input[name="bankIban"]').val()) errors.push('IBAN is required for international transfers');
+                if (!$('input[name="bankSwiftCode"]').val()) errors.push('SWIFT code is required for international transfers');
+            }
+        }
+
+        // Update UI
+        if (errors.length > 0) {
+            $('#customerSyncRequirementsAlert').show();
+            $('#customerSyncReadyAlert').hide();
+            $('#customerSyncRequirementsList').html(
+                errors.map(error => `<li>${error}</li>`).join('')
+            );
+            return false;
+        } else {
+            $('#customerSyncRequirementsAlert').hide();
+            $('#customerSyncReadyAlert').show();
+            return true;
+        }
+    }
+
+    // PayProp Validation (existing function for validate button)
     function validateForPayProp() {
         const customerType = $('#customerTypeSelection').val();
         const accountType = $('#accountType').val();
@@ -764,9 +858,41 @@ $(document).ready(function() {
         }
     }
 
+    // PayProp Sync Toggle Event Handlers
+    $('#syncToPayProp').change(function() {
+        validateCustomerPayPropRequirements();
+        
+        if ($(this).is(':checked')) {
+            $('#createCustomerBtn').html('<i class="fa fa-sync-alt"></i> <span th:if="${isEdit}">Update & Sync to PayProp</span><span th:unless="${isEdit}">Create & Sync to PayProp</span>');
+            $('#createCustomerBtn').removeClass('btn-success').addClass('btn-primary');
+        } else {
+            $('#createCustomerBtn').html('<i class="fa fa-save"></i> <span th:if="${isEdit}">Update Customer</span><span th:unless="${isEdit}">Create Customer</span>');
+            $('#createCustomerBtn').removeClass('btn-primary').addClass('btn-success');
+        }
+    });
+
+    // Validate PayProp requirements when relevant fields change
+    $(document).on('change blur', 'input, select, textarea', function() {
+        if ($('#syncToPayProp').is(':checked')) {
+            setTimeout(validateCustomerPayPropRequirements, 100); // Small delay for field updates
+        }
+    });
+
     // Event Listeners
-    $('#customerTypeSelection, #accountType').change(updateFormSections);
-    $('#paymentMethod').change(updatePaymentFields);
+    $('#customerTypeSelection, #accountType').change(function() {
+        updateFormSections();
+        if ($('#syncToPayProp').is(':checked')) {
+            validateCustomerPayPropRequirements();
+        }
+    });
+    
+    $('#paymentMethod').change(function() {
+        updatePaymentFields();
+        if ($('#syncToPayProp').is(':checked')) {
+            validateCustomerPayPropRequirements();
+        }
+    });
+    
     $('#selectPropertyBtn').click(function() {
         $('#propertyModal').modal('show');
         loadProperties();
@@ -775,6 +901,9 @@ $(document).ready(function() {
     $('#propertySearch').on('input', filterProperties);
     $(document).on('click', '.property-item', function() {
         selectProperty(this);
+        if ($('#syncToPayProp').is(':checked')) {
+            validateCustomerPayPropRequirements();
+        }
     });
     
     $('#copyAddressBtn').click(copyPropertyAddress);
@@ -782,6 +911,16 @@ $(document).ready(function() {
 
     // Form Submission Enhancement
     $('#customerForm').submit(function(e) {
+        // PayProp sync validation if enabled
+        if ($('#syncToPayProp').is(':checked')) {
+            const isPayPropReady = validateCustomerPayPropRequirements();
+            if (!isPayPropReady) {
+                e.preventDefault();
+                alert('Please complete all required fields for PayProp sync before submitting.');
+                return false;
+            }
+        }
+        
         // Add full name for backwards compatibility
         const firstName = $('input[name="firstName"]').val();
         const lastName = $('input[name="lastName"]').val();
