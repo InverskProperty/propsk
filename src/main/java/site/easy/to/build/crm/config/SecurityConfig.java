@@ -181,6 +181,9 @@ public class SecurityConfig {
                         // CUSTOMER MANAGEMENT FIX: Specific employee customer routes FIRST
                         .requestMatchers("/employee/customer/add-customer").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
                         .requestMatchers("/employee/customer/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        
+                        // PROPERTY OWNER ACCESS FIX: Allow property owners to access admin property pages
+                        .requestMatchers("/employee/property/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
 
                         // Employee and Manager routes (general - comes AFTER specific)
                         .requestMatchers("/employee/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
@@ -218,7 +221,7 @@ public class SecurityConfig {
 
                         
                         // Property API routes (for address copy functionality)
-                        .requestMatchers("/employee/property/api/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        .requestMatchers("/employee/property/api/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
                         // Property routes
                         .requestMatchers("/property/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
 
