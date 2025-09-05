@@ -6151,7 +6151,20 @@ ORDER BY transaction_count DESC;</code></pre>
                     body: requestBody
                 });
                 
-                const data = await response.json();
+                let data;
+                let responseText = await response.text();
+                
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    // Not JSON - probably HTML error page or plain text
+                    data = { 
+                        raw_response: responseText,
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: Object.fromEntries(response.headers.entries())
+                    };
+                }
                 
                 if (response.ok) {
                     if (data.exportId) {
@@ -6164,7 +6177,8 @@ ORDER BY transaction_count DESC;</code></pre>
                     }
                 } else {
                     hideExportStatus();
-                    showExportResult('error', 'Export failed: ' + (data.error || data.message), data);
+                    const errorMsg = data.error || data.message || data.raw_response || `HTTP ${response.status}: ${response.statusText}`;
+                    showExportResult('error', 'Export failed: ' + errorMsg, data);
                 }
             } catch (error) {
                 hideExportStatus();

@@ -1,0 +1,298 @@
+Can you give me everything from the spec related to creating properties, tenants or beneficiaries.EditHere's everything from the API specification related to creating properties, tenants, and beneficiaries:
+Creating Properties
+POST /entity/property
+Creates a new property in the system.
+Request Body Schema:
+json{
+  "name": "string", // Required - Property name/identifier (max 255 chars)
+  "address": {
+    "address_line_1": "string",
+    "address_line_2": "string", 
+    "address_line_3": "string",
+    "city": "string",
+    "state": "string",
+    "postal_code": "string",
+    "country_code": "string", // 2-letter code, defaults to UK
+    "latitude": "string",
+    "longitude": "string"
+  },
+  "customer_id": "string", // Optional - Your unique identifier
+  "customer_reference": "string",
+  "agent_name": "string", // For subdividing portfolio
+  "notes": "string",
+  "responsible_agent_id": "string",
+  "settings": {
+    "monthly_payment": "number", // Estimated rent
+    "enable_payments": "boolean",
+    "hold_owner_funds": "boolean",
+    "minimum_balance": "number",
+    "verify_payments": "boolean",
+    "listing_from": "date",
+    "listing_to": "date"
+  }
+}
+Creating Tenants
+POST /entity/tenant
+Creates a new tenant in the system.
+Request Body Schema:
+json{
+  "account_type": "individual|business", // Default: individual
+  "first_name": "string", // Required if individual
+  "last_name": "string", // Required if individual  
+  "business_name": "string", // Required if business
+  "email_address": "string",
+  "mobile_number": "string", // Must start with non-zero digit
+  "address": {
+    "address_line_1": "string",
+    "address_line_2": "string",
+    "address_line_3": "string",
+    "city": "string",
+    "state": "string",
+    "postal_code": "string",
+    "country_code": "string"
+  },
+  "bank_account": { // Optional
+    "account_name": "string",
+    "account_number": "string", // 3-8 digits
+    "branch_code": "string", // Exactly 6 digits
+    "bank_name": "string",
+    "branch_name": "string"
+  },
+  "customer_id": "string",
+  "customer_reference": "string",
+  "date_of_birth": "date",
+  "email_cc": ["array of emails"], // Max 10
+  "id_number": "string",
+  "id_type_id": "string",
+  "lead_days": "integer", // 0-31, for invoice lead time
+  "notify_email": "boolean",
+  "notify_sms": "boolean",
+  "phone": "string",
+  "fax": "string",
+  "vat_number": "string",
+  "comment": "string"
+}
+Creating Beneficiaries
+POST /entity/beneficiary
+Creates a new beneficiary (e.g., property owner, vendor).
+Request Body Schema:
+json{
+  "account_type": "individual|business",
+  "first_name": "string", // Required if individual
+  "last_name": "string", // Required if individual
+  "business_name": "string", // Required if business
+  "email_address": "string",
+  "mobile": "string",
+  "payment_method": "local|international|cheque", // Default: local
+  "address": {
+    "address_line_1": "string", // Required for international/cheque
+    "address_line_2": "string",
+    "address_line_3": "string",
+    "city": "string", // Required for international/cheque
+    "state": "string", // Required for international/cheque
+    "postal_code": "string", // Required for international/cheque
+    "country_code": "string"
+  },
+  "bank_account": {
+    // For local:
+    "account_name": "string", // Required
+    "account_number": "string", // 3-8 digits, required
+    "branch_code": "string", // 6 digits, required
+    
+    // For international:
+    "account_name": "string", // Required
+    "swift_code": "string", // 8-11 chars, required
+    "country_code": "string", // Required
+    "iban": "string", // OR account_number, not both
+    "account_number": "string"
+  },
+  "customer_id": "string",
+  "customer_reference": "string",
+  "email_cc": ["array of emails"],
+  "id_number": "string",
+  "id_type_id": "string",
+  "phone": "string",
+  "fax": "string",
+  "vat_number": "string",
+  "comment": "string",
+  "communication_preferences": {
+    "email": {
+      "enabled": "boolean",
+      "payment_advice": "boolean"
+    }
+  }
+}
+Key Notes:
+
+All POST endpoints return the created entity with an id field (external ID)
+The customer_id field allows you to use your own unique identifiers
+Response codes: 200 (success), 400 (bad request), 401 (unauthorized), 403 (forbidden), 404 (not found), 500 (server error)
+Base URL format: https://uk.payprop.com/api/agency/v1.1
+Authentication required via API Key or OAuth token in Authorization header
+All three entity types support GET (retrieve by ID) and PUT (update) operations as well
+RetrySWhich of those are essential?EditLooking at the API specification, here are the essential/required fields for creating each entity:
+Creating Properties
+Absolute minimum required:
+
+name - The only truly required field
+
+Creating Tenants
+Absolute minimum required:
+
+None explicitly required at the root level
+
+Conditionally required:
+
+If account_type is "individual" (default):
+
+first_name (min 2 chars)
+last_name (min 2 chars)
+
+
+If account_type is "business":
+
+business_name (min 2 chars)
+
+
+
+Creating Beneficiaries
+Absolute minimum required:
+
+None explicitly required at the root level
+
+Conditionally required:
+
+If account_type is "individual" (default):
+
+first_name
+last_name
+
+
+If account_type is "business":
+
+business_name
+
+
+If payment_method is "local" (default):
+
+bank_account.account_name
+bank_account.account_number (3-8 digits)
+bank_account.branch_code (exactly 6 digits)
+
+
+If payment_method is "international":
+
+bank_account.account_name
+bank_account.swift_code (8-11 chars)
+bank_account.country_code
+Either bank_account.iban OR bank_account.account_number
+address.address_line_1
+address.city
+address.state
+address.postal_code
+
+
+
+Practical Minimums:
+While those are the API requirements, for a functional system you'd typically want:
+Properties: name, address details
+Tenants: first_name/last_name (or business_name), email_address, possibly customer_reference
+Beneficiaries: Name fields, email_address, bank_account details, payment_methodRetrySrather than explicitly required are any explicitly optionalEditLooking at the API specification, most fields are implicitly optional (not required), but some are explicitly marked as optional with descriptions or default values. Here are the explicitly optional fields:
+Properties
+Explicitly optional:
+
+customer_id - Described as "optional" unique identifier
+tax_group_id - Marked as "deprecated and will be removed"
+settings.listing_from - "Default value of today if not provided"
+settings.minimum_balance - Has "default: 0"
+
+Tenants
+Explicitly optional:
+
+customer_id - Described as "optional" unique identifier
+account_type - Has "default: individual"
+address.country_code - Has "default: UK"
+id_type_id - Has "default: ~" (null)
+lead_days - Has "default: 0"
+bank_account - Described as "optional" for record keeping
+phone - Described as "optional field that is only used for record keeping"
+email_cc - Has "default: []"
+
+Beneficiaries
+Explicitly optional:
+
+customer_id - Described as "optional" unique identifier
+account_type - Has "default: individual"
+payment_method - Has "default: local"
+address.country_code - Has "default: UK"
+bank_account.country_code - Has "default: UK"
+id_type_id - Has "default: ~" (null)
+phone - Described as "An optional field that is only used for record keeping"
+email_cc - Has "default: []"
+international - Marked as "deprecated and will be removed"
+notify_email - Marked as "deprecated and will be removed"
+notify_sms - Marked as "deprecated and will be removed"
+
+The pattern here is that fields with defaults, deprecated fields, and fields explicitly described as "optional" or "for record keeping only" are clearly optional. Everything else is technically optional unless conditionally required based on other field values.RetrySdoes the api allow for the export of a single property?EditYes, the API allows you to retrieve a single property through two different methods:
+1. Direct Retrieval by ID
+GET /entity/property/{external_id}
+This endpoint retrieves a single property by its external ID. You can use either:
+
+The PayProp external ID (e.g., "D8eJPwZG7j")
+Your own customer_id if you set ?is_customer_id=true as a query parameter
+
+Example:
+GET /api/agency/v1.1/entity/property/D8eJPwZG7j
+or
+GET /api/agency/v1.1/entity/property/your-custom-id?is_customer_id=true
+2. Export Endpoint with Filtering
+GET /export/properties
+While this is primarily for bulk exports, you can filter it to return a single property using query parameters:
+
+?external_id={id} - Filter by PayProp's external ID
+?customer_id={id} - Filter by your customer ID
+?customer_reference={ref} - Filter by customer reference
+
+Example:
+GET /api/agency/v1.1/export/properties?external_id=D8eJPwZG7j
+The export endpoint also offers additional options like:
+
+include_last_processing_info - Include last invoice/payment info
+include_active_tenancies - Include current tenant relationships
+include_commission - Include commission details
+include_balance - Include property balance
+
+The direct /entity/property/{external_id} endpoint is simpler if you just need the property details, while the export endpoint provides more comprehensive data options.RetrySI may have been asking the wrong questoions.. I say export but i mean sending to payprop in all of these questionsEditAh, I understand now - you're asking about creating/sending data TO PayProp, not extracting it. Based on your preferences about being right first time, let me clarify what the API allows for sending data to PayProp:
+Creating Single Entities
+Yes, the API allows you to create individual properties, tenants, and beneficiaries one at a time:
+Single Property Creation
+POST /entity/property - Creates ONE property at a time
+
+No bulk creation endpoint exists for properties
+Each request creates exactly one property
+
+Single Tenant Creation
+POST /entity/tenant - Creates ONE tenant at a time
+
+No bulk creation endpoint exists for tenants
+Each request creates exactly one tenant
+
+Single Beneficiary Creation
+POST /entity/beneficiary - Creates ONE beneficiary at a time
+
+No bulk creation endpoint exists for beneficiaries
+Each request creates exactly one beneficiary
+
+Key Points:
+
+No Bulk Import Endpoints - The API specification shows no bulk creation endpoints for any of these entity types
+One-by-One Creation - You must make separate API calls for each property, tenant, or beneficiary you want to create
+No CSV/Batch Upload - Unlike some systems, there's no endpoint for uploading multiple records via CSV or JSON arrays
+
+If you need to import multiple properties, tenants, or beneficiaries into PayProp, you'll need to:
+
+Loop through your data
+Make individual POST requests for each record
+Handle the response and store the returned id for future reference
+
+Would you like to know about any specific aspects of creating these entities, such as the validation rules or how to handle relationships between them?
