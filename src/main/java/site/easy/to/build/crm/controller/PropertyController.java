@@ -30,6 +30,8 @@ import site.easy.to.build.crm.service.ticket.TicketService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.entity.Role;
+import site.easy.to.build.crm.service.payprop.PayPropSyncService;
+import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 
 
 import java.math.BigDecimal;
@@ -54,8 +56,18 @@ public class PropertyController {
     private final CustomerService customerService;
     private final JdbcTemplate jdbcTemplate;
     
+    // Optional PayProp services (only available when PayProp is enabled)
+    @Autowired(required = false)
+    private PayPropSyncService payPropSyncService;
+    
+    @Autowired(required = false)
+    private PayPropOAuth2Service payPropOAuth2Service;
+    
     @Value("${crm.data.source:LEGACY}")
     private String dataSource;
+    
+    @Value("${payprop.enabled:false}")
+    private boolean payPropEnabled;
 
     @Autowired
     public PropertyController(PropertyService propertyService,
@@ -627,7 +639,8 @@ public class PropertyController {
     }
 
     @PostMapping("/create-property")
-    public String createProperty(@ModelAttribute("property") @Validated Property property, 
+    public String createProperty(@ModelAttribute("property") @Validated Property property,
+                                @RequestParam(value = "syncToPayProp", required = false) Boolean syncToPayProp,
                                 BindingResult bindingResult, Authentication authentication, 
                                 Model model, RedirectAttributes redirectAttributes) {
         if (bindingResult.hasErrors()) {
@@ -649,10 +662,54 @@ public class PropertyController {
         try {
             Property savedProperty = propertyService.save(property);
             
-            redirectAttributes.addFlashAttribute("successMessage", 
-                "Property created successfully! It will be synced to PayProp on June 17, 2025.");
+            // Handle PayProp sync if requested
+            String successMessage = "Property created successfully!";
+            boolean syncSuccessful = false;
+            
+            if (Boolean.TRUE.equals(syncToPayProp) && payPropEnabled && payPropSyncService != null && payPropOAuth2Service != null) {
+                try {
+                    // Check if PayProp is authorized
+                    if (payPropOAuth2Service.hasValidTokens()) {
+                        // Attempt to sync to PayProp
+                        System.out.println("🔄 Attempting to sync property " + savedProperty.getId() + " to PayProp...");
+                        String payPropId = payPropSyncService.syncPropertyToPayProp(savedProperty.getId());
+                        
+                        if (payPropId != null && !payPropId.contains("success\": false")) {
+                            System.out.println("✅ Property synced to PayProp successfully with ID: " + payPropId);
+                            successMessage = "Property created and synced to PayProp successfully!";
+                            syncSuccessful = true;
+                        } else {
+                            System.out.println("❌ PayProp sync failed: " + payPropId);
+                            successMessage = "Property created successfully, but PayProp sync failed. You can sync it manually later.";
+                        }
+                    } else {
+                        System.out.println("❌ PayProp not authorized");
+                        successMessage = "Property created successfully, but PayProp is not authorized. Please authorize PayProp first.";
+                    }
+                } catch (Exception syncError) {
+                    System.err.println("❌ PayProp sync error: " + syncError.getMessage());
+                    syncError.printStackTrace();
+                    successMessage = "Property created successfully, but PayProp sync failed: " + syncError.getMessage();
+                }
+            } else if (Boolean.TRUE.equals(syncToPayProp) && !payPropEnabled) {
+                successMessage = "Property created successfully, but PayProp integration is disabled.";
+            } else if (Boolean.TRUE.equals(syncToPayProp)) {
+                successMessage = "Property created successfully, but PayProp services are not available.";
+            } else {
+                // Default message when sync is not requested
+                successMessage = "Property created successfully!";
+            }
+            
+            redirectAttributes.addFlashAttribute("successMessage", successMessage);
+            if (syncSuccessful) {
+                redirectAttributes.addFlashAttribute("syncStatus", "success");
+            } else if (Boolean.TRUE.equals(syncToPayProp)) {
+                redirectAttributes.addFlashAttribute("syncStatus", "failed");
+            }
             
         } catch (Exception e) {
+            System.err.println("❌ Property creation failed: " + e.getMessage());
+            e.printStackTrace();
             model.addAttribute("error", "Failed to create property: " + e.getMessage());
             return "property/create-property";
         }

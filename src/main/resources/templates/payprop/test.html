@@ -354,6 +354,11 @@
                                     <i class="fas fa-code"></i> Raw API
                                 </a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#exportTestTab">
+                                    <i class="fas fa-upload text-warning"></i> Export Testing
+                                </a>
+                            </li>
                         </ul>
                     </div>
                     
@@ -1619,6 +1624,128 @@ ORDER BY transaction_count DESC;</code></pre>
                                 </div>
                                 
                                 <div id="rawApiResult" class="result-display d-none"></div>
+                            </div>
+                            
+                            <!-- Export Testing Tab -->
+                            <div class="tab-pane fade" id="exportTestTab">
+                                <h5><i class="fas fa-upload"></i> Export Testing with Request Body</h5>
+                                <p class="text-muted">Test export endpoints that require POST requests with custom JSON payloads</p>
+                                
+                                <div class="search-form">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Export Endpoint</label>
+                                            <select id="exportEndpoint" class="form-select">
+                                                <option value="/api/payprop/sync/properties">Export Properties</option>
+                                                <option value="/api/payprop/sync/property-owners">Export Property Owners</option>
+                                                <option value="/api/payprop/sync/tenants">Export Tenants</option>
+                                                <option value="/api/payprop/sync/transactions">Export Transactions</option>
+                                                <option value="/api/payprop/maintenance/sync/export-tickets">Export Maintenance Tickets</option>
+                                                <option value="/api/payprop/sync/unified-sync">Unified Export</option>
+                                                <option value="custom">Custom Endpoint...</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Custom Endpoint (if selected)</label>
+                                            <input type="text" id="customExportEndpoint" class="form-control" 
+                                                   placeholder="/api/payprop/sync/custom" style="display: none;">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <label class="form-label">Request Body (JSON)</label>
+                                            <textarea id="exportRequestBody" class="form-control" rows="12" 
+                                                      placeholder='{
+  "filters": {
+    "properties": [288, 289],
+    "dateRange": {
+      "from": "2025-01-01",
+      "to": "2025-12-31"
+    },
+    "includeSynced": false,
+    "onlyUnsynced": true
+  },
+  "options": {
+    "validateData": true,
+    "dryRun": false,
+    "batchSize": 10
+  }
+}'>{
+  "filters": {
+    "properties": [],
+    "dateRange": {
+      "from": "2025-01-01",
+      "to": "2025-12-31"
+    },
+    "includeSynced": false,
+    "onlyUnsynced": true
+  },
+  "options": {
+    "validateData": true,
+    "dryRun": false,
+    "batchSize": 10
+  }
+}</textarea>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <button class="btn btn-success btn-lg" onclick="testExportWithBody()">
+                                                <i class="fas fa-upload"></i> Test Export
+                                            </button>
+                                            <button class="btn btn-info btn-lg ms-2" onclick="validateExportJson()">
+                                                <i class="fas fa-check-circle"></i> Validate JSON
+                                            </button>
+                                            <button class="btn btn-warning btn-lg ms-2" onclick="dryRunExport()">
+                                                <i class="fas fa-eye"></i> Dry Run
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Quick Templates -->
+                                <div class="row mt-4">
+                                    <div class="col-12">
+                                        <h6><i class="fas fa-templates"></i> Quick Templates</h6>
+                                        <button class="btn btn-outline-primary btn-sm me-2" onclick="setExportTemplate('properties')">
+                                            Properties Template
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="setExportTemplate('tenants')">
+                                            Tenants Template
+                                        </button>
+                                        <button class="btn btn-outline-info btn-sm me-2" onclick="setExportTemplate('maintenance')">
+                                            Maintenance Template
+                                        </button>
+                                        <button class="btn btn-outline-success btn-sm me-2" onclick="setExportTemplate('full')">
+                                            Full Export Template
+                                        </button>
+                                        <button class="btn btn-outline-warning btn-sm" onclick="setExportTemplate('unsynced')">
+                                            Unsynced Data Template
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Export Status -->
+                                <div id="exportStatusContainer" class="mt-4" style="display: none;">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0"><i class="fas fa-chart-line"></i> Export Progress</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="progress mb-3">
+                                                <div id="exportTestProgressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                                            </div>
+                                            <div id="currentExportTestOperation" class="text-muted mb-2"></div>
+                                            <button id="cancelExportTestBtn" class="btn btn-danger btn-sm" style="display: none;" onclick="cancelExportTest()">
+                                                <i class="fas fa-stop"></i> Cancel Export
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="exportTestResult" class="result-display d-none"></div>
                             </div>
                             
                         </div>
@@ -5970,6 +6097,317 @@ ORDER BY transaction_count DESC;</code></pre>
             if (element) {
                 element.style.display = element.style.display === 'none' ? 'block' : 'none';
             }
+        }
+
+        // ===== EXPORT TESTING FUNCTIONS =====
+
+        // Export endpoint selection change handler
+        document.addEventListener('DOMContentLoaded', function() {
+            const exportEndpointSelect = document.getElementById('exportEndpoint');
+            const customEndpointInput = document.getElementById('customExportEndpoint');
+            
+            if (exportEndpointSelect && customEndpointInput) {
+                exportEndpointSelect.addEventListener('change', function() {
+                    if (this.value === 'custom') {
+                        customEndpointInput.style.display = 'block';
+                        customEndpointInput.required = true;
+                    } else {
+                        customEndpointInput.style.display = 'none';
+                        customEndpointInput.required = false;
+                    }
+                });
+            }
+        });
+
+        let currentExportTestId = null;
+        let exportTestProgressInterval = null;
+
+        async function testExportWithBody() {
+            const endpoint = getSelectedExportEndpoint();
+            const requestBody = document.getElementById('exportRequestBody').value;
+            
+            if (!endpoint) {
+                showExportResult('error', 'Please select an export endpoint');
+                return;
+            }
+            
+            try {
+                // Validate JSON first
+                JSON.parse(requestBody);
+            } catch (e) {
+                showExportResult('error', 'Invalid JSON in request body: ' + e.message);
+                return;
+            }
+            
+            showExportResult('info', `Testing export to ${endpoint}...`);
+            showExportStatus();
+            
+            try {
+                const response = await fetchWithCSRF(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: requestBody
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.exportId) {
+                        currentExportTestId = data.exportId;
+                        startExportTestMonitoring();
+                        showExportResult('success', 'Export started successfully. Monitoring progress...');
+                    } else {
+                        hideExportStatus();
+                        showExportResult('success', 'Export completed immediately', data);
+                    }
+                } else {
+                    hideExportStatus();
+                    showExportResult('error', 'Export failed: ' + (data.error || data.message), data);
+                }
+            } catch (error) {
+                hideExportStatus();
+                showExportResult('error', 'Export request failed: ' + error.message);
+            }
+        }
+
+        function getSelectedExportEndpoint() {
+            const select = document.getElementById('exportEndpoint');
+            const customInput = document.getElementById('customExportEndpoint');
+            
+            if (select.value === 'custom') {
+                return customInput.value.trim() || null;
+            }
+            return select.value;
+        }
+
+        function validateExportJson() {
+            const requestBody = document.getElementById('exportRequestBody').value;
+            
+            try {
+                const parsed = JSON.parse(requestBody);
+                showExportResult('success', 'JSON is valid', { 
+                    message: 'JSON validation passed',
+                    parsedObject: parsed 
+                });
+            } catch (e) {
+                showExportResult('error', 'Invalid JSON: ' + e.message);
+            }
+        }
+
+        async function dryRunExport() {
+            const requestBody = document.getElementById('exportRequestBody').value;
+            
+            try {
+                const parsed = JSON.parse(requestBody);
+                // Set dry run flag
+                if (!parsed.options) parsed.options = {};
+                parsed.options.dryRun = true;
+                
+                document.getElementById('exportRequestBody').value = JSON.stringify(parsed, null, 2);
+                showExportResult('info', 'Dry run flag set. Ready to test without making actual changes.');
+                
+            } catch (e) {
+                showExportResult('error', 'Cannot set dry run - Invalid JSON: ' + e.message);
+            }
+        }
+
+        function startExportTestMonitoring() {
+            if (!currentExportTestId) return;
+            
+            exportTestProgressInterval = setInterval(async () => {
+                try {
+                    const response = await fetchWithCSRF(`/api/payprop/sync/status/${currentExportTestId}`);
+                    const status = await response.json();
+                    
+                    if (response.ok) {
+                        updateExportTestProgress(status.progress || 0, status.currentOperation || 'Processing...');
+                        
+                        if (status.completed) {
+                            clearInterval(exportTestProgressInterval);
+                            hideExportStatus();
+                            showExportResult('success', 'Export completed successfully!', status.results);
+                        } else if (status.error) {
+                            clearInterval(exportTestProgressInterval);
+                            hideExportStatus();
+                            showExportResult('error', 'Export failed: ' + status.error);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error monitoring export progress:', error);
+                }
+            }, 2000);
+        }
+
+        function cancelExportTest() {
+            if (!currentExportTestId) return;
+            
+            fetchWithCSRF(`/api/payprop/sync/cancel/${currentExportTestId}`, { method: 'POST' })
+                .then(() => {
+                    clearInterval(exportTestProgressInterval);
+                    hideExportStatus();
+                    showExportResult('warning', 'Export cancelled');
+                })
+                .catch(error => {
+                    showExportResult('error', 'Error cancelling export: ' + error.message);
+                });
+        }
+
+        function showExportStatus() {
+            document.getElementById('exportStatusContainer').style.display = 'block';
+            document.getElementById('cancelExportTestBtn').style.display = 'inline-block';
+            updateExportTestProgress(0, 'Initializing...');
+        }
+
+        function hideExportStatus() {
+            document.getElementById('exportStatusContainer').style.display = 'none';
+            document.getElementById('cancelExportTestBtn').style.display = 'none';
+            currentExportTestId = null;
+            if (exportTestProgressInterval) {
+                clearInterval(exportTestProgressInterval);
+                exportTestProgressInterval = null;
+            }
+        }
+
+        function updateExportTestProgress(percent, operation) {
+            const progressBar = document.getElementById('exportTestProgressBar');
+            const operationText = document.getElementById('currentExportTestOperation');
+            
+            if (progressBar) {
+                progressBar.style.width = percent + '%';
+                progressBar.setAttribute('aria-valuenow', percent);
+            }
+            if (operationText) {
+                operationText.textContent = operation;
+            }
+        }
+
+        function showExportResult(type, message, data = null) {
+            const resultDiv = document.getElementById('exportTestResult');
+            if (!resultDiv) return;
+            
+            resultDiv.classList.remove('d-none', 'result-success', 'result-error', 'result-warning');
+            
+            const alertClass = type === 'error' ? 'result-error' : 
+                             type === 'success' ? 'result-success' : 
+                             type === 'warning' ? 'result-warning' : 'result-info';
+                             
+            resultDiv.classList.add(alertClass);
+            
+            const timestamp = new Date().toLocaleTimeString();
+            let content = `<strong>[${timestamp}] ${message}</strong>`;
+            
+            if (data) {
+                content += `<pre class="mt-2">${JSON.stringify(data, null, 2)}</pre>`;
+            }
+            
+            resultDiv.innerHTML = content;
+        }
+
+        function setExportTemplate(templateType) {
+            const templates = {
+                properties: {
+                    endpoint: '/api/payprop/sync/properties',
+                    body: {
+                        filters: {
+                            properties: [288, 289],
+                            onlyUnsynced: true,
+                            includeArchived: false
+                        },
+                        options: {
+                            validateData: true,
+                            dryRun: false,
+                            batchSize: 10
+                        }
+                    }
+                },
+                tenants: {
+                    endpoint: '/api/payprop/sync/tenants',
+                    body: {
+                        filters: {
+                            properties: [],
+                            onlyActive: true,
+                            onlyUnsynced: true
+                        },
+                        options: {
+                            includePropertyInfo: true,
+                            validateData: true,
+                            dryRun: false
+                        }
+                    }
+                },
+                maintenance: {
+                    endpoint: '/api/payprop/maintenance/sync/export-tickets',
+                    body: {
+                        filters: {
+                            status: ["open", "in-progress", "resolved"],
+                            dateRange: {
+                                from: "2025-01-01",
+                                to: "2025-12-31"
+                            },
+                            properties: []
+                        },
+                        options: {
+                            includeBids: true,
+                            includeFiles: false,
+                            dryRun: false
+                        }
+                    }
+                },
+                full: {
+                    endpoint: '/api/payprop/sync/unified-sync',
+                    body: {
+                        syncTypes: ["properties", "tenants", "property-owners", "maintenance"],
+                        options: {
+                            fullSync: true,
+                            validateData: true,
+                            batchSize: 25,
+                            dryRun: false
+                        }
+                    }
+                },
+                unsynced: {
+                    endpoint: '/api/payprop/sync/unified-sync',
+                    body: {
+                        filters: {
+                            onlyUnsynced: true,
+                            includeModifiedSince: "2025-01-01"
+                        },
+                        syncTypes: ["properties", "tenants", "property-owners"],
+                        options: {
+                            validateData: true,
+                            batchSize: 10,
+                            dryRun: false
+                        }
+                    }
+                }
+            };
+            
+            const template = templates[templateType];
+            if (!template) {
+                showExportResult('error', 'Unknown template type: ' + templateType);
+                return;
+            }
+            
+            // Set endpoint
+            const endpointSelect = document.getElementById('exportEndpoint');
+            const customEndpointInput = document.getElementById('customExportEndpoint');
+            
+            const existingOption = Array.from(endpointSelect.options).find(opt => opt.value === template.endpoint);
+            if (existingOption) {
+                endpointSelect.value = template.endpoint;
+                customEndpointInput.style.display = 'none';
+            } else {
+                endpointSelect.value = 'custom';
+                customEndpointInput.value = template.endpoint;
+                customEndpointInput.style.display = 'block';
+            }
+            
+            // Set body
+            document.getElementById('exportRequestBody').value = JSON.stringify(template.body, null, 2);
+            
+            showExportResult('info', `Template "${templateType}" loaded successfully`);
         }
     </script>
 </body>

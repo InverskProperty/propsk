@@ -512,10 +512,30 @@ public class PropertyServiceImpl implements PropertyService {
     @Override
     public List<Property> findActiveProperties() {
         if ("PAYPROP".equals(dataSource)) {
-            // Use PayProp export data directly (consistent with occupied/vacant logic)
-            return findAllFromPayProp().stream()
-                .filter(p -> !"Y".equals(p.getIsArchived()))
-                .collect(Collectors.toList());
+            try {
+                // Get PayProp synced properties
+                List<Property> payPropProperties = findAllFromPayProp().stream()
+                    .filter(p -> !"Y".equals(p.getIsArchived()))
+                    .collect(Collectors.toList());
+                
+                System.out.println("DEBUG: Found " + payPropProperties.size() + " PayProp properties");
+                
+                // Get local CRM properties that haven't been synced to PayProp yet
+                List<Property> localOnlyProperties = propertyRepository.findByPayPropIdIsNullAndIsArchivedFalse();
+                
+                System.out.println("DEBUG: Found " + localOnlyProperties.size() + " local-only properties");
+                
+                // Combine both lists - PayProp properties first, then local properties
+                List<Property> allProperties = new ArrayList<>(payPropProperties);
+                allProperties.addAll(localOnlyProperties);
+                
+                System.out.println("DEBUG: Total active properties: " + allProperties.size());
+                return allProperties;
+                
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to get PayProp properties, falling back to local only: " + e.getMessage());
+                return propertyRepository.findByIsArchivedOrderByCreatedAtDesc("N");
+            }
         }
         return propertyRepository.findByIsArchivedOrderByCreatedAtDesc("N");
     }

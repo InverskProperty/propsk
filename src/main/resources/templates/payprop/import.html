@@ -53,15 +53,37 @@
                             </div>
 
                             <div th:if="${paypropConnected}">
-                                <h5 class="mb-3">Import Services</h5>
-                                
-                                <!-- Service Selection -->
-                                <div class="row">
+                                <!-- Import/Export Toggle -->
+                                <div class="row mb-4">
                                     <div class="col-12">
-                                        <div class="card">
-                                            <div class="card-header">
-                                                <h6 class="mb-0">Select Import Services</h6>
-                                            </div>
+                                        <ul class="nav nav-pills justify-content-center" id="syncTypeTabs" role="tablist">
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link active" id="import-tab" data-bs-toggle="pill" data-bs-target="#import-panel" type="button" role="tab">
+                                                    <i class="fas fa-download"></i> Import Services
+                                                </button>
+                                            </li>
+                                            <li class="nav-item" role="presentation">
+                                                <button class="nav-link" id="export-tab" data-bs-toggle="pill" data-bs-target="#export-panel" type="button" role="tab">
+                                                    <i class="fas fa-upload"></i> Export Services
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <!-- Tab Content -->
+                                <div class="tab-content" id="syncTypeContent">
+                                    <!-- Import Services Tab -->
+                                    <div class="tab-pane fade show active" id="import-panel" role="tabpanel" aria-labelledby="import-tab">
+                                        <h5 class="mb-3">Import Services</h5>
+                                        
+                                        <!-- Service Selection -->
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <div class="card">
+                                                    <div class="card-header">
+                                                        <h6 class="mb-0">Select Import Services</h6>
+                                                    </div>
                                             <div class="card-body">
                                                 <div class="row">
                                                     <div class="col-md-4">
@@ -176,6 +198,140 @@
                                                 <div id="results" class="mt-3">
                                                     <div class="alert alert-info">
                                                         <i class="fas fa-info-circle"></i> Ready to import data from PayProp
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    </div>
+                                    
+                                    <!-- Export Services Tab -->
+                                    <div class="tab-pane fade" id="export-panel" role="tabpanel" aria-labelledby="export-tab">
+                                        <h5 class="mb-3">Export Services</h5>
+                                        
+                                        <!-- Export Service Selection -->
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <div class="card">
+                                                    <div class="card-header">
+                                                        <h6 class="mb-0">Select Export Services</h6>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <div class="row">
+                                                            <div class="col-md-4">
+                                                                <h6>Property & Portfolio Exports</h6>
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" value="export-properties" id="exportProperties">
+                                                                    <label class="form-check-label" for="exportProperties">Export Properties</label>
+                                                                </div>
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" value="export-property-owners" id="exportPropertyOwners">
+                                                                    <label class="form-check-label" for="exportPropertyOwners">Export Property Owners</label>
+                                                                </div>
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" value="export-tenants" id="exportTenants">
+                                                                    <label class="form-check-label" for="exportTenants">Export Tenants</label>
+                                                                </div>
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <h6>Financial Data Exports</h6>
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" value="export-transactions" id="exportTransactions">
+                                                                    <label class="form-check-label" for="exportTransactions">Export Transactions</label>
+                                                                </div>
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" value="export-invoices" id="exportInvoices">
+                                                                    <label class="form-check-label" for="exportInvoices">Export Invoice Data</label>
+                                                                </div>
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" value="export-payment-rules" id="exportPaymentRules">
+                                                                    <label class="form-check-label" for="exportPaymentRules">Export Payment Rules</label>
+                                                                </div>
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <h6>Maintenance & Tickets</h6>
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" value="export-maintenance-tickets" id="exportMaintenanceTickets">
+                                                                    <label class="form-check-label" for="exportMaintenanceTickets">Export Maintenance Tickets</label>
+                                                                </div>
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" value="export-contractor-bids" id="exportContractorBids">
+                                                                    <label class="form-check-label" for="exportContractorBids">Export Contractor Bids</label>
+                                                                </div>
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" value="export-maintenance-categories" id="exportMaintenanceCategories">
+                                                                    <label class="form-check-label" for="exportMaintenanceCategories">Export Categories</label>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div class="row mt-3">
+                                                            <div class="col-12">
+                                                                <button id="runSelectedExportBtn" class="btn btn-success me-2">
+                                                                    <i class="fas fa-upload"></i> Run Selected Exports
+                                                                </button>
+                                                                <button id="selectAllExportBtn" class="btn btn-secondary me-2">
+                                                                    <i class="fas fa-check-double"></i> Select All
+                                                                </button>
+                                                                <button id="clearAllExportBtn" class="btn btn-outline-secondary">
+                                                                    <i class="fas fa-times"></i> Clear All
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Export Quick Actions -->
+                                        <div class="row mt-3">
+                                            <div class="col-md-6">
+                                                <div class="card border-left-success">
+                                                    <div class="card-body">
+                                                        <h6 class="card-title">Full Export to PayProp</h6>
+                                                        <p class="card-text">Export all CRM data to PayProp (properties, owners, tenants).</p>
+                                                        <button id="fullExportBtn" class="btn btn-success">
+                                                            <i class="fas fa-cloud-upload-alt"></i> Start Full Export
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="col-md-6">
+                                                <div class="card border-left-info">
+                                                    <div class="card-body">
+                                                        <h6 class="card-title">Sync Unsynced Data</h6>
+                                                        <p class="card-text">Export only properties and data that haven't been synced to PayProp yet.</p>
+                                                        <button id="syncUnsyncedBtn" class="btn btn-info">
+                                                            <i class="fas fa-sync-alt"></i> Sync Unsynced Data
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row mt-3">
+                                            <div class="col-12">
+                                                <div class="card">
+                                                    <div class="card-header">
+                                                        <h6 class="mb-0">Export Progress</h6>
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <div id="exportProgressContainer" style="display: none;">
+                                                            <div class="progress mb-3">
+                                                                <div id="exportProgressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                                                            </div>
+                                                            <div id="currentExportOperation" class="text-muted mb-2"></div>
+                                                            <button id="cancelExportBtn" class="btn btn-danger btn-sm" style="display: none;">
+                                                                <i class="fas fa-stop"></i> Cancel Export
+                                                            </button>
+                                                        </div>
+                                                        
+                                                        <div id="exportResults" class="mt-3">
+                                                            <div class="alert alert-info">
+                                                                <i class="fas fa-info-circle"></i> Ready to export data to PayProp
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -586,6 +742,346 @@ async function checkConnectionStatus() {
     } catch (error) {
         console.error('Error checking connection:', error);
     }
+}
+
+// ===== EXPORT FUNCTIONS =====
+
+let currentExportId = null;
+let exportProgressInterval = null;
+
+// Export button event listeners
+document.getElementById('fullExportBtn')?.addEventListener('click', function() {
+    startExport('full');
+});
+
+document.getElementById('syncUnsyncedBtn')?.addEventListener('click', function() {
+    startExport('unsynced');
+});
+
+document.getElementById('runSelectedExportBtn')?.addEventListener('click', function() {
+    runSelectedExportServices();
+});
+
+document.getElementById('selectAllExportBtn')?.addEventListener('click', function() {
+    selectAllExportServices();
+});
+
+document.getElementById('clearAllExportBtn')?.addEventListener('click', function() {
+    clearAllExportServices();
+});
+
+document.getElementById('cancelExportBtn')?.addEventListener('click', function() {
+    cancelExport();
+});
+
+async function startExport(type) {
+    const endpoint = type === 'full' 
+        ? '/api/payprop/sync/unified-sync'
+        : '/api/payprop/sync/sync-unsynced-properties';
+    
+    showExportProgress();
+    updateExportStatus('Initializing export...', 'info');
+    
+    try {
+        const response = await fetchWithCSRF(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            if (data.exportId || data.success) {
+                if (data.exportId) {
+                    currentExportId = data.exportId;
+                    document.getElementById('cancelExportBtn').style.display = 'inline-block';
+                    startExportProgressMonitoring();
+                }
+                updateExportStatus('Export started successfully', 'success');
+            } else {
+                updateExportStatus('Export failed: ' + JSON.stringify(data), 'error');
+                hideExportProgress();
+            }
+        } else {
+            updateExportStatus('Export failed: ' + (data.error || data.message), 'error');
+            hideExportProgress();
+        }
+    } catch (error) {
+        updateExportStatus('Export error: ' + error.message, 'error');
+        hideExportProgress();
+    }
+}
+
+function startExportProgressMonitoring() {
+    if (!currentExportId) return;
+    
+    exportProgressInterval = setInterval(async () => {
+        try {
+            const response = await fetchWithCSRF(`/api/payprop/sync/status/${currentExportId}`);
+            const status = await response.json();
+            
+            if (response.ok) {
+                updateExportProgressBar(status.progress || 0);
+                document.getElementById('currentExportOperation').textContent = status.currentOperation || 'Processing...';
+                
+                if (status.completed) {
+                    clearInterval(exportProgressInterval);
+                    hideExportProgress();
+                    updateExportStatus('Export completed successfully!', 'success');
+                    
+                    if (status.results) {
+                        displayExportResults(status.results);
+                    }
+                } else if (status.error) {
+                    clearInterval(exportProgressInterval);
+                    hideExportProgress();
+                    updateExportStatus('Export failed: ' + status.error, 'error');
+                }
+            }
+        } catch (error) {
+            console.error('Error monitoring export progress:', error);
+        }
+    }, 2000);
+}
+
+async function cancelExport() {
+    if (!currentExportId) return;
+    
+    try {
+        const response = await fetchWithCSRF(`/api/payprop/sync/cancel/${currentExportId}`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            clearInterval(exportProgressInterval);
+            hideExportProgress();
+            updateExportStatus('Export cancelled', 'warning');
+        }
+    } catch (error) {
+        updateExportStatus('Error cancelling export: ' + error.message, 'error');
+    }
+}
+
+function showExportProgress() {
+    document.getElementById('exportProgressContainer').style.display = 'block';
+    // Disable all export action buttons during progress
+    const fullExportBtn = document.getElementById('fullExportBtn');
+    const syncUnsyncedBtn = document.getElementById('syncUnsyncedBtn');
+    const runSelectedExportBtn = document.getElementById('runSelectedExportBtn');
+    
+    if (fullExportBtn) fullExportBtn.disabled = true;
+    if (syncUnsyncedBtn) syncUnsyncedBtn.disabled = true;
+    if (runSelectedExportBtn) runSelectedExportBtn.disabled = true;
+    
+    updateExportProgressBar(0);
+}
+
+function hideExportProgress() {
+    document.getElementById('exportProgressContainer').style.display = 'none';
+    document.getElementById('cancelExportBtn').style.display = 'none';
+    
+    // Re-enable all export action buttons
+    const fullExportBtn = document.getElementById('fullExportBtn');
+    const syncUnsyncedBtn = document.getElementById('syncUnsyncedBtn');
+    const runSelectedExportBtn = document.getElementById('runSelectedExportBtn');
+    
+    if (fullExportBtn) fullExportBtn.disabled = false;
+    if (syncUnsyncedBtn) syncUnsyncedBtn.disabled = false;
+    if (runSelectedExportBtn) runSelectedExportBtn.disabled = false;
+    
+    currentExportId = null;
+    
+    if (exportProgressInterval) {
+        clearInterval(exportProgressInterval);
+        exportProgressInterval = null;
+    }
+}
+
+function updateExportProgressBar(percent) {
+    const progressBar = document.getElementById('exportProgressBar');
+    progressBar.style.width = percent + '%';
+    progressBar.setAttribute('aria-valuenow', percent);
+}
+
+function updateExportStatus(message, type) {
+    const resultsDiv = document.getElementById('exportResults');
+    if (!resultsDiv) {
+        console.error('Export results div not found');
+        return;
+    }
+    
+    const alertClass = type === 'error' ? 'alert-danger' : 
+                     type === 'success' ? 'alert-success' : 
+                     type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    const icon = type === 'error' ? 'fas fa-exclamation-circle' : 
+                type === 'success' ? 'fas fa-check-circle' : 
+                type === 'warning' ? 'fas fa-exclamation-triangle' : 'fas fa-info-circle';
+    
+    const timestamp = new Date().toLocaleTimeString();
+    
+    resultsDiv.innerHTML = `
+        <div class="alert ${alertClass}">
+            <i class="${icon}"></i> [${timestamp}] ${message}
+        </div>
+    `;
+}
+
+function displayExportResults(results) {
+    const resultsDiv = document.getElementById('exportResults');
+    if (!resultsDiv) return;
+    
+    let html = '<div class="alert alert-success"><i class="fas fa-check-circle"></i> Export Summary:</div>';
+    
+    if (results.summary) {
+        html += '<div class="table-responsive"><table class="table table-bordered table-sm">';
+        html += '<thead><tr><th>Operation</th><th>Status</th><th>Records</th></tr></thead><tbody>';
+        
+        Object.entries(results.summary).forEach(([operation, data]) => {
+            const status = data.error ? 'Error' : 'Success';
+            const statusClass = data.error ? 'text-danger' : 'text-success';
+            const count = data.recordsProcessed || data.count || 0;
+            
+            html += `<tr>
+                <td>${operation}</td>
+                <td class="${statusClass}">${status}</td>
+                <td>${count}</td>
+            </tr>`;
+        });
+        
+        html += '</tbody></table></div>';
+    }
+    
+    resultsDiv.innerHTML = html;
+}
+
+async function runSelectedExportServices() {
+    const selectedServices = getSelectedExportServices();
+    if (selectedServices.length === 0) {
+        updateExportStatus('Please select at least one export service to run', 'warning');
+        return;
+    }
+    
+    updateExportStatus(`Starting selected exports: ${selectedServices.join(', ')}`, 'info');
+    showExportProgress();
+    
+    const results = [];
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const service of selectedServices) {
+        try {
+            updateExportStatus(`Processing ${service}...`, 'info');
+            const result = await runSingleExportService(service);
+            results.push({ service, success: result.success, message: result.message });
+            
+            if (result.success) {
+                successCount++;
+            } else {
+                errorCount++;
+            }
+        } catch (error) {
+            results.push({ service, success: false, message: error.message });
+            errorCount++;
+        }
+    }
+    
+    hideExportProgress();
+    
+    // Display final results
+    const overallSuccess = errorCount === 0;
+    const statusType = overallSuccess ? 'success' : (successCount > 0 ? 'warning' : 'error');
+    const summary = `Export completed: ${successCount} successful, ${errorCount} failed`;
+    
+    updateExportStatus(summary, statusType);
+    displayExportServiceResults(results);
+}
+
+async function runSingleExportService(service) {
+    const serviceMap = {
+        'export-properties': '/api/payprop/sync/properties',
+        'export-property-owners': '/api/payprop/sync/property-owners',
+        'export-tenants': '/api/payprop/sync/tenants',
+        'export-transactions': '/api/payprop/sync/transactions',
+        'export-invoices': '/api/payprop/sync/invoices',
+        'export-payment-rules': '/api/payprop/sync/payment-rules',
+        'export-maintenance-tickets': '/api/payprop/maintenance/sync/export-tickets',
+        'export-contractor-bids': '/api/payprop/maintenance/sync/export-bids',
+        'export-maintenance-categories': '/api/payprop/maintenance/sync/export-categories'
+    };
+    
+    const endpoint = serviceMap[service];
+    if (!endpoint) {
+        throw new Error(`Unknown export service: ${service}`);
+    }
+    
+    console.log(`🔧 PayProp Export Debug: Calling service '${service}' at endpoint '${endpoint}'`);
+    
+    const response = await fetchWithCSRF(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+        return {
+            success: data.success !== false,
+            message: data.message || `${service} exported successfully`
+        };
+    } else {
+        return {
+            success: false,
+            message: data.message || data.error || `Failed to export ${service}`
+        };
+    }
+}
+
+function displayExportServiceResults(results) {
+    const resultsDiv = document.getElementById('exportResults');
+    if (!resultsDiv) return;
+    
+    let html = '<div class="mt-3"><h6>Export Service Results:</h6>';
+    html += '<div class="table-responsive"><table class="table table-bordered table-sm">';
+    html += '<thead><tr><th>Service</th><th>Status</th><th>Message</th></tr></thead><tbody>';
+    
+    results.forEach(result => {
+        const statusClass = result.success ? 'text-success' : 'text-danger';
+        const statusIcon = result.success ? 'fas fa-check-circle' : 'fas fa-times-circle';
+        const statusText = result.success ? 'Success' : 'Failed';
+        
+        html += `<tr>
+            <td>${result.service}</td>
+            <td class="${statusClass}"><i class="${statusIcon}"></i> ${statusText}</td>
+            <td>${result.message}</td>
+        </tr>`;
+    });
+    
+    html += '</tbody></table></div></div>';
+    
+    const currentContent = resultsDiv.innerHTML;
+    resultsDiv.innerHTML = currentContent + html;
+}
+
+function getSelectedExportServices() {
+    const checkboxes = document.querySelectorAll('#export-panel input[type="checkbox"]:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+function selectAllExportServices() {
+    const checkboxes = document.querySelectorAll('#export-panel input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = true);
+    updateExportStatus('All export services selected', 'info');
+}
+
+function clearAllExportServices() {
+    const checkboxes = document.querySelectorAll('#export-panel input[type="checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+    updateExportStatus('All export services cleared', 'info');
 }
 
 // Only start checking connection status after DOM is fully loaded
