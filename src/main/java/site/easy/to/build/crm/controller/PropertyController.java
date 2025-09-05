@@ -130,7 +130,9 @@ public class PropertyController {
                 // Role-based property filtering
                 if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                     properties = propertyService.findActiveProperties(); // Only active (non-archived) properties
-                } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+                } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") || 
+                          AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+                    // FIXED: Support both ROLE_OWNER and ROLE_PROPERTY_OWNER for property owners
                     properties = propertyService.findByPropertyOwnerId(Long.valueOf(userId));
                 } else {
                     properties = propertyService.getRecentProperties(Long.valueOf(userId), 100);
@@ -195,7 +197,9 @@ public class PropertyController {
         // Filter based on role
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
             properties = allVacantProperties;
-        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") || 
+                  AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+            // FIXED: Support both ROLE_OWNER and ROLE_PROPERTY_OWNER for property owners
             properties = allVacantProperties.stream()
                 .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(Long.valueOf(userId)))
                 .collect(Collectors.toList());
@@ -261,7 +265,9 @@ public class PropertyController {
             List<Property> properties;
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 properties = propertyService.findActiveProperties(); // Only active properties for portfolio overview
-            } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+            } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") || 
+                      AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+                // FIXED: Support both ROLE_OWNER and ROLE_PROPERTY_OWNER for property owners
                 properties = propertyService.findByPropertyOwnerId(Long.valueOf(userId));
             } else {
                 properties = propertyService.getRecentProperties(Long.valueOf(userId), 100);
@@ -882,7 +888,9 @@ public class PropertyController {
         
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
             return propertyService.findAll();
-        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER")) {
+        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") || 
+                  AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+            // FIXED: Support both ROLE_OWNER and ROLE_PROPERTY_OWNER for property owners
             return propertyService.findByPropertyOwnerId(Long.valueOf(userId));
         } else {
             return propertyService.getRecentProperties((long) userId, 100);

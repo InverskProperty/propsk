@@ -92,6 +92,15 @@ public class PropertyOwnerController {
      */
     @GetMapping("/property-owner/dashboard")
     public String propertyOwnerDashboard(Model model, Authentication authentication) {
+        // Redirect to portfolio overview page which has comprehensive dashboard functionality
+        return "redirect:/employee/property/portfolio-overview";
+    }
+    
+    /**
+     * DEPRECATED: Old dashboard implementation - keeping for reference
+     */
+    @GetMapping("/property-owner/dashboard-old")
+    public String propertyOwnerDashboardOld(Model model, Authentication authentication) {
         System.out.println("🚀 PropertyOwnerController.propertyOwnerDashboard() - METHOD CALLED!");
         System.out.println("=== DEBUG: PropertyOwnerController.propertyOwnerDashboard ===");
         System.out.println("DEBUG: Authentication: " + authentication);
@@ -241,10 +250,25 @@ public class PropertyOwnerController {
     }
 
     /**
-     * Property Owner Portfolio - View all properties
+     * Property Owner Portfolio - Redirect to existing admin all-properties page
+     * This reuses the working admin functionality instead of maintaining duplicate code
      */
-    @GetMapping("/property-owner/properties")
+    @GetMapping("/property-owner/properties")  
     public String viewPortfolio(@RequestParam(value = "status", required = false) String status,
+                            Model model, Authentication authentication) {
+        // Redirect to existing working admin page with proper role-based filtering
+        if (status != null) {
+            return "redirect:/employee/property/all-properties?status=" + status;
+        }
+        return "redirect:/employee/property/all-properties";
+    }
+
+    /**
+     * DEPRECATED: Old complex implementation - keeping for reference
+     * The new approach redirects to existing admin functionality
+     */
+    @GetMapping("/property-owner/properties-old") 
+    public String viewPortfolioOld(@RequestParam(value = "status", required = false) String status,
                             Model model, Authentication authentication) {
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
@@ -306,10 +330,22 @@ public class PropertyOwnerController {
     }
 
     /**
-     * Property Owner Property Details - View specific property
+     * Property Owner Property Details - Redirect to existing admin property view
+     * This reuses the working admin functionality
      */
     @GetMapping("/property-owner/property/{id}")
     public String viewPropertyDetails(@PathVariable("id") Long propertyId,
+                                    Model model, Authentication authentication) {
+        // Check if there's an existing property details page in admin
+        // For now, redirect to all-properties page - admin can implement property details later
+        return "redirect:/employee/property/all-properties";
+    }
+    
+    /**
+     * DEPRECATED: Old property details implementation - keeping for reference  
+     */
+    @GetMapping("/property-owner/property-details/{id}")
+    public String viewPropertyDetailsOld(@PathVariable("id") Long propertyId,
                                     Model model, Authentication authentication) {
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
@@ -477,6 +513,70 @@ public class PropertyOwnerController {
     @GetMapping("/property-owner/test")
     public String test() {
         return "property-owner/test";
+    }
+
+    /**
+     * Debug endpoint for property view issues
+     */
+    @GetMapping("/property-owner/debug-property/{id}")
+    @ResponseBody
+    public String debugPropertyView(@PathVariable("id") Long propertyId, Authentication authentication) {
+        try {
+            StringBuilder debug = new StringBuilder();
+            debug.append("=== PROPERTY VIEW DEBUG ===<br>");
+            
+            // 1. Check authentication
+            if (authentication == null) {
+                return debug.append("❌ Authentication is NULL").toString();
+            }
+            String email = authentication.getName();
+            debug.append("✅ Authenticated as: ").append(email).append("<br>");
+            
+            // 2. Check customer lookup
+            Customer customer = customerService.findByEmail(email);
+            if (customer == null) {
+                return debug.append("❌ Customer not found for email: ").append(email).toString();
+            }
+            debug.append("✅ Customer found - ID: ").append(customer.getCustomerId()).append("<br>");
+            
+            // 3. Check property lookup
+            Property property = propertyService.findById(propertyId);
+            if (property == null) {
+                return debug.append("❌ Property not found for ID: ").append(propertyId).toString();
+            }
+            debug.append("✅ Property found - Name: ").append(property.getPropertyName()).append("<br>");
+            
+            // 4. Check ownership
+            debug.append("Property Owner ID: ").append(property.getPropertyOwnerId()).append("<br>");
+            debug.append("Customer ID: ").append(customer.getCustomerId()).append("<br>");
+            boolean ownsProperty = property.getPropertyOwnerId().equals(customer.getCustomerId());
+            debug.append("Ownership match: ").append(ownsProperty).append("<br>");
+            
+            if (!ownsProperty) {
+                return debug.append("❌ Ownership verification failed").toString();
+            }
+            
+            // 5. Test tenant lookup methods
+            try {
+                List<Customer> tenants = customerService.findTenantsByProperty(propertyId);
+                debug.append("✅ findTenantsByProperty: ").append(tenants.size()).append(" tenants<br>");
+            } catch (Exception e) {
+                debug.append("❌ findTenantsByProperty error: ").append(e.getMessage()).append("<br>");
+            }
+            
+            try {
+                List<Customer> activeTenants = customerService.findActiveTenantsForProperty(propertyId);
+                debug.append("✅ findActiveTenantsForProperty: ").append(activeTenants.size()).append(" active tenants<br>");
+            } catch (Exception e) {
+                debug.append("❌ findActiveTenantsForProperty error: ").append(e.getMessage()).append("<br>");
+            }
+            
+            debug.append("✅ All checks passed - property view should work");
+            return debug.toString();
+            
+        } catch (Exception e) {
+            return "❌ UNEXPECTED ERROR: " + e.getMessage() + "<br>Stack: " + java.util.Arrays.toString(e.getStackTrace()).replaceAll(",", "<br>");
+        }
     }
 
     /**
