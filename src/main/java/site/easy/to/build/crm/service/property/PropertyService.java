@@ -25,6 +25,9 @@ public interface PropertyService {
     Optional<Property> findByPayPropId(String payPropId);
     Optional<Property> findByCustomerId(String customerId);
     List<Property> findByPropertyOwnerId(Long propertyOwnerId);
+    
+    // NEW: Assignment-based property lookup (supports multi-owner properties)
+    List<Property> findPropertiesOwnedByCustomer(Long customerId);
 
     // FIXED: Added missing methods that were causing compilation errors
     List<Property> getPropertiesByOwner(Long ownerId);

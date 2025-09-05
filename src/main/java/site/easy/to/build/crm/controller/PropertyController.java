@@ -15,10 +15,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.entity.Ticket;
+import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.PropertyServiceImpl;
 import site.easy.to.build.crm.service.property.TenantService;
@@ -48,6 +50,7 @@ public class PropertyController {
     private final UserService userService;
     private final TicketService ticketService;
     private final AuthenticationUtils authenticationUtils;
+    private final CustomerService customerService;
     private final JdbcTemplate jdbcTemplate;
     
     @Value("${crm.data.source:LEGACY}")
@@ -59,18 +62,57 @@ public class PropertyController {
                             UserService userService, 
                             TicketService ticketService,
                             AuthenticationUtils authenticationUtils,
+                            CustomerService customerService,
                             JdbcTemplate jdbcTemplate) {
         this.propertyService = propertyService;
         this.tenantService = tenantService;
         this.userService = userService;
         this.ticketService = ticketService;
         this.authenticationUtils = authenticationUtils;
+        this.customerService = customerService;
         this.jdbcTemplate = jdbcTemplate;
     }
 
     // ================================
     // UTILITY METHODS
     // ================================
+    
+    /**
+     * Find properties for a property owner by mapping User ID to Customer ID
+     * This handles the case where admin pages get User ID but need to find properties by Customer ID
+     */
+    private List<Property> findPropertiesForPropertyOwner(int userId) {
+        try {
+            System.out.println("🔍 [PropertyController] Finding properties for property owner User ID: " + userId);
+            
+            // Find the customer record associated with this user
+            User user = userService.findById(Long.valueOf(userId));
+            if (user == null) {
+                System.out.println("❌ [PropertyController] User not found: " + userId);
+                return new ArrayList<>();
+            }
+            
+            // Find customer by email (since both tables should have matching emails)
+            Customer customer = customerService.findByEmail(user.getEmail());
+            if (customer == null) {
+                System.out.println("❌ [PropertyController] Customer not found for email: " + user.getEmail());
+                return new ArrayList<>();
+            }
+            
+            System.out.println("✅ [PropertyController] Mapped User ID " + userId + " → Customer ID " + customer.getCustomerId());
+            
+            // Now find properties owned by this customer using the assignment table
+            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            System.out.println("✅ [PropertyController] Found " + properties.size() + " properties for customer " + customer.getCustomerId());
+            
+            return properties;
+            
+        } catch (Exception e) {
+            System.err.println("❌ [PropertyController] Error finding properties for user " + userId + ": " + e.getMessage());
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+    }
     
     /**
      * Utility method to resolve property ID (handles both numeric and PayProp IDs)
@@ -132,8 +174,8 @@ public class PropertyController {
                     properties = propertyService.findActiveProperties(); // Only active (non-archived) properties
                 } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") || 
                           AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
-                    // FIXED: Support both ROLE_OWNER and ROLE_PROPERTY_OWNER for property owners
-                    properties = propertyService.findByPropertyOwnerId(Long.valueOf(userId));
+                    // FIXED: For property owners, find Customer ID from User ID first
+                    properties = findPropertiesForPropertyOwner(userId);
                 } else {
                     properties = propertyService.getRecentProperties(Long.valueOf(userId), 100);
                 }
@@ -199,9 +241,11 @@ public class PropertyController {
             properties = allVacantProperties;
         } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") || 
                   AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
-            // FIXED: Support both ROLE_OWNER and ROLE_PROPERTY_OWNER for property owners
+            // FIXED: For property owners, find properties using User ID → Customer ID mapping
+            List<Property> ownerProperties = findPropertiesForPropertyOwner(userId);
             properties = allVacantProperties.stream()
-                .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(Long.valueOf(userId)))
+                .filter(vacant -> ownerProperties.stream()
+                    .anyMatch(owned -> owned.getId().equals(vacant.getId())))
                 .collect(Collectors.toList());
         } else {
             properties = allVacantProperties.stream()
@@ -267,8 +311,8 @@ public class PropertyController {
                 properties = propertyService.findActiveProperties(); // Only active properties for portfolio overview
             } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") || 
                       AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
-                // FIXED: Support both ROLE_OWNER and ROLE_PROPERTY_OWNER for property owners
-                properties = propertyService.findByPropertyOwnerId(Long.valueOf(userId));
+                // FIXED: For property owners, find properties using User ID → Customer ID mapping
+                properties = findPropertiesForPropertyOwner(userId);
             } else {
                 properties = propertyService.getRecentProperties(Long.valueOf(userId), 100);
             }
@@ -890,8 +934,8 @@ public class PropertyController {
             return propertyService.findAll();
         } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") || 
                   AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
-            // FIXED: Support both ROLE_OWNER and ROLE_PROPERTY_OWNER for property owners
-            return propertyService.findByPropertyOwnerId(Long.valueOf(userId));
+            // FIXED: For property owners, find properties using User ID → Customer ID mapping
+            return findPropertiesForPropertyOwner(userId);
         } else {
             return propertyService.getRecentProperties((long) userId, 100);
         }

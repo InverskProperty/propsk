@@ -9,7 +9,13 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(gh api:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Read(/C:\\Users\\sajid\\crecrm\\src\\main\\java\\site\\easy\\to\\build\\crm\\service\\property/**)",
+      "Read(/C:\\Users\\sajid\\crecrm\\src\\main\\java\\site\\easy\\to\\build\\crm\\service\\property/**)",
+      "Read(/C:\\Users\\sajid\\crecrm\\src\\main\\java\\site\\easy\\to\\build\\crm\\service\\property/**)",
+      "Read(/C:\\Users\\sajid\\crecrm\\src\\main\\java\\site\\easy\\to\\build\\crm\\service\\property/**)",
+      "Read(/C:\\Users\\sajid\\crecrm\\src\\main\\java\\site\\easy\\to\\build\\crm\\controller/**)",
+      "Read(/C:\\Users\\sajid\\crecrm\\src\\main\\java\\site\\easy\\to\\build\\crm\\service\\property/**)"
     ],
     "deny": [],
     "ask": [],
