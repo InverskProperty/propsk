@@ -6143,7 +6143,8 @@ ORDER BY transaction_count DESC;</code></pre>
             showExportStatus();
             
             try {
-                const response = await fetchWithCSRF(endpoint, {
+                // fetchWithCSRF returns { success, data, status } not a Response object
+                const result = await fetchWithCSRF(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -6151,34 +6152,21 @@ ORDER BY transaction_count DESC;</code></pre>
                     body: requestBody
                 });
                 
-                let data;
-                let responseText = await response.text();
+                console.log('🔍 fetchWithCSRF result:', result);
                 
-                try {
-                    data = JSON.parse(responseText);
-                } catch (e) {
-                    // Not JSON - probably HTML error page or plain text
-                    data = { 
-                        raw_response: responseText,
-                        status: response.status,
-                        statusText: response.statusText,
-                        headers: Object.fromEntries(response.headers.entries())
-                    };
-                }
-                
-                if (response.ok) {
-                    if (data.exportId) {
-                        currentExportTestId = data.exportId;
+                if (result.success) {
+                    hideExportStatus();
+                    if (result.data && result.data.exportId) {
+                        currentExportTestId = result.data.exportId;
                         startExportTestMonitoring();
                         showExportResult('success', 'Export started successfully. Monitoring progress...');
                     } else {
-                        hideExportStatus();
-                        showExportResult('success', 'Export completed immediately', data);
+                        showExportResult('success', 'Export completed successfully!', result.data);
                     }
                 } else {
                     hideExportStatus();
-                    const errorMsg = data.error || data.message || data.raw_response || `HTTP ${response.status}: ${response.statusText}`;
-                    showExportResult('error', 'Export failed: ' + errorMsg, data);
+                    const errorMsg = result.error || (result.data && result.data.message) || `HTTP ${result.status}`;
+                    showExportResult('error', 'Export failed: ' + errorMsg, result);
                 }
             } catch (error) {
                 hideExportStatus();
