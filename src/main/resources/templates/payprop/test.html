@@ -6182,7 +6182,19 @@ ORDER BY transaction_count DESC;</code></pre>
                 }
             } catch (error) {
                 hideExportStatus();
-                showExportResult('error', 'Export request failed: ' + error.message);
+                
+                // Show full error details in the UI
+                const errorDetails = {
+                    message: error.message,
+                    name: error.name,
+                    stack: error.stack,
+                    endpoint: endpoint,
+                    requestBody: requestBody,
+                    timestamp: new Date().toISOString()
+                };
+                
+                console.error('❌ Full Export Error:', errorDetails);
+                showExportResult('error', 'Export request failed: ' + error.message, errorDetails);
             }
         }
 
