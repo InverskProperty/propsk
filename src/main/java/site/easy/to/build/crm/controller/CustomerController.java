@@ -195,7 +195,9 @@ public class CustomerController {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
             User user = userService.findById(userId);
             
+            // UNIFIED PAYPROP WINNER LOGIC: Get ALL property owners (including pending sync like "ABC TEST")
             List<Customer> propertyOwners = customerService.findPropertyOwners();
+            System.out.println("🔍 Property Owners Controller - Retrieved " + propertyOwners.size() + " total property owners");
             
             // Filter by user's customers if not manager or super admin
             if (!user.getRoles().stream().anyMatch(r -> r.getName().contains("MANAGER") || r.getName().contains("SUPER_ADMIN"))) {
@@ -205,8 +207,9 @@ public class CustomerController {
                     .collect(Collectors.toList());
             }
 
-            // Filter by property ID if provided
+            // Filter by property ID ONLY if provided (specific property view)
             if (propertyId != null) {
+                System.out.println("🔍 Filtering property owners for property ID: " + propertyId);
                 // Get customer IDs assigned as OWNER to this property from junction table
                 List<CustomerPropertyAssignment> propertyAssignments = 
                     customerPropertyAssignmentRepository.findByPropertyId(propertyId);
@@ -221,6 +224,8 @@ public class CustomerController {
                     .filter(owner -> ownerCustomerIds.contains(owner.getCustomerId()))
                     .collect(Collectors.toList());
                     
+                System.out.println("🔍 After property filter: " + propertyOwners.size() + " owners for property " + propertyId);
+                    
                 // Add property info to model for display
                 try {
                     Property property = propertyService.findById(propertyId);
@@ -232,6 +237,10 @@ public class CustomerController {
                 } catch (Exception e) {
                     // Property not found, continue with general listing
                 }
+            } else {
+                // NO PROPERTY FILTER: Show ALL property owners (including "ABC TEST")
+                System.out.println("🔍 No property filter - showing ALL " + propertyOwners.size() + " property owners");
+                model.addAttribute("pageTitle", "All Property Owners");
             }
             
             // Apply search filter if provided

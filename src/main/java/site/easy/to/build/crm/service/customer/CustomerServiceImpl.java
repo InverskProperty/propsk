@@ -200,24 +200,31 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public List<Customer> findPropertyOwners() {
-        // Use assignment service to get all customers with OWNER assignment type
+        // UNIFIED PAYPROP WINNER LOGIC: Return ALL PROPERTY_OWNER customers
+        // This includes: PayProp-synced, Local-only, and Pending sync owners
         try {
-            System.out.println("🔍 CustomerServiceImpl.findPropertyOwners() - Using NEW assignment service logic");
-            List<CustomerPropertyAssignment> ownerAssignments = assignmentService.getAssignmentsByType(AssignmentType.OWNER);
-            System.out.println("🔍 Found " + ownerAssignments.size() + " owner assignments from assignment service");
+            System.out.println("🔍 CustomerServiceImpl.findPropertyOwners() - Using UNIFIED PayProp Winner Logic");
             
-            List<Customer> customers = ownerAssignments.stream()
-                .map(CustomerPropertyAssignment::getCustomer)
-                .filter(customer -> customer != null) // Safety check
-                .distinct()
-                .collect(Collectors.toList());
+            // Get ALL customers with customer_type = 'PROPERTY_OWNER'
+            // This includes ABC TEST and all other property owners regardless of assignments
+            List<Customer> allPropertyOwners = customerRepository.findByCustomerType(CustomerType.PROPERTY_OWNER);
+            System.out.println("🔍 Found " + allPropertyOwners.size() + " total PROPERTY_OWNER customers");
             
-            System.out.println("🔍 Returning " + customers.size() + " unique property owners");
-            return customers;
+            // Sort by created date (newest first) to show recent additions like "ABC TEST"
+            allPropertyOwners.sort((c1, c2) -> {
+                if (c1.getCreatedAt() == null && c2.getCreatedAt() == null) return 0;
+                if (c1.getCreatedAt() == null) return 1;
+                if (c2.getCreatedAt() == null) return -1;
+                return c2.getCreatedAt().compareTo(c1.getCreatedAt());
+            });
+            
+            System.out.println("🔍 Returning " + allPropertyOwners.size() + " property owners (including pending sync)");
+            return allPropertyOwners;
+            
         } catch (Exception e) {
-            // Fallback to old method if assignment service fails
-            System.out.println("🔍 Assignment service FAILED for findPropertyOwners, falling back to old method: " + e.getMessage());
-            log.warn("Assignment service failed for findPropertyOwners, falling back to old method: " + e.getMessage(), e);
+            // Fallback to repository method
+            System.out.println("🔍 Unified logic FAILED, falling back to repository method: " + e.getMessage());
+            log.warn("Unified property owners logic failed, falling back to repository: " + e.getMessage(), e);
             return customerRepository.findPropertyOwners();
         }
     }
