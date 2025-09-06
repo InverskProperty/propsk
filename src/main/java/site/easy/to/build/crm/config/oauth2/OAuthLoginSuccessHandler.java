@@ -205,6 +205,10 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
                     System.out.println("   Customer Type: " + customer.getCustomerType());
                     System.out.println("   Is Property Owner: " + customer.getIsPropertyOwner());
                     
+                    // CRITICAL FIX: Set up proper Spring Security authentication for customer
+                    System.out.println("🔐 Setting up customer authentication with proper roles...");
+                    setupCustomerAuthentication(request, response, authentication, customer);
+                    
                     // Redirect customer to appropriate dashboard
                     String redirectUrl = determineCustomerRedirectUrl(customer);
                     System.out.println("🏠 Redirecting customer to: " + redirectUrl);
@@ -538,5 +542,90 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
         // Default fallback
         System.out.println("DEBUG: No specific type found, defaulting to /customer/dashboard");
         return "/customer/dashboard";
+    }
+    
+    /**
+     * Set up proper Spring Security authentication for customer OAuth users
+     * This ensures customers have the correct roles assigned for authorization
+     */
+    private void setupCustomerAuthentication(HttpServletRequest request, HttpServletResponse response, 
+                                           Authentication originalAuth, Customer customer) {
+        try {
+            System.out.println("🔐 SETUP_AUTH: Setting up customer authentication...");
+            System.out.println("🔐 SETUP_AUTH: Customer ID: " + customer.getCustomerId());
+            System.out.println("🔐 SETUP_AUTH: Customer Type: " + customer.getCustomerType());
+            System.out.println("🔐 SETUP_AUTH: Is Property Owner: " + customer.getIsPropertyOwner());
+            
+            // Determine the correct role for this customer
+            String role = determineCustomerRole(customer);
+            System.out.println("🔐 SETUP_AUTH: Determined role: " + role);
+            
+            // Create a new authentication token with the correct role
+            List<GrantedAuthority> authorities = new ArrayList<>();
+            authorities.add(new SimpleGrantedAuthority(role));
+            
+            // Create new OAuth2 authentication token with customer authorities
+            OAuth2AuthenticationToken oauth2Token = (OAuth2AuthenticationToken) originalAuth;
+            OAuth2AuthenticationToken customerToken = new OAuth2AuthenticationToken(
+                oauth2Token.getPrincipal(),
+                authorities,
+                oauth2Token.getAuthorizedClientRegistrationId()
+            );
+            
+            // Update the security context
+            SecurityContextHolder.getContext().setAuthentication(customerToken);
+            
+            // Also update the session
+            HttpSession session = request.getSession();
+            session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
+            
+            System.out.println("🔐 SETUP_AUTH: ✅ Customer authentication updated with role: " + role);
+            System.out.println("🔐 SETUP_AUTH: Authorities: " + customerToken.getAuthorities());
+            
+        } catch (Exception e) {
+            System.err.println("🚨 SETUP_AUTH: Error setting up customer authentication: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Determine the appropriate role for a customer based on their type and flags
+     */
+    private String determineCustomerRole(Customer customer) {
+        if (customer == null) {
+            return "ROLE_CUSTOMER";
+        }
+        
+        CustomerType customerType = customer.getCustomerType();
+        
+        // Check customer type first
+        if (customerType != null) {
+            switch (customerType) {
+                case PROPERTY_OWNER:
+                    System.out.println("🔐 ROLE: CustomerType is PROPERTY_OWNER, returning ROLE_PROPERTY_OWNER");
+                    return "ROLE_PROPERTY_OWNER";
+                case TENANT:
+                    return "ROLE_TENANT";
+                case CONTRACTOR:
+                    return "ROLE_CONTRACTOR";
+                case EMPLOYEE:
+                    return "ROLE_EMPLOYEE";
+                case ADMIN:
+                    return "ROLE_ADMIN";
+                case SUPER_ADMIN:
+                    return "ROLE_SUPER_ADMIN";
+                default:
+                    break;
+            }
+        }
+        
+        // Check boolean flags as backup
+        if (Boolean.TRUE.equals(customer.getIsPropertyOwner())) {
+            System.out.println("🔐 ROLE: Boolean flag isPropertyOwner=true, returning ROLE_PROPERTY_OWNER");
+            return "ROLE_PROPERTY_OWNER";
+        }
+        
+        // Default fallback
+        return "ROLE_CUSTOMER";
     }
 }

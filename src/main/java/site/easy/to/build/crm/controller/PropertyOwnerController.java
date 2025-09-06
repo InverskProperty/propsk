@@ -401,6 +401,41 @@ public class PropertyOwnerController {
     public String simpleTest() {
         return "PropertyOwnerController is working! Time: " + new java.util.Date();
     }
+    
+    @GetMapping("/property-owner/auth-debug")
+    @ResponseBody
+    public String authDebug(Authentication authentication) {
+        StringBuilder debug = new StringBuilder();
+        debug.append("=== AUTHENTICATION DEBUG ===<br>");
+        
+        if (authentication == null) {
+            debug.append("❌ Authentication is NULL<br>");
+            return debug.toString();
+        }
+        
+        debug.append("✅ Authentication present<br>");
+        debug.append("Type: ").append(authentication.getClass().getSimpleName()).append("<br>");
+        debug.append("Name: ").append(authentication.getName()).append("<br>");
+        debug.append("Is Authenticated: ").append(authentication.isAuthenticated()).append("<br>");
+        debug.append("Principal: ").append(authentication.getPrincipal().getClass().getSimpleName()).append("<br>");
+        debug.append("Authorities: ").append(authentication.getAuthorities()).append("<br>");
+        
+        // Check if customer can be found
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer != null) {
+                debug.append("✅ Customer found: ID=").append(customer.getCustomerId())
+                     .append(", Email=").append(customer.getEmail())
+                     .append(", Type=").append(customer.getCustomerType()).append("<br>");
+            } else {
+                debug.append("❌ Customer lookup failed<br>");
+            }
+        } catch (Exception e) {
+            debug.append("❌ Customer lookup error: ").append(e.getMessage()).append("<br>");
+        }
+        
+        return debug.toString();
+    }
 
     /**
      * Property Owner Portfolio - Redirect to existing admin all-properties page
