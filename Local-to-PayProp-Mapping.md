@@ -3,6 +3,8 @@
 
 *Based on successful PayProp API testing results*
 
+> ⚠️ **STATUS**: Implementation complete but requires technical debt resolution. See `Technical-Debt-and-TODO-Items.md` for production readiness items.
+
 ---
 
 ## 🎯 **OVERVIEW**

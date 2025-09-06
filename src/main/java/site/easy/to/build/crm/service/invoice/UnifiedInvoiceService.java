@@ -49,12 +49,10 @@ public class UnifiedInvoiceService {
      * Get all invoices for a property - respects PayProp winner logic
      */
     public List<UnifiedInvoiceView> getInvoicesForProperty(Long propertyId) {
-        Optional<Property> propertyOpt = propertyService.findById(propertyId);
-        if (propertyOpt.isEmpty()) {
+        Property property = propertyService.findById(propertyId);
+        if (property == null) {
             return Collections.emptyList();
         }
-        
-        Property property = propertyOpt.get();
         
         if (property.isPayPropSynced() && property.isActive()) {
             log.debug("Property {} is PayProp synced - using PayProp invoices", propertyId);

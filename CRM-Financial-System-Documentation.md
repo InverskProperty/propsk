@@ -3,6 +3,8 @@
 
 *Version 1.0 | Created: September 2025*
 
+> ⚠️ **IMPORTANT**: This system has known technical debt items. See `Technical-Debt-and-TODO-Items.md` for critical fixes required before production deployment.
+
 ---
 
 ## 📋 **EXECUTIVE SUMMARY**

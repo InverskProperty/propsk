@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Local to PayProp Sync Service
@@ -425,6 +426,159 @@ public class LocalToPayPropSyncService {
         };
     }
     
+    // ===== BATCH SYNC METHODS =====
+    
+    /**
+     * Sync all unsynced properties to PayProp
+     */
+    public SyncResult syncUnsyncedPropertiesToPayProp() {
+        try {
+            List<Property> unsyncedProperties = propertyService.findAll().stream()
+                .filter(p -> p.getPayPropId() == null)
+                .collect(Collectors.toList());
+                
+            if (unsyncedProperties.isEmpty()) {
+                return SyncResult.success("No unsynced properties found", Map.of("processed", 0));
+            }
+            
+            int successful = 0;
+            int failed = 0;
+            List<String> errors = new ArrayList<>();
+            
+            for (Property property : unsyncedProperties) {
+                try {
+                    syncPropertyToPayProp(property);
+                    successful++;
+                } catch (Exception e) {
+                    failed++;
+                    errors.add("Property " + property.getPropertyName() + ": " + e.getMessage());
+                    log.error("Failed to sync property {}: {}", property.getPropertyName(), e.getMessage());
+                }
+            }
+            
+            Map<String, Object> details = Map.of(
+                "total", unsyncedProperties.size(),
+                "successful", successful,
+                "failed", failed,
+                "errors", errors
+            );
+            
+            if (failed == 0) {
+                return SyncResult.success("All unsynced properties synced successfully", details);
+            } else if (successful > 0) {
+                return SyncResult.partial("Properties synced with some errors", details);
+            } else {
+                return SyncResult.failure("Failed to sync properties", details);
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to sync unsynced properties: {}", e.getMessage(), e);
+            return SyncResult.failure("Property sync failed: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Sync all unsynced customers to PayProp
+     */
+    public SyncResult syncUnsyncedCustomersToPayProp() {
+        try {
+            List<Customer> unsyncedCustomers = customerService.findAll().stream()
+                .filter(c -> c.getPayPropEntityId() == null)
+                .collect(Collectors.toList());
+                
+            if (unsyncedCustomers.isEmpty()) {
+                return SyncResult.success("No unsynced customers found", Map.of("processed", 0));
+            }
+            
+            int successful = 0;
+            int failed = 0;
+            List<String> errors = new ArrayList<>();
+            
+            for (Customer customer : unsyncedCustomers) {
+                try {
+                    if (customer.getIsPropertyOwner()) {
+                        syncCustomerAsBeneficiaryToPayProp(customer);
+                    } else if (customer.getIsTenant()) {
+                        syncCustomerAsTenantToPayProp(customer);
+                    }
+                    successful++;
+                } catch (Exception e) {
+                    failed++;
+                    errors.add("Customer " + customer.getName() + ": " + e.getMessage());
+                    log.error("Failed to sync customer {}: {}", customer.getName(), e.getMessage());
+                }
+            }
+            
+            Map<String, Object> details = Map.of(
+                "total", unsyncedCustomers.size(),
+                "successful", successful,
+                "failed", failed,
+                "errors", errors
+            );
+            
+            if (failed == 0) {
+                return SyncResult.success("All unsynced customers synced successfully", details);
+            } else if (successful > 0) {
+                return SyncResult.partial("Customers synced with some errors", details);
+            } else {
+                return SyncResult.failure("Failed to sync customers", details);
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to sync unsynced customers: {}", e.getMessage(), e);
+            return SyncResult.failure("Customer sync failed: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Sync all unsynced invoices to PayProp
+     */
+    public SyncResult syncUnsyncedInvoicesToPayProp() {
+        try {
+            List<Invoice> unsyncedInvoices = invoiceService.findAll().stream()
+                .filter(i -> i.getPaypropId() == null)
+                .collect(Collectors.toList());
+                
+            if (unsyncedInvoices.isEmpty()) {
+                return SyncResult.success("No unsynced invoices found", Map.of("processed", 0));
+            }
+            
+            int successful = 0;
+            int failed = 0;
+            List<String> errors = new ArrayList<>();
+            
+            for (Invoice invoice : unsyncedInvoices) {
+                try {
+                    syncInvoiceToPayProp(invoice);
+                    successful++;
+                } catch (Exception e) {
+                    failed++;
+                    errors.add("Invoice " + invoice.getId() + ": " + e.getMessage());
+                    log.error("Failed to sync invoice {}: {}", invoice.getId(), e.getMessage());
+                }
+            }
+            
+            Map<String, Object> details = Map.of(
+                "total", unsyncedInvoices.size(),
+                "successful", successful,
+                "failed", failed,
+                "errors", errors
+            );
+            
+            if (failed == 0) {
+                return SyncResult.success("All unsynced invoices synced successfully", details);
+            } else if (successful > 0) {
+                return SyncResult.partial("Invoices synced with some errors", details);
+            } else {
+                return SyncResult.failure("Failed to sync invoices", details);
+            }
+            
+        } catch (Exception e) {
+            log.error("Failed to sync unsynced invoices: {}", e.getMessage(), e);
+            return SyncResult.failure("Invoice sync failed: " + e.getMessage());
+        }
+    }
+    
     // ===== COMPLETE ECOSYSTEM SYNC =====
     
     /**
@@ -432,94 +586,44 @@ public class LocalToPayPropSyncService {
      * Property -> Owners (as beneficiaries) -> Tenants -> Invoices -> Payment Instructions
      */
     @Transactional
-    public PropertyEcosystemSyncResult syncCompletePropertyEcosystem(Long propertyId) {
-        log.info("Starting complete property ecosystem sync for property ID: {}", propertyId);
-        
-        PropertyEcosystemSyncResult result = new PropertyEcosystemSyncResult();
-        result.setPropertyId(propertyId);
-        result.setStartTime(LocalDateTime.now());
-        
+    public SyncResult syncCompletePropertyEcosystem(Long propertyId) {
         try {
-            // Get property
-            Optional<Property> propertyOpt = propertyService.findById(propertyId);
-            if (propertyOpt.isEmpty()) {
-                throw new IllegalArgumentException("Property not found: " + propertyId);
+            Property property = propertyService.findById(propertyId);
+            if (property == null) {
+                return SyncResult.failure("Property not found: " + propertyId);
             }
-            Property property = propertyOpt.get();
             
-            // Step 1: Sync property
+            int synced = 0;
+            
+            // Sync property if needed
             if (property.getPayPropId() == null) {
-                String propertyPayPropId = syncPropertyToPayProp(property);
-                result.setPropertyPayPropId(propertyPayPropId);
-                result.setPropertySynced(true);
-            } else {
-                result.setPropertyPayPropId(property.getPayPropId());
-                result.setPropertySynced(false); // Already synced
+                syncPropertyToPayProp(property);
+                synced++;
             }
             
-            // Step 2: Sync all property owners as beneficiaries
+            // Sync owners
             List<Customer> owners = assignmentService.getCustomersForProperty(propertyId, AssignmentType.OWNER);
             for (Customer owner : owners) {
-                try {
-                    if (owner.getPayPropEntityId() == null) {
-                        String beneficiaryId = syncCustomerAsBeneficiaryToPayProp(owner);
-                        result.addSyncedBeneficiary(beneficiaryId);
-                    } else {
-                        result.addExistingBeneficiary(owner.getPayPropEntityId());
-                    }
-                } catch (Exception e) {
-                    result.addError("Failed to sync owner " + owner.getName() + ": " + e.getMessage());
+                if (owner.getPayPropEntityId() == null) {
+                    syncCustomerAsBeneficiaryToPayProp(owner);
+                    synced++;
                 }
             }
             
-            // Step 3: Sync all tenants
+            // Sync tenants
             List<Customer> tenants = assignmentService.getCustomersForProperty(propertyId, AssignmentType.TENANT);
             for (Customer tenant : tenants) {
-                try {
-                    if (tenant.getPayPropEntityId() == null) {
-                        String tenantId = syncCustomerAsTenantToPayProp(tenant);
-                        result.addSyncedTenant(tenantId);
-                    } else {
-                        result.addExistingTenant(tenant.getPayPropEntityId());
-                    }
-                } catch (Exception e) {
-                    result.addError("Failed to sync tenant " + tenant.getName() + ": " + e.getMessage());
+                if (tenant.getPayPropEntityId() == null) {
+                    syncCustomerAsTenantToPayProp(tenant);
+                    synced++;
                 }
             }
             
-            // Step 4: Sync local invoices
-            List<Invoice> localInvoices = invoiceService.findByProperty(property);
-            for (Invoice invoice : localInvoices) {
-                try {
-                    if (invoice.needsPayPropSync()) {
-                        String invoiceId = syncInvoiceToPayProp(invoice);
-                        result.addSyncedInvoice(invoiceId);
-                    } else {
-                        if (invoice.getPaypropId() != null) {
-                            result.addExistingInvoice(invoice.getPaypropId());
-                        }
-                    }
-                } catch (Exception e) {
-                    result.addError("Failed to sync invoice " + invoice.getDescription() + ": " + e.getMessage());
-                }
-            }
-            
-            result.setSuccess(true);
-            result.setEndTime(LocalDateTime.now());
-            
-            log.info("Successfully completed property ecosystem sync for property ID: {}. " +
-                    "Synced: {} beneficiaries, {} tenants, {} invoices", 
-                    propertyId, result.getSyncedBeneficiaries().size(), 
-                    result.getSyncedTenants().size(), result.getSyncedInvoices().size());
+            return SyncResult.success("Property ecosystem synced", Map.of("totalSynced", synced));
             
         } catch (Exception e) {
-            result.setSuccess(false);
-            result.setErrorMessage(e.getMessage());
-            result.setEndTime(LocalDateTime.now());
-            log.error("Failed to sync property ecosystem for property ID {}: {}", propertyId, e.getMessage(), e);
+            return SyncResult.failure("Sync failed: " + e.getMessage());
         }
-        
-        return result;
     }
     
     // ===== UTILITY METHODS =====
@@ -538,95 +642,4 @@ public class LocalToPayPropSyncService {
         throw new RuntimeException("Could not extract ID from PayProp response: " + response);
     }
     
-    // ===== RESULT CLASSES =====
-    
-    /**
-     * Result object for complete property ecosystem sync
-     */
-    public static class PropertyEcosystemSyncResult {
-        private Long propertyId;
-        private LocalDateTime startTime;
-        private LocalDateTime endTime;
-        private boolean success;
-        private String errorMessage;
-        
-        // Property sync
-        private boolean propertySynced;
-        private String propertyPayPropId;
-        
-        // Entity sync results
-        private final List<String> syncedBeneficiaries = new ArrayList<>();
-        private final List<String> existingBeneficiaries = new ArrayList<>();
-        private final List<String> syncedTenants = new ArrayList<>();
-        private final List<String> existingTenants = new ArrayList<>();
-        private final List<String> syncedInvoices = new ArrayList<>();
-        private final List<String> existingInvoices = new ArrayList<>();
-        private final List<String> syncedPayments = new ArrayList<>();
-        
-        // Errors
-        private final List<String> errors = new ArrayList<>();
-        
-        // Getters and setters
-        public Long getPropertyId() { return propertyId; }
-        public void setPropertyId(Long propertyId) { this.propertyId = propertyId; }
-        
-        public LocalDateTime getStartTime() { return startTime; }
-        public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
-        
-        public LocalDateTime getEndTime() { return endTime; }
-        public void setEndTime(LocalDateTime endTime) { this.endTime = endTime; }
-        
-        public boolean isSuccess() { return success; }
-        public void setSuccess(boolean success) { this.success = success; }
-        
-        public String getErrorMessage() { return errorMessage; }
-        public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
-        
-        public boolean isPropertySynced() { return propertySynced; }
-        public void setPropertySynced(boolean propertySynced) { this.propertySynced = propertySynced; }
-        
-        public String getPropertyPayPropId() { return propertyPayPropId; }
-        public void setPropertyPayPropId(String propertyPayPropId) { this.propertyPayPropId = propertyPayPropId; }
-        
-        public List<String> getSyncedBeneficiaries() { return syncedBeneficiaries; }
-        public void addSyncedBeneficiary(String id) { this.syncedBeneficiaries.add(id); }
-        
-        public List<String> getExistingBeneficiaries() { return existingBeneficiaries; }
-        public void addExistingBeneficiary(String id) { this.existingBeneficiaries.add(id); }
-        
-        public List<String> getSyncedTenants() { return syncedTenants; }
-        public void addSyncedTenant(String id) { this.syncedTenants.add(id); }
-        
-        public List<String> getExistingTenants() { return existingTenants; }
-        public void addExistingTenant(String id) { this.existingTenants.add(id); }
-        
-        public List<String> getSyncedInvoices() { return syncedInvoices; }
-        public void addSyncedInvoice(String id) { this.syncedInvoices.add(id); }
-        
-        public List<String> getExistingInvoices() { return existingInvoices; }
-        public void addExistingInvoice(String id) { this.existingInvoices.add(id); }
-        
-        public List<String> getSyncedPayments() { return syncedPayments; }
-        public void addSyncedPayment(String id) { this.syncedPayments.add(id); }
-        
-        public List<String> getErrors() { return errors; }
-        public void addError(String error) { this.errors.add(error); }
-        
-        public String getSummary() {
-            StringBuilder sb = new StringBuilder();
-            sb.append("Property Ecosystem Sync Result for Property ID ").append(propertyId).append(":\n");
-            sb.append("Success: ").append(success).append("\n");
-            sb.append("Property Synced: ").append(propertySynced).append(" (ID: ").append(propertyPayPropId).append(")\n");
-            sb.append("Synced Beneficiaries: ").append(syncedBeneficiaries.size()).append("\n");
-            sb.append("Synced Tenants: ").append(syncedTenants.size()).append("\n");
-            sb.append("Synced Invoices: ").append(syncedInvoices.size()).append("\n");
-            if (!errors.isEmpty()) {
-                sb.append("Errors: ").append(errors.size()).append("\n");
-                for (String error : errors) {
-                    sb.append("  - ").append(error).append("\n");
-                }
-            }
-            return sb.toString();
-        }
-    }
 }
