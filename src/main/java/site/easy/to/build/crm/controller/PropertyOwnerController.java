@@ -438,17 +438,67 @@ public class PropertyOwnerController {
     }
 
     /**
-     * Property Owner Portfolio - Redirect to existing admin all-properties page
-     * This reuses the working admin functionality instead of maintaining duplicate code
+     * Property Owner Properties - Show properties owned by the authenticated property owner
      */
     @GetMapping("/property-owner/properties")  
     public String viewPortfolio(@RequestParam(value = "status", required = false) String status,
+                                @RequestParam(value = "filter", required = false) String filter,
                             Model model, Authentication authentication) {
-        // Redirect to existing working admin page with proper role-based filtering
-        if (status != null) {
-            return "redirect:/employee/property/all-properties?status=" + status;
+        System.out.println("🏠 Property Owner Properties - Loading properties for customer...");
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                System.out.println("❌ Customer not found, redirecting to login");
+                return "redirect:/customer-login?error=not_found";
+            }
+
+            System.out.println("✅ Customer found: " + customer.getCustomerId());
+            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            System.out.println("✅ Found " + properties.size() + " properties");
+
+            // Filter properties if requested
+            if ("maintenance".equals(filter)) {
+                // Filter to properties with open maintenance issues
+                System.out.println("🔍 Filtering for maintenance issues...");
+                // For now, show all properties - maintenance filtering can be added later
+            } else if ("emergency".equals(filter)) {
+                // Filter to properties with emergency issues
+                System.out.println("🚨 Filtering for emergency issues...");
+                // For now, show all properties - emergency filtering can be added later
+            } else if ("occupied".equals(status)) {
+                System.out.println("🏠 Filtering for occupied properties...");
+                // Filter logic can be added here
+            } else if ("vacant".equals(status)) {
+                System.out.println("🏗️ Filtering for vacant properties...");
+                // Filter logic can be added here
+            }
+
+            // Add maintenance statistics
+            try {
+                Map<String, Object> maintenanceStats = calculatePropertyOwnerMaintenanceStats(customer.getCustomerId());
+                model.addAttribute("maintenanceStats", maintenanceStats);
+            } catch (Exception e) {
+                System.err.println("Error loading maintenance stats: " + e.getMessage());
+                model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
+            }
+
+            model.addAttribute("customer", customer);
+            model.addAttribute("properties", properties);
+            model.addAttribute("totalProperties", properties.size());
+            model.addAttribute("filterStatus", status);
+            model.addAttribute("filterType", filter);
+            model.addAttribute("pageTitle", "My Properties");
+            
+            System.out.println("✅ Properties page loaded successfully");
+            return "property-owner/properties";
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error loading properties: " + e.getMessage());
+            e.printStackTrace();
+            model.addAttribute("error", "Error loading properties: " + e.getMessage());
+            return "property-owner/properties";
         }
-        return "redirect:/employee/property/all-properties";
     }
 
     /**
@@ -672,6 +722,95 @@ public class PropertyOwnerController {
             return "error/500";
         }
     }
+    /**
+     * Property Owner Statements Centre - Access to generate statements
+     */
+    @GetMapping("/property-owner/statements")
+    public String statementsCenter(Model model, Authentication authentication) {
+        System.out.println("📊 Property Owner Statements Centre - Loading...");
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return "redirect:/customer-login?error=not_found";
+            }
+            
+            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            
+            model.addAttribute("customer", customer);
+            model.addAttribute("properties", properties);
+            model.addAttribute("pageTitle", "Statements Centre");
+            
+            System.out.println("✅ Statements centre loaded successfully");
+            // Redirect to existing statements functionality with property owner context
+            return "redirect:/statements?owner=" + customer.getCustomerId();
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error loading statements centre: " + e.getMessage());
+            model.addAttribute("error", "Error loading statements: " + e.getMessage());
+            return "property-owner/dashboard";
+        }
+    }
+    
+    /**
+     * Property Owner Files - Access to Google Drive file system
+     */
+    @GetMapping("/property-owner/files")
+    public String fileSystem(Model model, Authentication authentication) {
+        System.out.println("📁 Property Owner Files - Loading...");
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return "redirect:/customer-login?error=not_found";
+            }
+            
+            System.out.println("✅ Redirecting to customer files system");
+            // Redirect to existing customer files functionality
+            return "redirect:/customer/files/" + customer.getCustomerId();
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error loading files system: " + e.getMessage());
+            model.addAttribute("error", "Error loading files: " + e.getMessage());
+            return "property-owner/dashboard";
+        }
+    }
+    
+    /**
+     * Property Owner Property Details - Individual property view
+     */
+    @GetMapping("/property-owner/property/{id}")
+    public String viewPropertyDetails(@PathVariable("id") Long propertyId,
+                                    Model model, Authentication authentication) {
+        System.out.println("🏠 Property Owner Property Details - ID: " + propertyId);
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return "redirect:/customer-login?error=not_found";
+            }
+            
+            // Verify ownership by checking if property belongs to this customer
+            List<Property> ownedProperties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            boolean ownsProperty = ownedProperties.stream()
+                .anyMatch(p -> p.getId().equals(propertyId));
+            
+            if (!ownsProperty) {
+                System.out.println("❌ Property " + propertyId + " not owned by customer " + customer.getCustomerId());
+                return "redirect:/property-owner/properties?error=unauthorized";
+            }
+            
+            System.out.println("✅ Property ownership verified, redirecting to employee property view");
+            // Redirect to existing employee property view (property owners can see same detail)
+            return "redirect:/employee/property/" + propertyId;
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error loading property details: " + e.getMessage());
+            model.addAttribute("error", "Error loading property: " + e.getMessage());
+            return "property-owner/properties";
+        }
+    }
+
     /**
      * Property Owner Profile - View and edit profile
      */
