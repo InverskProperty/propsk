@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- Form CSS -->
+<link th:href="@{/css/bootstrap-datepicker.min.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-5 align-self-center">
+                    <h4 class="text-themecolor">Historical Transaction Import</h4>
+                </div>
+                <div class="col-md-7 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0)">Financial</a></li>
+                            <li class="breadcrumb-item active">Transaction Import</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Success/Error Messages -->
+            <div th:if="${success}" class="alert alert-success alert-dismissible fade show">
+                <span th:text="${success}"></span>
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+            </div>
+            <div th:if="${error}" class="alert alert-danger alert-dismissible fade show">
+                <span th:text="${error}"></span>
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+            </div>
+            <div th:if="${warning}" class="alert alert-warning alert-dismissible fade show">
+                <span th:text="${warning}"></span>
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+            </div>
+
+            <div class="row">
+                <!-- File Upload Section -->
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header bg-primary">
+                            <h4 class="mb-0 text-white">
+                                <i class="fas fa-file-upload"></i> Import Historical Transactions
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            
+                            <!-- Upload Type Tabs -->
+                            <ul class="nav nav-pills mb-4" id="uploadTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="csv-tab" data-bs-toggle="pill" data-bs-target="#csv-upload" type="button" role="tab">
+                                        <i class="fas fa-table"></i> CSV Upload
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="json-tab" data-bs-toggle="pill" data-bs-target="#json-upload" type="button" role="tab">
+                                        <i class="fas fa-code"></i> JSON Upload
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="paste-tab" data-bs-toggle="pill" data-bs-target="#json-paste" type="button" role="tab">
+                                        <i class="fas fa-clipboard"></i> JSON Paste
+                                    </button>
+                                </li>
+                            </ul>
+
+                            <!-- Tab Content -->
+                            <div class="tab-content" id="uploadTabContent">
+                                
+                                <!-- CSV Upload Tab -->
+                                <div class="tab-pane fade show active" id="csv-upload" role="tabpanel">
+                                    <form method="post" th:action="@{/employee/transaction/import/csv}" enctype="multipart/form-data" id="csvForm">
+                                        
+                                        <div class="row">
+                                            <div class="col-md-12">
+                                                <div class="form-group">
+                                                    <label for="csvFile" class="required">CSV File *</label>
+                                                    <div class="custom-file">
+                                                        <input type="file" class="custom-file-input" id="csvFile" name="file" accept=".csv" required>
+                                                        <label class="custom-file-label" for="csvFile">Choose CSV file...</label>
+                                                    </div>
+                                                    <small class="form-text text-muted">
+                                                        Upload a CSV file with transaction data. Maximum file size: 10MB
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row">
+                                            <div class="col-md-12">
+                                                <div class="form-group">
+                                                    <label for="csvBatchDescription">Batch Description</label>
+                                                    <input type="text" class="form-control" id="csvBatchDescription" name="batchDescription" 
+                                                           placeholder="e.g., Historical bank data 2023, PayProp export, etc.">
+                                                    <small class="form-text text-muted">
+                                                        Optional description for this import batch
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <button type="submit" class="btn btn-primary btn-lg">
+                                                <i class="fas fa-file-csv"></i> Import CSV File
+                                            </button>
+                                            <button type="button" class="btn btn-info btn-lg ml-2" onclick="showCsvExample()">
+                                                <i class="fas fa-eye"></i> View CSV Example
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                                
+                                <!-- JSON Upload Tab -->
+                                <div class="tab-pane fade" id="json-upload" role="tabpanel">
+                                    <form method="post" th:action="@{/employee/transaction/import/json}" enctype="multipart/form-data" id="jsonForm">
+                                        
+                                        <div class="row">
+                                            <div class="col-md-12">
+                                                <div class="form-group">
+                                                    <label for="jsonFile" class="required">JSON File *</label>
+                                                    <div class="custom-file">
+                                                        <input type="file" class="custom-file-input" id="jsonFile" name="file" accept=".json" required>
+                                                        <label class="custom-file-label" for="jsonFile">Choose JSON file...</label>
+                                                    </div>
+                                                    <small class="form-text text-muted">
+                                                        Upload a JSON file with structured transaction data. Maximum file size: 10MB
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row">
+                                            <div class="col-md-12">
+                                                <div class="form-group">
+                                                    <label for="jsonBatchDescription">Batch Description</label>
+                                                    <input type="text" class="form-control" id="jsonBatchDescription" name="batchDescription" 
+                                                           placeholder="e.g., API export data, Bank statement JSON, etc.">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <button type="submit" class="btn btn-success btn-lg">
+                                                <i class="fas fa-file-code"></i> Import JSON File
+                                            </button>
+                                            <button type="button" class="btn btn-info btn-lg ml-2" onclick="showJsonExample()">
+                                                <i class="fas fa-eye"></i> View JSON Example
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                                
+                                <!-- JSON Paste Tab -->
+                                <div class="tab-pane fade" id="json-paste" role="tabpanel">
+                                    <form id="jsonPasteForm">
+                                        
+                                        <div class="row">
+                                            <div class="col-md-12">
+                                                <div class="form-group">
+                                                    <label for="jsonData" class="required">JSON Data *</label>
+                                                    <textarea class="form-control" id="jsonData" name="jsonData" rows="12" required
+                                                              placeholder="Paste your JSON transaction data here..."></textarea>
+                                                    <small class="form-text text-muted">
+                                                        Paste JSON data directly from APIs, exports, or other sources
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="row">
+                                            <div class="col-md-12">
+                                                <div class="form-group">
+                                                    <label for="pasteBatchDescription">Batch Description</label>
+                                                    <input type="text" class="form-control" id="pasteBatchDescription" name="batchDescription" 
+                                                           placeholder="e.g., Manual JSON paste, API data, etc.">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <button type="button" class="btn btn-warning btn-lg" onclick="importJsonPaste()">
+                                                <i class="fas fa-paste"></i> Import JSON Data
+                                            </button>
+                                            <button type="button" class="btn btn-info btn-lg ml-2" onclick="validateJsonPaste()">
+                                                <i class="fas fa-check-circle"></i> Validate JSON
+                                            </button>
+                                        </div>
+                                    </form>
+                                    
+                                    <!-- JSON Paste Results -->
+                                    <div id="jsonPasteResults" style="display: none;">
+                                        <hr>
+                                        <h6>Import Results:</h6>
+                                        <div id="jsonPasteContent"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Help & Information Section -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header bg-info">
+                            <h5 class="mb-0 text-white">
+                                <i class="fas fa-question-circle"></i> Import Guide
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            
+                            <h6><strong>Supported Formats:</strong></h6>
+                            <ul class="list-unstyled">
+                                <li><strong>CSV:</strong> Spreadsheet format with headers</li>
+                                <li><strong>JSON:</strong> Structured data format</li>
+                                <li><strong>JSON Paste:</strong> Direct copy/paste from APIs</li>
+                            </ul>
+                            
+                            <h6><strong>Required Fields:</strong></h6>
+                            <ul class="list-unstyled small">
+                                <li>• <code>transaction_date</code></li>
+                                <li>• <code>amount</code> (negative for payments out)</li>
+                                <li>• <code>description</code></li>
+                                <li>• <code>transaction_type</code></li>
+                            </ul>
+                            
+                            <h6><strong>Optional Fields:</strong></h6>
+                            <ul class="list-unstyled small">
+                                <li>• <code>category</code>, <code>subcategory</code></li>
+                                <li>• <code>property_reference</code></li>
+                                <li>• <code>customer_reference</code></li>
+                                <li>• <code>bank_reference</code></li>
+                                <li>• <code>payment_method</code></li>
+                                <li>• <code>notes</code></li>
+                            </ul>
+                            
+                            <h6><strong>Property Matching:</strong></h6>
+                            <p class="small text-muted">
+                                Properties are matched by name, address, or postcode.
+                                Use exact property names for best results.
+                            </p>
+                            
+                            <h6><strong>Customer Matching:</strong></h6>
+                            <p class="small text-muted">
+                                Customers are matched by email address or name.
+                                Email addresses provide the most accurate matching.
+                            </p>
+                            
+                            <h6><strong>Transaction Types:</strong></h6>
+                            <div class="small">
+                                <span class="badge badge-primary">payment</span>
+                                <span class="badge badge-success">deposit</span>
+                                <span class="badge badge-warning">fee</span>
+                                <span class="badge badge-info">commission</span>
+                                <span class="badge badge-secondary">maintenance</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Current Data Summary -->
+                    <div class="card mt-3">
+                        <div class="card-header bg-secondary">
+                            <h6 class="mb-0 text-white">
+                                <i class="fas fa-database"></i> Current Data
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <h5 class="text-primary" th:text="${#lists.size(properties)}">0</h5>
+                                    <small class="text-muted">Properties</small>
+                                </div>
+                                <div class="col-6">
+                                    <h5 class="text-success" th:text="${#lists.size(customers)}">0</h5>
+                                    <small class="text-muted">Customers</small>
+                                </div>
+                            </div>
+                            <hr>
+                            <p class="small text-muted mb-0">
+                                <i class="fas fa-info-circle"></i> Import will attempt to match transactions to existing properties and customers
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Example Modal -->
+            <div class="modal fade" id="exampleModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="exampleModalTitle">Import Example</h5>
+                            <button type="button" class="close" data-dismiss="modal">
+                                <span>&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="exampleContent">
+                                <!-- Content will be loaded here -->
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-primary" onclick="copyExampleToClipboard()">
+                                <i class="fas fa-copy"></i> Copy to Clipboard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript -->
+<script th:src="@{/js/lib/jquery/jquery.min.js}"></script>
+<script th:src="@{/js/lib/bootstrap/js/bootstrap.min.js}"></script>
+
+<script>
+let currentExampleContent = '';
+const csrfToken = $('meta[name="_csrf"]').attr('content');
+const csrfHeader = $('meta[name="_csrf_header"]').attr('content');
+
+$(document).ready(function() {
+    
+    // Update custom file input labels
+    $('.custom-file-input').on('change', function() {
+        const fileName = $(this).val().split('\\').pop();
+        $(this).siblings('.custom-file-label').addClass('selected').html(fileName);
+    });
+    
+    // Form validation
+    $('#csvForm').on('submit', function(e) {
+        const file = $('#csvFile')[0].files[0];
+        if (!file) {
+            alert('Please select a CSV file');
+            e.preventDefault();
+            return false;
+        }
+        
+        if (file.size > 10 * 1024 * 1024) { // 10MB
+            alert('File size must be less than 10MB');
+            e.preventDefault();
+            return false;
+        }
+    });
+    
+    $('#jsonForm').on('submit', function(e) {
+        const file = $('#jsonFile')[0].files[0];
+        if (!file) {
+            alert('Please select a JSON file');
+            e.preventDefault();
+            return false;
+        }
+        
+        if (file.size > 10 * 1024 * 1024) { // 10MB
+            alert('File size must be less than 10MB');
+            e.preventDefault();
+            return false;
+        }
+    });
+});
+
+// Show CSV example
+function showCsvExample() {
+    fetch('/employee/transaction/import/examples', {
+        method: 'GET',
+        headers: {
+            [csrfHeader]: csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        const content = `
+            <h6>CSV Format Example:</h6>
+            <pre class="bg-light p-3"><code>${data.csv_example}</code></pre>
+            
+            <h6>Required Headers:</h6>
+            <ul class="small">
+                ${data.csv_headers.slice(0, 4).map(header => `<li><code>${header}</code></li>`).join('')}
+            </ul>
+            
+            <h6>Optional Headers:</h6>
+            <ul class="small">
+                ${data.csv_headers.slice(4).map(header => `<li><code>${header}</code></li>`).join('')}
+            </ul>
+        `;
+        
+        currentExampleContent = data.csv_example;
+        $('#exampleModalTitle').text('CSV Import Example');
+        $('#exampleContent').html(content);
+        $('#exampleModal').modal('show');
+    })
+    .catch(error => {
+        console.error('Error fetching CSV example:', error);
+        alert('Error loading CSV example');
+    });
+}
+
+// Show JSON example
+function showJsonExample() {
+    fetch('/employee/transaction/import/examples', {
+        method: 'GET',
+        headers: {
+            [csrfHeader]: csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        const content = `
+            <h6>JSON Format Example:</h6>
+            <pre class="bg-light p-3"><code>${data.json_example}</code></pre>
+            
+            <h6>Transaction Types:</h6>
+            <div class="mb-3">
+                ${data.transaction_types.map(type => `<span class="badge badge-secondary mr-1">${type}</span>`).join('')}
+            </div>
+            
+            <h6>Supported Date Formats:</h6>
+            <ul class="small">
+                ${data.date_formats.map(format => `<li><code>${format}</code></li>`).join('')}
+            </ul>
+        `;
+        
+        currentExampleContent = data.json_example;
+        $('#exampleModalTitle').text('JSON Import Example');
+        $('#exampleContent').html(content);
+        $('#exampleModal').modal('show');
+    })
+    .catch(error => {
+        console.error('Error fetching JSON example:', error);
+        alert('Error loading JSON example');
+    });
+}
+
+// Copy example to clipboard
+function copyExampleToClipboard() {
+    if (currentExampleContent) {
+        navigator.clipboard.writeText(currentExampleContent).then(function() {
+            alert('Example copied to clipboard!');
+        }).catch(function() {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = currentExampleContent;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            alert('Example copied to clipboard!');
+        });
+    }
+}
+
+// Validate JSON paste
+function validateJsonPaste() {
+    const jsonData = $('#jsonData').val().trim();
+    
+    if (!jsonData) {
+        alert('Please enter JSON data to validate');
+        return;
+    }
+    
+    try {
+        JSON.parse(jsonData);
+        alert('✅ JSON is valid!');
+    } catch (error) {
+        alert('❌ Invalid JSON: ' + error.message);
+    }
+}
+
+// Import JSON paste
+function importJsonPaste() {
+    const jsonData = $('#jsonData').val().trim();
+    const batchDescription = $('#pasteBatchDescription').val() || 'JSON paste import';
+    
+    if (!jsonData) {
+        alert('Please enter JSON data to import');
+        return;
+    }
+    
+    // Validate JSON first
+    try {
+        JSON.parse(jsonData);
+    } catch (error) {
+        alert('Invalid JSON: ' + error.message);
+        return;
+    }
+    
+    // Show loading
+    $('#jsonPasteResults').show();
+    $('#jsonPasteContent').html('<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Importing...</div>');
+    
+    // Submit via AJAX
+    $.ajax({
+        url: '/employee/transaction/import/json-string',
+        method: 'POST',
+        data: {
+            jsonData: jsonData,
+            batchDescription: batchDescription
+        },
+        headers: {
+            [csrfHeader]: csrfToken
+        },
+        success: function(response) {
+            if (response.success) {
+                $('#jsonPasteContent').html(`
+                    <div class="alert alert-success">
+                        <h6><i class="fas fa-check-circle"></i> Import Successful!</h6>
+                        <p><strong>Batch ID:</strong> ${response.batchId}</p>
+                        <p><strong>Summary:</strong> ${response.summary}</p>
+                        <div class="row text-center mt-3">
+                            <div class="col-4">
+                                <h5 class="text-primary">${response.totalProcessed}</h5>
+                                <small>Total</small>
+                            </div>
+                            <div class="col-4">
+                                <h5 class="text-success">${response.successfulImports}</h5>
+                                <small>Success</small>
+                            </div>
+                            <div class="col-4">
+                                <h5 class="text-danger">${response.failedImports}</h5>
+                                <small>Failed</small>
+                            </div>
+                        </div>
+                    </div>
+                `);
+                
+                // Show errors if any
+                if (response.errors && response.errors.length > 0) {
+                    const errorList = response.errors.slice(0, 5).map(error => `<li>${error}</li>`).join('');
+                    $('#jsonPasteContent').append(`
+                        <div class="alert alert-warning">
+                            <h6>Import Errors (first 5):</h6>
+                            <ul>${errorList}</ul>
+                        </div>
+                    `);
+                }
+            } else {
+                $('#jsonPasteContent').html(`
+                    <div class="alert alert-danger">
+                        <h6><i class="fas fa-times-circle"></i> Import Failed</h6>
+                        <p>${response.error}</p>
+                    </div>
+                `);
+            }
+        },
+        error: function(xhr) {
+            let errorMsg = 'Import failed';
+            try {
+                const response = JSON.parse(xhr.responseText);
+                errorMsg = response.error || errorMsg;
+            } catch (e) {
+                // Use default error message
+            }
+            
+            $('#jsonPasteContent').html(`
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-times-circle"></i> Import Error</h6>
+                    <p>${errorMsg}</p>
+                </div>
+            `);
+        }
+    });
+}
+</script>
+
+</body>
+</html>
