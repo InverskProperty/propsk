@@ -574,9 +574,33 @@ public class PropertyOwnerController {
     @GetMapping("/property-owner/property/{id}")
     public String viewPropertyDetails(@PathVariable("id") Long propertyId,
                                     Model model, Authentication authentication) {
-        // Check if there's an existing property details page in admin
-        // For now, redirect to all-properties page - admin can implement property details later
-        return "redirect:/employee/property/all-properties";
+        System.out.println("🏠 Property Owner Property Details - ID: " + propertyId);
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return "redirect:/customer-login?error=not_found";
+            }
+            
+            // Verify ownership by checking if property belongs to this customer
+            List<Property> ownedProperties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            boolean ownsProperty = ownedProperties.stream()
+                .anyMatch(p -> p.getId().equals(propertyId));
+            
+            if (!ownsProperty) {
+                System.out.println("❌ Property " + propertyId + " not owned by customer " + customer.getCustomerId());
+                return "redirect:/property-owner/properties?error=unauthorized";
+            }
+            
+            System.out.println("✅ Property ownership verified, redirecting to employee property view");
+            // Redirect to existing employee property view (property owners can see same detail)
+            return "redirect:/employee/property/" + propertyId;
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error loading property details: " + e.getMessage());
+            model.addAttribute("error", "Error loading property: " + e.getMessage());
+            return "property-owner/properties";
+        }
     }
     
     /**
@@ -776,41 +800,6 @@ public class PropertyOwnerController {
         }
     }
     
-    /**
-     * Property Owner Property Details - Individual property view
-     */
-    @GetMapping("/property-owner/property/{id}")
-    public String viewPropertyDetails(@PathVariable("id") Long propertyId,
-                                    Model model, Authentication authentication) {
-        System.out.println("🏠 Property Owner Property Details - ID: " + propertyId);
-        
-        try {
-            Customer customer = getAuthenticatedPropertyOwner(authentication);
-            if (customer == null) {
-                return "redirect:/customer-login?error=not_found";
-            }
-            
-            // Verify ownership by checking if property belongs to this customer
-            List<Property> ownedProperties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
-            boolean ownsProperty = ownedProperties.stream()
-                .anyMatch(p -> p.getId().equals(propertyId));
-            
-            if (!ownsProperty) {
-                System.out.println("❌ Property " + propertyId + " not owned by customer " + customer.getCustomerId());
-                return "redirect:/property-owner/properties?error=unauthorized";
-            }
-            
-            System.out.println("✅ Property ownership verified, redirecting to employee property view");
-            // Redirect to existing employee property view (property owners can see same detail)
-            return "redirect:/employee/property/" + propertyId;
-            
-        } catch (Exception e) {
-            System.err.println("❌ Error loading property details: " + e.getMessage());
-            model.addAttribute("error", "Error loading property: " + e.getMessage());
-            return "property-owner/properties";
-        }
-    }
-
     /**
      * Property Owner Profile - View and edit profile
      */
