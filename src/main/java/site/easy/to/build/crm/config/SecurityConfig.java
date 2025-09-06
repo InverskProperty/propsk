@@ -102,12 +102,6 @@ public class SecurityConfig {
                     .failureHandler(customerLoginFailureHandler)
                     .permitAll();
             }).userDetailsService(customerUserDetails)
-            .oauth2Login(oauth2 -> oauth2
-                    .loginPage("/customer-login")
-                    .userInfoEndpoint(userInfo -> userInfo
-                            .userService(oauthUserService))
-                    .successHandler(customerLoginSuccessHandler)
-            )
             .logout((logout) -> logout
                     .logoutUrl("/customer-logout")
                     .logoutSuccessUrl("/customer-login")
@@ -165,6 +159,8 @@ public class SecurityConfig {
                         .requestMatchers("/change-password/**").permitAll()
                         .requestMatchers("/login", "/login/**").permitAll() 
                         .requestMatchers("/test-password").permitAll()
+                        .requestMatchers("/privacy-policy").permitAll()
+                        .requestMatchers("/terms-of-service").permitAll()
                         
                         // Static resources
                         .requestMatchers("/font-awesome/**").permitAll()

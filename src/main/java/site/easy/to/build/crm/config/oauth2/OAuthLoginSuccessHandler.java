@@ -19,10 +19,12 @@ import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Role;
 import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.entity.UserProfile;
+import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.service.role.RoleService;
 import site.easy.to.build.crm.service.user.OAuthUserService;
 import site.easy.to.build.crm.service.user.UserProfileService;
@@ -46,10 +48,11 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
     public final AuthenticationUtils authenticationUtils;
     public final RoleService roleService;
     private final Environment environment;
+    private final CustomerRepository customerRepository;
 
     @Autowired
     public OAuthLoginSuccessHandler(OAuthUserService oAuthUserService, UserService userService, UserProfileService userProfileService,
-                                    OAuth2AuthorizedClientService authorizedClientService, AuthenticationUtils authenticationUtils, RoleService roleService, Environment environment) {
+                                    OAuth2AuthorizedClientService authorizedClientService, AuthenticationUtils authenticationUtils, RoleService roleService, Environment environment, CustomerRepository customerRepository) {
         this.oAuthUserService = oAuthUserService;
         this.userService = userService;
         this.userProfileService = userProfileService;
@@ -57,6 +60,7 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
         this.authenticationUtils = authenticationUtils;
         this.roleService = roleService;
         this.environment = environment;
+        this.customerRepository = customerRepository;
     }
 
     @Override
@@ -187,6 +191,25 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
             }
             
             OAuthUser loggedOAuthUser;
+
+            // CUSTOMER OAUTH SUPPORT: Check for customer account if no employee user found
+            if (user == null) {
+                System.out.println("🔍 No employee user found, checking for customer account...");
+                Customer customer = customerRepository.findByEmail(email);
+                if (customer != null) {
+                    System.out.println("✅ Found customer account: " + customer.getCustomerId() + " - " + customer.getEmail());
+                    System.out.println("   Customer Type: " + customer.getCustomerType());
+                    System.out.println("   Is Property Owner: " + customer.getIsPropertyOwner());
+                    
+                    // Redirect customer to appropriate dashboard
+                    String redirectUrl = determineCustomerRedirectUrl(customer);
+                    System.out.println("🏠 Redirecting customer to: " + redirectUrl);
+                    response.sendRedirect(redirectUrl);
+                    return;
+                } else {
+                    System.out.println("❌ No customer account found either for email: " + email);
+                }
+            }
 
             if (user == null) {
                 System.out.println("🆕 Creating new user for: " + email);
@@ -443,5 +466,58 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
         
         // TODO: Implement proper audit logging to database
         // auditService.logSecurityEvent(event, user, details);
+    }
+
+    /**
+     * Determine the correct redirect URL for customer OAuth users based on customer type
+     */
+    private String determineCustomerRedirectUrl(Customer customer) {
+        System.out.println("=== DEBUG: determineCustomerRedirectUrl ===");
+        
+        // Check CustomerType enum first
+        if (customer.getCustomerType() != null) {
+            switch (customer.getCustomerType()) {
+                case PROPERTY_OWNER:
+                    System.out.println("DEBUG: Redirecting PROPERTY_OWNER to /property-owner/dashboard");
+                    return "/property-owner/dashboard";
+                case TENANT:
+                    System.out.println("DEBUG: Redirecting TENANT to /tenant/dashboard");
+                    return "/tenant/dashboard";
+                case CONTRACTOR:
+                    System.out.println("DEBUG: Redirecting CONTRACTOR to /contractor/dashboard");
+                    return "/contractor/dashboard";
+                case ADMIN:
+                case SUPER_ADMIN:
+                    System.out.println("DEBUG: Redirecting ADMIN to admin dashboard");
+                    return "/admin/dashboard";
+                case EMPLOYEE:
+                    System.out.println("DEBUG: Redirecting EMPLOYEE to employee dashboard");
+                    return "/employee/dashboard";
+                case REGULAR_CUSTOMER:
+                default:
+                    System.out.println("DEBUG: Redirecting REGULAR_CUSTOMER to customer dashboard");
+                    return "/customer/dashboard";
+            }
+        }
+        
+        // Fallback to legacy boolean flags
+        if (Boolean.TRUE.equals(customer.getIsPropertyOwner())) {
+            System.out.println("DEBUG: Boolean flag isPropertyOwner=true, redirecting to /property-owner/dashboard");
+            return "/property-owner/dashboard";
+        }
+        
+        if (Boolean.TRUE.equals(customer.getIsTenant())) {
+            System.out.println("DEBUG: Boolean flag isTenant=true, redirecting to /tenant/dashboard");
+            return "/tenant/dashboard";
+        }
+        
+        if (Boolean.TRUE.equals(customer.getIsContractor())) {
+            System.out.println("DEBUG: Boolean flag isContractor=true, redirecting to /contractor/dashboard");
+            return "/contractor/dashboard";
+        }
+        
+        // Default fallback
+        System.out.println("DEBUG: No specific type found, defaulting to /customer/dashboard");
+        return "/customer/dashboard";
     }
 }

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Spout Property CRM Privacy Policy">
+    <meta name="author" content="Spout Property">
+    <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
+    <title>Privacy Policy - Spout Property CRM</title>
+    
+    <!-- Custom CSS -->
+    <link th:href="@{/css/style.min.css}" rel="stylesheet">
+    <style>
+        .privacy-container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+        .privacy-header { text-align: center; margin-bottom: 40px; }
+        .privacy-section { margin-bottom: 30px; }
+        .privacy-section h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        .privacy-section h3 { color: #34495e; margin-top: 25px; }
+        .privacy-section p, .privacy-section li { line-height: 1.6; margin-bottom: 10px; }
+        .contact-info { background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin-top: 30px; }
+    </style>
+</head>
+
+<body>
+    <div class="privacy-container">
+        <div class="privacy-header">
+            <h1>Privacy Policy</h1>
+            <p><strong>Spout Property CRM</strong></p>
+            <p>Last updated: <span th:text="${#temporals.format(#temporals.createNow(), 'dd MMMM yyyy')}">January 2025</span></p>
+        </div>
+
+        <div class="privacy-section">
+            <h2>1. Introduction</h2>
+            <p>Spout Property CRM ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our Customer Relationship Management platform.</p>
+        </div>
+
+        <div class="privacy-section">
+            <h2>2. Information We Collect</h2>
+            
+            <h3>2.1 Personal Information</h3>
+            <p>We collect information you provide directly to us, such as:</p>
+            <ul>
+                <li>Name and contact information (email address, phone number, address)</li>
+                <li>Account credentials (username, password)</li>
+                <li>Property information and rental details</li>
+                <li>Financial information related to property management</li>
+                <li>Communication preferences</li>
+            </ul>
+
+            <h3>2.2 Google Account Information</h3>
+            <p>When you sign in with Google, we collect:</p>
+            <ul>
+                <li>Your Google email address</li>
+                <li>Basic profile information (name, profile picture)</li>
+                <li>Access tokens to integrate with Google services (Sheets, Drive, Gmail)</li>
+            </ul>
+
+            <h3>2.3 Usage Information</h3>
+            <p>We automatically collect information about your use of our services:</p>
+            <ul>
+                <li>Log information (IP address, browser type, pages visited)</li>
+                <li>Device information</li>
+                <li>Usage patterns and preferences</li>
+            </ul>
+        </div>
+
+        <div class="privacy-section">
+            <h2>3. How We Use Your Information</h2>
+            <p>We use the information we collect to:</p>
+            <ul>
+                <li>Provide, maintain, and improve our CRM services</li>
+                <li>Process transactions and manage property-related activities</li>
+                <li>Generate financial statements and reports</li>
+                <li>Communicate with you about your account and our services</li>
+                <li>Integrate with third-party services (Google Workspace, PayProp)</li>
+                <li>Comply with legal obligations</li>
+                <li>Protect against fraud and unauthorized access</li>
+            </ul>
+        </div>
+
+        <div class="privacy-section">
+            <h2>4. Google Services Integration</h2>
+            <h3>4.1 Google OAuth</h3>
+            <p>We use Google OAuth to allow you to sign in with your Google account. This integration:</p>
+            <ul>
+                <li>Allows secure authentication without storing your Google password</li>
+                <li>Enables access to Google Sheets for financial statement generation</li>
+                <li>May access Google Drive for document storage and sharing</li>
+                <li>May access Gmail for email communication features</li>
+            </ul>
+
+            <h3>4.2 Data Access</h3>
+            <p>We only access Google services when necessary to provide our CRM functionality. You can revoke our access to your Google account at any time through your Google Account settings.</p>
+        </div>
+
+        <div class="privacy-section">
+            <h2>5. Information Sharing and Disclosure</h2>
+            <p>We do not sell, trade, or otherwise transfer your personal information to third parties, except:</p>
+            <ul>
+                <li><strong>Service Providers:</strong> Third-party vendors who assist us in operating our platform (PayProp, Google services)</li>
+                <li><strong>Legal Requirements:</strong> When required by law or to protect our rights</li>
+                <li><strong>Business Transfers:</strong> In connection with a merger, acquisition, or asset sale</li>
+                <li><strong>Consent:</strong> When you have given us explicit consent</li>
+            </ul>
+        </div>
+
+        <div class="privacy-section">
+            <h2>6. Data Security</h2>
+            <p>We implement appropriate technical and organizational measures to protect your information:</p>
+            <ul>
+                <li>Encryption of data in transit and at rest</li>
+                <li>Access controls and authentication</li>
+                <li>Regular security assessments</li>
+                <li>Secure hosting and infrastructure</li>
+            </ul>
+        </div>
+
+        <div class="privacy-section">
+            <h2>7. Data Retention</h2>
+            <p>We retain your information for as long as necessary to:</p>
+            <ul>
+                <li>Provide our services to you</li>
+                <li>Comply with legal obligations</li>
+                <li>Resolve disputes and enforce agreements</li>
+            </ul>
+            <p>You may request deletion of your personal information, subject to certain exceptions.</p>
+        </div>
+
+        <div class="privacy-section">
+            <h2>8. Your Rights</h2>
+            <p>Depending on your location, you may have the following rights:</p>
+            <ul>
+                <li>Access to your personal information</li>
+                <li>Correction of inaccurate information</li>
+                <li>Deletion of your information</li>
+                <li>Portability of your data</li>
+                <li>Objection to processing</li>
+                <li>Restriction of processing</li>
+            </ul>
+        </div>
+
+        <div class="privacy-section">
+            <h2>9. Cookies and Tracking</h2>
+            <p>We use cookies and similar technologies to:</p>
+            <ul>
+                <li>Remember your preferences and settings</li>
+                <li>Maintain your session</li>
+                <li>Improve our services</li>
+                <li>Ensure security</li>
+            </ul>
+        </div>
+
+        <div class="privacy-section">
+            <h2>10. Third-Party Services</h2>
+            <p>Our platform integrates with third-party services including:</p>
+            <ul>
+                <li><strong>PayProp:</strong> Property management and payment processing</li>
+                <li><strong>Google Workspace:</strong> Document creation and communication</li>
+                <li><strong>Cloud Hosting Providers:</strong> Infrastructure and hosting services</li>
+            </ul>
+            <p>These services have their own privacy policies, and we encourage you to review them.</p>
+        </div>
+
+        <div class="privacy-section">
+            <h2>11. Updates to This Policy</h2>
+            <p>We may update this Privacy Policy from time to time. We will notify you of any material changes by:</p>
+            <ul>
+                <li>Posting the updated policy on our website</li>
+                <li>Sending you an email notification</li>
+                <li>Providing notice through our platform</li>
+            </ul>
+        </div>
+
+        <div class="contact-info">
+            <h2>12. Contact Information</h2>
+            <p>If you have questions about this Privacy Policy or our privacy practices, please contact us:</p>
+            <ul>
+                <li><strong>Email:</strong> privacy@spoutproperty.com</li>
+                <li><strong>Address:</strong> Spout Property CRM, United Kingdom</li>
+            </ul>
+            <p>For Google-related privacy concerns, you can also visit: <a href="https://policies.google.com/privacy" target="_blank">https://policies.google.com/privacy</a></p>
+        </div>
+
+        <div class="privacy-section" style="text-align: center; margin-top: 40px;">
+            <a th:href="@{/}" class="btn btn-primary">Return to Application</a>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script th:src="@{/js/lib/jquery/jquery.min.js}"></script>
+    <script th:src="@{/js/lib/bootstrap/js/bootstrap.min.js}"></script>
+</body>
+</html>
