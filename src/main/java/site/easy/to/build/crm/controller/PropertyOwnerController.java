@@ -6,6 +6,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.format.annotation.DateTimeFormat;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerLoginInfo;
 import site.easy.to.build.crm.entity.CustomerType;
@@ -1573,6 +1574,79 @@ public class PropertyOwnerController {
             e.printStackTrace();
             model.addAttribute("error", "Error loading maintenance: " + e.getMessage());
             return "property-owner/dashboard";
+        }
+    }
+    
+    /**
+     * Property Owner Generate Statement
+     */
+    @PostMapping("/property-owner/generate-statement") 
+    public String generateStatement(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+                                  @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+                                  Authentication authentication,
+                                  RedirectAttributes redirectAttributes) {
+        System.out.println("📊 Property Owner Generate Statement - Starting...");
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                redirectAttributes.addFlashAttribute("error", "Authentication required");
+                return "redirect:/customer-login";
+            }
+            
+            // Check OAuth/Google connection
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+            if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
+                redirectAttributes.addFlashAttribute("error", "Google account not connected. Please connect your Google account first.");
+                return "redirect:/property-owner/statements";
+            }
+            
+            // For now, redirect to the existing statement controller with proper parameters
+            // This allows us to reuse the existing Google Sheets integration
+            System.out.println("✅ Redirecting to existing statement generation with customer: " + customer.getCustomerId());
+            return "redirect:/statements/property-owner?propertyOwnerId=" + customer.getCustomerId() + 
+                   "&fromDate=" + fromDate + "&toDate=" + toDate;
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error generating statement: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error generating statement: " + e.getMessage());
+            return "redirect:/property-owner/statements";
+        }
+    }
+    
+    /**
+     * Property Owner Generate Portfolio Statement  
+     */
+    @PostMapping("/property-owner/generate-portfolio")
+    public String generatePortfolio(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+                                  @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+                                  Authentication authentication,
+                                  RedirectAttributes redirectAttributes) {
+        System.out.println("📊 Property Owner Generate Portfolio - Starting...");
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                redirectAttributes.addFlashAttribute("error", "Authentication required");
+                return "redirect:/customer-login";
+            }
+            
+            // Check OAuth/Google connection
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+            if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
+                redirectAttributes.addFlashAttribute("error", "Google account not connected. Please connect your Google account first.");
+                return "redirect:/property-owner/statements";
+            }
+            
+            // For now, redirect to the existing statement controller with proper parameters
+            System.out.println("✅ Redirecting to existing portfolio generation with customer: " + customer.getCustomerId());
+            return "redirect:/statements/portfolio?propertyOwnerId=" + customer.getCustomerId() + 
+                   "&fromDate=" + fromDate + "&toDate=" + toDate;
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error generating portfolio: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error generating portfolio: " + e.getMessage());
+            return "redirect:/property-owner/statements";
         }
     }
 }
