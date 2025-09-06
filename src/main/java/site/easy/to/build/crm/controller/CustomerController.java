@@ -12,6 +12,7 @@ import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.email.EmailService;
+import site.easy.to.build.crm.service.payprop.LocalToPayPropSyncService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
@@ -37,6 +38,9 @@ public class CustomerController {
     private final AuthenticationUtils authenticationUtils;
     private final EmailService emailService;
     private final CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
+    
+    @Autowired(required = false)
+    private LocalToPayPropSyncService localToPayPropSyncService;
 
 
     @Autowired
@@ -276,6 +280,7 @@ public class CustomerController {
                             @RequestParam(value = "isPropertyOwner", required = false) Boolean isPropertyOwner,
                             @RequestParam(value = "isContractor", required = false) Boolean isContractor,
                             @RequestParam(value = "entityType", required = false) String entityType,
+                            @RequestParam(value = "syncToPayProp", defaultValue = "false") Boolean syncToPayProp,
                             Authentication authentication,
                             RedirectAttributes redirectAttributes) {
         try {
@@ -354,10 +359,41 @@ public class CustomerController {
             
             Customer savedCustomer = customerService.save(customer);
             
-            // Determine success message and redirect based on customer type
+            // PayProp sync if requested
+            String successMessage = null;
             String customerTypeDisplay = getCustomerTypeDisplay(savedCustomer);
-            redirectAttributes.addFlashAttribute("successMessage", 
-                customerTypeDisplay + " " + savedCustomer.getName() + " created successfully!");
+            
+            if (syncToPayProp && localToPayPropSyncService != null) {
+                try {
+                    String syncResult = null;
+                    
+                    if (savedCustomer.getCustomerType() == CustomerType.PROPERTY_OWNER) {
+                        System.out.println("🔄 Syncing customer as PayProp beneficiary...");
+                        syncResult = localToPayPropSyncService.syncCustomerAsBeneficiaryToPayProp(savedCustomer);
+                    } else if (savedCustomer.getCustomerType() == CustomerType.TENANT) {
+                        System.out.println("🔄 Syncing customer as PayProp tenant...");
+                        syncResult = localToPayPropSyncService.syncCustomerAsTenantToPayProp(savedCustomer);
+                    }
+                    
+                    if (syncResult != null) {
+                        System.out.println("✅ Customer synced to PayProp: " + syncResult);
+                        successMessage = customerTypeDisplay + " " + savedCustomer.getName() + 
+                                       " created and synced to PayProp successfully! (PayProp ID: " + syncResult + ")";
+                    } else {
+                        successMessage = customerTypeDisplay + " " + savedCustomer.getName() + 
+                                       " created successfully. PayProp sync only available for Property Owners and Tenants.";
+                    }
+                    
+                } catch (Exception syncError) {
+                    System.out.println("❌ PayProp sync failed: " + syncError.getMessage());
+                    successMessage = customerTypeDisplay + " " + savedCustomer.getName() + 
+                                   " created successfully, but PayProp sync failed: " + syncError.getMessage();
+                }
+            } else {
+                successMessage = customerTypeDisplay + " " + savedCustomer.getName() + " created successfully!";
+            }
+            
+            redirectAttributes.addFlashAttribute("successMessage", successMessage);
             
             // Redirect to appropriate list
             return "redirect:" + getRedirectUrl(savedCustomer);

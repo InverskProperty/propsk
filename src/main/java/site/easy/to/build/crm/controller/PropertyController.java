@@ -32,6 +32,7 @@ import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.entity.Role;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
+import site.easy.to.build.crm.service.payprop.LocalToPayPropSyncService;
 
 
 import java.math.BigDecimal;
@@ -59,6 +60,9 @@ public class PropertyController {
     // Optional PayProp services (only available when PayProp is enabled)
     @Autowired(required = false)
     private PayPropSyncService payPropSyncService;
+    
+    @Autowired(required = false)
+    private LocalToPayPropSyncService localToPayPropSyncService;
     
     @Autowired(required = false)
     private PayPropOAuth2Service payPropOAuth2Service;
@@ -666,26 +670,15 @@ public class PropertyController {
             String successMessage = "Property created successfully!";
             boolean syncSuccessful = false;
             
-            if (Boolean.TRUE.equals(syncToPayProp) && payPropEnabled && payPropSyncService != null && payPropOAuth2Service != null) {
+            if (Boolean.TRUE.equals(syncToPayProp) && localToPayPropSyncService != null) {
                 try {
-                    // Check if PayProp is authorized
-                    if (payPropOAuth2Service.hasValidTokens()) {
-                        // Attempt to sync to PayProp
-                        System.out.println("🔄 Attempting to sync property " + savedProperty.getId() + " to PayProp...");
-                        String payPropId = payPropSyncService.syncPropertyToPayProp(savedProperty.getId());
-                        
-                        if (payPropId != null && !payPropId.contains("success\": false")) {
-                            System.out.println("✅ Property synced to PayProp successfully with ID: " + payPropId);
-                            successMessage = "Property created and synced to PayProp successfully!";
-                            syncSuccessful = true;
-                        } else {
-                            System.out.println("❌ PayProp sync failed: " + payPropId);
-                            successMessage = "Property created successfully, but PayProp sync failed. You can sync it manually later.";
-                        }
-                    } else {
-                        System.out.println("❌ PayProp not authorized");
-                        successMessage = "Property created successfully, but PayProp is not authorized. Please authorize PayProp first.";
-                    }
+                    System.out.println("🔄 Syncing property " + savedProperty.getId() + " to PayProp using LocalToPayPropSyncService...");
+                    String payPropId = localToPayPropSyncService.syncPropertyToPayProp(savedProperty);
+                    
+                    System.out.println("✅ Property synced to PayProp successfully with ID: " + payPropId);
+                    successMessage = "Property created and synced to PayProp successfully! (PayProp ID: " + payPropId + ")";
+                    syncSuccessful = true;
+                    
                 } catch (Exception syncError) {
                     System.err.println("❌ PayProp sync error: " + syncError.getMessage());
                     syncError.printStackTrace();

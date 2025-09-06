@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- Form CSS -->
+<link th:href="@{/css/bootstrap-datepicker.min.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-5 align-self-center">
+                    <h4 class="text-themecolor">Create Invoice</h4>
+                </div>
+                <div class="col-md-7 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0)">Home</a></li>
+                            <li class="breadcrumb-item"><a th:href="@{/employee/invoice}">Invoices</a></li>
+                            <li class="breadcrumb-item active">Create Invoice</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PayProp Integration Status -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <h5><i class="fas fa-info-circle"></i> Local Invoice Creation</h5>
+                        <p class="mb-0">This creates invoices in your local system first. Enable "Sync to PayProp" to automatically sync with PayProp for payment processing.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Success/Error Messages -->
+            <div th:if="${success}" class="alert alert-success alert-dismissible fade show">
+                <span th:text="${success}"></span>
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+            </div>
+            <div th:if="${error}" class="alert alert-danger alert-dismissible fade show">
+                <span th:text="${error}"></span>
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+            </div>
+            <div th:if="${warning}" class="alert alert-warning alert-dismissible fade show">
+                <span th:text="${warning}"></span>
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+            </div>
+
+            <!-- Create Invoice Form -->
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header bg-primary">
+                            <h4 class="mb-0 text-white">
+                                <i class="fas fa-file-invoice-dollar"></i> Invoice Details
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <form method="post" th:action="@{/employee/invoice/create}" id="invoiceForm">
+                                
+                                <!-- Customer and Property Selection -->
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="customerId" class="required">Tenant/Customer *</label>
+                                            <select class="form-control" id="customerId" name="customerId" required>
+                                                <option value="">Select Tenant...</option>
+                                                <option th:each="tenant : ${tenants}" 
+                                                        th:value="${tenant.customerId}" 
+                                                        th:text="${tenant.name} + ' (' + ${tenant.email} + ')'">
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="propertyId" class="required">Property *</label>
+                                            <select class="form-control" id="propertyId" name="propertyId" required>
+                                                <option value="">Select Property...</option>
+                                                <option th:each="property : ${properties}" 
+                                                        th:value="${property.id}" 
+                                                        th:text="${property.propertyName} + ' - ' + ${property.city}">
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Invoice Category and Amount -->
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="categoryId" class="required">Category *</label>
+                                            <select class="form-control" id="categoryId" name="categoryId" required>
+                                                <option value="">Select Category...</option>
+                                                <option th:each="category : ${invoiceCategories}" 
+                                                        th:value="${category.id}" 
+                                                        th:text="${category.name} + (${category.system} ? ' (System)' : '')"
+                                                        th:classappend="${category.system} ? 'font-weight-bold' : ''">
+                                                </option>
+                                            </select>
+                                            <small class="form-text text-muted">
+                                                System categories are recommended for PayProp sync
+                                            </small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="amount" class="required">Amount (£) *</label>
+                                            <input type="number" class="form-control" id="amount" name="amount" 
+                                                   step="0.01" min="0.01" required placeholder="1250.00">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Frequency and Payment Day -->
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="frequency" class="required">Frequency *</label>
+                                            <select class="form-control" id="frequency" name="frequency" required>
+                                                <option value="">Select Frequency...</option>
+                                                <option th:each="freq : ${frequencies}" 
+                                                        th:value="${freq}" 
+                                                        th:text="${freq.displayName}">
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <div class="form-group" id="paymentDayGroup" style="display: none;">
+                                            <label for="paymentDay">Payment Day</label>
+                                            <select class="form-control" id="paymentDay" name="paymentDay">
+                                                <option value="">Select Day...</option>
+                                                <option th:each="day : ${#numbers.sequence(1,31)}" 
+                                                        th:value="${day}" 
+                                                        th:text="${day}">
+                                                </option>
+                                            </select>
+                                            <small class="form-text text-muted">
+                                                Day of month for recurring payments (1-31)
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Start and End Date -->
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="startDate" class="required">Start Date *</label>
+                                            <input type="date" class="form-control" id="startDate" name="startDate" required>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="endDate">End Date</label>
+                                            <input type="date" class="form-control" id="endDate" name="endDate">
+                                            <small class="form-text text-muted">
+                                                Leave blank for ongoing invoices
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Description -->
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <div class="form-group">
+                                            <label for="description" class="required">Description *</label>
+                                            <textarea class="form-control" id="description" name="description" rows="3" 
+                                                      required placeholder="Monthly rent for property..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- PayProp Sync Option -->
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" id="syncToPayProp" name="syncToPayProp">
+                                            <label class="form-check-label" for="syncToPayProp">
+                                                <strong>Sync to PayProp</strong> 
+                                                <small class="text-muted">(Recommended for properties using PayProp payment processing)</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <hr>
+
+                                <!-- Submit Button -->
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <button type="submit" class="btn btn-primary btn-lg">
+                                            <i class="fas fa-file-invoice-dollar"></i> Create Invoice
+                                        </button>
+                                        <a href="/employee/invoice" class="btn btn-secondary btn-lg ml-2">
+                                            <i class="fas fa-arrow-left"></i> Back to Invoices
+                                        </a>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Invoice Guide -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header bg-info">
+                            <h5 class="mb-0 text-white">
+                                <i class="fas fa-question-circle"></i> Invoice Guide
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <h6><strong>Invoice Types:</strong></h6>
+                            <ul class="list-unstyled">
+                                <li><strong>Rent:</strong> Regular monthly/weekly rent payments</li>
+                                <li><strong>Maintenance:</strong> Repair and maintenance charges</li>
+                                <li><strong>Deposit:</strong> Security deposits</li>
+                                <li><strong>Other:</strong> Miscellaneous charges</li>
+                            </ul>
+                            
+                            <h6><strong>Frequencies:</strong></h6>
+                            <ul class="list-unstyled">
+                                <li><strong>Monthly (M):</strong> Every month on chosen day</li>
+                                <li><strong>Weekly (W):</strong> Every week on chosen day</li>
+                                <li><strong>One-time (O):</strong> Single payment</li>
+                                <li><strong>Quarterly (Q):</strong> Every 3 months</li>
+                                <li><strong>Yearly (Y):</strong> Annual payment</li>
+                            </ul>
+                            
+                            <h6><strong>PayProp Integration:</strong></h6>
+                            <p class="small text-muted">
+                                When "Sync to PayProp" is enabled, the invoice will be synchronized to PayProp 
+                                for automated payment processing and collection.
+                            </p>
+                            
+                            <div class="alert alert-warning">
+                                <strong>Important:</strong> PayProp requires future start dates for new invoices. 
+                                Ensure start date is today or in the future.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript -->
+<script th:src="@{/js/lib/jquery/jquery.min.js}"></script>
+<script th:src="@{/js/lib/bootstrap/js/bootstrap.min.js}"></script>
+
+<script>
+$(document).ready(function() {
+    
+    // Set default start date to today
+    const today = new Date().toISOString().split('T')[0];
+    $('#startDate').val(today);
+    
+    // Frequency change handler - show/hide payment day
+    $('#frequency').change(function() {
+        const frequency = $(this).val();
+        const paymentDayGroup = $('#paymentDayGroup');
+        
+        // Show payment day for recurring frequencies
+        if (frequency === 'M' || frequency === 'W' || frequency === 'Q' || frequency === 'Y') {
+            paymentDayGroup.show();
+            $('#paymentDay').prop('required', true);
+            
+            // Set default payment day for monthly
+            if (frequency === 'M' && $('#paymentDay').val() === '') {
+                $('#paymentDay').val('1');
+            }
+        } else {
+            paymentDayGroup.hide();
+            $('#paymentDay').prop('required', false);
+            $('#paymentDay').val('');
+        }
+    });
+    
+    // Category change handler - suggest rent amount for rent category
+    $('#categoryId').change(function() {
+        const categoryId = $(this).val();
+        const categoryText = $(this).find('option:selected').text().toLowerCase();
+        
+        if (categoryText.includes('rent') && $('#amount').val() === '') {
+            // Get property monthly payment if available
+            const propertyId = $('#propertyId').val();
+            if (propertyId) {
+                // You could fetch property monthly payment here
+                $('#amount').attr('placeholder', 'Enter rent amount...');
+            }
+        }
+    });
+    
+    // Form validation
+    $('#invoiceForm').submit(function(e) {
+        const customerId = $('#customerId').val();
+        const propertyId = $('#propertyId').val();
+        const amount = $('#amount').val();
+        const frequency = $('#frequency').val();
+        const startDate = $('#startDate').val();
+        
+        // Basic validation
+        if (!customerId || !propertyId || !amount || !frequency || !startDate) {
+            alert('Please fill in all required fields.');
+            e.preventDefault();
+            return false;
+        }
+        
+        // Date validation
+        const start = new Date(startDate);
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        
+        if (start < today) {
+            alert('Start date must be today or in the future (PayProp requirement).');
+            e.preventDefault();
+            return false;
+        }
+        
+        // End date validation
+        const endDate = $('#endDate').val();
+        if (endDate) {
+            const end = new Date(endDate);
+            if (end <= start) {
+                alert('End date must be after start date.');
+                e.preventDefault();
+                return false;
+            }
+        }
+        
+        return true;
+    });
+});
+</script>
+
+</body>
+</html>
