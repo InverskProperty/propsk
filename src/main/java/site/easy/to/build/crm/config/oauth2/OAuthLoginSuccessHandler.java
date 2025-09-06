@@ -20,6 +20,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Role;
 import site.easy.to.build.crm.entity.User;
@@ -49,10 +50,12 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
     public final RoleService roleService;
     private final Environment environment;
     private final CustomerRepository customerRepository;
+    private final site.easy.to.build.crm.service.customer.CustomerService customerService;
 
     @Autowired
     public OAuthLoginSuccessHandler(OAuthUserService oAuthUserService, UserService userService, UserProfileService userProfileService,
-                                    OAuth2AuthorizedClientService authorizedClientService, AuthenticationUtils authenticationUtils, RoleService roleService, Environment environment, CustomerRepository customerRepository) {
+                                    OAuth2AuthorizedClientService authorizedClientService, AuthenticationUtils authenticationUtils, RoleService roleService, Environment environment, CustomerRepository customerRepository,
+                                    site.easy.to.build.crm.service.customer.CustomerService customerService) {
         this.oAuthUserService = oAuthUserService;
         this.userService = userService;
         this.userProfileService = userProfileService;
@@ -61,6 +64,7 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
         this.roleService = roleService;
         this.environment = environment;
         this.customerRepository = customerRepository;
+        this.customerService = customerService;
     }
 
     @Override
@@ -394,15 +398,30 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
      */
     private boolean isKnownPropertyOwnerEmail(String email) {
         try {
-            // TODO: Implement actual lookup against Customer table
-            // Example:
-            // Customer customer = customerService.findByEmailAndType(email, CustomerType.PROPERTY_OWNER);
-            // return customer != null;
+            System.out.println("🔍 ROLE CHECK: Checking if email is property owner: " + email);
             
-            // For now, return false and handle role assignment manually through admin
-            return false;
+            // Look up customer in database to check if they are a property owner
+            Customer customer = customerService.findByEmail(email);
+            if (customer != null) {
+                boolean isPropertyOwnerByType = customer.getCustomerType() == CustomerType.PROPERTY_OWNER;
+                boolean isPropertyOwnerByFlag = Boolean.TRUE.equals(customer.getIsPropertyOwner());
+                
+                System.out.println("🔍 ROLE CHECK: Customer found - ID: " + customer.getCustomerId());
+                System.out.println("🔍 ROLE CHECK: Customer type: " + customer.getCustomerType());
+                System.out.println("🔍 ROLE CHECK: Is property owner flag: " + customer.getIsPropertyOwner());
+                System.out.println("🔍 ROLE CHECK: Is property owner by type: " + isPropertyOwnerByType);
+                System.out.println("🔍 ROLE CHECK: Is property owner by flag: " + isPropertyOwnerByFlag);
+                
+                boolean result = isPropertyOwnerByType || isPropertyOwnerByFlag;
+                System.out.println("🔍 ROLE CHECK: Final result: " + result + " (will assign ROLE_PROPERTY_OWNER: " + result + ")");
+                return result;
+            } else {
+                System.out.println("🔍 ROLE CHECK: No customer found for email: " + email);
+                return false;
+            }
         } catch (Exception e) {
-            System.err.println("❌ Error checking property owner email: " + e.getMessage());
+            System.err.println("❌ ROLE CHECK: Error checking property owner email: " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
