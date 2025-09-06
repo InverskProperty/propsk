@@ -56,6 +56,9 @@ public class PayPropSyncOrchestrator {
     
     @Autowired
     private PayPropEntityResolutionService entityResolutionService;
+    
+    @Autowired
+    private LocalToPayPropSyncService localToPayPropSyncService;
 
     @Value("${payprop.sync.batch-size:25}")
     private int batchSize;
@@ -105,6 +108,83 @@ public class PayPropSyncOrchestrator {
     public UnifiedSyncResult performEnhancedUnifiedSync(OAuthUser oAuthUser, Long initiatedBy) {
         log.info("🔄 Legacy performEnhancedUnifiedSync called - delegating to enhanced sync");
         return performEnhancedUnifiedSyncWithWorkingFinancials(oAuthUser, initiatedBy);
+    }
+
+    /**
+     * Sync local entities to PayProp - creates entities in PayProp from local data
+     */
+    public SyncResult syncLocalEntitiesToPayProp(Long initiatedBy) {
+        try {
+            log.info("⬆️ Starting sync of local entities to PayProp...");
+            Map<String, Object> results = new HashMap<>();
+            int totalSuccesses = 0;
+            int totalErrors = 0;
+            
+            // Sync unsynced properties
+            try {
+                SyncResult propertyResult = localToPayPropSyncService.syncUnsyncedPropertiesToPayProp();
+                results.put("properties", propertyResult.getDetails());
+                if (propertyResult.isSuccess()) totalSuccesses++;
+                else totalErrors++;
+            } catch (Exception e) {
+                log.error("❌ Failed to sync properties to PayProp: {}", e.getMessage());
+                totalErrors++;
+                results.put("properties", Map.of("error", e.getMessage()));
+            }
+            
+            // Sync unsynced customers
+            try {
+                SyncResult customerResult = localToPayPropSyncService.syncUnsyncedCustomersToPayProp();
+                results.put("customers", customerResult.getDetails());
+                if (customerResult.isSuccess()) totalSuccesses++;
+                else totalErrors++;
+            } catch (Exception e) {
+                log.error("❌ Failed to sync customers to PayProp: {}", e.getMessage());
+                totalErrors++;
+                results.put("customers", Map.of("error", e.getMessage()));
+            }
+            
+            // Sync unsynced invoices
+            try {
+                SyncResult invoiceResult = localToPayPropSyncService.syncUnsyncedInvoicesToPayProp();
+                results.put("invoices", invoiceResult.getDetails());
+                if (invoiceResult.isSuccess()) totalSuccesses++;
+                else totalErrors++;
+            } catch (Exception e) {
+                log.error("❌ Failed to sync invoices to PayProp: {}", e.getMessage());
+                totalErrors++;
+                results.put("invoices", Map.of("error", e.getMessage()));
+            }
+            
+            results.put("totalSuccesses", totalSuccesses);
+            results.put("totalErrors", totalErrors);
+            
+            if (totalErrors == 0) {
+                return SyncResult.success("Local entities synced to PayProp successfully", results);
+            } else if (totalSuccesses > 0) {
+                return SyncResult.partial("Local entities synced to PayProp with some errors", results);
+            } else {
+                return SyncResult.failure("Failed to sync local entities to PayProp", results);
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ Local-to-PayProp sync failed: {}", e.getMessage(), e);
+            return SyncResult.failure("Local-to-PayProp sync failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Sync a complete property ecosystem to PayProp (property → owner → tenant → invoices)
+     */
+    public SyncResult syncCompletePropertyEcosystemToPayProp(Long propertyId, Long initiatedBy) {
+        try {
+            log.info("🏠 Starting complete property ecosystem sync for property ID: {}", propertyId);
+            return localToPayPropSyncService.syncCompletePropertyEcosystem(propertyId);
+            
+        } catch (Exception e) {
+            log.error("❌ Property ecosystem sync failed: {}", e.getMessage(), e);
+            return SyncResult.failure("Property ecosystem sync failed: " + e.getMessage());
+        }
     }
 
     /**
@@ -1353,6 +1433,7 @@ public class PayPropSyncOrchestrator {
         private SyncResult financialSyncResult;
         private SyncResult orphanResolutionResult;
         private SyncResult maintenanceResult;
+        private SyncResult localToPayPropSyncResult;
         private String overallError;
 
         public boolean isOverallSuccess() {
@@ -1367,7 +1448,8 @@ public class PayPropSyncOrchestrator {
                 (occupancyResult == null || occupancyResult.isSuccess()) &&
                 (financialSyncResult == null || financialSyncResult.isSuccess()) &&
                 (orphanResolutionResult == null || orphanResolutionResult.isSuccess()) &&
-                (maintenanceResult == null || maintenanceResult.isSuccess());
+                (maintenanceResult == null || maintenanceResult.isSuccess()) &&
+                (localToPayPropSyncResult == null || localToPayPropSyncResult.isSuccess());
         }
 
         public String getSummary() {
@@ -1384,7 +1466,8 @@ public class PayPropSyncOrchestrator {
             summary.append("Files: ").append(filesResult != null ? filesResult.getMessage() : "skipped").append("; ");
             summary.append("Occupancy: ").append(occupancyResult != null ? occupancyResult.getMessage() : "skipped").append("; ");
             summary.append("Orphan Resolution: ").append(orphanResolutionResult != null ? orphanResolutionResult.getMessage() : "skipped").append("; ");
-            summary.append("Maintenance: ").append(maintenanceResult != null ? maintenanceResult.getMessage() : "skipped");
+            summary.append("Maintenance: ").append(maintenanceResult != null ? maintenanceResult.getMessage() : "skipped").append("; ");
+            summary.append("Local-to-PayProp: ").append(localToPayPropSyncResult != null ? localToPayPropSyncResult.getMessage() : "skipped");
             return summary.toString();
         }
 
@@ -1421,6 +1504,9 @@ public class PayPropSyncOrchestrator {
         
         public SyncResult getMaintenanceResult() { return maintenanceResult; }
         public void setMaintenanceResult(SyncResult maintenanceResult) { this.maintenanceResult = maintenanceResult; }
+        
+        public SyncResult getLocalToPayPropSyncResult() { return localToPayPropSyncResult; }
+        public void setLocalToPayPropSyncResult(SyncResult localToPayPropSyncResult) { this.localToPayPropSyncResult = localToPayPropSyncResult; }
         
         public String getOverallError() { return overallError; }
         public void setOverallError(String overallError) { this.overallError = overallError; }

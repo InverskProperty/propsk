@@ -431,6 +431,83 @@ public class PayPropSyncController {
         }
     }
 
+    /**
+     * Sync local entities to PayProp - creates entities in PayProp from local data
+     */
+    @PostMapping("/local-to-payprop")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> syncLocalEntitiesToPayProp(Authentication authentication) {
+        
+        System.out.println("⬆️ LOCAL-TO-PAYPROP SYNC ENDPOINT REACHED");
+        
+        if (!oAuth2Service.hasValidTokens()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "PayProp not authorized. Please complete OAuth2 setup first."
+            ));
+        }
+
+        Long userId = getCurrentUserId(authentication);
+        System.out.println("🔍 Using user ID: " + userId);
+        
+        try {
+            SyncResult result = syncOrchestrator.syncLocalEntitiesToPayProp(userId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("details", result.getDetails());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Local-to-PayProp sync failed: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(Map.of(
+                "error", "Local-to-PayProp sync failed: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Sync complete property ecosystem to PayProp (property → owner → tenant → invoices)
+     */
+    @PostMapping("/property-ecosystem/{propertyId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> syncPropertyEcosystemToPayProp(
+            @PathVariable Long propertyId, 
+            Authentication authentication) {
+        
+        System.out.println("🏠 PROPERTY ECOSYSTEM SYNC ENDPOINT REACHED for property: " + propertyId);
+        
+        if (!oAuth2Service.hasValidTokens()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "PayProp not authorized. Please complete OAuth2 setup first."
+            ));
+        }
+
+        Long userId = getCurrentUserId(authentication);
+        System.out.println("🔍 Using user ID: " + userId);
+        
+        try {
+            SyncResult result = syncOrchestrator.syncCompletePropertyEcosystemToPayProp(propertyId, userId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", result.isSuccess());
+            response.put("message", result.getMessage());
+            response.put("details", result.getDetails());
+            response.put("propertyId", propertyId);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Property ecosystem sync failed: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(Map.of(
+                "error", "Property ecosystem sync failed: " + e.getMessage()
+            ));
+        }
+    }
+
     @Controller
     public class PayPropPageController {
         

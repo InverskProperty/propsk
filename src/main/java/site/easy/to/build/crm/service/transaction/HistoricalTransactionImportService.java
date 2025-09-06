@@ -1,0 +1,564 @@
+package site.easy.to.build.crm.service.transaction;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
+import site.easy.to.build.crm.entity.HistoricalTransaction;
+import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionType;
+import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionSource;
+import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
+import site.easy.to.build.crm.repository.UserRepository;
+import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.customer.CustomerService;
+import site.easy.to.build.crm.util.AuthenticationUtils;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.*;
+
+/**
+ * Historical Transaction Import Service
+ * 
+ * Handles importing historical transaction data from various sources:
+ * - JSON format for API imports
+ * - CSV format for spreadsheet imports
+ * - Bank statement imports
+ * - Manual data entry
+ * 
+ * Provides property/customer matching and validation
+ */
+@Service
+@Transactional
+public class HistoricalTransactionImportService {
+    
+    private static final Logger log = LoggerFactory.getLogger(HistoricalTransactionImportService.class);
+    
+    @Autowired
+    private HistoricalTransactionRepository historicalTransactionRepository;
+    
+    @Autowired
+    private PropertyService propertyService;
+    
+    @Autowired
+    private CustomerService customerService;
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
+    private AuthenticationUtils authenticationUtils;
+    
+    private final ObjectMapper objectMapper;
+    
+    public HistoricalTransactionImportService() {
+        this.objectMapper = new ObjectMapper();
+        this.objectMapper.registerModule(new JavaTimeModule());
+    }
+    
+    // ===== JSON IMPORT =====
+    
+    /**
+     * Import transactions from JSON string
+     */
+    public ImportResult importFromJsonString(String jsonData, String batchDescription) {
+        try {
+            JsonNode rootNode = objectMapper.readTree(jsonData);
+            return processJsonImport(rootNode, batchDescription, "manual_json_import");
+        } catch (Exception e) {
+            log.error("Failed to import from JSON string: {}", e.getMessage());
+            return ImportResult.failure("Failed to parse JSON: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Import transactions from JSON file
+     */
+    public ImportResult importFromJsonFile(MultipartFile file, String batchDescription) {
+        try {
+            JsonNode rootNode = objectMapper.readTree(file.getInputStream());
+            return processJsonImport(rootNode, batchDescription, file.getOriginalFilename());
+        } catch (Exception e) {
+            log.error("Failed to import from JSON file {}: {}", file.getOriginalFilename(), e.getMessage());
+            return ImportResult.failure("Failed to import JSON file: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Process JSON import data
+     */
+    private ImportResult processJsonImport(JsonNode rootNode, String batchDescription, String sourceFilename) {
+        String batchId = generateBatchId("JSON");
+        ImportResult result = new ImportResult(batchId, sourceFilename);
+        
+        try {
+            // Get current user
+            User currentUser = getCurrentUser();
+            
+            // Extract batch info
+            String importDescription = rootNode.has("source_description") ? 
+                                     rootNode.get("source_description").asText() : batchDescription;
+            
+            // Process transactions array
+            JsonNode transactionsNode = rootNode.get("transactions");
+            if (transactionsNode == null || !transactionsNode.isArray()) {
+                return ImportResult.failure("JSON must contain 'transactions' array");
+            }
+            
+            for (JsonNode transactionNode : transactionsNode) {
+                try {
+                    HistoricalTransaction transaction = parseJsonTransaction(transactionNode, batchId, currentUser);
+                    historicalTransactionRepository.save(transaction);
+                    result.incrementSuccessful();
+                } catch (Exception e) {
+                    result.addError("Row " + result.getTotalProcessed() + ": " + e.getMessage());
+                    result.incrementFailed();
+                }
+                result.incrementTotal();
+            }
+            
+            log.info("JSON import completed: {} total, {} successful, {} failed", 
+                    result.getTotalProcessed(), result.getSuccessfulImports(), result.getFailedImports());
+            
+        } catch (Exception e) {
+            log.error("JSON import failed: {}", e.getMessage());
+            return ImportResult.failure("Import failed: " + e.getMessage());
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Parse single transaction from JSON
+     */
+    private HistoricalTransaction parseJsonTransaction(JsonNode node, String batchId, User currentUser) {
+        HistoricalTransaction transaction = new HistoricalTransaction();
+        
+        // Required fields
+        transaction.setTransactionDate(parseDate(node.get("transaction_date").asText()));
+        transaction.setAmount(new BigDecimal(node.get("amount").asText()));
+        transaction.setDescription(node.get("description").asText());
+        transaction.setTransactionType(parseTransactionType(node.get("transaction_type").asText()));
+        
+        // Optional fields
+        if (node.has("category")) {
+            transaction.setCategory(node.get("category").asText());
+        }
+        if (node.has("subcategory")) {
+            transaction.setSubcategory(node.get("subcategory").asText());
+        }
+        if (node.has("bank_reference")) {
+            transaction.setBankReference(node.get("bank_reference").asText());
+        }
+        if (node.has("payment_method")) {
+            transaction.setPaymentMethod(node.get("payment_method").asText());
+        }
+        if (node.has("counterparty_name")) {
+            transaction.setCounterpartyName(node.get("counterparty_name").asText());
+        }
+        if (node.has("source_reference")) {
+            transaction.setSourceReference(node.get("source_reference").asText());
+        }
+        if (node.has("notes")) {
+            transaction.setNotes(node.get("notes").asText());
+        }
+        
+        // Set source and batch
+        transaction.setSource(node.has("source") ? 
+                            parseTransactionSource(node.get("source").asText()) : 
+                            TransactionSource.historical_import);
+        transaction.setImportBatchId(batchId);
+        transaction.setCreatedByUser(currentUser);
+        
+        // Match property and customer
+        if (node.has("property_reference")) {
+            Property property = findPropertyByReference(node.get("property_reference").asText());
+            transaction.setProperty(property);
+        }
+        if (node.has("customer_reference")) {
+            Customer customer = findCustomerByReference(node.get("customer_reference").asText());
+            transaction.setCustomer(customer);
+        }
+        
+        return transaction;
+    }
+    
+    // ===== CSV IMPORT =====
+    
+    /**
+     * Import transactions from CSV file
+     */
+    public ImportResult importFromCsvFile(MultipartFile file, String batchDescription) {
+        String batchId = generateBatchId("CSV");
+        ImportResult result = new ImportResult(batchId, file.getOriginalFilename());
+        
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
+            User currentUser = getCurrentUser();
+            String headerLine = reader.readLine();
+            
+            if (headerLine == null) {
+                return ImportResult.failure("CSV file is empty");
+            }
+            
+            String[] headers = headerLine.split(",");
+            Map<String, Integer> columnMap = buildColumnMap(headers);
+            
+            String line;
+            int lineNumber = 1; // Start from 1 (header is line 0)
+            
+            while ((line = reader.readLine()) != null) {
+                lineNumber++;
+                try {
+                    String[] values = parseCsvLine(line);
+                    HistoricalTransaction transaction = parseCsvTransaction(values, columnMap, batchId, currentUser);
+                    historicalTransactionRepository.save(transaction);
+                    result.incrementSuccessful();
+                } catch (Exception e) {
+                    result.addError("Line " + lineNumber + ": " + e.getMessage());
+                    result.incrementFailed();
+                }
+                result.incrementTotal();
+            }
+            
+            log.info("CSV import completed: {} total, {} successful, {} failed", 
+                    result.getTotalProcessed(), result.getSuccessfulImports(), result.getFailedImports());
+            
+        } catch (IOException e) {
+            log.error("Failed to read CSV file {}: {}", file.getOriginalFilename(), e.getMessage());
+            return ImportResult.failure("Failed to read CSV file: " + e.getMessage());
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Build column mapping from CSV headers
+     */
+    private Map<String, Integer> buildColumnMap(String[] headers) {
+        Map<String, Integer> columnMap = new HashMap<>();
+        for (int i = 0; i < headers.length; i++) {
+            columnMap.put(headers[i].trim().toLowerCase(), i);
+        }
+        return columnMap;
+    }
+    
+    /**
+     * Parse CSV line handling quoted values
+     */
+    private String[] parseCsvLine(String line) {
+        List<String> values = new ArrayList<>();
+        StringBuilder currentValue = new StringBuilder();
+        boolean inQuotes = false;
+        
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            
+            if (ch == '"') {
+                inQuotes = !inQuotes;
+            } else if (ch == ',' && !inQuotes) {
+                values.add(currentValue.toString().trim());
+                currentValue = new StringBuilder();
+            } else {
+                currentValue.append(ch);
+            }
+        }
+        values.add(currentValue.toString().trim());
+        
+        return values.toArray(new String[0]);
+    }
+    
+    /**
+     * Parse single transaction from CSV values
+     */
+    private HistoricalTransaction parseCsvTransaction(String[] values, Map<String, Integer> columnMap, 
+                                                    String batchId, User currentUser) {
+        HistoricalTransaction transaction = new HistoricalTransaction();
+        
+        // Required fields
+        transaction.setTransactionDate(parseDate(getValue(values, columnMap, "transaction_date")));
+        transaction.setAmount(new BigDecimal(getValue(values, columnMap, "amount")));
+        transaction.setDescription(getValue(values, columnMap, "description"));
+        transaction.setTransactionType(parseTransactionType(getValue(values, columnMap, "transaction_type")));
+        
+        // Optional fields
+        setOptionalField(transaction::setCategory, values, columnMap, "category");
+        setOptionalField(transaction::setSubcategory, values, columnMap, "subcategory");
+        setOptionalField(transaction::setBankReference, values, columnMap, "bank_reference");
+        setOptionalField(transaction::setPaymentMethod, values, columnMap, "payment_method");
+        setOptionalField(transaction::setCounterpartyName, values, columnMap, "counterparty_name");
+        setOptionalField(transaction::setSourceReference, values, columnMap, "source_reference");
+        setOptionalField(transaction::setNotes, values, columnMap, "notes");
+        
+        // Set source
+        String sourceStr = getValue(values, columnMap, "source");
+        transaction.setSource(sourceStr != null ? 
+                            parseTransactionSource(sourceStr) : 
+                            TransactionSource.spreadsheet_import);
+        
+        transaction.setImportBatchId(batchId);
+        transaction.setCreatedByUser(currentUser);
+        
+        // Match property and customer
+        String propertyRef = getValue(values, columnMap, "property_reference");
+        if (propertyRef != null && !propertyRef.isEmpty()) {
+            Property property = findPropertyByReference(propertyRef);
+            transaction.setProperty(property);
+        }
+        
+        String customerRef = getValue(values, columnMap, "customer_reference");
+        if (customerRef != null && !customerRef.isEmpty()) {
+            Customer customer = findCustomerByReference(customerRef);
+            transaction.setCustomer(customer);
+        }
+        
+        return transaction;
+    }
+    
+    // ===== UTILITY METHODS =====
+    
+    /**
+     * Get value from CSV array using column map
+     */
+    private String getValue(String[] values, Map<String, Integer> columnMap, String columnName) {
+        Integer index = columnMap.get(columnName);
+        if (index == null || index >= values.length) {
+            return null;
+        }
+        String value = values[index];
+        return value.isEmpty() ? null : value;
+    }
+    
+    /**
+     * Set optional field if value exists
+     */
+    private void setOptionalField(java.util.function.Consumer<String> setter, String[] values, 
+                                Map<String, Integer> columnMap, String columnName) {
+        String value = getValue(values, columnMap, columnName);
+        if (value != null) {
+            setter.accept(value);
+        }
+    }
+    
+    /**
+     * Parse date from string
+     */
+    private LocalDate parseDate(String dateStr) {
+        if (dateStr == null || dateStr.isEmpty()) {
+            throw new IllegalArgumentException("Transaction date is required");
+        }
+        
+        // Try common date formats
+        DateTimeFormatter[] formatters = {
+            DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+            DateTimeFormatter.ofPattern("dd/MM/yyyy"),
+            DateTimeFormatter.ofPattern("MM/dd/yyyy"),
+            DateTimeFormatter.ofPattern("dd-MM-yyyy"),
+            DateTimeFormatter.ofPattern("yyyy/MM/dd")
+        };
+        
+        for (DateTimeFormatter formatter : formatters) {
+            try {
+                return LocalDate.parse(dateStr, formatter);
+            } catch (DateTimeParseException e) {
+                // Try next format
+            }
+        }
+        
+        throw new IllegalArgumentException("Invalid date format: " + dateStr + 
+                                         ". Supported formats: yyyy-MM-dd, dd/MM/yyyy, MM/dd/yyyy, dd-MM-yyyy, yyyy/MM/dd");
+    }
+    
+    /**
+     * Parse transaction type from string
+     */
+    private TransactionType parseTransactionType(String typeStr) {
+        if (typeStr == null || typeStr.isEmpty()) {
+            throw new IllegalArgumentException("Transaction type is required");
+        }
+        
+        try {
+            return TransactionType.valueOf(typeStr.toLowerCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid transaction type: " + typeStr + 
+                                             ". Valid types: " + Arrays.toString(TransactionType.values()));
+        }
+    }
+    
+    /**
+     * Parse transaction source from string
+     */
+    private TransactionSource parseTransactionSource(String sourceStr) {
+        if (sourceStr == null || sourceStr.isEmpty()) {
+            return TransactionSource.historical_import;
+        }
+        
+        try {
+            return TransactionSource.valueOf(sourceStr.toLowerCase());
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid transaction source '{}', defaulting to historical_import", sourceStr);
+            return TransactionSource.historical_import;
+        }
+    }
+    
+    /**
+     * Find property by various reference patterns
+     */
+    private Property findPropertyByReference(String reference) {
+        if (reference == null || reference.isEmpty()) {
+            return null;
+        }
+        
+        // Try exact property name match
+        List<Property> properties = propertyService.findAll();
+        for (Property property : properties) {
+            if (reference.equalsIgnoreCase(property.getPropertyName())) {
+                return property;
+            }
+            // Try address match
+            if (property.getAddressLine1() != null && 
+                reference.toLowerCase().contains(property.getAddressLine1().toLowerCase())) {
+                return property;
+            }
+            // Try postcode match
+            if (property.getPostcode() != null && 
+                reference.toLowerCase().contains(property.getPostcode().toLowerCase())) {
+                return property;
+            }
+        }
+        
+        log.warn("Could not find property for reference: {}", reference);
+        return null;
+    }
+    
+    /**
+     * Find customer by various reference patterns
+     */
+    private Customer findCustomerByReference(String reference) {
+        if (reference == null || reference.isEmpty()) {
+            return null;
+        }
+        
+        // Try email match first
+        Customer customer = customerService.findByEmail(reference);
+        if (customer != null) {
+            return customer;
+        }
+        
+        // Try name match
+        List<Customer> customers = customerService.findByNameContainingIgnoreCase(reference);
+        if (!customers.isEmpty()) {
+            return customers.get(0); // Return first match
+        }
+        
+        log.warn("Could not find customer for reference: {}", reference);
+        return null;
+    }
+    
+    /**
+     * Generate unique batch ID
+     */
+    private String generateBatchId(String source) {
+        return "HIST_" + source + "_" + 
+               LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+    }
+    
+    /**
+     * Get current authenticated user
+     */
+    private User getCurrentUser() {
+        Long userId = authenticationUtils.getCurrentUserId();
+        return userRepository.findById(userId.intValue())
+                .orElseThrow(() -> new IllegalStateException("Current user not found: " + userId));
+    }
+    
+    // ===== RESULT CLASSES =====
+    
+    /**
+     * Import result tracking
+     */
+    public static class ImportResult {
+        private final String batchId;
+        private final String sourceFilename;
+        private int totalProcessed = 0;
+        private int successfulImports = 0;
+        private int failedImports = 0;
+        private final List<String> errors = new ArrayList<>();
+        private final LocalDateTime importTime = LocalDateTime.now();
+        private boolean success = true;
+        
+        public ImportResult(String batchId, String sourceFilename) {
+            this.batchId = batchId;
+            this.sourceFilename = sourceFilename;
+        }
+        
+        public static ImportResult failure(String errorMessage) {
+            ImportResult result = new ImportResult("FAILED", "");
+            result.success = false;
+            result.addError(errorMessage);
+            return result;
+        }
+        
+        public void incrementTotal() { totalProcessed++; }
+        public void incrementSuccessful() { successfulImports++; }
+        public void incrementFailed() { failedImports++; }
+        public void addError(String error) { errors.add(error); }
+        
+        // Getters
+        public String getBatchId() { return batchId; }
+        public String getSourceFilename() { return sourceFilename; }
+        public int getTotalProcessed() { return totalProcessed; }
+        public int getSuccessfulImports() { return successfulImports; }
+        public int getFailedImports() { return failedImports; }
+        public List<String> getErrors() { return errors; }
+        public LocalDateTime getImportTime() { return importTime; }
+        public boolean isSuccess() { return success && failedImports == 0; }
+        
+        public String getSummary() {
+            return String.format("Batch %s: %d total, %d successful, %d failed", 
+                               batchId, totalProcessed, successfulImports, failedImports);
+        }
+    }
+}
+
+/**
+ * Example Usage:
+ * 
+ * JSON Format:
+ * {
+ *   "source_description": "Historical bank data 2023",
+ *   "transactions": [
+ *     {
+ *       "transaction_date": "2023-01-15",
+ *       "amount": -1200.00,
+ *       "description": "Rent payment - 123 Main St",
+ *       "transaction_type": "payment",
+ *       "category": "rent",
+ *       "bank_reference": "TXN123456",
+ *       "property_reference": "123 Main St",
+ *       "customer_reference": "john@email.com",
+ *       "source": "bank_import"
+ *     }
+ *   ]
+ * }
+ * 
+ * CSV Format:
+ * transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference
+ * 2023-01-15,-1200.00,"Rent payment",payment,rent,"123 Main St","john@email.com",TXN123456
+ * 2023-02-01,50.00,"Interest payment",deposit,interest,,,INT789
+ */
