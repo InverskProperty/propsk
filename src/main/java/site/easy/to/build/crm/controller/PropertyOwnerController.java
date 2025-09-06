@@ -92,47 +92,78 @@ public class PropertyOwnerController {
      */
     @GetMapping("/property-owner/dashboard")
     public String propertyOwnerDashboard(Model model, Authentication authentication) {
-        System.out.println("🏠 Property Owner Dashboard - Customer OAuth User");
-        System.out.println("   Authentication: " + authentication);
-        System.out.println("   Authorities: " + authentication.getAuthorities());
+        System.out.println("🚀 DASHBOARD START - Property Owner Dashboard Loading...");
+        System.out.println("🔍 STEP 1: Authentication Check");
+        System.out.println("   Authentication object: " + (authentication != null ? "PRESENT" : "NULL"));
+        if (authentication != null) {
+            System.out.println("   Authentication name: " + authentication.getName());
+            System.out.println("   Authentication type: " + authentication.getClass().getSimpleName());
+            System.out.println("   Authorities: " + authentication.getAuthorities());
+            System.out.println("   Is authenticated: " + authentication.isAuthenticated());
+        }
         
         try {
+            System.out.println("🔍 STEP 2: Customer Lookup Starting...");
             // Get customer info using improved authentication method
             Customer customer = getAuthenticatedPropertyOwner(authentication);
-            System.out.println("DEBUG: Customer lookup result: " + (customer != null ? "Found ID " + customer.getCustomerId() : "NULL"));
+            System.out.println("🔍 STEP 2 RESULT: Customer lookup result: " + (customer != null ? "✅ Found ID " + customer.getCustomerId() : "❌ NULL"));
             
             if (customer != null) {
-                model.addAttribute("customer", customer);
-                model.addAttribute("customerName", customer.getName() != null ? customer.getName() : customer.getEmail());
-                
-                System.out.println("DEBUG: Customer found: " + customer.getCustomerId());
-                System.out.println("DEBUG: Customer email: " + customer.getEmail());
-                System.out.println("DEBUG: Customer type: " + customer.getCustomerType());
+                System.out.println("🔍 STEP 3: Customer Data Processing...");
+                System.out.println("   Customer ID: " + customer.getCustomerId());
+                System.out.println("   Customer Email: " + customer.getEmail());
+                System.out.println("   Customer Name: " + customer.getName());
+                System.out.println("   Customer Type: " + customer.getCustomerType());
+                System.out.println("   Is Property Owner: " + customer.getIsPropertyOwner());
+                try {
+                    model.addAttribute("customer", customer);
+                    model.addAttribute("customerName", customer.getName() != null ? customer.getName() : customer.getEmail());
+                    System.out.println("🔍 STEP 3A: ✅ Customer model attributes set successfully");
+                } catch (Exception e) {
+                    System.err.println("🚨 STEP 3A FAILED: Error setting customer model attributes: " + e.getMessage());
+                    e.printStackTrace();
+                }
                 
                 // Add maintenance statistics for property owner
+                System.out.println("🔍 STEP 4: Loading Maintenance Statistics...");
                 try {
                     Map<String, Object> maintenanceStats = calculatePropertyOwnerMaintenanceStats(customer.getCustomerId());
                     model.addAttribute("maintenanceStats", maintenanceStats);
-                    System.out.println("DEBUG: ✅ Maintenance stats loaded successfully!");
+                    System.out.println("🔍 STEP 4: ✅ Maintenance stats loaded successfully! Stats: " + maintenanceStats.keySet());
                 } catch (Exception e) {
-                    System.err.println("ERROR loading maintenance stats: " + e.getMessage());
-                    model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
+                    System.err.println("🚨 STEP 4 FAILED: ERROR loading maintenance stats: " + e.getMessage());
+                    e.printStackTrace();
+                    try {
+                        Map<String, Object> defaultStats = getDefaultMaintenanceStats();
+                        model.addAttribute("maintenanceStats", defaultStats);
+                        System.out.println("🔍 STEP 4: ✅ Default maintenance stats loaded as fallback");
+                    } catch (Exception e2) {
+                        System.err.println("🚨 STEP 4 CRITICAL: Even default stats failed: " + e2.getMessage());
+                        e2.printStackTrace();
+                    }
                 }
                 
                 // Get properties for this specific customer
+                System.out.println("🔍 STEP 5: Loading Properties...");
                 try {
                     List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
                     model.addAttribute("properties", properties);
                     model.addAttribute("totalProperties", properties.size());
-                    System.out.println("DEBUG: Found " + properties.size() + " properties for customer " + customer.getCustomerId());
+                    System.out.println("🔍 STEP 5: ✅ Found " + properties.size() + " properties for customer " + customer.getCustomerId());
                     
                     // Portfolio features
+                    System.out.println("🔍 STEP 6: Loading Portfolio System...");
                     if (portfolioService != null) {
-                        System.out.println("DEBUG: PortfolioService is available, attempting to load portfolios...");
-                        
-                        List<Portfolio> userPortfolios = portfolioService.findPortfoliosForPropertyOwner(customer.getCustomerId().intValue());
-                        model.addAttribute("portfolios", userPortfolios);
-                        System.out.println("DEBUG: Found " + userPortfolios.size() + " portfolios for customer " + customer.getCustomerId());
+                        System.out.println("🔍 STEP 6A: PortfolioService is available, loading portfolios...");
+                        try {
+                            List<Portfolio> userPortfolios = portfolioService.findPortfoliosForPropertyOwner(customer.getCustomerId().intValue());
+                            model.addAttribute("portfolios", userPortfolios);
+                            System.out.println("🔍 STEP 6A: ✅ Found " + userPortfolios.size() + " portfolios for customer " + customer.getCustomerId());
+                        } catch (Exception e) {
+                            System.err.println("🚨 STEP 6A FAILED: Error loading portfolios: " + e.getMessage());
+                            e.printStackTrace();
+                            model.addAttribute("portfolios", List.of());
+                        }
                         
                         // Count unassigned properties
                         long unassignedCount = properties.stream()
@@ -179,23 +210,42 @@ public class PropertyOwnerController {
                 model.addAttribute("error", "Customer authentication issue - Unable to find customer account");
             }
             
-            model.addAttribute("pageTitle", "Property Owner Dashboard");
-            System.out.println("✅ Property Owner Dashboard loaded successfully");
+            System.out.println("🔍 STEP 7: Setting Final Model Attributes...");
+            try {
+                model.addAttribute("pageTitle", "Property Owner Dashboard");
+                System.out.println("🔍 STEP 7: ✅ Final model attributes set successfully");
+            } catch (Exception e) {
+                System.err.println("🚨 STEP 7 FAILED: Error setting final model attributes: " + e.getMessage());
+                e.printStackTrace();
+            }
+            
+            System.out.println("🔍 STEP 8: Returning Template...");
+            System.out.println("🎉 ✅ Property Owner Dashboard loaded successfully - returning 'property-owner/dashboard'");
             return "property-owner/dashboard";
             
         } catch (Exception e) {
-            System.err.println("❌ Error in property owner dashboard: " + e.getMessage());
+            System.err.println("🚨 CRITICAL ERROR: Exception in property owner dashboard: " + e.getMessage());
+            System.err.println("🚨 Exception type: " + e.getClass().getSimpleName());
+            System.err.println("🚨 Stack trace:");
             e.printStackTrace();
             
-            model.addAttribute("error", "Dashboard loading error: " + e.getMessage());
-            model.addAttribute("portfolioSystemEnabled", false);
-            model.addAttribute("portfolios", List.of());
-            model.addAttribute("properties", List.of());
-            model.addAttribute("customerName", "Property Owner");
-            model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
-            model.addAttribute("pageTitle", "Property Owner Dashboard");
-            
-            return "property-owner/dashboard";
+            System.out.println("🔍 RECOVERY: Setting error state model attributes...");
+            try {
+                model.addAttribute("error", "Dashboard loading error: " + e.getMessage());
+                model.addAttribute("portfolioSystemEnabled", false);
+                model.addAttribute("portfolios", List.of());
+                model.addAttribute("properties", List.of());
+                model.addAttribute("customerName", "Property Owner");
+                model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
+                model.addAttribute("pageTitle", "Property Owner Dashboard");
+                
+                System.out.println("🔍 RECOVERY: ✅ Error state attributes set, returning dashboard with error");
+                return "property-owner/dashboard";
+            } catch (Exception e2) {
+                System.err.println("🚨 DOUBLE FAILURE: Error setting recovery attributes: " + e2.getMessage());
+                e2.printStackTrace();
+                return "error/500";
+            }
         }
     }
     
