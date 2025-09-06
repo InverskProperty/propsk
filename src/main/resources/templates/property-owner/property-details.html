@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${pageTitle ?: 'Property Details'}">Property Details - Property Owner Portal</title>
+    <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/css/icons.css}" rel="stylesheet">
+    <link th:href="@{/css/style.css}" rel="stylesheet">
+</head>
+<body>
+    <div class="main-wrapper">
+        <div class="page-wrapper">
+            <div class="content container-fluid">
+                <div class="page-header">
+                    <div class="row">
+                        <div class="col">
+                            <h3 class="page-title">Property Details</h3>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a th:href="@{/property-owner/dashboard}">Dashboard</a></li>
+                                <li class="breadcrumb-item"><a th:href="@{/property-owner/properties}">Properties</a></li>
+                                <li class="breadcrumb-item active" th:text="${property?.displayName ?: 'Property'}">Property</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row" th:if="${error}">
+                    <div class="col-12">
+                        <div class="alert alert-danger" role="alert">
+                            <span th:text="${error}"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row" th:if="${property}">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4 class="card-title" th:text="${property.displayName}">Property Name</h4>
+                                <p class="text-muted mb-0" th:text="${property.address}">Property Address</p>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-sm-6">
+                                        <h6>Property Information</h6>
+                                        <table class="table table-sm">
+                                            <tr th:if="${property.location}">
+                                                <td><strong>Location:</strong></td>
+                                                <td th:text="${property.location}">Location</td>
+                                            </tr>
+                                            <tr th:if="${property.propertyType}">
+                                                <td><strong>Property Type:</strong></td>
+                                                <td th:text="${property.propertyType}">Type</td>
+                                            </tr>
+                                            <tr th:if="${property.bedrooms}">
+                                                <td><strong>Bedrooms:</strong></td>
+                                                <td th:text="${property.bedrooms}">0</td>
+                                            </tr>
+                                            <tr th:if="${property.bathrooms}">
+                                                <td><strong>Bathrooms:</strong></td>
+                                                <td th:text="${property.bathrooms}">0</td>
+                                            </tr>
+                                            <tr th:if="${property.monthlyRent}">
+                                                <td><strong>Monthly Rent:</strong></td>
+                                                <td>£<span th:text="${property.monthlyRent}">0</span></td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <h6>Status & Management</h6>
+                                        <table class="table table-sm">
+                                            <tr>
+                                                <td><strong>Status:</strong></td>
+                                                <td>
+                                                    <span class="badge bg-success">Active</span>
+                                                </td>
+                                            </tr>
+                                            <tr th:if="${property.payPropId}">
+                                                <td><strong>PayProp ID:</strong></td>
+                                                <td th:text="${property.payPropId}">PayProp ID</td>
+                                            </tr>
+                                            <tr th:if="${property.portfolio}">
+                                                <td><strong>Portfolio:</strong></td>
+                                                <td th:text="${property.portfolio.name}">Portfolio Name</td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4">
+                                    <h6>Property Description</h6>
+                                    <p th:text="${property.description ?: 'No description available'}" class="text-muted">
+                                        Property description will appear here.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h5>Recent Activity</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i>
+                                    Recent maintenance requests, tenant updates, and property changes will be displayed here.
+                                </div>
+                                <div class="list-group">
+                                    <div class="list-group-item">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <strong>Property Added to System</strong>
+                                                <br><small class="text-muted">Property was successfully added to the management system</small>
+                                            </div>
+                                            <small class="text-muted">Recently</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Quick Actions</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2">
+                                    <a th:href="@{'/property-owner/statements?property=' + ${property.id}}" 
+                                       class="btn btn-primary">
+                                        <i class="fas fa-file-invoice"></i> Generate Statement
+                                    </a>
+                                    <a th:href="@{'/property-owner/files?property=' + ${property.id}}" 
+                                       class="btn btn-success">
+                                        <i class="fas fa-folder"></i> View Documents
+                                    </a>
+                                    <button class="btn btn-info" onclick="viewTenants()">
+                                        <i class="fas fa-users"></i> View Tenants
+                                    </button>
+                                    <button class="btn btn-warning" onclick="viewMaintenance()">
+                                        <i class="fas fa-tools"></i> Maintenance
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h5>Property Stats</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <div class="border-end">
+                                            <h4 class="text-primary">0</h4>
+                                            <p class="text-muted mb-0">Open Issues</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <h4 class="text-success">100%</h4>
+                                        <p class="text-muted mb-0">Occupancy</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div th:if="${!property}">
+                    <div class="text-center py-5">
+                        <i class="fas fa-home fa-3x text-muted mb-3"></i>
+                        <h5>Property Not Found</h5>
+                        <p class="text-muted">The requested property could not be found or you don't have access to it.</p>
+                        <a th:href="@{/property-owner/properties}" class="btn btn-primary">
+                            Back to Properties
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/jquery-3.6.0.min.js}"></script>
+    <script th:src="@{/js/bootstrap.bundle.min.js}"></script>
+    <script th:src="@{/js/app.js}"></script>
+    
+    <script>
+        function viewTenants() {
+            window.location.href = '/property-owner/tenants?property=' + [[${property.id}]];
+        }
+        
+        function viewMaintenance() {
+            alert('Maintenance functionality will show all maintenance requests and history for this property.');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Document Files - Property Owner Portal</title>
+    <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/css/icons.css}" rel="stylesheet">
+    <link th:href="@{/css/style.css}" rel="stylesheet">
+</head>
+<body>
+    <div class="main-wrapper">
+        <div class="page-wrapper">
+            <div class="content container-fluid">
+                <div class="page-header">
+                    <div class="row">
+                        <div class="col">
+                            <h3 class="page-title">Document Files</h3>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a th:href="@{/property-owner/dashboard}">Dashboard</a></li>
+                                <li class="breadcrumb-item active">Files</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row" th:if="${error}">
+                    <div class="col-12">
+                        <div class="alert alert-danger" role="alert">
+                            <span th:text="${error}"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4 class="card-title">Google Drive File System</h4>
+                                <p class="text-muted">Access your property documents and files</p>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i>
+                                    <strong>Document Management System</strong><br>
+                                    Your documents are securely stored and organized by property. 
+                                    You can upload files, generate statements, and sync with PayProp.
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="card bg-primary text-white">
+                                            <div class="card-body text-center">
+                                                <i class="fas fa-cloud-upload-alt fa-2x mb-2"></i>
+                                                <h5>Upload Files</h5>
+                                                <p>Upload property documents and files</p>
+                                                <button class="btn btn-light btn-sm" onclick="uploadFiles()">
+                                                    Upload Files
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-success text-white">
+                                            <div class="card-body text-center">
+                                                <i class="fas fa-file-invoice fa-2x mb-2"></i>
+                                                <h5>Generate Statements</h5>
+                                                <p>Create property and tenant statements</p>
+                                                <a th:href="@{/property-owner/statements}" class="btn btn-light btn-sm">
+                                                    Generate Statements
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-info text-white">
+                                            <div class="card-body text-center">
+                                                <i class="fas fa-sync fa-2x mb-2"></i>
+                                                <h5>PayProp Sync</h5>
+                                                <p>Sync documents with PayProp system</p>
+                                                <button class="btn btn-light btn-sm" onclick="syncPayProp()">
+                                                    Sync PayProp
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4">
+                                    <h5>Your Document Folders</h5>
+                                    <div class="list-group">
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <i class="fas fa-folder text-warning me-2"></i>
+                                                    <strong>Property Documents</strong>
+                                                    <br>
+                                                    <small class="text-muted">Leases, certificates, and property-specific files</small>
+                                                </div>
+                                                <button class="btn btn-outline-primary btn-sm">Browse</button>
+                                            </div>
+                                        </div>
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <i class="fas fa-folder text-warning me-2"></i>
+                                                    <strong>Tenant Documents</strong>
+                                                    <br>
+                                                    <small class="text-muted">Tenant applications, references, and agreements</small>
+                                                </div>
+                                                <button class="btn btn-outline-primary btn-sm">Browse</button>
+                                            </div>
+                                        </div>
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <i class="fas fa-folder text-warning me-2"></i>
+                                                    <strong>Financial Statements</strong>
+                                                    <br>
+                                                    <small class="text-muted">Generated statements and financial reports</small>
+                                                </div>
+                                                <button class="btn btn-outline-primary btn-sm">Browse</button>
+                                            </div>
+                                        </div>
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <i class="fas fa-folder text-warning me-2"></i>
+                                                    <strong>Maintenance Records</strong>
+                                                    <br>
+                                                    <small class="text-muted">Maintenance requests, invoices, and work orders</small>
+                                                </div>
+                                                <button class="btn btn-outline-primary btn-sm">Browse</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/jquery-3.6.0.min.js}"></script>
+    <script th:src="@{/js/bootstrap.bundle.min.js}"></script>
+    <script th:src="@{/js/app.js}"></script>
+    
+    <script>
+        function uploadFiles() {
+            alert('File upload functionality will be implemented here.\nThis will integrate with the Google Drive API to upload files to your property folders.');
+        }
+        
+        function syncPayProp() {
+            alert('PayProp sync functionality will be implemented here.\nThis will sync your documents with the PayProp property management system.');
+        }
+    </script>
+</body>
+</html>

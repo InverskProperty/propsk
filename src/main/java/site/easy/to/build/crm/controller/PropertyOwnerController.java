@@ -592,9 +592,21 @@ public class PropertyOwnerController {
                 return "redirect:/property-owner/properties?error=unauthorized";
             }
             
-            System.out.println("✅ Property ownership verified, redirecting to employee property view");
-            // Redirect to existing employee property view (property owners can see same detail)
-            return "redirect:/employee/property/" + propertyId;
+            System.out.println("✅ Property ownership verified, loading property details");
+            
+            // Get the property details
+            Property property = propertyService.findById(propertyId);
+            if (property == null) {
+                System.out.println("❌ Property not found: " + propertyId);
+                return "redirect:/property-owner/properties?error=not_found";
+            }
+            
+            model.addAttribute("property", property);
+            model.addAttribute("customer", customer);
+            model.addAttribute("pageTitle", "Property Details - " + property.getDisplayName());
+            
+            // Return to property owner specific template instead of redirecting
+            return "property-owner/property-details";
             
         } catch (Exception e) {
             System.err.println("❌ Error loading property details: " + e.getMessage());
@@ -777,7 +789,7 @@ public class PropertyOwnerController {
     }
     
     /**
-     * Property Owner Files - Access to Google Drive file system
+     * Property Owner Files - Access to Google Drive file system  
      */
     @GetMapping("/property-owner/files")
     public String fileSystem(Model model, Authentication authentication) {
@@ -789,9 +801,15 @@ public class PropertyOwnerController {
                 return "redirect:/customer-login?error=not_found";
             }
             
-            System.out.println("✅ Redirecting to customer files system");
-            // Redirect to existing customer files functionality
-            return "redirect:/customer/files/" + customer.getCustomerId();
+            System.out.println("✅ Loading files system for customer: " + customer.getCustomerId());
+            
+            // Load customer's files directly instead of redirecting
+            // This avoids authentication issues with redirects to other controllers
+            model.addAttribute("customer", customer);
+            model.addAttribute("customerId", customer.getCustomerId());
+            model.addAttribute("pageTitle", "Document Files");
+            
+            return "property-owner/files";
             
         } catch (Exception e) {
             System.err.println("❌ Error loading files system: " + e.getMessage());
@@ -800,6 +818,51 @@ public class PropertyOwnerController {
         }
     }
     
+    /**
+     * Property Owner Portfolio Management
+     */
+    @GetMapping("/property-owner/portfolio")
+    public String portfolioManagement(Model model, Authentication authentication) {
+        System.out.println("📊 Property Owner Portfolio Management - Loading...");
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return "redirect:/customer-login?error=not_found";
+            }
+            
+            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            
+            model.addAttribute("customer", customer);
+            model.addAttribute("properties", properties);
+            model.addAttribute("pageTitle", "Portfolio Management");
+            
+            // Add portfolio statistics if available
+            try {
+                if (portfolioService != null) {
+                    List<Portfolio> portfolios = portfolioService.findPortfoliosForPropertyOwner(customer.getCustomerId().intValue());
+                    model.addAttribute("portfolios", portfolios);
+                    model.addAttribute("portfolioSystemEnabled", true);
+                } else {
+                    model.addAttribute("portfolios", List.of());
+                    model.addAttribute("portfolioSystemEnabled", false);
+                }
+            } catch (Exception e) {
+                System.err.println("Error loading portfolio data: " + e.getMessage());
+                model.addAttribute("portfolios", List.of());
+                model.addAttribute("portfolioSystemEnabled", false);
+            }
+            
+            System.out.println("✅ Portfolio management loaded successfully");
+            return "property-owner/portfolio";
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error loading portfolio: " + e.getMessage());
+            model.addAttribute("error", "Error loading portfolio: " + e.getMessage());
+            return "property-owner/dashboard";
+        }
+    }
+
     /**
      * Property Owner Profile - View and edit profile
      */

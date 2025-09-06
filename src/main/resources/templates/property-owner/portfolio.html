@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Portfolio Management - Property Owner Portal</title>
+    <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/css/icons.css}" rel="stylesheet">
+    <link th:href="@{/css/style.css}" rel="stylesheet">
+</head>
+<body>
+    <div class="main-wrapper">
+        <div class="page-wrapper">
+            <div class="content container-fluid">
+                <div class="page-header">
+                    <div class="row">
+                        <div class="col">
+                            <h3 class="page-title">Portfolio Management</h3>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a th:href="@{/property-owner/dashboard}">Dashboard</a></li>
+                                <li class="breadcrumb-item active">Portfolio</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row" th:if="${error}">
+                    <div class="col-12">
+                        <div class="alert alert-danger" role="alert">
+                            <span th:text="${error}"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4 class="card-title">Your Property Portfolio</h4>
+                                <p class="text-muted">Manage and organize your properties into portfolios</p>
+                            </div>
+                            <div class="card-body">
+                                <div class="row mb-3">
+                                    <div class="col-md-3">
+                                        <div class="card bg-primary text-white">
+                                            <div class="card-body">
+                                                <h5>Total Properties</h5>
+                                                <h2 th:text="${properties?.size() ?: 0}">0</h2>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3" th:if="${portfolioSystemEnabled}">
+                                        <div class="card bg-success text-white">
+                                            <div class="card-body">
+                                                <h5>Active Portfolios</h5>
+                                                <h2 th:text="${portfolios?.size() ?: 0}">0</h2>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div th:if="${portfolioSystemEnabled and portfolios?.size() > 0}">
+                                    <h5>Your Portfolios</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>Portfolio Name</th>
+                                                    <th>Properties</th>
+                                                    <th>Status</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr th:each="portfolio : ${portfolios}">
+                                                    <td th:text="${portfolio.name}">Portfolio Name</td>
+                                                    <td th:text="${portfolio.properties?.size() ?: 0}">0</td>
+                                                    <td><span class="badge bg-success">Active</span></td>
+                                                    <td>
+                                                        <button class="btn btn-sm btn-primary">View Details</button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div th:if="${properties?.size() > 0}">
+                                    <h5 class="mt-4">All Properties</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>Property</th>
+                                                    <th>Location</th>
+                                                    <th>Status</th>
+                                                    <th>Portfolio</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr th:each="property : ${properties}">
+                                                    <td>
+                                                        <strong th:text="${property.displayName}">Property Name</strong><br>
+                                                        <small class="text-muted" th:text="${property.address}">Address</small>
+                                                    </td>
+                                                    <td th:text="${property.location}">Location</td>
+                                                    <td>
+                                                        <span class="badge bg-info">Active</span>
+                                                    </td>
+                                                    <td>
+                                                        <span th:text="${property.portfolio?.name ?: 'Unassigned'}" 
+                                                              th:class="${property.portfolio != null ? 'badge bg-success' : 'badge bg-warning'}">
+                                                            Unassigned
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <a th:href="@{'/property-owner/property/' + ${property.id}}" 
+                                                           class="btn btn-sm btn-outline-primary">
+                                                            View Details
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div th:if="${properties?.size() == 0}">
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-home fa-3x text-muted mb-3"></i>
+                                        <h5>No Properties Found</h5>
+                                        <p class="text-muted">You don't have any properties assigned to your account yet.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/jquery-3.6.0.min.js}"></script>
+    <script th:src="@{/js/bootstrap.bundle.min.js}"></script>
+    <script th:src="@{/js/app.js}"></script>
+</body>
+</html>
