@@ -6,18 +6,23 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerLoginInfo;
 import site.easy.to.build.crm.entity.CustomerType;
+import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
+import site.easy.to.build.crm.service.user.OAuthUserService;
+import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.io.IOException;
 
 /**
  * Custom success handler for customer login
+ * Handles both form-based authentication and OAuth2 authentication
  * Redirects users to appropriate dashboards based on their customer type
  */
 @Component
@@ -28,6 +33,12 @@ public class CustomerLoginSuccessHandler implements AuthenticationSuccessHandler
 
     @Autowired
     private CustomerRepository customerRepository;
+    
+    @Autowired
+    private OAuthUserService oAuthUserService;
+    
+    @Autowired
+    private AuthenticationUtils authenticationUtils;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, 
@@ -36,51 +47,75 @@ public class CustomerLoginSuccessHandler implements AuthenticationSuccessHandler
         
         System.out.println("=== DEBUG: CustomerLoginSuccessHandler.onAuthenticationSuccess ===");
         
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        String email = userDetails.getUsername();
+        String email = null;
+        boolean isOAuthUser = false;
         
-        System.out.println("DEBUG: Authenticated user email: " + email);
-        System.out.println("DEBUG: User authorities: " + userDetails.getAuthorities());
+        // Handle both form-based login and OAuth login
+        if (authentication.getPrincipal() instanceof OAuth2User) {
+            // OAuth2 login
+            OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
+            email = oauth2User.getAttribute("email");
+            isOAuthUser = true;
+            System.out.println("DEBUG: OAuth2 authenticated user email: " + email);
+            System.out.println("DEBUG: OAuth2 user authorities: " + authentication.getAuthorities());
+        } else if (authentication.getPrincipal() instanceof UserDetails) {
+            // Form-based login
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            email = userDetails.getUsername();
+            isOAuthUser = false;
+            System.out.println("DEBUG: Form authenticated user email: " + email);
+            System.out.println("DEBUG: Form user authorities: " + userDetails.getAuthorities());
+        } else {
+            System.out.println("ERROR: Unknown authentication principal type: " + authentication.getPrincipal().getClass());
+            response.sendRedirect("/customer-login?error=system_error");
+            return;
+        }
         
         try {
-            // Get customer login info
-            CustomerLoginInfo loginInfo = customerLoginInfoService.findByEmail(email);
-            System.out.println("DEBUG: Found CustomerLoginInfo: " + (loginInfo != null ? loginInfo.getId() : "null"));
-            
-            if (loginInfo == null) {
-                System.out.println("DEBUG: LoginInfo is null, redirecting to user_not_found");
-                response.sendRedirect("/customer-login?error=user_not_found");
-                return;
-            }
-            
-            // FIXED: Get customer using email lookup instead of broken relationship
+            // For OAuth users, we might not have CustomerLoginInfo, so try direct customer lookup first
             Customer customer = null;
+            CustomerLoginInfo loginInfo = null;
             
-            // First try the relationship
-            try {
-                customer = loginInfo.getCustomer();
-                System.out.println("DEBUG: Customer from relationship: " + (customer != null ? customer.getCustomerId() : "null"));
-            } catch (Exception e) {
-                System.out.println("DEBUG: Relationship lookup failed: " + e.getMessage());
+            if (isOAuthUser) {
+                System.out.println("DEBUG: OAuth user - trying direct customer lookup by email");
+                customer = customerRepository.findByEmail(email);
+                
+                if (customer != null) {
+                    System.out.println("DEBUG: Found customer via OAuth: " + customer.getCustomerId());
+                    // For OAuth users, we may not have separate login info
+                    loginInfo = customer.getCustomerLoginInfo();
+                } else {
+                    System.out.println("DEBUG: OAuth user not found in customers, redirecting to user_not_found");
+                    response.sendRedirect("/customer-login?error=user_not_found&message=OAuth user not registered as customer");
+                    return;
+                }
+            } else {
+                // Form-based login requires CustomerLoginInfo
+                loginInfo = customerLoginInfoService.findByEmail(email);
+                System.out.println("DEBUG: Found CustomerLoginInfo: " + (loginInfo != null ? loginInfo.getId() : "null"));
+                
+                if (loginInfo == null) {
+                    System.out.println("DEBUG: LoginInfo is null, redirecting to user_not_found");
+                    response.sendRedirect("/customer-login?error=user_not_found");
+                    return;
+                }
             }
             
-            // If relationship failed, use direct email lookup
-            if (customer == null) {
-                System.out.println("DEBUG: Using direct email lookup for customer");
-                // Find customer by email - this should work since we know the data exists
-                customer = customerRepository.findByEmail(email);
-                System.out.println("DEBUG: Customer from email lookup: " + (customer != null ? customer.getCustomerId() : "null"));
+            // For form-based login, get customer via relationship or email lookup
+            if (!isOAuthUser && customer == null) {
+                // First try the relationship
+                try {
+                    customer = loginInfo.getCustomer();
+                    System.out.println("DEBUG: Customer from relationship: " + (customer != null ? customer.getCustomerId() : "null"));
+                } catch (Exception e) {
+                    System.out.println("DEBUG: Relationship lookup failed: " + e.getMessage());
+                }
                 
-                // Verify the customer exists and has the right data
-                if (customer != null) {
-                    System.out.println("DEBUG: Customer found - ID: " + customer.getCustomerId() + ", Type: " + customer.getCustomerType());
-                    // Check if this customer has a customerLoginInfo relationship
-                    CustomerLoginInfo customerLogin = customer.getCustomerLoginInfo();
-                    if (customerLogin != null) {
-                        System.out.println("DEBUG: Customer has login info with ID: " + customerLogin.getId());
-                    } else {
-                        System.out.println("DEBUG: Customer has no login info relationship");
-                    }
+                // If relationship failed, use direct email lookup
+                if (customer == null) {
+                    System.out.println("DEBUG: Using direct email lookup for customer");
+                    customer = customerRepository.findByEmail(email);
+                    System.out.println("DEBUG: Customer from email lookup: " + (customer != null ? customer.getCustomerId() : "null"));
                 }
             }
             
@@ -94,10 +129,14 @@ public class CustomerLoginSuccessHandler implements AuthenticationSuccessHandler
                 return;
             }
             
-            // Reset login attempts on successful login
-            loginInfo.resetLoginAttempts();
-            customerLoginInfoService.save(loginInfo);
-            System.out.println("DEBUG: Reset login attempts for user");
+            // Reset login attempts on successful login (only for form-based login)
+            if (loginInfo != null) {
+                loginInfo.resetLoginAttempts();
+                customerLoginInfoService.save(loginInfo);
+                System.out.println("DEBUG: Reset login attempts for user");
+            } else {
+                System.out.println("DEBUG: OAuth user - no login attempts to reset");
+            }
             
             // Determine redirect URL based on customer type
             String redirectUrl = determineRedirectUrl(customer);

@@ -102,6 +102,12 @@ public class SecurityConfig {
                     .failureHandler(customerLoginFailureHandler)
                     .permitAll();
             }).userDetailsService(customerUserDetails)
+            .oauth2Login(oauth2 -> oauth2
+                    .loginPage("/customer-login")
+                    .userInfoEndpoint(userInfo -> userInfo
+                            .userService(oauthUserService))
+                    .successHandler(customerLoginSuccessHandler)
+            )
             .logout((logout) -> logout
                     .logoutUrl("/customer-logout")
                     .logoutSuccessUrl("/customer-login")
