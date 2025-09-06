@@ -277,10 +277,28 @@
                         <li><a th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}" th:href="${home + 'employee/customer/manager/all-customers'}">All customers</a></li>
                         <li><a th:href="${home + 'employee/customer/my-customers'}">My customers</a></li>
                         <li><a th:href="${home + 'employee/customer/create-customer'}">Create customer</a></li>
+                        <!-- NEW - Assignment Management -->
+                        <li><a th:href="${home + 'employee/assignment'}"><i class="fas fa-link text-primary"></i> Assignment Management</a></li>
                         <!-- NEW - Property management specific -->
                         <li><a th:href="${home + 'employee/customer/all-customers?type=property_owner'}"><i class="fas fa-building"></i> Property Owners</a></li>
                         <li><a th:href="${home + 'employee/customer/all-customers?type=tenant'}"><i class="fas fa-user"></i> Tenants</a></li>
                         <li><a th:href="${home + 'employee/customer/all-customers?type=contractor'}"><i class="fas fa-tools"></i> Contractors</a></li>
+                    </ul>
+                </li>
+                
+                <!-- FINANCIAL MANAGEMENT - NEW section for invoices and payments -->
+                <li class="nav-small-cap">--- Financial Management</li>
+                <li>
+                    <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <span class="hide-menu">Invoices & Payments</span>
+                    </a>
+                    <ul class="collapse">
+                        <li><a th:href="${home + 'employee/invoice'}"><i class="fas fa-list"></i> All Invoices</a></li>
+                        <li><a th:href="${home + 'employee/invoice/create'}"><i class="fas fa-plus"></i> Create Invoice</a></li>
+                        <li><a th:href="${home + 'employee/invoice?status=pending'}"><i class="fas fa-clock text-warning"></i> Pending Invoices</a></li>
+                        <li><a th:href="${home + 'employee/invoice?status=synced'}"><i class="fas fa-check-circle text-success"></i> PayProp Synced</a></li>
+                        <li><a th:href="${home + 'employee/invoice?status=error'}"><i class="fas fa-exclamation-triangle text-danger"></i> Sync Errors</a></li>
                     </ul>
                 </li>
                 
