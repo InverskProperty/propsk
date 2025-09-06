@@ -9,6 +9,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerLoginInfo;
 import site.easy.to.build.crm.entity.CustomerType;
+import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.PropertyOwner;
 import site.easy.to.build.crm.entity.Tenant;
@@ -771,15 +772,40 @@ public class PropertyOwnerController {
                 return "redirect:/customer-login?error=not_found";
             }
             
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            System.out.println("✅ Loading statements centre for customer: " + customer.getCustomerId());
+            
+            // Check OAuth/Google connection
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+            boolean hasGoogleAuth = (oAuthUser != null && oAuthUser.getAccessToken() != null);
             
             model.addAttribute("customer", customer);
-            model.addAttribute("properties", properties);
+            model.addAttribute("customerId", customer.getCustomerId());
             model.addAttribute("pageTitle", "Statements Centre");
+            model.addAttribute("hasGoogleAuth", hasGoogleAuth);
+            model.addAttribute("isPropertyOwner", true);
+            
+            if (!hasGoogleAuth) {
+                model.addAttribute("error", "Google account not connected. Please connect your Google account first.");
+                model.addAttribute("googleAuthRequired", true);
+            }
+            
+            // Get property owner's properties for statement generation
+            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            model.addAttribute("properties", properties);
+            model.addAttribute("propertyOwners", Arrays.asList(customer)); // Only show this property owner
+            model.addAttribute("isOwnStatements", true);
+            model.addAttribute("currentCustomer", customer);
+            model.addAttribute("viewMode", "owner");
+            
+            // Set default date range (current month)
+            LocalDate now = LocalDate.now();
+            LocalDate startOfMonth = now.withDayOfMonth(1);
+            LocalDate endOfMonth = now.withDayOfMonth(now.lengthOfMonth());
+            model.addAttribute("defaultFromDate", startOfMonth);
+            model.addAttribute("defaultToDate", endOfMonth);
             
             System.out.println("✅ Statements centre loaded successfully");
-            // Redirect to existing statements functionality with property owner context
-            return "redirect:/statements?owner=" + customer.getCustomerId();
+            return "property-owner/statements";
             
         } catch (Exception e) {
             System.err.println("❌ Error loading statements centre: " + e.getMessage());
