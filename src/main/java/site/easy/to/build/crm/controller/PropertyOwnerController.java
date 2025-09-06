@@ -92,8 +92,32 @@ public class PropertyOwnerController {
      */
     @GetMapping("/property-owner/dashboard")
     public String propertyOwnerDashboard(Model model, Authentication authentication) {
-        // Redirect to portfolio overview page which has comprehensive dashboard functionality
-        return "redirect:/employee/property/portfolio-overview";
+        System.out.println("🏠 Property Owner Dashboard - Customer OAuth User");
+        System.out.println("   Authentication: " + authentication);
+        System.out.println("   Authorities: " + authentication.getAuthorities());
+        
+        try {
+            // Get customer info using AuthenticationUtils
+            // For now, provide a basic dashboard experience
+            model.addAttribute("pageTitle", "Property Owner Dashboard");
+            model.addAttribute("welcomeMessage", "Welcome to your Property Owner Dashboard");
+            model.addAttribute("customerName", authentication != null ? authentication.getName() : "Property Owner");
+            
+            // TODO: Add property owner specific data here
+            // - Customer properties
+            // - Rent statements  
+            // - Maintenance requests
+            // - Financial summaries
+            
+            System.out.println("✅ Property Owner Dashboard loaded successfully");
+            return "property-owner/dashboard"; // Return to property-owner specific template
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error in property owner dashboard: " + e.getMessage());
+            e.printStackTrace();
+            model.addAttribute("error", "Unable to load dashboard");
+            return "property-owner/dashboard";
+        }
     }
     
     /**
