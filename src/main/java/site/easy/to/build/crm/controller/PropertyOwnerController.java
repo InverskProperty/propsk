@@ -28,10 +28,10 @@ import site.easy.to.build.crm.service.portfolio.PortfolioService;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -603,7 +603,7 @@ public class PropertyOwnerController {
             
             model.addAttribute("property", property);
             model.addAttribute("customer", customer);
-            model.addAttribute("pageTitle", "Property Details - " + property.getDisplayName());
+            model.addAttribute("pageTitle", "Property Details - " + (property.getPropertyName() != null ? property.getPropertyName() : property.getAddressLine1()));
             
             // Return to property owner specific template instead of redirecting
             return "property-owner/property-details";
@@ -1409,6 +1409,74 @@ public class PropertyOwnerController {
             System.out.println("ERROR: Exception in getAuthenticatedPropertyOwner: " + e.getMessage());
             e.printStackTrace();
             return null;
+        }
+    }
+    
+    /**
+     * Property Owner Financial Data API - Returns JSON data for AJAX calls
+     */
+    @GetMapping("/property-owner/property/{propertyId}/financial-summary")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getPropertyFinancialSummary(
+            @PathVariable("propertyId") Long propertyId,
+            Authentication authentication) {
+        
+        System.out.println("🔍 DEBUG: Property Owner financial summary API called for property: " + propertyId);
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                System.err.println("❌ No authenticated customer found");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+            
+            // Verify property ownership
+            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            boolean ownsProperty = properties.stream()
+                .anyMatch(p -> p.getId().equals(propertyId));
+                
+            if (!ownsProperty) {
+                System.err.println("❌ Customer " + customer.getCustomerId() + " does not own property " + propertyId);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "You don't have access to this property"));
+            }
+            
+            // Return mock financial data for now
+            Map<String, Object> financialData = new HashMap<>();
+            financialData.put("propertyId", propertyId);
+            financialData.put("customerId", customer.getCustomerId());
+            financialData.put("totalIncome", 2500.00);
+            financialData.put("totalExpenses", 800.00);
+            financialData.put("netProfit", 1700.00);
+            financialData.put("occupancyRate", 100.0);
+            
+            // Mock recent transactions
+            List<Map<String, Object>> transactions = new ArrayList<>();
+            Map<String, Object> transaction1 = new HashMap<>();
+            transaction1.put("date", "2024-01-15");
+            transaction1.put("type", "Rent Payment");
+            transaction1.put("amount", 1250.00);
+            transaction1.put("description", "Monthly rent payment");
+            transactions.add(transaction1);
+            
+            Map<String, Object> transaction2 = new HashMap<>();
+            transaction2.put("date", "2024-01-10");
+            transaction2.put("type", "Maintenance");
+            transaction2.put("amount", -150.00);
+            transaction2.put("description", "Plumbing repair");
+            transactions.add(transaction2);
+            
+            financialData.put("recentTransactions", transactions);
+            
+            System.out.println("✅ Returning financial data for property: " + propertyId);
+            return ResponseEntity.ok(financialData);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error getting financial summary: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Error loading financial data: " + e.getMessage()));
         }
     }
 }

@@ -21,7 +21,7 @@
                             <ul class="breadcrumb">
                                 <li class="breadcrumb-item"><a th:href="@{/property-owner/dashboard}">Dashboard</a></li>
                                 <li class="breadcrumb-item"><a th:href="@{/property-owner/properties}">Properties</a></li>
-                                <li class="breadcrumb-item active" th:text="${property?.displayName ?: 'Property'}">Property</li>
+                                <li class="breadcrumb-item active" th:text="${property?.propertyName ?: property?.addressLine1 ?: 'Property'}">Property</li>
                             </ul>
                         </div>
                     </div>
@@ -39,8 +39,8 @@
                     <div class="col-md-8">
                         <div class="card">
                             <div class="card-header">
-                                <h4 class="card-title" th:text="${property.displayName}">Property Name</h4>
-                                <p class="text-muted mb-0" th:text="${property.address}">Property Address</p>
+                                <h4 class="card-title" th:text="${property.propertyName ?: property.addressLine1}">Property Name</h4>
+                                <p class="text-muted mb-0" th:text="${property.addressLine1 + (property.addressLine2 ? ', ' + property.addressLine2 : '') + (property.city ? ', ' + property.city : '')}">Property Address</p>
                             </div>
                             <div class="card-body">
                                 <div class="row">

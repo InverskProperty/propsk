@@ -103,8 +103,8 @@
                                             <tbody>
                                                 <tr th:each="property : ${properties}">
                                                     <td>
-                                                        <strong th:text="${property.displayName}">Property Name</strong><br>
-                                                        <small class="text-muted" th:text="${property.address}">Address</small>
+                                                        <strong th:text="${property.propertyName ?: property.addressLine1}">Property Name</strong><br>
+                                                        <small class="text-muted" th:text="${property.addressLine1 + (property.city ? ', ' + property.city : '')}">Address</small>
                                                     </td>
                                                     <td th:text="${property.location}">Location</td>
                                                     <td>
