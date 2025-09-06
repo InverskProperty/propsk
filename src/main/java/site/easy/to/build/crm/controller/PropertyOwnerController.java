@@ -1479,4 +1479,74 @@ public class PropertyOwnerController {
                 .body(Map.of("error", "Error loading financial data: " + e.getMessage()));
         }
     }
+    
+    /**
+     * Property Owner Maintenance Management
+     */
+    @GetMapping("/property-owner/maintenance")
+    public String maintenanceManagement(@RequestParam(value = "propertyId", required = false) Long propertyId,
+                                      @RequestParam(value = "status", required = false) String status,
+                                      Model model, Authentication authentication) {
+        System.out.println("🔧 Property Owner Maintenance Management - Loading...");
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return "redirect:/customer-login?error=not_found";
+            }
+            
+            System.out.println("✅ Loading maintenance for customer: " + customer.getCustomerId());
+            
+            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Ticket> allTickets = new ArrayList<>();
+            
+            // Filter properties if specific property requested
+            List<Property> propertiesToQuery = properties;
+            if (propertyId != null) {
+                // Verify property ownership and filter
+                propertiesToQuery = properties.stream()
+                    .filter(p -> p.getId().equals(propertyId))
+                    .collect(Collectors.toList());
+                    
+                if (propertiesToQuery.isEmpty()) {
+                    System.err.println("❌ Customer " + customer.getCustomerId() + " does not own property " + propertyId);
+                    model.addAttribute("error", "You don't have access to this property");
+                    return "property-owner/dashboard";
+                }
+            }
+            
+            // Get maintenance tickets for the filtered properties
+            for (Property property : propertiesToQuery) {
+                try {
+                    List<Ticket> propertyTickets = ticketService.getTicketsByPropertyIdAndType(property.getId(), "maintenance");
+                    allTickets.addAll(propertyTickets);
+                } catch (Exception e) {
+                    System.err.println("Error getting tickets for property " + property.getId() + ": " + e.getMessage());
+                }
+            }
+            
+            // Filter by status if specified
+            if (status != null && !status.isEmpty()) {
+                allTickets = allTickets.stream()
+                    .filter(ticket -> status.equalsIgnoreCase(ticket.getStatus()))
+                    .collect(Collectors.toList());
+            }
+            
+            model.addAttribute("customer", customer);
+            model.addAttribute("customerId", customer.getCustomerId());
+            model.addAttribute("properties", properties);
+            model.addAttribute("tickets", allTickets);
+            model.addAttribute("filterPropertyId", propertyId);
+            model.addAttribute("filterStatus", status);
+            model.addAttribute("pageTitle", "Maintenance Management");
+            
+            return "property-owner/maintenance";
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error loading maintenance: " + e.getMessage());
+            e.printStackTrace();
+            model.addAttribute("error", "Error loading maintenance: " + e.getMessage());
+            return "property-owner/dashboard";
+        }
+    }
 }
