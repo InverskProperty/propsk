@@ -228,14 +228,14 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
                 if (countUsers == 0) {
                     // First user gets MANAGER role
                     role = roleService.findByName("ROLE_MANAGER");
-                    user.setStatus("ACTIVE");
-                    userProfile.setStatus("ACTIVE");
-                    System.out.println("👑 First user - assigning MANAGER role and ACTIVE status");
+                    user.setStatus("active");
+                    userProfile.setStatus("active");
+                    System.out.println("👑 First user - assigning MANAGER role and active status");
                 } else {
                     // FIXED: Determine role based on email domain/patterns instead of automatic MANAGER
                     role = determineRoleForNewUser(email);
-                    user.setStatus("ACTIVE");
-                    userProfile.setStatus("ACTIVE");
+                    user.setStatus("active");
+                    userProfile.setStatus("active");
                     System.out.println("👤 New user - assigning " + role.getName() + " role based on email analysis");
                 }
 
