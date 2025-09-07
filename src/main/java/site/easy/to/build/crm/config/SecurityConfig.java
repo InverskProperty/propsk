@@ -121,7 +121,7 @@ public class SecurityConfig {
 
         http.csrf((csrf) -> csrf
                 .csrfTokenRepository(httpSessionCsrfTokenRepository)
-                .ignoringRequestMatchers("/api/payprop/**")
+                .ignoringRequestMatchers("/api/payprop/**", "/portfolio/**")
         );
 
         // ADD DEBUG FILTER - ENHANCED FOR PAYPROP
