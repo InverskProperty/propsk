@@ -2850,12 +2850,14 @@ public class PortfolioController {
         
         System.out.println("🔥 V2 METHOD CALLED! Portfolio: " + portfolioId + ", Properties: " + propertyIds);
         
-        // 🔥 AUTHORIZATION CHECK FIRST - THIS PREVENTS THE REDIRECT
+        // 🔥 AUTHORIZATION CHECK FIRST - UPDATED TO INCLUDE CUSTOMERS
         if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
-            !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+            !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE") &&
+            !AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") &&
+            !AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
-            response.put("message", "Access denied - Manager or Employee role required");
+            response.put("message", "Access denied - Manager, Employee, or Customer role required");
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
         }
         
