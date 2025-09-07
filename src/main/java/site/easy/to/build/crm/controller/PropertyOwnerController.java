@@ -17,7 +17,9 @@ import site.easy.to.build.crm.entity.Portfolio;
 import site.easy.to.build.crm.entity.Tenant;
 import site.easy.to.build.crm.entity.Ticket;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
@@ -166,18 +168,20 @@ public class PropertyOwnerController {
                             List<Portfolio> userPortfolios = portfolioService.findPortfoliosForPropertyOwner(customer.getCustomerId().intValue());
                             
                             // Add property counts to portfolios using junction table method
+                            Map<Long, Integer> portfolioPropertyCounts = new HashMap<>();
                             for (Portfolio portfolio : userPortfolios) {
                                 try {
                                     List<Property> portfolioProperties = portfolioService.getPropertiesForPortfolio(portfolio.getId());
-                                    portfolio.setPropertyCount(portfolioProperties.size());
+                                    portfolioPropertyCounts.put(portfolio.getId(), portfolioProperties.size());
                                     System.out.println("🔍 Portfolio " + portfolio.getId() + " (" + portfolio.getName() + ") has " + portfolioProperties.size() + " properties via junction table");
                                 } catch (Exception e) {
                                     System.err.println("🚨 Error counting properties for portfolio " + portfolio.getId() + ": " + e.getMessage());
-                                    portfolio.setPropertyCount(0);
+                                    portfolioPropertyCounts.put(portfolio.getId(), 0);
                                 }
                             }
                             
                             model.addAttribute("portfolios", userPortfolios);
+                            model.addAttribute("portfolioPropertyCounts", portfolioPropertyCounts);
                             System.out.println("🔍 STEP 6A: ✅ Found " + userPortfolios.size() + " portfolios for customer " + customer.getCustomerId());
                         } catch (Exception e) {
                             System.err.println("🚨 STEP 6A FAILED: Error loading portfolios: " + e.getMessage());

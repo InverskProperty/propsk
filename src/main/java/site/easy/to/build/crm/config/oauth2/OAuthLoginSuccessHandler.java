@@ -205,6 +205,10 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
                     System.out.println("   Customer Type: " + customer.getCustomerType());
                     System.out.println("   Is Property Owner: " + customer.getIsPropertyOwner());
                     
+                    // CRITICAL FIX: Create OAuth user for customer to store Google tokens
+                    System.out.println("🔗 Creating OAuth user for customer to store Google tokens...");
+                    OAuthUser customerOAuthUser = createOAuthUserForCustomer(customer, email, oAuth2AccessToken, oAuth2RefreshToken);
+                    
                     // CRITICAL FIX: Set up proper Spring Security authentication for customer
                     System.out.println("🔐 Setting up customer authentication with proper roles...");
                     setupCustomerAuthentication(request, response, authentication, customer);
@@ -627,5 +631,63 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
         
         // Default fallback
         return "ROLE_CUSTOMER";
+    }
+    
+    /**
+     * Create and save OAuth user for customer to store Google tokens
+     * This fixes the statement center issue where customers couldn't connect Google accounts
+     */
+    private OAuthUser createOAuthUserForCustomer(Customer customer, String email, 
+                                                OAuth2AccessToken oAuth2AccessToken, 
+                                                OAuth2RefreshToken oAuth2RefreshToken) {
+        try {
+            System.out.println("🔗 CUSTOMER_OAUTH: Creating OAuth user for customer...");
+            System.out.println("   Customer ID: " + customer.getCustomerId());
+            System.out.println("   Customer email: " + email);
+            
+            // Check if OAuth user already exists for this email
+            OAuthUser existingOAuthUser = oAuthUserService.findBtEmail(email);
+            if (existingOAuthUser != null) {
+                System.out.println("♻️ CUSTOMER_OAUTH: Found existing OAuth user, updating tokens...");
+                oAuthUserService.updateOAuthUserTokens(existingOAuthUser, oAuth2AccessToken, oAuth2RefreshToken);
+                oAuthUserService.save(existingOAuthUser);
+                
+                System.out.println("✅ CUSTOMER_OAUTH: Updated existing OAuth user tokens");
+                return existingOAuthUser;
+            }
+            
+            // Create new OAuth user for customer
+            OAuthUser customerOAuthUser = new OAuthUser();
+            customerOAuthUser.setEmail(email);
+            
+            // CRITICAL: Add Google Sheets scopes for statement generation
+            customerOAuthUser.getGrantedScopes().clear();
+            customerOAuthUser.getGrantedScopes().add("openid");
+            customerOAuthUser.getGrantedScopes().add("email"); 
+            customerOAuthUser.getGrantedScopes().add("profile");
+            customerOAuthUser.getGrantedScopes().add("https://www.googleapis.com/auth/spreadsheets");
+            customerOAuthUser.getGrantedScopes().add("https://www.googleapis.com/auth/drive.file");
+            customerOAuthUser.getGrantedScopes().add("https://www.googleapis.com/auth/gmail.send");
+            
+            System.out.println("🔐 CUSTOMER_OAUTH: Added Google API scopes: " + customerOAuthUser.getGrantedScopes());
+            
+            // Store the Google tokens
+            oAuthUserService.updateOAuthUserTokens(customerOAuthUser, oAuth2AccessToken, oAuth2RefreshToken);
+            
+            // Save without User link (customers don't have User entities)
+            oAuthUserService.save(customerOAuthUser);
+            
+            System.out.println("✅ CUSTOMER_OAUTH: Successfully created OAuth user for customer");
+            System.out.println("   OAuth user ID: " + customerOAuthUser.getId());
+            System.out.println("   Has access token: " + (customerOAuthUser.getAccessToken() != null));
+            System.out.println("   Has refresh token: " + (customerOAuthUser.getRefreshToken() != null));
+            
+            return customerOAuthUser;
+            
+        } catch (Exception e) {
+            System.err.println("❌ CUSTOMER_OAUTH: Error creating OAuth user for customer: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
     }
 }
