@@ -16,6 +16,8 @@ import site.easy.to.build.crm.service.payprop.*;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 
+import org.springframework.security.oauth2.core.user.OAuth2User;
+
 /**
  * Base class for all portfolio controllers containing shared dependencies and utility methods
  */
@@ -80,6 +82,21 @@ public class PortfolioControllerBase {
             Portfolio portfolio = portfolioService.findById(portfolioId);
             if (portfolio == null) return false;
             
+            // Handle customer authentication
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") || 
+                AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+                String email = ((OAuth2User) authentication.getPrincipal()).getAttribute("email");
+                if (email != null) {
+                    Customer customer = customerService.findByEmail(email);
+                    if (customer != null) {
+                        Long customerId = Long.valueOf(customer.getCustomerId());
+                        return portfolio.getPropertyOwnerId() != null && 
+                               portfolio.getPropertyOwnerId().equals(customerId.intValue());
+                    }
+                }
+            }
+            
+            // Fallback for User entities
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             return portfolio.getPropertyOwnerId() != null && 
                    portfolio.getPropertyOwnerId().equals(userId);
@@ -132,11 +149,29 @@ public class PortfolioControllerBase {
     }
     
     /**
-     * Get logged in user ID safely
+     * Get logged in user ID safely - supports both Users and Customers
      */
     protected Integer getLoggedInUserId(Authentication authentication) {
         try {
-            return authenticationUtils.getLoggedInUserId(authentication);
+            // Try regular User first (Employee/Manager)
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            if (userId > 0) {
+                return userId;
+            }
+            
+            // For customers, get customer ID instead
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") || 
+                AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+                String email = ((OAuth2User) authentication.getPrincipal()).getAttribute("email");
+                if (email != null) {
+                    Customer customer = customerService.findByEmail(email);
+                    if (customer != null) {
+                        return customer.getCustomerId();
+                    }
+                }
+            }
+            
+            return null;
         } catch (Exception e) {
             return null;
         }
