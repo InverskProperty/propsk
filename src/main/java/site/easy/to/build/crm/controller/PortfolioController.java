@@ -3133,15 +3133,14 @@ public class PortfolioController {
         Map<String, Object> response = new HashMap<>();
         
         try {
-            // Check access permissions
+            // Check access permissions - UPDATED TO INCLUDE CUSTOMERS
             if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
-                !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+                !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE") &&
+                !AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") &&
+                !AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
                 response.put("error", "Access denied");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
             }
-            
-            // Get user ID
-            int userId = authenticationUtils.getLoggedInUserId(authentication);
             
             // Verify portfolio exists and user has access
             Portfolio portfolio = portfolioService.findById(portfolioId);
@@ -3150,11 +3149,25 @@ public class PortfolioController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
             }
             
-            // Check if user has access to this portfolio
+            // Check if user has access to this portfolio - UPDATED FOR CUSTOMERS
             if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
-                !portfolio.getPropertyOwnerId().equals(userId)) {
-                response.put("error", "Access denied to this portfolio");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+                !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+                
+                // For customers, check via email lookup
+                if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") || 
+                    AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+                    String email = ((OAuth2User) authentication.getPrincipal()).getAttribute("email");
+                    if (email != null) {
+                        Customer customer = customerService.findByEmail(email);
+                        if (customer == null || !portfolio.getPropertyOwnerId().equals(customer.getCustomerId().intValue())) {
+                            response.put("error", "Access denied to this portfolio");
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+                        }
+                    } else {
+                        response.put("error", "Access denied to this portfolio");
+                        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+                    }
+                }
             }
             
             // Get all properties in portfolio with block assignments
