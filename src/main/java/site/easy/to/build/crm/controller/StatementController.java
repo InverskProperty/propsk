@@ -21,6 +21,7 @@ import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.service.user.OAuthUserService;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -150,13 +151,67 @@ public class StatementController {
     }
 
     /**
-     * Generate property owner statement - FIXED with proper authorization
+     * Handle GET redirects to property owner statement (direct processing)
+     */
+    @GetMapping("/property-owner")
+    public String handlePropertyOwnerStatementRedirect(
+            @RequestParam("propertyOwnerId") Integer propertyOwnerId,
+            @RequestParam("fromDate") String fromDate,
+            @RequestParam("toDate") String toDate,
+            Authentication authentication,
+            RedirectAttributes redirectAttributes) {
+        
+        System.out.println("🔄 GET redirect received for property owner statement - processing directly");
+        
+        try {
+            // Parse dates - handle both DD/MM/YYYY and YYYY-MM-DD formats
+            LocalDate parsedFromDate, parsedToDate;
+            
+            if (fromDate.contains("/")) {
+                // Handle DD/MM/YYYY format (URL encoded as DD%2FMM%2FYYYY)
+                String decodedFromDate = fromDate.replace("%2F", "/");
+                String decodedToDate = toDate.replace("%2F", "/");
+                
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                parsedFromDate = LocalDate.parse(decodedFromDate, formatter);
+                parsedToDate = LocalDate.parse(decodedToDate, formatter);
+            } else {
+                // Handle YYYY-MM-DD format
+                parsedFromDate = LocalDate.parse(fromDate);
+                parsedToDate = LocalDate.parse(toDate);
+            }
+            
+            // Call the existing POST method logic
+            return generatePropertyOwnerStatementInternal(propertyOwnerId, parsedFromDate, parsedToDate, authentication, redirectAttributes);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error parsing dates or generating statement: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error generating statement: " + e.getMessage());
+            return "redirect:/statements";
+        }
+    }
+
+    /**
+     * Generate property owner statement - FIXED with proper authorization (POST endpoint)
      */
     @PostMapping("/property-owner")
     public String generatePropertyOwnerStatement(
             @RequestParam("propertyOwnerId") Integer propertyOwnerId,
             @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            Authentication authentication,
+            RedirectAttributes redirectAttributes) {
+        
+        return generatePropertyOwnerStatementInternal(propertyOwnerId, fromDate, toDate, authentication, redirectAttributes);
+    }
+
+    /**
+     * Internal method for generating property owner statements (shared by GET and POST)
+     */
+    private String generatePropertyOwnerStatementInternal(
+            Integer propertyOwnerId,
+            LocalDate fromDate,
+            LocalDate toDate,
             Authentication authentication,
             RedirectAttributes redirectAttributes) {
         
