@@ -1190,26 +1190,53 @@ public class TicketController {
      * Uses the same logic as the improved export methods to resolve PayProp IDs proactively.
      */
     private void populatePayPropFieldsForNewTicket(Ticket ticket) {
-        if (ticket.getCustomer() == null || jdbcTemplate == null) {
-            return; // Cannot populate without customer or database access
+        if (ticket.getCustomer() == null) {
+            return; // Cannot populate without customer
         }
 
         Customer customer = ticket.getCustomer();
         System.out.println("🔧 Pre-populating PayProp fields for new ticket with customer " + customer.getCustomerId());
 
-        // 1. Try to find PayProp property ID using customer_property_assignments
+        // PRIORITY 1: If ticket already has property set (from form), use that
+        if (ticket.getProperty() != null) {
+            Property property = ticket.getProperty();
+            System.out.println("✅ Using property from form: " + property.getPropertyName());
+            
+            // Set PayProp property ID if available (for sync compatibility)
+            if (property.getPaypropPropertyId() != null) {
+                ticket.setPayPropPropertyId(property.getPaypropPropertyId());
+                System.out.println("✅ Set PayProp property ID from property: " + property.getPaypropPropertyId());
+            }
+            return; // Property already set, no need to search
+        }
+
+        // PRIORITY 2: Try to find property using customer_property_assignments (use internal property relationship)
         try {
-            String propertyQuery = "SELECT p.payprop_id FROM customer_property_assignments cpa " +
-                                  "JOIN properties p ON cpa.property_id = p.id " +
-                                  "WHERE cpa.customer_id = ? AND p.payprop_id IS NOT NULL " +
-                                  "ORDER BY cpa.is_primary DESC, cpa.created_at DESC LIMIT 1";
-                                  
-            List<String> propertyIds = jdbcTemplate.queryForList(propertyQuery, String.class, customer.getCustomerId());
-            if (!propertyIds.isEmpty()) {
-                String payPropPropertyId = propertyIds.get(0);
-                ticket.setPayPropPropertyId(payPropPropertyId);
-                System.out.println("✅ Set PayProp property ID: " + payPropPropertyId);
-            } else {
+            if (jdbcTemplate != null) {
+                String propertyQuery = "SELECT p.id, p.payprop_property_id FROM customer_property_assignments cpa " +
+                                      "JOIN properties p ON cpa.property_id = p.id " +
+                                      "WHERE cpa.customer_id = ? " +
+                                      "ORDER BY cpa.is_primary DESC, cpa.created_at DESC LIMIT 1";
+                                      
+                List<Map<String, Object>> propertyResults = jdbcTemplate.queryForList(propertyQuery, customer.getCustomerId());
+                if (!propertyResults.isEmpty()) {
+                    Map<String, Object> propertyRow = propertyResults.get(0);
+                    Long propertyId = ((Number) propertyRow.get("id")).longValue();
+                    String payPropPropertyId = (String) propertyRow.get("payprop_property_id");
+                    
+                    // Set internal property relationship (primary)
+                    Property property = propertyService.findById(propertyId);
+                    if (property != null) {
+                        ticket.setProperty(property);
+                        System.out.println("✅ Set internal property relationship: " + property.getPropertyName());
+                    }
+                    
+                    // Set PayProp property ID if available (for sync compatibility)
+                    if (payPropPropertyId != null) {
+                        ticket.setPayPropPropertyId(payPropPropertyId);
+                        System.out.println("✅ Set PayProp property ID: " + payPropPropertyId);
+                    }
+                } else {
                 System.out.println("⚠️ No PayProp property ID found for customer " + customer.getCustomerId());
             }
         } catch (Exception e) {

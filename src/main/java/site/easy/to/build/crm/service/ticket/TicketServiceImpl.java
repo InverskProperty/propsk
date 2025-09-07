@@ -171,12 +171,21 @@ public class TicketServiceImpl implements TicketService{
     // ===== BRIDGE METHODS FOR CONTROLLER COMPATIBILITY =====
     @Override
     public List<Ticket> getTicketsByPropertyId(Long propertyId) {
-        // Convert Long propertyId to String payPropPropertyId
+        List<Ticket> tickets = new ArrayList<>();
+        
+        // First, get tickets using internal property_id relationship (primary method)
+        List<Ticket> propertyTickets = ticketRepository.findByPropertyId(propertyId);
+        tickets.addAll(propertyTickets);
+        
+        // Also include PayProp-based tickets for backward compatibility
         String payPropPropertyId = getPayPropPropertyIdFromPropertyId(propertyId);
         if (payPropPropertyId != null && !payPropPropertyId.trim().isEmpty()) {
-            return ticketRepository.findByPayPropPropertyId(payPropPropertyId);
+            List<Ticket> payPropTickets = ticketRepository.findByPayPropPropertyId(payPropPropertyId);
+            tickets.addAll(payPropTickets);
         }
-        return new ArrayList<>();
+        
+        // Remove duplicates and return
+        return tickets.stream().distinct().collect(Collectors.toList());
     }
 
     @Override

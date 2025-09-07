@@ -285,6 +285,21 @@ public class PayPropMaintenanceSyncService {
             ticket.setPayPropLastSync(LocalDateTime.now());
             ticket.setPayPropSynced(true);
             
+            // PRIORITY: Set internal property relationship for consistent ticket visibility
+            if (payPropPropertyId != null) {
+                try {
+                    Optional<Property> propertyOpt = propertyService.findByPayPropId(payPropPropertyId);
+                    if (propertyOpt.isPresent()) {
+                        ticket.setProperty(propertyOpt.get());
+                        System.out.println("✅ Set internal property relationship for synced ticket: " + propertyOpt.get().getPropertyName());
+                    } else {
+                        System.out.println("⚠️ Could not find internal property for PayProp ID: " + payPropPropertyId);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error setting internal property relationship: " + e.getMessage());
+                }
+            }
+            
             // Map category from payprop_maintenance_categories table
             if (payPropCategoryId != null) {
                 try {
