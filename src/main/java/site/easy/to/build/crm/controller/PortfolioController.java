@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -25,6 +26,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.Optional;
 import java.util.Optional;
@@ -2238,6 +2240,7 @@ public class PortfolioController {
         
         try {
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                // Managers can see all property owners
                 if (customerService != null) {
                     try {
                         List<Customer> allCustomers = customerService.findAll();
@@ -2245,7 +2248,7 @@ public class PortfolioController {
                             .filter(customer -> customer.getIsPropertyOwner() != null && customer.getIsPropertyOwner())
                             .collect(Collectors.toList());
                         model.addAttribute("propertyOwners", propertyOwners);
-                        System.out.println("✅ Added " + propertyOwners.size() + " property owners to model");
+                        System.out.println("✅ Added " + propertyOwners.size() + " property owners to model for manager");
                     } catch (Exception e) {
                         System.out.println("❌ Error loading property owners: " + e.getMessage());
                         model.addAttribute("propertyOwners", new ArrayList<>());
@@ -2255,8 +2258,27 @@ public class PortfolioController {
                     model.addAttribute("propertyOwners", new ArrayList<>());
                 }
                 model.addAttribute("isManager", true);
+            } else if (AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+                // Property owners can only see themselves
+                try {
+                    Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+                    if (currentCustomer != null) {
+                        model.addAttribute("propertyOwners", Arrays.asList(currentCustomer));
+                        model.addAttribute("currentCustomer", currentCustomer);
+                        model.addAttribute("isPropertyOwner", true);
+                        System.out.println("✅ Added current property owner to model: " + currentCustomer.getName());
+                    } else {
+                        System.out.println("❌ Could not find current property owner customer");
+                        model.addAttribute("propertyOwners", new ArrayList<>());
+                    }
+                } catch (Exception e) {
+                    System.out.println("❌ Error loading current property owner: " + e.getMessage());
+                    model.addAttribute("propertyOwners", new ArrayList<>());
+                }
+                model.addAttribute("isManager", false);
             } else {
                 model.addAttribute("isManager", false);
+                model.addAttribute("propertyOwners", new ArrayList<>());
             }
             
             model.addAttribute("portfolioTypes", PortfolioType.values());
@@ -2275,6 +2297,36 @@ public class PortfolioController {
         } catch (Exception e) {
             System.out.println("❌ Error preparing form model: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Get the current customer based on authentication (for property owners)
+     */
+    private Customer getCurrentCustomerFromAuth(Authentication authentication) {
+        try {
+            // For OAuth users, check by email first
+            if (authentication.getPrincipal() instanceof OAuth2User) {
+                OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
+                String email = oauth2User.getAttribute("email");
+                
+                System.out.println("DEBUG: OAuth user email: " + email);
+                
+                if (email != null) {
+                    // Try to find customer by email
+                    Customer customer = customerService.findByEmail(email);
+                    if (customer != null) {
+                        System.out.println("DEBUG: Found customer by email: " + customer.getCustomerId());
+                        return customer;
+                    }
+                }
+            }
+            
+            return null;
+            
+        } catch (Exception e) {
+            System.err.println("Error getting current customer from auth: " + e.getMessage());
+            return null;
         }
     }
 
