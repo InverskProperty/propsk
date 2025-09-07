@@ -196,6 +196,22 @@
                                     </select>
                                 </div>
 
+                                <label class="m-t-20" for="propertyId">Property (Optional):</label>
+                                <div class="input-group">
+                                    <select name="propertyId" id="propertyId" class="form-control">
+                                        <option value="">-- Select Property (Optional) --</option>
+                                        <option th:each="property : ${properties}" 
+                                                th:text="${property.propertyName + ' - ' + property.addressLine1}" 
+                                                th:value="${property.id}"></option>
+                                    </select>
+                                </div>
+                                <div class="input-group">
+                                    <small class="text-muted">
+                                        <i class="fa fa-info-circle"></i> 
+                                        Select a property if this ticket is related to a specific property (recommended for maintenance requests).
+                                    </small>
+                                </div>
+
                                 <button type="submit" class="btn btn-primary m-t-20">Create ticket</button>
                             </form>
                         </div>

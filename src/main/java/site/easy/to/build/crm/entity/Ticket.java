@@ -124,6 +124,10 @@ public class Ticket {
     @JoinColumn(name = "customer_id")
     private Customer customer;
 
+    @ManyToOne
+    @JoinColumn(name = "property_id")
+    private Property property;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
     
@@ -183,6 +187,9 @@ public class Ticket {
 
     public Customer getCustomer() { return customer; }
     public void setCustomer(Customer customer) { this.customer = customer; }
+
+    public Property getProperty() { return property; }
+    public void setProperty(Property property) { this.property = property; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

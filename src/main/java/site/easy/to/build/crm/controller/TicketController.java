@@ -754,6 +754,7 @@ public class TicketController {
 
         model.addAttribute("employees",employees);
         model.addAttribute("customers",customers);
+        model.addAttribute("properties", propertyService.findAll());
         model.addAttribute("ticket", new Ticket());
         
         // Add maintenance categories if service is available
@@ -773,6 +774,7 @@ public class TicketController {
     public String createTicket(@ModelAttribute("ticket") Ticket ticket, BindingResult bindingResult, 
                                @RequestParam("customerId") Long customerId,
                                @RequestParam("employeeId") int employeeId,
+                               @RequestParam(value = "propertyId", required = false) Long propertyId,
                                Authentication authentication, Model model) {
         
         System.out.println("🎫🎫🎫 TICKET CONTROLLER HIT! Spring routing is working! 🎫🎫🎫");
@@ -781,6 +783,7 @@ public class TicketController {
         System.out.println("📝 Description: " + ticket.getDescription());
         System.out.println("👤 Customer ID: " + customerId);
         System.out.println("👥 Employee ID: " + employeeId);
+        System.out.println("🏠 Property ID: " + propertyId);
         System.out.println("🏷️ Ticket Type: " + ticket.getType());
         System.out.println("🔴 Status: " + ticket.getStatus());
         System.out.println("⚡ Priority: " + ticket.getPriority());
@@ -836,9 +839,21 @@ public class TicketController {
             }
             System.out.println("✅ No validation errors");
 
-            System.out.println("🔍 Step 4: Finding employee and customer...");
+            System.out.println("🔍 Step 4: Finding employee, customer, and property...");
             User employee = userService.findById(Long.valueOf(employeeId));
             Customer customer = customerService.findByCustomerId(customerId);
+            
+            Property property = null;
+            if (propertyId != null) {
+                property = propertyService.findById(propertyId);
+                if (property == null) {
+                    System.err.println("❌ Property not found for ID: " + propertyId);
+                    return "error/500";
+                }
+                System.out.println("✅ Property found: " + property.getPropertyName());
+            } else {
+                System.out.println("ℹ️ No property selected");
+            }
 
             if(employee == null) {
                 System.err.println("❌ Employee not found for ID: " + employeeId);
@@ -866,6 +881,10 @@ public class TicketController {
             ticket.setCustomer(customer);
             ticket.setManager(manager);
             ticket.setEmployee(employee);
+            if (property != null) {
+                ticket.setProperty(property);
+                System.out.println("✅ Property linked to ticket: " + property.getPropertyName());
+            }
             ticket.setCreatedAt(LocalDateTime.now());
             System.out.println("✅ Ticket properties set");
 
