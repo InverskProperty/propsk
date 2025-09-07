@@ -67,6 +67,11 @@ public interface TicketRepository extends JpaRepository<Ticket, Integer> {
     
     List<Ticket> findByPayPropPropertyIdAndType(String payPropPropertyId, String type);
 
+    // NEW: Internal property relationship queries
+    List<Ticket> findByPropertyId(Long propertyId);
+    
+    List<Ticket> findByPropertyIdAndType(Long propertyId, String type);
+
     Ticket findByPayPropTicketId(String payPropTicketId);
 
 }

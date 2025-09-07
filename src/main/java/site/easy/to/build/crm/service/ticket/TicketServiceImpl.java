@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class TicketServiceImpl implements TicketService{
@@ -185,12 +186,21 @@ public class TicketServiceImpl implements TicketService{
 
     @Override
     public List<Ticket> getTicketsByPropertyIdAndType(Long propertyId, String type) {
-        // Convert Long propertyId to String payPropPropertyId
+        List<Ticket> tickets = new ArrayList<>();
+        
+        // First, look for tickets with the internal property_id (new approach)
+        List<Ticket> propertyTickets = ticketRepository.findByPropertyIdAndType(propertyId, type);
+        tickets.addAll(propertyTickets);
+        
+        // Also check PayProp property ID for backward compatibility
         String payPropPropertyId = getPayPropPropertyIdFromPropertyId(propertyId);
         if (payPropPropertyId != null && !payPropPropertyId.trim().isEmpty()) {
-            return ticketRepository.findByPayPropPropertyIdAndType(payPropPropertyId, type);
+            List<Ticket> payPropTickets = ticketRepository.findByPayPropPropertyIdAndType(payPropPropertyId, type);
+            tickets.addAll(payPropTickets);
         }
-        return new ArrayList<>();
+        
+        // Remove duplicates (in case ticket has both property_id and payPropPropertyId)
+        return tickets.stream().distinct().collect(Collectors.toList());
     }
 
     /**
