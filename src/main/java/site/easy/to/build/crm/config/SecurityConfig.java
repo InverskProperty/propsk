@@ -215,8 +215,8 @@ public class SecurityConfig {
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/portfolio/*/debug-sync")).hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE")
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/portfolio/*/sync")).hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE")
                         
-                        // FIXED: Add specific assign-properties-v2 route with correct authorities
-                        .requestMatchers(HttpMethod.POST, "/portfolio/*/assign-properties-v2").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN")
+                        // FIXED: Add specific assign-properties-v2 route with correct authorities including customers
+                        .requestMatchers(HttpMethod.POST, "/portfolio/*/assign-properties-v2").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_PROPERTY_OWNER", "ROLE_CUSTOMER")
                         
                         // CRITICAL FIX: General portfolio routes - NOW properly handled by main chain
                         .requestMatchers("/portfolio/**").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE", "ROLE_PROPERTY_OWNER", "ROLE_CUSTOMER")
