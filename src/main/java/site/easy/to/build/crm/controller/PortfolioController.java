@@ -313,21 +313,16 @@ public class PortfolioController {
             return "redirect:/access-denied";
         }
         
-        // FIX 1: Get and validate user ID FIRST
-        int userId;
-        try {
-            userId = authenticationUtils.getLoggedInUserId(authentication);
-            System.out.println("✅ User ID: " + userId);
-            
-            // CRITICAL: Verify user exists in database
-            // Note: UserService.existsById check removed - relying on authentication validation
-            // If needed, add existsById method to UserService interface
-            
-        } catch (Exception e) {
-            System.out.println("❌ Failed to get user ID: " + e.getMessage());
+        // FIXED: Get authenticated user/customer ID properly
+        AuthenticatedUser authUser = getAuthenticatedUser(authentication);
+        if (authUser == null) {
+            System.out.println("❌ Authentication failed - no valid user or customer found");
             model.addAttribute("error", "Authentication error. Please log in again.");
             return "redirect:/login";
         }
+        
+        System.out.println("✅ Authenticated " + authUser.getType() + " ID: " + authUser.getId());
+        System.out.println("   Email: " + authUser.getEmail());
         
         // FIX 2: Handle portfolio type parameter
         if (portfolioTypeParam != null && !portfolioTypeParam.isEmpty()) {
@@ -369,7 +364,7 @@ public class PortfolioController {
         }
         
         try {
-            // FIX 5: Handle ownership logic safely
+            // FIXED: Handle ownership logic for both Users and Customers
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 if (selectedOwnerId != null && selectedOwnerId > 0) {
                     // Verify owner exists
@@ -388,10 +383,25 @@ public class PortfolioController {
                     portfolio.setIsShared("Y");
                     System.out.println("✅ Manager creating shared portfolio");
                 }
-            } else {
-                portfolio.setPropertyOwnerId(userId);
+            } else if ("CUSTOMER".equals(authUser.getType())) {
+                // Customer creating their own portfolio
+                portfolio.setPropertyOwnerId(authUser.getId().intValue());
                 portfolio.setIsShared("N");
-                System.out.println("✅ Customer creating personal portfolio");
+                System.out.println("✅ Customer creating personal portfolio for customer ID: " + authUser.getId());
+            } else {
+                // Employee user creating portfolio
+                portfolio.setPropertyOwnerId(null);
+                portfolio.setIsShared("Y");
+                System.out.println("✅ Employee creating shared portfolio");
+            }
+            
+            // FIXED: Use appropriate created_by based on user type
+            Long createdBy = getCreatedByUserId(authUser);
+            if (createdBy == null) {
+                System.out.println("❌ Cannot determine created_by user ID");
+                model.addAttribute("error", "Authentication error: cannot determine user identity");
+                prepareCreateFormModel(model, authentication);
+                return "portfolio/create-portfolio";
             }
             
             // FIX 6: Create portfolio with proper error handling
@@ -399,12 +409,13 @@ public class PortfolioController {
             Portfolio savedPortfolio;
             
             try {
+                
                 savedPortfolio = portfolioService.createPortfolio(
                     portfolio.getName().trim(),
                     portfolio.getDescription() != null ? portfolio.getDescription().trim() : "",
                     portfolio.getPortfolioType(),
                     portfolio.getPropertyOwnerId(),
-                    (long) userId
+                    createdBy
                 );
                 System.out.println("✅ Portfolio created with ID: " + savedPortfolio.getId());
                 
@@ -456,7 +467,7 @@ public class PortfolioController {
             if (enablePayPropSync && payPropEnabled && payPropSyncService != null) {
                 System.out.println("Attempting PayProp sync...");
                 try {
-                    portfolioService.syncPortfolioWithPayProp(savedPortfolio.getId(), (long) userId);
+                    portfolioService.syncPortfolioWithPayProp(savedPortfolio.getId(), createdBy);
                     successMessage += " PayProp synchronization completed.";
                     System.out.println("✅ PayProp sync successful");
                 } catch (Exception e) {
@@ -3246,6 +3257,126 @@ public class PortfolioController {
             response.put("success", false);
             response.put("message", "Error: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    // ===== AUTHENTICATION HELPER METHODS =====
+    
+    /**
+     * Get authenticated user information (handles both Users and Customers)
+     */
+    private AuthenticatedUser getAuthenticatedUser(Authentication authentication) {
+        System.out.println("🔍 DEBUG: getAuthenticatedUser called");
+        System.out.println("   Authentication type: " + authentication.getClass().getSimpleName());
+        
+        if (authentication == null) {
+            System.out.println("❌ No authentication provided");
+            return null;
+        }
+        
+        try {
+            // Try to get OAuth user email first
+            String email = null;
+            if (authentication.getPrincipal() instanceof OAuth2User) {
+                email = ((OAuth2User) authentication.getPrincipal()).getAttribute("email");
+                System.out.println("   OAuth user email: " + email);
+            }
+            
+            // First try to get as Employee User
+            try {
+                int userId = authenticationUtils.getLoggedInUserId(authentication);
+                if (userId > 0) {
+                    System.out.println("✅ Found Employee User ID: " + userId);
+                    User user = userService.findById(Long.valueOf(userId));
+                    if (user != null) {
+                        return new AuthenticatedUser(Long.valueOf(userId), user.getEmail(), "USER");
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("   No Employee User found, trying Customer...");
+            }
+            
+            // If no User found, try Customer
+            if (email != null && customerService != null) {
+                Customer customer = customerService.findByEmail(email);
+                if (customer != null) {
+                    System.out.println("✅ Found Customer ID: " + customer.getCustomerId() + " (" + customer.getEmail() + ")");
+                    return new AuthenticatedUser(Long.valueOf(customer.getCustomerId()), customer.getEmail(), "CUSTOMER");
+                }
+            }
+            
+            System.out.println("❌ No User or Customer found for authentication");
+            return null;
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error in getAuthenticatedUser: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+    
+    /**
+     * Get the appropriate created_by user ID for portfolio creation
+     * For customers, this should be an employee user ID since portfolios.created_by references users table
+     */
+    private Long getCreatedByUserId(AuthenticatedUser authUser) {
+        System.out.println("🔍 DEBUG: getCreatedByUserId for " + authUser.getType() + " ID: " + authUser.getId());
+        
+        if ("USER".equals(authUser.getType())) {
+            // Employee user - use their ID directly
+            return authUser.getId();
+        } else if ("CUSTOMER".equals(authUser.getType())) {
+            // Customer - need to find an employee user to use as created_by
+            // For now, try to find the OAuth employee user associated with the same email domain
+            // This is a temporary solution - in production you'd want a more sophisticated approach
+            
+            try {
+                // Try to find the employee OAuth user (sajidkazmi@propsk.com)
+                List<User> allUsers = userService.findAll();
+                for (User user : allUsers) {
+                    if (user.getEmail() != null && user.getEmail().contains("propsk.com")) {
+                        System.out.println("✅ Using employee user ID for created_by: " + user.getId());
+                        return Long.valueOf(user.getId());
+                    }
+                }
+                
+                // Fallback: use the first active user
+                if (!allUsers.isEmpty()) {
+                    User firstUser = allUsers.get(0);
+                    System.out.println("⚠️ Using first user ID as fallback for created_by: " + firstUser.getId());
+                    return Long.valueOf(firstUser.getId());
+                }
+                
+            } catch (Exception e) {
+                System.err.println("❌ Error finding employee user for created_by: " + e.getMessage());
+            }
+        }
+        
+        System.out.println("❌ Could not determine created_by user ID");
+        return null;
+    }
+    
+    /**
+     * Simple data class to hold authenticated user information
+     */
+    private static class AuthenticatedUser {
+        private final Long id;
+        private final String email;
+        private final String type; // "USER" or "CUSTOMER"
+        
+        public AuthenticatedUser(Long id, String email, String type) {
+            this.id = id;
+            this.email = email;
+            this.type = type;
+        }
+        
+        public Long getId() { return id; }
+        public String getEmail() { return email; }
+        public String getType() { return type; }
+        
+        @Override
+        public String toString() {
+            return type + "{id=" + id + ", email='" + email + "'}";
         }
     }
 
