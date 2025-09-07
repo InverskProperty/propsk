@@ -1203,9 +1203,9 @@ public class TicketController {
             System.out.println("✅ Using property from form: " + property.getPropertyName());
             
             // Set PayProp property ID if available (for sync compatibility)
-            if (property.getPaypropPropertyId() != null) {
-                ticket.setPayPropPropertyId(property.getPaypropPropertyId());
-                System.out.println("✅ Set PayProp property ID from property: " + property.getPaypropPropertyId());
+            if (property.getPayPropPropertyId() != null) {
+                ticket.setPayPropPropertyId(property.getPayPropPropertyId());
+                System.out.println("✅ Set PayProp property ID from property: " + property.getPayPropPropertyId());
             }
             return; // Property already set, no need to search
         }
@@ -1237,10 +1237,11 @@ public class TicketController {
                         System.out.println("✅ Set PayProp property ID: " + payPropPropertyId);
                     }
                 } else {
-                System.out.println("⚠️ No PayProp property ID found for customer " + customer.getCustomerId());
+                    System.out.println("⚠️ No property found for customer " + customer.getCustomerId());
+                }
             }
         } catch (Exception e) {
-            System.err.println("Error finding PayProp property ID: " + e.getMessage());
+            System.err.println("Error finding property: " + e.getMessage());
         }
 
         // 2. Try to find PayProp tenant ID
