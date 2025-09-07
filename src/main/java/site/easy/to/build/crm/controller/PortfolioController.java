@@ -2406,17 +2406,33 @@ public class PortfolioController {
             return false;
         }
         
-        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        // FIXED: Use secure authentication method for both Users and Customers
+        AuthenticatedUser authUser = getAuthenticatedUser(authentication);
+        if (authUser == null) {
+            System.out.println("❌ canUserEditPortfolio: No authenticated user found");
+            return false;
+        }
         
-        if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER")) {
-            return portfolio.getPropertyOwnerId() != null && 
-                   portfolio.getPropertyOwnerId().equals(userId);
+        System.out.println("🔍 canUserEditPortfolio: " + authUser.getType() + " ID " + authUser.getId() + 
+                          " checking access to portfolio " + portfolioId);
+        
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") || 
+            AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+            boolean hasAccess = portfolio.getPropertyOwnerId() != null && 
+                               portfolio.getPropertyOwnerId().equals(authUser.getId().intValue());
+            System.out.println("   Customer access check: portfolio owner=" + portfolio.getPropertyOwnerId() + 
+                              ", user=" + authUser.getId() + " → " + hasAccess);
+            return hasAccess;
         }
         
         if (AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
-            return portfolio.getCreatedBy().equals((long) userId);
+            boolean hasAccess = portfolio.getCreatedBy().equals(authUser.getId());
+            System.out.println("   Employee access check: portfolio creator=" + portfolio.getCreatedBy() + 
+                              ", user=" + authUser.getId() + " → " + hasAccess);
+            return hasAccess;
         }
         
+        System.out.println("   No matching role found, denying access");
         return false;
     }
 

@@ -47,6 +47,10 @@ public class PortfolioServiceImpl implements PortfolioService {
     @Autowired(required = false)
     private PortfolioAssignmentService portfolioAssignmentService;
     
+    // FIXED: Add CustomerService for customer authentication
+    @Autowired(required = false)
+    private site.easy.to.build.crm.service.customer.CustomerService customerService;
+    
     // Make PayProp services optional
     @Autowired(required = false)
     private PayPropPortfolioSyncService payPropSyncService;
@@ -1129,22 +1133,50 @@ public class PortfolioServiceImpl implements PortfolioService {
             return false;
         }
         
-        int userId = authenticationUtils.getLoggedInUserId(authentication);
-        
         // Managers can access all portfolios
         if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
             return true;
         }
         
+        // FIXED: Handle customer authentication properly for portfolio access
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") || 
+            AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+            
+            // For customers, get their ID from customer lookup instead of user lookup
+            try {
+                String email = ((org.springframework.security.oauth2.core.user.OAuth2User) 
+                    authentication.getPrincipal()).getAttribute("email");
+                
+                if (email != null && customerService != null) {
+                    Customer customer = customerService.findByEmail(email);
+                    if (customer != null) {
+                        Long customerId = Long.valueOf(customer.getCustomerId());
+                        boolean hasAccess = portfolio.getPropertyOwnerId() != null && 
+                                          portfolio.getPropertyOwnerId().equals(customerId.intValue());
+                        
+                        System.out.println("🔍 canUserAccessPortfolio: Customer " + customerId + 
+                                          " checking portfolio " + portfolioId + 
+                                          " (owner=" + portfolio.getPropertyOwnerId() + ") → " + hasAccess);
+                        return hasAccess;
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("❌ Error in customer access check: " + e.getMessage());
+            }
+            
+            return false;
+        }
+        
+        // For employees, use the standard user ID approach
+        int userId = authenticationUtils.getLoggedInUserId(authentication);
+        if (userId <= 0) {
+            System.out.println("❌ Invalid user ID for employee access check: " + userId);
+            return false;
+        }
+        
         // Employees can access shared portfolios and ones they created
         if (AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
             return portfolio.isSharedPortfolio() || portfolio.getCreatedBy().equals((long) userId);
-        }
-        
-        // Property owners can access their own portfolios
-        if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER")) {
-            return portfolio.getPropertyOwnerId() != null && 
-                   portfolio.getPropertyOwnerId().equals(userId);
         }
         
         return false;
