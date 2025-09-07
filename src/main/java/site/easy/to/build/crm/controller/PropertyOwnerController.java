@@ -1637,11 +1637,13 @@ public class PropertyOwnerController {
                 return "redirect:/property-owner/statements";
             }
             
-            // For now, redirect to the existing statement controller with proper parameters
+            // Redirect to the main statement controller's POST endpoint for property owners
             // This allows us to reuse the existing Google Sheets integration
             System.out.println("✅ Redirecting to existing statement generation with customer: " + customer.getCustomerId());
-            return "redirect:/statements/property-owner?propertyOwnerId=" + customer.getCustomerId() + 
-                   "&fromDate=" + fromDate + "&toDate=" + toDate;
+            redirectAttributes.addAttribute("propertyOwnerId", customer.getCustomerId());
+            redirectAttributes.addAttribute("fromDate", fromDate);
+            redirectAttributes.addAttribute("toDate", toDate);
+            return "redirect:/statements/property-owner";
             
         } catch (Exception e) {
             System.err.println("❌ Error generating statement: " + e.getMessage());
@@ -1674,10 +1676,12 @@ public class PropertyOwnerController {
                 return "redirect:/property-owner/statements";
             }
             
-            // For now, redirect to the existing statement controller with proper parameters
+            // Redirect to the main statement controller's POST endpoint for portfolio
             System.out.println("✅ Redirecting to existing portfolio generation with customer: " + customer.getCustomerId());
-            return "redirect:/statements/portfolio?propertyOwnerId=" + customer.getCustomerId() + 
-                   "&fromDate=" + fromDate + "&toDate=" + toDate;
+            redirectAttributes.addAttribute("propertyOwnerId", customer.getCustomerId());
+            redirectAttributes.addAttribute("fromDate", fromDate);
+            redirectAttributes.addAttribute("toDate", toDate);
+            return "redirect:/statements/portfolio";
             
         } catch (Exception e) {
             System.err.println("❌ Error generating portfolio: " + e.getMessage());
