@@ -211,7 +211,7 @@
                                                                     <h6 th:text="${property.propertyName != null ? property.propertyName : property.addressLine1}">Property Name</h6>
                                                                     <small class="text-muted" th:text="${property.addressLine1 + (property.city != null ? ', ' + property.city : '')}">Address</small>
                                                                     <div class="mt-2">
-                                                                        <span class="badge bg-primary" th:text="'£' + ${property.monthlyRent != null ? property.monthlyRent : 0}">£0/month</span>
+                                                                        <span class="badge bg-primary" th:text="'£' + (${property.monthlyPayment} ?: '0')">£0/month</span>
                                                                         <span class="badge bg-info" th:text="${property.propertyType != null ? property.propertyType : 'N/A'}">Type</span>
                                                                     </div>
                                                                 </div>
