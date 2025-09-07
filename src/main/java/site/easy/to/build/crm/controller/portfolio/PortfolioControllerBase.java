@@ -166,7 +166,7 @@ public class PortfolioControllerBase {
                 if (email != null) {
                     Customer customer = customerService.findByEmail(email);
                     if (customer != null) {
-                        return customer.getCustomerId();
+                        return customer.getCustomerId().intValue();
                     }
                 }
             }
