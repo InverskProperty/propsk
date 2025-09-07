@@ -13,8 +13,13 @@ import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.PropertyOwner;
+import site.easy.to.build.crm.entity.Portfolio;
 import site.easy.to.build.crm.entity.Tenant;
 import site.easy.to.build.crm.entity.Ticket;
+
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
@@ -159,6 +164,19 @@ public class PropertyOwnerController {
                         System.out.println("🔍 STEP 6A: PortfolioService is available, loading portfolios...");
                         try {
                             List<Portfolio> userPortfolios = portfolioService.findPortfoliosForPropertyOwner(customer.getCustomerId().intValue());
+                            
+                            // Add property counts to portfolios using junction table method
+                            for (Portfolio portfolio : userPortfolios) {
+                                try {
+                                    List<Property> portfolioProperties = portfolioService.getPropertiesForPortfolio(portfolio.getId());
+                                    portfolio.setPropertyCount(portfolioProperties.size());
+                                    System.out.println("🔍 Portfolio " + portfolio.getId() + " (" + portfolio.getName() + ") has " + portfolioProperties.size() + " properties via junction table");
+                                } catch (Exception e) {
+                                    System.err.println("🚨 Error counting properties for portfolio " + portfolio.getId() + ": " + e.getMessage());
+                                    portfolio.setPropertyCount(0);
+                                }
+                            }
+                            
                             model.addAttribute("portfolios", userPortfolios);
                             System.out.println("🔍 STEP 6A: ✅ Found " + userPortfolios.size() + " portfolios for customer " + customer.getCustomerId());
                         } catch (Exception e) {
@@ -167,9 +185,23 @@ public class PropertyOwnerController {
                             model.addAttribute("portfolios", List.of());
                         }
                         
-                        // Count unassigned properties
+                        // Count properties assigned to portfolios via junction table
+                        Set<Long> assignedPropertyIds = new HashSet<>();
+                        try {
+                            List<Portfolio> portfolios = (List<Portfolio>) model.getAttribute("portfolios");
+                            if (portfolios != null) {
+                                for (Portfolio portfolio : portfolios) {
+                                    List<Property> portfolioProperties = portfolioService.getPropertiesForPortfolio(portfolio.getId());
+                                    assignedPropertyIds.addAll(portfolioProperties.stream().map(Property::getId).collect(Collectors.toSet()));
+                                }
+                            }
+                        } catch (Exception e) {
+                            System.err.println("🚨 Error getting assigned property IDs: " + e.getMessage());
+                        }
+                        
+                        // Count unassigned properties (not in any portfolio via junction table)
                         long unassignedCount = properties.stream()
-                            .filter(property -> property.getPortfolio() == null)
+                            .filter(property -> !assignedPropertyIds.contains(property.getId()))
                             .count();
                         model.addAttribute("unassignedPropertiesCount", unassignedCount);
                         
