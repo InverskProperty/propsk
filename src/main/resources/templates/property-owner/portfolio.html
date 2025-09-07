@@ -106,7 +106,7 @@
                                                         <strong th:text="${property.propertyName ?: property.addressLine1}">Property Name</strong><br>
                                                         <small class="text-muted" th:text="${property.addressLine1 + (property.city != null ? ', ' + property.city : '')}">Address</small>
                                                     </td>
-                                                    <td th:text="${property.location}">Location</td>
+                                                    <td th:text="${property.city != null and property.county != null ? property.city + ', ' + property.county : (property.city ?: property.county ?: 'N/A')}">Location</td>
                                                     <td>
                                                         <span class="badge bg-info">Active</span>
                                                     </td>
