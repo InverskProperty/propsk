@@ -164,14 +164,20 @@ public class PayPropOAuth2Service {
         System.out.println("   Base URL: " + authorizationUrl);
         System.out.println("   Client ID: " + clientId);
         System.out.println("   Redirect URI: " + redirectUri);
-        System.out.println("   Scopes: " + scopes);
+        System.out.println("   Scopes (raw): " + scopes);
         System.out.println("   State: " + state);
+        
+        // CRITICAL FIX: Clean scopes to remove line breaks and normalize spaces
+        String cleanedScopes = scopes != null ? 
+            scopes.replaceAll("[\\r\\n\\t]+", " ").replaceAll("\\s+", " ").trim() : "";
+        
+        System.out.println("   Scopes (cleaned): " + cleanedScopes);
         
         String fullUrl = UriComponentsBuilder.fromHttpUrl(authorizationUrl)
                 .queryParam("response_type", "code")
                 .queryParam("client_id", clientId)
                 .queryParam("redirect_uri", redirectUri)
-                .queryParam("scope", scopes)
+                .queryParam("scope", cleanedScopes)
                 .queryParam("state", state)
                 .build()
                 .toUriString();
