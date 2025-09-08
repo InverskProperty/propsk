@@ -435,6 +435,7 @@ public class GoogleSheetsStatementService {
         BigDecimal finalNetDue = totalNetDue.subtract(totalExpenses);
         values.add(Arrays.asList("Net Due to " + data.getPropertyOwner().getName().split(" ")[0], "", "", formatCurrencyWithCommas(finalNetDue), "", "", "", "", "", "", "", "", ""));
         
+        return values;
     }
     
     // Helper methods for the new statement format
@@ -778,7 +779,6 @@ public class GoogleSheetsStatementService {
         
         public BigDecimal getNetIncome() { return netIncome; }
         public void setNetIncome(BigDecimal netIncome) { this.netIncome = netIncome; }
-    }
     }
 
     private List<List<Object>> buildTenantStatementValues(TenantStatementData data) {

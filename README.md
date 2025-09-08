@@ -188,6 +188,105 @@ mvn spring-boot:run
 
 
 
+# PayProp Integration Data Import Process
+
+## Overview
+The system integrates with PayProp API for comprehensive financial data synchronization.
+
+## Import Architecture
+
+### Core Service: `PayPropFinancialSyncService`
+- **Method**: `performComprehensiveFinancialSync()`
+- **Pattern**: Paginated sync with transaction rollback capability
+- **Dependencies**: PayPropOAuth2Service, PayPropApiClient, multiple repositories
+
+### Data Sync Flow
+1. **Properties** → Commission data mapping
+2. **Beneficiaries** → Owner/contractor identification  
+3. **Payment Categories** → Transaction classification
+4. **Invoice Categories** → Rental income categorization
+5. **Invoice Instructions** → Payment directives
+6. **Financial Transactions** → ICDN actual transactions
+7. **Batch Payments** → Payment batch reconciliation
+8. **Commission Calculations** → Fee computations
+9. **Commission Linking** → Instruction vs completion validation
+
+### API Patterns
+- **Pagination**: `apiClient.fetchAllPages(endpoint, processor)`
+- **Error Handling**: Per-item try/catch with continue-on-error
+- **Rate Limiting**: Built into PayPropApiClient
+- **Chunked Processing**: Date-based chunks for large datasets
+
+## Potential Import Friction Points
+
+### 1. API Rate Limits
+- **Issue**: PayProp API has undocumented rate limits
+- **Mitigation**: Exponential backoff in PayPropApiClient
+- **Risk**: Large property portfolios may hit limits during bulk sync
+
+### 2. Data Consistency 
+- **Issue**: PayProp data can be inconsistent between endpoints
+- **Example**: Property ID in transactions may not match properties endpoint
+- **Mitigation**: ID mapping validation (`validateInstructionCompletionIntegrity()`)
+
+### 3. Transaction Classification
+- **Issue**: PayProp transaction types don't map 1:1 to business categories
+- **Solution**: `mapTransactionType()` method with beneficiary type analysis
+- **Risk**: New PayProp categories may be uncategorized
+
+### 4. Date Range Processing
+- **Issue**: Large date ranges cause memory issues and timeouts
+- **Solution**: Chunked date processing for batch payments
+- **Risk**: Cross-chunk transaction relationships may be missed
+
+### 5. Duplicate Detection
+- **Issue**: API failures can cause duplicate imports
+- **Solution**: PayProp transaction ID uniqueness constraints
+- **Risk**: Partial failures leave inconsistent state
+
+### 6. OAuth Token Management
+- **Issue**: PayProp tokens expire, causing mid-sync failures
+- **Solution**: `PayPropOAuth2Service` handles refresh
+- **Risk**: Refresh failures require manual re-authentication
+
+### 7. Property-Transaction Linking
+- **Issue**: PayProp uses multiple property ID formats
+- **Fields**: `payPropId`, `propertyId`, internal IDs
+- **Risk**: Transactions may not link to correct properties
+
+## Statement Generation Impact
+
+### Required Data Dependencies
+- **Unit Numbers**: Extracted from property names/addresses
+- **Actual Rent Received**: From `invoice` transaction types
+- **Payment Dates**: From `transactionDate` fields
+- **Payment Batches**: From `paymentBatchId` linking
+- **Expenses**: From `payment_to_contractor`, `payment_to_beneficiary` types
+- **Commission Rates**: From property commission percentages
+
+### Data Quality Requirements
+- Property names must contain unit identifiers
+- Transaction dates must be accurate for period filtering  
+- PayProp IDs must be consistent across all endpoints
+- Expense categorization must be complete for accurate statements
+
+## Operational Recommendations
+
+### Monitoring
+- Track sync success rates per endpoint
+- Monitor processing times for performance degradation
+- Alert on data validation failures
+
+### Error Recovery
+- Implement partial sync restart capability
+- Store sync checkpoints for large operations
+- Provide manual reconciliation tools for edge cases
+
+### Performance Optimization
+- Consider caching frequently accessed data
+- Implement incremental sync for daily operations
+- Use database partitioning for large transaction tables
+
 ## Contributing
 
 Contributions to the CRM Web Application are welcome! If you spot any bugs or would like to propose new features, please open an issue or submit a pull request.
