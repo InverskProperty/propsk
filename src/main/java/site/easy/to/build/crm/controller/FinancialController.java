@@ -135,7 +135,7 @@ public class FinancialController {
             Authentication authentication) {
         
         try {
-            // Authorization check with property ownership validation
+            // Authorization check for customer financial data access
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             boolean hasAccess = false;
             
@@ -145,7 +145,8 @@ public class FinancialController {
                 hasAccess = true;
             } else if ((AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") ||
                        AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) && 
-                       property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(Long.valueOf(userId))) {
+                       customerId.equals(userId)) {
+                // Property owners can only see their own financial data
                 hasAccess = true;
             }
             
