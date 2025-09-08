@@ -171,23 +171,32 @@ public class PayPropOAuth2Controller {
 
         try {
             // Get the current user ID using AuthenticationUtils
-            Long userId = 1L; // Default to system user
+            Long userId = null;
             
             if (authentication != null && authentication.isAuthenticated()) {
                 try {
                     int userIdInt = authenticationUtils.getLoggedInUserId(authentication);
-                    logger.info("Got user ID from authentication: {}", userIdInt);
+                    logger.info("🔍 Got user ID from authentication: {}", userIdInt);
                     
                     if (userIdInt > 0) {
                         userId = (long) userIdInt;
+                        logger.info("✅ Using authenticated user ID: {}", userId);
                     } else {
-                        logger.warn("AuthenticationUtils returned invalid user ID: {}, using default", userIdInt);
+                        logger.warn("❌ AuthenticationUtils returned invalid user ID: {}", userIdInt);
                     }
                 } catch (Exception e) {
-                    logger.warn("Could not get user ID from authentication, using default: {}", e.getMessage());
+                    logger.error("❌ Could not get user ID from authentication: {}", e.getMessage());
                 }
             } else {
-                logger.info("No authentication available, using default system user ID");
+                logger.warn("❌ No authentication available in OAuth callback");
+            }
+            
+            // CRITICAL FIX: Ensure we have a valid user ID
+            if (userId == null) {
+                logger.error("❌ CRITICAL: No valid user ID available for token storage");
+                redirectAttributes.addFlashAttribute("error", 
+                    "Authentication error: Could not determine user for token storage. Please login again.");
+                return "redirect:/login";
             }
             
             logger.info("Exchanging PayProp authorization code for user ID: {}", userId);

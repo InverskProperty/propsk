@@ -115,28 +115,45 @@ public class PayPropOAuth2Service {
      * Save tokens to database
      */
     private void saveTokensToDatabase(PayPropTokens tokens, Long userId) {
-        System.out.println("💾 Saving PayProp tokens to database...");
+        System.out.println("💾 Saving PayProp tokens to database for user ID: " + userId);
         
-        // Deactivate any existing tokens
-        tokenRepository.deactivateAllTokens();
-        
-        // Create new token entity
-        PayPropToken tokenEntity = new PayPropToken();
-        tokenEntity.setAccessToken(tokens.getAccessToken());
-        tokenEntity.setRefreshToken(tokens.getRefreshToken());
-        tokenEntity.setTokenType(tokens.getTokenType());
-        tokenEntity.setExpiresAt(tokens.getExpiresAt());
-        tokenEntity.setScopes(tokens.getScopes());
-        tokenEntity.setObtainedAt(tokens.getObtainedAt());
-        tokenEntity.setUserId(userId);
-        tokenEntity.setIsActive(true);
-        
-        if (tokens.getObtainedAt().isBefore(LocalDateTime.now().minusMinutes(1))) {
-            tokenEntity.setLastRefreshedAt(LocalDateTime.now());
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID cannot be null for token storage");
         }
         
-        tokenRepository.save(tokenEntity);
-        System.out.println("✅ PayProp tokens saved to database with ID: " + tokenEntity.getId());
+        try {
+            // Deactivate any existing tokens
+            tokenRepository.deactivateAllTokens();
+            System.out.println("   Deactivated existing tokens");
+            
+            // Create new token entity
+            PayPropToken tokenEntity = new PayPropToken();
+            tokenEntity.setAccessToken(tokens.getAccessToken());
+            tokenEntity.setRefreshToken(tokens.getRefreshToken());
+            tokenEntity.setTokenType(tokens.getTokenType());
+            tokenEntity.setExpiresAt(tokens.getExpiresAt());
+            tokenEntity.setScopes(tokens.getScopes());
+            tokenEntity.setObtainedAt(tokens.getObtainedAt());
+            tokenEntity.setUserId(userId);
+            tokenEntity.setIsActive(true);
+            
+            if (tokens.getObtainedAt().isBefore(LocalDateTime.now().minusMinutes(1))) {
+                tokenEntity.setLastRefreshedAt(LocalDateTime.now());
+            }
+            
+            // Save to database
+            PayPropToken savedToken = tokenRepository.save(tokenEntity);
+            System.out.println("✅ PayProp tokens saved to database successfully!");
+            System.out.println("   Database ID: " + savedToken.getId());
+            System.out.println("   User ID: " + savedToken.getUserId());
+            System.out.println("   Token expires at: " + savedToken.getExpiresAt());
+            System.out.println("   Has refresh token: " + (savedToken.getRefreshToken() != null));
+            
+        } catch (Exception e) {
+            System.err.println("❌ FAILED to save tokens to database: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to save PayProp tokens to database", e);
+        }
     }
 
     /**
