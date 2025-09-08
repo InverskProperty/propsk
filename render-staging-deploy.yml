@@ -1,0 +1,102 @@
+# Render Deployment Configuration for Staging
+# Save this as render.yaml in your project root
+
+services:
+  # Staging Web Service
+  - type: web
+    name: crm-staging
+    env: java
+    plan: starter
+    region: ohio
+    branch: main  # or staging branch
+    
+    # Build Configuration
+    buildCommand: mvn clean package -DskipTests -Pstaging
+    startCommand: java -jar target/*.jar --spring.profiles.active=staging
+    
+    # Health Check
+    healthCheckPath: /admin/staging/health
+    
+    # Environment Variables
+    envVars:
+      # Spring Profile
+      - key: SPRING_PROFILES_ACTIVE
+        value: staging
+        
+      # Database Connection (from Railway)
+      - key: SPRING_DATASOURCE_URL
+        value: jdbc:mysql://containers-us-west-xxx.railway.app:6543/railway?createDatabaseIfNotExist=true&useSSL=true&allowPublicKeyRetrieval=true
+        
+      - key: SPRING_DATASOURCE_USERNAME
+        value: root
+        
+      - key: SPRING_DATASOURCE_PASSWORD
+        value: [YOUR_RAILWAY_PASSWORD]
+        
+      # JPA Configuration for Staging
+      - key: SPRING_JPA_HIBERNATE_DDL_AUTO
+        value: create-drop
+        
+      - key: SPRING_SQL_INIT_MODE
+        value: always
+        
+      - key: SPRING_JPA_SHOW_SQL
+        value: true
+        
+      # Application Configuration
+      - key: CRM_DATA_SOURCE
+        value: PAYPROP_STAGING
+        
+      - key: CRM_DEBUG_MODE
+        value: true
+        
+      - key: CRM_FINANCIAL_SYNC_TEST_MODE
+        value: true
+        
+      # PayProp Configuration (Staging)
+      - key: PAYPROP_OAUTH_CLIENT_ID
+        value: [YOUR_STAGING_PAYPROP_CLIENT_ID]
+        
+      - key: PAYPROP_OAUTH_CLIENT_SECRET
+        value: [YOUR_STAGING_PAYPROP_CLIENT_SECRET]
+        
+      - key: PAYPROP_OAUTH_REDIRECT_URI
+        value: https://crm-staging.onrender.com/payprop/oauth/callback
+        
+      - key: PAYPROP_API_BASE_URL
+        value: https://api.payprop.com
+        
+      # Google OAuth (Staging)
+      - key: SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID
+        value: [YOUR_STAGING_GOOGLE_CLIENT_ID]
+        
+      - key: SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET
+        value: [YOUR_STAGING_GOOGLE_CLIENT_SECRET]
+        
+      - key: SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_REDIRECT_URI
+        value: https://crm-staging.onrender.com/login/oauth2/code/google
+        
+      # Logging
+      - key: LOGGING_LEVEL_SITE_EASY_TO_BUILD_CRM
+        value: DEBUG
+        
+      - key: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY
+        value: DEBUG
+        
+      # Server Configuration
+      - key: SERVER_PORT
+        value: 10000  # Default Render port
+        
+      # Management Endpoints
+      - key: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+        value: health,info,metrics,env
+        
+      - key: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
+        value: always
+        
+      # File Upload Settings
+      - key: SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE
+        value: 50MB
+        
+      - key: SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE
+        value: 50MB

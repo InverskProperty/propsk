@@ -650,9 +650,28 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
             if (existingOAuthUser != null) {
                 System.out.println("♻️ CUSTOMER_OAUTH: Found existing OAuth user, updating tokens...");
                 oAuthUserService.updateOAuthUserTokens(existingOAuthUser, oAuth2AccessToken, oAuth2RefreshToken);
+                
+                // CRITICAL FIX: Check if OAuth user is properly linked to a User record
+                if (existingOAuthUser.getUser() == null) {
+                    System.out.println("🔗 CRITICAL FIX: OAuth user not linked to User record, searching for User by email...");
+                    try {
+                        User matchingUser = userService.findByEmail(email);
+                        if (matchingUser != null) {
+                            System.out.println("✅ Found matching User record: " + matchingUser.getId() + " - " + matchingUser.getEmail());
+                            existingOAuthUser.setUser(matchingUser);
+                            matchingUser.setOauthUser(existingOAuthUser);
+                            System.out.println("🔗 Linked OAuth user to User record");
+                        } else {
+                            System.out.println("⚠️ No matching User record found for email: " + email);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("❌ Error linking OAuth user to User record: " + e.getMessage());
+                    }
+                }
+                
                 oAuthUserService.save(existingOAuthUser);
                 
-                System.out.println("✅ CUSTOMER_OAUTH: Updated existing OAuth user tokens");
+                System.out.println("✅ CUSTOMER_OAUTH: Updated existing OAuth user tokens with proper User linking");
                 return existingOAuthUser;
             }
             

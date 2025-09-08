@@ -129,6 +129,26 @@ public class AuthenticationUtils {
                 System.out.println("✅ Returning linked user ID: " + linkedUserId);
                 return linkedUserId; // Return int directly
             } else {
+                System.out.println("❌ OAuth user has no linked User record, attempting auto-link...");
+                
+                // EMERGENCY FIX: Try to auto-link OAuth user to User record by email
+                try {
+                    String email = ((OAuth2User)authentication.getPrincipal()).getAttribute("email");
+                    User matchingUser = userService.findByEmail(email);
+                    if (matchingUser != null) {
+                        System.out.println("🔗 EMERGENCY: Auto-linking OAuth user to User: " + matchingUser.getId());
+                        oAuthUser.setUser(matchingUser);
+                        matchingUser.setOauthUser(oAuthUser);
+                        oAuthUserService.save(oAuthUser);
+                        System.out.println("✅ EMERGENCY: Auto-link successful, returning: " + matchingUser.getId());
+                        return matchingUser.getId();
+                    } else {
+                        System.out.println("❌ EMERGENCY: No matching User found for auto-link");
+                    }
+                } catch (Exception e) {
+                    System.err.println("❌ EMERGENCY: Auto-link failed: " + e.getMessage());
+                }
+                
                 System.out.println("❌ OAuth user has no linked User record, returning -1");
                 return -1;
             }
