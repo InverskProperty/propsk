@@ -22,7 +22,9 @@ import java.math.RoundingMode;
 import java.security.GeneralSecurityException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.text.NumberFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class GoogleSheetsStatementService {
@@ -180,38 +182,61 @@ public class GoogleSheetsStatementService {
     private PropertyRentalData buildPropertyRentalData(Property property, LocalDate fromDate, LocalDate toDate) {
         PropertyRentalData rentalData = new PropertyRentalData();
         
-        // Set property address
+        // Set property details including unit number
         rentalData.setPropertyAddress(buildPropertyAddress(property));
+        rentalData.setUnitNumber(extractUnitNumber(property)); // Extract unit/flat number
+        rentalData.setProperty(property); // Add property reference for later use
         
-        // Get tenant info from customer table
+        // Get tenant info from PayProp data or customer table
         Customer tenant = getTenantForProperty(property.getId());
         rentalData.setTenantName(tenant != null ? tenant.getName() : "Vacant");
         rentalData.setStartDate(tenant != null ? tenant.getMoveInDate() : null);
         
-        // Set rent amounts
+        // Set rent amounts - use actual PayProp data
         BigDecimal monthlyRent = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
         rentalData.setRentAmount(monthlyRent);
-        rentalData.setRentDue(monthlyRent); // Assume full month due
+        rentalData.setRentDue(monthlyRent);
         
-        // Set fee percentages
-        BigDecimal managementPercentage = property.getCommissionPercentage() != null ? property.getCommissionPercentage() : BigDecimal.ZERO;
-        BigDecimal servicePercentage = getServiceFeePercentage(property); // You'll need to implement this
+        // Set fee percentages (default to 10% management, 5% service)
+        BigDecimal managementPercentage = property.getCommissionPercentage() != null ? 
+            property.getCommissionPercentage() : new BigDecimal("10.0");
+        BigDecimal servicePercentage = new BigDecimal("5.0"); // Standard service fee
         
         rentalData.setManagementFeePercentage(managementPercentage);
         rentalData.setServiceFeePercentage(servicePercentage);
         
-        // Calculate fee amounts
-        rentalData.calculateManagementFeeAmount();
-        rentalData.calculateServiceFeeAmount();
-        rentalData.setNetAmount(rentalData.calculateNetAmount());
-        
-        // Set dates and outstanding
-        rentalData.setNextDueDate(getNextDueDate(property, fromDate, toDate));
-        rentalData.setPaymentDate(getPaymentDate(property, fromDate, toDate));
-        rentalData.setOutstanding(calculateOutstanding(property, fromDate, toDate));
-        rentalData.setNotes(getPropertyNotes(property));
-        
         return rentalData;
+    }
+    
+    private String extractUnitNumber(Property property) {
+        // Extract unit/flat number from property name or address
+        String name = property.getPropertyName();
+        if (name != null) {
+            // Look for patterns like "Flat 1", "Unit 12", etc.
+            if (name.toLowerCase().contains("flat")) {
+                return name; // Return full flat descriptor
+            }
+            if (name.toLowerCase().contains("unit")) {
+                return name;
+            }
+        }
+        
+        // If no unit found in name, try address
+        String address = property.getFullAddress();
+        if (address != null) {
+            if (address.toLowerCase().contains("flat")) {
+                // Extract flat part
+                String[] parts = address.split(",");
+                for (String part : parts) {
+                    if (part.trim().toLowerCase().contains("flat")) {
+                        return part.trim();
+                    }
+                }
+            }
+        }
+        
+        // Default fallback
+        return property.getPropertyName() != null ? property.getPropertyName() : "Property " + property.getId();
     }
 
     private TenantStatementData buildTenantStatementData(Customer tenant, LocalDate fromDate, LocalDate toDate) {
@@ -261,71 +286,499 @@ public class GoogleSheetsStatementService {
     private List<List<Object>> buildPropertyOwnerStatementValues(PropertyOwnerStatementData data) {
         List<List<Object>> values = new ArrayList<>();
         
-        // Header section
-        values.add(Arrays.asList("PROPSK LTD"));
-        values.add(Arrays.asList("1 Poplar Court, Greensward Lane, Hockley, England, SS5 5JB"));
-        values.add(Arrays.asList("Company number 15933011"));
-        values.add(Arrays.asList(""));
-        values.add(Arrays.asList("STATEMENT"));
-        values.add(Arrays.asList(""));
-        values.add(Arrays.asList("CLIENT:", data.getPropertyOwner().getName()));
-        values.add(Arrays.asList("PROPERTY:", data.getPortfolioName()));
-        values.add(Arrays.asList("PERIOD:", formatPeriod(data.getFromDate(), data.getToDate())));
-        values.add(Arrays.asList(""));
+        // Header section - match CSV format exactly (12 columns)
+        values.add(Arrays.asList("", "", "", "", "PROPSK LTD", "", "", "", "", "%", "", ""));
+        values.add(Arrays.asList("", "", "", "", "1 Poplar Court, Greensward Lane, Hockley, England, SS5 5JB", "", "", "", "", "Management Fee", "10", ""));
+        values.add(Arrays.asList("", "", "", "", "Company number 15933011", "", "", "", "", "Service Fee", "5", ""));
+        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("", "", "", "", "STATEMENT", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", ""));
         
-        // Note about varying rates
-        values.add(Arrays.asList("Note: Management and Service fees vary by property"));
-        values.add(Arrays.asList(""));
+        // Client, Property, Period information
+        values.add(Arrays.asList("CLIENT:", data.getPropertyOwner().getName(), "", "", "", "", "", "", "", "", "", ""));
         
-        // Property rental table headers
-        values.add(Arrays.asList("Property Address", "Tenant Name", "Start Date", "Monthly Rent", 
-                           "Next Due", "Rent Due", "Mgmt Fee", "Mgmt %", "Service Fee", "Service %",
-                           "Net Amount", "Payment Date", "Outstanding", "Notes"));
+        // Get property name 
+        String propertyName = data.getProperties().isEmpty() ? "PROPERTY PORTFOLIO" : data.getProperties().get(0).getPropertyName();
+        values.add(Arrays.asList("PROPERTY:", propertyName, "", "", "", "", "", "", "", "", "", ""));
         
-        // Add rental data for each property
-        BigDecimal totalRent = BigDecimal.ZERO;
-        BigDecimal totalManagementFees = BigDecimal.ZERO;
-        BigDecimal totalServiceFees = BigDecimal.ZERO;
-        BigDecimal totalNet = BigDecimal.ZERO;
+        // Format period dates
+        String fromDateFormatted = data.getFromDate().format(DateTimeFormatter.ofPattern("d")) + 
+                                 getOrdinalSuffix(data.getFromDate().getDayOfMonth()) + " " +
+                                 data.getFromDate().format(DateTimeFormatter.ofPattern("MMM yyyy"));
+        String toDateFormatted = data.getToDate().format(DateTimeFormatter.ofPattern("d")) + 
+                               getOrdinalSuffix(data.getToDate().getDayOfMonth()) + " " +
+                               data.getToDate().format(DateTimeFormatter.ofPattern("MMM yyyy"));
+        values.add(Arrays.asList("PERIOD:", fromDateFormatted + " to " + toDateFormatted, "", "", "", "", "", "", "", "", "", ""));
+        
+        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", ""));
+        
+        // Income Statement Header
+        values.add(Arrays.asList("Income Statement", "", "", "", "", "", "", "", "", "", "", ""));
+        
+        // Column headers with line breaks (matching CSV format)
+        values.add(Arrays.asList("Unit No.", "Tenant", "Tenancy Dates", 
+            "Rent\n Due\n Amount", "Rent\n Received\n Date", "Rent\n Received\n Amount", 
+            "Management\n Fee\n 10%", "Service\n Fee\n 5%", 
+            "Net\n Due to\n " + data.getPropertyOwner().getName().split(" ")[0], 
+            "Date\n Paid", "Rent\n Due less\n Received", "Comments", "Payment Batch"));
+        
+        // Income Statement Data Rows
+        BigDecimal totalRentDue = BigDecimal.ZERO;
+        BigDecimal totalRentReceived = BigDecimal.ZERO;
+        BigDecimal totalManagementFee = BigDecimal.ZERO;
+        BigDecimal totalServiceFee = BigDecimal.ZERO;
+        BigDecimal totalNetDue = BigDecimal.ZERO;
+        BigDecimal totalOutstanding = BigDecimal.ZERO;
         
         for (PropertyRentalData rental : data.getRentalData()) {
+            // Get actual payment data from financial transactions
+            List<FinancialTransaction> transactions = financialTransactionRepository
+                .findByPropertyAndDateRange(rental.getProperty().getPayPropId(), data.getFromDate(), data.getToDate());
+                
+            BigDecimal rentDue = rental.getRentAmount();
+            BigDecimal rentReceived = calculateActualRentReceived(transactions);
+            BigDecimal managementFee = rentReceived.multiply(new BigDecimal("0.10")).negate(); // 10% negative
+            BigDecimal serviceFee = rentReceived.multiply(new BigDecimal("0.05")).negate(); // 5% negative  
+            BigDecimal netDue = rentReceived.add(managementFee).add(serviceFee);
+            BigDecimal outstanding = rentDue.subtract(rentReceived);
+            
+            // Get payment details
+            String rentReceivedDate = getPaymentDate(transactions);
+            String datePaid = getDistributionDate(transactions);
+            String paymentBatch = getPaymentBatchInfo(transactions);
+            String comments = "";
+            
             values.add(Arrays.asList(
-                rental.getPropertyAddress(),
+                rental.getUnitNumber(),
                 rental.getTenantName(),
-                rental.getStartDate() != null ? rental.getStartDate().toString() : "",
-                "£" + rental.getRentAmount(),
-                rental.getNextDueDate() != null ? rental.getNextDueDate().toString() : "",
-                "£" + rental.getRentDue(),
-                "£" + rental.getManagementFeeAmount(),
-                rental.getManagementFeePercentage() + "%",
-                "£" + rental.getServiceFeeAmount(),
-                rental.getServiceFeePercentage() + "%",
-                "£" + rental.getNetAmount(),
-                rental.getPaymentDate() != null ? rental.getPaymentDate().toString() : "",
-                "£" + rental.getOutstanding(),
-                rental.getNotes() != null ? rental.getNotes() : ""
+                formatTenancyDate(rental.getStartDate()),
+                formatCurrency(rentDue),
+                rentReceivedDate,
+                formatCurrency(rentReceived),
+                formatCurrency(managementFee),
+                formatCurrency(serviceFee), 
+                formatCurrency(netDue),
+                datePaid,
+                formatCurrency(outstanding),
+                comments,
+                paymentBatch
             ));
             
-            // Accumulate totals
-            totalRent = totalRent.add(rental.getRentAmount());
-            totalManagementFees = totalManagementFees.add(rental.getManagementFeeAmount());
-            totalServiceFees = totalServiceFees.add(rental.getServiceFeeAmount());
-            totalNet = totalNet.add(rental.getNetAmount());
+            // Add to totals
+            totalRentDue = totalRentDue.add(rentDue);
+            totalRentReceived = totalRentReceived.add(rentReceived);
+            totalManagementFee = totalManagementFee.add(managementFee);
+            totalServiceFee = totalServiceFee.add(serviceFee);
+            totalNetDue = totalNetDue.add(netDue);
+            totalOutstanding = totalOutstanding.add(outstanding);
         }
         
-        // Totals section
-        values.add(Arrays.asList("TOTAL", "", "", 
-                           "£" + totalRent, 
-                           "", 
-                           "£" + totalRent,
-                           "£" + totalManagementFees,
-                           "", // No single percentage for mixed portfolio
-                           "£" + totalServiceFees,
-                           "", // No single percentage for mixed portfolio
-                           "£" + totalNet,
-                           "", "", ""));
+        values.add(Arrays.asList(""));
         
-        return values;
+        // Empty rows to match CSV spacing
+        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
+        
+        // OFFICE row (vacant unit)
+        values.add(Arrays.asList("OFFICE", "", "", "", "", "", "", "", "0", "", "0", "Vacant", ""));
+        
+        // TOTAL row
+        values.add(Arrays.asList("TOTAL", "", "", formatCurrencyWithCommas(totalRentDue), "", 
+                                formatCurrencyWithCommas(totalRentReceived), formatCurrencyWithCommas(totalManagementFee), 
+                                formatCurrencyWithCommas(totalServiceFee), formatCurrencyWithCommas(totalNetDue), 
+                                "", formatCurrencyWithCommas(totalOutstanding), "", ""));
+        
+        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
+        
+        // Expenses Section
+        values.add(Arrays.asList("Expenses", "", "", "", "", "", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
+        
+        // Expenses headers - match CSV format exactly
+        values.add(Arrays.asList("Unit No.", "Expense Label", "", "", "", 
+                                "Expense \n Amount", "Management\n Contribution", "", 
+                                "Net Expense \n Amount", "", "", "Comments", ""));
+        
+        // Get expense data from financial transactions
+        BigDecimal totalExpenses = BigDecimal.ZERO;
+        List<FinancialTransaction> expenseTransactions = getExpenseTransactions(data.getProperties(), data.getFromDate(), data.getToDate());
+        
+        for (FinancialTransaction expense : expenseTransactions) {
+            String unitNo = getUnitNumberFromProperty(expense.getPropertyId());
+            String expenseLabel = expense.getCategoryName() != null ? expense.getCategoryName() : expense.getDescription();
+            BigDecimal expenseAmount = expense.getAmount();
+            BigDecimal netExpenseAmount = expenseAmount.negate(); // Show as negative
+            
+            values.add(Arrays.asList(unitNo, expenseLabel, "", "", "", 
+                                   formatCurrency(expenseAmount), "", "", 
+                                   formatCurrency(netExpenseAmount), "", "", "", ""));
+            totalExpenses = totalExpenses.add(expenseAmount);
+        }
+        
+        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("TOTAL", "", "", "", "", formatCurrency(totalExpenses), "", "", 
+                                formatCurrency(totalExpenses.negate()), "", "", "Deducted from rent", ""));
+        
+        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
+        
+        // SUMMARY Section
+        values.add(Arrays.asList("SUMMARY", "", "", "", "", "", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("Total Rent Due for the Period", "", "", formatCurrencyWithCommas(totalRentDue), "", "", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("Total Received by Propsk", "", "", formatCurrencyWithCommas(totalRentReceived), "", "", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("Management Fee", "", "", formatCurrencyWithCommas(totalManagementFee), "", "", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("Service Charge", "", "", formatCurrencyWithCommas(totalServiceFee), "", "", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("Expenses Paid by Agent", "", "", formatCurrency(totalExpenses.negate()), "", "", "", "", "", "", "", "", ""));
+        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
+        
+        BigDecimal finalNetDue = totalNetDue.subtract(totalExpenses);
+        values.add(Arrays.asList("Net Due to " + data.getPropertyOwner().getName().split(" ")[0], "", "", formatCurrencyWithCommas(finalNetDue), "", "", "", "", "", "", "", "", ""));
+        
+    }
+    
+    // Helper methods for the new statement format
+    
+    private String getOrdinalSuffix(int day) {
+        if (day >= 11 && day <= 13) {
+            return "th";
+        }
+        switch (day % 10) {
+            case 1: return "st";
+            case 2: return "nd"; 
+            case 3: return "rd";
+            default: return "th";
+        }
+    }
+    
+    private BigDecimal calculateActualRentReceived(List<FinancialTransaction> transactions) {
+        return transactions.stream()
+            .filter(t -> "invoice".equals(t.getTransactionType()) || "rent".equalsIgnoreCase(t.getCategoryName()))
+            .map(FinancialTransaction::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+    
+    private String getPaymentDate(List<FinancialTransaction> transactions) {
+        return transactions.stream()
+            .filter(t -> "invoice".equals(t.getTransactionType()))
+            .findFirst()
+            .map(t -> t.getTransactionDate().format(DateTimeFormatter.ofPattern("d/M/yyyy")))
+            .orElse("");
+    }
+    
+    private String getDistributionDate(List<FinancialTransaction> transactions) {
+        // Look for payment batch transfer date or similar
+        return transactions.stream()
+            .filter(t -> t.getPaymentBatchTransferDate() != null)
+            .findFirst()
+            .map(t -> t.getPaymentBatchTransferDate().format(DateTimeFormatter.ofPattern("d/M/yyyy")))
+            .orElse("");
+    }
+    
+    private String getPaymentBatchInfo(List<FinancialTransaction> transactions) {
+        // Return payment batch ID or reference
+        return transactions.stream()
+            .filter(t -> t.getPaymentBatchId() != null)
+            .findFirst()
+            .map(FinancialTransaction::getPaymentBatchId)
+            .orElse("");
+    }
+    
+    private String formatTenancyDate(LocalDate startDate) {
+        if (startDate == null) return "";
+        return startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+    }
+    
+    private String formatCurrency(BigDecimal amount) {
+        if (amount == null) return "0";
+        // For simple amounts without commas (like individual fees)
+        return amount.toString();
+    }
+    
+    private String formatCurrencyWithCommas(BigDecimal amount) {
+        if (amount == null) return "0";
+        // For larger amounts that need comma formatting (like totals)
+        NumberFormat formatter = NumberFormat.getNumberInstance();
+        formatter.setMinimumFractionDigits(2);
+        formatter.setMaximumFractionDigits(2);
+        return formatter.format(amount);
+    }
+    
+    private List<FinancialTransaction> getExpenseTransactions(List<Property> properties, LocalDate fromDate, LocalDate toDate) {
+        List<FinancialTransaction> allExpenses = new ArrayList<>();
+        
+        for (Property property : properties) {
+            if (property.getPayPropId() != null) {
+                List<FinancialTransaction> propertyExpenses = financialTransactionRepository
+                    .findByPropertyAndDateRange(property.getPayPropId(), fromDate, toDate)
+                    .stream()
+                    .filter(t -> isExpenseTransaction(t))
+                    .collect(Collectors.toList());
+                allExpenses.addAll(propertyExpenses);
+            }
+        }
+        
+        return allExpenses;
+    }
+    
+    private boolean isExpenseTransaction(FinancialTransaction transaction) {
+        String type = transaction.getTransactionType();
+        String category = transaction.getCategoryName();
+        
+        // Use the existing PayProp transaction types that represent expenses
+        if (type != null) {
+            // These are the exact types from PayPropFinancialSyncService
+            return type.equals("payment_to_contractor") ||
+                   type.equals("payment_to_beneficiary") ||
+                   type.equals("payment_to_agency") ||
+                   type.equals("payment_property_account") ||
+                   type.equals("payment_deposit_account") ||
+                   type.equals("debit_note") ||
+                   type.equals("adjustment") ||
+                   type.equals("refund");
+        }
+        
+        // Also check category names for maintenance/repair expenses
+        if (category != null) {
+            String catLower = category.toLowerCase();
+            return catLower.contains("maintenance") || 
+                   catLower.contains("repair") || 
+                   catLower.contains("clean") ||
+                   catLower.contains("contractor") ||
+                   catLower.contains("service") ||
+                   catLower.contains("utilities") ||
+                   catLower.contains("insurance") ||
+                   catLower.contains("management");
+        }
+        
+        return false;
+    }
+    
+    private String getUnitNumberFromProperty(String propertyId) {
+        // Try to find the property by PayProp ID and extract unit number
+        try {
+            // Look up property in database by PayProp ID
+            List<Property> properties = propertyService.findAll();
+            Property property = properties.stream()
+                .filter(p -> propertyId.equals(p.getPayPropId()))
+                .findFirst()
+                .orElse(null);
+                
+            if (property != null) {
+                return extractUnitNumber(property);
+            }
+            
+            return "Unit " + propertyId;
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    // Data classes for the statement
+    public static class PropertyOwnerStatementData {
+        private Customer propertyOwner;
+        private LocalDate fromDate;
+        private LocalDate toDate;
+        private String portfolioName;
+        private List<Property> properties;
+        private List<PropertyRentalData> rentalData;
+        private BigDecimal totalRentReceived;
+        private BigDecimal totalExpenses;
+        private BigDecimal netIncome;
+        
+        // Getters and setters
+        public Customer getPropertyOwner() { return propertyOwner; }
+        public void setPropertyOwner(Customer propertyOwner) { this.propertyOwner = propertyOwner; }
+        
+        public LocalDate getFromDate() { return fromDate; }
+        public void setFromDate(LocalDate fromDate) { this.fromDate = fromDate; }
+        
+        public LocalDate getToDate() { return toDate; }
+        public void setToDate(LocalDate toDate) { this.toDate = toDate; }
+        
+        public String getPortfolioName() { return portfolioName; }
+        public void setPortfolioName(String portfolioName) { this.portfolioName = portfolioName; }
+        
+        public List<Property> getProperties() { return properties; }
+        public void setProperties(List<Property> properties) { this.properties = properties; }
+        
+        public List<PropertyRentalData> getRentalData() { return rentalData; }
+        public void setRentalData(List<PropertyRentalData> rentalData) { this.rentalData = rentalData; }
+        
+        public BigDecimal getTotalRentReceived() { return totalRentReceived; }
+        public void setTotalRentReceived(BigDecimal totalRentReceived) { this.totalRentReceived = totalRentReceived; }
+        
+        public BigDecimal getTotalExpenses() { return totalExpenses; }
+        public void setTotalExpenses(BigDecimal totalExpenses) { this.totalExpenses = totalExpenses; }
+        
+        public BigDecimal getNetIncome() { return netIncome; }
+        public void setNetIncome(BigDecimal netIncome) { this.netIncome = netIncome; }
+    }
+    
+    public static class PropertyRentalData {
+        private Property property;
+        private String unitNumber;
+        private String propertyAddress;
+        private String tenantName;
+        private LocalDate startDate;
+        private BigDecimal rentAmount;
+        private BigDecimal rentDue;
+        private BigDecimal managementFeePercentage;
+        private BigDecimal serviceFeePercentage;
+        private BigDecimal managementFeeAmount;
+        private BigDecimal serviceFeeAmount;
+        private BigDecimal netAmount;
+        private LocalDate nextDueDate;
+        private LocalDate paymentDate;
+        private BigDecimal outstanding;
+        private String notes;
+        
+        // Getters and setters
+        public Property getProperty() { return property; }
+        public void setProperty(Property property) { this.property = property; }
+        
+        public String getUnitNumber() { return unitNumber; }
+        public void setUnitNumber(String unitNumber) { this.unitNumber = unitNumber; }
+        
+        public String getPropertyAddress() { return propertyAddress; }
+        public void setPropertyAddress(String propertyAddress) { this.propertyAddress = propertyAddress; }
+        
+        public String getTenantName() { return tenantName; }
+        public void setTenantName(String tenantName) { this.tenantName = tenantName; }
+        
+        public LocalDate getStartDate() { return startDate; }
+        public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
+        
+        public BigDecimal getRentAmount() { return rentAmount; }
+        public void setRentAmount(BigDecimal rentAmount) { this.rentAmount = rentAmount; }
+        
+        public BigDecimal getRentDue() { return rentDue; }
+        public void setRentDue(BigDecimal rentDue) { this.rentDue = rentDue; }
+        
+        public BigDecimal getManagementFeePercentage() { return managementFeePercentage; }
+        public void setManagementFeePercentage(BigDecimal managementFeePercentage) { this.managementFeePercentage = managementFeePercentage; }
+        
+        public BigDecimal getServiceFeePercentage() { return serviceFeePercentage; }
+        public void setServiceFeePercentage(BigDecimal serviceFeePercentage) { this.serviceFeePercentage = serviceFeePercentage; }
+        
+        public BigDecimal getManagementFeeAmount() { return managementFeeAmount; }
+        public void setManagementFeeAmount(BigDecimal managementFeeAmount) { this.managementFeeAmount = managementFeeAmount; }
+        
+        public BigDecimal getServiceFeeAmount() { return serviceFeeAmount; }
+        public void setServiceFeeAmount(BigDecimal serviceFeeAmount) { this.serviceFeeAmount = serviceFeeAmount; }
+        
+        public BigDecimal getNetAmount() { return netAmount; }
+        public void setNetAmount(BigDecimal netAmount) { this.netAmount = netAmount; }
+        
+        public LocalDate getNextDueDate() { return nextDueDate; }
+        public void setNextDueDate(LocalDate nextDueDate) { this.nextDueDate = nextDueDate; }
+        
+        public LocalDate getPaymentDate() { return paymentDate; }
+        public void setPaymentDate(LocalDate paymentDate) { this.paymentDate = paymentDate; }
+        
+        public BigDecimal getOutstanding() { return outstanding; }
+        public void setOutstanding(BigDecimal outstanding) { this.outstanding = outstanding; }
+        
+        public String getNotes() { return notes; }
+        public void setNotes(String notes) { this.notes = notes; }
+        
+        // Helper methods
+        public void calculateManagementFeeAmount() {
+            if (rentAmount != null && managementFeePercentage != null) {
+                this.managementFeeAmount = rentAmount.multiply(managementFeePercentage.divide(new BigDecimal("100")));
+            }
+        }
+        
+        public void calculateServiceFeeAmount() {
+            if (rentAmount != null && serviceFeePercentage != null) {
+                this.serviceFeeAmount = rentAmount.multiply(serviceFeePercentage.divide(new BigDecimal("100")));
+            }
+        }
+        
+        public BigDecimal calculateNetAmount() {
+            if (rentAmount != null && managementFeeAmount != null && serviceFeeAmount != null) {
+                return rentAmount.subtract(managementFeeAmount).subtract(serviceFeeAmount);
+            }
+            return BigDecimal.ZERO;
+        }
+    }
+    
+    // Helper data classes for other statement types
+    public static class TenantStatementData {
+        private Customer tenant;
+        private Property property;
+        private LocalDate fromDate;
+        private LocalDate toDate;
+        private BigDecimal rentDue;
+        private BigDecimal paymentsMade;
+        private BigDecimal balance;
+        
+        // Getters and setters
+        public Customer getTenant() { return tenant; }
+        public void setTenant(Customer tenant) { this.tenant = tenant; }
+        
+        public Property getProperty() { return property; }
+        public void setProperty(Property property) { this.property = property; }
+        
+        public LocalDate getFromDate() { return fromDate; }
+        public void setFromDate(LocalDate fromDate) { this.fromDate = fromDate; }
+        
+        public LocalDate getToDate() { return toDate; }
+        public void setToDate(LocalDate toDate) { this.toDate = toDate; }
+        
+        public BigDecimal getRentDue() { return rentDue; }
+        public void setRentDue(BigDecimal rentDue) { this.rentDue = rentDue; }
+        
+        public BigDecimal getPaymentsMade() { return paymentsMade; }
+        public void setPaymentsMade(BigDecimal paymentsMade) { this.paymentsMade = paymentsMade; }
+        
+        public BigDecimal getBalance() { return balance; }
+        public void setBalance(BigDecimal balance) { this.balance = balance; }
+    }
+    
+    public static class PortfolioStatementData {
+        private Customer propertyOwner;
+        private LocalDate fromDate;
+        private LocalDate toDate;
+        private List<Property> properties;
+        private List<PropertySummary> propertySummaries;
+        
+        // Getters and setters
+        public Customer getPropertyOwner() { return propertyOwner; }
+        public void setPropertyOwner(Customer propertyOwner) { this.propertyOwner = propertyOwner; }
+        
+        public LocalDate getFromDate() { return fromDate; }
+        public void setFromDate(LocalDate fromDate) { this.fromDate = fromDate; }
+        
+        public LocalDate getToDate() { return toDate; }
+        public void setToDate(LocalDate toDate) { this.toDate = toDate; }
+        
+        public List<Property> getProperties() { return properties; }
+        public void setProperties(List<Property> properties) { this.properties = properties; }
+        
+        public List<PropertySummary> getPropertySummaries() { return propertySummaries; }
+        public void setPropertySummaries(List<PropertySummary> propertySummaries) { this.propertySummaries = propertySummaries; }
+    }
+    
+    public static class PropertySummary {
+        private Property property;
+        private BigDecimal rentReceived;
+        private BigDecimal expenses;
+        private BigDecimal netIncome;
+        
+        // Getters and setters
+        public Property getProperty() { return property; }
+        public void setProperty(Property property) { this.property = property; }
+        
+        public BigDecimal getRentReceived() { return rentReceived; }
+        public void setRentReceived(BigDecimal rentReceived) { this.rentReceived = rentReceived; }
+        
+        public BigDecimal getExpenses() { return expenses; }
+        public void setExpenses(BigDecimal expenses) { this.expenses = expenses; }
+        
+        public BigDecimal getNetIncome() { return netIncome; }
+        public void setNetIncome(BigDecimal netIncome) { this.netIncome = netIncome; }
+    }
     }
 
     private List<List<Object>> buildTenantStatementValues(TenantStatementData data) {

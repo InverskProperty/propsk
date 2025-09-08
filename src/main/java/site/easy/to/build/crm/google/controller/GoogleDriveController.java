@@ -66,7 +66,7 @@ public class GoogleDriveController {
                                     @RequestParam(value = "propertyId", required = false) Long propertyId,
                                     @RequestParam(value = "customerId", required = false) Long customerId,
                                     Model model, Authentication authentication) {
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
+        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
             return "/google-error";
         }
         
@@ -232,7 +232,7 @@ public class GoogleDriveController {
                                                                   Authentication authentication) {
         Map<String, Object> response = new HashMap<>();
         
-        if (authentication instanceof UsernamePasswordAuthenticationToken) {
+        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
             response.put("success", false);
             response.put("message", "OAuth authentication required");
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
@@ -278,7 +278,7 @@ public class GoogleDriveController {
                                                                   Authentication authentication) {
         Map<String, Object> response = new HashMap<>();
         
-        if (authentication instanceof UsernamePasswordAuthenticationToken) {
+        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
             response.put("success", false);
             response.put("message", "OAuth authentication required");
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
@@ -320,7 +320,7 @@ public class GoogleDriveController {
                                                                Authentication authentication) {
         Map<String, Object> response = new HashMap<>();
         
-        if (authentication instanceof UsernamePasswordAuthenticationToken) {
+        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
             response.put("success", false);
             response.put("message", "OAuth authentication required");
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
@@ -397,7 +397,7 @@ public class GoogleDriveController {
     @GetMapping("/folder/{id}")
     public String listFilesInFolder(Model model, @ModelAttribute("file") GoogleDriveFile file, BindingResult bindingResult, Authentication authentication, @PathVariable("id") String id,
                                      RedirectAttributes redirectAttributes){
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
+        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
             return "/google-error";
         }
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
@@ -416,7 +416,7 @@ public class GoogleDriveController {
 
     @GetMapping("/create-folder")
     public String showFolderCreationForm(Model model, Authentication authentication){
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
+        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
             return "/google-error";
         }
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
@@ -437,8 +437,12 @@ public class GoogleDriveController {
 
     @GetMapping("/property-files/{propertyId}")
     public String showPropertyFiles(@PathVariable Long propertyId, Model model, Authentication authentication) {
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "/google-error";
+        // Check if user is authenticated via OAuth2 (required for Google Drive access)
+        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
+            // For non-OAuth users, provide a simple file listing or redirect to property view
+            model.addAttribute("message", "Google Drive integration requires OAuth authentication");
+            model.addAttribute("propertyId", propertyId);
+            return "redirect:/employee/property/" + propertyId + "?message=drive_oauth_required";
         }
         
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
@@ -461,7 +465,7 @@ public class GoogleDriveController {
     @PostMapping("/create-folder")
     public String createFolder(Authentication authentication, @ModelAttribute("folder") @Valid GoogleDriveFolder folder,
                                BindingResult bindingResult, Model model) {
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
+        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
             return "/google-error";
         }
         if (bindingResult.hasErrors()) {
@@ -478,7 +482,7 @@ public class GoogleDriveController {
 
     @GetMapping("/create-file")
     public String showFileCreationForm(Model model, Authentication authentication){
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
+        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
             return "/google-error";
         }
 
@@ -497,7 +501,7 @@ public class GoogleDriveController {
     @PostMapping("/create-file")
     public String createFileInFolder(Authentication authentication, @ModelAttribute("file") @Valid GoogleDriveFile file,
                                      BindingResult bindingResult, Model model) {
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
+        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
             return "/google-error";
         }
         List<GoogleDriveFolder> folders;
@@ -524,7 +528,7 @@ public class GoogleDriveController {
     @ResponseBody
     public ResponseEntity<String> shareFileWithUsers(Authentication authentication, @RequestParam("id") String id,
                                                      @RequestParam("emails") String emails, @RequestParam("role") String role) {
-        if (authentication instanceof UsernamePasswordAuthenticationToken) {
+        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
             HttpHeaders headers = new HttpHeaders();
             headers.add("Location", "/google-error");
             return ResponseEntity.status(HttpStatus.FOUND).headers(headers).build();
@@ -547,7 +551,7 @@ public class GoogleDriveController {
     @PostMapping("/ajax-delete")
     @ResponseBody
     public ResponseEntity<String> deleteFile(Authentication authentication, @RequestParam("id") String id) {
-        if (authentication instanceof UsernamePasswordAuthenticationToken) {
+        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
             HttpHeaders headers = new HttpHeaders();
             headers.add("Location", "/google-error");
             return ResponseEntity.status(HttpStatus.FOUND).headers(headers).build();

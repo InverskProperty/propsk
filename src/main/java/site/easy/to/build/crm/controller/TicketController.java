@@ -173,8 +173,10 @@ public class TicketController {
         // For now, we'll show tickets that need contractor assignment
         List<Ticket> ticketsNeedingBids;
         
-        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            // Managers see all tickets
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") || 
+            AuthorizationUtil.hasRole(authentication, "ROLE_OIDC_USER") ||
+            AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER")) {
+            // Managers, OAuth users, and customers see all tickets
             ticketsNeedingBids = ticketService.findAll();
         } else {
             // Employees see only their tickets

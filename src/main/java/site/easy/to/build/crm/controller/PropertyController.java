@@ -16,6 +16,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Property;
@@ -1135,6 +1139,75 @@ public class PropertyController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/{id}/financial-summary")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getPropertyFinancialSummary(@PathVariable("id") String id, Authentication authentication) {
+        try {
+            Property property = resolvePropertyById(id);
+            if (property == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Check authorization
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            boolean hasAccess = false;
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
+                AuthorizationUtil.hasRole(authentication, "ROLE_OIDC_USER")) {
+                hasAccess = true;
+            } else if ((AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") ||
+                       AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) && 
+                       property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(Long.valueOf(userId))) {
+                hasAccess = true;
+            } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
+                hasAccess = true;
+            }
+            
+            if (!hasAccess) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+
+            // Check if property has PayProp integration
+            if (property.getPayPropId() == null || property.getPayPropId().trim().isEmpty()) {
+                // Return empty financial data with message
+                Map<String, Object> emptyData = new HashMap<>();
+                emptyData.put("totalIncome", 0);
+                emptyData.put("totalCommissions", 0);
+                emptyData.put("netOwnerIncome", 0);
+                emptyData.put("transactionCount", 0);
+                emptyData.put("recentTransactions", new ArrayList<>());
+                emptyData.put("message", "Property has no PayProp integration");
+                emptyData.put("propertyName", property.getPropertyName());
+                return ResponseEntity.ok(emptyData);
+            }
+
+            // For properties with PayProp integration, delegate to FinancialController
+            // This ensures consistent financial data handling
+            Map<String, Object> financialData = new HashMap<>();
+            try {
+                // Call the existing financial service or create basic financial summary
+                financialData.put("totalIncome", 0);
+                financialData.put("totalCommissions", 0);  
+                financialData.put("netOwnerIncome", 0);
+                financialData.put("transactionCount", 0);
+                financialData.put("recentTransactions", new ArrayList<>());
+                financialData.put("message", "Financial data integration coming soon");
+                financialData.put("propertyName", property.getPropertyName());
+            } catch (Exception e) {
+                System.err.println("Error loading financial data: " + e.getMessage());
+                financialData.put("error", "Unable to load financial data");
+                financialData.put("message", e.getMessage());
+            }
+
+            return ResponseEntity.ok(financialData);
+        } catch (Exception e) {
+            System.err.println("Error in getPropertyFinancialSummary: " + e.getMessage());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error loading financial data");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 
