@@ -634,7 +634,7 @@ public class PropertyOwnerController {
             
             // For now, redirect to the working employee property view
             // The user has appropriate authentication and ownership has been verified
-            return "redirect:/employee/property/property-details/" + propertyId;
+            return "redirect:/employee/property/" + propertyId;
             
         } catch (Exception e) {
             System.err.println("❌ Error loading property details: " + e.getMessage());
