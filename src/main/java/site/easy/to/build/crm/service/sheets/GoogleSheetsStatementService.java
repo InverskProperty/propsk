@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerType;
+import site.easy.to.build.crm.entity.FinancialTransaction;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.service.customer.CustomerService;
@@ -468,20 +469,20 @@ public class GoogleSheetsStatementService {
     }
     
     private String getDistributionDate(List<FinancialTransaction> transactions) {
-        // Look for payment batch transfer date or similar
+        // Look for reconciliation date or batch payment date
         return transactions.stream()
-            .filter(t -> t.getPaymentBatchTransferDate() != null)
+            .filter(t -> t.getReconciliationDate() != null)
             .findFirst()
-            .map(t -> t.getPaymentBatchTransferDate().format(DateTimeFormatter.ofPattern("d/M/yyyy")))
+            .map(t -> t.getReconciliationDate().format(DateTimeFormatter.ofPattern("d/M/yyyy")))
             .orElse("");
     }
     
     private String getPaymentBatchInfo(List<FinancialTransaction> transactions) {
         // Return payment batch ID or reference
         return transactions.stream()
-            .filter(t -> t.getPaymentBatchId() != null)
+            .filter(t -> t.getPayPropBatchId() != null)
             .findFirst()
-            .map(FinancialTransaction::getPaymentBatchId)
+            .map(FinancialTransaction::getPayPropBatchId)
             .orElse("");
     }
     
@@ -1110,204 +1111,4 @@ public class GoogleSheetsStatementService {
                            fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM")));
     }
 
-    // Data classes with all necessary fields and methods
-    private static class PropertyOwnerStatementData {
-        private Customer propertyOwner;
-        private LocalDate fromDate;
-        private LocalDate toDate;
-        private String portfolioName;
-        private List<Property> properties;
-        private List<PropertyRentalData> rentalData;
-        private BigDecimal totalRentReceived;
-        private BigDecimal totalExpenses;
-        private BigDecimal netIncome;
-
-        // Getters and setters
-        public Customer getPropertyOwner() { return propertyOwner; }
-        public void setPropertyOwner(Customer propertyOwner) { this.propertyOwner = propertyOwner; }
-        
-        public LocalDate getFromDate() { return fromDate; }
-        public void setFromDate(LocalDate fromDate) { this.fromDate = fromDate; }
-        
-        public LocalDate getToDate() { return toDate; }
-        public void setToDate(LocalDate toDate) { this.toDate = toDate; }
-        
-        public String getPortfolioName() { return portfolioName; }
-        public void setPortfolioName(String portfolioName) { this.portfolioName = portfolioName; }
-        
-        public List<Property> getProperties() { return properties; }
-        public void setProperties(List<Property> properties) { this.properties = properties; }
-        
-        public List<PropertyRentalData> getRentalData() { return rentalData; }
-        public void setRentalData(List<PropertyRentalData> rentalData) { this.rentalData = rentalData; }
-        
-        public BigDecimal getTotalRentReceived() { return totalRentReceived; }
-        public void setTotalRentReceived(BigDecimal totalRentReceived) { this.totalRentReceived = totalRentReceived; }
-        
-        public BigDecimal getTotalExpenses() { return totalExpenses; }
-        public void setTotalExpenses(BigDecimal totalExpenses) { this.totalExpenses = totalExpenses; }
-        
-        public BigDecimal getNetIncome() { return netIncome; }
-        public void setNetIncome(BigDecimal netIncome) { this.netIncome = netIncome; }
-    }
-
-    private static class PropertyRentalData {
-        private String propertyAddress;
-        private String tenantName;
-        private LocalDate startDate;
-        private BigDecimal rentAmount;
-        private LocalDate nextDueDate;
-        private BigDecimal rentDue;
-        private BigDecimal managementFeePercentage;
-        private BigDecimal managementFeeAmount;
-        private BigDecimal serviceFeePercentage;
-        private BigDecimal serviceFeeAmount;
-        private BigDecimal netAmount;
-        private LocalDate paymentDate;
-        private BigDecimal outstanding;
-        private String notes;
-
-        // Calculate net amount
-        public BigDecimal calculateNetAmount() {
-            BigDecimal mgmtFee = managementFeeAmount != null ? managementFeeAmount : BigDecimal.ZERO;
-            BigDecimal serviceFee = serviceFeeAmount != null ? serviceFeeAmount : BigDecimal.ZERO;
-            BigDecimal rent = rentAmount != null ? rentAmount : BigDecimal.ZERO;
-            return rent.subtract(mgmtFee).subtract(serviceFee);
-        }
-
-        // Calculate management fee amount from percentage
-        public void calculateManagementFeeAmount() {
-            if (managementFeePercentage != null && rentAmount != null) {
-                this.managementFeeAmount = rentAmount.multiply(managementFeePercentage)
-                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-            } else {
-                this.managementFeeAmount = BigDecimal.ZERO;
-            }
-        }
-
-        // Calculate service fee amount from percentage
-        public void calculateServiceFeeAmount() {
-            if (serviceFeePercentage != null && rentAmount != null) {
-                this.serviceFeeAmount = rentAmount.multiply(serviceFeePercentage)
-                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-            } else {
-                this.serviceFeeAmount = BigDecimal.ZERO;
-            }
-        }
-
-        // Getters and setters
-        public String getPropertyAddress() { return propertyAddress; }
-        public void setPropertyAddress(String propertyAddress) { this.propertyAddress = propertyAddress; }
-
-        public String getTenantName() { return tenantName; }
-        public void setTenantName(String tenantName) { this.tenantName = tenantName; }
-
-        public LocalDate getStartDate() { return startDate; }
-        public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
-
-        public BigDecimal getRentAmount() { return rentAmount; }
-        public void setRentAmount(BigDecimal rentAmount) { this.rentAmount = rentAmount; }
-
-        public LocalDate getNextDueDate() { return nextDueDate; }
-        public void setNextDueDate(LocalDate nextDueDate) { this.nextDueDate = nextDueDate; }
-
-        public BigDecimal getRentDue() { return rentDue; }
-        public void setRentDue(BigDecimal rentDue) { this.rentDue = rentDue; }
-
-        public BigDecimal getManagementFeePercentage() { return managementFeePercentage; }
-        public void setManagementFeePercentage(BigDecimal managementFeePercentage) { this.managementFeePercentage = managementFeePercentage; }
-
-        public BigDecimal getManagementFeeAmount() { return managementFeeAmount; }
-        public void setManagementFeeAmount(BigDecimal managementFeeAmount) { this.managementFeeAmount = managementFeeAmount; }
-
-        public BigDecimal getServiceFeePercentage() { return serviceFeePercentage; }
-        public void setServiceFeePercentage(BigDecimal serviceFeePercentage) { this.serviceFeePercentage = serviceFeePercentage; }
-
-        public BigDecimal getServiceFeeAmount() { return serviceFeeAmount; }
-        public void setServiceFeeAmount(BigDecimal serviceFeeAmount) { this.serviceFeeAmount = serviceFeeAmount; }
-
-        public BigDecimal getNetAmount() { return netAmount; }
-        public void setNetAmount(BigDecimal netAmount) { this.netAmount = netAmount; }
-
-        public LocalDate getPaymentDate() { return paymentDate; }
-        public void setPaymentDate(LocalDate paymentDate) { this.paymentDate = paymentDate; }
-
-        public BigDecimal getOutstanding() { return outstanding; }
-        public void setOutstanding(BigDecimal outstanding) { this.outstanding = outstanding; }
-
-        public String getNotes() { return notes; }
-        public void setNotes(String notes) { this.notes = notes; }
-    }
-
-    private static class TenantStatementData {
-        private Customer tenant;
-        private Property property;
-        private LocalDate fromDate;
-        private LocalDate toDate;
-        private BigDecimal rentDue;
-        private BigDecimal paymentsMade;
-        private BigDecimal balance;
-
-        // Getters and setters
-        public Customer getTenant() { return tenant; }
-        public void setTenant(Customer tenant) { this.tenant = tenant; }
-        
-        public Property getProperty() { return property; }
-        public void setProperty(Property property) { this.property = property; }
-        
-        public LocalDate getFromDate() { return fromDate; }
-        public void setFromDate(LocalDate fromDate) { this.fromDate = fromDate; }
-        
-        public LocalDate getToDate() { return toDate; }
-        public void setToDate(LocalDate toDate) { this.toDate = toDate; }
-        
-        public BigDecimal getRentDue() { return rentDue; }
-        public void setRentDue(BigDecimal rentDue) { this.rentDue = rentDue; }
-        
-        public BigDecimal getPaymentsMade() { return paymentsMade; }
-        public void setPaymentsMade(BigDecimal paymentsMade) { this.paymentsMade = paymentsMade; }
-        
-        public BigDecimal getBalance() { return balance; }
-        public void setBalance(BigDecimal balance) { this.balance = balance; }
-    }
-
-    private static class PortfolioStatementData {
-        private Customer propertyOwner;
-        private LocalDate fromDate;
-        private LocalDate toDate;
-        private List<PropertySummary> propertySummaries;
-
-        // Getters and setters
-        public Customer getPropertyOwner() { return propertyOwner; }
-        public void setPropertyOwner(Customer propertyOwner) { this.propertyOwner = propertyOwner; }
-        
-        public LocalDate getFromDate() { return fromDate; }
-        public void setFromDate(LocalDate fromDate) { this.fromDate = fromDate; }
-        
-        public LocalDate getToDate() { return toDate; }
-        public void setToDate(LocalDate toDate) { this.toDate = toDate; }
-        
-        public List<PropertySummary> getPropertySummaries() { return propertySummaries; }
-        public void setPropertySummaries(List<PropertySummary> propertySummaries) { this.propertySummaries = propertySummaries; }
-    }
-
-    private static class PropertySummary {
-        private Property property;
-        private BigDecimal rentReceived;
-        private BigDecimal expenses;
-        private BigDecimal netIncome;
-
-        // Getters and setters
-        public Property getProperty() { return property; }
-        public void setProperty(Property property) { this.property = property; }
-        
-        public BigDecimal getRentReceived() { return rentReceived; }
-        public void setRentReceived(BigDecimal rentReceived) { this.rentReceived = rentReceived; }
-        
-        public BigDecimal getExpenses() { return expenses; }
-        public void setExpenses(BigDecimal expenses) { this.expenses = expenses; }
-        
-        public BigDecimal getNetIncome() { return netIncome; }
-        public void setNetIncome(BigDecimal netIncome) { this.netIncome = netIncome; }
-    }
 }
