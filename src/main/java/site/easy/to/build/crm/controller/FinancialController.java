@@ -15,6 +15,7 @@ import site.easy.to.build.crm.repository.PaymentRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.PropertyServiceImpl;
 import site.easy.to.build.crm.util.AuthorizationUtil;
+import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -44,6 +45,9 @@ public class FinancialController {
     
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    
+    @Autowired
+    private AuthenticationUtils authenticationUtils;
     
     @Value("${crm.data.source:LEGACY}")
     private String dataSource;
@@ -90,9 +94,21 @@ public class FinancialController {
                 return ResponseEntity.ok(emptyData);
             }
             
-            // Basic authorization check
-            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
-                !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+            // Authorization check with property ownership validation
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            boolean hasAccess = false;
+            
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") || 
+                AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE") ||
+                AuthorizationUtil.hasRole(authentication, "ROLE_OIDC_USER")) {
+                hasAccess = true;
+            } else if ((AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") ||
+                       AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) && 
+                       property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(Long.valueOf(userId))) {
+                hasAccess = true;
+            }
+            
+            if (!hasAccess) {
                 Map<String, Object> error = new HashMap<>();
                 error.put("error", "Access denied");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
@@ -119,9 +135,21 @@ public class FinancialController {
             Authentication authentication) {
         
         try {
-            // Basic authorization check
-            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
-                !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+            // Authorization check with property ownership validation
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            boolean hasAccess = false;
+            
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") || 
+                AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE") ||
+                AuthorizationUtil.hasRole(authentication, "ROLE_OIDC_USER")) {
+                hasAccess = true;
+            } else if ((AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") ||
+                       AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) && 
+                       property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(Long.valueOf(userId))) {
+                hasAccess = true;
+            }
+            
+            if (!hasAccess) {
                 Map<String, Object> error = new HashMap<>();
                 error.put("error", "Access denied");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);

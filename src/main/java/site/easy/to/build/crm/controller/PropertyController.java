@@ -1150,9 +1150,11 @@ public class PropertyController {
             // Check authorization
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             boolean hasAccess = false;
-            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
+                AuthorizationUtil.hasRole(authentication, "ROLE_OIDC_USER")) {
                 hasAccess = true;
-            } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") && 
+            } else if ((AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") ||
+                       AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) && 
                        property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(Long.valueOf(userId))) {
                 hasAccess = true;
             } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
