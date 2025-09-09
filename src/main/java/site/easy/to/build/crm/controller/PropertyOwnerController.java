@@ -1084,13 +1084,44 @@ public class PropertyOwnerController {
                 0.0 : 
                 (double) occupiedProperties.size() / properties.size() * 100;
             
+            // NEW: Calculate portfolio valuation metrics
+            BigDecimal totalPurchasePrice = properties.stream()
+                .map(Property::getPurchasePrice)
+                .filter(price -> price != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                
+            BigDecimal totalPurchaserCosts = properties.stream()
+                .map(Property::getPurchaserCosts)
+                .filter(costs -> costs != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                
+            BigDecimal totalAcquisitionCost = totalPurchasePrice.add(totalPurchaserCosts);
+                
+            BigDecimal totalEstimatedValue = properties.stream()
+                .map(Property::getEstimatedCurrentValue)
+                .filter(value -> value != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                
+            BigDecimal totalCapitalGain = totalEstimatedValue.subtract(totalAcquisitionCost);
+            
+            // Portfolio-wide rental yield
+            BigDecimal portfolioRentalYield = BigDecimal.ZERO;
+            if (totalAcquisitionCost.compareTo(BigDecimal.ZERO) > 0) {
+                portfolioRentalYield = annualRentPotential
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(totalAcquisitionCost, 2, BigDecimal.ROUND_HALF_UP);
+            }
+            
             System.out.println("🔍 DEBUG: Financial calculations complete:");
             System.out.println("🔍 DEBUG: - Total potential: " + totalMonthlyRent);
             System.out.println("🔍 DEBUG: - Actual income: " + currentMonthlyIncome);
             System.out.println("🔍 DEBUG: - Lost income: " + lostMonthlyIncome);
             System.out.println("🔍 DEBUG: - Occupancy rate: " + occupancyRate + "%");
+            System.out.println("🔍 DEBUG: - Total acquisition cost: " + totalAcquisitionCost);
+            System.out.println("🔍 DEBUG: - Total estimated value: " + totalEstimatedValue);
+            System.out.println("🔍 DEBUG: - Total capital gain: " + totalCapitalGain);
             
-            // Create enhanced property data for template (with real occupancy status)
+            // Create enhanced property data for template (with real occupancy status and valuation data)
             List<Map<String, Object>> enhancedProperties = properties.stream()
                 .map(property -> {
                     Map<String, Object> propertyData = new HashMap<>();
@@ -1105,6 +1136,17 @@ public class PropertyOwnerController {
                         .map(t -> (t.getFirstName() != null ? t.getFirstName() + " " + (t.getLastName() != null ? t.getLastName() : "") : 
                                 (t.getBusinessName() != null ? t.getBusinessName() : "Tenant")).trim())
                         .collect(Collectors.joining(", ")));
+                    
+                    // NEW: Add valuation data for each property
+                    propertyData.put("hasValuationData", property.hasValuationData());
+                    propertyData.put("purchasePrice", property.getPurchasePrice() != null ? property.getPurchasePrice().toString() : "0");
+                    propertyData.put("purchaserCosts", property.getPurchaserCosts() != null ? property.getPurchaserCosts().toString() : "0");
+                    propertyData.put("totalAcquisitionCost", property.getTotalAcquisitionCost().toString());
+                    propertyData.put("estimatedCurrentValue", property.getEstimatedCurrentValue() != null ? property.getEstimatedCurrentValue().toString() : "0");
+                    propertyData.put("estimatedCapitalGain", property.getEstimatedCapitalGain().toString());
+                    propertyData.put("estimatedCapitalGainPercentage", property.getEstimatedCapitalGainPercentage().toString());
+                    propertyData.put("annualRentalYield", property.getAnnualRentalYield().toString());
+                    propertyData.put("currentRentalYield", property.getCurrentRentalYield().toString());
                     
                     return propertyData;
                 })
@@ -1131,6 +1173,25 @@ public class PropertyOwnerController {
             model.addAttribute("lostMonthlyIncome", lostMonthlyIncome.toString());
             model.addAttribute("annualRentPotential", annualRentPotential.toString());
             model.addAttribute("occupancyRate", String.format("%.2f", occupancyRate));
+            
+            // NEW: Add valuation metrics to model
+            model.addAttribute("totalPurchasePrice", totalPurchasePrice.toString());
+            model.addAttribute("totalPurchaserCosts", totalPurchaserCosts.toString());
+            model.addAttribute("totalAcquisitionCost", totalAcquisitionCost.toString());
+            model.addAttribute("totalEstimatedValue", totalEstimatedValue.toString());
+            model.addAttribute("totalCapitalGain", totalCapitalGain.toString());
+            model.addAttribute("portfolioRentalYield", portfolioRentalYield.toString());
+            
+            // Calculate capital gain percentage
+            String capitalGainPercentage = "0.00";
+            if (totalAcquisitionCost.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal percentage = totalCapitalGain
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(totalAcquisitionCost, 2, BigDecimal.ROUND_HALF_UP);
+                capitalGainPercentage = percentage.toString();
+            }
+            model.addAttribute("capitalGainPercentage", capitalGainPercentage);
+            
             model.addAttribute("pageTitle", "Financial Summary");
 
             System.out.println("🔍 DEBUG: Returning financials view");
@@ -1677,6 +1738,107 @@ public class PropertyOwnerController {
             System.err.println("❌ Error generating portfolio: " + e.getMessage());
             redirectAttributes.addFlashAttribute("error", "Error generating portfolio: " + e.getMessage());
             return "redirect:/property-owner/statements";
+        }
+    }
+    
+    /**
+     * Update Property Valuation Data - Property Owner
+     */
+    @PostMapping("/property-owner/property/{id}/valuation")
+    public ResponseEntity<Map<String, Object>> updatePropertyValuation(
+            @PathVariable("id") Long propertyId,
+            @RequestParam(value = "purchasePrice", required = false) BigDecimal purchasePrice,
+            @RequestParam(value = "purchaserCosts", required = false) BigDecimal purchaserCosts,
+            @RequestParam(value = "estimatedCurrentValue", required = false) BigDecimal estimatedCurrentValue,
+            @RequestParam(value = "purchaseDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate purchaseDate,
+            @RequestParam(value = "lastValuationDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate lastValuationDate,
+            Authentication authentication) {
+        
+        System.out.println("💰 Property Owner updating valuation for property: " + propertyId);
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+            
+            // Verify property ownership
+            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            boolean ownsProperty = properties.stream()
+                .anyMatch(p -> p.getId().equals(propertyId));
+                
+            if (!ownsProperty) {
+                System.err.println("❌ Customer " + customer.getCustomerId() + " does not own property " + propertyId);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "You don't have access to this property"));
+            }
+            
+            // Get the property
+            Property property = propertyService.findById(propertyId);
+            if (property == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Property not found"));
+            }
+            
+            // Update valuation fields
+            boolean updated = false;
+            
+            if (purchasePrice != null) {
+                property.setPurchasePrice(purchasePrice);
+                updated = true;
+                System.out.println("🔍 Updated purchase price: £" + purchasePrice);
+            }
+            
+            if (purchaserCosts != null) {
+                property.setPurchaserCosts(purchaserCosts);
+                updated = true;
+                System.out.println("🔍 Updated purchaser costs: £" + purchaserCosts);
+            }
+            
+            if (estimatedCurrentValue != null) {
+                property.setEstimatedCurrentValue(estimatedCurrentValue);
+                updated = true;
+                System.out.println("🔍 Updated estimated value: £" + estimatedCurrentValue);
+            }
+            
+            if (purchaseDate != null) {
+                property.setPurchaseDate(purchaseDate);
+                updated = true;
+                System.out.println("🔍 Updated purchase date: " + purchaseDate);
+            }
+            
+            if (lastValuationDate != null) {
+                property.setLastValuationDate(lastValuationDate);
+                updated = true;
+                System.out.println("🔍 Updated valuation date: " + lastValuationDate);
+            }
+            
+            if (updated) {
+                // Save the property
+                propertyService.save(property);
+                System.out.println("✅ Property valuation saved successfully for property: " + propertyId);
+                
+                // Return success response with updated calculations
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", true);
+                response.put("message", "Valuation data saved successfully");
+                response.put("totalAcquisitionCost", property.getTotalAcquisitionCost().toString());
+                response.put("estimatedCapitalGain", property.getEstimatedCapitalGain().toString());
+                response.put("estimatedCapitalGainPercentage", property.getEstimatedCapitalGainPercentage().toString());
+                response.put("annualRentalYield", property.getAnnualRentalYield().toString());
+                
+                return ResponseEntity.ok(response);
+            } else {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "No valuation data provided"));
+            }
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error updating property valuation: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Error saving valuation data: " + e.getMessage()));
         }
     }
 }

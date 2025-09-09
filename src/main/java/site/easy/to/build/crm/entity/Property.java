@@ -106,6 +106,25 @@ public class Property {
 
     @Column(name = "account_balance", precision = 10, scale = 2)
     private BigDecimal accountBalance;
+    
+    // Property Valuation and Purchase Information
+    @Column(name = "purchase_price", precision = 12, scale = 2)
+    @Digits(integer = 10, fraction = 2)
+    private BigDecimal purchasePrice;
+    
+    @Column(name = "purchaser_costs", precision = 10, scale = 2)
+    @Digits(integer = 8, fraction = 2)
+    private BigDecimal purchaserCosts;
+    
+    @Column(name = "estimated_current_value", precision = 12, scale = 2)
+    @Digits(integer = 10, fraction = 2)
+    private BigDecimal estimatedCurrentValue;
+    
+    @Column(name = "purchase_date")
+    private LocalDate purchaseDate;
+    
+    @Column(name = "last_valuation_date")
+    private LocalDate lastValuationDate;
 
     @Column(name = "payprop_property_id", length = 100)
     private String payPropPropertyId;
@@ -360,6 +379,22 @@ public class Property {
 
     public BigDecimal getAccountBalance() { return accountBalance; }
     public void setAccountBalance(BigDecimal accountBalance) { this.accountBalance = accountBalance; }
+    
+    // Property Valuation and Purchase Information Getters/Setters
+    public BigDecimal getPurchasePrice() { return purchasePrice; }
+    public void setPurchasePrice(BigDecimal purchasePrice) { this.purchasePrice = purchasePrice; }
+    
+    public BigDecimal getPurchaserCosts() { return purchaserCosts; }
+    public void setPurchaserCosts(BigDecimal purchaserCosts) { this.purchaserCosts = purchaserCosts; }
+    
+    public BigDecimal getEstimatedCurrentValue() { return estimatedCurrentValue; }
+    public void setEstimatedCurrentValue(BigDecimal estimatedCurrentValue) { this.estimatedCurrentValue = estimatedCurrentValue; }
+    
+    public LocalDate getPurchaseDate() { return purchaseDate; }
+    public void setPurchaseDate(LocalDate purchaseDate) { this.purchaseDate = purchaseDate; }
+    
+    public LocalDate getLastValuationDate() { return lastValuationDate; }
+    public void setLastValuationDate(LocalDate lastValuationDate) { this.lastValuationDate = lastValuationDate; }
 
     public String getPayPropPropertyId() { return payPropPropertyId; }
     public void setPayPropPropertyId(String payPropPropertyId) { this.payPropPropertyId = payPropPropertyId; }
@@ -542,6 +577,73 @@ public class Property {
      */
     public boolean isPayPropConfigured() {
         return payPropPropertyId != null && !payPropPropertyId.trim().isEmpty();
+    }
+
+    // Property Valuation Helper Methods
+    /**
+     * Calculate total acquisition cost (purchase price + purchaser costs)
+     */
+    public BigDecimal getTotalAcquisitionCost() {
+        BigDecimal purchase = purchasePrice != null ? purchasePrice : BigDecimal.ZERO;
+        BigDecimal costs = purchaserCosts != null ? purchaserCosts : BigDecimal.ZERO;
+        return purchase.add(costs);
+    }
+
+    /**
+     * Calculate estimated capital gain (current value - total acquisition cost)
+     */
+    public BigDecimal getEstimatedCapitalGain() {
+        if (estimatedCurrentValue == null) {
+            return BigDecimal.ZERO;
+        }
+        return estimatedCurrentValue.subtract(getTotalAcquisitionCost());
+    }
+
+    /**
+     * Calculate estimated capital gain percentage
+     */
+    public BigDecimal getEstimatedCapitalGainPercentage() {
+        BigDecimal totalCost = getTotalAcquisitionCost();
+        if (totalCost.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+        return getEstimatedCapitalGain()
+                .multiply(BigDecimal.valueOf(100))
+                .divide(totalCost, 2, BigDecimal.ROUND_HALF_UP);
+    }
+
+    /**
+     * Calculate annual rental yield based on monthly payment
+     */
+    public BigDecimal getAnnualRentalYield() {
+        if (monthlyPayment == null || getTotalAcquisitionCost().compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal annualRent = monthlyPayment.multiply(BigDecimal.valueOf(12));
+        return annualRent
+                .multiply(BigDecimal.valueOf(100))
+                .divide(getTotalAcquisitionCost(), 2, BigDecimal.ROUND_HALF_UP);
+    }
+
+    /**
+     * Calculate current rental yield based on estimated current value
+     */
+    public BigDecimal getCurrentRentalYield() {
+        if (monthlyPayment == null || estimatedCurrentValue == null || 
+            estimatedCurrentValue.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal annualRent = monthlyPayment.multiply(BigDecimal.valueOf(12));
+        return annualRent
+                .multiply(BigDecimal.valueOf(100))
+                .divide(estimatedCurrentValue, 2, BigDecimal.ROUND_HALF_UP);
+    }
+
+    /**
+     * Check if property has valuation data
+     */
+    public boolean hasValuationData() {
+        return purchasePrice != null || estimatedCurrentValue != null;
     }
     
     @PrePersist
