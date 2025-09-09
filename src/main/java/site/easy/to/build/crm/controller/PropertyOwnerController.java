@@ -1053,14 +1053,11 @@ public class PropertyOwnerController {
             Object[] financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummary(customer.getCustomerId());
             
             // 💰 Parse financial summary (total_rent, total_commission, total_net_to_owner, transaction_count)
-            BigDecimal totalRent = financialSummary != null && financialSummary[0] != null ? 
-                new BigDecimal(financialSummary[0].toString()) : BigDecimal.ZERO;
-            BigDecimal totalCommission = financialSummary != null && financialSummary[1] != null ? 
-                new BigDecimal(financialSummary[1].toString()) : BigDecimal.ZERO;
-            BigDecimal totalNetToOwner = financialSummary != null && financialSummary[2] != null ? 
-                new BigDecimal(financialSummary[2].toString()) : BigDecimal.ZERO;
-            Long totalTransactions = financialSummary != null && financialSummary[3] != null ? 
-                Long.valueOf(financialSummary[3].toString()) : 0L;
+            // ✅ FIXED: Safe parsing of financial data that may contain scientific notation
+            BigDecimal totalRent = parseFinancialValue(financialSummary, 0);
+            BigDecimal totalCommission = parseFinancialValue(financialSummary, 1);
+            BigDecimal totalNetToOwner = parseFinancialValue(financialSummary, 2);
+            Long totalTransactions = parseTransactionCount(financialSummary, 3);
             
             System.out.println("💰 Financial Summary - Rent: £" + totalRent + ", Commission: £" + totalCommission + 
                              ", Net: £" + totalNetToOwner + ", Transactions: " + totalTransactions);
@@ -1262,6 +1259,76 @@ public class PropertyOwnerController {
         defaultStats.put("totalProperties", 0);
         defaultStats.put("totalTickets", 0L);
         return defaultStats;
+    }
+
+    // ✅ NEW: Safe financial value parsing to handle scientific notation and null values
+    private BigDecimal parseFinancialValue(Object[] resultArray, int index) {
+        try {
+            if (resultArray == null || resultArray.length <= index || resultArray[index] == null) {
+                return BigDecimal.ZERO;
+            }
+            
+            Object value = resultArray[index];
+            System.out.println("🔍 DEBUG: Parsing financial value at index " + index + ": " + value + " (Type: " + value.getClass().getSimpleName() + ")");
+            
+            // Handle different types that might be returned from the database
+            if (value instanceof BigDecimal) {
+                return (BigDecimal) value;
+            } else if (value instanceof Number) {
+                // Convert other numeric types to BigDecimal safely
+                // Handle scientific notation by converting via double first
+                Number numberValue = (Number) value;
+                return BigDecimal.valueOf(numberValue.doubleValue());
+            } else if (value instanceof String) {
+                String stringValue = value.toString().trim();
+                if (stringValue.isEmpty() || "null".equalsIgnoreCase(stringValue)) {
+                    return BigDecimal.ZERO;
+                }
+                
+                // Handle scientific notation by parsing as Double first, then converting to BigDecimal
+                try {
+                    Double doubleValue = Double.parseDouble(stringValue);
+                    return BigDecimal.valueOf(doubleValue);
+                } catch (NumberFormatException e) {
+                    System.err.println("⚠️ WARNING: Could not parse financial value '" + stringValue + "', returning ZERO");
+                    return BigDecimal.ZERO;
+                }
+            } else {
+                System.err.println("⚠️ WARNING: Unexpected value type for financial data: " + value.getClass());
+                return BigDecimal.ZERO;
+            }
+        } catch (Exception e) {
+            System.err.println("❌ ERROR: Exception parsing financial value at index " + index + ": " + e.getMessage());
+            return BigDecimal.ZERO;
+        }
+    }
+    
+    // ✅ NEW: Safe transaction count parsing
+    private Long parseTransactionCount(Object[] resultArray, int index) {
+        try {
+            if (resultArray == null || resultArray.length <= index || resultArray[index] == null) {
+                return 0L;
+            }
+            
+            Object value = resultArray[index];
+            System.out.println("🔍 DEBUG: Parsing transaction count at index " + index + ": " + value + " (Type: " + value.getClass().getSimpleName() + ")");
+            
+            if (value instanceof Number) {
+                return ((Number) value).longValue();
+            } else if (value instanceof String) {
+                String stringValue = value.toString().trim();
+                if (stringValue.isEmpty() || "null".equalsIgnoreCase(stringValue)) {
+                    return 0L;
+                }
+                return Long.valueOf(stringValue);
+            } else {
+                System.err.println("⚠️ WARNING: Unexpected value type for transaction count: " + value.getClass());
+                return 0L;
+            }
+        } catch (Exception e) {
+            System.err.println("❌ ERROR: Exception parsing transaction count at index " + index + ": " + e.getMessage());
+            return 0L;
+        }
     }
 
     /**
