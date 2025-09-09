@@ -765,14 +765,12 @@ public class PropertyOwnerController {
                 .count();
             
             // 4. Total Monthly Income (sum of monthly payments from occupied properties)
+            // FIXED: Since we're already getting tenants for ALL properties, check active tenants per property
             BigDecimal totalRentalIncome = properties.stream()
                 .filter(property -> {
-                    // Check if property has active tenants - FIXED: Use assignedPropertyId from Customer
-                    return tenants.stream()
-                        .anyMatch(tenant -> tenant.getAssignedPropertyId() != null && 
-                                tenant.getAssignedPropertyId().equals(property.getId()) &&
-                                // Note: Customer doesn't have moveOutDate, so we'll assume all assigned tenants are active
-                                tenant.getCustomerType() == CustomerType.TENANT);
+                    // Check if property has active tenants using assignment service
+                    List<Customer> activeTenantsForProperty = customerService.findActiveTenantsForProperty(property.getId());
+                    return !activeTenantsForProperty.isEmpty();
                 })
                 .map(Property::getMonthlyPayment)
                 .filter(payment -> payment != null)

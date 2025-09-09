@@ -77,10 +77,6 @@ public interface PropertyService {
     // PayProp-based occupancy check
     boolean isPropertyOccupied(String payPropId);
     
-    // PERFORMANCE FIX: Dropdown-optimized methods (instead of findAll())
-    List<Property> findActivePropertiesForDropdown(int limit); // Active properties with name only
-    List<Property> findPropertiesByNamePattern(String pattern, int limit); // Search with limit
-    
     // Archive logic
     void archiveProperty(Long propertyId);
     void unarchiveProperty(Long propertyId);

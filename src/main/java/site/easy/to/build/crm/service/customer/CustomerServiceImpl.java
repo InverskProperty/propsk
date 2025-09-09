@@ -331,7 +331,14 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public List<Customer> findActiveTenantsForProperty(Long propertyId) {
-        return customerRepository.findActiveTenantsForProperty(propertyId, LocalDate.now());
+        // FIXED: Use assignment service instead of deprecated direct FK
+        List<Customer> allTenants = assignmentService.getCustomersForProperty(propertyId, AssignmentType.TENANT);
+        LocalDate currentDate = LocalDate.now();
+        
+        // Filter for active tenants (no move-out date or future move-out date)
+        return allTenants.stream()
+            .filter(tenant -> tenant.getMoveOutDate() == null || tenant.getMoveOutDate().isAfter(currentDate))
+            .collect(Collectors.toList());
     }
 
     // ===== TENANT SPECIFIC METHODS =====

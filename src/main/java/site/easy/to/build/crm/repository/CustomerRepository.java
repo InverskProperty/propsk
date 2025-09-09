@@ -139,7 +139,9 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     
     /**
      * Find active tenants for a property (not moved out)
+     * @deprecated Use CustomerPropertyAssignmentService instead - this uses deprecated direct FK
      */
+    @Deprecated
     @Query("SELECT c FROM Customer c WHERE c.assignedPropertyId = :propertyId " +
            "AND (c.isTenant = true OR c.customerType = 'TENANT') " +
            "AND (c.moveOutDate IS NULL OR c.moveOutDate > :currentDate)")
