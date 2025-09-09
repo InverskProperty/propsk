@@ -2,6 +2,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
@@ -37,6 +38,9 @@ import java.util.stream.Collectors;
 public class PayPropPaymentsSyncController {
 
     private static final Logger log = LoggerFactory.getLogger(PayPropPaymentsSyncController.class);
+
+    @Value("${payprop.api.base-url}")
+    private String payPropApiBase;
 
     private final PayPropOAuth2Service oAuth2Service;
     private final PayPropSyncService syncService;
@@ -425,7 +429,7 @@ public class PayPropPaymentsSyncController {
             HttpEntity<String> request = new HttpEntity<>(headers);
             
             LocalDate fromDate = LocalDate.now().minusMonths(3); // Last 3 months
-            String actualPaymentsUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/payments" +
+            String actualPaymentsUrl = payPropApiBase + "/export/payments" +
                     "?include_beneficiary_info=true" +
                     "&from_date=" + fromDate.toString() +
                     "&filter_by=reconciliation_date" +
@@ -514,7 +518,7 @@ public class PayPropPaymentsSyncController {
             
             LocalDate fromDate = LocalDate.now().minusMonths(6); // Last 6 months
             LocalDate toDate = LocalDate.now();
-            String allPaymentsUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments" +
+            String allPaymentsUrl = payPropApiBase + "/report/all-payments" +
                     "?property_id=" + propertyId +
                     "&from_date=" + fromDate.toString() +
                     "&to_date=" + toDate.toString() +

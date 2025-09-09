@@ -2,6 +2,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpEntity;
@@ -65,7 +66,8 @@ public class PayPropOAuth2Controller {
     private final PayPropOAuth2Service oAuth2Service;
     private final RestTemplate restTemplate;
     private final AuthenticationUtils authenticationUtils;  // ADD THIS
-    private final String payPropApiBase = "https://ukapi.staging.payprop.com/api/agency/v1.1";
+    @Value("${payprop.api.base-url}")
+    private String payPropApiBase;
     private static final Logger log = LoggerFactory.getLogger(PayPropOAuth2Controller.class);
 
     

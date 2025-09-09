@@ -456,7 +456,7 @@ public class PayPropOAuth2Service {
     public boolean testConnection() throws Exception {
         try {
             // Use YOUR staging environment for connection testing
-            String baseUrl = environment.getProperty("payprop.api.base-url", "https://ukapi.staging.payprop.com/api/agency/v1.1");
+            String baseUrl = environment.getProperty("payprop.api.base-url");
             String apiUrl = baseUrl + "/meta/me";
             
             HttpHeaders headers = createAuthorizedHeaders();
@@ -609,7 +609,7 @@ public class PayPropOAuth2Service {
      * Get PayProp user meta information (useful for debugging and display)
      */
     public Map<String, Object> getUserMetaInfo() throws Exception {
-        String baseUrl = environment.getProperty("payprop.api.base-url", "https://ukapi.staging.payprop.com/api/agency/v1.1");
+        String baseUrl = environment.getProperty("payprop.api.base-url");
         String apiUrl = baseUrl + "/meta/me";
         
         HttpHeaders headers = createAuthorizedHeaders();

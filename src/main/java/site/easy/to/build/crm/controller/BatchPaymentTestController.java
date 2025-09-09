@@ -2,6 +2,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
@@ -41,6 +42,9 @@ import java.util.ArrayList;
 public class BatchPaymentTestController {
 
     private static final Logger log = LoggerFactory.getLogger(BatchPaymentTestController.class);
+
+    @Value("${payprop.api.base-url}")
+    private String payPropApiBase;
 
     @Autowired
     private PayPropSyncService payPropSyncService;
@@ -83,7 +87,7 @@ public class BatchPaymentTestController {
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
             
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/icdn" +
+            String url = payPropApiBase + "/report/icdn" +
                     "?from_date=" + from.toString() +
                     "&to_date=" + to.toString() +
                     "&rows=" + pageSize;
@@ -180,7 +184,7 @@ public class BatchPaymentTestController {
             try {
                 HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
                 HttpEntity<String> request = new HttpEntity<>(headers);
-                String testUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/payments/categories";
+                String testUrl = payPropApiBase + "/payments/categories";
                 
                 ResponseEntity<Map> testResponse = restTemplate.exchange(testUrl, HttpMethod.GET, request, Map.class);
                 
@@ -303,7 +307,7 @@ private List<String> getPropertiesForDebugSync(int limit) {
         HttpEntity<String> request = new HttpEntity<>(headers);
         
         // Get properties with commission data (most likely to have validation issues)
-        String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&rows=" + limit;
+        String url = payPropApiBase + "/export/properties?include_commission=true&rows=" + limit;
         
         ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
         List<Map<String, Object>> properties = (List<Map<String, Object>>) response.getBody().get("items");
@@ -335,7 +339,7 @@ private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPr
         HttpEntity<String> request = new HttpEntity<>(headers);
         
         // ✅ FIXED: Use bulk endpoint to get all properties, then filter for our target IDs
-        String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/properties?include_commission=true&rows=1000";
+        String url = payPropApiBase + "/export/properties?include_commission=true&rows=1000";
         
         log.info("🔍 DEBUG: Getting properties from bulk endpoint, will filter for IDs: {}", payPropIds);
         
@@ -563,7 +567,7 @@ private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPr
             int totalTransactions = 0;
             
             for (String propertyId : payPropIds) {
-                String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/icdn" +
+                String url = payPropApiBase + "/report/icdn" +
                     "?property_id=" + propertyId +
                     "&from_date=" + fromDate +
                     "&to_date=" + toDate +
@@ -610,7 +614,7 @@ private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPr
             int totalTenants = 0;
             
             for (String propertyId : payPropIds) {
-                String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/export/tenants?property_id=" + propertyId + "&rows=10";
+                String url = payPropApiBase + "/export/tenants?property_id=" + propertyId + "&rows=10";
                 
                 try {
                     ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
@@ -671,7 +675,7 @@ private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPr
             ResponseEntity<Map<String, Object>> authCheck = checkAuthentication();
             if (authCheck != null) return authCheck;
             
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/" + endpoint;
+            String url = payPropApiBase + "/" + endpoint;
             
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
@@ -774,7 +778,7 @@ private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPr
                 return result;
             }
 
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1" + endpoint + parameters;
+            String url = payPropApiBase + endpoint + parameters;
             
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
@@ -834,7 +838,7 @@ private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPr
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
             
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/categories";
+            String url = payPropApiBase + "/categories";
             log.info("Testing payment categories: {}", url);
             
             ResponseEntity<Map> apiResponse = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
@@ -885,7 +889,7 @@ private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPr
                 try {
                     HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
                     HttpEntity<String> request = new HttpEntity<>(headers);
-                    String url = "https://ukapi.staging.payprop.com/api/agency/v1.1" + endpoint;
+                    String url = payPropApiBase + endpoint;
                     
                     ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
                     
@@ -930,7 +934,7 @@ private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPr
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
             
-            String url = "https://ukapi.staging.payprop.com/api/agency/v1.1/properties?rows=1";
+            String url = payPropApiBase + "/properties?rows=1";
             log.info("Testing property stats: {}", url);
             
             ResponseEntity<Map> apiResponse = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
@@ -1276,7 +1280,7 @@ private Map<String, Object> debugSyncPropertiesWithCommission(List<String> payPr
             log.info("Testing PayProp /report/all-payments endpoint for property {} ({} to {})", propertyId, from, to);
 
             // Build URL for direct API call
-            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1/report/all-payments";
+            String baseUrl = payPropApiBase + "/report/all-payments";
             StringBuilder urlBuilder = new StringBuilder(baseUrl);
             urlBuilder.append("?from_date=").append(from.toString());
             urlBuilder.append("&to_date=").append(to.toString());

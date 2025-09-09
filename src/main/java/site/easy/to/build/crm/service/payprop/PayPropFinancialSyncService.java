@@ -4,6 +4,7 @@ package site.easy.to.build.crm.service.payprop;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
@@ -43,7 +44,8 @@ public class PayPropFinancialSyncService {
     private final PropertyService propertyService;
     
     // PayProp API base URL
-    private final String payPropApiBase = "https://ukapi.staging.payprop.com/api/agency/v1.1";
+    @Value("${payprop.api.base-url}")
+    private String payPropApiBase;
     
     @Autowired
     public PayPropFinancialSyncService(

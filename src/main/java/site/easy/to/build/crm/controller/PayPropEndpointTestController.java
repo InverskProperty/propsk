@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -22,6 +23,9 @@ import java.time.format.DateTimeFormatter;
 public class PayPropEndpointTestController {
 
     private static final Logger logger = LoggerFactory.getLogger(PayPropEndpointTestController.class);
+
+    @Value("${payprop.api.base-url}")
+    private String payPropApiBase;
 
     @Autowired
     private PayPropOAuth2Service oAuth2Service;
@@ -263,7 +267,7 @@ public class PayPropEndpointTestController {
             }
             
             // Prepare URL
-            String baseUrl = "https://ukapi.staging.payprop.com/api/agency/v1.1";
+            String baseUrl = payPropApiBase;
             String fullPath = info.path;
             String parameters = info.parameters;
             

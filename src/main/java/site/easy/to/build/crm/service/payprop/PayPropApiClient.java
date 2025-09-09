@@ -45,7 +45,7 @@ public class PayPropApiClient {
     @Autowired
     private PayPropOAuth2Service oAuth2Service;
     
-    @Value("${payprop.api.base-url:https://ukapi.staging.payprop.com/api/agency/v1.1}")
+    @Value("${payprop.api.base-url}")
     private String payPropApiBase;
     
     /**
