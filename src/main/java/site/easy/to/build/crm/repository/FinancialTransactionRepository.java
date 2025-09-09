@@ -515,13 +515,14 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     /**
      * Get recent transactions for property owner's properties via portfolio assignments
      */
-    @Query("SELECT ft FROM FinancialTransaction ft " +
-           "WHERE ft.propertyId IN (" +
-           "  SELECT pr.paypropId FROM Property pr " +
-           "  JOIN PropertyPortfolioAssignment ppa ON pr.id = ppa.propertyId " +
-           "  JOIN Portfolio po ON ppa.portfolioId = po.id " +
-           "  WHERE po.propertyOwnerId = :customerId AND ppa.isActive = true" +
-           ") ORDER BY ft.transactionDate DESC")
+    @Query(value = "SELECT ft.* FROM financial_transactions ft " +
+           "WHERE ft.property_id IN (" +
+           "  SELECT pr.payprop_id FROM properties pr " +
+           "  JOIN property_portfolio_assignments ppa ON pr.id = ppa.property_id " +
+           "  JOIN portfolios po ON ppa.portfolio_id = po.id " +
+           "  WHERE po.property_owner_id = :customerId AND ppa.is_active = 1" +
+           ") ORDER BY ft.transaction_date DESC",
+           nativeQuery = true)
     List<FinancialTransaction> getPropertyOwnerRecentTransactions(@Param("customerId") Long customerId, Pageable pageable);
     
     /**
