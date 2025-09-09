@@ -104,12 +104,16 @@
                                                         <small class="text-muted" th:text="${ticket.description ?: 'No description'}">Description</small>
                                                     </td>
                                                     <td>
-                                                        <span th:class="'badge ' + (${ticket.status == 'open'} ? 'bg-danger' : ${ticket.status == 'in-progress'} ? 'bg-warning' : ${ticket.status == 'completed'} ? 'bg-success' : 'bg-secondary')"
-                                                              th:text="${ticket.status}">Status</span>
+                                                        <span th:if="${ticket.status == 'open'}" class="badge bg-danger" th:text="${ticket.status}">Status</span>
+                                                        <span th:if="${ticket.status == 'in-progress'}" class="badge bg-warning" th:text="${ticket.status}">Status</span>
+                                                        <span th:if="${ticket.status == 'completed'}" class="badge bg-success" th:text="${ticket.status}">Status</span>
+                                                        <span th:if="${ticket.status != 'open' && ticket.status != 'in-progress' && ticket.status != 'completed'}" class="badge bg-secondary" th:text="${ticket.status}">Status</span>
                                                     </td>
                                                     <td>
-                                                        <span th:class="'badge ' + (${ticket.priority == 'emergency'} ? 'bg-danger' : ${ticket.priority == 'high'} ? 'bg-warning' : ${ticket.priority == 'medium'} ? 'bg-info' : 'bg-secondary')"
-                                                              th:text="${ticket.priority ?: 'Normal'}">Priority</span>
+                                                        <span th:if="${ticket.priority == 'emergency'}" class="badge bg-danger" th:text="${ticket.priority ?: 'Normal'}">Priority</span>
+                                                        <span th:if="${ticket.priority == 'high'}" class="badge bg-warning" th:text="${ticket.priority ?: 'Normal'}">Priority</span>
+                                                        <span th:if="${ticket.priority == 'medium'}" class="badge bg-info" th:text="${ticket.priority ?: 'Normal'}">Priority</span>
+                                                        <span th:if="${ticket.priority != 'emergency' && ticket.priority != 'high' && ticket.priority != 'medium'}" class="badge bg-secondary" th:text="${ticket.priority ?: 'Normal'}">Priority</span>
                                                     </td>
                                                     <td th:text="${#temporals.format(ticket.createdAt, 'dd/MM/yyyy') ?: 'N/A'}">Date</td>
                                                     <td>
