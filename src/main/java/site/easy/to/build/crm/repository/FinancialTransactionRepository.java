@@ -510,7 +510,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
            "WHERE c.customer_id = :customerId AND ppa.is_active = 1",
            nativeQuery = true)
-    Object[] getPropertyOwnerFinancialSummary(@Param("customerId") Integer customerId);
+    Object[] getPropertyOwnerFinancialSummary(@Param("customerId") Long customerId);
     
     /**
      * Get recent transactions for property owner's properties via portfolio assignments
@@ -522,7 +522,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "  JOIN Portfolio po ON ppa.portfolioId = po.id " +
            "  WHERE po.propertyOwnerId = :customerId AND ppa.isActive = true" +
            ") ORDER BY ft.transactionDate DESC")
-    List<FinancialTransaction> getPropertyOwnerRecentTransactions(@Param("customerId") Integer customerId, Pageable pageable);
+    List<FinancialTransaction> getPropertyOwnerRecentTransactions(@Param("customerId") Long customerId, Pageable pageable);
     
     /**
      * Get property-level financial breakdown for property owner
@@ -538,5 +538,5 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "WHERE c.customer_id = :customerId AND ppa.is_active = 1 " +
            "ORDER BY pr.property_name",
            nativeQuery = true)
-    List<Object[]> getPropertyOwnerPropertyBreakdown(@Param("customerId") Integer customerId);
+    List<Object[]> getPropertyOwnerPropertyBreakdown(@Param("customerId") Long customerId);
 }
