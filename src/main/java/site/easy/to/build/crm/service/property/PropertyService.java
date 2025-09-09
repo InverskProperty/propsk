@@ -40,7 +40,8 @@ public interface PropertyService {
     List<Property> findPropertiesByBedrooms(Integer bedrooms);
     List<Property> findPropertiesByFurnished(String furnished);
 
-    // Portfolio and Block relationships
+    // Block relationships - Portfolio relationships now handled via PortfolioService.getPropertiesForPortfolio()
+    @Deprecated // Use PortfolioService.getPropertiesForPortfolio() instead
     List<Property> findActivePropertiesByPortfolio(Long portfolioId);
     List<Property> findByBlockId(Long blockId);
     List<Property> findActivePropertiesByBlock(Long blockId);

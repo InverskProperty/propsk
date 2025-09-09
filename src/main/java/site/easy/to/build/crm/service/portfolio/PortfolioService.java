@@ -21,6 +21,7 @@ public interface PortfolioService {
     // User-based portfolio access
     List<Portfolio> findPortfoliosForUser(Authentication authentication);
     List<Portfolio> findPortfoliosForPropertyOwner(Integer propertyOwnerId);
+    List<Portfolio> findPortfoliosForPropertyOwnerWithBlocks(Integer propertyOwnerId);
     List<Portfolio> findSharedPortfolios();
 
     /**

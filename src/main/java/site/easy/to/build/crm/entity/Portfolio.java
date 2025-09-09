@@ -7,7 +7,6 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.ArrayList;
 
 @Entity
 @Table(name = "portfolios")
@@ -95,9 +94,7 @@ public class Portfolio {
     @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Block> blocks;
     
-    // ❌ DISABLED: Direct property relationship - now handled by PropertyPortfolioAssignment table
-    // @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    // private List<Property> properties;  // Use PropertyPortfolioAssignmentRepository.findPropertiesForPortfolio() instead
+    // Note: Property relationships now handled via PropertyPortfolioAssignment junction table
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_owner_id", referencedColumnName = "customer_id", insertable = false, updatable = false)
@@ -190,19 +187,7 @@ public class Portfolio {
     public List<Block> getBlocks() { return blocks; }
     public void setBlocks(List<Block> blocks) { this.blocks = blocks; }
     
-    // ❌ DISABLED: Direct property getters/setters - use PropertyPortfolioAssignmentRepository methods
-    @Deprecated
-    public List<Property> getProperties() { 
-        // Return empty list since direct relationship is disabled
-        // Use PropertyPortfolioAssignmentRepository.findPropertiesForPortfolio(this.getId()) instead
-        return new ArrayList<>(); 
-    }
-    
-    @Deprecated
-    public void setProperties(List<Property> properties) { 
-        // No-op since direct relationship is disabled
-        // Use PortfolioAssignmentService.assignProperty() instead
-    }
+    // Note: Property getters/setters removed - use PortfolioAssignmentService for property relationships
     
     public Customer getPropertyOwner() { return propertyOwner; }
     public void setPropertyOwner(Customer propertyOwner) { this.propertyOwner = propertyOwner; }

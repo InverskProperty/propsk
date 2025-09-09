@@ -165,7 +165,7 @@ public class PropertyOwnerController {
                     if (portfolioService != null) {
                         System.out.println("🔍 STEP 6A: PortfolioService is available, loading portfolios...");
                         try {
-                            List<Portfolio> userPortfolios = portfolioService.findPortfoliosForPropertyOwner(customer.getCustomerId().intValue());
+                            List<Portfolio> userPortfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
                             
                             // Add property counts to portfolios using junction table method
                             Map<Long, Integer> portfolioPropertyCounts = new HashMap<>();
@@ -344,7 +344,7 @@ public class PropertyOwnerController {
                     if (portfolioService != null) {
                         System.out.println("DEBUG: PortfolioService is available, attempting to load portfolios...");
                         
-                        List<Portfolio> userPortfolios = portfolioService.findPortfoliosForPropertyOwner(customer.getCustomerId().intValue());
+                        List<Portfolio> userPortfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
                         model.addAttribute("portfolios", userPortfolios);
                         System.out.println("DEBUG: Found " + userPortfolios.size() + " portfolios for customer " + customer.getCustomerId());
                         
@@ -728,6 +728,24 @@ public class PropertyOwnerController {
                     .collect(Collectors.toList());
             }
 
+            // ===== DEBUGGING: Check data relationships =====
+            System.out.println("🔍 DEBUGGING TENANT LOOKUP:");
+            System.out.println("   Customer ID: " + customer.getCustomerId());
+            System.out.println("   Number of properties: " + properties.size());
+            
+            for (int i = 0; i < Math.min(3, properties.size()); i++) { // Check first 3 properties
+                Property property = properties.get(i);
+                System.out.println("   Property ID " + property.getId() + ":");
+                List<Customer> propertyTenants = customerService.findTenantsByProperty(property.getId());
+                System.out.println("     - Tenants found: " + propertyTenants.size());
+                
+                // Check tenant-specific details
+                for (Customer tenant : propertyTenants) {
+                    System.out.println("       * Tenant " + tenant.getCustomerId() + " - " + tenant.getEmail() + 
+                                     " (Type: " + tenant.getCustomerType() + ", EntityId: " + tenant.getEntityId() + ")");
+                }
+            }
+            
             // ===== CALCULATE STATISTICS =====
             
             // 1. Total Tenants (already calculated)
@@ -893,7 +911,7 @@ public class PropertyOwnerController {
             // Add portfolio statistics if available
             try {
                 if (portfolioService != null) {
-                    List<Portfolio> portfolios = portfolioService.findPortfoliosForPropertyOwner(customer.getCustomerId().intValue());
+                    List<Portfolio> portfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
                     model.addAttribute("portfolios", portfolios);
                     model.addAttribute("portfolioSystemEnabled", true);
                 } else {

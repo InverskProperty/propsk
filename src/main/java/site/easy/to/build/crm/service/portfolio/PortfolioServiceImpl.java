@@ -107,28 +107,13 @@ public class PortfolioServiceImpl implements PortfolioService {
     @Override
     public List<Property> getPropertiesForPortfolio(Long portfolioId) {
         try {
-            System.out.println("🔍 Attempting to get properties for portfolio " + portfolioId + " using junction table");
-            
-            // Try junction table first
+            System.out.println("🔍 Getting properties for portfolio " + portfolioId + " using junction table");
             List<Property> properties = propertyPortfolioAssignmentRepository.findPropertiesForPortfolio(portfolioId);
-            System.out.println("✅ Junction table: Found " + properties.size() + " properties for portfolio " + portfolioId);
+            System.out.println("✅ Found " + properties.size() + " properties for portfolio " + portfolioId);
             return properties;
-            
         } catch (Exception e) {
-            System.out.println("⚠️ Junction table failed, trying direct FK fallback: " + e.getMessage());
-            
-            try {
-                // Fallback to direct FK method
-                List<Property> properties = propertyService.findActivePropertiesByPortfolio(portfolioId);
-                System.out.println("📝 Direct FK: Found " + properties.size() + " properties for portfolio " + portfolioId);
-                return properties;
-                
-            } catch (Exception e2) {
-                System.err.println("❌ Both methods failed for portfolio " + portfolioId);
-                System.err.println("Junction table error: " + e.getMessage());
-                System.err.println("Direct FK error: " + e2.getMessage());
-                return new ArrayList<>();
-            }
+            System.err.println("❌ Failed to get properties for portfolio " + portfolioId + ": " + e.getMessage());
+            return new ArrayList<>();
         }
     }
 
@@ -797,6 +782,11 @@ public class PortfolioServiceImpl implements PortfolioService {
     @Override
     public List<Portfolio> findPortfoliosForPropertyOwner(Integer propertyOwnerId) {
         return portfolioRepository.findByPropertyOwnerId(propertyOwnerId);
+    }
+    
+    @Override 
+    public List<Portfolio> findPortfoliosForPropertyOwnerWithBlocks(Integer propertyOwnerId) {
+        return portfolioRepository.findByPropertyOwnerIdWithBlocks(propertyOwnerId);
     }
     
     @Override

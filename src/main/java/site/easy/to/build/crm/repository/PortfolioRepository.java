@@ -91,6 +91,9 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
     @Query("SELECT p FROM Portfolio p JOIN FETCH p.blocks WHERE p.id = :portfolioId")
     Optional<Portfolio> findByIdWithBlocks(@Param("portfolioId") Long portfolioId);
     
+    @Query("SELECT DISTINCT p FROM Portfolio p LEFT JOIN FETCH p.blocks WHERE p.propertyOwnerId = :propertyOwnerId")
+    List<Portfolio> findByPropertyOwnerIdWithBlocks(@Param("propertyOwnerId") Integer propertyOwnerId);
+    
     // Portfolio property count analytics - UPDATED to use PropertyPortfolioAssignment junction table
     @Query("SELECT p, COUNT(ppa) as propertyCount FROM Portfolio p " +
            "LEFT JOIN PropertyPortfolioAssignment ppa ON ppa.portfolio.id = p.id AND ppa.isActive = true " +

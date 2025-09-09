@@ -322,11 +322,12 @@ public class PropertyServiceImpl implements PropertyService {
             
             return assignments.stream()
                 .map(assignment -> assignment.getProperty())
+                .filter(property -> property != null)
                 .distinct()
                 .toList();
         } catch (Exception e) {
-            // Fallback to legacy method if junction table not available
-            return propertyRepository.findByPropertyOwnerId(ownerId);
+            System.err.println("❌ Failed to get properties for owner " + ownerId + ": " + e.getMessage());
+            return new ArrayList<>();
         }
     }
 
@@ -387,7 +388,10 @@ public class PropertyServiceImpl implements PropertyService {
     }
 
     @Override
+    @Deprecated // Use PortfolioService.getPropertiesForPortfolio() instead
     public List<Property> findActivePropertiesByPortfolio(Long portfolioId) {
+        // This method is deprecated - portfolio relationships now use junction table
+        // Use PortfolioService.getPropertiesForPortfolio() instead
         return propertyRepository.findActivePropertiesByPortfolio(portfolioId);
     }
 

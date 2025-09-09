@@ -129,11 +129,8 @@ public class Property {
     @Column(name = "payprop_property_id", length = 100)
     private String payPropPropertyId;
 
-    // Portfolio and Block Relationships - UNIFIED MANY-TO-MANY APPROACH
-    // ❌ DISABLED: Direct portfolio assignment conflicts with PropertyPortfolioAssignment table
-    // @ManyToOne(fetch = FetchType.LAZY)
-    // @JoinColumn(name = "portfolio_id")
-    // private Portfolio portfolio;  // Use PropertyPortfolioAssignment table instead
+    // Block Relationships - Direct relationship maintained for hierarchy
+    // Note: Portfolio relationships now handled via PropertyPortfolioAssignment junction table
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "block_id")
@@ -399,19 +396,8 @@ public class Property {
     public String getPayPropPropertyId() { return payPropPropertyId; }
     public void setPayPropPropertyId(String payPropPropertyId) { this.payPropPropertyId = payPropPropertyId; }
     
-    // Portfolio and Block getters/setters - UNIFIED MANY-TO-MANY APPROACH
-    // ⚠️ DEPRECATED: Direct portfolio getters/setters - use PropertyPortfolioAssignment repository methods
-    @Deprecated
-    public Portfolio getPortfolio() { 
-        // Return null since direct assignment is disabled - use PropertyPortfolioAssignmentRepository.findPrimaryPortfolioForProperty()
-        return null; 
-    }
-    
-    @Deprecated
-    public void setPortfolio(Portfolio portfolio) { 
-        // No-op since direct assignment is disabled - use PortfolioAssignmentService.assignProperty()
-        // This method is kept only for compilation compatibility
-    }
+    // Block getters/setters - Direct relationship maintained for hierarchy
+    // Note: Portfolio getters/setters removed - use PortfolioAssignmentService for portfolio relationships
 
     public Block getBlock() { return block; }
     public void setBlock(Block block) { this.block = block; }

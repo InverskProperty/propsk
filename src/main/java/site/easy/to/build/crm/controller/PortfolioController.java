@@ -589,35 +589,10 @@ public class PortfolioController {
      * ADDITIONAL FIX: Update the "unassigned properties" logic in assignment page
      */
     @GetMapping("/assign-properties")
+    @Deprecated // Redirected to PortfolioAssignmentController
     public String showAssignPropertiesPage(Model model, Authentication authentication) {
-        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
-            !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
-            return "redirect:/access-denied";
-        }
-        
-        try {
-            List<Portfolio> portfolios = portfolioService.findAll();
-            List<Property> allProperties = propertyService.findAll();
-            
-            // ✅ FIXED: Use junction table to find unassigned properties
-            List<Property> unassignedProperties = allProperties.stream()
-                .filter(property -> !hasAnyPortfolioAssignment(property.getId()))
-                .filter(property -> !"Y".equals(property.getIsArchived()))
-                .collect(Collectors.toList());
-            
-            System.out.println("📊 [FIXED] Found " + unassignedProperties.size() + " unassigned properties using junction table logic");
-            
-            model.addAttribute("portfolios", portfolios);
-            model.addAttribute("unassignedProperties", unassignedProperties);
-            model.addAttribute("allProperties", allProperties);
-            model.addAttribute("pageTitle", "Assign Properties to Portfolios");
-            
-            return "portfolio/assign-properties";
-            
-        } catch (Exception e) {
-            model.addAttribute("error", "Error loading assignment page: " + e.getMessage());
-            return "error/500";
-        }
+        // Redirect to the proper assignment controller
+        return "redirect:/portfolio/internal/assignment/assign-properties";
     }
 
     // ✅ NEW: Portfolio Maintenance Dashboard
@@ -1972,7 +1947,7 @@ public class PortfolioController {
             List<Long> allPropertyIds = portfolios.stream()
                 .flatMap(portfolio -> {
                     try {
-                        return propertyService.findActivePropertiesByPortfolio(portfolio.getId()).stream();
+                        return portfolioService.getPropertiesForPortfolio(portfolio.getId()).stream();
                     } catch (Exception e) {
                         return java.util.stream.Stream.empty();
                     }
@@ -2061,7 +2036,7 @@ public class PortfolioController {
             // Process each portfolio
             for (Portfolio portfolio : portfolios) {
                 try {
-                    List<Property> portfolioProperties = propertyService.findActivePropertiesByPortfolio(portfolio.getId());
+                    List<Property> portfolioProperties = portfolioService.getPropertiesForPortfolio(portfolio.getId());
                     int portfolioTicketCount = 0;
                     
                     for (Property property : portfolioProperties) {
@@ -2126,7 +2101,7 @@ public class PortfolioController {
         Map<String, Object> stats = new HashMap<>();
         
         try {
-            List<Property> portfolioProperties = propertyService.findActivePropertiesByPortfolio(portfolioId);
+            List<Property> portfolioProperties = portfolioService.getPropertiesForPortfolio(portfolioId);
             List<Long> propertyIds = portfolioProperties.stream().map(Property::getId).collect(Collectors.toList());
             
             // Get all maintenance tickets for this portfolio's properties
@@ -2195,7 +2170,7 @@ public class PortfolioController {
         
         try {
             for (Portfolio portfolio : portfolios) {
-                List<Property> portfolioProperties = propertyService.findActivePropertiesByPortfolio(portfolio.getId());
+                List<Property> portfolioProperties = portfolioService.getPropertiesForPortfolio(portfolio.getId());
                 
                 for (Property property : portfolioProperties) {
                     try {
@@ -2471,7 +2446,7 @@ public class PortfolioController {
             
             // Test Method 2: Direct FK (the fallback)
             try {
-                List<Property> directProperties = propertyService.findActivePropertiesByPortfolio(id);
+                List<Property> directProperties = portfolioService.getPropertiesForPortfolio(id);
                 result.put("method2_directFK", Map.of(
                     "status", "SUCCESS",
                     "count", directProperties.size(),

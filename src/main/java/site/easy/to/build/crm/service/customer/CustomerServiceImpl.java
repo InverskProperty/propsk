@@ -346,7 +346,8 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public List<Customer> findTenantsByProperty(Long propertyId) {
-        return findByCustomerTypeAndPropertyId(CustomerType.TENANT, propertyId);
+        // Use the assignment service to get tenants properly assigned via customer_property_assignments table
+        return assignmentService.getCustomersForProperty(propertyId, AssignmentType.TENANT);
     }
 
     @Override
