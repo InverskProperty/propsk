@@ -240,7 +240,7 @@
                                             <p class="text-muted mb-0 small" th:text="${tenant.email ?: 'No email provided'}">Email</p>
                                             <small class="status-active">
                                                 <i class="fas fa-circle"></i> 
-                                                <span th:text="${tenant.status ?: 'Active'}">Active</span> Lease
+                                                <span th:text="${tenant.description ?: 'Active'}">Active</span> Lease
                                             </small>
                                         </div>
                                         <div class="dropdown">
@@ -404,7 +404,10 @@ function showTenantDetails(button) {
         </div>
     `;
     
-    $('#tenantModal').modal('show');
+    // Ensure jQuery and Bootstrap are loaded
+    if (typeof $ !== 'undefined') {
+        $('#tenantModal').modal('show');
+    }
 }
 
 function showComingSoon(feature) {
@@ -443,17 +446,20 @@ function showComingSoon(feature) {
         </div>
     `;
     
-    // Remove existing modal if present
-    $('#comingSoonModal').remove();
-    
-    // Add and show new modal
-    $('body').append(modal);
-    $('#comingSoonModal').modal('show');
-    
-    // Remove modal from DOM after it's hidden
-    $('#comingSoonModal').on('hidden.bs.modal', function () {
-        $(this).remove();
-    });
+    // Ensure jQuery and Bootstrap are loaded
+    if (typeof $ !== 'undefined') {
+        // Remove existing modal if present
+        $('#comingSoonModal').remove();
+        
+        // Add and show new modal
+        $('body').append(modal);
+        $('#comingSoonModal').modal('show');
+        
+        // Remove modal from DOM after it's hidden
+        $('#comingSoonModal').on('hidden.bs.modal', function () {
+            $(this).remove();
+        });
+    }
 }
 
 // Initialize page

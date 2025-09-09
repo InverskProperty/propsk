@@ -24,6 +24,7 @@
     
     <!-- Fix for text contrast issues -->
     <style>
+        /* Default text colors for regular cards */
         .text-muted {
             color: #6c757d !important;
         }
@@ -31,44 +32,51 @@
             color: #495057 !important;
         }
         
-        /* SUPER SPECIFIC overrides for colored cards - maximum specificity */
-        .card.card-inverse.card-success .card-body,
-        .card.card-inverse.card-success .card-body h2,
-        .card.card-inverse.card-success .card-body h6,
-        .card.card-inverse.card-success .card-body .text-white,
-        .card.card-inverse.card-success .card-body i {
-            color: #ffffff !important;
+        /* COMPREHENSIVE FIX: Force colored backgrounds AND white text */
+        
+        /* Green background for success cards */
+        .card.card-inverse.card-success {
+            background-color: #28a745 !important;
+            border-color: #28a745 !important;
         }
         
-        .card.card-inverse.card-primary .card-body,
-        .card.card-inverse.card-primary .card-body h2,
-        .card.card-inverse.card-primary .card-body h6,
-        .card.card-inverse.card-primary .card-body .text-white,
-        .card.card-inverse.card-primary .card-body i {
-            color: #ffffff !important;
+        /* Blue background for primary cards */
+        .card.card-inverse.card-primary {
+            background-color: #007bff !important;
+            border-color: #007bff !important;
         }
         
-        .card.card-inverse.card-warning .card-body,
-        .card.card-inverse.card-warning .card-body h2,
-        .card.card-inverse.card-warning .card-body h6,
-        .card.card-inverse.card-warning .card-body .text-white,
-        .card.card-inverse.card-warning .card-body i {
-            color: #ffffff !important;
+        /* Orange background for warning cards (darker for better contrast) */
+        .card.card-inverse.card-warning {
+            background-color: #fd7e14 !important;
+            border-color: #fd7e14 !important;
         }
         
-        .card.card-inverse.card-info .card-body,
-        .card.card-inverse.card-info .card-body h2,
-        .card.card-inverse.card-info .card-body h6,
-        .card.card-inverse.card-info .card-body .text-white,
-        .card.card-inverse.card-info .card-body i {
-            color: #ffffff !important;
+        /* Red background for danger cards */
+        .card.card-inverse.card-danger {
+            background-color: #dc3545 !important;
+            border-color: #dc3545 !important;
         }
         
-        .card.card-inverse.card-danger .card-body,
-        .card.card-inverse.card-danger .card-body h2,
-        .card.card-inverse.card-danger .card-body h6,
-        .card.card-inverse.card-danger .card-body .text-white,
-        .card.card-inverse.card-danger .card-body i {
+        /* Cyan background for info cards */
+        .card.card-inverse.card-info {
+            background-color: #17a2b8 !important;
+            border-color: #17a2b8 !important;
+        }
+        
+        /* White text on ALL colored inverse cards */
+        .card.card-inverse .card-body,
+        .card.card-inverse .card-body *,
+        .card.card-inverse .card-body h1,
+        .card.card-inverse .card-body h2,
+        .card.card-inverse .card-body h3,
+        .card.card-inverse .card-body h4,
+        .card.card-inverse .card-body h5,
+        .card.card-inverse .card-body h6,
+        .card.card-inverse .card-body p,
+        .card.card-inverse .card-body span,
+        .card.card-inverse .card-body i,
+        .card.card-inverse .card-body .text-white {
             color: #ffffff !important;
         }
         
