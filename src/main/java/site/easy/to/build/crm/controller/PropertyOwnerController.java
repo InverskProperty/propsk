@@ -1,6 +1,8 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -10,6 +12,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerLoginInfo;
 import site.easy.to.build.crm.entity.CustomerType;
+import site.easy.to.build.crm.entity.FinancialTransaction;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.PropertyOwner;
@@ -36,8 +39,10 @@ import site.easy.to.build.crm.entity.PortfolioAnalytics;
 import site.easy.to.build.crm.service.portfolio.PortfolioService;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
+import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -61,6 +66,10 @@ public class PropertyOwnerController {
     
     // ✅ NEW: Add TicketService for maintenance statistics
     private final TicketService ticketService;
+    
+    // ✅ NEW: Add FinancialTransactionRepository for PayProp financial data
+    @Autowired
+    private FinancialTransactionRepository financialTransactionRepository;
 
     // NEW PORTFOLIO SERVICE - Add this one only
     @Autowired(required = false)
@@ -1028,189 +1037,82 @@ public class PropertyOwnerController {
     }
 
     /**
-     * Property Owner Financial Summary
+     * Property Owner Financial Summary - Enhanced with PayProp Financial Data
      */
     @GetMapping("/property-owner/financials")
     public String viewFinancials(Model model, Authentication authentication) {
-        System.out.println("🔍 DEBUG: Starting BULLETPROOF financials method");
+        System.out.println("💰 Property Owner Financial Dashboard - Loading...");
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
             if (customer == null) {
-                System.out.println("🔍 DEBUG: Customer is null, redirecting to login");
                 return "redirect:/customer-login?error=not_found";
             }
-            System.out.println("🔍 DEBUG: Customer found: " + customer.getCustomerId());
+            System.out.println("✅ Loading financials for customer: " + customer.getCustomerId());
 
+            // 🚀 NEW: Get real PayProp financial data using verified queries
+            Object[] financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummary(customer.getCustomerId());
+            
+            // 💰 Parse financial summary (total_rent, total_commission, total_net_to_owner, transaction_count)
+            BigDecimal totalRent = financialSummary != null && financialSummary[0] != null ? 
+                new BigDecimal(financialSummary[0].toString()) : BigDecimal.ZERO;
+            BigDecimal totalCommission = financialSummary != null && financialSummary[1] != null ? 
+                new BigDecimal(financialSummary[1].toString()) : BigDecimal.ZERO;
+            BigDecimal totalNetToOwner = financialSummary != null && financialSummary[2] != null ? 
+                new BigDecimal(financialSummary[2].toString()) : BigDecimal.ZERO;
+            Long totalTransactions = financialSummary != null && financialSummary[3] != null ? 
+                Long.valueOf(financialSummary[3].toString()) : 0L;
+            
+            System.out.println("💰 Financial Summary - Rent: £" + totalRent + ", Commission: £" + totalCommission + 
+                             ", Net: £" + totalNetToOwner + ", Transactions: " + totalTransactions);
+
+            // 🏠 Get property-level financial breakdown
+            List<Object[]> propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdown(customer.getCustomerId());
+            
+            // 📋 Get recent transactions (last 10)
+            Pageable recentLimit = PageRequest.of(0, 10);
+            List<FinancialTransaction> recentTransactions = financialTransactionRepository
+                .getPropertyOwnerRecentTransactions(customer.getCustomerId(), recentLimit);
+            
+            // 📊 Calculate additional metrics
+            BigDecimal commissionRate = totalRent.compareTo(BigDecimal.ZERO) > 0 ? 
+                totalCommission.multiply(BigDecimal.valueOf(100)).divide(totalRent, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+            
+            // 🏠 Get basic property information for context
             List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
-            System.out.println("🔍 DEBUG: Found " + properties.size() + " properties");
             
-            // Use the EXACT same SQL logic that works in your database exploration
-            // Calculate financial metrics using streams (mirrors the SQL perfectly)
-            
-            // Total potential income (SUM of all monthly_payment)
-            BigDecimal totalMonthlyRent = properties.stream()
-                .map(Property::getMonthlyPayment)
-                .filter(payment -> payment != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-            System.out.println("🔍 DEBUG: Total monthly rent: " + totalMonthlyRent);
-            
-            // Get all active tenants for this owner's properties using existing service methods
-            List<Customer> allActiveTenants = new ArrayList<>(); // FIXED: Use Customer instead of Tenant
-            Map<Long, List<Customer>> propertyToTenants = new HashMap<>(); // FIXED: Use Customer instead of Tenant
-            
-            for (Property property : properties) {
-                try {
-                    // FIXED: Use CustomerService instead of empty TenantService
-                    List<Customer> activeTenants = customerService.findActiveTenantsForProperty(property.getId());
-                    propertyToTenants.put(property.getId(), activeTenants);
-                    allActiveTenants.addAll(activeTenants);
-                    System.out.println("🔍 DEBUG: Property " + property.getId() + " has " + activeTenants.size() + " active tenants");
-                } catch (Exception e) {
-                    System.err.println("❌ ERROR getting tenants for property " + property.getId() + ": " + e.getMessage());
-                    propertyToTenants.put(property.getId(), new ArrayList<>());
-                }
-            }
-            
-            // ✅ FIXED: Use PayProp-based occupancy logic instead of tenant-based logic
-            List<Property> occupiedProperties = properties.stream()
-                .filter(p -> p.getPayPropId() != null && propertyService.isPropertyOccupied(p.getPayPropId()))
-                .collect(Collectors.toList());
-            
-            List<Property> vacantProperties = properties.stream()
-                .filter(p -> p.getPayPropId() != null && !propertyService.isPropertyOccupied(p.getPayPropId()))
-                .collect(Collectors.toList());
-            
-            System.out.println("🔍 DEBUG: Occupied properties: " + occupiedProperties.size());
-            System.out.println("🔍 DEBUG: Vacant properties: " + vacantProperties.size());
-            
-            // Actual income (SUM of monthly_payment for occupied properties only)
-            BigDecimal currentMonthlyIncome = occupiedProperties.stream()
-                .map(Property::getMonthlyPayment)
-                .filter(payment -> payment != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-            
-            // Lost income = Total potential - Actual income
-            BigDecimal lostMonthlyIncome = totalMonthlyRent.subtract(currentMonthlyIncome);
-            
-            // Annual potential
-            BigDecimal annualRentPotential = totalMonthlyRent.multiply(BigDecimal.valueOf(12));
-            
-            // Occupancy rate
-            double occupancyRate = properties.isEmpty() ? 
-                0.0 : 
-                (double) occupiedProperties.size() / properties.size() * 100;
-            
-            // NEW: Calculate portfolio valuation metrics
-            BigDecimal totalPurchasePrice = properties.stream()
-                .map(Property::getPurchasePrice)
-                .filter(price -> price != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-                
-            BigDecimal totalPurchaserCosts = properties.stream()
-                .map(Property::getPurchaserCosts)
-                .filter(costs -> costs != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-                
-            BigDecimal totalAcquisitionCost = totalPurchasePrice.add(totalPurchaserCosts);
-                
-            BigDecimal totalEstimatedValue = properties.stream()
-                .map(Property::getEstimatedCurrentValue)
-                .filter(value -> value != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-                
-            BigDecimal totalCapitalGain = totalEstimatedValue.subtract(totalAcquisitionCost);
-            
-            // Portfolio-wide rental yield
-            BigDecimal portfolioRentalYield = BigDecimal.ZERO;
-            if (totalAcquisitionCost.compareTo(BigDecimal.ZERO) > 0) {
-                portfolioRentalYield = annualRentPotential
-                    .multiply(BigDecimal.valueOf(100))
-                    .divide(totalAcquisitionCost, 2, BigDecimal.ROUND_HALF_UP);
-            }
-            
-            System.out.println("🔍 DEBUG: Financial calculations complete:");
-            System.out.println("🔍 DEBUG: - Total potential: " + totalMonthlyRent);
-            System.out.println("🔍 DEBUG: - Actual income: " + currentMonthlyIncome);
-            System.out.println("🔍 DEBUG: - Lost income: " + lostMonthlyIncome);
-            System.out.println("🔍 DEBUG: - Occupancy rate: " + occupancyRate + "%");
-            System.out.println("🔍 DEBUG: - Total acquisition cost: " + totalAcquisitionCost);
-            System.out.println("🔍 DEBUG: - Total estimated value: " + totalEstimatedValue);
-            System.out.println("🔍 DEBUG: - Total capital gain: " + totalCapitalGain);
-            
-            // Create enhanced property data for template (with real occupancy status and valuation data)
-            List<Map<String, Object>> enhancedProperties = properties.stream()
-                .map(property -> {
-                    Map<String, Object> propertyData = new HashMap<>();
-                    propertyData.put("property", property);
-                    
-                    List<Customer> propertyTenants = propertyToTenants.get(property.getId()); // FIXED: Use Customer instead of Tenant
-                    boolean isOccupied = propertyTenants != null && !propertyTenants.isEmpty();
-                    
-                    propertyData.put("isOccupied", isOccupied);
-                    propertyData.put("activeTenants", propertyTenants);
-                    propertyData.put("tenantNames", propertyTenants.stream()
-                        .map(t -> (t.getFirstName() != null ? t.getFirstName() + " " + (t.getLastName() != null ? t.getLastName() : "") : 
-                                (t.getBusinessName() != null ? t.getBusinessName() : "Tenant")).trim())
-                        .collect(Collectors.joining(", ")));
-                    
-                    // NEW: Add valuation data for each property
-                    propertyData.put("hasValuationData", property.hasValuationData());
-                    propertyData.put("purchasePrice", property.getPurchasePrice() != null ? property.getPurchasePrice().toString() : "0");
-                    propertyData.put("purchaserCosts", property.getPurchaserCosts() != null ? property.getPurchaserCosts().toString() : "0");
-                    propertyData.put("totalAcquisitionCost", property.getTotalAcquisitionCost().toString());
-                    propertyData.put("estimatedCurrentValue", property.getEstimatedCurrentValue() != null ? property.getEstimatedCurrentValue().toString() : "0");
-                    propertyData.put("estimatedCapitalGain", property.getEstimatedCapitalGain().toString());
-                    propertyData.put("estimatedCapitalGainPercentage", property.getEstimatedCapitalGainPercentage().toString());
-                    propertyData.put("annualRentalYield", property.getAnnualRentalYield().toString());
-                    propertyData.put("currentRentalYield", property.getCurrentRentalYield().toString());
-                    
-                    return propertyData;
-                })
-                .collect(Collectors.toList());
-
-            // ✅ NEW: Add maintenance statistics for financials view
+            // 📅 Add maintenance statistics
+            Map<String, Object> maintenanceStats;
             try {
-                Map<String, Object> maintenanceStats = calculatePropertyOwnerMaintenanceStats(customer.getCustomerId());
-                model.addAttribute("maintenanceStats", maintenanceStats);
+                maintenanceStats = calculatePropertyOwnerMaintenanceStats(customer.getCustomerId());
             } catch (Exception e) {
-                System.err.println("Error calculating maintenance stats for financials view: " + e.getMessage());
-                model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
+                System.err.println("Error calculating maintenance stats: " + e.getMessage());
+                maintenanceStats = getDefaultMaintenanceStats();
             }
 
-            System.out.println("🔍 DEBUG: Adding model attributes");
+            // 📤 Add all data to model
             model.addAttribute("customer", customer);
+            model.addAttribute("customerId", customer.getCustomerId());
             model.addAttribute("properties", properties);
-            model.addAttribute("enhancedProperties", enhancedProperties);
             model.addAttribute("totalProperties", properties.size());
-            model.addAttribute("occupiedProperties", occupiedProperties.size());
-            model.addAttribute("vacantProperties", vacantProperties.size());
-            model.addAttribute("totalMonthlyRent", totalMonthlyRent.toString());
-            model.addAttribute("currentMonthlyIncome", currentMonthlyIncome.toString());
-            model.addAttribute("lostMonthlyIncome", lostMonthlyIncome.toString());
-            model.addAttribute("annualRentPotential", annualRentPotential.toString());
-            model.addAttribute("occupancyRate", String.format("%.2f", occupancyRate));
             
-            // NEW: Add valuation metrics to model
-            model.addAttribute("totalPurchasePrice", totalPurchasePrice.toString());
-            model.addAttribute("totalPurchaserCosts", totalPurchaserCosts.toString());
-            model.addAttribute("totalAcquisitionCost", totalAcquisitionCost.toString());
-            model.addAttribute("totalEstimatedValue", totalEstimatedValue.toString());
-            model.addAttribute("totalCapitalGain", totalCapitalGain.toString());
-            model.addAttribute("portfolioRentalYield", portfolioRentalYield.toString());
+            // 💰 Financial Summary Data
+            model.addAttribute("totalRent", totalRent);
+            model.addAttribute("totalCommission", totalCommission);
+            model.addAttribute("totalNetToOwner", totalNetToOwner);
+            model.addAttribute("totalTransactions", totalTransactions);
+            model.addAttribute("commissionRate", commissionRate);
             
-            // Calculate capital gain percentage
-            String capitalGainPercentage = "0.00";
-            if (totalAcquisitionCost.compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal percentage = totalCapitalGain
-                    .multiply(BigDecimal.valueOf(100))
-                    .divide(totalAcquisitionCost, 2, BigDecimal.ROUND_HALF_UP);
-                capitalGainPercentage = percentage.toString();
-            }
-            model.addAttribute("capitalGainPercentage", capitalGainPercentage);
+            // 🏠 Property Breakdown Data
+            model.addAttribute("propertyBreakdown", propertyBreakdown);
             
-            model.addAttribute("pageTitle", "Financial Summary");
+            // 📋 Recent Transactions
+            model.addAttribute("recentTransactions", recentTransactions);
+            
+            // 📊 Other Data
+            model.addAttribute("maintenanceStats", maintenanceStats);
+            model.addAttribute("pageTitle", "Financial Dashboard");
 
-            System.out.println("🔍 DEBUG: Returning financials view");
+            System.out.println("✅ Financial dashboard data loaded successfully");
             return "property-owner/financials";
             
         } catch (Exception e) {

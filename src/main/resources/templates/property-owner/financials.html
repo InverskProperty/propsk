@@ -80,18 +80,19 @@
                 </div>
             </div>
 
-            <!-- Success Alert - Financial Dashboard Active -->
+            <!-- PayProp Financial Dashboard Alert -->
             <div class="row">
                 <div class="col-12">
-                    <div class="alert alert-success alert-dismissible">
+                    <div class="alert alert-info alert-dismissible">
                         <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
-                        <h4><i class="icon fas fa-check-circle"></i> Financial Dashboard Active!</h4>
-                        Real-time financial analytics for your property portfolio. Data updated from your current tenant and property information.
+                        <h4><i class="icon fas fa-chart-line"></i> PayProp Financial Dashboard</h4>
+                        Real-time financial data from PayProp showing actual rent receipts, commissions, and net payments to you.
+                        <br><small><strong>Data Sources:</strong> ACTUAL Real PayProp data | CALCULATED System generated | SYNTHETIC Derived data</small>
                     </div>
                 </div>
             </div>
 
-            <!-- Key Financial Metrics -->
+            <!-- PayProp Financial Metrics -->
             <div class="row">
                 <div class="col-lg-3 col-md-6">
                     <div class="card financial-card income-card">
@@ -101,29 +102,10 @@
                                     <i class="fas fa-pound-sign"></i>
                                 </div>
                                 <div class="ml-3">
-                                    <h3 class="mb-0" th:text="'£' + ${currentMonthlyIncome ?: '0'}">£0</h3>
-                                    <p class="text-muted mb-0">Monthly Income</p>
+                                    <h3 class="mb-0" th:text="'£' + ${#numbers.formatDecimal(totalRent ?: 0, 1, 2)}">£0</h3>
+                                    <p class="text-muted mb-0">Total Rent Received</p>
                                     <small class="text-success">
-                                        <i class="fas fa-arrow-up"></i> From occupied properties
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-lg-3 col-md-6">
-                    <div class="card financial-card profit-card">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="metric-icon profit-icon">
-                                    <i class="fas fa-chart-line"></i>
-                                </div>
-                                <div class="ml-3">
-                                    <h3 class="mb-0" th:text="'£' + ${annualRentPotential ?: '0'}">£0</h3>
-                                    <p class="text-muted mb-0">Annual Potential</p>
-                                    <small class="text-info">
-                                        <i class="fas fa-calculator"></i> If 100% occupied
+                                        <i class="fas fa-chart-line"></i> PayProp actual data
                                     </small>
                                 </div>
                             </div>
@@ -136,13 +118,32 @@
                         <div class="card-body">
                             <div class="d-flex align-items-center">
                                 <div class="metric-icon expense-icon">
-                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <i class="fas fa-percentage"></i>
                                 </div>
                                 <div class="ml-3">
-                                    <h3 class="mb-0" th:text="'£' + ${lostMonthlyIncome ?: '0'}">£0</h3>
-                                    <p class="text-muted mb-0">Lost Income</p>
-                                    <small class="text-danger">
-                                        <i class="fas fa-arrow-down"></i> From vacant properties
+                                    <h3 class="mb-0" th:text="'£' + ${#numbers.formatDecimal(totalCommission ?: 0, 1, 2)}">£0</h3>
+                                    <p class="text-muted mb-0">Commission Paid</p>
+                                    <small class="text-info">
+                                        <i class="fas fa-calculator"></i> <span th:text="${#numbers.formatDecimal(commissionRate ?: 0, 1, 2)}">0</span>% average rate
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-3 col-md-6">
+                    <div class="card financial-card profit-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="metric-icon profit-icon">
+                                    <i class="fas fa-wallet"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="mb-0" th:text="'£' + ${#numbers.formatDecimal(totalNetToOwner ?: 0, 1, 2)}">£0</h3>
+                                    <p class="text-muted mb-0">Net to You</p>
+                                    <small class="text-success">
+                                        <i class="fas fa-arrow-right"></i> Your actual receipts
                                     </small>
                                 </div>
                             </div>
@@ -155,15 +156,14 @@
                         <div class="card-body">
                             <div class="d-flex align-items-center">
                                 <div class="metric-icon occupancy-icon">
-                                    <i class="fas fa-home"></i>
+                                    <i class="fas fa-list"></i>
                                 </div>
                                 <div class="ml-3">
-                                    <h3 class="mb-0" th:text="${occupancyRate ?: '0'} + '%'">0%</h3>
-                                    <p class="text-muted mb-0">Occupancy Rate</p>
-                                    <small class="text-warning">
-                                        <i class="fas fa-users"></i> 
-                                        <span th:text="${occupiedProperties ?: 0}">0</span> of 
-                                        <span th:text="${totalProperties ?: 0}">0</span> occupied
+                                    <h3 class="mb-0" th:text="${totalTransactions ?: 0}">0</h3>
+                                    <p class="text-muted mb-0">Total Transactions</p>
+                                    <small class="text-info">
+                                        <i class="fas fa-home"></i> 
+                                        <span th:text="${totalProperties ?: 0}">0</span> properties
                                     </small>
                                 </div>
                             </div>
@@ -172,85 +172,119 @@
                 </div>
             </div>
 
-            <!-- NEW: Portfolio Valuation Metrics -->
+            <!-- Property Financial Breakdown -->
             <div class="row mt-4">
                 <div class="col-12">
-                    <h4 class="mb-3">
-                        <i class="fas fa-chart-bar text-primary"></i> Portfolio Valuation
-                    </h4>
-                </div>
-                
-                <div class="col-lg-3 col-md-6">
-                    <div class="card financial-card" style="border-left-color: #28a745;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-building text-primary"></i> Property Financial Breakdown
+                            </h4>
+                            <p class="text-muted mb-0">PayProp financial data by individual property</p>
+                        </div>
                         <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="metric-icon" style="background: #28a745;">
-                                    <i class="fas fa-shopping-cart"></i>
-                                </div>
-                                <div class="ml-3">
-                                    <h3 class="mb-0" th:text="'£' + ${totalAcquisitionCost ?: '0'}">£0</h3>
-                                    <p class="text-muted mb-0">Total Acquisition Cost</p>
-                                    <small class="text-muted">
-                                        <i class="fas fa-info-circle"></i> Purchase + costs
-                                    </small>
-                                </div>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Property</th>
+                                            <th>Total Rent</th>
+                                            <th>Commission</th>
+                                            <th>Net to You</th>
+                                            <th>Transactions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="property : ${propertyBreakdown}">
+                                            <td>
+                                                <strong th:text="${property[0]}">Property Name</strong><br>
+                                                <small class="text-muted" th:text="${property[1]}">PayProp ID</small>
+                                            </td>
+                                            <td class="text-success">
+                                                <strong>£<span th:text="${#numbers.formatDecimal(property[2] ?: 0, 1, 2)}">0.00</span></strong>
+                                            </td>
+                                            <td class="text-info">
+                                                £<span th:text="${#numbers.formatDecimal(property[3] ?: 0, 1, 2)}">0.00</span>
+                                            </td>
+                                            <td class="text-primary">
+                                                <strong>£<span th:text="${#numbers.formatDecimal(property[4] ?: 0, 1, 2)}">0.00</span></strong>
+                                            </td>
+                                            <td>
+                                                <span class="badge badge-secondary" th:text="${property[5] ?: 0}">0</span>
+                                            </td>
+                                        </tr>
+                                        <tr th:if="${#lists.isEmpty(propertyBreakdown)}">
+                                            <td colspan="5" class="text-center text-muted">
+                                                <i class="fas fa-exclamation-triangle"></i> No financial data available
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="col-lg-3 col-md-6">
-                    <div class="card financial-card" style="border-left-color: #007bff;">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="metric-icon" style="background: #007bff;">
-                                    <i class="fas fa-home"></i>
-                                </div>
-                                <div class="ml-3">
-                                    <h3 class="mb-0" th:text="'£' + ${totalEstimatedValue ?: '0'}">£0</h3>
-                                    <p class="text-muted mb-0">Current Estimated Value</p>
-                                    <small class="text-info">
-                                        <i class="fas fa-trending-up"></i> Market valuation
-                                    </small>
-                                </div>
-                            </div>
+            <!-- Recent Transactions -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-list text-info"></i> Recent Transactions
+                            </h4>
+                            <p class="text-muted mb-0">Latest financial transactions from PayProp</p>
                         </div>
-                    </div>
-                </div>
-
-                <div class="col-lg-3 col-md-6">
-                    <div class="card financial-card" style="border-left-color: #17a2b8;">
                         <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="metric-icon" style="background: #17a2b8;">
-                                    <i class="fas fa-chart-line"></i>
-                                </div>
-                                <div class="ml-3">
-                                    <h3 class="mb-0" th:text="'£' + ${totalCapitalGain ?: '0'}">£0</h3>
-                                    <p class="text-muted mb-0">Capital Gain</p>
-                                    <small th:text="'(' + ${capitalGainPercentage ?: '0'} + '%)'">
-                                        (0%)
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-lg-3 col-md-6">
-                    <div class="card financial-card" style="border-left-color: #ffc107;">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="metric-icon" style="background: #ffc107;">
-                                    <i class="fas fa-percentage"></i>
-                                </div>
-                                <div class="ml-3">
-                                    <h3 class="mb-0" th:text="${portfolioRentalYield ?: '0'} + '%'">0%</h3>
-                                    <p class="text-muted mb-0">Portfolio Yield</p>
-                                    <small class="text-warning">
-                                        <i class="fas fa-calculator"></i> Annual return
-                                    </small>
-                                </div>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Property</th>
+                                            <th>Type</th>
+                                            <th>Amount</th>
+                                            <th>Commission</th>
+                                            <th>Net to Owner</th>
+                                            <th>Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="transaction : ${recentTransactions}">
+                                            <td th:text="${#temporals.format(transaction.transactionDate, 'dd/MM/yyyy')}">Date</td>
+                                            <td>
+                                                <small th:text="${transaction.propertyName}">Property</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge badge-info" th:text="${transaction.transactionType}">Type</span>
+                                            </td>
+                                            <td class="text-right">
+                                                £<span th:text="${#numbers.formatDecimal(transaction.amount ?: 0, 1, 2)}">0.00</span>
+                                            </td>
+                                            <td class="text-right text-muted">
+                                                <span th:if="${transaction.commissionAmount != null}">
+                                                    £<span th:text="${#numbers.formatDecimal(transaction.commissionAmount, 1, 2)}">0.00</span>
+                                                </span>
+                                                <span th:if="${transaction.commissionAmount == null}">-</span>
+                                            </td>
+                                            <td class="text-right text-success">
+                                                <span th:if="${transaction.netToOwnerAmount != null}">
+                                                    <strong>£<span th:text="${#numbers.formatDecimal(transaction.netToOwnerAmount, 1, 2)}">0.00</span></strong>
+                                                </span>
+                                                <span th:if="${transaction.netToOwnerAmount == null}">-</span>
+                                            </td>
+                                            <td>
+                                                <small th:text="${transaction.description}">Description</small>
+                                            </td>
+                                        </tr>
+                                        <tr th:if="${#lists.isEmpty(recentTransactions)}">
+                                            <td colspan="7" class="text-center text-muted">
+                                                <i class="fas fa-exclamation-triangle"></i> No recent transactions found
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>

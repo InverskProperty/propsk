@@ -489,8 +489,54 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.propertyId = :propertyId AND ft.transactionType = :transactionType AND ft.transactionDate BETWEEN :startDate AND :endDate")
     List<FinancialTransaction> findByPropertyIdAndTransactionTypeAndTransactionDateBetween(@Param("propertyId") String propertyId, @Param("transactionType") String transactionType, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
     /**
-
     * ✅ NEW: Find transactions by property, transaction type and specific date
     */
     List<FinancialTransaction> findByPropertyIdAndTransactionTypeAndTransactionDate(String propertyId, String transactionType, LocalDate transactionDate);
+
+    // ===== PROPERTY OWNER SPECIFIC QUERIES =====
+    
+    /**
+     * Get financial summary for property owner's properties via portfolio assignments
+     */
+    @Query(value = "SELECT " +
+           "SUM(CASE WHEN fs.total_rent IS NOT NULL THEN fs.total_rent ELSE 0 END), " +
+           "SUM(CASE WHEN fs.total_commission IS NOT NULL THEN fs.total_commission ELSE 0 END), " +
+           "SUM(CASE WHEN fs.total_net_to_owner IS NOT NULL THEN fs.total_net_to_owner ELSE 0 END), " +
+           "SUM(CASE WHEN fs.transaction_count IS NOT NULL THEN fs.transaction_count ELSE 0 END) " +
+           "FROM customers c " +
+           "JOIN portfolios po ON c.customer_id = po.property_owner_id " +
+           "JOIN property_portfolio_assignments ppa ON po.id = ppa.portfolio_id " +
+           "JOIN properties pr ON ppa.property_id = pr.id " +
+           "JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
+           "WHERE c.customer_id = :customerId AND ppa.is_active = 1",
+           nativeQuery = true)
+    Object[] getPropertyOwnerFinancialSummary(@Param("customerId") Integer customerId);
+    
+    /**
+     * Get recent transactions for property owner's properties via portfolio assignments
+     */
+    @Query("SELECT ft FROM FinancialTransaction ft " +
+           "WHERE ft.propertyId IN (" +
+           "  SELECT pr.paypropId FROM Property pr " +
+           "  JOIN PropertyPortfolioAssignment ppa ON pr.id = ppa.propertyId " +
+           "  JOIN Portfolio po ON ppa.portfolioId = po.id " +
+           "  WHERE po.propertyOwnerId = :customerId AND ppa.isActive = true" +
+           ") ORDER BY ft.transactionDate DESC")
+    List<FinancialTransaction> getPropertyOwnerRecentTransactions(@Param("customerId") Integer customerId, Pageable pageable);
+    
+    /**
+     * Get property-level financial breakdown for property owner
+     */
+    @Query(value = "SELECT pr.property_name, pr.payprop_id, " +
+           "COALESCE(fs.total_rent, 0), COALESCE(fs.total_commission, 0), " +
+           "COALESCE(fs.total_net_to_owner, 0), COALESCE(fs.transaction_count, 0) " +
+           "FROM customers c " +
+           "JOIN portfolios po ON c.customer_id = po.property_owner_id " +
+           "JOIN property_portfolio_assignments ppa ON po.id = ppa.portfolio_id " +
+           "JOIN properties pr ON ppa.property_id = pr.id " +
+           "LEFT JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
+           "WHERE c.customer_id = :customerId AND ppa.is_active = 1 " +
+           "ORDER BY pr.property_name",
+           nativeQuery = true)
+    List<Object[]> getPropertyOwnerPropertyBreakdown(@Param("customerId") Integer customerId);
 }
