@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
 
 @Entity
 @Table(name = "portfolios")
@@ -187,7 +188,19 @@ public class Portfolio {
     public List<Block> getBlocks() { return blocks; }
     public void setBlocks(List<Block> blocks) { this.blocks = blocks; }
     
-    // Note: Property getters/setters removed - use PortfolioAssignmentService for property relationships
+    // ❌ DEPRECATED: Direct property getters/setters - use PortfolioAssignmentService for property relationships
+    @Deprecated 
+    public List<Property> getProperties() { 
+        // Return empty list since direct relationship is disabled
+        // Use PortfolioAssignmentService.getPropertiesForPortfolio(this.getId()) instead
+        return new ArrayList<>(); 
+    }
+    
+    @Deprecated
+    public void setProperties(List<Property> properties) { 
+        // No-op since direct relationship is disabled
+        // Use PortfolioAssignmentService.assignProperty() instead
+    }
     
     public Customer getPropertyOwner() { return propertyOwner; }
     public void setPropertyOwner(Customer propertyOwner) { this.propertyOwner = propertyOwner; }

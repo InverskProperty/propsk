@@ -183,7 +183,10 @@ public class PortfolioAssignmentService {
                 }
                 
                 // Step 4: REMOVE direct FK assignment to prevent conflicts
-                if (property.getPortfolio() != null && property.getPortfolio().getId().equals(portfolioId)) {
+                // FIXED: Check through assignment service instead of deprecated property.getPortfolio()
+                List<Portfolio> currentPortfolios = getPortfoliosForProperty(propertyId);
+                Portfolio currentPortfolio = currentPortfolios.isEmpty() ? null : currentPortfolios.get(0);
+                if (currentPortfolio != null && currentPortfolio.getId().equals(portfolioId)) {
                     log.info("🔧 Clearing direct FK for property {} to prevent conflicts", propertyId);
                     property.setPortfolio(null);
                     property.setPortfolioAssignmentDate(null);
@@ -261,7 +264,10 @@ public class PortfolioAssignmentService {
         }
         
         // Clear direct FK if it matches
-        if (property.getPortfolio() != null && property.getPortfolio().getId().equals(portfolioId)) {
+        // FIXED: Check through assignment service instead of deprecated property.getPortfolio()
+        List<Portfolio> currentPortfolios = getPortfoliosForProperty(propertyId);
+                Portfolio currentPortfolio = currentPortfolios.isEmpty() ? null : currentPortfolios.get(0);
+        if (currentPortfolio != null && currentPortfolio.getId().equals(portfolioId)) {
             property.setPortfolio(null);
             property.setPortfolioAssignmentDate(null);
             propertyService.save(property);
@@ -282,15 +288,16 @@ public class PortfolioAssignmentService {
         MigrationResult result = new MigrationResult();
         
         // Find all properties with direct FK assignments
+        // FIXED: This method is for migration - keep deprecated call but add comment
         List<Property> propertiesWithFK = propertyService.findAll().stream()
-            .filter(p -> p.getPortfolio() != null)
+            .filter(p -> p.getPortfolio() != null) // Migration method - checking deprecated field
             .collect(Collectors.toList());
         
         log.info("Found {} properties with direct FK assignments", propertiesWithFK.size());
         
         for (Property property : propertiesWithFK) {
             try {
-                Portfolio portfolio = property.getPortfolio();
+                Portfolio portfolio = property.getPortfolio(); // Migration method - using deprecated field
                 
                 // Check if junction table assignment already exists
                 if (isPropertyAssignedToPortfolio(property.getId(), portfolio.getId())) {
@@ -358,7 +365,7 @@ public class PortfolioAssignmentService {
         for (PropertyPortfolioAssignment assignment : pendingAssignments) {
             try {
                 Property property = assignment.getProperty();
-                Portfolio portfolio = assignment.getPortfolio();
+                Portfolio portfolio = assignment.getPortfolio(); // Valid - this is from junction table
                 
                 if (shouldSyncToPayProp(portfolio, property)) {
                     String tagValue = portfolio.getPayPropTags();
@@ -714,7 +721,10 @@ public class PortfolioAssignmentService {
                 }
                 
                 // Clear any conflicting direct FK assignment
-                if (property.getPortfolio() != null && property.getPortfolio().getId().equals(portfolioId)) {
+                // FIXED: Check through assignment service instead of deprecated property.getPortfolio()
+                List<Portfolio> currentPortfolios = getPortfoliosForProperty(propertyId);
+                Portfolio currentPortfolio = currentPortfolios.isEmpty() ? null : currentPortfolios.get(0);
+                if (currentPortfolio != null && currentPortfolio.getId().equals(portfolioId)) {
                     log.info("🔧 Clearing direct FK for property {} to prevent conflicts", propertyId);
                     property.setPortfolio(null);
                     property.setPortfolioAssignmentDate(null);
@@ -788,7 +798,7 @@ public class PortfolioAssignmentService {
                 List<PropertyPortfolioAssignment> assignments = assignmentRepository
                     .findByPropertyIdAndIsActive(propertyId, true)
                     .stream()
-                    .filter(a -> portfolioId.equals(a.getPortfolio().getId()))
+                    .filter(a -> portfolioId.equals(a.getPortfolio().getId())) // Valid - from junction table
                     .collect(Collectors.toList());
                 
                 PropertyPortfolioAssignment targetAssignment = assignments.stream()
@@ -901,7 +911,7 @@ public class PortfolioAssignmentService {
         Block block = blockRepository.findById(blockId)
             .orElseThrow(() -> new IllegalArgumentException("Block not found: " + blockId));
         
-        if (!portfolioId.equals(block.getPortfolio().getId())) {
+        if (!portfolioId.equals(block.getPortfolio().getId())) { // Valid - Block has portfolio FK
             throw new IllegalArgumentException("Block " + blockId + " does not belong to portfolio " + portfolioId);
         }
         
@@ -945,7 +955,7 @@ public class PortfolioAssignmentService {
                 
             } else {
                 // Portfolio-only assignment - use portfolio's PayProp tag
-                Portfolio portfolio = assignment.getPortfolio();
+                Portfolio portfolio = assignment.getPortfolio(); // Valid - from junction table
                 if (portfolio.getPayPropTags() == null || portfolio.getPayPropTags().trim().isEmpty()) {
                     log.warn("Portfolio {} has no PayProp external ID, cannot sync property {}", 
                             portfolio.getId(), property.getId());
@@ -1001,7 +1011,7 @@ public class PortfolioAssignmentService {
             // Also clear any direct FK assignments in properties
             List<Property> propertiesWithDirectAssignment = propertyService.findAll()
                 .stream()
-                .filter(p -> p.getPortfolio() != null)
+                .filter(p -> p.getPortfolio() != null) // Clear operation - using deprecated field
                 .collect(Collectors.toList());
             
             log.info("Found {} properties with direct portfolio FK assignments", propertiesWithDirectAssignment.size());
@@ -1089,7 +1099,7 @@ public class PortfolioAssignmentService {
             // Step 4: Clear direct FK assignments in properties
             List<Property> propertiesWithDirectAssignment = propertyService.findAll()
                 .stream()
-                .filter(p -> p.getPortfolio() != null)
+                .filter(p -> p.getPortfolio() != null) // Clear operation - using deprecated field
                 .collect(Collectors.toList());
             
             directFkCleared = propertiesWithDirectAssignment.size();

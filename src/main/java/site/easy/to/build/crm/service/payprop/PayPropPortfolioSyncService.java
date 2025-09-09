@@ -17,6 +17,7 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.portfolio.PortfolioAssignmentService;
+import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import site.easy.to.build.crm.service.tag.TagNamespaceService;
 import org.springframework.http.*;
 
@@ -47,6 +48,10 @@ public class PayPropPortfolioSyncService {
     @Autowired(required = false)
     @Lazy
     private PortfolioAssignmentService portfolioAssignmentService;
+    
+    @Autowired(required = false)
+    @Lazy
+    private PortfolioService portfolioService;
     
     // Add PayPropBlockSyncService for hierarchical sync
     @Autowired(required = false)

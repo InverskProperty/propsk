@@ -505,7 +505,7 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
             }
             
             Block block = blockOpt.get();
-            Long portfolioId = block.getPortfolio().getId();
+            Long portfolioId = block.getPortfolio().getId(); // Valid - Block has portfolio FK
             
             // Check permissions for the portfolio
             if (!canUserEditPortfolio(portfolioId, authentication)) {

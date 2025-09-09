@@ -2461,14 +2461,15 @@ public class PortfolioController {
                 ));
             }
             
-            // Test Method 3: Portfolio entity properties
+            // Test Method 3: Portfolio entity properties - FIXED: Use portfolioService instead of deprecated method
             if (portfolio != null) {
                 try {
-                    if (portfolio.getProperties() != null) {
+                    List<Property> portfolioProperties = portfolioService.getPropertiesForPortfolio(portfolio.getId());
+                    if (portfolioProperties != null) {
                         result.put("method3_portfolioEntity", Map.of(
                             "status", "SUCCESS",
-                            "count", portfolio.getProperties().size(),
-                            "propertyNames", portfolio.getProperties().stream().limit(3)
+                            "count", portfolioProperties.size(),
+                            "propertyNames", portfolioProperties.stream().limit(3)
                                 .map(Property::getPropertyName).collect(Collectors.toList())
                         ));
                     } else {

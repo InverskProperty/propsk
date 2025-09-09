@@ -21,7 +21,8 @@
       "Read(/C:\\Users\\sajid\\crecrm\\src\\main\\java\\site\\easy\\to\\build\\crm\\config/**)",
       "Read(/C:\\Users\\sajid\\crecrm\\src\\main\\java\\site\\easy\\to\\build\\crm\\config/**)",
       "Bash(taskkill:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(mvn clean:*)"
     ],
     "deny": [],
     "ask": [],
