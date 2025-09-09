@@ -237,7 +237,7 @@
                                                 <span th:if="${tenant.firstName == null and tenant.businessName != null}" th:text="${tenant.businessName}"></span>
                                                 <span th:if="${tenant.firstName == null and tenant.businessName == null}">Tenant Name</span>
                                             </h5>
-                                            <p class="text-muted mb-0 small" th:text="${tenant.emailAddress ?: 'No email provided'}">Email</p>
+                                            <p class="text-muted mb-0 small" th:text="${tenant.email ?: 'No email provided'}">Email</p>
                                             <small class="status-active">
                                                 <i class="fas fa-circle"></i> 
                                                 <span th:text="${tenant.status ?: 'Active'}">Active</span> Lease
@@ -249,7 +249,7 @@
                                             </button>
                                             <div class="dropdown-menu dropdown-menu-right">
                                                 <a class="dropdown-item" href="#" onclick="showTenantDetails(this)" 
-                                                   th:attr="data-tenant-name=${tenant.firstName != null ? (tenant.firstName + ' ' + (tenant.lastName ?: '')) : (tenant.businessName ?: 'Tenant')}, data-tenant-email=${tenant.emailAddress ?: 'No email'}">
+                                                   th:attr="data-tenant-name=${tenant.firstName != null ? (tenant.firstName + ' ' + (tenant.lastName ?: '')) : (tenant.businessName ?: 'Tenant')}, data-tenant-email=${tenant.email ?: 'No email'}">
                                                     <i class="fas fa-eye"></i> View Details
                                                 </a>
                                                 <a class="dropdown-item" href="#" onclick="showComingSoon('Edit Tenant')">
@@ -265,8 +265,8 @@
                                     <!-- Property Information -->
                                     <div class="mb-3">
                                         <h6><i class="fas fa-home text-primary"></i> Property</h6>
-                                        <p class="mb-0" th:text="${tenant.property?.addressLine1 ?: tenant.property?.propertyName ?: 'Property Address Not Set'}">Property Address</p>
-                                        <small class="text-muted" th:text="${(tenant.property?.city ?: 'City') + ', ' + (tenant.property?.postcode ?: 'Postcode')}">City, Postcode</small>
+                                        <p class="mb-0">Property details will be available soon</p>
+                                        <small class="text-muted">Feature coming soon</small>
                                     </div>
                                     
                                     <!-- Rental Information -->
