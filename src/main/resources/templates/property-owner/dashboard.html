@@ -236,7 +236,7 @@
                         <strong>URGENT MAINTENANCE ALERT!</strong>
                         You have <span th:text="${maintenanceStats.emergencyTickets}">0</span> emergency maintenance issue(s) requiring immediate attention across your properties.
                         <div class="mt-2">
-                            <a href="/property-owner/properties?filter=maintenance" class="btn btn-sm btn-outline-light">View Properties</a>
+                            <a href="/property-owner/maintenance?status=open" class="btn btn-sm btn-outline-light">View Open Issues</a>
                             <a href="/property-owner/tenants" class="btn btn-sm btn-outline-light ml-2">Contact Tenants</a>
                         </div>
                         <button type="button" class="close" data-dismiss="alert" aria-label="Close">
@@ -340,7 +340,7 @@
                                             </a>
                                             
                                             <a th:if="${maintenanceStats.openTickets > 0}" 
-                                               href="/property-owner/properties?filter=maintenance" 
+                                               href="/property-owner/maintenance?status=open" 
                                                class="btn btn-warning btn-sm maintenance-action-btn">
                                                 <i class="fas fa-wrench"></i> View Open Issues
                                             </a>
@@ -448,7 +448,7 @@
                                 </a>
                                 
                                 <a th:if="${maintenanceStats.openTickets > 0}" 
-                                   href="/property-owner/properties?filter=maintenance" 
+                                   href="/property-owner/maintenance?status=open" 
                                    class="list-group-item list-group-item-action priority-medium">
                                     <i class="fas fa-wrench text-warning"></i> Open Maintenance Issues
                                     <span class="badge badge-warning float-right" th:text="${maintenanceStats.openTickets}">0</span>
@@ -602,7 +602,7 @@
                                             
                                             <div class="row text-center">
                                                 <div class="col-4">
-                                                    <h4 class="text-primary" th:text="${portfolio.properties?.size() ?: 0}">0</h4>
+                                                    <h4 class="text-primary" th:text="${portfolioPropertyCounts[portfolio.id] ?: 0}">0</h4>
                                                     <small class="text-muted">Properties</small>
                                                 </div>
                                                 <div class="col-4">
@@ -754,7 +754,7 @@ $(document).keydown(function(e) {
             case 77: // Ctrl+M - Maintenance (if issues exist)
                 e.preventDefault();
                 if (maintenanceStats && maintenanceStats.openTickets > 0) {
-                    window.location.href = '/property-owner/properties?filter=maintenance';
+                    window.location.href = '/property-owner/maintenance?status=open';
                 }
                 break;
             case 69: // Ctrl+E - Emergency (if exists)

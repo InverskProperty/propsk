@@ -94,13 +94,13 @@
                                             </thead>
                                             <tbody>
                                                 <tr th:each="ticket : ${tickets}">
-                                                    <td th:text="${ticket.id}">#123</td>
+                                                    <td th:text="${ticket.ticketId}">#123</td>
                                                     <td>
                                                         <strong th:text="${ticket.property?.propertyName ?: ticket.property?.addressLine1 ?: 'Unknown Property'}">Property Name</strong><br>
                                                         <small class="text-muted" th:text="${ticket.property?.addressLine1 ?: ''}">Address</small>
                                                     </td>
                                                     <td>
-                                                        <strong th:text="${ticket.issueType ?: 'General'}">Issue Type</strong><br>
+                                                        <strong th:text="${ticket.type ?: 'General'}">Issue Type</strong><br>
                                                         <small class="text-muted" th:text="${ticket.description ?: 'No description'}">Description</small>
                                                     </td>
                                                     <td>
@@ -117,10 +117,10 @@
                                                                ${ticket.priority == 'medium'} ? 'bg-info' : 'bg-secondary')"
                                                               th:text="${ticket.priority ?: 'Normal'}">Priority</span>
                                                     </td>
-                                                    <td th:text="${#temporals.format(ticket.createdDate, 'dd/MM/yyyy') ?: 'N/A'}">Date</td>
+                                                    <td th:text="${#temporals.format(ticket.createdAt, 'dd/MM/yyyy') ?: 'N/A'}">Date</td>
                                                     <td>
                                                         <button class="btn btn-sm btn-primary" 
-                                                                th:onclick="'viewTicketDetails(' + ${ticket.id} + ')'">
+                                                                th:onclick="'viewTicketDetails(' + ${ticket.ticketId} + ')'">
                                                             <i class="fas fa-eye"></i> View
                                                         </button>
                                                     </td>
