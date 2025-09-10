@@ -196,9 +196,12 @@ public class PayPropOAuth2Service {
     public PayPropTokens exchangeCodeForToken(String authorizationCode, Long userId) throws Exception {
         System.out.println("🔄 STARTING TOKEN EXCHANGE:");
         System.out.println("   Token URL: " + tokenUrl);
+        System.out.println("   Authorization URL (used): " + authorizationUrl);
+        System.out.println("   API Base URL: " + environment.getProperty("payprop.api.base-url"));
         System.out.println("   Authorization Code: " + authorizationCode.substring(0, Math.min(20, authorizationCode.length())) + "...");
         System.out.println("   Client ID: " + clientId);
         System.out.println("   Client Secret: " + (clientSecret != null ? clientSecret.substring(0, Math.min(8, clientSecret.length())) + "..." : "NULL"));
+        System.out.println("   Client Secret FULL: " + clientSecret);
         System.out.println("   Redirect URI: " + redirectUri);
         
         HttpHeaders headers = new HttpHeaders();
