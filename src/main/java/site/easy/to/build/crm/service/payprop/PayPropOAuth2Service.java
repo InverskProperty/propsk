@@ -217,6 +217,7 @@ public class PayPropOAuth2Service {
         System.out.println("   client_id: " + clientId);
         System.out.println("   client_secret: " + (clientSecret != null ? clientSecret.substring(0, Math.min(4, clientSecret.length())) + "..." : "NULL"));
         System.out.println("   client_secret_length: " + (clientSecret != null ? clientSecret.length() : "NULL"));
+        System.out.println("   client_secret_full: " + clientSecret); // TEMPORARY DEBUG - REMOVE AFTER TESTING
         System.out.println("   redirect_uri: " + redirectUri);
         System.out.println("   redirect_uri_matches_config: " + redirectUri.equals(environment.getProperty("payprop.oauth2.redirect-uri")));
 
