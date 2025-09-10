@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Maintenance Test - Property Owner Portal</title>
+    
+    <!-- Bootstrap Core CSS -->
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link th:href="@{/css/style.min.css}" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link th:href="@{/css/all.css}" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-12">
+                <h2>Maintenance System Test</h2>
+                <p>This page tests if jQuery and Bootstrap modals are working correctly.</p>
+                
+                <button class="btn btn-success" onclick="testCreateModal()">
+                    <i class="fas fa-plus"></i> Test Create Modal
+                </button>
+                
+                <button class="btn btn-primary ml-2" onclick="testViewModal()">
+                    <i class="fas fa-eye"></i> Test View Modal  
+                </button>
+                
+                <div id="testResults" class="mt-4">
+                    <h4>Test Results:</h4>
+                    <ul id="resultsList">
+                        <li>Page loaded</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Modal (simplified) -->
+    <div class="modal fade" id="testCreateModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Test Create Modal</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p>This is a test modal to verify Bootstrap modals are working.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Modal (simplified) -->
+    <div class="modal fade" id="testViewModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Test View Modal</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p>This modal simulates the ticket detail view.</p>
+                    <div class="alert alert-info">
+                        <strong>Ticket #123</strong><br>
+                        Status: Open<br>
+                        Priority: Medium<br>
+                        Description: Test maintenance request
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts matching property owner pattern -->
+    <script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+    <script th:src="@{/js/library/bootstrap.min.js}"></script>
+    <script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+    
+    <script>
+        function addResult(message) {
+            document.getElementById('resultsList').innerHTML += '<li>' + message + '</li>';
+        }
+
+        function testCreateModal() {
+            if (typeof $ === 'undefined') {
+                addResult('❌ jQuery not loaded');
+                return;
+            }
+            
+            addResult('✅ jQuery is available');
+            
+            if (typeof $.fn.modal === 'undefined') {
+                addResult('❌ Bootstrap modal not available');
+                return;
+            }
+            
+            addResult('✅ Bootstrap modal is available');
+            
+            try {
+                $('#testCreateModal').modal('show');
+                addResult('✅ Create modal opened successfully');
+            } catch (error) {
+                addResult('❌ Error opening create modal: ' + error.message);
+            }
+        }
+        
+        function testViewModal() {
+            if (typeof $ === 'undefined') {
+                addResult('❌ jQuery not loaded');
+                return;
+            }
+            
+            try {
+                $('#testViewModal').modal('show');
+                addResult('✅ View modal opened successfully');
+            } catch (error) {
+                addResult('❌ Error opening view modal: ' + error.message);
+            }
+        }
+
+        $(document).ready(function() {
+            addResult('✅ jQuery document ready fired');
+            
+            if (typeof $.fn.modal !== 'undefined') {
+                addResult('✅ Bootstrap modals are ready');
+            } else {
+                addResult('❌ Bootstrap modals not ready');
+            }
+        });
+    </script>
+</body>
+</html>

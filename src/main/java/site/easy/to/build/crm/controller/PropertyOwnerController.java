@@ -972,6 +972,11 @@ public class PropertyOwnerController {
     public String test() {
         return "property-owner/test";
     }
+    
+    @GetMapping("/property-owner/maintenance-test")
+    public String maintenanceTest() {
+        return "property-owner/maintenance-test";
+    }
 
     /**
      * Debug endpoint for property view issues
