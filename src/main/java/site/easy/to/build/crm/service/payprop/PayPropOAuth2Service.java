@@ -702,4 +702,17 @@ public class PayPropOAuth2Service {
             return expiresAt != null && expiresAt.isBefore(LocalDateTime.now().plusMinutes(5));
         }
     }
+    
+    // Getter methods for debug access
+    public String getClientId() {
+        return clientId;
+    }
+    
+    public String getTokenUrl() {
+        return tokenUrl;
+    }
+    
+    public String getClientSecret() {
+        return clientSecret;
+    }
 }

@@ -163,9 +163,11 @@ public class PayPropOAuth2Controller {
         model.addAttribute("codeLength", code != null ? code.length() : 0);
         model.addAttribute("fullCode", code);
         model.addAttribute("timestamp", java.time.LocalDateTime.now());
-        model.addAttribute("clientId", clientId);
-        model.addAttribute("tokenUrl", tokenUrl);
-        model.addAttribute("clientSecret", clientSecret);
+        
+        // Get values from environment/service instead of direct field access
+        model.addAttribute("clientId", oAuth2Service.getClientId());
+        model.addAttribute("tokenUrl", oAuth2Service.getTokenUrl());
+        model.addAttribute("clientSecret", oAuth2Service.getClientSecret());
         
         return "payprop/oauth-debug";
     }
