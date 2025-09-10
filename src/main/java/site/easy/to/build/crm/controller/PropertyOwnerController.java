@@ -41,6 +41,7 @@ import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 
@@ -1669,6 +1670,165 @@ public class PropertyOwnerController {
             e.printStackTrace();
             model.addAttribute("error", "Error loading maintenance: " + e.getMessage());
             return "property-owner/dashboard";
+        }
+    }
+    
+    /**
+     * Get Ticket Details (AJAX endpoint)
+     */
+    @GetMapping("/property-owner/maintenance/ticket/{ticketId}/details")
+    public String getTicketDetails(@PathVariable("ticketId") int ticketId, 
+                                 Model model, Authentication authentication) {
+        System.out.println("🔍 Getting ticket details for ticket: " + ticketId);
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                model.addAttribute("error", "Authentication required");
+                return "fragments/ticket-detail-error";
+            }
+            
+            // Get the ticket
+            Ticket ticket = ticketService.findByTicketId(ticketId);
+            if (ticket == null) {
+                model.addAttribute("error", "Ticket not found");
+                return "fragments/ticket-detail-error";
+            }
+            
+            // Verify ownership - check if ticket belongs to a property owned by this customer
+            List<Property> ownedProperties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            boolean ownsTicket = false;
+            
+            if (ticket.getProperty() != null) {
+                ownsTicket = ownedProperties.stream()
+                    .anyMatch(p -> p.getId().equals(ticket.getProperty().getId()));
+            }
+            
+            if (!ownsTicket) {
+                model.addAttribute("error", "You don't have access to this ticket");
+                return "fragments/ticket-detail-error";
+            }
+            
+            model.addAttribute("ticket", ticket);
+            return "fragments/ticket-detail";
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error getting ticket details: " + e.getMessage());
+            model.addAttribute("error", "Error loading ticket: " + e.getMessage());
+            return "fragments/ticket-detail-error";
+        }
+    }
+    
+    /**
+     * Create New Maintenance Request (AJAX endpoint)
+     */
+    @PostMapping("/property-owner/maintenance/create")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> createMaintenanceRequest(
+            @RequestParam("propertyId") Long propertyId,
+            @RequestParam("subject") String subject,
+            @RequestParam("description") String description,
+            @RequestParam("priority") String priority,
+            @RequestParam(value = "maintenanceCategory", required = false) String maintenanceCategory,
+            @RequestParam(value = "accessRequired", required = false) Boolean accessRequired,
+            @RequestParam(value = "tenantPresentRequired", required = false) Boolean tenantPresentRequired,
+            @RequestParam(value = "preferredTimeSlot", required = false) String preferredTimeSlot,
+            Authentication authentication) {
+        
+        System.out.println("🔧 Creating new maintenance request for property: " + propertyId);
+        
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("success", false, "error", "Authentication required"));
+            }
+            
+            // Verify property ownership
+            List<Property> ownedProperties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            Property property = ownedProperties.stream()
+                .filter(p -> p.getId().equals(propertyId))
+                .findFirst()
+                .orElse(null);
+                
+            if (property == null) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("success", false, "error", "You don't have access to this property"));
+            }
+            
+            // Validate required fields
+            if (subject == null || subject.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "error", "Subject is required"));
+            }
+            
+            if (description == null || description.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "error", "Description is required"));
+            }
+            
+            // Create new ticket
+            Ticket ticket = new Ticket();
+            ticket.setSubject(subject.trim());
+            ticket.setDescription(description.trim());
+            ticket.setPriority(priority);
+            ticket.setType("maintenance");
+            ticket.setStatus("open");
+            ticket.setProperty(property);
+            ticket.setCustomer(customer);
+            ticket.setCreatedAt(LocalDateTime.now());
+            
+            // Set maintenance-specific fields
+            if (maintenanceCategory != null && !maintenanceCategory.trim().isEmpty()) {
+                ticket.setMaintenanceCategory(maintenanceCategory);
+            }
+            
+            if (accessRequired != null) {
+                ticket.setAccessRequired(accessRequired);
+            }
+            
+            if (tenantPresentRequired != null) {
+                ticket.setTenantPresentRequired(tenantPresentRequired);
+            }
+            
+            if (preferredTimeSlot != null && !preferredTimeSlot.trim().isEmpty()) {
+                ticket.setPreferredTimeSlot(preferredTimeSlot);
+            }
+            
+            // Set urgency level based on priority
+            switch (priority.toLowerCase()) {
+                case "emergency":
+                    ticket.setUrgencyLevel("emergency");
+                    break;
+                case "high":
+                    ticket.setUrgencyLevel("urgent");
+                    break;
+                case "medium":
+                    ticket.setUrgencyLevel("routine");
+                    break;
+                case "low":
+                    ticket.setUrgencyLevel("routine");
+                    break;
+                default:
+                    ticket.setUrgencyLevel("routine");
+            }
+            
+            // Save the ticket
+            Ticket savedTicket = ticketService.save(ticket);
+            System.out.println("✅ Created maintenance ticket #" + savedTicket.getTicketId());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Maintenance request #" + savedTicket.getTicketId() + " has been submitted successfully");
+            response.put("ticketId", savedTicket.getTicketId());
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error creating maintenance request: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("success", false, "error", "Error creating request: " + e.getMessage()));
         }
     }
     

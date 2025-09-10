@@ -1,0 +1,205 @@
+<!-- Ticket Detail Fragment -->
+<div class="ticket-detail">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <span class="badge badge-primary">Request #<span th:text="${ticket.ticketId}">123</span></span>
+                        <span th:text="${ticket.subject}">Ticket Subject</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-sm-3"><strong>Property:</strong></div>
+                        <div class="col-sm-9">
+                            <div th:text="${ticket.property?.propertyName ?: ticket.property?.addressLine1 ?: 'Unknown Property'}">Property Name</div>
+                            <small class="text-muted" th:text="${ticket.property?.addressLine1 ?: ''}">Address</small>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-sm-3"><strong>Description:</strong></div>
+                        <div class="col-sm-9">
+                            <p th:text="${ticket.description ?: 'No description provided'}">Description text here...</p>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-sm-3"><strong>Category:</strong></div>
+                        <div class="col-sm-9">
+                            <span th:text="${ticket.maintenanceCategory ?: 'General'}">Category</span>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3" th:if="${ticket.preferredTimeSlot != null && !#strings.isEmpty(ticket.preferredTimeSlot)}">
+                        <div class="col-sm-3"><strong>Preferred Time:</strong></div>
+                        <div class="col-sm-9">
+                            <span th:text="${#strings.capitalize(ticket.preferredTimeSlot)}">Time Slot</span>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3" th:if="${ticket.accessRequired != null && ticket.accessRequired}">
+                        <div class="col-sm-3"><strong>Access Required:</strong></div>
+                        <div class="col-sm-9">
+                            <i class="fas fa-key text-warning"></i> Property access needed
+                        </div>
+                    </div>
+
+                    <div class="row mb-3" th:if="${ticket.tenantPresentRequired != null && ticket.tenantPresentRequired}">
+                        <div class="col-sm-3"><strong>Tenant Presence:</strong></div>
+                        <div class="col-sm-9">
+                            <i class="fas fa-user text-info"></i> Tenant must be present
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Work Progress Card (if work has started) -->
+            <div class="card mt-3" th:if="${ticket.workStartedAt != null || ticket.workCompletedAt != null || ticket.actualCost != null}">
+                <div class="card-header">
+                    <h6 class="mb-0">Work Progress</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-2" th:if="${ticket.workStartedAt != null}">
+                        <div class="col-sm-4"><strong>Work Started:</strong></div>
+                        <div class="col-sm-8" th:text="${#temporals.format(ticket.workStartedAt, 'dd/MM/yyyy HH:mm')}">Start Date</div>
+                    </div>
+
+                    <div class="row mb-2" th:if="${ticket.workCompletedAt != null}">
+                        <div class="col-sm-4"><strong>Work Completed:</strong></div>
+                        <div class="col-sm-8" th:text="${#temporals.format(ticket.workCompletedAt, 'dd/MM/yyyy HH:mm')}">Completion Date</div>
+                    </div>
+
+                    <div class="row mb-2" th:if="${ticket.workDurationFormatted != null && ticket.workDurationFormatted != 'N/A'}">
+                        <div class="col-sm-4"><strong>Duration:</strong></div>
+                        <div class="col-sm-8" th:text="${ticket.workDurationFormatted}">Duration</div>
+                    </div>
+
+                    <div class="row mb-2" th:if="${ticket.actualCost != null}">
+                        <div class="col-sm-4"><strong>Actual Cost:</strong></div>
+                        <div class="col-sm-8">
+                            <span class="font-weight-bold">£<span th:text="${#numbers.formatDecimal(ticket.actualCost, 0, 2)}">0.00</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contractor Information (if selected) -->
+            <div class="card mt-3" th:if="${ticket.selectedContractor != null}">
+                <div class="card-header">
+                    <h6 class="mb-0">Assigned Contractor</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Company:</strong></div>
+                        <div class="col-sm-8" th:text="${ticket.selectedContractor.name ?: ticket.selectedContractor.email}">Contractor Name</div>
+                    </div>
+
+                    <div class="row mb-2" th:if="${ticket.selectedContractor.phone != null}">
+                        <div class="col-sm-4"><strong>Phone:</strong></div>
+                        <div class="col-sm-8" th:text="${ticket.selectedContractor.phone}">Phone Number</div>
+                    </div>
+
+                    <div class="row mb-2" th:if="${ticket.approvedAmount != null}">
+                        <div class="col-sm-4"><strong>Approved Amount:</strong></div>
+                        <div class="col-sm-8">
+                            <span class="font-weight-bold text-success">£<span th:text="${#numbers.formatDecimal(ticket.approvedAmount, 0, 2)}">0.00</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status and Timeline Sidebar -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Status Information</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <strong>Current Status:</strong><br>
+                        <span th:class="'badge ' + ${ticket.statusCssClass}" th:text="${ticket.statusDisplayName}">Status</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <strong>Priority:</strong><br>
+                        <span th:class="'badge ' + ${ticket.priorityCssClass}" th:text="${ticket.priorityDisplayName}">Priority</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <strong>Created:</strong><br>
+                        <span th:text="${#temporals.format(ticket.createdAt, 'dd/MM/yyyy HH:mm')}">Creation Date</span>
+                    </div>
+
+                    <div class="mb-3" th:if="${ticket.urgencyLevel != null}">
+                        <strong>Urgency Level:</strong><br>
+                        <span th:text="${#strings.capitalize(ticket.urgencyLevel)}">Urgency</span>
+                    </div>
+
+                    <!-- Emergency Indicator -->
+                    <div class="alert alert-danger" th:if="${ticket.priority == 'emergency'}">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Emergency Request</strong><br>
+                        This request requires immediate attention.
+                    </div>
+
+                    <!-- Overdue Indicator -->
+                    <div class="alert alert-warning" th:if="${ticket.overdue}">
+                        <i class="fas fa-clock"></i>
+                        <strong>Overdue Work</strong><br>
+                        Work is running behind schedule.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Next Steps Card -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">What happens next?</h6>
+                </div>
+                <div class="card-body">
+                    <div th:switch="${ticket.status}">
+                        <div th:case="'open'">
+                            <i class="fas fa-clock text-primary"></i>
+                            Your request has been submitted and will be reviewed by our team shortly.
+                        </div>
+                        <div th:case="'assigned'">
+                            <i class="fas fa-user-check text-info"></i>
+                            Your request has been assigned to a team member for processing.
+                        </div>
+                        <div th:case="'bidding'">
+                            <i class="fas fa-hammer text-warning"></i>
+                            We are seeking quotes from qualified contractors for your work.
+                        </div>
+                        <div th:case="'contractor-selected'">
+                            <i class="fas fa-handshake text-success"></i>
+                            A contractor has been selected and will contact you to arrange the work.
+                        </div>
+                        <div th:case="'work-in-progress'">
+                            <i class="fas fa-tools text-primary"></i>
+                            Work is currently in progress. The contractor will update you on completion.
+                        </div>
+                        <div th:case="'work-completed'">
+                            <i class="fas fa-check-circle text-success"></i>
+                            Work has been completed. Payment is being processed.
+                        </div>
+                        <div th:case="'payment-processed'">
+                            <i class="fas fa-credit-card text-success"></i>
+                            Work completed and payment has been processed.
+                        </div>
+                        <div th:case="'closed'">
+                            <i class="fas fa-flag-checkered text-dark"></i>
+                            This maintenance request has been completed and closed.
+                        </div>
+                        <div th:case="*">
+                            <i class="fas fa-info-circle text-secondary"></i>
+                            Status: <span th:text="${ticket.statusDisplayName}">Status</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

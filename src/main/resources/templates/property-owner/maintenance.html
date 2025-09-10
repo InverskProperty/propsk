@@ -148,6 +148,149 @@
         </div>
     </div>
 
+    <!-- Ticket Detail Modal -->
+    <div class="modal fade" id="ticketDetailModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Maintenance Request Details</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="ticketDetailContent">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="sr-only">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading ticket details...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create New Request Modal -->
+    <div class="modal fade" id="createRequestModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Maintenance Request</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <form id="createRequestForm" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="requestProperty">Property *</label>
+                            <select class="form-control" id="requestProperty" name="propertyId" required>
+                                <option value="">Select a property...</option>
+                                <option th:each="property : ${properties}" 
+                                        th:value="${property.id}"
+                                        th:text="${property.propertyName ?: property.addressLine1}">
+                                    Property Name
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="requestSubject">Issue Summary *</label>
+                            <input type="text" class="form-control" id="requestSubject" name="subject" 
+                                   placeholder="Brief description of the issue" required maxlength="100">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="requestDescription">Detailed Description *</label>
+                            <textarea class="form-control" id="requestDescription" name="description" 
+                                      rows="4" placeholder="Please provide a detailed description of the maintenance issue..." 
+                                      required maxlength="2000"></textarea>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="requestPriority">Priority *</label>
+                                    <select class="form-control" id="requestPriority" name="priority" required>
+                                        <option value="medium">Medium - General repairs</option>
+                                        <option value="high">High - Urgent but not critical</option>
+                                        <option value="emergency">Emergency - Immediate attention required</option>
+                                        <option value="low">Low - Routine maintenance</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="requestCategory">Category</label>
+                                    <select class="form-control" id="requestCategory" name="maintenanceCategory">
+                                        <option value="">Select category...</option>
+                                        <option value="plumbing">Plumbing</option>
+                                        <option value="electrical">Electrical</option>
+                                        <option value="heating">Heating/Cooling</option>
+                                        <option value="appliances">Appliances</option>
+                                        <option value="structural">Structural</option>
+                                        <option value="exterior">Exterior/Landscaping</option>
+                                        <option value="security">Security</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Access Requirements</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="accessRequired" name="accessRequired">
+                                <label class="form-check-label" for="accessRequired">
+                                    Property access required (keys/entry needed)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="tenantPresent" name="tenantPresentRequired">
+                                <label class="form-check-label" for="tenantPresent">
+                                    Tenant must be present during work
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="preferredTime">Preferred Time Slot</label>
+                            <select class="form-control" id="preferredTime" name="preferredTimeSlot">
+                                <option value="">No preference</option>
+                                <option value="morning">Morning (8AM - 12PM)</option>
+                                <option value="afternoon">Afternoon (12PM - 5PM)</option>
+                                <option value="evening">Evening (5PM - 8PM)</option>
+                                <option value="weekend">Weekend</option>
+                                <option value="urgent">As soon as possible</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="requestPhotos">Photos/Documents</label>
+                            <input type="file" class="form-control-file" id="requestPhotos" name="photos" 
+                                   multiple accept="image/*,.pdf,.doc,.docx">
+                            <small class="form-text text-muted">
+                                Upload photos or documents related to the issue (optional)
+                            </small>
+                        </div>
+
+                        <div id="createRequestError" class="alert alert-danger d-none"></div>
+                        <div id="createRequestSuccess" class="alert alert-success d-none"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="submitRequest">
+                            <i class="fas fa-paper-plane"></i> Submit Request
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script th:src="@{/js/jquery-3.6.0.min.js}"></script>
     <script th:src="@{/js/bootstrap.bundle.min.js}"></script>
     <script th:src="@{/js/app.js}"></script>
@@ -188,7 +331,7 @@
         }
         
         function createNewRequest() {
-            alert('Create new maintenance request functionality will be implemented here.\\nThis will allow you to submit new maintenance requests for your properties.');
+            $('#createRequestModal').modal('show');
         }
         
         function refreshPage() {
@@ -196,9 +339,105 @@
         }
         
         function viewTicketDetails(ticketId) {
-            // TODO: Create proper maintenance ticket detail modal or page
-            alert('Maintenance Request #' + ticketId + ' Details\\n\\nThis feature will show:\\n• Full request details\\n• Photos and documents\\n• Contractor communications\\n• Status updates\\n• Cost estimates\\n\\nComing soon!');
+            // Show the modal with loading spinner
+            $('#ticketDetailModal').modal('show');
+            
+            // Reset modal content to loading state
+            $('#ticketDetailContent').html(`
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading ticket details...</p>
+                </div>
+            `);
+            
+            // Load ticket details via AJAX
+            $.ajax({
+                url: '/property-owner/maintenance/ticket/' + ticketId + '/details',
+                method: 'GET',
+                success: function(data) {
+                    $('#ticketDetailContent').html(data);
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error loading ticket details:', error);
+                    $('#ticketDetailContent').html(`
+                        <div class="alert alert-danger">
+                            <h5>Error Loading Ticket</h5>
+                            <p>Unable to load ticket details. Please try again later.</p>
+                            <p><strong>Error:</strong> ${error}</p>
+                        </div>
+                    `);
+                }
+            });
         }
+
+        // Handle create request form submission
+        $(document).ready(function() {
+            $('#createRequestForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                // Disable submit button and show loading state
+                const submitBtn = $('#submitRequest');
+                const originalText = submitBtn.html();
+                submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Submitting...');
+                
+                // Hide any previous messages
+                $('#createRequestError, #createRequestSuccess').addClass('d-none');
+                
+                // Create FormData object to handle file uploads
+                const formData = new FormData(this);
+                
+                $.ajax({
+                    url: '/property-owner/maintenance/create',
+                    method: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        if (response.success) {
+                            $('#createRequestSuccess').text(response.message || 'Maintenance request submitted successfully!').removeClass('d-none');
+                            
+                            // Reset form after short delay
+                            setTimeout(function() {
+                                $('#createRequestModal').modal('hide');
+                                $('#createRequestForm')[0].reset();
+                                $('#createRequestSuccess').addClass('d-none');
+                                
+                                // Refresh the page to show the new ticket
+                                window.location.reload();
+                            }, 2000);
+                        } else {
+                            $('#createRequestError').text(response.error || 'An error occurred while submitting the request').removeClass('d-none');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error creating request:', error);
+                        let errorMessage = 'An error occurred while submitting the request';
+                        
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            errorMessage = xhr.responseJSON.error;
+                        } else if (xhr.status === 401) {
+                            errorMessage = 'Authentication required. Please log in and try again.';
+                        } else if (xhr.status === 403) {
+                            errorMessage = 'Access denied. Please check your permissions.';
+                        }
+                        
+                        $('#createRequestError').text(errorMessage).removeClass('d-none');
+                    },
+                    complete: function() {
+                        // Re-enable submit button
+                        submitBtn.prop('disabled', false).html(originalText);
+                    }
+                });
+            });
+
+            // Reset form when modal is hidden
+            $('#createRequestModal').on('hidden.bs.modal', function() {
+                $('#createRequestForm')[0].reset();
+                $('#createRequestError, #createRequestSuccess').addClass('d-none');
+            });
+        });
     </script>
 </body>
 </html>
