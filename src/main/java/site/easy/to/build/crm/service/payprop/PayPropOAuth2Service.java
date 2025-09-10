@@ -173,14 +173,18 @@ public class PayPropOAuth2Service {
         
         System.out.println("   Scopes (cleaned): " + cleanedScopes);
         
-        String fullUrl = UriComponentsBuilder.fromHttpUrl(authorizationUrl)
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(authorizationUrl)
                 .queryParam("response_type", "code")
                 .queryParam("client_id", clientId)
                 .queryParam("redirect_uri", redirectUri)
-                .queryParam("scope", cleanedScopes)
-                .queryParam("state", state)
-                .build()
-                .toUriString();
+                .queryParam("state", state);
+        
+        // Only add scope parameter if it's not empty (PayProp assigns all scopes by default if excluded)
+        if (cleanedScopes != null && !cleanedScopes.isEmpty()) {
+            builder.queryParam("scope", cleanedScopes);
+        }
+        
+        String fullUrl = builder.build().toUriString();
         
         System.out.println("🔗 FULL AUTHORIZATION URL: " + fullUrl);
         return fullUrl;
@@ -194,6 +198,7 @@ public class PayPropOAuth2Service {
         System.out.println("   Token URL: " + tokenUrl);
         System.out.println("   Authorization Code: " + authorizationCode.substring(0, Math.min(20, authorizationCode.length())) + "...");
         System.out.println("   Client ID: " + clientId);
+        System.out.println("   Client Secret: " + (clientSecret != null ? clientSecret.substring(0, Math.min(8, clientSecret.length())) + "..." : "NULL"));
         System.out.println("   Redirect URI: " + redirectUri);
         
         HttpHeaders headers = new HttpHeaders();
@@ -205,6 +210,13 @@ public class PayPropOAuth2Service {
         requestBody.add("client_id", clientId);
         requestBody.add("client_secret", clientSecret);
         requestBody.add("redirect_uri", redirectUri);
+
+        System.out.println("🔍 TOKEN REQUEST BODY:");
+        System.out.println("   grant_type: authorization_code");
+        System.out.println("   code: " + authorizationCode.substring(0, Math.min(10, authorizationCode.length())) + "...");
+        System.out.println("   client_id: " + clientId);
+        System.out.println("   client_secret: " + (clientSecret != null ? clientSecret.substring(0, Math.min(4, clientSecret.length())) + "..." : "NULL"));
+        System.out.println("   redirect_uri: " + redirectUri);
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(requestBody, headers);
 
