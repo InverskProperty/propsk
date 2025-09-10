@@ -216,7 +216,9 @@ public class PayPropOAuth2Service {
         System.out.println("   code: " + authorizationCode.substring(0, Math.min(10, authorizationCode.length())) + "...");
         System.out.println("   client_id: " + clientId);
         System.out.println("   client_secret: " + (clientSecret != null ? clientSecret.substring(0, Math.min(4, clientSecret.length())) + "..." : "NULL"));
+        System.out.println("   client_secret_length: " + (clientSecret != null ? clientSecret.length() : "NULL"));
         System.out.println("   redirect_uri: " + redirectUri);
+        System.out.println("   redirect_uri_matches_config: " + redirectUri.equals(environment.getProperty("payprop.oauth2.redirect-uri")));
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(requestBody, headers);
 
@@ -302,7 +304,7 @@ public class PayPropOAuth2Service {
         requestBody.add("grant_type", "refresh_token");
         requestBody.add("refresh_token", currentTokens.getRefreshToken());
         requestBody.add("client_id", clientId);
-        requestBody.add("client_secret", clientSecret);
+        // NOTE: PayProp refresh token does NOT require client_secret per documentation
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(requestBody, headers);
 
