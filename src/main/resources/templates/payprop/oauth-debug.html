@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PayProp OAuth Debug - Authorization Code Details</title>
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/css/all.css}" rel="stylesheet">
+    <style>
+        body { font-family: 'Courier New', monospace; background: #1a1a1a; color: #00ff00; padding: 20px; }
+        .debug-container { max-width: 1200px; margin: 0 auto; }
+        .debug-section { background: #000; border: 1px solid #00ff00; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .debug-title { color: #ffff00; font-size: 1.5em; margin-bottom: 15px; }
+        .debug-field { margin: 10px 0; }
+        .debug-label { color: #00ffff; font-weight: bold; }
+        .debug-value { color: #ffffff; background: #333; padding: 5px; border-radius: 3px; word-break: break-all; }
+        .copy-btn { background: #00ff00; color: #000; border: none; padding: 5px 10px; margin-left: 10px; border-radius: 3px; cursor: pointer; }
+        .copy-btn:hover { background: #00cc00; }
+        .postman-section { background: #2a2a2a; border: 1px solid #ff6600; }
+        .postman-title { color: #ff6600; }
+        .curl-section { background: #1a2a1a; border: 1px solid #ff00ff; }
+        .curl-title { color: #ff00ff; }
+        .instructions { background: #2a1a1a; border: 1px solid #ffff00; }
+        .instructions-title { color: #ffff00; }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <div class="debug-section">
+            <div class="debug-title">🐛 PAYPROP OAUTH DEBUG RESULTS</div>
+            <div class="debug-field">
+                <span class="debug-label">TIMESTAMP:</span>
+                <span class="debug-value" th:text="${timestamp}">2025-09-10T15:30:00</span>
+            </div>
+            <div class="debug-field">
+                <span class="debug-label">STATUS:</span>
+                <span class="debug-value" th:text="${authError != null ? 'ERROR' : 'SUCCESS'}" 
+                      th:style="${authError != null ? 'color: #ff0000' : 'color: #00ff00'}">SUCCESS</span>
+            </div>
+        </div>
+
+        <!-- Authorization Code Section -->
+        <div class="debug-section" th:if="${authCode != null}">
+            <div class="debug-title">✅ AUTHORIZATION CODE RECEIVED</div>
+            <div class="debug-field">
+                <span class="debug-label">CODE LENGTH:</span>
+                <span class="debug-value" th:text="${codeLength}">87</span>
+            </div>
+            <div class="debug-field">
+                <span class="debug-label">FULL CODE:</span>
+                <div class="debug-value" style="font-size: 0.9em; padding: 10px;">
+                    <span id="authCodeValue" th:text="${fullCode}">MTc1NzUxNTUwMy04MjczODk...</span>
+                    <button class="copy-btn" onclick="copyToClipboard('authCodeValue')">COPY CODE</button>
+                </div>
+            </div>
+            <div class="debug-field">
+                <span class="debug-label">STATE:</span>
+                <span class="debug-value" th:text="${authState}">debug-test-123456</span>
+            </div>
+        </div>
+
+        <!-- Error Section -->
+        <div class="debug-section" th:if="${authError != null}" style="border-color: #ff0000;">
+            <div class="debug-title" style="color: #ff0000;">❌ AUTHORIZATION ERROR</div>
+            <div class="debug-field">
+                <span class="debug-label">ERROR:</span>
+                <span class="debug-value" th:text="${authError}">access_denied</span>
+            </div>
+            <div class="debug-field">
+                <span class="debug-label">ERROR DESCRIPTION:</span>
+                <span class="debug-value" th:text="${authErrorDesc}">User denied access</span>
+            </div>
+        </div>
+
+        <!-- Environment Details -->
+        <div class="debug-section">
+            <div class="debug-title">🔧 ENVIRONMENT DETAILS</div>
+            <div class="debug-field">
+                <span class="debug-label">CLIENT ID:</span>
+                <span class="debug-value" th:text="${clientId}">Propsk</span>
+            </div>
+            <div class="debug-field">
+                <span class="debug-label">TOKEN URL:</span>
+                <span class="debug-value" th:text="${tokenUrl}">https://uk.payprop.com/api/oauth/access_token</span>
+            </div>
+            <div class="debug-field">
+                <span class="debug-label">CLIENT SECRET:</span>
+                <div class="debug-value" style="font-size: 0.9em; padding: 10px;">
+                    <span id="clientSecretValue" th:text="${clientSecret}">he75gct_FAlwdKK0</span>
+                    <button class="copy-btn" onclick="copyToClipboard('clientSecretValue')">COPY SECRET</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Postman Testing Section -->
+        <div class="debug-section postman-section" th:if="${authCode != null}">
+            <div class="debug-title postman-title">🚀 POSTMAN TESTING SETUP</div>
+            <div class="debug-field">
+                <span class="debug-label">METHOD:</span>
+                <span class="debug-value">POST</span>
+            </div>
+            <div class="debug-field">
+                <span class="debug-label">URL:</span>
+                <div class="debug-value" style="padding: 10px;">
+                    <span id="postmanUrl" th:text="${tokenUrl}">https://uk.payprop.com/api/oauth/access_token</span>
+                    <button class="copy-btn" onclick="copyToClipboard('postmanUrl')">COPY URL</button>
+                </div>
+            </div>
+            <div class="debug-field">
+                <span class="debug-label">HEADERS:</span>
+                <div class="debug-value" style="padding: 10px;">
+                    Content-Type: application/x-www-form-urlencoded
+                </div>
+            </div>
+            <div class="debug-field">
+                <span class="debug-label">BODY (x-www-form-urlencoded):</span>
+                <div class="debug-value" style="padding: 10px; font-size: 0.9em;">
+                    <div>grant_type: authorization_code</div>
+                    <div>code: <span th:text="${authCode}">CODE_HERE</span></div>
+                    <div>client_id: <span th:text="${clientId}">Propsk</span></div>
+                    <div>client_secret: <span th:text="${clientSecret}">SECRET_HERE</span></div>
+                    <div>redirect_uri: https://spoutproperty-hub.onrender.com/api/payprop/oauth/debug-callback</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- cURL Command Section -->
+        <div class="debug-section curl-section" th:if="${authCode != null}">
+            <div class="debug-title curl-title">💻 CURL COMMAND</div>
+            <div class="debug-field">
+                <div class="debug-value" style="padding: 15px; font-size: 0.85em; line-height: 1.4;">
+                    <div id="curlCommand">curl -X POST "<span th:text="${tokenUrl}">TOKEN_URL</span>" \<br>
+  -H "Content-Type: application/x-www-form-urlencoded" \<br>
+  -d "grant_type=authorization_code" \<br>
+  -d "code=<span th:text="${authCode}">CODE_HERE</span>" \<br>
+  -d "client_id=<span th:text="${clientId}">CLIENT_ID</span>" \<br>
+  -d "client_secret=<span th:text="${clientSecret}">CLIENT_SECRET</span>" \<br>
+  -d "redirect_uri=https://spoutproperty-hub.onrender.com/api/payprop/oauth/debug-callback" \<br>
+  -v</div>
+                    <button class="copy-btn" onclick="copyToClipboard('curlCommand')">COPY CURL</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="debug-section instructions">
+            <div class="debug-title instructions-title">📋 NEXT STEPS</div>
+            <div class="debug-value">
+                <ol style="margin: 0; padding-left: 20px;">
+                    <li>Copy the authorization code above</li>
+                    <li>Open Postman and create a new POST request</li>
+                    <li>Use the URL, headers, and body parameters shown above</li>
+                    <li>Send the request to test token exchange</li>
+                    <li>Expected result: Either valid tokens or "client_secret mismatch" error</li>
+                    <li>Share the results with PayProp support</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="debug-section">
+            <div class="debug-title">🔙 NAVIGATION</div>
+            <div style="text-align: center;">
+                <a href="/payprop/test" style="color: #00ff00; text-decoration: none; margin: 0 20px;">← Back to Test Page</a>
+                <a href="/api/payprop/oauth/status" style="color: #00ff00; text-decoration: none; margin: 0 20px;">OAuth Status →</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent || element.innerText;
+            
+            navigator.clipboard.writeText(text).then(function() {
+                // Visual feedback
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = 'COPIED!';
+                button.style.background = '#ffff00';
+                button.style.color = '#000';
+                
+                setTimeout(function() {
+                    button.textContent = originalText;
+                    button.style.background = '#00ff00';
+                    button.style.color = '#000';
+                }, 2000);
+            }).catch(function(err) {
+                console.error('Could not copy text: ', err);
+                alert('Copy failed. Please select and copy manually.');
+            });
+        }
+
+        // Auto-select code on click
+        document.addEventListener('DOMContentLoaded', function() {
+            const codeElements = document.querySelectorAll('.debug-value');
+            codeElements.forEach(function(element) {
+                element.addEventListener('click', function() {
+                    window.getSelection().selectAllChildren(this);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

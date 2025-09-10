@@ -2190,7 +2190,7 @@ ORDER BY transaction_count DESC;</code></pre>
         }
         
         function showAuthCode() {
-            const authUrl = buildAuthUrl();
+            const authUrl = buildDebugAuthUrl();
             
             showResult('statusOverviewResult', {
                 status: 'INFO',
@@ -2200,11 +2200,23 @@ ORDER BY transaction_count DESC;</code></pre>
                 instructions: [
                     '1. RIGHT-CLICK the link below and "Open in New Tab"',
                     '2. Complete PayProp authorization',
-                    '3. When redirected back, QUICKLY copy the "code=" parameter from URL',
-                    '4. Close that tab before the page loads fully',
+                    '3. You will be redirected to a debug page showing all OAuth details',
+                    '4. Copy the authorization code from the debug page',
                     '5. Use the code in Postman testing'
                 ]
             }, '📋 Get Authorization Code');
+        }
+        
+        function buildDebugAuthUrl() {
+            const baseUrl = 'https://uk.payprop.com/api/oauth/authorize';
+            const params = new URLSearchParams({
+                response_type: 'code',
+                client_id: 'Propsk',
+                redirect_uri: 'https://spoutproperty-hub.onrender.com/api/payprop/oauth/debug-callback',
+                state: 'debug-test-' + Date.now(),
+                scope: 'read:export:beneficiaries read:export:tenants read:export:properties'
+            });
+            return baseUrl + '?' + params.toString();
         }
         
         // Additional Helper Functions

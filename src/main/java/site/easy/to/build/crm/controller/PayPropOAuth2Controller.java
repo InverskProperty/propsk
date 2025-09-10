@@ -146,6 +146,30 @@ public class PayPropOAuth2Controller {
         return "redirect:" + authorizationUrl;
     }
 
+    @GetMapping("/debug-callback")
+    public String debugCallback(@RequestParam(required = false) String code,
+                               @RequestParam(required = false) String error,
+                               @RequestParam(required = false) String error_description,
+                               @RequestParam(required = false) String state,
+                               Model model,
+                               Authentication authentication) {
+        
+        logger.info("🐛 DEBUG CALLBACK - Code: {}, Error: {}, State: {}", code, error, state);
+        
+        model.addAttribute("authCode", code);
+        model.addAttribute("authError", error);
+        model.addAttribute("authErrorDesc", error_description);
+        model.addAttribute("authState", state);
+        model.addAttribute("codeLength", code != null ? code.length() : 0);
+        model.addAttribute("fullCode", code);
+        model.addAttribute("timestamp", java.time.LocalDateTime.now());
+        model.addAttribute("clientId", clientId);
+        model.addAttribute("tokenUrl", tokenUrl);
+        model.addAttribute("clientSecret", clientSecret);
+        
+        return "payprop/oauth-debug";
+    }
+
     @GetMapping("/callback")
     public String handleCallback(@RequestParam(required = false) String code,
                                 @RequestParam(required = false) String error,
