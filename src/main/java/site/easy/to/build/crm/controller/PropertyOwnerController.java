@@ -1052,6 +1052,17 @@ public class PropertyOwnerController {
             // 🚀 NEW: Get real PayProp financial data using verified queries
             Object[] financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummary(customer.getCustomerId());
             
+            // 🔍 DEBUG: Check the actual structure of the returned data
+            if (financialSummary != null) {
+                System.out.println("🔍 DEBUG: Financial summary array length: " + financialSummary.length);
+                for (int i = 0; i < financialSummary.length; i++) {
+                    Object item = financialSummary[i];
+                    System.out.println("🔍 DEBUG: Item " + i + ": " + item + " (Type: " + (item != null ? item.getClass().getSimpleName() : "null") + ")");
+                }
+            } else {
+                System.out.println("🔍 DEBUG: Financial summary is null");
+            }
+            
             // 💰 Parse financial summary (total_rent, total_commission, total_net_to_owner, transaction_count)
             // ✅ FIXED: Safe parsing of financial data that may contain scientific notation
             BigDecimal totalRent = parseFinancialValue(financialSummary, 0);
@@ -1271,6 +1282,12 @@ public class PropertyOwnerController {
             Object value = resultArray[index];
             System.out.println("🔍 DEBUG: Parsing financial value at index " + index + ": " + value + " (Type: " + value.getClass().getSimpleName() + ")");
             
+            // ✅ FIXED: Handle case where database returns nested Object[] instead of individual values
+            if (value instanceof Object[]) {
+                System.out.println("⚠️ WARNING: Received nested Object[] at index " + index + ", database query may have returned no results");
+                return BigDecimal.ZERO;
+            }
+            
             // Handle different types that might be returned from the database
             if (value instanceof BigDecimal) {
                 return (BigDecimal) value;
@@ -1312,6 +1329,12 @@ public class PropertyOwnerController {
             
             Object value = resultArray[index];
             System.out.println("🔍 DEBUG: Parsing transaction count at index " + index + ": " + value + " (Type: " + value.getClass().getSimpleName() + ")");
+            
+            // ✅ FIXED: Handle case where database returns nested Object[] instead of individual values
+            if (value instanceof Object[]) {
+                System.out.println("⚠️ WARNING: Received nested Object[] at index " + index + ", database query may have returned no results");
+                return 0L;
+            }
             
             if (value instanceof Number) {
                 return ((Number) value).longValue();
