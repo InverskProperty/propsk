@@ -256,24 +256,34 @@
                     </div>
                     <div class="test-card-body">
                         <div class="row">
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <button class="btn btn-outline-primary w-100" onclick="checkOAuthStatus()">
                                     <i class="fas fa-key"></i> Check OAuth Status
                                 </button>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <button class="btn btn-outline-info w-100" onclick="getSyncDashboard()">
                                     <i class="fas fa-chart-bar"></i> Sync Dashboard
                                 </button>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <button class="btn btn-outline-success w-100" onclick="discoverEndpoints()">
                                     <i class="fas fa-search"></i> Discover Endpoints
                                 </button>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <button class="btn btn-outline-warning w-100" onclick="testAllConnections()">
                                     <i class="fas fa-plug"></i> Test All Connections
+                                </button>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-outline-danger w-100" onclick="debugOAuthFlow()">
+                                    <i class="fas fa-bug"></i> Debug OAuth
+                                </button>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-outline-secondary w-100" onclick="showAuthCode()">
+                                    <i class="fas fa-code"></i> Get Auth Code
                                 </button>
                             </div>
                         </div>
@@ -2151,6 +2161,50 @@ ORDER BY transaction_count DESC;</code></pre>
         async function testAllConnections() {
             const result = await fetchWithCSRF('/api/payprop/oauth/test-connection', { method: 'POST' });
             showResult('statusOverviewResult', result.data, '🔌 Connection Test');
+        }
+        
+        async function debugOAuthFlow() {
+            showResult('statusOverviewResult', {
+                status: 'INFO',
+                message: 'Starting OAuth debug flow...',
+                authUrl: buildAuthUrl(),
+                instructions: [
+                    '1. Click the authorization URL below',
+                    '2. Complete PayProp login if needed', 
+                    '3. Note what happens after login',
+                    '4. Copy any error messages or authorization codes'
+                ]
+            }, '🐛 OAuth Debug Flow');
+        }
+        
+        function buildAuthUrl() {
+            const baseUrl = 'https://uk.payprop.com/api/oauth/authorize';
+            const params = new URLSearchParams({
+                response_type: 'code',
+                client_id: 'Propsk',
+                redirect_uri: 'https://spoutproperty-hub.onrender.com/api/payprop/oauth/callback',
+                state: 'debug-test-' + Date.now(),
+                scope: 'read:export:beneficiaries read:export:tenants read:export:properties'
+            });
+            return baseUrl + '?' + params.toString();
+        }
+        
+        function showAuthCode() {
+            const authUrl = buildAuthUrl();
+            
+            showResult('statusOverviewResult', {
+                status: 'INFO',
+                message: 'Click the link below to get authorization code:',
+                authUrl: authUrl,
+                copyableUrl: authUrl,
+                instructions: [
+                    '1. RIGHT-CLICK the link below and "Open in New Tab"',
+                    '2. Complete PayProp authorization',
+                    '3. When redirected back, QUICKLY copy the "code=" parameter from URL',
+                    '4. Close that tab before the page loads fully',
+                    '5. Use the code in Postman testing'
+                ]
+            }, '📋 Get Authorization Code');
         }
         
         // Additional Helper Functions
