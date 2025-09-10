@@ -171,6 +171,89 @@ public class PayPropOAuth2Controller {
         
         return "payprop/oauth-debug";
     }
+    
+    @PostMapping("/debug-token-exchange")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> debugTokenExchange(@RequestBody Map<String, String> request) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            String code = request.get("code");
+            String clientSecret = request.get("clientSecret");
+            String tokenUrl = request.get("tokenUrl");
+            
+            logger.info("🧪 DEBUG TOKEN EXCHANGE - Code: {}..., Secret: {}...", 
+                       code != null ? code.substring(0, Math.min(10, code.length())) : "null",
+                       clientSecret != null ? clientSecret.substring(0, Math.min(4, clientSecret.length())) : "null");
+            
+            // Prepare the token exchange request
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            
+            MultiValueMap<String, String> requestBody = new LinkedMultiValueMap<>();
+            requestBody.add("grant_type", "authorization_code");
+            requestBody.add("code", code);
+            requestBody.add("client_id", oAuth2Service.getClientId());
+            requestBody.add("client_secret", clientSecret);
+            requestBody.add("redirect_uri", "https://spoutproperty-hub.onrender.com/api/payprop/oauth/debug-callback");
+            
+            HttpEntity<MultiValueMap<String, String>> httpRequest = new HttpEntity<>(requestBody, headers);
+            
+            logger.info("🌐 Making debug token exchange request to: {}", tokenUrl);
+            
+            // Make the request
+            ResponseEntity<Map> payPropResponse = restTemplate.postForEntity(tokenUrl, httpRequest, Map.class);
+            
+            // Success response
+            Map<String, Object> responseBody = payPropResponse.getBody();
+            response.put("success", true);
+            response.put("statusCode", payPropResponse.getStatusCode().value());
+            response.put("accessToken", responseBody.get("access_token"));
+            response.put("tokenType", responseBody.get("token_type"));
+            response.put("expiresIn", responseBody.get("expires_in"));
+            response.put("refreshToken", responseBody.get("refresh_token"));
+            response.put("scopes", responseBody.get("scopes"));
+            response.put("fullResponse", responseBody);
+            
+            logger.info("✅ DEBUG TOKEN EXCHANGE SUCCESS - Status: {}", payPropResponse.getStatusCode());
+            
+        } catch (HttpClientErrorException e) {
+            // Error response
+            logger.error("❌ DEBUG TOKEN EXCHANGE FAILED - Status: {}, Body: {}", e.getStatusCode(), e.getResponseBodyAsString());
+            
+            response.put("success", false);
+            response.put("statusCode", e.getStatusCode().value());
+            response.put("error", "HTTP " + e.getStatusCode().value());
+            response.put("errorDescription", e.getStatusText());
+            
+            try {
+                // Try to parse error response as JSON
+                ObjectMapper mapper = new ObjectMapper();
+                Map<String, Object> errorBody = mapper.readValue(e.getResponseBodyAsString(), Map.class);
+                response.put("fullResponse", errorBody);
+                
+                // Extract specific PayProp error details
+                if (errorBody.containsKey("error")) {
+                    response.put("error", errorBody.get("error"));
+                }
+                if (errorBody.containsKey("error_description")) {
+                    response.put("errorDescription", errorBody.get("error_description"));
+                }
+            } catch (Exception parseError) {
+                response.put("fullResponse", e.getResponseBodyAsString());
+            }
+            
+        } catch (Exception e) {
+            logger.error("❌ DEBUG TOKEN EXCHANGE EXCEPTION: {}", e.getMessage(), e);
+            
+            response.put("success", false);
+            response.put("error", "Exception");
+            response.put("errorDescription", e.getMessage());
+            response.put("statusCode", 500);
+        }
+        
+        return ResponseEntity.ok(response);
+    }
 
     @GetMapping("/callback")
     public String handleCallback(@RequestParam(required = false) String code,

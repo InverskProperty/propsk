@@ -92,9 +92,25 @@
             </div>
         </div>
 
+        <!-- Live Token Exchange Test -->
+        <div class="debug-section" th:if="${authCode != null}" style="border-color: #00ff00;">
+            <div class="debug-title" style="color: #00ff00;">⚡ LIVE TOKEN EXCHANGE TEST</div>
+            <div class="debug-field">
+                <button id="testTokenBtn" class="copy-btn" style="background: #00ff00; color: #000; padding: 15px 30px; font-size: 1.1em; margin: 10px 0;" onclick="testTokenExchange()">
+                    🧪 TEST TOKEN EXCHANGE NOW
+                </button>
+                <div style="margin-top: 10px; color: #ffff00;">
+                    This will test the exact same request your app would make, using the authorization code above.
+                </div>
+            </div>
+            <div id="tokenTestResult" class="debug-value" style="margin-top: 20px; padding: 15px; display: none;">
+                <!-- Results will appear here -->
+            </div>
+        </div>
+
         <!-- Postman Testing Section -->
         <div class="debug-section postman-section" th:if="${authCode != null}">
-            <div class="debug-title postman-title">🚀 POSTMAN TESTING SETUP</div>
+            <div class="debug-title postman-title">🚀 POSTMAN TESTING SETUP (Alternative)</div>
             <div class="debug-field">
                 <span class="debug-label">METHOD:</span>
                 <span class="debug-value">POST</span>
@@ -168,6 +184,93 @@
     </div>
 
     <script>
+        async function testTokenExchange() {
+            const btn = document.getElementById('testTokenBtn');
+            const resultDiv = document.getElementById('tokenTestResult');
+            
+            // Show loading state
+            btn.disabled = true;
+            btn.textContent = '🔄 Testing Token Exchange...';
+            btn.style.background = '#ffff00';
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div style="color: #ffff00;">⏳ Sending token exchange request...</div>';
+            
+            try {
+                // Get values from the page
+                const authCode = document.getElementById('authCodeValue').textContent.trim();
+                const clientSecret = document.getElementById('clientSecretValue').textContent.trim();
+                const tokenUrl = document.getElementById('postmanUrl').textContent.trim();
+                
+                // Make the token exchange request
+                const response = await fetch('/api/payprop/oauth/debug-token-exchange', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        code: authCode,
+                        clientSecret: clientSecret,
+                        tokenUrl: tokenUrl
+                    })
+                });
+                
+                const result = await response.json();
+                
+                // Display results
+                let resultHtml = '';
+                if (result.success) {
+                    resultHtml = `
+                        <div style="color: #00ff00; font-size: 1.2em; margin-bottom: 15px;">
+                            ✅ TOKEN EXCHANGE SUCCESSFUL!
+                        </div>
+                        <div style="color: #ffffff;">
+                            <strong>Access Token:</strong> ${result.accessToken.substring(0, 30)}...<br>
+                            <strong>Token Type:</strong> ${result.tokenType}<br>
+                            <strong>Expires In:</strong> ${result.expiresIn} seconds<br>
+                            <strong>Has Refresh Token:</strong> ${result.refreshToken ? 'Yes' : 'No'}<br>
+                            <strong>Response Status:</strong> ${result.statusCode}
+                        </div>
+                        <div style="color: #00ffff; margin-top: 10px; font-size: 0.9em;">
+                            PayProp's new client secret is working! The OAuth2 issue is resolved.
+                        </div>
+                    `;
+                } else {
+                    resultHtml = `
+                        <div style="color: #ff0000; font-size: 1.2em; margin-bottom: 15px;">
+                            ❌ TOKEN EXCHANGE FAILED
+                        </div>
+                        <div style="color: #ffffff;">
+                            <strong>Error:</strong> ${result.error}<br>
+                            <strong>Error Description:</strong> ${result.errorDescription}<br>
+                            <strong>HTTP Status:</strong> ${result.statusCode}<br>
+                            <strong>Response Body:</strong><br>
+                            <pre style="background: #333; padding: 10px; border-radius: 3px; margin-top: 5px; overflow-x: auto;">${JSON.stringify(result.fullResponse, null, 2)}</pre>
+                        </div>
+                        <div style="color: #ffff00; margin-top: 10px; font-size: 0.9em;">
+                            ${result.error === 'client_secret mismatch' ? 
+                              'Same error persists with PayProp\'s new secret. This proves the issue is on PayProp\'s end.' :
+                              'Different error - may indicate progress or a new issue.'}
+                        </div>
+                    `;
+                }
+                
+                resultDiv.innerHTML = resultHtml;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div style="color: #ff0000;">
+                        ❌ Request failed: ${error.message}
+                    </div>
+                `;
+            } finally {
+                // Reset button
+                btn.disabled = false;
+                btn.textContent = '🧪 TEST TOKEN EXCHANGE NOW';
+                btn.style.background = '#00ff00';
+            }
+        }
+        
         function copyToClipboard(elementId) {
             const element = document.getElementById(elementId);
             const text = element.textContent || element.innerText;
