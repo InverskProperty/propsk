@@ -201,7 +201,7 @@ public class PayPropOAuth2Service {
         System.out.println("   Authorization Code: " + authorizationCode.substring(0, Math.min(20, authorizationCode.length())) + "...");
         System.out.println("   Client ID: " + clientId);
         System.out.println("   Client Secret: " + (clientSecret != null ? clientSecret.substring(0, Math.min(8, clientSecret.length())) + "..." : "NULL"));
-        System.out.println("   Client Secret FULL: " + clientSecret);
+        // Client Secret FULL removed for security
         System.out.println("   Redirect URI: " + redirectUri);
         
         HttpHeaders headers = new HttpHeaders();
@@ -220,7 +220,7 @@ public class PayPropOAuth2Service {
         System.out.println("   client_id: " + clientId);
         System.out.println("   client_secret: " + (clientSecret != null ? clientSecret.substring(0, Math.min(4, clientSecret.length())) + "..." : "NULL"));
         System.out.println("   client_secret_length: " + (clientSecret != null ? clientSecret.length() : "NULL"));
-        System.out.println("   client_secret_full: " + clientSecret); // TEMPORARY DEBUG - REMOVE AFTER TESTING
+        // client_secret_full removed for security
         System.out.println("   redirect_uri: " + redirectUri);
         System.out.println("   redirect_uri_matches_config: " + redirectUri.equals(environment.getProperty("payprop.oauth2.redirect-uri")));
 
