@@ -551,7 +551,18 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "  AND prap.incoming_transaction_amount IS NOT NULL" +
            ") ORDER BY transaction_date DESC",
            nativeQuery = true)
-    List<FinancialTransaction> getPropertyOwnerRecentTransactions(@Param("customerId") Long customerId, Pageable pageable);
+    List<Object[]> getPropertyOwnerRecentTransactionsRaw(@Param("customerId") Long customerId, Pageable pageable);
+    
+    /**
+     * TEMPORARY: Keep original method for backward compatibility - will need entity mapping fix later
+     */
+    @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.propertyId IN (" +
+           "SELECT p.payPropId FROM Property p JOIN p.portfolioAssignments pa JOIN pa.portfolio po " +
+           "WHERE po.propertyOwner.customerId = :customerId AND pa.isActive = true) " +
+           "AND ft.transactionDate >= :dateLimit ORDER BY ft.transactionDate DESC")
+    List<FinancialTransaction> getPropertyOwnerRecentTransactions(@Param("customerId") Long customerId, 
+                                                                @Param("dateLimit") LocalDate dateLimit,
+                                                                Pageable pageable);
     
     /**
      * Get all transactions for property owner statements - ENHANCED: Includes incoming payments with batch IDs

@@ -1082,10 +1082,11 @@ public class PropertyOwnerController {
             // 🏠 Get property-level financial breakdown
             List<Object[]> propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdown(customer.getCustomerId());
             
-            // 📋 Get recent transactions (last 10)
+            // 📋 Get recent transactions (last 10) - FIXED: Added date parameter
             Pageable recentLimit = PageRequest.of(0, 10);
+            LocalDate threeMonthsAgo = LocalDate.now().minusMonths(3);
             List<FinancialTransaction> recentTransactions = financialTransactionRepository
-                .getPropertyOwnerRecentTransactions(customer.getCustomerId(), recentLimit);
+                .getPropertyOwnerRecentTransactions(customer.getCustomerId(), threeMonthsAgo, recentLimit);
             
             // 📊 Calculate additional metrics
             BigDecimal commissionRate = totalRent.compareTo(BigDecimal.ZERO) > 0 ? 
