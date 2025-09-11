@@ -400,7 +400,34 @@
 <script th:src="@{/js/library/bootstrap-wysihtml5.js}"></script>
 <script>
     $(document).ready(function() {
-        $('.textarea_editor').wysihtml5();
+        // Initialize WYSIHTML5 editor with error handling for browser extension conflicts
+        try {
+            $('.textarea_editor').wysihtml5({
+                "toolbar": {
+                    "emphasis": true,
+                    "lists": true, 
+                    "link": false,
+                    "image": false,
+                    "font-styles": false
+                }
+            });
+        } catch (e) {
+            console.warn('WYSIHTML5 initialization failed (likely browser extension conflict):', e);
+            // Show user-friendly message
+            if ($('#editor-error-message').length === 0) {
+                $('#description').before(
+                    '<div id="editor-error-message" class="alert alert-warning alert-dismissible fade show" role="alert">' +
+                    '<i class="fa fa-exclamation-triangle"></i> ' +
+                    'Rich text editor failed to load (browser extension conflict). Using simple text editor instead.' +
+                    '<button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>' +
+                    '</div>'
+                );
+            }
+            // Fallback: convert to regular textarea if editor fails
+            $('.textarea_editor').each(function() {
+                $(this).removeClass('textarea_editor').addClass('form-control');
+            });
+        }
         
         // Show/hide maintenance fields based on ticket type
         function toggleMaintenanceFields() {
