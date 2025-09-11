@@ -264,13 +264,13 @@
                                             </td>
                                             <td class="text-right text-muted">
                                                 <span th:if="${transaction.commissionAmount != null}">
-                                                    £<span th:text="${#numbers.formatDecimal(transaction.commissionAmount, 1, 2)}">0.00</span>
+                                                    £<span th:text="${#numbers.formatDecimal(transaction.commissionAmount ?: 0, 1, 2)}">0.00</span>
                                                 </span>
                                                 <span th:if="${transaction.commissionAmount == null}">-</span>
                                             </td>
                                             <td class="text-right text-success">
                                                 <span th:if="${transaction.netToOwnerAmount != null}">
-                                                    <strong>£<span th:text="${#numbers.formatDecimal(transaction.netToOwnerAmount, 1, 2)}">0.00</span></strong>
+                                                    <strong>£<span th:text="${#numbers.formatDecimal(transaction.netToOwnerAmount ?: 0, 1, 2)}">0.00</span></strong>
                                                 </span>
                                                 <span th:if="${transaction.netToOwnerAmount == null}">-</span>
                                             </td>
@@ -424,7 +424,7 @@
                             <div class="row text-center">
                                 <div class="col-md-3">
                                     <div class="border-right">
-                                        <h3 class="text-success" th:text="'£' + ${currentMonthlyIncome ?: '0'}">£0</h3>
+                                        <h3 class="text-success" th:text="'£' + ${#numbers.formatDecimal(totalNetToOwner ?: 0, 1, 2)}">£0</h3>
                                         <p class="text-muted mb-0">Actual Income</p>
                                     </div>
                                 </div>
@@ -605,7 +605,7 @@
                                 <table class="table table-sm">
                                     <tr>
                                         <td><strong>Total Rental Income:</strong></td>
-                                        <td class="text-success">£<span th:text="${#numbers.formatDecimal(currentMonthlyIncome, 0, 2) * 12}">36000</span></td>
+                                        <td class="text-success">£<span th:text="${#numbers.formatDecimal(totalRent ?: 0, 0, 2)}">36000</span></td>
                                     </tr>
                                     <tr>
                                         <td><strong>Property Expenses:</strong></td>
@@ -690,7 +690,7 @@
                                         <table class="table table-sm">
                                             <tr>
                                                 <td>Monthly Income:</td>
-                                                <td class="text-success">+£<span th:text="${currentMonthlyIncome ?: '0'}">3000</span></td>
+                                                <td class="text-success">+£<span th:text="${#numbers.formatDecimal(totalNetToOwner ?: 0, 1, 2)}">3000</span></td>
                                             </tr>
                                             <tr>
                                                 <td>Mortgage Payments:</td>

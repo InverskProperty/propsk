@@ -181,8 +181,8 @@ public class SecurityConfig {
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/**/manager/**")).hasRole("MANAGER")
                         
                         // CUSTOMER MANAGEMENT FIX: Specific employee customer routes FIRST
-                        .requestMatchers("/employee/customer/add-customer").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
-                        .requestMatchers("/employee/customer/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+                        .requestMatchers("/employee/customer/add-customer").hasAnyRole("MANAGER", "EMPLOYEE", "SUPER_ADMIN", "OIDC_USER")
+                        .requestMatchers("/employee/customer/**").hasAnyRole("MANAGER", "EMPLOYEE", "SUPER_ADMIN", "OIDC_USER")
                         
                         // PROPERTY OWNER ACCESS FIX: Allow property owners to access admin property pages
                         .requestMatchers("/employee/property/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
