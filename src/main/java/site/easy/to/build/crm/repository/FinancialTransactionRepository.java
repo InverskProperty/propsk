@@ -513,17 +513,81 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     Object[] getPropertyOwnerFinancialSummary(@Param("customerId") Long customerId);
     
     /**
-     * Get recent transactions for property owner's properties via portfolio assignments
+     * Get recent transactions for property owner's properties - ENHANCED: Includes incoming tenant payments
+     * Combines financial_transactions (outgoing) with payprop_report_all_payments (incoming)
      */
-    @Query(value = "SELECT ft.* FROM financial_transactions ft " +
+    @Query(value = "(" +
+           // Financial transactions (existing outgoing transactions)
+           "SELECT ft.id, ft.transaction_date, ft.property_name, ft.transaction_type, " +
+           "       ft.amount, ft.commission_amount, ft.net_to_owner_amount, ft.description, " +
+           "       ft.payprop_batch_id, 'financial_transaction' as source_table " +
+           "FROM financial_transactions ft " +
            "WHERE ft.property_id IN (" +
            "  SELECT pr.payprop_id FROM properties pr " +
            "  JOIN property_portfolio_assignments ppa ON pr.id = ppa.property_id " +
            "  JOIN portfolios po ON ppa.portfolio_id = po.id " +
            "  WHERE po.property_owner_id = :customerId AND ppa.is_active = 1" +
-           ") ORDER BY ft.transaction_date DESC",
+           ") AND ft.transaction_date >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)" +
+           ") UNION ALL (" +
+           // Incoming payments from tenants
+           "SELECT " +
+           "  CONCAT('incoming_', prap.incoming_transaction_id) as id, " +
+           "  prap.payment_batch_transfer_date as transaction_date, " +
+           "  prap.incoming_property_name as property_name, " +
+           "  'tenant_payment' as transaction_type, " +
+           "  prap.incoming_transaction_amount as amount, " +
+           "  NULL as commission_amount, " +
+           "  NULL as net_to_owner_amount, " +
+           "  CONCAT('Payment from ', prap.incoming_tenant_name, ' - ', COALESCE(prap.incoming_transaction_type, 'Rent')) as description, " +
+           "  prap.payment_batch_id as payprop_batch_id, " +
+           "  'payprop_payments' as source_table " +
+           "FROM payprop_report_all_payments prap " +
+           "WHERE prap.incoming_property_payprop_id IN (" +
+           "  SELECT pr.payprop_id FROM properties pr " +
+           "  JOIN property_portfolio_assignments ppa ON pr.id = ppa.property_id " +
+           "  JOIN portfolios po ON ppa.portfolio_id = po.id " +
+           "  WHERE po.property_owner_id = :customerId AND ppa.is_active = 1" +
+           ") AND prap.payment_batch_transfer_date >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH) " +
+           "  AND prap.incoming_transaction_amount IS NOT NULL" +
+           ") ORDER BY transaction_date DESC",
            nativeQuery = true)
     List<FinancialTransaction> getPropertyOwnerRecentTransactions(@Param("customerId") Long customerId, Pageable pageable);
+    
+    /**
+     * Get all transactions for property owner statements - ENHANCED: Includes incoming payments with batch IDs
+     * Used by GoogleSheetsStatementService for complete transaction history with batch reconciliation
+     */
+    @Query(value = "(" +
+           // Financial transactions (existing outgoing transactions) 
+           "SELECT ft.id, ft.transaction_date, ft.property_name, ft.transaction_type, " +
+           "       ft.amount, ft.commission_amount, ft.net_to_owner_amount, ft.description, " +
+           "       ft.payprop_batch_id, ft.property_id, 'financial_transaction' as source_table " +
+           "FROM financial_transactions ft " +
+           "WHERE ft.property_id = :propertyId " +
+           "  AND ft.transaction_date BETWEEN :fromDate AND :toDate" +
+           ") UNION ALL (" +
+           // Incoming payments from tenants with batch IDs
+           "SELECT " +
+           "  CONCAT('incoming_', prap.incoming_transaction_id) as id, " +
+           "  prap.payment_batch_transfer_date as transaction_date, " +
+           "  prap.incoming_property_name as property_name, " +
+           "  'tenant_payment' as transaction_type, " +
+           "  prap.incoming_transaction_amount as amount, " +
+           "  NULL as commission_amount, " +
+           "  NULL as net_to_owner_amount, " +
+           "  CONCAT('Payment from ', prap.incoming_tenant_name, ' - ', COALESCE(prap.incoming_transaction_type, 'Rent')) as description, " +
+           "  prap.payment_batch_id as payprop_batch_id, " +
+           "  prap.incoming_property_payprop_id as property_id, " +
+           "  'payprop_payments' as source_table " +
+           "FROM payprop_report_all_payments prap " +
+           "WHERE prap.incoming_property_payprop_id = :propertyId " +
+           "  AND prap.payment_batch_transfer_date BETWEEN :fromDate AND :toDate " +
+           "  AND prap.incoming_transaction_amount IS NOT NULL" +
+           ") ORDER BY transaction_date DESC",
+           nativeQuery = true)
+    List<FinancialTransaction> findPropertyTransactionsForStatement(@Param("propertyId") String propertyId, 
+                                                                   @Param("fromDate") LocalDate fromDate, 
+                                                                   @Param("toDate") LocalDate toDate);
     
     /**
      * Get property-level financial breakdown for property owner

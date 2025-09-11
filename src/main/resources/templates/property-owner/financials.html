@@ -257,22 +257,45 @@
                                                 <small th:text="${transaction.propertyName}">Property</small>
                                             </td>
                                             <td>
-                                                <span class="badge badge-info" th:text="${transaction.transactionType}">Type</span>
+                                                <span class="badge" 
+                                                      th:classappend="${transaction.transactionType == 'invoice' ? 'badge-success' : 
+                                                                     transaction.transactionType == 'tenant_payment' ? 'badge-info' :
+                                                                     transaction.transactionType == 'commission_payment' ? 'badge-warning' :
+                                                                     transaction.transactionType == 'payment_to_beneficiary' ? 'badge-primary' :
+                                                                     transaction.transactionType == 'payment_to_agency' ? 'badge-secondary' : 'badge-light'}"
+                                                      th:text="${transaction.transactionType}">Type</span>
                                             </td>
+                                            <!-- Amount column: Show for invoices and tenant payments -->
                                             <td class="text-right">
-                                                £<span th:text="${#numbers.formatDecimal(transaction.amount ?: 0, 1, 2)}">0.00</span>
-                                            </td>
-                                            <td class="text-right text-muted">
-                                                <span th:if="${transaction.commissionAmount != null}">
-                                                    £<span th:text="${#numbers.formatDecimal(transaction.commissionAmount ?: 0, 1, 2)}">0.00</span>
+                                                <span th:if="${transaction.transactionType == 'invoice'}">
+                                                    <strong>£<span th:text="${#numbers.formatDecimal(transaction.amount ?: 0, 1, 2)}">0.00</span></strong>
+                                                    <br><small class="text-muted">Invoiced</small>
                                                 </span>
-                                                <span th:if="${transaction.commissionAmount == null}">-</span>
+                                                <span th:if="${transaction.transactionType == 'tenant_payment'}">
+                                                    <strong class="text-info">£<span th:text="${#numbers.formatDecimal(transaction.amount ?: 0, 1, 2)}">0.00</span></strong>
+                                                    <br><small class="text-muted">Received</small>
+                                                </span>
+                                                <span th:if="${transaction.transactionType != 'invoice' and transaction.transactionType != 'tenant_payment'}">-</span>
                                             </td>
+                                            <!-- Commission column: Show for commission_payment transactions -->
+                                            <td class="text-right text-warning">
+                                                <span th:if="${transaction.transactionType == 'commission_payment'}">
+                                                    £<span th:text="${#numbers.formatDecimal(transaction.amount ?: 0, 1, 2)}">0.00</span>
+                                                </span>
+                                                <span th:if="${transaction.transactionType == 'invoice' and transaction.commissionAmount != null}">
+                                                    <small class="text-muted">(£<span th:text="${#numbers.formatDecimal(transaction.commissionAmount ?: 0, 1, 2)}">0.00</span>)</small>
+                                                </span>
+                                                <span th:if="${transaction.transactionType != 'commission_payment' and (transaction.transactionType != 'invoice' or transaction.commissionAmount == null)}">-</span>
+                                            </td>
+                                            <!-- Net to Owner column: Show for payment_to_beneficiary transactions -->
                                             <td class="text-right text-success">
-                                                <span th:if="${transaction.netToOwnerAmount != null}">
-                                                    <strong>£<span th:text="${#numbers.formatDecimal(transaction.netToOwnerAmount ?: 0, 1, 2)}">0.00</span></strong>
+                                                <span th:if="${transaction.transactionType == 'payment_to_beneficiary'}">
+                                                    <strong>£<span th:text="${#numbers.formatDecimal(transaction.amount ?: 0, 1, 2)}">0.00</span></strong>
                                                 </span>
-                                                <span th:if="${transaction.netToOwnerAmount == null}">-</span>
+                                                <span th:if="${transaction.transactionType == 'invoice' and transaction.netToOwnerAmount != null}">
+                                                    <small class="text-muted">(£<span th:text="${#numbers.formatDecimal(transaction.netToOwnerAmount ?: 0, 1, 2)}">0.00</span>)</small>
+                                                </span>
+                                                <span th:if="${transaction.transactionType != 'payment_to_beneficiary' and (transaction.transactionType != 'invoice' or transaction.netToOwnerAmount == null)}">-</span>
                                             </td>
                                             <td>
                                                 <small th:text="${transaction.description}">Description</small>
@@ -284,6 +307,29 @@
                                             </td>
                                         </tr>
                                     </tbody>
+                                    <!-- Totals Footer -->
+                                    <tfoot th:if="${!#lists.isEmpty(recentTransactions)}" class="table-secondary">
+                                        <tr>
+                                            <td colspan="3"><strong>Totals (Last 3 Months):</strong></td>
+                                            <td class="text-right">
+                                                <strong>£<span th:text="${#numbers.formatDecimal(totalRent ?: 0, 1, 2)}">0.00</span></strong>
+                                                <br><small class="text-muted">Invoiced</small>
+                                            </td>
+                                            <td class="text-right text-warning">
+                                                <strong>£<span th:text="${#numbers.formatDecimal(totalCommission ?: 0, 1, 2)}">0.00</span></strong>
+                                                <br><small class="text-muted">Commission</small>
+                                            </td>
+                                            <td class="text-right text-success">
+                                                <strong>£<span th:text="${#numbers.formatDecimal(totalNetToOwner ?: 0, 1, 2)}">0.00</span></strong>
+                                                <br><small class="text-muted">Received</small>
+                                            </td>
+                                            <td>
+                                                <small class="text-muted">
+                                                    <span th:text="${totalTransactions ?: 0}">0</span> transactions
+                                                </small>
+                                            </td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
                             </div>
                         </div>

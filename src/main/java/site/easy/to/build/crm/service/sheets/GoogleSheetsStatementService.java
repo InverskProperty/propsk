@@ -333,9 +333,9 @@ public class GoogleSheetsStatementService {
         int dataStartRow = values.size() + 1; // Track row number for formulas
         
         for (PropertyRentalData rental : data.getRentalData()) {
-            // Get actual payment data from financial transactions
+            // Get actual payment data from financial transactions - ENHANCED: Now includes incoming payments with batch IDs
             List<FinancialTransaction> transactions = financialTransactionRepository
-                .findByPropertyAndDateRange(rental.getProperty().getPayPropId(), data.getFromDate(), data.getToDate());
+                .findPropertyTransactionsForStatement(rental.getProperty().getPayPropId(), data.getFromDate(), data.getToDate());
                 
             BigDecimal rentDue = rental.getRentAmount();
             BigDecimal rentReceived = calculateActualRentReceived(transactions);
