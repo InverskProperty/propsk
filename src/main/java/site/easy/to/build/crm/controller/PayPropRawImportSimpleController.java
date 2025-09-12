@@ -74,25 +74,13 @@ public class PayPropRawImportSimpleController {
     private site.easy.to.build.crm.service.payprop.raw.PayPropRawPaymentsCategoriesImportService paymentsCategoriesImportService;
     
     // List of working endpoints from our test results
-    private static final Map<String, EndpointConfig> WORKING_ENDPOINTS = new HashMap<>();
+    private static final Map<String, EndpointConfig> WORKING_ENDPOINTS = new LinkedHashMap<>();
     
     static {
-        // Core export endpoints - CRITICAL missing data
-        WORKING_ENDPOINTS.put("export-invoices", new EndpointConfig(
-            "/export/invoices", 
-            "Invoice instructions - THE MISSING DATA",
-            Map.of("rows", "25")  // Fixed: removed invalid include_categories
-        ));
-        
-        WORKING_ENDPOINTS.put("export-payments", new EndpointConfig(
-            "/export/payments", 
-            "Payment distribution rules",
-            Map.of("rows", "25")  // Fixed: removed invalid include_beneficiary_info
-        ));
-        
+        // PHASE 1: FOUNDATION DATA - Import First (other data references these)
         WORKING_ENDPOINTS.put("export-properties", new EndpointConfig(
             "/export/properties", 
-            "Property settings and metadata",
+            "Property settings and metadata - FOUNDATION",
             Map.of("include_commission", "true", "rows", "25")
         ));
         
@@ -102,19 +90,19 @@ public class PayPropRawImportSimpleController {
             Map.of("include_commission", "true", "rows", "25", "is_archived", "true")
         ));
         
-        WORKING_ENDPOINTS.put("export-beneficiaries", new EndpointConfig(
-            "/export/beneficiaries", 
-            "Owner/beneficiary information",
-            Map.of("owners", "true", "rows", "25")
-        ));
-        
         WORKING_ENDPOINTS.put("export-tenants", new EndpointConfig(
             "/export/tenants", 
-            "Tenant information",
+            "Tenant information - FOUNDATION",
             Map.of("rows", "25")
         ));
         
-        // Category endpoints
+        WORKING_ENDPOINTS.put("export-beneficiaries", new EndpointConfig(
+            "/export/beneficiaries", 
+            "Owner/beneficiary information - FOUNDATION",
+            Map.of("owners", "true", "rows", "25")
+        ));
+        
+        // PHASE 2: CATEGORIES - Before Financial Data
         WORKING_ENDPOINTS.put("invoices-categories", new EndpointConfig(
             "/invoices/categories", 
             "Invoice category reference data",
@@ -127,7 +115,19 @@ public class PayPropRawImportSimpleController {
             Map.of()
         ));
         
-        // Report endpoints - with proper date filtering for full data
+        // PHASE 3: FINANCIAL DATA - Last (requires foundation + categories)
+        WORKING_ENDPOINTS.put("export-invoices", new EndpointConfig(
+            "/export/invoices", 
+            "Invoice instructions - THE MISSING DATA",
+            Map.of("rows", "25")  // Fixed: removed invalid include_categories
+        ));
+        
+        WORKING_ENDPOINTS.put("export-payments", new EndpointConfig(
+            "/export/payments", 
+            "Payment distribution rules",
+            Map.of("rows", "25")  // Fixed: removed invalid include_beneficiary_info
+        ));
+        
         WORKING_ENDPOINTS.put("report-all-payments", new EndpointConfig(
             "/report/all-payments", 
             "ALL payment transactions (FIXED PAGINATION)",
