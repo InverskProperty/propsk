@@ -554,12 +554,17 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     List<Object[]> getPropertyOwnerRecentTransactionsRaw(@Param("customerId") Long customerId, Pageable pageable);
     
     /**
-     * TEMPORARY: Keep original method for backward compatibility - will need entity mapping fix later
+     * Get recent transactions for property owner's properties - FIXED: Using native query to avoid entity mapping issues
      */
-    @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.propertyId IN (" +
-           "SELECT p.payPropId FROM Property p JOIN p.portfolioAssignments pa JOIN pa.portfolio po " +
-           "WHERE po.propertyOwner.customerId = :customerId AND pa.isActive = true) " +
-           "AND ft.transactionDate >= :dateLimit ORDER BY ft.transactionDate DESC")
+    @Query(value = "SELECT ft.* FROM financial_transactions ft " +
+           "WHERE ft.property_id IN (" +
+           "  SELECT pr.payprop_id FROM properties pr " +
+           "  JOIN property_portfolio_assignments ppa ON pr.id = ppa.property_id " +
+           "  JOIN portfolios po ON ppa.portfolio_id = po.id " +
+           "  WHERE po.property_owner_id = :customerId AND ppa.is_active = 1" +
+           ") AND ft.transaction_date >= :dateLimit " +
+           "ORDER BY ft.transaction_date DESC",
+           nativeQuery = true)
     List<FinancialTransaction> getPropertyOwnerRecentTransactions(@Param("customerId") Long customerId, 
                                                                 @Param("dateLimit") LocalDate dateLimit,
                                                                 Pageable pageable);
