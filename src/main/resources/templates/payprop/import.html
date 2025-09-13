@@ -236,6 +236,14 @@
                                                             <div class="col-md-4">
                                                                 <h6>Financial Data Exports</h6>
                                                                 <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" value="invoice-categories" id="invoiceCategories">
+                                                                    <label class="form-check-label" for="invoiceCategories">Invoice Categories</label>
+                                                                </div>
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" value="payment-categories" id="paymentCategories">
+                                                                    <label class="form-check-label" for="paymentCategories">Payment Categories</label>
+                                                                </div>
+                                                                <div class="form-check">
                                                                     <input class="form-check-input" type="checkbox" value="export-transactions" id="exportTransactions">
                                                                     <label class="form-check-label" for="exportTransactions">Export Transactions</label>
                                                                 </div>
@@ -648,6 +656,8 @@ async function runSingleService(service) {
         'maintenance-categories': '/api/payprop/maintenance/sync/categories',
         'maintenance-tickets': '/api/payprop/maintenance/sync/import-tickets',
         'contractor-bids': '/api/payprop/maintenance/sync/bidirectional',
+        'invoice-categories': '/api/payprop/raw-import/test-single/invoices-categories',
+        'payment-categories': '/api/payprop/raw-import/test-single/payments-categories',
         'payments': '/api/payprop/raw-import/test-single/export-payments',
         'invoices': '/api/payprop/raw-import/test-single/export-invoices',
         'bank-reconciliation': '/api/payprop/raw-import/test-single/report-all-payments',
