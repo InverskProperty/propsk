@@ -137,7 +137,14 @@ public class PayPropRawInvoicesCompleteImportService {
                     setBooleanOrNull(stmt, 3, getBoolean(invoice, "debit_order"));
                     stmt.setString(4, getString(invoice, "description"));
                     stmt.setString(5, getString(invoice, "frequency"));
-                    stmt.setString(6, getString(invoice, "frequency_code"));
+                    
+                    // Fix: Truncate frequency_code if it's longer than column allows
+                    String frequencyCode = getString(invoice, "frequency_code");
+                    if (frequencyCode != null && frequencyCode.length() > 1) {
+                        log.warn("⚠️ Truncating frequency_code '{}' to '{}'", frequencyCode, frequencyCode.substring(0, 1));
+                        frequencyCode = frequencyCode.substring(0, 1);
+                    }
+                    stmt.setString(6, frequencyCode);
                     stmt.setDate(7, getDate(invoice, "from_date"));
                     stmt.setDate(8, getDate(invoice, "to_date"));
                     setBigDecimalOrNull(stmt, 9, getBigDecimal(invoice, "gross_amount")); // THE £1,075 AMOUNT!
