@@ -112,6 +112,10 @@
                                                             <label class="form-check-label" for="importPortfolios">Import Portfolios</label>
                                                         </div>
                                                         <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" value="import-beneficiaries" id="importBeneficiaries">
+                                                            <label class="form-check-label" for="importBeneficiaries">Import Beneficiaries</label>
+                                                        </div>
+                                                        <div class="form-check">
                                                             <input class="form-check-input" type="checkbox" value="tenancy-agreements" id="importTenancies">
                                                             <label class="form-check-label" for="importTenancies">Tenancy Agreements</label>
                                                         </div>
@@ -667,6 +671,7 @@ async function runSingleService(service) {
         'bank-reconciliation': '/api/payprop/raw-import/test-complete-all-payments',
         'properties': '/api/payprop/raw-import/test-complete-properties',
         'portfolios': '/api/payprop/raw-import/test-complete-beneficiaries',
+        'import-beneficiaries': '/api/payprop/raw-import/test-complete-beneficiaries',
         'tenancy-agreements': '/api/payprop/raw-import/test-complete-tenants',
         'export-beneficiaries': '/api/payprop/raw-import/test-complete-beneficiaries'
     };
