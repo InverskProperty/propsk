@@ -56,6 +56,9 @@ public class PayPropRawImportSimpleController {
     private site.easy.to.build.crm.service.payprop.raw.PayPropRawInvoicesCompleteImportService invoicesCompleteImportService;
     
     @Autowired
+    private site.easy.to.build.crm.service.payprop.raw.PayPropRawContractorsCompleteImportService contractorsCompleteImportService;
+    
+    @Autowired
     private site.easy.to.build.crm.service.payprop.raw.PayPropRawPaymentsCompleteImportService paymentsCompleteImportService;
     
     @Autowired
@@ -1163,6 +1166,50 @@ public class PayPropRawImportSimpleController {
         } catch (Exception e) {
             long endTime = System.currentTimeMillis();
             log.error("❌ Complete payments categories import test failed", e);
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            response.put("processingTime", endTime - startTime);
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+    
+    /**
+     * Test complete contractors import - NEW ENDPOINT
+     * Imports contractor/maintenance bid data from PayProp maintenance endpoints
+     */
+    @PostMapping("/test-complete-contractors")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testCompleteContractorsImport() {
+        log.info("🔧 Testing complete contractors import - Maintenance contractor data");
+        
+        Map<String, Object> response = new HashMap<>();
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            site.easy.to.build.crm.service.payprop.raw.PayPropRawImportResult result = 
+                contractorsCompleteImportService.importContractorsComplete();
+            
+            long endTime = System.currentTimeMillis();
+            
+            response.put("success", result.isSuccess());
+            response.put("endpoint", result.getEndpoint());
+            response.put("totalFetched", result.getTotalFetched());
+            response.put("totalImported", result.getTotalImported());
+            response.put("details", result.getDetails());
+            response.put("startTime", result.getStartTime());
+            response.put("endTime", result.getEndTime());
+            response.put("processingTime", endTime - startTime);
+            
+            if (!result.isSuccess()) {
+                response.put("error", result.getErrorMessage());
+                return ResponseEntity.status(500).body(response);
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            long endTime = System.currentTimeMillis();
+            log.error("❌ Complete contractors import test failed", e);
             response.put("success", false);
             response.put("error", e.getMessage());
             response.put("processingTime", endTime - startTime);

@@ -655,7 +655,7 @@ async function runSingleService(service) {
     const serviceMap = {
         'maintenance-categories': '/api/payprop/maintenance/sync/categories',
         'maintenance-tickets': '/api/payprop/maintenance/sync/import-tickets',
-        'contractor-bids': '/api/payprop/maintenance/sync/bidirectional',
+        'contractor-bids': '/api/payprop/raw-import/test-complete-contractors',
         'invoice-categories': '/api/payprop/raw-import/test-complete-invoice-categories',
         'payment-categories': '/api/payprop/raw-import/test-complete-payments-categories',
         'payments': '/api/payprop/raw-import/test-complete-payments',
@@ -1018,7 +1018,7 @@ async function runSingleExportService(service) {
         'export-invoices': '/api/payprop/raw-import/test-complete-invoices',
         'export-payment-rules': '/api/payprop/raw-import/test-complete-payments',
         'export-maintenance-tickets': '/api/payprop/maintenance/sync/export-tickets',
-        'export-contractor-bids': '/api/payprop/maintenance/sync/export-bids',
+        'export-contractor-bids': '/api/payprop/raw-import/test-complete-contractors',
         'export-maintenance-categories': '/api/payprop/maintenance/sync/export-categories'
     };
     
