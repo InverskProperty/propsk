@@ -232,6 +232,10 @@
                                                                     <input class="form-check-input" type="checkbox" value="export-tenants" id="exportTenants">
                                                                     <label class="form-check-label" for="exportTenants">Export Tenants</label>
                                                                 </div>
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox" value="export-beneficiaries" id="exportBeneficiaries">
+                                                                    <label class="form-check-label" for="exportBeneficiaries">Import Beneficiaries (All)</label>
+                                                                </div>
                                                             </div>
                                                             <div class="col-md-4">
                                                                 <h6>Financial Data Exports</h6>
@@ -663,7 +667,8 @@ async function runSingleService(service) {
         'bank-reconciliation': '/api/payprop/raw-import/test-complete-all-payments',
         'properties': '/api/payprop/raw-import/test-complete-properties',
         'portfolios': '/api/payprop/raw-import/test-complete-beneficiaries',
-        'tenancy-agreements': '/api/payprop/raw-import/test-complete-tenants'
+        'tenancy-agreements': '/api/payprop/raw-import/test-complete-tenants',
+        'export-beneficiaries': '/api/payprop/raw-import/test-complete-beneficiaries'
     };
     
     const endpoint = serviceMap[service];
@@ -1014,6 +1019,7 @@ async function runSingleExportService(service) {
         'export-properties': '/api/payprop/raw-import/test-complete-properties',
         'export-property-owners': '/api/payprop/raw-import/test-complete-beneficiaries',
         'export-tenants': '/api/payprop/raw-import/test-complete-tenants',
+        'export-beneficiaries': '/api/payprop/raw-import/test-complete-beneficiaries',
         'export-transactions': '/api/payprop/raw-import/test-complete-all-payments',
         'export-invoices': '/api/payprop/raw-import/test-complete-invoices',
         'export-payment-rules': '/api/payprop/raw-import/test-complete-payments',
