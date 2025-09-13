@@ -656,14 +656,14 @@ async function runSingleService(service) {
         'maintenance-categories': '/api/payprop/maintenance/sync/categories',
         'maintenance-tickets': '/api/payprop/maintenance/sync/import-tickets',
         'contractor-bids': '/api/payprop/maintenance/sync/bidirectional',
-        'invoice-categories': '/api/payprop/raw-import/test-single/invoices-categories',
-        'payment-categories': '/api/payprop/raw-import/test-single/payments-categories',
-        'payments': '/api/payprop/raw-import/test-single/export-payments',
-        'invoices': '/api/payprop/raw-import/test-single/export-invoices',
-        'bank-reconciliation': '/api/payprop/raw-import/test-single/report-all-payments',
-        'properties': '/api/payprop/raw-import/test-single/export-properties',
-        'portfolios': '/api/payprop/raw-import/test-single/export-beneficiaries',
-        'tenancy-agreements': '/api/payprop/raw-import/test-single/export-tenants'
+        'invoice-categories': '/api/payprop/raw-import/test-complete-invoice-categories',
+        'payment-categories': '/api/payprop/raw-import/test-complete-payments-categories',
+        'payments': '/api/payprop/raw-import/test-complete-payments',
+        'invoices': '/api/payprop/raw-import/test-complete-invoices',
+        'bank-reconciliation': '/api/payprop/raw-import/test-complete-all-payments',
+        'properties': '/api/payprop/raw-import/test-complete-properties',
+        'portfolios': '/api/payprop/raw-import/test-complete-beneficiaries',
+        'tenancy-agreements': '/api/payprop/raw-import/test-complete-tenants'
     };
     
     const endpoint = serviceMap[service];
@@ -1011,12 +1011,12 @@ async function runSelectedExportServices() {
 
 async function runSingleExportService(service) {
     const serviceMap = {
-        'export-properties': '/api/payprop/raw-import/test-single/export-properties',
-        'export-property-owners': '/api/payprop/raw-import/test-single/export-beneficiaries',
-        'export-tenants': '/api/payprop/raw-import/test-single/export-tenants',
-        'export-transactions': '/api/payprop/raw-import/test-single/report-all-payments',
-        'export-invoices': '/api/payprop/raw-import/test-single/export-invoices',
-        'export-payment-rules': '/api/payprop/raw-import/test-single/export-payments',
+        'export-properties': '/api/payprop/raw-import/test-complete-properties',
+        'export-property-owners': '/api/payprop/raw-import/test-complete-beneficiaries',
+        'export-tenants': '/api/payprop/raw-import/test-complete-tenants',
+        'export-transactions': '/api/payprop/raw-import/test-complete-all-payments',
+        'export-invoices': '/api/payprop/raw-import/test-complete-invoices',
+        'export-payment-rules': '/api/payprop/raw-import/test-complete-payments',
         'export-maintenance-tickets': '/api/payprop/maintenance/sync/export-tickets',
         'export-contractor-bids': '/api/payprop/maintenance/sync/export-bids',
         'export-maintenance-categories': '/api/payprop/maintenance/sync/export-categories'
