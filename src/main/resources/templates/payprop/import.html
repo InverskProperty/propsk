@@ -1001,12 +1001,12 @@ async function runSelectedExportServices() {
 
 async function runSingleExportService(service) {
     const serviceMap = {
-        'export-properties': '/api/payprop/sync/properties',
-        'export-property-owners': '/api/payprop/sync/property-owners',
-        'export-tenants': '/api/payprop/sync/tenants',
-        'export-transactions': '/api/payprop/sync/transactions',
-        'export-invoices': '/api/payprop/sync/invoices',
-        'export-payment-rules': '/api/payprop/sync/payment-rules',
+        'export-properties': '/api/payprop/raw-import/test-single/export-properties',
+        'export-property-owners': '/api/payprop/raw-import/test-single/export-beneficiaries',
+        'export-tenants': '/api/payprop/raw-import/test-single/export-tenants',
+        'export-transactions': '/api/payprop/raw-import/test-single/report-all-payments',
+        'export-invoices': '/api/payprop/raw-import/test-single/export-invoices',
+        'export-payment-rules': '/api/payprop/raw-import/test-single/export-payments',
         'export-maintenance-tickets': '/api/payprop/maintenance/sync/export-tickets',
         'export-contractor-bids': '/api/payprop/maintenance/sync/export-bids',
         'export-maintenance-categories': '/api/payprop/maintenance/sync/export-categories'
