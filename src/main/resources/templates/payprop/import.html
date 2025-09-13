@@ -648,12 +648,12 @@ async function runSingleService(service) {
         'maintenance-categories': '/api/payprop/maintenance/sync/categories',
         'maintenance-tickets': '/api/payprop/maintenance/sync/import-tickets',
         'contractor-bids': '/api/payprop/maintenance/sync/bidirectional',
-        'payments': '/api/payprop/raw-import/sync-all-endpoints',
-        'invoices': '/api/payprop/raw-import/sync-all-endpoints',
-        'bank-reconciliation': '/api/payprop/raw-import/sync-all-endpoints',
-        'properties': '/api/payprop/raw-import/sync-all-endpoints',
-        'portfolios': '/api/payprop/raw-import/sync-all-endpoints',
-        'tenancy-agreements': '/api/payprop/raw-import/sync-all-endpoints'
+        'payments': '/api/payprop/raw-import/test-single/export-payments',
+        'invoices': '/api/payprop/raw-import/test-single/export-invoices',
+        'bank-reconciliation': '/api/payprop/raw-import/test-single/report-all-payments',
+        'properties': '/api/payprop/raw-import/test-single/export-properties',
+        'portfolios': '/api/payprop/raw-import/test-single/export-beneficiaries',
+        'tenancy-agreements': '/api/payprop/raw-import/test-single/export-tenants'
     };
     
     const endpoint = serviceMap[service];
