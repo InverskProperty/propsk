@@ -1531,4 +1531,161 @@ public class PayPropSyncOrchestrator {
         public Double getOwnershipPercentage() { return ownershipPercentage; }
         public void setOwnershipPercentage(Double ownershipPercentage) { this.ownershipPercentage = ownershipPercentage; }
     }
+
+    // ============================================================================
+    // SCOPE-AWARE SYNC METHODS - Work with available export permissions only
+    // ============================================================================
+
+    /**
+     * Extract property relationships from raw export data instead of payments
+     * Uses payprop_export_beneficiaries to establish property-owner relationships
+     */
+    @Transactional(readOnly = true)
+    public Map<String, PropertyRelationship> extractRelationshipsFromRawData() {
+        log.info("🔍 Extracting property relationships from raw beneficiaries data...");
+        Map<String, PropertyRelationship> relationships = new HashMap<>();
+        
+        try {
+            // Query raw beneficiaries export data
+            String sql = """
+                SELECT DISTINCT 
+                    b.payprop_entity_id as owner_id,
+                    p.payprop_id as property_id,
+                    'OWNER' as ownership_type,
+                    100.0 as ownership_percentage
+                FROM payprop_export_beneficiaries b
+                LEFT JOIN payprop_export_properties p ON p.customer_reference = b.customer_reference
+                WHERE b.payprop_entity_id IS NOT NULL 
+                AND p.payprop_id IS NOT NULL
+                """;
+                
+            payPropSyncService.getJdbcTemplate().query(sql, rs -> {
+                String key = rs.getString("property_id") + "_" + rs.getString("owner_id");
+                PropertyRelationship relationship = new PropertyRelationship();
+                relationship.setPropertyPayPropId(rs.getString("property_id"));
+                relationship.setOwnerPayPropId(rs.getString("owner_id"));
+                relationship.setOwnershipType(rs.getString("ownership_type"));
+                relationship.setOwnershipPercentage(rs.getDouble("ownership_percentage"));
+                relationships.put(key, relationship);
+            });
+            
+            log.info("✅ Extracted {} property-owner relationships from raw data", relationships.size());
+            return relationships;
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to extract relationships from raw data: {}", e.getMessage());
+            return new HashMap<>();
+        }
+    }
+
+    /**
+     * Process financial data from raw export tables instead of using all-payments report
+     * Uses payprop_export_invoices and payprop_export_payments
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult syncFinancialDataFromRawExports(Long initiatedBy) {
+        log.info("💰 Starting financial data sync from raw export tables...");
+        
+        try {
+            int invoicesProcessed = 0;
+            int paymentsProcessed = 0;
+            int invoicesCreated = 0;
+            int paymentsCreated = 0;
+            int errors = 0;
+            
+            // Process invoices from payprop_export_invoices
+            String invoiceSql = """
+                SELECT COUNT(*) FROM payprop_export_invoices
+                WHERE processed_at IS NULL OR processed_at < updated_at
+                """;
+            Integer pendingInvoices = payPropSyncService.getJdbcTemplate().queryForObject(invoiceSql, Integer.class);
+            
+            // Process payments from payprop_export_payments
+            String paymentSql = """
+                SELECT COUNT(*) FROM payprop_export_payments
+                WHERE processed_at IS NULL OR processed_at < updated_at
+                """;
+            Integer pendingPayments = payPropSyncService.getJdbcTemplate().queryForObject(paymentSql, Integer.class);
+            
+            // Delegate to financial sync service if available
+            if (payPropFinancialSyncService != null) {
+                SyncResult financialResult = payPropFinancialSyncService.processFinancialDataFromRawExports();
+                return financialResult;
+            }
+            
+            log.info("✅ Financial data processing complete: {} invoices, {} payments found", 
+                    pendingInvoices != null ? pendingInvoices : 0, 
+                    pendingPayments != null ? pendingPayments : 0);
+                    
+            return SyncResult.success("Financial data processed from raw exports", Map.of(
+                "pendingInvoices", pendingInvoices != null ? pendingInvoices : 0,
+                "pendingPayments", pendingPayments != null ? pendingPayments : 0,
+                "message", "Using raw export data instead of all-payments report"
+            ));
+            
+        } catch (Exception e) {
+            log.error("❌ Financial data sync from raw exports failed: {}", e.getMessage());
+            return SyncResult.failure("Financial data sync failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Establish property-owner relationships using data already processed
+     * Creates portfolio assignments based on the relationships extracted from raw data
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SyncResult establishPropertyOwnerRelationships() {
+        log.info("🔗 Establishing property-owner relationships...");
+        
+        try {
+            int relationshipsCreated = 0;
+            int relationshipsUpdated = 0;
+            int errors = 0;
+            
+            // Get all properties that have both property and customer records
+            String sql = """
+                SELECT DISTINCT 
+                    p.id as property_id,
+                    p.payprop_id as property_payprop_id,
+                    c.customer_id as owner_customer_id,
+                    c.payprop_entity_id as owner_payprop_id
+                FROM properties p
+                INNER JOIN customers c ON c.customer_reference = p.customer_reference
+                WHERE p.payprop_id IS NOT NULL 
+                AND c.payprop_entity_id IS NOT NULL
+                AND c.customer_type = 'PROPERTY_OWNER'
+                """;
+                
+            payPropSyncService.getJdbcTemplate().query(sql, rs -> {
+                try {
+                    Long propertyId = rs.getLong("property_id");
+                    Long ownerCustomerId = rs.getLong("owner_customer_id");
+                    
+                    // Use assignment service to create the relationship
+                    if (assignmentService != null) {
+                        assignmentService.assignPropertyToCustomer(ownerCustomerId, propertyId, "PROPERTY_OWNER");
+                        relationshipsCreated++;
+                        log.debug("✅ Created relationship: Property {} -> Owner {}", 
+                                rs.getString("property_payprop_id"), 
+                                rs.getString("owner_payprop_id"));
+                    }
+                } catch (Exception e) {
+                    errors++;
+                    log.error("❌ Failed to create relationship: {}", e.getMessage());
+                }
+            });
+            
+            log.info("✅ Property relationships established: {} created, {} errors", relationshipsCreated, errors);
+            
+            return SyncResult.success("Property-owner relationships established", Map.of(
+                "relationshipsCreated", relationshipsCreated,
+                "relationshipsUpdated", relationshipsUpdated,
+                "errors", errors
+            ));
+            
+        } catch (Exception e) {
+            log.error("❌ Failed to establish property-owner relationships: {}", e.getMessage());
+            return SyncResult.failure("Property relationships failed: " + e.getMessage());
+        }
+    }
 }

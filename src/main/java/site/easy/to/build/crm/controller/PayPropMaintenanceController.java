@@ -125,10 +125,9 @@ public class PayPropMaintenanceController {
             
             log.info("🔄 Starting scope-aware sync for user {}, syncToPayProp={}", userId, syncToPayProp);
             
-            // Step 1: Process the 33 raw properties in payprop_export_properties  
-            log.info("🏠 Step 1: Processing 33 raw properties into main properties table...");
+            // Step 1: Process properties from raw PayProp data
+            log.info("🏠 Step 1: Processing raw properties into main properties table...");
             try {
-                // Use existing orchestrator but call specific property processing
                 if (syncOrchestrator != null) {
                     SyncResult propertiesResult = syncOrchestrator.syncPropertiesFromPayPropEnhanced(userId);
                     result.put("propertiesResult", Map.of(
@@ -146,23 +145,92 @@ public class PayPropMaintenanceController {
                 result.put("propertiesResult", Map.of("success", false, "error", e.getMessage()));
             }
             
-            // Step 2: Process raw data without all-payments permission
-            log.info("📊 Step 2: Processing raw data using available export endpoints...");
+            // Step 2: Process property owners (beneficiaries) as customers
+            log.info("👥 Step 2: Processing property owners from raw beneficiaries...");
             try {
-                Map<String, Object> dataProcessing = Map.of(
-                    "rawProperties", 33,
-                    "rawBeneficiaries", 2, 
-                    "rawTenants", 37,
-                    "rawInvoices", 31,
-                    "rawPayments", 64,
-                    "scopesUsed", List.of("read:export:properties", "read:export:beneficiaries", "read:export:tenants", "read:export:invoices", "read:export:payments"),
-                    "excludedScopes", List.of("read:report:all-payments")
-                );
-                result.put("dataProcessing", dataProcessing);
+                if (syncOrchestrator != null) {
+                    // Extract relationships from raw export data instead of payments
+                    Map<String, PayPropSyncOrchestrator.PropertyRelationship> relationships = syncOrchestrator.extractRelationshipsFromRawData();
+                    SyncResult ownersResult = syncOrchestrator.syncPropertyOwnersAsCustomers(userId, relationships);
+                    result.put("propertyOwnersResult", Map.of(
+                        "success", ownersResult.isSuccess(),
+                        "message", ownersResult.getMessage(),
+                        "details", ownersResult.getDetails()
+                    ));
+                    log.info("✅ Property owners processing: {}", ownersResult.getMessage());
+                } else {
+                    result.put("propertyOwnersResult", Map.of("skipped", true, "reason", "SyncOrchestrator not available"));
+                }
             } catch (Exception e) {
-                log.error("❌ Data processing overview failed: {}", e.getMessage());
-                result.put("dataProcessingError", e.getMessage());
+                log.error("❌ Property owners processing failed: {}", e.getMessage());
+                result.put("propertyOwnersResult", Map.of("success", false, "error", e.getMessage()));
             }
+            
+            // Step 3: Process tenants as customers
+            log.info("🏠 Step 3: Processing tenants from raw tenant data...");
+            try {
+                if (syncOrchestrator != null) {
+                    SyncResult tenantsResult = syncOrchestrator.syncTenantsAsCustomers(userId);
+                    result.put("tenantsResult", Map.of(
+                        "success", tenantsResult.isSuccess(),
+                        "message", tenantsResult.getMessage(),
+                        "details", tenantsResult.getDetails()
+                    ));
+                    log.info("✅ Tenants processing: {}", tenantsResult.getMessage());
+                } else {
+                    result.put("tenantsResult", Map.of("skipped", true, "reason", "SyncOrchestrator not available"));
+                }
+            } catch (Exception e) {
+                log.error("❌ Tenants processing failed: {}", e.getMessage());
+                result.put("tenantsResult", Map.of("success", false, "error", e.getMessage()));
+            }
+            
+            // Step 4: Process financial data (invoices and payments) without all-payments report
+            log.info("💰 Step 4: Processing financial data using export endpoints only...");
+            try {
+                if (syncOrchestrator != null) {
+                    SyncResult financialResult = syncOrchestrator.syncFinancialDataFromRawExports(userId);
+                    result.put("financialResult", Map.of(
+                        "success", financialResult.isSuccess(),
+                        "message", financialResult.getMessage(),
+                        "details", financialResult.getDetails()
+                    ));
+                    log.info("✅ Financial data processing: {}", financialResult.getMessage());
+                } else {
+                    result.put("financialResult", Map.of("skipped", true, "reason", "SyncOrchestrator not available"));
+                }
+            } catch (Exception e) {
+                log.error("❌ Financial data processing failed: {}", e.getMessage());
+                result.put("financialResult", Map.of("success", false, "error", e.getMessage()));
+            }
+            
+            // Step 5: Establish property-owner relationships
+            log.info("🔗 Step 5: Establishing property-owner relationships...");
+            try {
+                if (syncOrchestrator != null) {
+                    SyncResult relationshipsResult = syncOrchestrator.establishPropertyOwnerRelationships();
+                    result.put("relationshipsResult", Map.of(
+                        "success", relationshipsResult.isSuccess(),
+                        "message", relationshipsResult.getMessage(),
+                        "details", relationshipsResult.getDetails()
+                    ));
+                    log.info("✅ Property relationships: {}", relationshipsResult.getMessage());
+                } else {
+                    result.put("relationshipsResult", Map.of("skipped", true, "reason", "SyncOrchestrator not available"));
+                }
+            } catch (Exception e) {
+                log.error("❌ Property relationships failed: {}", e.getMessage());
+                result.put("relationshipsResult", Map.of("success", false, "error", e.getMessage()));
+            }
+            
+            // Summary of what was processed
+            log.info("📊 Summary: Scope-aware sync using available export permissions");
+            Map<String, Object> scopeSummary = Map.of(
+                "scopesUsed", List.of("read:export:properties", "read:export:beneficiaries", "read:export:tenants", "read:export:invoices", "read:export:payments"),
+                "excludedScopes", List.of("read:report:all-payments"),
+                "processedEntities", List.of("properties", "property-owners", "tenants", "invoices", "payments", "relationships")
+            );
+            result.put("scopeSummary", scopeSummary);
             
             result.put("success", true);
             result.put("completedAt", LocalDateTime.now());
