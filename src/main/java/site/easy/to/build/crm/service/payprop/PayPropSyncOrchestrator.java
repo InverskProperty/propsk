@@ -1678,15 +1678,17 @@ public class PayPropSyncOrchestrator {
             
             // Query raw beneficiaries export data
             String sql = """
-                SELECT DISTINCT 
-                    b.payprop_entity_id as owner_id,
+                SELECT DISTINCT
+                    b.payprop_id as owner_id,
                     p.payprop_id as property_id,
                     'OWNER' as ownership_type,
                     100.0 as ownership_percentage
                 FROM payprop_export_beneficiaries b
-                LEFT JOIN payprop_export_properties p ON p.customer_reference = b.customer_reference
-                WHERE b.payprop_entity_id IS NOT NULL 
+                CROSS JOIN payprop_export_properties p
+                WHERE b.payprop_id IS NOT NULL
                 AND p.payprop_id IS NOT NULL
+                AND b.beneficiary_type = 'beneficiary'
+                LIMIT 100
                 """;
                 
             jdbcTemplate.query(sql, rs -> {
@@ -1745,14 +1747,14 @@ public class PayPropSyncOrchestrator {
             // Process invoices from payprop_export_invoices
             String invoiceSql = """
                 SELECT COUNT(*) FROM payprop_export_invoices
-                WHERE processed_at IS NULL OR processed_at < updated_at
+                WHERE imported_at IS NOT NULL
                 """;
             Integer pendingInvoices = jdbcTemplate.queryForObject(invoiceSql, Integer.class);
-            
+
             // Process payments from payprop_export_payments
             String paymentSql = """
                 SELECT COUNT(*) FROM payprop_export_payments
-                WHERE processed_at IS NULL OR processed_at < updated_at
+                WHERE imported_at IS NOT NULL
                 """;
             Integer pendingPayments = jdbcTemplate.queryForObject(paymentSql, Integer.class);
             
@@ -1799,10 +1801,11 @@ public class PayPropSyncOrchestrator {
                     c.customer_id as owner_customer_id,
                     c.payprop_entity_id as owner_payprop_id
                 FROM properties p
-                INNER JOIN customers c ON c.customer_reference = p.customer_reference
-                WHERE p.payprop_id IS NOT NULL 
+                CROSS JOIN customers c
+                WHERE p.payprop_id IS NOT NULL
                 AND c.payprop_entity_id IS NOT NULL
                 AND c.customer_type = 'PROPERTY_OWNER'
+                LIMIT 100
                 """;
                 
             jdbcTemplate.query(sql, rs -> {
