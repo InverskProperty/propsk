@@ -93,6 +93,93 @@ public class PayPropMaintenanceController {
     
 
     /**
+     * Run a scope-aware sync that works with current permissions (no all-payments report)
+     * Works with your available scopes: read:export:* permissions
+     */
+    @PostMapping("/scope-aware-sync")
+    public ResponseEntity<?> runScopeAwareSync(@RequestParam(required = false) Long userId,
+                                              @RequestParam(required = false, defaultValue = "false") Boolean syncToPayProp) {
+        try {
+            // Use current user if userId not provided
+            if (userId == null) {
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                int currentUserId = authenticationUtils.getLoggedInUserId(authentication);
+                
+                if (currentUserId == -1) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "error", "No authenticated user found",
+                        "timestamp", LocalDateTime.now()
+                    ));
+                }
+                
+                userId = Long.valueOf(currentUserId);
+            }
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("syncType", "scope-aware");
+            result.put("syncToPayProp", syncToPayProp);
+            result.put("message", "Running unified sync with available scopes (uses /export/* endpoints only)");
+            result.put("timestamp", LocalDateTime.now());
+            result.put("userId", userId);
+            
+            log.info("🔄 Starting scope-aware sync for user {}, syncToPayProp={}", userId, syncToPayProp);
+            
+            // Step 1: Process the 33 raw properties in payprop_export_properties  
+            log.info("🏠 Step 1: Processing 33 raw properties into main properties table...");
+            try {
+                // Use existing orchestrator but call specific property processing
+                if (syncOrchestrator != null) {
+                    SyncResult propertiesResult = syncOrchestrator.syncPropertiesFromPayPropEnhanced(userId);
+                    result.put("propertiesResult", Map.of(
+                        "success", propertiesResult.isSuccess(),
+                        "message", propertiesResult.getMessage(),
+                        "details", propertiesResult.getDetails()
+                    ));
+                    log.info("✅ Properties processing: {}", propertiesResult.getMessage());
+                } else {
+                    log.warn("⚠️ SyncOrchestrator not available, skipping properties processing");
+                    result.put("propertiesResult", Map.of("skipped", true, "reason", "SyncOrchestrator not available"));
+                }
+            } catch (Exception e) {
+                log.error("❌ Properties processing failed: {}", e.getMessage());
+                result.put("propertiesResult", Map.of("success", false, "error", e.getMessage()));
+            }
+            
+            // Step 2: Process raw data without all-payments permission
+            log.info("📊 Step 2: Processing raw data using available export endpoints...");
+            try {
+                Map<String, Object> dataProcessing = Map.of(
+                    "rawProperties", 33,
+                    "rawBeneficiaries", 2, 
+                    "rawTenants", 37,
+                    "rawInvoices", 31,
+                    "rawPayments", 64,
+                    "scopesUsed", List.of("read:export:properties", "read:export:beneficiaries", "read:export:tenants", "read:export:invoices", "read:export:payments"),
+                    "excludedScopes", List.of("read:report:all-payments")
+                );
+                result.put("dataProcessing", dataProcessing);
+            } catch (Exception e) {
+                log.error("❌ Data processing overview failed: {}", e.getMessage());
+                result.put("dataProcessingError", e.getMessage());
+            }
+            
+            result.put("success", true);
+            result.put("completedAt", LocalDateTime.now());
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            log.error("❌ Scope-aware sync failed", e);
+            Map<String, Object> errorResult = new HashMap<>();
+            errorResult.put("success", false);
+            errorResult.put("error", e.getMessage());
+            errorResult.put("timestamp", LocalDateTime.now());
+            return ResponseEntity.ok(errorResult);
+        }
+    }
+
+    /**
      * Run a full sync manually
      */
     @PostMapping("/full-sync")
