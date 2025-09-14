@@ -1083,8 +1083,12 @@ public class PayPropSyncOrchestrator {
             customer.setName(customer.getFirstName() + " " + customer.getLastName());
         }
         
-        // Contact Details
-        customer.setEmail((String) data.get("email_address"));
+        // Contact Details - log what we're getting for debugging
+        String emailAddress = (String) data.get("email_address");
+        if (emailAddress == null || emailAddress.trim().isEmpty()) {
+            log.error("⚠️ PayProp entity {} has empty email_address field. Data: {}", data.get("id"), data.get("email_address"));
+        }
+        customer.setEmail(emailAddress);
         customer.setMobileNumber((String) data.get("mobile"));
         customer.setPhone((String) data.get("phone"));
         customer.setCountry("UK");
@@ -1207,8 +1211,12 @@ public class PayPropSyncOrchestrator {
             customer.setName(customer.getFirstName() + " " + customer.getLastName());
         }
         
-        // Contact Details
-        customer.setEmail((String) data.get("email_address"));
+        // Contact Details - log what we're getting for debugging
+        String emailAddress = (String) data.get("email_address");
+        if (emailAddress == null || emailAddress.trim().isEmpty()) {
+            log.error("⚠️ PayProp entity {} has empty email_address field. Data: {}", data.get("id"), data.get("email_address"));
+        }
+        customer.setEmail(emailAddress);
         customer.setMobileNumber((String) data.get("mobile"));
         customer.setPhone((String) data.get("phone"));
         customer.setCountry("UK");
@@ -1550,6 +1558,21 @@ public class PayPropSyncOrchestrator {
         Map<String, PropertyRelationship> relationships = new HashMap<>();
         
         try {
+            // Check if raw export tables exist first
+            String checkTableSql = """
+                SELECT COUNT(*) as table_count 
+                FROM information_schema.tables 
+                WHERE table_schema = DATABASE() 
+                AND table_name IN ('payprop_export_beneficiaries', 'payprop_export_properties')
+                """;
+                
+            Integer tableCount = jdbcTemplate.queryForObject(checkTableSql, Integer.class);
+            
+            if (tableCount == null || tableCount < 2) {
+                log.warn("⚠️ Raw export tables don't exist yet. Skipping relationship extraction from raw data.");
+                return relationships;
+            }
+            
             // Query raw beneficiaries export data
             String sql = """
                 SELECT DISTINCT 
@@ -1596,6 +1619,25 @@ public class PayPropSyncOrchestrator {
             int invoicesCreated = 0;
             int paymentsCreated = 0;
             int errors = 0;
+            
+            // Check if raw export tables exist first
+            String checkTableSql = """
+                SELECT COUNT(*) as table_count 
+                FROM information_schema.tables 
+                WHERE table_schema = DATABASE() 
+                AND table_name IN ('payprop_export_invoices', 'payprop_export_payments')
+                """;
+                
+            Integer tableCount = jdbcTemplate.queryForObject(checkTableSql, Integer.class);
+            
+            if (tableCount == null || tableCount < 2) {
+                log.warn("⚠️ Raw export tables don't exist yet. Financial sync will use existing live API approach.");
+                return SyncResult.success("Financial data processing skipped - using live API instead", Map.of(
+                    "pendingInvoices", 0,
+                    "pendingPayments", 0,
+                    "message", "Raw export tables not available - delegating to live financial sync"
+                ));
+            }
             
             // Process invoices from payprop_export_invoices
             String invoiceSql = """
