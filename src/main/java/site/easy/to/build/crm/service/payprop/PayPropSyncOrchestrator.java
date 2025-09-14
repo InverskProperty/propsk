@@ -1642,9 +1642,9 @@ public class PayPropSyncOrchestrator {
         log.info("🔗 Establishing property-owner relationships...");
         
         try {
-            int relationshipsCreated = 0;
+            final java.util.concurrent.atomic.AtomicInteger relationshipsCreated = new java.util.concurrent.atomic.AtomicInteger(0);
             int relationshipsUpdated = 0;
-            int errors = 0;
+            final java.util.concurrent.atomic.AtomicInteger errors = new java.util.concurrent.atomic.AtomicInteger(0);
             
             // Get all properties that have both property and customer records
             String sql = """
@@ -1667,28 +1667,28 @@ public class PayPropSyncOrchestrator {
                     
                     // Use assignment service to create the relationship
                     if (assignmentService != null) {
-                        Customer customer = customerService.findById(ownerCustomerId);
+                        Customer customer = customerService.findByCustomerId(ownerCustomerId);
                         Property property = propertyService.findById(propertyId);
                         if (customer != null && property != null) {
                             assignmentService.createAssignment(customer, property, AssignmentType.OWNER);
-                            relationshipsCreated++;
+                            relationshipsCreated.incrementAndGet();
                             log.debug("✅ Created relationship: Property {} -> Owner {}", 
                                     rs.getString("property_payprop_id"), 
                                     rs.getString("owner_payprop_id"));
                         }
                     }
                 } catch (Exception e) {
-                    errors++;
+                    errors.incrementAndGet();
                     log.error("❌ Failed to create relationship: {}", e.getMessage());
                 }
             });
             
-            log.info("✅ Property relationships established: {} created, {} errors", relationshipsCreated, errors);
+            log.info("✅ Property relationships established: {} created, {} errors", relationshipsCreated.get(), errors.get());
             
             return SyncResult.success("Property-owner relationships established", Map.of(
-                "relationshipsCreated", relationshipsCreated,
+                "relationshipsCreated", relationshipsCreated.get(),
                 "relationshipsUpdated", relationshipsUpdated,
-                "errors", errors
+                "errors", errors.get()
             ));
             
         } catch (Exception e) {
