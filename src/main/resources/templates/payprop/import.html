@@ -1240,7 +1240,7 @@ async function processProperties() {
         updateStatus('Processing raw properties into business entities...', 'info');
         showProgress();
         
-        const response = await fetchWithCSRF('/api/payprop-admin/sync/properties/bulk', {
+        const response = await fetchWithCSRF('/admin/payprop/sync/properties/bulk', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1270,7 +1270,7 @@ async function linkOwners() {
         
         // This would call a method that establishes property assignments
         // For now, we'll use the debug sync with relationship processing
-        const response = await fetchWithCSRF('/batch-payment-test/debug-sync?limit=50&includeFinancials=false', {
+        const response = await fetchWithCSRF('/api/payprop/test/debug-sync?limit=50&includeFinancials=false', {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json'
@@ -1298,7 +1298,7 @@ async function runCompleteUnifiedSync() {
         updateStatus('Running complete unified business logic sync...', 'info');
         showProgress();
         
-        const response = await fetchWithCSRF('/api/payprop-maintenance/full-sync', {
+        const response = await fetchWithCSRF('/api/payprop/maintenance/full-sync', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1324,7 +1324,7 @@ async function runCompleteUnifiedSync() {
 async function loadBusinessLogicCounts() {
     try {
         // Load current counts for the dashboard
-        const response = await fetchWithCSRF('/api/property-controller/payprop-statistics');
+        const response = await fetchWithCSRF('/api/payprop/test/property-stats');
         
         if (response.ok) {
             const stats = await response.json();
