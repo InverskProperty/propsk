@@ -173,13 +173,23 @@ public class PayPropSyncOrchestrator {
             // SKIP: All-payments report import (requires read:report:all-payments scope - NOT AVAILABLE)
             log.info("⚠️ Skipping all-payments REPORT import - scope not available (using export payments instead)");
 
-            // Step 6: Process financial data from raw export tables
-            log.info("💰 Step 6: Processing financial data from exports...");
+            // Step 4: Process financial data from raw export tables
+            log.info("💰 Step 4: Processing financial data from exports...");
             try {
                 SyncResult financialProcessing = syncFinancialDataFromRawExports(initiatedBy);
                 log.info("✅ Financial processing: {}", financialProcessing.isSuccess() ? "SUCCESS" : "FAILED");
             } catch (Exception e) {
                 log.warn("⚠️ Financial processing failed (but continuing): {}", e.getMessage());
+            }
+
+            // Step 5: Establish tenant-property relationships
+            log.info("🏡 Step 5: Establishing tenant-property relationships...");
+            try {
+                SyncResult tenantRelationships = establishTenantPropertyRelationships();
+                result.setTenantRelationshipsResult(tenantRelationships);
+                log.info("✅ Tenant relationships: {}", tenantRelationships.isSuccess() ? "SUCCESS" : "FAILED");
+            } catch (Exception e) {
+                log.warn("⚠️ Tenant relationships failed (but continuing): {}", e.getMessage());
             }
 
             // Set success based on core operations
