@@ -83,14 +83,14 @@ public class Property {
     
     // PayProp Financial Fields - CRITICAL
     @Column(name = "monthly_payment", precision = 10, scale = 2)
-    @DecimalMin("0.01")
+    @DecimalMin(value = "0.00", message = "Monthly payment must not be negative")
     @Digits(integer = 8, fraction = 2)
-    private BigDecimal monthlyPayment; // REQUIRED by PayProp if settings provided
+    private BigDecimal monthlyPayment; // Can be null for vacant properties
     
     @Column(name = "deposit_amount", precision = 10, scale = 2)
-    @DecimalMin("0.01")
+    @DecimalMin(value = "0.00", message = "Deposit amount must not be negative")
     @Digits(integer = 8, fraction = 2)
-    private BigDecimal depositAmount;
+    private BigDecimal depositAmount; // Can be null
     
     @Column(name = "property_account_minimum_balance", precision = 10, scale = 2)
     @DecimalMin("0")
