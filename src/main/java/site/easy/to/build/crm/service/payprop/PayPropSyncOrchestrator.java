@@ -1057,6 +1057,21 @@ public class PayPropSyncOrchestrator {
     }
 
     // ===== CUSTOMER MAPPING METHODS =====
+    
+    /**
+     * Safely handle email addresses from PayProp data, generating placeholder emails for empty values
+     */
+    private String handlePayPropEmail(Map<String, Object> data) {
+        String emailAddress = (String) data.get("email_address");
+        if (emailAddress == null || emailAddress.trim().isEmpty()) {
+            log.warn("⚠️ PayProp entity {} has empty email_address field. Generating placeholder email.", data.get("id"));
+            // Generate placeholder email for entities without email addresses
+            String entityId = (String) data.get("id");
+            emailAddress = "payprop-" + entityId + "@placeholder.propsk.com";
+            log.info("📧 Generated placeholder email: {} for PayProp entity {}", emailAddress, entityId);
+        }
+        return emailAddress;
+    }
 
     private Customer createCustomerFromBeneficiaryData(Map<String, Object> data, Long initiatedBy) {
         Customer customer = new Customer();
