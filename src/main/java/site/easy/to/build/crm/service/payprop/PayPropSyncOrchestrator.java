@@ -55,12 +55,18 @@ public class PayPropSyncOrchestrator {
     // Delegated services
     @Autowired
     private PayPropFinancialSyncService payPropFinancialSyncService;
-    
+
     @Autowired
     private PayPropEntityResolutionService entityResolutionService;
-    
+
     @Autowired
     private LocalToPayPropSyncService localToPayPropSyncService;
+
+    @Autowired
+    private site.easy.to.build.crm.service.payprop.raw.PayPropRawPaymentsImportService payPropRawPaymentsImportService;
+
+    @Autowired
+    private site.easy.to.build.crm.service.payprop.raw.PayPropRawInvoicesImportService payPropRawInvoicesImportService;
 
     @Value("${payprop.sync.batch-size:25}")
     private int batchSize;
@@ -115,32 +121,66 @@ public class PayPropSyncOrchestrator {
     }
 
     /**
-     * TRUE Scope-Aware Sync - Only uses export endpoints, NO all-payments
+     * ENHANCED Scope-Aware Sync - Uses ALL available export endpoints including payments and invoices
+     *
+     * This method imports:
+     * - Properties (read:export:properties)
+     * - Property Owners/Beneficiaries (read:export:beneficiaries)
+     * - Tenants (read:export:tenants)
+     * - Payments (read:export:payments)
+     * - Invoices (read:export:invoices)
+     *
+     * SKIPS: All-payments report endpoint (requires read:report:all-payments scope)
      */
     public UnifiedSyncResult performScopeAwareSync(OAuthUser oAuthUser, Long initiatedBy) {
         UnifiedSyncResult result = new UnifiedSyncResult();
 
         try {
-            log.info("🔒 Starting TRUE scope-aware sync (NO all-payments endpoint)");
+            log.info("🔒 Starting ENHANCED scope-aware sync with ALL available export endpoints");
 
-            // Step 1: Properties (export endpoint) - Use existing method
+            // Step 1: Properties (export endpoint)
             log.info("🏠 Step 1: Syncing properties...");
             result.setPropertiesResult(syncPropertiesFromPayPropEnhanced(initiatedBy));
 
-            // Step 2: Property Owners (export endpoint) - Use existing method
+            // Step 2: Property Owners (export endpoint)
             log.info("👥 Step 2: Syncing property owners...");
             result.setPropertyOwnersResult(syncPropertyOwnersAsCustomers(initiatedBy, new HashMap<>()));
 
-            // Step 3: Tenants (export endpoint) - Use existing method
+            // Step 3: Tenants (export endpoint)
             log.info("🏘️ Step 3: Syncing tenants...");
             result.setTenantsResult(syncTenantsAsCustomers(initiatedBy));
 
-            // SKIP: All-payments import (requires read:report:all-payments scope)
-            log.info("⚠️ Skipping all-payments import - scope not available");
+            // Step 4: Import payments from export endpoint (you HAVE read:export:payments scope!)
+            log.info("💳 Step 4: Importing payments from export endpoint...");
+            try {
+                site.easy.to.build.crm.service.payprop.raw.PayPropRawImportResult paymentsResult =
+                    payPropRawPaymentsImportService.importAllPayments();
+                log.info("✅ Payments import: {} records imported", paymentsResult.getTotalImported());
+            } catch (Exception e) {
+                log.warn("⚠️ Payments import failed (but continuing): {}", e.getMessage());
+            }
 
-            // Step 4: Financial data from export tables only - Use existing method
-            log.info("💰 Step 4: Processing financial data from exports...");
-            result.setFinancialSyncResult(syncFinancialDataFromRawExports(initiatedBy));
+            // Step 5: Import invoices from export endpoint (you HAVE read:export:invoices scope!)
+            log.info("🧾 Step 5: Importing invoices from export endpoint...");
+            try {
+                site.easy.to.build.crm.service.payprop.raw.PayPropRawImportResult invoicesResult =
+                    payPropRawInvoicesImportService.importAllInvoices();
+                log.info("✅ Invoices import: {} records imported", invoicesResult.getTotalImported());
+            } catch (Exception e) {
+                log.warn("⚠️ Invoices import failed (but continuing): {}", e.getMessage());
+            }
+
+            // SKIP: All-payments report import (requires read:report:all-payments scope - NOT AVAILABLE)
+            log.info("⚠️ Skipping all-payments REPORT import - scope not available (using export payments instead)");
+
+            // Step 6: Process financial data from raw export tables
+            log.info("💰 Step 6: Processing financial data from exports...");
+            try {
+                SyncResult financialProcessing = syncFinancialDataFromRawExports(initiatedBy);
+                log.info("✅ Financial processing: {}", financialProcessing.isSuccess() ? "SUCCESS" : "FAILED");
+            } catch (Exception e) {
+                log.warn("⚠️ Financial processing failed (but continuing): {}", e.getMessage());
+            }
 
             // Set success based on core operations
             boolean success = (result.getPropertiesResult() != null && result.getPropertiesResult().isSuccess()) &&
@@ -150,9 +190,9 @@ public class PayPropSyncOrchestrator {
             if (success) {
                 result.setOverallError(null);
             } else {
-                result.setOverallError("One or more sync operations failed");
+                result.setOverallError("One or more core sync operations failed");
             }
-            log.info("✅ Scope-aware sync completed successfully: {}", success);
+            log.info("✅ Enhanced scope-aware sync completed: {}", success);
             return result;
 
         } catch (Exception e) {

@@ -58,7 +58,6 @@ public class Customer {
     private String name;
 
     @Column(name = "email")
-    @NotBlank(message = "Email is required")
     @Email(message = "Please enter a valid email format")
     @UniqueEmail
     private String email;
