@@ -119,43 +119,45 @@ public class PayPropSyncOrchestrator {
      */
     public UnifiedSyncResult performScopeAwareSync(OAuthUser oAuthUser, Long initiatedBy) {
         UnifiedSyncResult result = new UnifiedSyncResult();
-        syncLogger.logSyncStart("SCOPE_AWARE_SYNC", initiatedBy);
 
         try {
             log.info("🔒 Starting TRUE scope-aware sync (NO all-payments endpoint)");
 
-            // Step 1: Properties (export endpoint)
-            SyncResult propertiesResult = syncPropertiesFromPayProp(oAuthUser, initiatedBy);
-            result.setPropertiesResult(propertiesResult);
+            // Step 1: Properties (export endpoint) - Use existing method
+            log.info("🏠 Step 1: Syncing properties...");
+            result.setPropertiesResult(syncPropertiesFromPayPropEnhanced(initiatedBy));
 
-            // Step 2: Property Owners (export endpoint)
-            SyncResult ownersResult = syncPropertyOwnersFromPayProp(oAuthUser, initiatedBy);
-            result.setPropertyOwnersResult(ownersResult);
+            // Step 2: Property Owners (export endpoint) - Use existing method
+            log.info("👥 Step 2: Syncing property owners...");
+            result.setPropertyOwnersResult(syncPropertyOwnersAsCustomers(initiatedBy, new HashMap<>()));
 
-            // Step 3: Tenants (export endpoint)
-            SyncResult tenantsResult = syncTenantsFromPayProp(oAuthUser, initiatedBy);
-            result.setTenantsResult(tenantsResult);
+            // Step 3: Tenants (export endpoint) - Use existing method
+            log.info("🏘️ Step 3: Syncing tenants...");
+            result.setTenantsResult(syncTenantsAsCustomers(initiatedBy));
 
             // SKIP: All-payments import (requires read:report:all-payments scope)
             log.info("⚠️ Skipping all-payments import - scope not available");
 
-            // Step 4: Financial data from export tables only
-            SyncResult financialsResult = processFinancialDataFromRawExports();
-            result.setFinancialsResult(financialsResult);
+            // Step 4: Financial data from export tables only - Use existing method
+            log.info("💰 Step 4: Processing financial data from exports...");
+            result.setFinancialSyncResult(syncFinancialDataFromRawExports(initiatedBy));
 
-            result.setOverallSuccess(
-                propertiesResult.isSuccess() &&
-                ownersResult.isSuccess() &&
-                tenantsResult.isSuccess()
-            );
+            // Set success based on core operations
+            boolean success = (result.getPropertiesResult() != null && result.getPropertiesResult().isSuccess()) &&
+                             (result.getPropertyOwnersResult() != null && result.getPropertyOwnersResult().isSuccess()) &&
+                             (result.getTenantsResult() != null && result.getTenantsResult().isSuccess());
 
-            syncLogger.logSyncCompletion("SCOPE_AWARE_SYNC", result.isOverallSuccess());
+            if (success) {
+                result.setOverallError(null);
+            } else {
+                result.setOverallError("One or more sync operations failed");
+            }
+            log.info("✅ Scope-aware sync completed successfully: {}", success);
             return result;
 
         } catch (Exception e) {
             log.error("❌ Scope-aware sync failed", e);
-            result.setOverallSuccess(false);
-            syncLogger.logSyncFailure("SCOPE_AWARE_SYNC", e.getMessage());
+            result.setOverallError("Scope-aware sync failed: " + e.getMessage());
             return result;
         }
     }

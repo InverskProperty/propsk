@@ -299,9 +299,9 @@ public class PayPropMaintenanceController {
                 ));
             }
             
-            // Run the sync (SCOPE-AWARE VERSION - NO ALL-PAYMENTS)
+            // Run the sync (FULL SYNC WITH ALL-PAYMENTS)
             PayPropSyncOrchestrator.UnifiedSyncResult result =
-                syncOrchestrator.performScopeAwareSync(oAuthUser, userId);
+                syncOrchestrator.performEnhancedUnifiedSyncWithWorkingFinancials(oAuthUser, userId);
             
             return ResponseEntity.ok(Map.of(
                 "success", result.isOverallSuccess(),
