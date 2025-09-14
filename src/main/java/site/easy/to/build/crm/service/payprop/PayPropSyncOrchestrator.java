@@ -115,6 +115,52 @@ public class PayPropSyncOrchestrator {
     }
 
     /**
+     * TRUE Scope-Aware Sync - Only uses export endpoints, NO all-payments
+     */
+    public UnifiedSyncResult performScopeAwareSync(OAuthUser oAuthUser, Long initiatedBy) {
+        UnifiedSyncResult result = new UnifiedSyncResult();
+        syncLogger.logSyncStart("SCOPE_AWARE_SYNC", initiatedBy);
+
+        try {
+            log.info("🔒 Starting TRUE scope-aware sync (NO all-payments endpoint)");
+
+            // Step 1: Properties (export endpoint)
+            SyncResult propertiesResult = syncPropertiesFromPayProp(oAuthUser, initiatedBy);
+            result.setPropertiesResult(propertiesResult);
+
+            // Step 2: Property Owners (export endpoint)
+            SyncResult ownersResult = syncPropertyOwnersFromPayProp(oAuthUser, initiatedBy);
+            result.setPropertyOwnersResult(ownersResult);
+
+            // Step 3: Tenants (export endpoint)
+            SyncResult tenantsResult = syncTenantsFromPayProp(oAuthUser, initiatedBy);
+            result.setTenantsResult(tenantsResult);
+
+            // SKIP: All-payments import (requires read:report:all-payments scope)
+            log.info("⚠️ Skipping all-payments import - scope not available");
+
+            // Step 4: Financial data from export tables only
+            SyncResult financialsResult = processFinancialDataFromRawExports();
+            result.setFinancialsResult(financialsResult);
+
+            result.setOverallSuccess(
+                propertiesResult.isSuccess() &&
+                ownersResult.isSuccess() &&
+                tenantsResult.isSuccess()
+            );
+
+            syncLogger.logSyncCompletion("SCOPE_AWARE_SYNC", result.isOverallSuccess());
+            return result;
+
+        } catch (Exception e) {
+            log.error("❌ Scope-aware sync failed", e);
+            result.setOverallSuccess(false);
+            syncLogger.logSyncFailure("SCOPE_AWARE_SYNC", e.getMessage());
+            return result;
+        }
+    }
+
+    /**
      * Sync local entities to PayProp - creates entities in PayProp from local data
      */
     public SyncResult syncLocalEntitiesToPayProp(Long initiatedBy) {
