@@ -3,6 +3,7 @@ package site.easy.to.build.crm.service.customer;
 import org.checkerframework.checker.units.qual.C;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerType;
+import site.easy.to.build.crm.entity.DataSource;
 import site.easy.to.build.crm.entity.Ticket;
 import site.easy.to.build.crm.entity.Lead;
 import site.easy.to.build.crm.entity.Contract;
@@ -98,9 +99,10 @@ public interface CustomerService {
     Customer findActiveTenantForProperty(Long propertyId);
 
     Customer findByPayPropEntityId(String payPropEntityId);
-    
+
+
     void assignTenantToProperty(Long customerId, Long propertyId, BigDecimal monthlyRent, LocalDate startDate);
-    
+
     void endTenancy(Long customerId, LocalDate endDate);
 
     /**

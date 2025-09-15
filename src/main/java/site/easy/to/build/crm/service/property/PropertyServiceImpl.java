@@ -8,6 +8,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.DataSource;
 import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.entity.AssignmentType;
@@ -810,4 +811,5 @@ public class PropertyServiceImpl implements PropertyService {
             System.err.println("Debug query failed: " + e.getMessage());
         }
     }
+
 }

@@ -1,0 +1,356 @@
+package site.easy.to.build.crm.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import site.easy.to.build.crm.entity.*;
+import site.easy.to.build.crm.service.customer.CustomerService;
+import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentService;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Unified service that ensures PayProp and uploaded historical data behave identically
+ * Provides a single interface for relationship mapping regardless of data source
+ */
+@Service
+public class UnifiedDataService {
+
+    private static final Logger log = LoggerFactory.getLogger(UnifiedDataService.class);
+
+    @Autowired
+    private CustomerService customerService;
+
+    @Autowired
+    private PropertyService propertyService;
+
+    @Autowired
+    private CustomerPropertyAssignmentService assignmentService;
+
+    /**
+     * Find customer by any identifier - PayProp ID, external reference, or email
+     * Ensures both PayProp and uploaded data can be found interchangeably
+     */
+    public Optional<Customer> findCustomerByAnyIdentifier(String identifier) {
+        if (identifier == null || identifier.trim().isEmpty()) {
+            return Optional.empty();
+        }
+
+        identifier = identifier.trim();
+
+        // Try PayProp entity ID first
+        Customer customer = customerService.findByPayPropEntityId(identifier);
+        if (customer != null) {
+            return Optional.of(customer);
+        }
+
+        // Try external reference for uploaded data
+        customer = customerService.findByExternalReference(identifier);
+        if (customer != null) {
+            return Optional.of(customer);
+        }
+
+        // Try email as fallback
+        customer = customerService.findByEmail(identifier);
+        if (customer != null) {
+            return Optional.of(customer);
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Find property by any identifier - PayProp ID, external reference, or customer ID
+     * Ensures both PayProp and uploaded data can be found interchangeably
+     */
+    public Optional<Property> findPropertyByAnyIdentifier(String identifier) {
+        if (identifier == null || identifier.trim().isEmpty()) {
+            return Optional.empty();
+        }
+
+        identifier = identifier.trim();
+
+        // Try PayProp ID first
+        Optional<Property> property = propertyService.findByPayPropId(identifier);
+        if (property.isPresent()) {
+            return property;
+        }
+
+        // Try external reference for uploaded data
+        property = propertyService.findByExternalReference(identifier);
+        if (property.isPresent()) {
+            return property;
+        }
+
+        // Try customer ID as fallback
+        property = propertyService.findByCustomerId(identifier);
+        if (property.isPresent()) {
+            return property;
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Get all customers for a property regardless of data source
+     * Returns unified view of tenant/owner relationships
+     */
+    public PropertyRelationships getPropertyRelationships(Long propertyId) {
+        Property property = propertyService.findById(propertyId);
+        if (property == null) {
+            return new PropertyRelationships(propertyId, Collections.emptyList(), Collections.emptyList());
+        }
+
+        List<Customer> owners = assignmentService.getCustomersForProperty(propertyId, AssignmentType.OWNER);
+        List<Customer> tenants = assignmentService.getCustomersForProperty(propertyId, AssignmentType.TENANT);
+
+        return new PropertyRelationships(propertyId, owners, tenants);
+    }
+
+    /**
+     * Get all properties for a customer regardless of data source
+     * Returns unified view of owned/rented properties
+     */
+    public CustomerRelationships getCustomerRelationships(Long customerId) {
+        Customer customer = customerService.findByCustomerId(customerId);
+        if (customer == null) {
+            return new CustomerRelationships(customerId, Collections.emptyList(), Collections.emptyList());
+        }
+
+        List<Property> ownedProperties = assignmentService.getPropertiesForCustomer(customerId, AssignmentType.OWNER);
+        List<Property> rentedProperties = assignmentService.getPropertiesForCustomer(customerId, AssignmentType.TENANT);
+
+        return new CustomerRelationships(customerId, ownedProperties, rentedProperties);
+    }
+
+    /**
+     * Create property-customer relationship regardless of data source
+     * Ensures same business logic for PayProp and uploaded data
+     */
+    @Transactional
+    public RelationshipResult createRelationship(String propertyIdentifier,
+                                                String customerIdentifier,
+                                                AssignmentType assignmentType) {
+        log.info("🔗 Creating relationship: {} -> {} ({})", propertyIdentifier, customerIdentifier, assignmentType);
+
+        try {
+            // Find property
+            Optional<Property> propertyOpt = findPropertyByAnyIdentifier(propertyIdentifier);
+            if (propertyOpt.isEmpty()) {
+                return RelationshipResult.failure("Property not found: " + propertyIdentifier);
+            }
+
+            // Find customer
+            Optional<Customer> customerOpt = findCustomerByAnyIdentifier(customerIdentifier);
+            if (customerOpt.isEmpty()) {
+                return RelationshipResult.failure("Customer not found: " + customerIdentifier);
+            }
+
+            Property property = propertyOpt.get();
+            Customer customer = customerOpt.get();
+
+            // Create assignment using same logic as PayProp sync
+            try {
+                assignmentService.createAssignment(customer, property, assignmentType);
+                log.info("✅ Relationship created: {} ({}) -> {} ({})",
+                    customer.getName(), customer.getDataSource(),
+                    property.getPropertyName(), property.getDataSource());
+
+                return RelationshipResult.success("Relationship created successfully");
+
+            } catch (IllegalStateException e) {
+                log.info("ℹ️ Relationship already exists: {}", e.getMessage());
+                return RelationshipResult.success("Relationship already exists");
+            }
+
+        } catch (Exception e) {
+            log.error("❌ Failed to create relationship: {}", e.getMessage(), e);
+            return RelationshipResult.failure("Failed to create relationship: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Validate data consistency across sources
+     * Ensures PayProp and uploaded data maintain referential integrity
+     */
+    public ValidationResult validateDataConsistency() {
+        log.info("🔍 Validating data consistency across sources...");
+
+        List<String> warnings = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
+        int validationsPassed = 0;
+
+        // Check for duplicate customers across data sources
+        Map<String, List<Customer>> customersByEmail = customerService.findAll().stream()
+            .filter(c -> c.getEmail() != null && !c.getEmail().trim().isEmpty())
+            .collect(Collectors.groupingBy(c -> c.getEmail().toLowerCase()));
+
+        for (Map.Entry<String, List<Customer>> entry : customersByEmail.entrySet()) {
+            if (entry.getValue().size() > 1) {
+                List<Customer> customers = entry.getValue();
+                Set<DataSource> sources = customers.stream()
+                    .map(Customer::getDataSource)
+                    .collect(Collectors.toSet());
+
+                if (sources.size() > 1) {
+                    warnings.add("Email " + entry.getKey() + " exists in multiple data sources: " +
+                        customers.stream()
+                            .map(c -> c.getName() + " (" + c.getDataSource() + ")")
+                            .collect(Collectors.joining(", ")));
+                }
+            }
+        }
+        validationsPassed++;
+
+        // Check for orphaned assignments
+        List<Customer> allCustomers = customerService.findAll();
+        for (Customer customer : allCustomers) {
+            try {
+                CustomerRelationships relationships = getCustomerRelationships(customer.getCustomerId());
+                if (relationships.getOwnedProperties().isEmpty() && relationships.getRentedProperties().isEmpty()) {
+                    if (customer.getIsPropertyOwner() || customer.getIsTenant()) {
+                        warnings.add("Customer " + customer.getName() + " (" + customer.getDataSource() +
+                            ") is marked as owner/tenant but has no property assignments");
+                    }
+                }
+            } catch (Exception e) {
+                errors.add("Failed to validate relationships for customer " + customer.getName() + ": " + e.getMessage());
+            }
+        }
+        validationsPassed++;
+
+        // Check assignment consistency
+        try {
+            List<Property> allProperties = propertyService.findAll();
+            for (Property property : allProperties) {
+                PropertyRelationships relationships = getPropertyRelationships(property.getId());
+
+                // Properties should have at least one owner
+                if (relationships.getOwners().isEmpty()) {
+                    warnings.add("Property " + property.getPropertyName() + " (" + property.getDataSource() +
+                        ") has no assigned owners");
+                }
+            }
+            validationsPassed++;
+        } catch (Exception e) {
+            errors.add("Failed to validate property assignments: " + e.getMessage());
+        }
+
+        log.info("✅ Data consistency validation complete: {} validations passed, {} warnings, {} errors",
+            validationsPassed, warnings.size(), errors.size());
+
+        return new ValidationResult(
+            errors.isEmpty(),
+            validationsPassed,
+            warnings,
+            errors
+        );
+    }
+
+    /**
+     * Get data source statistics
+     */
+    public DataSourceStats getDataSourceStatistics() {
+        List<Customer> allCustomers = customerService.findAll();
+        List<Property> allProperties = propertyService.findAll();
+
+        Map<DataSource, Long> customersBySource = allCustomers.stream()
+            .collect(Collectors.groupingBy(Customer::getDataSource, Collectors.counting()));
+
+        Map<DataSource, Long> propertiesBySource = allProperties.stream()
+            .collect(Collectors.groupingBy(Property::getDataSource, Collectors.counting()));
+
+        return new DataSourceStats(customersBySource, propertiesBySource);
+    }
+
+    // Result classes
+    public static class PropertyRelationships {
+        private final Long propertyId;
+        private final List<Customer> owners;
+        private final List<Customer> tenants;
+
+        public PropertyRelationships(Long propertyId, List<Customer> owners, List<Customer> tenants) {
+            this.propertyId = propertyId;
+            this.owners = owners;
+            this.tenants = tenants;
+        }
+
+        public Long getPropertyId() { return propertyId; }
+        public List<Customer> getOwners() { return owners; }
+        public List<Customer> getTenants() { return tenants; }
+    }
+
+    public static class CustomerRelationships {
+        private final Long customerId;
+        private final List<Property> ownedProperties;
+        private final List<Property> rentedProperties;
+
+        public CustomerRelationships(Long customerId, List<Property> ownedProperties, List<Property> rentedProperties) {
+            this.customerId = customerId;
+            this.ownedProperties = ownedProperties;
+            this.rentedProperties = rentedProperties;
+        }
+
+        public Long getCustomerId() { return customerId; }
+        public List<Property> getOwnedProperties() { return ownedProperties; }
+        public List<Property> getRentedProperties() { return rentedProperties; }
+    }
+
+    public static class RelationshipResult {
+        private final boolean success;
+        private final String message;
+
+        private RelationshipResult(boolean success, String message) {
+            this.success = success;
+            this.message = message;
+        }
+
+        public static RelationshipResult success(String message) {
+            return new RelationshipResult(true, message);
+        }
+
+        public static RelationshipResult failure(String message) {
+            return new RelationshipResult(false, message);
+        }
+
+        public boolean isSuccess() { return success; }
+        public String getMessage() { return message; }
+    }
+
+    public static class ValidationResult {
+        private final boolean success;
+        private final int validationsPassed;
+        private final List<String> warnings;
+        private final List<String> errors;
+
+        public ValidationResult(boolean success, int validationsPassed, List<String> warnings, List<String> errors) {
+            this.success = success;
+            this.validationsPassed = validationsPassed;
+            this.warnings = warnings;
+            this.errors = errors;
+        }
+
+        public boolean isSuccess() { return success; }
+        public int getValidationsPassed() { return validationsPassed; }
+        public List<String> getWarnings() { return warnings; }
+        public List<String> getErrors() { return errors; }
+    }
+
+    public static class DataSourceStats {
+        private final Map<DataSource, Long> customersBySource;
+        private final Map<DataSource, Long> propertiesBySource;
+
+        public DataSourceStats(Map<DataSource, Long> customersBySource, Map<DataSource, Long> propertiesBySource) {
+            this.customersBySource = customersBySource;
+            this.propertiesBySource = propertiesBySource;
+        }
+
+        public Map<DataSource, Long> getCustomersBySource() { return customersBySource; }
+        public Map<DataSource, Long> getPropertiesBySource() { return propertiesBySource; }
+    }
+}

@@ -214,10 +214,19 @@ public class PayPropApiClient {
                 Thread.currentThread().interrupt();
                 break;
             } catch (Exception e) {
-                log.error("Failed to fetch historical chunk {} ({} to {}): {}", 
+                log.error("Failed to fetch historical chunk {} ({} to {}): {}",
                     chunkNumber, chunkStart.toLocalDate(), currentEnd.toLocalDate(), e.getMessage());
-                
-                // For report endpoints, don't break - just log and continue with next chunk
+
+                // Check if this is an authorization error that affects the entire endpoint
+                if (e.getMessage() != null &&
+                    (e.getMessage().contains("403 FORBIDDEN") ||
+                     e.getMessage().contains("401 UNAUTHORIZED") ||
+                     e.getMessage().contains("Denied (read:"))) {
+                    log.error("Authorization error affects entire endpoint, stopping historical fetch");
+                    break;
+                }
+
+                // For other errors, continue with next chunk
                 currentEnd = chunkStart.minusSeconds(1);
             }
         }

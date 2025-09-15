@@ -15,6 +15,7 @@ import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropPortfolioMigrationService;
 import site.easy.to.build.crm.service.payprop.PayPropApiClient;
+import site.easy.to.build.crm.service.payprop.PayPropRelationshipFixServiceSimple;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
@@ -50,6 +51,9 @@ public class PayPropAdminController {
     
     @Autowired
     private PayPropApiClient payPropApiClient;
+
+    @Autowired
+    private PayPropRelationshipFixServiceSimple relationshipFixService;
 
     @Autowired
     public PayPropAdminController(PayPropOAuth2Service oAuth2Service,
@@ -705,6 +709,54 @@ public class PayPropAdminController {
             health.put("timestamp", System.currentTimeMillis());
             
             return ResponseEntity.status(500).body(health);
+        }
+    }
+
+    /**
+     * Fix PayProp relationship mappings
+     * Corrects the broken many-to-many assignments and creates proper relationships
+     */
+    @PostMapping("/fix-relationships")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> fixRelationships(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied - Manager role required");
+            return ResponseEntity.status(403).body(response);
+        }
+
+        try {
+            log.info("🔧 Admin initiated PayProp relationship fix");
+
+            PayPropRelationshipFixServiceSimple.RelationshipFixResult result =
+                relationshipFixService.fixPayPropRelationships();
+
+            if (result.isSuccess()) {
+                response.put("success", true);
+                response.put("message", "PayProp relationships fixed successfully");
+                response.put("deletedAssignments", result.getDeletedAssignments());
+                response.put("ownerAssignments", result.getOwnerAssignments());
+                response.put("tenantAssignments", result.getTenantAssignments());
+                response.put("validation", result.getValidation());
+
+                log.info("✅ PayProp relationship fix completed successfully");
+            } else {
+                response.put("success", false);
+                response.put("message", "PayProp relationship fix failed");
+                response.put("error", result.getError());
+
+                log.error("❌ PayProp relationship fix failed: {}", result.getError());
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ PayProp relationship fix error: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Relationship fix failed: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
         }
     }
 }

@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.service.property;
 
 import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.DataSource;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -25,6 +26,7 @@ public interface PropertyService {
     Optional<Property> findByPayPropId(String payPropId);
     Optional<Property> findByCustomerId(String customerId);
     List<Property> findByPropertyOwnerId(Long propertyOwnerId);
+
     
     // NEW: Assignment-based property lookup (supports multi-owner properties)
     List<Property> findPropertiesOwnedByCustomer(Long customerId);

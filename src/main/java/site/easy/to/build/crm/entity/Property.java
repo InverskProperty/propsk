@@ -129,6 +129,17 @@ public class Property {
     @Column(name = "payprop_property_id", length = 100)
     private String payPropPropertyId;
 
+    // Data Source Tracking - NEW
+    @Column(name = "data_source", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private DataSource dataSource = DataSource.MANUAL;
+
+    @Column(name = "external_reference", length = 100)
+    private String externalReference; // For uploaded data with original system IDs
+
+    @Column(name = "upload_batch_id")
+    private Long uploadBatchId; // Links to HistoricalDataUpload.uploadId
+
     // Block Relationships - Direct relationship maintained for hierarchy
     // Note: Portfolio relationships now handled via PropertyPortfolioAssignment junction table
 
@@ -489,6 +500,16 @@ public class Property {
     
     public Long getPropertyOwnerId() { return propertyOwnerId; }
     public void setPropertyOwnerId(Long propertyOwnerId) { this.propertyOwnerId = propertyOwnerId; }
+
+    // Data Source Tracking getters and setters
+    public DataSource getDataSource() { return dataSource; }
+    public void setDataSource(DataSource dataSource) { this.dataSource = dataSource; }
+
+    public String getExternalReference() { return externalReference; }
+    public void setExternalReference(String externalReference) { this.externalReference = externalReference; }
+
+    public Long getUploadBatchId() { return uploadBatchId; }
+    public void setUploadBatchId(Long uploadBatchId) { this.uploadBatchId = uploadBatchId; }
         
     // PayProp Utility Methods
     public String getFullAddress() {

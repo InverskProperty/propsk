@@ -294,6 +294,17 @@ public class Customer {
     @Column(name = "payprop_updated_at")
     private LocalDateTime payPropUpdatedAt;
 
+    // Data Source Tracking - NEW
+    @Column(name = "data_source", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private DataSource dataSource = DataSource.MANUAL;
+
+    @Column(name = "external_reference", length = 100)
+    private String externalReference; // For uploaded data with original system IDs
+
+    @Column(name = "upload_batch_id")
+    private Long uploadBatchId; // Links to HistoricalDataUpload.uploadId
+
     // CONSTRUCTORS
     public Customer() {
     }
@@ -575,6 +586,16 @@ public class Customer {
 
     public LocalDateTime getPayPropUpdatedAt() { return payPropUpdatedAt; }
     public void setPayPropUpdatedAt(LocalDateTime payPropUpdatedAt) { this.payPropUpdatedAt = payPropUpdatedAt; }
+
+    // Data Source Tracking getters and setters
+    public DataSource getDataSource() { return dataSource; }
+    public void setDataSource(DataSource dataSource) { this.dataSource = dataSource; }
+
+    public String getExternalReference() { return externalReference; }
+    public void setExternalReference(String externalReference) { this.externalReference = externalReference; }
+
+    public Long getUploadBatchId() { return uploadBatchId; }
+    public void setUploadBatchId(Long uploadBatchId) { this.uploadBatchId = uploadBatchId; }
 
     // HELPER METHODS FOR PAYPROP INTEGRATION (keeping existing)
 
