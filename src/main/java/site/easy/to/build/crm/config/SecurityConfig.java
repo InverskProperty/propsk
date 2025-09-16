@@ -173,6 +173,8 @@ public class SecurityConfig {
                         
                         // Debug routes (temporary)
                         .requestMatchers("/debug/**").permitAll()
+                        .requestMatchers("/test-password").permitAll()
+                        .requestMatchers("/set-test-password").permitAll()
                         
                         // PayProp Raw Import Test Routes (temporary - remove after testing)
                         .requestMatchers("/test/payprop-raw/**").hasAnyRole("MANAGER", "ADMIN", "SUPER_ADMIN")
