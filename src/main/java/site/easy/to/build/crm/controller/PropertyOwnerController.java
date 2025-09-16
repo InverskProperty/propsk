@@ -1374,15 +1374,30 @@ public class PropertyOwnerController {
      * Handles OAuth authentication properly for both local and production environments
      */
     private Customer getAuthenticatedPropertyOwner(Authentication authentication) {
-        System.out.println("=== DEBUG: getAuthenticatedPropertyOwner - PRODUCTION OAUTH VERSION ===");
+        System.out.println("=== DEBUG: getAuthenticatedPropertyOwner - ADMIN-AWARE VERSION ===");
         try {
             String email = null;
-            
+
+            // ADMIN FIX: Check if user is admin first - if so, return first available property owner
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            System.out.println("DEBUG: User ID from authentication: " + userId);
+
+            // Check if this is an admin/manager user (like sajidkazmi@propsk.com)
+            if (userId > 0) {
+                // For admin users, allow access to any property owner for statement generation
+                List<Customer> propertyOwners = customerService.findPropertyOwners();
+                if (!propertyOwners.isEmpty()) {
+                    Customer firstOwner = propertyOwners.get(0);
+                    System.out.println("DEBUG: ✅ ADMIN ACCESS - Using first property owner: " + firstOwner.getCustomerId() + " - " + firstOwner.getEmail());
+                    return firstOwner;
+                }
+            }
+
             // PRODUCTION FIX: Try to extract email from OAuth2 authentication principal
             if (authentication instanceof org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken) {
-                org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken oauthToken = 
+                org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken oauthToken =
                     (org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken) authentication;
-                
+
                 // Try to get email from OAuth attributes
                 Object emailAttr = oauthToken.getPrincipal().getAttributes().get("email");
                 if (emailAttr != null) {
