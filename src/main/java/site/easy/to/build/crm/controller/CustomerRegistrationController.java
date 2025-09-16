@@ -44,14 +44,26 @@ public class CustomerRegistrationController {
                 redirectAttributes.addFlashAttribute("errorMessage", "Email is required");
                 return "redirect:/customer-register";
             }
-            
+
+            // Email format validation
+            if (!form.getEmail().matches("^[A-Za-z0-9+_.-]+@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})$")) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Please enter a valid email address");
+                return "redirect:/customer-register";
+            }
+
             if (form.getPassword() == null || form.getPassword().trim().isEmpty()) {
                 redirectAttributes.addFlashAttribute("errorMessage", "Password is required");
                 return "redirect:/customer-register";
             }
-            
+
             if (form.getPassword().length() < 6) {
                 redirectAttributes.addFlashAttribute("errorMessage", "Password must be at least 6 characters");
+                return "redirect:/customer-register";
+            }
+
+            // Password confirmation validation
+            if (form.getConfirmPassword() == null || !form.getPassword().equals(form.getConfirmPassword())) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Passwords do not match");
                 return "redirect:/customer-register";
             }
 

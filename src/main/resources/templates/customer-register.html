@@ -167,41 +167,75 @@
 <!--Custom JavaScript -->
 <script th:src="@{/js/custom.js}" type="text/javascript"></script>
 
+<!-- Registration Form Validation -->
 <script>
 $(document).ready(function() {
-    // Password confirmation validation
-    $('#registrationForm').submit(function(e) {
+    $('#registrationForm').on('submit', function(e) {
+        var isValid = true;
+        var email = $('input[name="email"]').val().trim();
         var password = $('input[name="password"]').val();
         var confirmPassword = $('input[name="confirmPassword"]').val();
-        
-        if (password !== confirmPassword) {
+
+        // Remove previous error indicators
+        $('.form-control').removeClass('is-invalid');
+        $('.invalid-feedback').remove();
+
+        // Email validation
+        var emailPattern = /^[A-Za-z0-9+_.-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})$/;
+        if (!email || !emailPattern.test(email)) {
+            showFieldError('input[name="email"]', 'Please enter a valid email address');
+            isValid = false;
+        }
+
+        // Password validation
+        if (!password || password.length < 6) {
+            showFieldError('input[name="password"]', 'Password must be at least 6 characters');
+            isValid = false;
+        }
+
+        // Confirm password validation
+        if (!confirmPassword || password !== confirmPassword) {
+            showFieldError('input[name="confirmPassword"]', 'Passwords do not match');
+            isValid = false;
+        }
+
+        if (!isValid) {
             e.preventDefault();
-            alert('Passwords do not match. Please try again.');
-            $('input[name="confirmPassword"]').focus().addClass('is-invalid');
             return false;
         }
-        
-        if (password.length < 6) {
-            e.preventDefault();
-            alert('Password must be at least 6 characters long.');
-            $('input[name="password"]').focus().addClass('is-invalid');
-            return false;
-        }
-        
+
         // Show loading state
-        $(this).find('button[type="submit"]').prop('disabled', true).text('Creating Account...');
+        $(this).find('button[type="submit"]').prop('disabled', true).html(
+            '<i class="fa fa-spinner fa-spin"></i> Creating Account...'
+        );
     });
-    
-    // Remove invalid class on input
-    $('input[name="confirmPassword"]').on('input', function() {
-        $(this).removeClass('is-invalid');
+
+    // Real-time password match validation
+    $('input[name="confirmPassword"]').on('keyup blur', function() {
+        var password = $('input[name="password"]').val();
+        var confirmPassword = $(this).val();
+
+        if (confirmPassword && password !== confirmPassword) {
+            $(this).addClass('is-invalid');
+            if (!$(this).next('.invalid-feedback').length) {
+                $(this).after('<div class="invalid-feedback">Passwords do not match</div>');
+            }
+        } else {
+            $(this).removeClass('is-invalid');
+            $(this).next('.invalid-feedback').remove();
+        }
     });
-    
-    $('input[name="password"]').on('input', function() {
-        $(this).removeClass('is-invalid');
-    });
+
+    function showFieldError(selector, message) {
+        var field = $(selector);
+        field.addClass('is-invalid');
+        if (!field.next('.invalid-feedback').length) {
+            field.after('<div class="invalid-feedback">' + message + '</div>');
+        }
+    }
 });
 </script>
+
 
 </body>
 </html>
