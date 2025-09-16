@@ -29,17 +29,17 @@ public class PasswordTestController {
             }
 
             String storedHash = loginInfo.getPassword();
-            String testPassword = "123456"; // Try common passwords
+            String testPassword = "123"; // Try the correct password
 
             boolean matches1 = passwordEncoder.matches(testPassword, storedHash);
-            boolean matches2 = passwordEncoder.matches("password", storedHash);
+            boolean matches2 = passwordEncoder.matches("123456", storedHash);
             boolean matches3 = passwordEncoder.matches("test123", storedHash);
             boolean matches4 = passwordEncoder.matches("admin", storedHash);
 
             return "Password verification for " + email + ":" +
                    "<br>Stored hash: " + storedHash +
-                   "<br>'" + testPassword + "' matches: " + matches1 +
-                   "<br>'password' matches: " + matches2 +
+                   "<br>'123' matches: " + matches1 +
+                   "<br>'123456' matches: " + matches2 +
                    "<br>'test123' matches: " + matches3 +
                    "<br>'admin' matches: " + matches4 +
                    "<br><br>If none match, try setting a new password using /set-test-password";
@@ -54,7 +54,7 @@ public class PasswordTestController {
     public String setTestPassword() {
         try {
             String email = "piyush@sunflaguk.com";
-            String newPassword = "test123";
+            String newPassword = "123";
 
             CustomerLoginInfo loginInfo = customerLoginInfoService.findByEmail(email);
             if (loginInfo == null) {
