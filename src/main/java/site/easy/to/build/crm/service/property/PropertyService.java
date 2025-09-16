@@ -31,6 +31,9 @@ public interface PropertyService {
     // NEW: Assignment-based property lookup (supports multi-owner properties)
     List<Property> findPropertiesOwnedByCustomer(Long customerId);
 
+    // NEW: Find properties where customer has any assignment (OWNER, MANAGER, etc.)
+    List<Property> findPropertiesByCustomerAssignments(Long customerId);
+
     // FIXED: Added missing methods that were causing compilation errors
     List<Property> getPropertiesByOwner(Long ownerId);
     Property getPropertyByTenant(Long tenantId);

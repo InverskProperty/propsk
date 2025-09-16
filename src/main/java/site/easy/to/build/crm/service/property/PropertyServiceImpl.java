@@ -361,6 +361,36 @@ public class PropertyServiceImpl implements PropertyService {
         }
     }
 
+    @Override
+    public List<Property> findPropertiesByCustomerAssignments(Long customerId) {
+        try {
+            System.out.println("🔍 [PropertyService] Finding properties assigned to Customer ID: " + customerId + " (OWNER or MANAGER)");
+
+            // Find all assignments for this customer (OWNER and MANAGER)
+            List<CustomerPropertyAssignment> assignments =
+                assignmentRepository.findByCustomerCustomerId(customerId);
+
+            System.out.println("📊 [PropertyService] Found " + assignments.size() + " total assignments");
+
+            // Filter for OWNER and MANAGER assignments only
+            List<Property> properties = assignments.stream()
+                .filter(assignment -> AssignmentType.OWNER.equals(assignment.getAssignmentType()) ||
+                                    AssignmentType.MANAGER.equals(assignment.getAssignmentType()))
+                .map(assignment -> assignment.getProperty())
+                .filter(property -> property != null) // Safety check
+                .distinct()
+                .collect(Collectors.toList());
+
+            System.out.println("✅ [PropertyService] Returning " + properties.size() + " unique properties for customer " + customerId + " (as OWNER/MANAGER)");
+            return properties;
+
+        } catch (Exception e) {
+            System.err.println("❌ [PropertyService] Error finding assigned properties for customer " + customerId + ": " + e.getMessage());
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+    }
+
     // Add this to PropertyServiceImpl.java
     @Override
     public List<Property> findPropertiesWithNoPortfolioAssignments() {

@@ -165,7 +165,7 @@ public class PropertyOwnerController {
                 // Get properties for this specific customer
                 System.out.println("🔍 STEP 5: Loading Properties...");
                 try {
-                    List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+                    List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
                     model.addAttribute("properties", properties);
                     model.addAttribute("totalProperties", properties.size());
                     System.out.println("🔍 STEP 5: ✅ Found " + properties.size() + " properties for customer " + customer.getCustomerId());
@@ -336,7 +336,7 @@ public class PropertyOwnerController {
                 
                 // Get properties for this specific customer
                 try {
-                    List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+                    List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
                     model.addAttribute("properties", properties);
                     model.addAttribute("totalProperties", properties.size());
                     System.out.println("DEBUG: Found " + properties.size() + " properties for customer " + customer.getCustomerId());
@@ -502,7 +502,7 @@ public class PropertyOwnerController {
             }
 
             System.out.println("✅ Customer found: " + customer.getCustomerId());
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             System.out.println("✅ Found " + properties.size() + " properties");
 
             // Filter properties if requested
@@ -562,7 +562,7 @@ public class PropertyOwnerController {
                 return "redirect:/customer-login?error=not_found";
             }
 
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             
             // Calculate occupancy for ALL properties first - FIXED: Use CustomerService instead of empty TenantService
             List<Property> allOccupiedProperties = properties.stream()
@@ -716,7 +716,7 @@ public class PropertyOwnerController {
                 return "redirect:/customer-login?error=not_found";
             }
 
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             List<Customer> tenants; // FIXED: Use Customer instead of Tenant
 
             if (propertyId != null) {
@@ -843,7 +843,7 @@ public class PropertyOwnerController {
             }
             
             // Get property owner's properties for statement generation
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             model.addAttribute("properties", properties);
             model.addAttribute("propertyOwners", Arrays.asList(customer)); // Only show this property owner
             model.addAttribute("isOwnStatements", true);
@@ -910,7 +910,7 @@ public class PropertyOwnerController {
                 return "redirect:/customer-login?error=not_found";
             }
             
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             
             model.addAttribute("customer", customer);
             model.addAttribute("properties", properties);
@@ -1093,7 +1093,7 @@ public class PropertyOwnerController {
                 totalCommission.multiply(BigDecimal.valueOf(100)).divide(totalRent, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
             
             // 🏠 Get basic property information for context
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             
             // 📅 Add maintenance statistics
             Map<String, Object> maintenanceStats;
@@ -1561,7 +1561,7 @@ public class PropertyOwnerController {
             }
             
             // Verify property ownership
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             boolean ownsProperty = properties.stream()
                 .anyMatch(p -> p.getId().equals(propertyId));
                 
@@ -1626,7 +1626,7 @@ public class PropertyOwnerController {
             
             System.out.println("✅ Loading maintenance for customer: " + customer.getCustomerId());
             
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             List<Ticket> allTickets = new ArrayList<>();
             
             // Filter properties if specific property requested
@@ -1938,7 +1938,7 @@ public class PropertyOwnerController {
             }
             
             // Verify property ownership
-            List<Property> properties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             boolean ownsProperty = properties.stream()
                 .anyMatch(p -> p.getId().equals(propertyId));
                 
