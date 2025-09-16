@@ -16,6 +16,7 @@ import site.easy.to.build.crm.service.payprop.PayPropSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropPortfolioMigrationService;
 import site.easy.to.build.crm.service.payprop.PayPropApiClient;
 import site.easy.to.build.crm.service.payprop.PayPropRelationshipFixServiceSimple;
+import site.easy.to.build.crm.service.payprop.LocalPayPropDataService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
@@ -54,6 +55,9 @@ public class PayPropAdminController {
 
     @Autowired
     private PayPropRelationshipFixServiceSimple relationshipFixService;
+
+    @Autowired
+    private LocalPayPropDataService localPayPropDataService;
 
     @Autowired
     public PayPropAdminController(PayPropOAuth2Service oAuth2Service,
@@ -756,6 +760,104 @@ public class PayPropAdminController {
             log.error("❌ PayProp relationship fix error: {}", e.getMessage(), e);
             response.put("success", false);
             response.put("message", "Relationship fix failed: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * Export financial data to CSV format compatible with PayProp
+     */
+    @PostMapping("/export-financial-csv")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> exportFinancialCsv(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied - Manager role required");
+            return ResponseEntity.status(403).body(response);
+        }
+
+        try {
+            String outputPath = "C:\\Users\\sajid\\crecrm\\financial_data_export.csv";
+            localPayPropDataService.exportFinancialDataToCsv(outputPath);
+
+            response.put("success", true);
+            response.put("message", "Financial data exported successfully");
+            response.put("outputPath", outputPath);
+
+            log.info("✅ Financial data exported to CSV: {}", outputPath);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Financial data export failed: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Export failed: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * Import local PayProp-compatible data from CSV
+     */
+    @PostMapping("/import-local-data")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> importLocalData(
+            @RequestParam String csvPath,
+            Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied - Manager role required");
+            return ResponseEntity.status(403).body(response);
+        }
+
+        try {
+            localPayPropDataService.importLocalPayPropData(csvPath);
+
+            response.put("success", true);
+            response.put("message", "Local PayProp data imported successfully");
+            response.put("csvPath", csvPath);
+
+            log.info("✅ Local PayProp data imported from: {}", csvPath);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Local PayProp data import failed: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Import failed: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * Create local PayProp table for storing financial data
+     */
+    @PostMapping("/create-local-table")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> createLocalTable(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            response.put("success", false);
+            response.put("message", "Access denied - Manager role required");
+            return ResponseEntity.status(403).body(response);
+        }
+
+        try {
+            localPayPropDataService.createLocalPayPropTable();
+
+            response.put("success", true);
+            response.put("message", "Local PayProp table created successfully");
+
+            log.info("✅ Local PayProp table created");
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Local PayProp table creation failed: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Table creation failed: " + e.getMessage());
             return ResponseEntity.status(500).body(response);
         }
     }
