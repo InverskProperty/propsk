@@ -198,7 +198,9 @@ public class HistoricalDataImportService {
             case "fee":
                 return "DEBIT";
             case "payment":
-                return "CREDIT";
+                return "DEBIT";
+            case "expense":
+                return "DEBIT";
             default:
                 return csvType.toUpperCase();
         }
