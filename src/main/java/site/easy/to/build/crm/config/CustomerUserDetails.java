@@ -31,7 +31,10 @@ public class CustomerUserDetails implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         System.out.println("=== DEBUG: CustomerUserDetails.loadUserByUsername ===");
-        System.out.println("DEBUG: Looking up email: " + email);
+        System.out.println("DEBUG: Looking up email: '" + email + "'");
+        System.out.println("DEBUG: Email is null: " + (email == null));
+        System.out.println("DEBUG: Email is empty: " + (email != null && email.isEmpty()));
+        System.out.println("DEBUG: Email length: " + (email != null ? email.length() : "null"));
         
         CustomerLoginInfo customerLoginInfo = customerLoginInfoRepository.findByUsername(email);
         
