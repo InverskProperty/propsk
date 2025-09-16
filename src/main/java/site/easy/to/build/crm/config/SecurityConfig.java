@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -61,7 +62,7 @@ public class SecurityConfig {
     
     // FIXED: Customer security filter chain - ONLY handles customer-specific routes
     @Bean
-    @Order(1) 
+    @Order(1)
     public SecurityFilterChain customerSecurityFilterChain(HttpSecurity http) throws Exception {
         System.out.println("=== FIXED: Customer security filter chain - NO /portfolio/** interference ===");
     
@@ -101,7 +102,7 @@ public class SecurityConfig {
                     .successHandler(customerLoginSuccessHandler)
                     .failureHandler(customerLoginFailureHandler)
                     .permitAll();
-            }).userDetailsService(customerUserDetails)
+            }).authenticationProvider(customerAuthenticationProvider())
             .logout((logout) -> logout
                     .logoutUrl("/customer-logout")
                     .logoutSuccessUrl("/customer-login")
@@ -236,7 +237,7 @@ public class SecurityConfig {
                         .defaultSuccessUrl("/", true)
                         .failureUrl("/login?error=true")
                         .permitAll()
-                ).userDetailsService(crmUserDetails)
+                ).authenticationProvider(crmAuthenticationProvider())
                 .oauth2Login(oauth2 -> oauth2
                         .loginPage("/login")
                         .userInfoEndpoint(userInfo -> userInfo
@@ -261,5 +262,21 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public DaoAuthenticationProvider customerAuthenticationProvider() {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(customerUserDetails);
+        authProvider.setPasswordEncoder(passwordEncoder());
+        return authProvider;
+    }
+
+    @Bean
+    public DaoAuthenticationProvider crmAuthenticationProvider() {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(crmUserDetails);
+        authProvider.setPasswordEncoder(passwordEncoder());
+        return authProvider;
     }
 }
