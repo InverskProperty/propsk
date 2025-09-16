@@ -13,7 +13,14 @@ $sqlContent += ""
 
 # Process each row
 foreach ($row in $csv) {
-    $transactionType = if ($row.transaction_type -eq "deposit") { "CREDIT" } else { "DEBIT" }
+    # Map CSV transaction types to database constraint values
+    $transactionType = switch ($row.transaction_type) {
+        "deposit" { "deposit" }
+        "fee" { "commission_payment" }
+        "payment" { "payment_to_beneficiary" }
+        "expense" { "payment_to_contractor" }
+        default { "adjustment" }
+    }
     $description = $row.description -replace "'", "''"
     $propertyName = $row.property_reference -replace "'", "''"
     $tenantName = $row.customer_reference -replace "'", "''"
