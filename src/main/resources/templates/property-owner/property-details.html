@@ -72,9 +72,9 @@
                                                 <td><strong>Bathrooms:</strong></td>
                                                 <td th:text="${property.bathrooms}">0</td>
                                             </tr>
-                                            <tr th:if="${property.monthlyRent}">
+                                            <tr th:if="${property.monthlyPayment}">
                                                 <td><strong>Monthly Rent:</strong></td>
-                                                <td>£<span th:text="${property.monthlyRent}">0</span></td>
+                                                <td>£<span th:text="${property.monthlyPayment}">0</span></td>
                                             </tr>
                                         </table>
                                     </div>
