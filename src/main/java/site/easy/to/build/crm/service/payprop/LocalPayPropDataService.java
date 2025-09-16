@@ -218,7 +218,7 @@ public class LocalPayPropDataService {
 
             // Create assignment (same as PayProp sync)
             if (property != null && customer != null) {
-                createCustomerPropertyAssignment(customer.getCustomerId(), property.getPropertyId(), relType);
+                createCustomerPropertyAssignment(customer.getCustomerId(), property.getId(), relType);
                 created++;
             }
         }
@@ -229,11 +229,11 @@ public class LocalPayPropDataService {
     private Property findOrCreateProperty(String propertyReference) {
         // Try to find existing property by reference
         List<Property> properties = jdbcTemplate.query(
-            "SELECT * FROM properties WHERE property_reference = ?",
+            "SELECT * FROM properties WHERE external_reference = ?",
             (rs, rowNum) -> {
                 Property p = new Property();
-                p.setPropertyId(rs.getLong("property_id"));
-                p.setPropertyReference(rs.getString("property_reference"));
+                p.setId(rs.getLong("property_id"));
+                p.setExternalReference(rs.getString("external_reference"));
                 p.setDataSource(DataSource.UPLOADED);
                 return p;
             },
@@ -246,9 +246,8 @@ public class LocalPayPropDataService {
 
         // Create new property if not found
         Property newProperty = new Property();
-        newProperty.setPropertyReference(propertyReference);
-        newProperty.setDataSource(DataSource.UPLOADED);
         newProperty.setExternalReference(propertyReference);
+        newProperty.setDataSource(DataSource.UPLOADED);
 
         return propertyService.save(newProperty);
     }
