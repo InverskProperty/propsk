@@ -640,11 +640,19 @@ public class PropertyOwnerController {
                 return "redirect:/property-owner/properties?error=unauthorized";
             }
             
-            System.out.println("✅ Property ownership verified, redirecting to employee property view");
-            
-            // For now, redirect to the working employee property view
-            // The user has appropriate authentication and ownership has been verified
-            return "redirect:/employee/property/" + propertyId;
+            System.out.println("✅ Property ownership verified, loading property details view");
+
+            // Load the property details for the property owner view
+            Property property = propertyService.findById(propertyId);
+            if (property == null) {
+                return "redirect:/property-owner/properties?error=not_found";
+            }
+
+            model.addAttribute("customer", customer);
+            model.addAttribute("property", property);
+            model.addAttribute("pageTitle", "Property Details - " + property.getPropertyName());
+
+            return "property-owner/property-details";
             
         } catch (Exception e) {
             System.err.println("❌ Error loading property details: " + e.getMessage());
