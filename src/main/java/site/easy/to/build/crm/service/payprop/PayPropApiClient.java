@@ -157,8 +157,8 @@ public class PayPropApiClient {
     
     /**
      * Fetch historical data from a PayProp report endpoint using chunked date ranges
-     * PayProp report endpoints have a 93-day limit, so we chunk the requests
-     * 
+     * PayProp report endpoints have a 93-day limit (exclusive), so we chunk the requests into 90-day periods
+     *
      * @param baseEndpoint The base API endpoint (e.g., "/report/icdn")
      * @param yearsBack Number of years of historical data to fetch (e.g., 2)
      * @param mapper Function to transform raw API response items to desired type
@@ -171,14 +171,14 @@ public class PayPropApiClient {
         
         log.info("🕐 Starting historical chunked fetch from endpoint: {} (going back {} years)", baseEndpoint, yearsBack);
         
-        // Work backwards in 93-day chunks from today
+        // Work backwards in 90-day chunks from today (PayProp's 93-day limit appears to be exclusive)
         LocalDateTime currentEnd = endDate;
         int chunkNumber = 0;
         int totalApiCalls = 0;
-        
+
         while (currentEnd.isAfter(startDate)) {
-            // Calculate chunk start (93 days before current end, but not before overall start)
-            LocalDateTime chunkStart = currentEnd.minusDays(93);
+            // Calculate chunk start (90 days before current end to safely stay within PayProp's 93-day limit)
+            LocalDateTime chunkStart = currentEnd.minusDays(90);
             if (chunkStart.isBefore(startDate)) {
                 chunkStart = startDate;
             }
@@ -191,19 +191,19 @@ public class PayPropApiClient {
                     "&from_date=" + chunkStart.toLocalDate().toString() +
                     "&to_date=" + currentEnd.toLocalDate().toString();
                 
-                log.info("📅 CHUNK {}: Fetching {} to {} ({})", 
+                log.info("📅 CHUNK {}: Fetching {} to {} ({})",
                     chunkNumber, chunkStart.toLocalDate(), currentEnd.toLocalDate(), endpoint);
-                
+
                 // Fetch all pages for this chunk
                 List<T> chunkResults = fetchAllPages(endpoint, mapper);
                 allResults.addAll(chunkResults);
                 totalApiCalls += (chunkResults.size() / DEFAULT_PAGE_SIZE) + 1; // Estimate API calls
-                
+
                 log.info("✅ CHUNK {} complete: {} records added", chunkNumber, chunkResults.size());
-                
-                // Move to previous chunk (subtract 93 days from current start)
-                currentEnd = chunkStart.minusSeconds(1); // Avoid overlap
-                
+
+                // Move to previous chunk (subtract 90 days from current start + 1 second to avoid overlap)
+                currentEnd = chunkStart.minusSeconds(1);
+
                 // Rate limiting between chunks
                 if (currentEnd.isAfter(startDate)) {
                     Thread.sleep(RATE_LIMIT_DELAY_MS * 2); // Extra delay between chunks

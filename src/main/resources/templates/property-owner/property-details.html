@@ -51,9 +51,14 @@
                                     <div class="col-sm-6">
                                         <h6>Property Information</h6>
                                         <table class="table table-sm">
-                                            <tr th:if="${property.location}">
-                                                <td><strong>Location:</strong></td>
-                                                <td th:text="${property.location}">Location</td>
+                                            <tr th:if="${property.addressLine1}">
+                                                <td><strong>Address:</strong></td>
+                                                <td>
+                                                    <span th:text="${property.addressLine1 ?: ''}"></span>
+                                                    <span th:if="${property.addressLine2}" th:text="', ' + ${property.addressLine2}"></span>
+                                                    <span th:if="${property.city}" th:text="', ' + ${property.city}"></span>
+                                                    <span th:if="${property.postcode}" th:text="' ' + ${property.postcode}"></span>
+                                                </td>
                                             </tr>
                                             <tr th:if="${property.propertyType}">
                                                 <td><strong>Property Type:</strong></td>
