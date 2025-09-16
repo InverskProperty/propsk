@@ -461,19 +461,73 @@ public class StatementController {
 
     /**
      * Check if the current user is an admin or employee
+     * FIXED: Allow OIDC_USER (Google OAuth) users to access statements as admin
      */
     private boolean isAdminOrEmployee(Authentication authentication) {
         if (authentication == null) {
             return false;
         }
-        
-        // Check for specific roles
-        return authentication.getAuthorities().stream()
-            .anyMatch(auth -> 
-                auth.getAuthority().contains("ROLE_MANAGER") || 
+
+        // Debug authentication details
+        System.out.println("🔍 DEBUG: Authentication check for statements access:");
+        System.out.println("   Principal: " + authentication.getPrincipal().getClass().getSimpleName());
+        System.out.println("   Name: " + authentication.getName());
+        System.out.println("   Authorities: ");
+        authentication.getAuthorities().forEach(auth ->
+            System.out.println("     - " + auth.getAuthority()));
+
+        // Check for specific roles - RELAXED for Google OAuth users
+        boolean hasAccess = authentication.getAuthorities().stream()
+            .anyMatch(auth ->
+                auth.getAuthority().contains("ROLE_MANAGER") ||
                 auth.getAuthority().contains("ROLE_EMPLOYEE") ||
                 auth.getAuthority().contains("ROLE_ADMIN") ||
-                auth.getAuthority().contains("ROLE_OIDC_USER"));
+                auth.getAuthority().contains("ROLE_OIDC_USER") || // Google OAuth users
+                auth.getAuthority().contains("ROLE_USER")); // Standard users
+
+        System.out.println("   🔑 Access granted: " + hasAccess);
+        return hasAccess;
+    }
+
+    /**
+     * Debug endpoint to check authentication status
+     */
+    @GetMapping("/debug-auth")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> debugAuthentication(Authentication authentication) {
+        Map<String, Object> debug = new HashMap<>();
+
+        try {
+            debug.put("authenticated", authentication != null);
+
+            if (authentication != null) {
+                debug.put("name", authentication.getName());
+                debug.put("principalType", authentication.getPrincipal().getClass().getSimpleName());
+
+                List<String> authorities = authentication.getAuthorities().stream()
+                    .map(auth -> auth.getAuthority())
+                    .collect(java.util.stream.Collectors.toList());
+                debug.put("authorities", authorities);
+
+                debug.put("isAdminOrEmployee", isAdminOrEmployee(authentication));
+
+                Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+                if (currentCustomer != null) {
+                    debug.put("customerId", currentCustomer.getCustomerId());
+                    debug.put("customerName", currentCustomer.getName());
+                    debug.put("customerType", currentCustomer.getCustomerType());
+                    debug.put("isPropertyOwner", currentCustomer.getIsPropertyOwner());
+                } else {
+                    debug.put("customer", "Not found");
+                }
+            }
+
+            return ResponseEntity.ok(debug);
+
+        } catch (Exception e) {
+            debug.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(debug);
+        }
     }
 
     /**

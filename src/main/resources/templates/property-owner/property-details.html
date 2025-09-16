@@ -91,18 +91,18 @@
                                                 <td><strong>PayProp ID:</strong></td>
                                                 <td th:text="${property.payPropId}">PayProp ID</td>
                                             </tr>
-                                            <tr th:if="${property.portfolio}">
-                                                <td><strong>Portfolio:</strong></td>
-                                                <td th:text="${property.portfolio.name}">Portfolio Name</td>
+                                            <tr th:if="${property.portfolioTags}">
+                                                <td><strong>Portfolio Tags:</strong></td>
+                                                <td th:text="${property.portfolioTags}">Portfolio Tags</td>
                                             </tr>
                                         </table>
                                     </div>
                                 </div>
 
                                 <div class="mt-4">
-                                    <h6>Property Description</h6>
-                                    <p th:text="${property.description ?: 'No description available'}" class="text-muted">
-                                        Property description will appear here.
+                                    <h6>Property Comments</h6>
+                                    <p th:text="${property.comment ?: 'No comments available'}" class="text-muted">
+                                        Property comments will appear here.
                                     </p>
                                 </div>
                             </div>

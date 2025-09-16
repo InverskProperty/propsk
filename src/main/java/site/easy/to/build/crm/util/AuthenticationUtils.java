@@ -13,6 +13,7 @@ import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
 import site.easy.to.build.crm.service.user.OAuthUserService;
 import site.easy.to.build.crm.service.user.UserService;
+import java.util.List;
 
 @Component
 public class AuthenticationUtils {
@@ -95,21 +96,39 @@ public class AuthenticationUtils {
             String userName = authentication.getName();
             
             if (authenticatedUserDetailsService == crmUserDetails) {
-                user = userService.findByUsername(userName).get(0);
-                if (user == null) {
-                    System.out.println("❌ User not found by username: " + userName);
+                // FIXED: Add null safety check for findByUsername result
+                try {
+                    List<User> users = userService.findByUsername(userName);
+                    if (users == null || users.isEmpty()) {
+                        System.out.println("❌ No users found by username: " + userName);
+                        return -1;
+                    }
+                    user = users.get(0);
+                    if (user == null) {
+                        System.out.println("❌ User is null after retrieval: " + userName);
+                        return -1;
+                    }
+                    System.out.println("✅ Found user by username: " + user.getId());
+                    return user.getId(); // Return int directly
+                } catch (Exception e) {
+                    System.out.println("❌ Error finding user by username " + userName + ": " + e.getMessage());
+                    e.printStackTrace();
                     return -1;
                 }
-                System.out.println("✅ Found user by username: " + user.getId());
-                return user.getId(); // Return int directly
             } else if (authenticatedUserDetailsService == customerUserDetails) {
-                customerLoginInfo = customerLoginInfoService.findByEmail(userName);
-                if (customerLoginInfo == null) {
-                    System.out.println("❌ Customer login info not found by email: " + userName);
+                try {
+                    customerLoginInfo = customerLoginInfoService.findByEmail(userName);
+                    if (customerLoginInfo == null) {
+                        System.out.println("❌ Customer login info not found by email: " + userName);
+                        return -1;
+                    }
+                    System.out.println("✅ Found customer login info: " + customerLoginInfo.getId());
+                    return customerLoginInfo.getId(); // Return int directly
+                } catch (Exception e) {
+                    System.out.println("❌ Error finding customer login info by email " + userName + ": " + e.getMessage());
+                    e.printStackTrace();
                     return -1;
                 }
-                System.out.println("✅ Found customer login info: " + customerLoginInfo.getId());
-                return customerLoginInfo.getId(); // Return int directly
             }
         } else {
             System.out.println("   Processing OAuth authentication...");
