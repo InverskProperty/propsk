@@ -471,10 +471,10 @@
                                                             Created: <span th:text="${#temporals.format(ticket.createdAt, 'dd/MM/yyyy')}">Date</span>
                                                         </small>
                                                     </div>
-                                                    <div class="col-md-6" th:if="${ticket.assignedEmployee}">
+                                                    <div class="col-md-6" th:if="${ticket.employee}">
                                                         <small class="text-muted">
-                                                            <i class="fas fa-user"></i> 
-                                                            Assigned: <span th:text="${ticket.assignedEmployee}">Employee</span>
+                                                            <i class="fas fa-user"></i>
+                                                            Assigned: <span th:text="${ticket.employee.firstName} + ' ' + ${ticket.employee.lastName}">Employee</span>
                                                         </small>
                                                     </div>
                                                 </div>
