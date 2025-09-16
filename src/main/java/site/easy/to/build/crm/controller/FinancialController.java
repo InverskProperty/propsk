@@ -65,21 +65,48 @@ public class FinancialController {
             // Authorization check for customer financial data access
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             boolean hasAccess = false;
-            
-            if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") || 
-                AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE") ||
-                AuthorizationUtil.hasRole(authentication, "ROLE_OIDC_USER")) {
+
+            // DEBUG: Show authentication details
+            System.out.println("🔐 FinancialController: Authorization check for user: " + authentication.getName());
+            System.out.println("   Authentication type: " + authentication.getClass().getSimpleName());
+            System.out.println("   User ID: " + userId);
+            System.out.println("   Requested customer ID: " + customerId);
+            System.out.println("   Authorities:");
+            authentication.getAuthorities().forEach(auth ->
+                System.out.println("     - " + auth.getAuthority()));
+
+            // Role checks with debug output
+            boolean hasManager = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER");
+            boolean hasEmployee = AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE");
+            boolean hasOidc = AuthorizationUtil.hasRole(authentication, "ROLE_OIDC_USER");
+            boolean hasOwner = AuthorizationUtil.hasRole(authentication, "ROLE_OWNER");
+            boolean hasPropertyOwner = AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER");
+
+            System.out.println("   Role checks:");
+            System.out.println("     - ROLE_MANAGER: " + hasManager);
+            System.out.println("     - ROLE_EMPLOYEE: " + hasEmployee);
+            System.out.println("     - ROLE_OIDC_USER: " + hasOidc);
+            System.out.println("     - ROLE_OWNER: " + hasOwner);
+            System.out.println("     - ROLE_PROPERTY_OWNER: " + hasPropertyOwner);
+
+            if (hasManager || hasEmployee || hasOidc) {
                 hasAccess = true;
-            } else if ((AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") ||
-                       AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) && 
-                       customerId.equals(userId)) {
+                System.out.println("✅ Access granted: Admin/Employee/OIDC user");
+            } else if ((hasOwner || hasPropertyOwner) && customerId.equals(userId)) {
                 // Property owners can only see their own financial data
                 hasAccess = true;
+                System.out.println("✅ Access granted: Property owner accessing own data");
+            } else {
+                System.out.println("❌ Access denied: No matching roles or not owner");
             }
-            
+
             if (!hasAccess) {
                 Map<String, Object> error = new HashMap<>();
                 error.put("error", "Access denied");
+                error.put("debug_user_id", userId);
+                error.put("debug_customer_id", customerId);
+                error.put("debug_roles", authentication.getAuthorities().stream()
+                    .map(auth -> auth.getAuthority()).collect(Collectors.toList()));
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
             }
             
