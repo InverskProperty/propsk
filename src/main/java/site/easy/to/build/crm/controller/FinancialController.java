@@ -48,7 +48,7 @@ public class FinancialController {
     
     @Autowired
     private AuthenticationUtils authenticationUtils;
-    
+
     @Value("${crm.data.source:LEGACY}")
     private String dataSource;
 
@@ -373,6 +373,93 @@ public class FinancialController {
         }
         
         return ResponseEntity.ok(debug);
+    }
+
+    /**
+     * ADMIN: Add piyush as owner/customer to all uday's properties
+     */
+    @PostMapping("/admin/assign-piyush-to-uday-properties")
+    public ResponseEntity<Map<String, Object>> assignPiyushToUdayProperties(Authentication authentication) {
+        Map<String, Object> result = new HashMap<>();
+
+        // Security check - only allow admin users
+        if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") &&
+            !AuthorizationUtil.hasRole(authentication, "ROLE_OIDC_USER")) {
+            result.put("error", "Access denied - admin only");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(result);
+        }
+
+        try {
+            // Step 1: Find uday's customer ID
+            String findUdayQuery = "SELECT customer_id, full_name, email FROM customer WHERE email LIKE '%uday%' OR full_name LIKE '%uday%' OR email = 'uday@sunflaguk.com'";
+            List<Map<String, Object>> udayResults = jdbcTemplate.queryForList(findUdayQuery);
+
+            if (udayResults.isEmpty()) {
+                result.put("error", "Uday customer not found");
+                return ResponseEntity.ok(result);
+            }
+
+            Map<String, Object> udayCustomer = udayResults.get(0);
+            Long udayCustomerId = ((Number) udayCustomer.get("customer_id")).longValue();
+            result.put("uday_customer", udayCustomer);
+
+            // Step 2: Find piyush's customer ID
+            String findPiyushQuery = "SELECT customer_id, full_name, email FROM customer WHERE email LIKE '%piyush%' OR full_name LIKE '%piyush%'";
+            List<Map<String, Object>> piyushResults = jdbcTemplate.queryForList(findPiyushQuery);
+
+            if (piyushResults.isEmpty()) {
+                result.put("error", "Piyush customer not found");
+                return ResponseEntity.ok(result);
+            }
+
+            Map<String, Object> piyushCustomer = piyushResults.get(0);
+            Long piyushCustomerId = ((Number) piyushCustomer.get("customer_id")).longValue();
+            result.put("piyush_customer", piyushCustomer);
+
+            // Step 3: Find all properties assigned to uday
+            String findUdayPropertiesQuery = """
+                SELECT DISTINCT p.property_id, p.property_name, p.address_line_1
+                FROM property p
+                INNER JOIN customer_property_assignment cpa ON p.property_id = cpa.property_id
+                WHERE cpa.customer_id = ? AND cpa.assignment_type = 'OWNER'
+                """;
+
+            List<Map<String, Object>> udayProperties = jdbcTemplate.queryForList(findUdayPropertiesQuery, udayCustomerId);
+            result.put("uday_properties_count", udayProperties.size());
+            result.put("uday_properties", udayProperties);
+
+            // Step 4: Add piyush as OWNER to all uday's properties
+            int assignmentsAdded = 0;
+            for (Map<String, Object> property : udayProperties) {
+                Long propertyId = ((Number) property.get("property_id")).longValue();
+
+                // Check if assignment already exists
+                String checkQuery = "SELECT COUNT(*) FROM customer_property_assignment WHERE customer_id = ? AND property_id = ? AND assignment_type = 'OWNER'";
+                Integer existingCount = jdbcTemplate.queryForObject(checkQuery, Integer.class, piyushCustomerId, propertyId);
+
+                if (existingCount == 0) {
+                    // Insert new assignment
+                    String insertQuery = """
+                        INSERT INTO customer_property_assignment (customer_id, property_id, assignment_type, created_at, created_by)
+                        VALUES (?, ?, 'OWNER', NOW(), ?)
+                        """;
+
+                    jdbcTemplate.update(insertQuery, piyushCustomerId, propertyId, authentication.getName());
+                    assignmentsAdded++;
+                }
+            }
+
+            result.put("assignments_added", assignmentsAdded);
+            result.put("message", String.format("Successfully added piyush as owner to %d of uday's properties", assignmentsAdded));
+            result.put("status", "success");
+
+        } catch (Exception e) {
+            result.put("error", "Database error: " + e.getMessage());
+            result.put("status", "error");
+            e.printStackTrace();
+        }
+
+        return ResponseEntity.ok(result);
     }
 
     /**
