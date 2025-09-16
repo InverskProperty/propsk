@@ -407,7 +407,7 @@ public class PropertyOwnerController {
                     
                     // Find a customer that has properties
                     for (Customer testCustomer : allCustomers) {
-                        List<Property> testProperties = propertyService.findByPropertyOwnerId(testCustomer.getCustomerId());
+                        List<Property> testProperties = propertyService.findPropertiesByCustomerAssignments(testCustomer.getCustomerId());
                         if (testProperties.size() > 0) {
                             System.out.println("DEBUG: TEMP TEST - Found customer " + testCustomer.getCustomerId() + 
                                             " with " + testProperties.size() + " properties");
@@ -631,7 +631,7 @@ public class PropertyOwnerController {
             }
             
             // Verify ownership by checking if property belongs to this customer
-            List<Property> ownedProperties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> ownedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             boolean ownsProperty = ownedProperties.stream()
                 .anyMatch(p -> p.getId().equals(propertyId));
             
@@ -1144,7 +1144,7 @@ public class PropertyOwnerController {
         
         try {
             // Get all tickets related to this property owner's properties
-            List<Property> ownerProperties = propertyService.findByPropertyOwnerId(customerId);
+            List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(customerId);
             List<Long> propertyIds = ownerProperties.stream().map(Property::getId).collect(Collectors.toList());
             
             // Get maintenance and emergency tickets for owner's properties
@@ -1702,7 +1702,7 @@ public class PropertyOwnerController {
             }
             
             // Verify ownership - check if ticket belongs to a property owned by this customer
-            List<Property> ownedProperties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> ownedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             boolean ownsTicket = false;
             
             if (ticket.getProperty() != null) {
@@ -1751,7 +1751,7 @@ public class PropertyOwnerController {
             }
             
             // Verify property ownership
-            List<Property> ownedProperties = propertyService.findByPropertyOwnerId(customer.getCustomerId());
+            List<Property> ownedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             Property property = ownedProperties.stream()
                 .filter(p -> p.getId().equals(propertyId))
                 .findFirst()

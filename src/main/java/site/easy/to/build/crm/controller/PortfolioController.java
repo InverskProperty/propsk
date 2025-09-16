@@ -177,7 +177,7 @@ public class PortfolioController {
                         unassignedProperties = unassignedProperties.stream()
                             .filter(property -> {
                                 try {
-                                    List<Property> ownerProperties = propertyService.findByPropertyOwnerId(selectedOwnerId.longValue());
+                                    List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(selectedOwnerId.longValue());
                                     return ownerProperties.stream().anyMatch(p -> p.getId().equals(property.getId()));
                                 } catch (Exception e) {
                                     return false;
@@ -929,7 +929,7 @@ public class PortfolioController {
                 Integer ownerId = targetPortfolio.getPropertyOwnerId();
                 
                 // Use the existing method that works with junction table
-                allProperties = propertyService.findByPropertyOwnerId(ownerId.longValue());
+                allProperties = propertyService.findPropertiesByCustomerAssignments(ownerId.longValue());
                 
                 // ✅ FIXED: Filter to get unassigned properties using junction table logic
                 unassignedProperties = allProperties.stream()
@@ -1000,7 +1000,7 @@ public class PortfolioController {
                 System.out.println("🎯 [Controller] Portfolio " + portfolioId + " is owner-specific for owner ID: " + ownerId);
                 
                 // Get all properties for this owner using junction table
-                List<Property> ownerProperties = propertyService.findByPropertyOwnerId(ownerId.longValue());
+                List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(ownerId.longValue());
                 System.out.println("📦 [Controller] Owner has " + ownerProperties.size() + " total properties from junction table");
                 
                 // Get properties already in this portfolio using junction table
@@ -2489,7 +2489,7 @@ public class PortfolioController {
             // Test Method 4: Owner-based properties (what assignment page uses)
             if (portfolio != null && portfolio.getPropertyOwnerId() != null) {
                 try {
-                    List<Property> ownerProperties = propertyService.findByPropertyOwnerId(portfolio.getPropertyOwnerId().longValue());
+                    List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(portfolio.getPropertyOwnerId().longValue());
                     result.put("method4_ownerProperties", Map.of(
                         "status", "SUCCESS",
                         "count", ownerProperties.size(),
@@ -2556,7 +2556,7 @@ public class PortfolioController {
             if (portfolio.getPropertyOwnerId() != null) {
                 try {
                     // ✅ FIXED: Use many-to-many approach for owner-specific portfolios
-                    List<Property> ownerProperties = propertyService.findByPropertyOwnerId(portfolio.getPropertyOwnerId().longValue());
+                    List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(portfolio.getPropertyOwnerId().longValue());
                     List<Property> unassignedProperties = ownerProperties.stream()
                         .filter(property -> {
                             // Check if property has any active assignments
@@ -2568,7 +2568,7 @@ public class PortfolioController {
                         "totalOwnerProperties", ownerProperties.size(),
                         "unassignedProperties", unassignedProperties.size(),
                         "assignedProperties", ownerProperties.size() - unassignedProperties.size(),
-                        "method", "propertyService.findByPropertyOwnerId()"
+                        "method", "propertyService.findPropertiesByCustomerAssignments()"
                     ));
                     
                     // ✅ FIXED: Check how many are actually assigned to THIS portfolio using many-to-many
