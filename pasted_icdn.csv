@@ -1,0 +1,234 @@
+Flat 6 - 3 West Gate,2025-08-29,"Invoice
+Rent","Miss Shelley Lees
+Rent For Flat 6 - 3 West Gate (29 Aug - 28 Sep '25)",740,PP072
+Flat 7 - 3 West Gate,2025-08-19,"Invoice
+Rent","Mr Chun Hung Tang
+Rent For Flat 7 - 3 West Gate (19 Aug - 18 Sep '25)",700,PP064
+,2025-09-11,"Credit note
+Other","Mr Chun Hung Tang
+19/08 invoice wrong as tenant left 18/08",-700,28737498
+Flat 8 - 3 West Gate,2025-08-04,"Invoice
+Rent","Mr Shermal Wijesinghage, Mrs Udeshika Dona
+Rent For Flat 8 - 3 West Gate (04 Aug - 03 Sep '25)",675,PP052
+,2025-08-04,"Invoice
+Other","Mr Shermal Wijesinghage, Mrs Udeshika Dona
+Parking (04 Aug - 03 Sep '25)",60,PP052
+,2025-09-04,"Invoice
+Rent","Mr Shermal Wijesinghage, Mrs Udeshika Dona
+Rent For Flat 8 - 3 West Gate (04 Sep - 03 Oct '25)",675,PP083
+,2025-09-04,"Invoice
+Other","Mr Shermal Wijesinghage, Mrs Udeshika Dona
+Parking (04 Sep - 03 Oct '25)",60,PP083
+Flat 9 - 3 West Gate,2025-08-01,"Invoice
+Rent","Mr Scott Warner
+Rent For Flat 9 - 3 West Gate (01 - 31 Aug '25)",700,PP045
+,2025-09-01,"Invoice
+Rent","Mr Scott Warner
+Rent For Flat 9 - 3 West Gate (01 - 30 Sep '25)",700,PP077
+Flat 14 - 3 West Gate,2025-08-03,"Credit note
+Rent","Ms Sarah Buckle, Mr Matthew Lewsley
+Junes rental Payment",-800,28079570
+,2025-08-28,"Invoice
+Rent","Ms Sarah Buckle, Mr Matthew Lewsley
+Rent For Flat 14 - 3 West Gate (28 Aug - 27 Sep '25)",800,PP071
+,2025-09-09,"Credit note
+Rent","Ms Sarah Buckle, Mr Matthew Lewsley
+Paid via old system 28/07",-795,28698845
+,2025-09-09,"Credit note
+Rent","Ms Sarah Buckle, Mr Matthew Lewsley
+Paid via old system 26/08",-795,28698851
+Flat 15 - 3 West Gate,2025-08-19,"Invoice
+Rent","Ms Lucy Cassell
+Rent For Flat 15 - 3 West Gate (19 Aug - 18 Sep '25)",740,PP066
+Flat 16 - 3 West Gate,2025-08-12,"Invoice
+Rent","Mr Riley Paul Beresford, Ms Gina Louise Judge
+Rent For Flat 16 - 3 West Gate (12 Aug - 11 Sep '25)",740,PP059
+,2025-09-11,"Debit note
+Other","Mr Riley Paul Beresford, Ms Gina Louise Judge
+Tenant left 04/09/2025",156.11,28737523
+,2025-09-11,"Credit note
+Other","Mr Riley Paul Beresford, Ms Gina Louise Judge
+Credit note against debit note no. 28737523 - should have been a credit of 156.11",-312.22,28737543
+Flat 17 - 3 West Gate,2025-08-21,"Invoice
+Rent","Mr Harsh Patel
+Rent For Flat 17 - 3 West Gate (21 Aug - 20 Sep '25)",700,PP067
+Flat 18 - 3 West Gate,2025-08-10,"Invoice
+Rent","Nirmali Gedara and Janith Hetti Arachchilage
+(10 Aug - 09 Sep '25)",795,PP058
+,2025-08-10,"Invoice
+Other","Nirmali Gedara and Janith Hetti Arachchilage
+Monthly Parking (10 Aug - 09 Sep '25)",60,PP058
+,2025-08-10,"Invoice
+Other","Nirmali Gedara and Janith Hetti Arachchilage
+Parking (10 Aug - 09 Sep '25)",60,PP058
+,2025-09-09,"Credit note
+Other","Nirmali Gedara and Janith Hetti Arachchilage
+Parking Duplicate Invoice",-60,28698865
+,2025-09-09,"Credit note
+Other","Nirmali Gedara and Janith Hetti Arachchilage
+Parking Duplicate Invoice",-60,28698866
+,2025-09-10,"Invoice
+Rent","Nirmali Gedara and Janith Hetti Arachchilage
+(10 Sep - 09 Oct '25)",795,PP088
+,2025-09-10,"Invoice
+Other","Nirmali Gedara and Janith Hetti Arachchilage
+Monthly Parking (10 Sep - 09 Oct '25)",60,PP088
+,2025-09-10,"Invoice
+Other","Nirmali Gedara and Janith Hetti Arachchilage
+Parking (10 Sep - 09 Oct '25)",60,PP088
+Flat 19 - 3 West Gate,2025-08-03,"Invoice
+Rent","Mr Joshua Banks, Miss Layla Middlemass
+Rent For Flat 19 - 3 West Gate (03 Aug - 02 Sep '25)",740,PP051
+,2025-09-11,"Credit note
+Other","Mr Joshua Banks, Miss Layla Middlemass
+August invoice wrongly issued left 21st July",-740,28737450
+,2025-09-11,"Credit note
+Other","Mr Joshua Banks, Miss Layla Middlemass
+July Invoice wrong left on 21st July Payment should be 437.92",-302.08,28737463
+Flat 19 - 3 West Gate,2025-09-11,"Credit note
+Rent","Mr Joshua Banks, Miss Layla Middlemass
+July 22nd Paid 437.92 via old system",-437.92,28737475
+Flat 2 - 3 West Gate,2025-08-02,"Invoice
+Rent","Mr Mustafa Al Bayat, Mrs Gulala Al - Zangana
+Rent For Flat 2 - 3 West Gate (02 Aug - 01 Sep '25)",740,PP048
+,2025-08-03,"Credit note
+Rent","Mr Mustafa Al Bayat, Mrs Gulala Al - Zangana
+Junes Rental Payment",-740,28079585
+,2025-09-02,"Invoice
+Rent","Mr Mustafa Al Bayat, Mrs Gulala Al - Zangana
+Rent For Flat 2 - 3 West Gate (02 Sep - 01 Oct '25)",740,PP079
+,2025-09-09,"Credit note
+Rent","Mr Mustafa Al Bayat, Mrs Gulala Al - Zangana
+Paid via old system 04/08",-740,28698737
+,2025-09-09,"Credit note
+Rent","Mr Mustafa Al Bayat, Mrs Gulala Al - Zangana
+Paid via Old System 04/09",-740,28698738
+Flat 20 - 3 West Gate,2025-08-03,"Credit note
+Rent","Mr James Kay
+Junes Rental Payment",-700,28079636
+,2025-08-19,"Invoice
+Rent","Mr James Kay
+Rent For Flat 20 - 3 West Gate (19 Aug - 18 Sep '25)",700,PP065
+Flat 21 - 3 West Gate,2025-08-15,"Invoice
+Rent","Mr Felwin Francis
+Rent For Flat 21 - 3 West Gate (15 Aug - 14 Sep '25)",795,PP061
+,2025-09-15,"Invoice
+Rent","Mr Felwin Francis
+Rent For Flat 21 - 3 West Gate (15 Sep - 14 Oct '25)",795,PP090
+Flat 22 - 3 West Gate,2025-08-01,"Invoice
+Rent","Mr Brian Lowe
+Rent For Flat 22 - 3 West Gate (01 - 31 Aug '25)",740,PP044
+,2025-09-01,"Invoice
+Rent","Mr Brian Lowe
+Rent For Flat 22 - 3 West Gate (01 - 30 Sep '25)",740,PP076
+Flat 23 - 3 West Gate,2025-08-27,"Debit note
+Rent","Mark Tennick
+August 20th Rent Payment",795,28418025
+Flat 24 - 3 West Gate,2025-08-16,"Invoice
+Rent","Mr Ethan Maloney, Miss Soraya Fearon
+Rent For Flat 24 - 3 West Gate (16 Aug - 15 Sep '25)",810,PP062
+,2025-09-16,"Invoice
+Rent","Mr Ethan Maloney, Miss Soraya Fearon
+Rent For Flat 24 - 3 West Gate (16 Sep - 15 Oct '25)",810,PP091
+Flat 26 - 3 West Gate,2025-08-03,"Credit note
+Rent","Mr Louis Scotting
+Rent payment for July",-675,28079588
+,2025-08-30,"Invoice
+Rent","Mr Louis Scotting
+Rent For Flat 26 - 3 West Gate (30 Aug - 29 Sep '25)",675,PP073
+,2025-09-09,"Credit note
+Rent","Mr Louis Scotting
+Paid via Old System 28/07",-675,28698732
+,2025-09-09,"Credit note
+Rent","Mr Louis Scotting
+Paid via Old System 28/08",-675,28698735
+Flat 27 - 3 West Gate,2025-08-02,"Invoice
+Rent","Miss Sophie Murray
+Rent For Flat 27 - 3 West Gate (02 Aug - 01 Sep '25)",700,PP047
+Flat 27 - 3 West Gate,2025-09-02,"Invoice
+Rent","Miss Sophie Murray
+Rent For Flat 27 - 3 West Gate (02 Sep - 01 Oct '25)",700,PP078
+Flat 28 - 3 West Gate,2025-08-03,"Credit note
+Rent","Ms Shiu Lun Cheung, Mr Chi Man Poon
+Junes Rental Payment",-740,28079568
+,2025-08-23,"Invoice
+Rent","Ms Shiu Lun Cheung, Mr Chi Man Poon
+Rent For Flat 28 - 3 West Gate (23 Aug - 22 Sep '25)",740,PP069
+,2025-09-09,"Credit note
+Rent","Ms Shiu Lun Cheung, Mr Chi Man Poon
+Paid via old system",-740,28698560
+,2025-09-09,"Credit note
+Rent","Ms Shiu Lun Cheung, Mr Chi Man Poon
+Paid via Old System 30/07",-740,28698561
+Flat 29 - 3 West Gate,2025-08-02,"Invoice
+Rent","Mrs Margaret Fritchley
+Rent For Flat 29 - 3 West Gate (02 Aug - 01 Sep '25)",740,PP049
+,2025-08-03,"Credit note
+Rent","Mrs Margaret Fritchley
+Rent for June",-740,28079574
+,2025-09-02,"Invoice
+Rent","Mrs Margaret Fritchley
+Rent For Flat 29 - 3 West Gate (02 Sep - 01 Oct '25)",740,PP080
+Flat 3 - 3 West Gate,2025-08-03,"Credit note
+Rent","Mr Tracy Whyte
+Rent Payment for July",-740,28079578
+,2025-08-14,"Invoice
+Rent","Mr Tracy Whyte
+Rent For Flat 3 - 3 West Gate (14 Aug - 13 Sep '25)",740,PP060
+,2025-09-09,"Credit note
+Rent","Mr Tracy Whyte
+740",-740,28698810
+,2025-09-09,"Credit note
+Rent","Mr Tracy Whyte
+Paid via old system 14/08",-740,28698830
+,2025-09-14,"Invoice
+Rent","Mr Tracy Whyte
+Rent For Flat 3 - 3 West Gate (14 Sep - 13 Oct '25)",740,PP089
+Flat 30 - 3 West Gate,2025-08-03,"Credit note
+Rent","Mr Joel Bryan
+Junes Rental Payment",-740,28079621
+,2025-08-08,"Invoice
+Rent","Mr Joel Bryan
+Rent For Flat 30 - 3 West Gate (08 Aug - 07 Sep '25)",740,PP056
+,2025-09-08,"Invoice
+Rent","Mr Joel Bryan
+Rent For Flat 30 - 3 West Gate (08 Sep - 07 Oct '25)",740,PP086
+,2025-09-09,"Credit note
+Rent","Mr Joel Bryan
+Paid via old system 11/08",-740,28698620
+Flat 4 - 3 West Gate,2025-08-03,"Invoice
+Rent","Miss Megan Delaney, Mr Joseph Williams
+Rent For Flat 4 - 3 West Gate (03 Aug - 02 Sep '25)",855,PP050
+,2025-09-03,"Invoice
+Rent","Miss Megan Delaney, Mr Joseph Williams
+Rent For Flat 4 - 3 West Gate (03 Sep - 02 Oct '25)",855,PP081
+Flat 5 - 3 West Gate,2025-08-17,"Invoice
+Rent","Mr Amos Blyth
+Rent For Flat 5 - 3 West Gate (17 Aug - 16 Sep '25)",740,PP063
+Flat 6 - 3 West Gate,2025-08-29,"Invoice
+Rent","Miss Shelley Lees
+Rent For Flat 6 - 3 West Gate (29 Aug - 28 Sep '25)",740,PP072
+Flat 7 - 3 West Gate,2025-08-19,"Invoice
+Rent","Mr Chun Hung Tang
+Rent For Flat 7 - 3 West Gate (19 Aug - 18 Sep '25)",700,PP064
+,2025-09-11,"Credit note
+Other","Mr Chun Hung Tang
+19/08 invoice wrong as tenant left 18/08",-700,28737498
+Flat 8 - 3 West Gate,2025-08-04,"Invoice
+Rent","Mr Shermal Wijesinghage, Mrs Udeshika Dona
+Rent For Flat 8 - 3 West Gate (04 Aug - 03 Sep '25)",675,PP052
+,2025-08-04,"Invoice
+Other","Mr Shermal Wijesinghage, Mrs Udeshika Dona
+Parking (04 Aug - 03 Sep '25)",60,PP052
+,2025-09-04,"Invoice
+Rent","Mr Shermal Wijesinghage, Mrs Udeshika Dona
+Rent For Flat 8 - 3 West Gate (04 Sep - 03 Oct '25)",675,PP083
+,2025-09-04,"Invoice
+Other","Mr Shermal Wijesinghage, Mrs Udeshika Dona
+Parking (04 Sep - 03 Oct '25)",60,PP083
+Flat 9 - 3 West Gate,2025-08-01,"Invoice
+Rent","Mr Scott Warner
+Rent For Flat 9 - 3 West Gate (01 - 31 Aug '25)",700,PP045
+,2025-09-01,"Invoice
+Rent","Mr Scott Warner
+Rent For Flat 9 - 3 West Gate (01 - 30 Sep '25)",700,PP077
