@@ -1116,13 +1116,31 @@ public class PropertyOwnerController {
                              ", Net: £" + totalNetToOwner + ", Transactions: " + totalTransactions);
 
             // 🏠 Get property-level financial breakdown
+            System.out.println("🔍 DEBUG: Getting property breakdown for customer " + customer.getCustomerId());
             List<Object[]> propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdown(customer.getCustomerId());
+            System.out.println("🔍 DEBUG: Portfolio-based property breakdown count: " + (propertyBreakdown != null ? propertyBreakdown.size() : "NULL"));
 
             // FALLBACK: If portfolio-based property breakdown returns no data, use direct customer assignment query
             if (propertyBreakdown == null || propertyBreakdown.isEmpty()) {
                 System.out.println("🔄 Portfolio-based property breakdown returned no data, trying direct customer assignment query...");
                 propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdownDirect(customer.getCustomerId());
                 System.out.println("🔄 Direct property breakdown count: " + (propertyBreakdown != null ? propertyBreakdown.size() : "NULL"));
+            }
+
+            // DEBUG: Show property breakdown data
+            if (propertyBreakdown != null && !propertyBreakdown.isEmpty()) {
+                System.out.println("🔍 DEBUG: Property breakdown data (first 5 rows):");
+                for (int i = 0; i < Math.min(5, propertyBreakdown.size()); i++) {
+                    Object[] row = propertyBreakdown.get(i);
+                    System.out.println("   Row " + i + ": " + (row.length > 0 ? "name=" + row[0] : "empty") +
+                                     ", " + (row.length > 1 ? "payprop_id=" + row[1] : "no_id") +
+                                     ", " + (row.length > 2 ? "rent=" + row[2] : "no_rent") +
+                                     ", " + (row.length > 3 ? "commission=" + row[3] : "no_commission") +
+                                     ", " + (row.length > 4 ? "net=" + row[4] : "no_net") +
+                                     ", " + (row.length > 5 ? "transactions=" + row[5] : "no_transactions"));
+                }
+            } else {
+                System.out.println("❌ DEBUG: No property breakdown data found!");
             }
             
             // 📋 Get recent transactions (last 10) - FIXED: Added date parameter
@@ -1427,14 +1445,19 @@ public class PropertyOwnerController {
     private List<Map<String, Object>> createEnhancedPropertiesData(List<Property> properties, List<Object[]> propertyBreakdown, List<Portfolio> portfolios) {
         List<Map<String, Object>> enhancedProperties = new ArrayList<>();
 
-        // Create a map of property breakdown data by property ID for quick lookup
+        // Create a map of property breakdown data by PayProp ID for quick lookup
+        // Query returns: property_name, payprop_id, total_rent, total_commission, total_net_to_owner, transaction_count
+        System.out.println("🔍 DEBUG: createEnhancedPropertiesData - Processing " + propertyBreakdown.size() + " breakdown rows");
         Map<String, Object[]> breakdownMap = new HashMap<>();
         for (Object[] row : propertyBreakdown) {
-            if (row.length > 0 && row[0] != null) {
-                String propertyId = row[0].toString();
-                breakdownMap.put(propertyId, row);
+            if (row.length > 1 && row[1] != null) {
+                String payPropId = row[1].toString(); // Use PayProp ID (index 1), not property name (index 0)
+                breakdownMap.put(payPropId, row);
+                System.out.println("🔍 DEBUG: Added property breakdown for PayProp ID: " + payPropId +
+                                 " (name: " + row[0] + ") with financial data: [" + row[2] + ", " + row[3] + ", " + row[4] + ", " + row[5] + "]");
             }
         }
+        System.out.println("🔍 DEBUG: Built breakdown map with " + breakdownMap.size() + " entries");
 
         for (Property property : properties) {
             Map<String, Object> enhanced = new HashMap<>();
@@ -1446,17 +1469,31 @@ public class PropertyOwnerController {
             enhanced.put("id", property.getId());
 
             // Get financial data from breakdown
-            Object[] breakdown = breakdownMap.get(property.getPayPropId());
+            String propPayPropId = property.getPayPropId();
+            Object[] breakdown = breakdownMap.get(propPayPropId);
+            System.out.println("🔍 DEBUG: Looking up property '" + property.getPropertyName() +
+                             "' with PayProp ID: " + propPayPropId +
+                             " -> " + (breakdown != null ? "FOUND breakdown data" : "NOT FOUND in breakdown map"));
+
             if (breakdown != null && breakdown.length >= 6) {
-                enhanced.put("totalRent", parseObjectValue(breakdown[2], BigDecimal.ZERO));
-                enhanced.put("totalCommission", parseObjectValue(breakdown[3], BigDecimal.ZERO));
-                enhanced.put("totalNetToOwner", parseObjectValue(breakdown[4], BigDecimal.ZERO));
-                enhanced.put("transactionCount", parseObjectValue(breakdown[5], 0L));
+                BigDecimal totalRent = parseObjectValue(breakdown[2], BigDecimal.ZERO);
+                BigDecimal totalCommission = parseObjectValue(breakdown[3], BigDecimal.ZERO);
+                BigDecimal totalNetToOwner = parseObjectValue(breakdown[4], BigDecimal.ZERO);
+                Long transactionCount = parseObjectValue(breakdown[5], 0L);
+
+                enhanced.put("totalRent", totalRent);
+                enhanced.put("totalCommission", totalCommission);
+                enhanced.put("totalNetToOwner", totalNetToOwner);
+                enhanced.put("transactionCount", transactionCount);
+
+                System.out.println("   ✅ Applied financial data: £" + totalRent + " rent, £" + totalCommission + " commission, " + transactionCount + " transactions");
             } else {
                 enhanced.put("totalRent", BigDecimal.ZERO);
                 enhanced.put("totalCommission", BigDecimal.ZERO);
                 enhanced.put("totalNetToOwner", BigDecimal.ZERO);
                 enhanced.put("transactionCount", 0L);
+
+                System.out.println("   ❌ No financial data found - using zeros");
             }
 
             // Property status calculations
