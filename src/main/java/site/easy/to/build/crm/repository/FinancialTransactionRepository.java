@@ -520,7 +520,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            // Financial transactions (existing outgoing transactions)
            "SELECT ft.id, ft.transaction_date, ft.property_name, ft.transaction_type, " +
            "       ft.amount, ft.commission_amount, ft.actual_commission_amount, ft.net_to_owner_amount, ft.description, " +
-           "       ft.payprop_batch_id, 'financial_transaction' as source_table " +
+           "       ft.payprop_batch_id, ft.batch_payment_id, 'financial_transaction' as source_table " +
            "FROM financial_transactions ft " +
            "WHERE ft.property_id IN (" +
            "  SELECT pr.payprop_id FROM properties pr " +
@@ -541,6 +541,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "  NULL as net_to_owner_amount, " +
            "  CONCAT('Payment from ', prap.incoming_tenant_name, ' - ', COALESCE(prap.incoming_transaction_type, 'Rent')) as description, " +
            "  prap.payment_batch_id as payprop_batch_id, " +
+           "  NULL as batch_payment_id, " +
            "  'payprop_payments' as source_table " +
            "FROM payprop_report_all_payments prap " +
            "WHERE prap.incoming_property_payprop_id IN (" +
@@ -578,7 +579,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            // Financial transactions (existing outgoing transactions) 
            "SELECT ft.id, ft.transaction_date, ft.property_name, ft.transaction_type, " +
            "       ft.amount, ft.commission_amount, ft.actual_commission_amount, ft.net_to_owner_amount, ft.description, " +
-           "       ft.payprop_batch_id, ft.property_id, 'financial_transaction' as source_table " +
+           "       ft.payprop_batch_id, ft.batch_payment_id, ft.property_id, 'financial_transaction' as source_table " +
            "FROM financial_transactions ft " +
            "WHERE ft.property_id = :propertyId " +
            "  AND ft.transaction_date BETWEEN :fromDate AND :toDate" +
@@ -595,6 +596,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "  NULL as net_to_owner_amount, " +
            "  CONCAT('Payment from ', prap.incoming_tenant_name, ' - ', COALESCE(prap.incoming_transaction_type, 'Rent')) as description, " +
            "  prap.payment_batch_id as payprop_batch_id, " +
+           "  NULL as batch_payment_id, " +
            "  prap.incoming_property_payprop_id as property_id, " +
            "  'payprop_payments' as source_table " +
            "FROM payprop_report_all_payments prap " +
