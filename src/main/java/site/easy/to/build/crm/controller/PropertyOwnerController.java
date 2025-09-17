@@ -1062,6 +1062,21 @@ public class PropertyOwnerController {
                 return "redirect:/customer-login?error=not_found";
             }
             System.out.println("✅ Loading financials for customer: " + customer.getCustomerId());
+            System.out.println("✅ Customer email: " + customer.getEmail());
+            System.out.println("✅ Customer name: " + customer.getFirstName() + " " + customer.getLastName());
+
+            // CRITICAL CHECK: Verify this customer has property assignments
+            List<Property> customerProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            System.out.println("✅ Customer properties count: " + customerProperties.size());
+
+            if (customerProperties.isEmpty()) {
+                System.out.println("❌ CRITICAL: Customer " + customer.getCustomerId() + " has NO property assignments!");
+            } else {
+                System.out.println("✅ First 3 properties: " + customerProperties.stream()
+                    .limit(3)
+                    .map(p -> p.getPropertyName() + " (PayProp ID: " + p.getPayPropId() + ")")
+                    .collect(java.util.stream.Collectors.joining(", ")));
+            }
 
             // 🚀 NEW: Get real PayProp financial data using verified queries
             Object[] financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummary(customer.getCustomerId());
@@ -1082,6 +1097,12 @@ public class PropertyOwnerController {
                 System.out.println("🔄 Portfolio-based financial summary returned no data, trying direct customer assignment query...");
                 financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummaryDirect(customer.getCustomerId());
                 System.out.println("🔄 Direct financial summary: " + (financialSummary != null ? java.util.Arrays.toString(financialSummary) : "NULL"));
+
+                // ADDITIONAL DEBUG: Test if the expected customer 1984 data exists
+                if (customer.getCustomerId().equals(1984L)) {
+                    System.out.println("🔍 EXPECTED for Customer 1984: Should see ~£259,448.38 total rent");
+                    System.out.println("🔍 PayProp properties for 1984 should include: 7QZGPmabJ9, RwXxg7kmJA, mn18KO44X9");
+                }
             }
             
             // 💰 Parse financial summary (total_rent, total_commission, total_net_to_owner, transaction_count)
