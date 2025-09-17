@@ -88,9 +88,9 @@ public class SecurityConfig {
             .authorizeHttpRequests((authorize) -> authorize
                     .requestMatchers("/customer-login", "/customer-login/**").permitAll()
                     .requestMatchers("/set-password/**").permitAll()
-                    .requestMatchers("/property-owner/**").hasAnyRole("PROPERTY_OWNER", "MANAGER", "ADMIN")
-                    .requestMatchers("/tenant/**").hasRole("TENANT")
-                    .requestMatchers("/contractor/**").hasRole("CONTRACTOR")
+                    .requestMatchers("/property-owner/**").hasAnyAuthority("ROLE_PROPERTY_OWNER", "ROLE_MANAGER", "ROLE_ADMIN")
+                    .requestMatchers("/tenant/**").hasAuthority("ROLE_TENANT")
+                    .requestMatchers("/contractor/**").hasAuthority("ROLE_CONTRACTOR")
                     // REMOVED: debug-sync from here - it belongs in main chain
                     .anyRequest().authenticated()
             )
