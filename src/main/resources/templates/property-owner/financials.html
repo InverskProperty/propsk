@@ -456,11 +456,7 @@
                                             <td>
                                                 <strong th:text="${propertyData.property.addressLine1 ?: propertyData.property.propertyName ?: 'Unnamed Property'}">Property Address</strong><br>
                                                 <small class="text-muted" th:text="${(propertyData.property.city ?: 'Unknown City') + ', ' + (propertyData.property.postcode ?: 'Unknown Postcode')}">City, Postcode</small>
-                                                <div th:if="${propertyData.property.currentTenant != null}" class="mt-1">
-                                                    <small class="text-info">
-                                                        <i class="fas fa-user"></i> <span th:text="${propertyData.property.currentTenant}">Current Tenant</span>
-                                                    </small>
-                                                </div>
+                                                <!-- Tenant information not available in current Property entity -->
                                             </td>
                                             <td>
                                                 <span th:if="${propertyData.isOccupied}" class="badge badge-success">

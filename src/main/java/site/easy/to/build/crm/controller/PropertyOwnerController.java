@@ -1419,6 +1419,7 @@ public class PropertyOwnerController {
 
             // Property status
             enhanced.put("status", property.getStatus() != null ? property.getStatus() : "ACTIVE");
+            enhanced.put("isOccupied", property.getStatus() != null && property.getStatus().equals("OCCUPIED"));
 
             // Portfolio names (placeholder - would need portfolio service integration)
             enhanced.put("portfolioNames", "");
