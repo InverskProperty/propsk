@@ -1630,12 +1630,17 @@ public class PropertyOwnerController {
         try {
             String email = null;
 
-            // ADMIN FIX: Check if user is admin first - if so, return first available property owner
+            // ADMIN FIX: Check if user has actual admin role - if so, return first available property owner
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             System.out.println("DEBUG: User ID from authentication: " + userId);
 
-            // Check if this is an admin/manager user (like sajidkazmi@propsk.com)
-            if (userId > 0) {
+            // Check if this is an actual admin/manager user by checking roles
+            boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN") ||
+                                auth.getAuthority().equals("ROLE_SUPER_ADMIN") ||
+                                auth.getAuthority().equals("ROLE_MANAGER"));
+
+            if (isAdmin && userId > 0) {
                 // For admin users, allow access to any property owner for statement generation
                 List<Customer> propertyOwners = customerService.findPropertyOwners();
                 if (!propertyOwners.isEmpty()) {
