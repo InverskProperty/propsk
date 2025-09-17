@@ -802,28 +802,191 @@ GROUP BY transaction_type, category_name;
 
 ---
 
+## 🚨 CRITICAL DATABASE STRUCTURE INVESTIGATION (2025-09-17)
+
+### **DISCOVERY: New Database Missing Core Invoice Infrastructure**
+
+**Investigation triggered by**: Financial statement generation failures with missing column errors.
+
+#### **Root Cause Analysis**
+The new production database was deployed with **incomplete invoice table structure**, causing widespread system failures:
+
+**Current New Database (`invoices` table)**:
+```sql
+CREATE TABLE `invoices` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `payprop_id` varchar(32) DEFAULT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `account_type` enum('individual','business') DEFAULT 'individual'
+);
+-- MISSING 20+ CRITICAL COLUMNS!
+```
+
+**Expected Structure (from old database)**:
+```sql
+-- Required columns found in old database:
+category_id, category_name, description, frequency, frequency_code,
+start_date, end_date, payment_day, is_active, vat_included, vat_amount,
+customer_id, property_id, internal_reference, external_reference,
+created_at, updated_at, deleted_at, created_by_user_id, updated_by_user_id,
+sync_status, sync_error_message, notes, invoice_type, is_debit_order
+```
+
+#### **Complete PayProp Invoice System Architecture (Old Database Analysis)**
+
+**1. Standing Invoice Instructions** (`payprop_export_invoices` - 244 records):
+- **Monthly Rent Instructions**: 235 records (£90-£3,150 range)
+- **Quarterly Rent Instructions**: 7 records (£720-£4,500 range)
+- **Other Monthly Instructions**: 2 records (£50-£71.52 range)
+- **Purpose**: Template/recurring billing setup that auto-generates actual invoices
+
+**2. Actual Invoice Transactions** (`financial_transactions` with `transaction_type = 'invoice'` - 2,971 records):
+- **Rent Invoices**: 2,583 records (£0.02-£16,225.00 range)
+- **Deposit Invoices**: 242 records (£3.00-£4,038.46 range)
+- **Other Invoices**: 135 records (£2.50-£5,400.00 range)
+- **Purpose**: Individual bills generated from standing instructions
+
+**3. Credit/Debit Note System**:
+- **Credit Notes**: 137 records (£0.01-£6,150.00) - Refunds, corrections
+- **Debit Notes**: 68 records (£0.08-£2,250.00) - Additional charges, penalties
+
+#### **Missing System Components in New Database**
+
+**❌ MISSING TABLE**: `invoice_instructions` (standing order system)
+**❌ MISSING COLUMNS**: 20+ invoice table columns
+**❌ MISSING TRANSACTION TYPES**: `credit_note`, `debit_note`
+**❌ MISSING RELATIONSHIPS**: Customer/Property foreign keys
+
+#### **System Failure Impact**
+
+**Affected Components**:
+1. **XLSX Statement Generation** - `XLSXStatementService.java:607`
+2. **Financial Dashboard** - `/property-owner/financials`
+3. **Google Sheets Integration** - `GoogleSheetsStatementService.java`
+4. **Property Owner Portal** - Complete financial reporting broken
+
+**Sample Errors**:
+```
+Unknown column 'i1_0.category_id' in 'field list'
+Unknown column 'actual_commission_amount' not found
+Cannot find symbol: method getPropertyId()
+```
+
+### **URGENT FIXES IMPLEMENTED (2025-09-17)**
+
+#### **1. Added Missing Database Columns**
+- ✅ Added `account_type` to `invoices` table
+- ✅ Added `actual_commission_amount` to `financial_transactions` table
+- ✅ Fixed Property entity method calls (`getPayPropId()` vs `getPropertyId()`)
+- ✅ Fixed repository method calls (`findByPropertyIdAndTransactionDateBetween`)
+
+#### **2. Code-Level Null Safety**
+- ✅ Added `getFirstNameSafe()` utility methods in statement services
+- ✅ Fixed CSRF token handling in `/property-owner/statements`
+- ✅ Updated Apache POI dependency compatibility (Commons IO 2.13.0)
+
+#### **3. Static Resource Issues**
+- ✅ Created missing CSS/JS files for property owner portal
+
+### **IMMEDIATE PRIORITY FIXES REQUIRED**
+
+#### **1. Complete Invoice Table Structure**
+```sql
+-- URGENT: Add all missing columns to invoices table
+ALTER TABLE invoices ADD COLUMN (
+  payprop_customer_id VARCHAR(32),
+  payprop_last_sync DATETIME,
+  sync_status ENUM('pending', 'synced', 'error') DEFAULT 'pending',
+  sync_error_message TEXT,
+  customer_id BIGINT,
+  property_id BIGINT,
+  category_id VARCHAR(32) NOT NULL DEFAULT 'rent',
+  category_name VARCHAR(100),
+  vat_included BOOLEAN DEFAULT FALSE,
+  vat_amount DECIMAL(10,2),
+  frequency ENUM('monthly','weekly','quarterly','yearly','one_time') DEFAULT 'monthly',
+  frequency_code VARCHAR(10),
+  payment_day INT,
+  start_date DATE NOT NULL DEFAULT (CURDATE()),
+  end_date DATE,
+  description TEXT NOT NULL DEFAULT 'Invoice',
+  internal_reference VARCHAR(100),
+  external_reference VARCHAR(100),
+  is_active BOOLEAN DEFAULT TRUE,
+  is_debit_order BOOLEAN DEFAULT FALSE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME,
+  created_by_user_id BIGINT,
+  updated_by_user_id BIGINT,
+  notes TEXT,
+  invoice_type VARCHAR(50)
+);
+```
+
+#### **2. Create Standing Instructions System**
+```sql
+-- NEW TABLE: Invoice instructions for recurring billing
+CREATE TABLE invoice_instructions (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  payprop_id VARCHAR(50) UNIQUE,
+  property_id BIGINT NOT NULL,
+  tenant_id BIGINT,
+  category_id VARCHAR(50),
+  amount DECIMAL(15,2),
+  description TEXT,
+  frequency VARCHAR(50),
+  frequency_code VARCHAR(20),
+  from_date DATE,
+  to_date DATE,
+  payment_day INT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  modified_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  property_name VARCHAR(255),
+  tenant_name VARCHAR(255),
+  category_name VARCHAR(255),
+  sync_status VARCHAR(20) DEFAULT 'active'
+);
+```
+
+#### **3. Update Transaction Type Constraints**
+```sql
+-- Add missing credit_note and debit_note transaction types
+ALTER TABLE financial_transactions DROP CONSTRAINT chk_transaction_type;
+ALTER TABLE financial_transactions ADD CONSTRAINT chk_transaction_type CHECK (
+  transaction_type IN (
+    'invoice', 'credit_note', 'debit_note', 'deposit',
+    'commission_payment', 'payment_to_beneficiary', 'payment_to_agency',
+    'payment_to_contractor', 'payment_property_account',
+    'payment_deposit_account', 'refund', 'adjustment', 'transfer'
+  )
+);
+```
+
 ## Conclusions and Recommendations
 
-### Current Status ✅
-- CSV data successfully imported (218 records)
-- Property linkage established (203/218 records)
-- Transaction types mapped to PayProp constraints
-- Basic financial data available for reporting
+### Current Status ⚠️ CRITICAL
+- **Database Structure**: INCOMPLETE - Missing 95% of invoice system
+- **Financial Reporting**: BROKEN - Cannot generate statements
+- **Property Owner Portal**: FAILING - Core features non-functional
+- **Data Integrity**: COMPROMISED - Missing relational constraints
 
-### Missing Components ⚠️
-1. **Dual-entry system**: Need both invoices and payments for each transaction
-2. **Commission splitting**: Individual transactions should split into commission + net components
-3. **PayProp payment table**: Should populate `payprop_report_all_payments` for dashboard compatibility
-4. **Beneficiary relationships**: Missing property owner payment flow records
+### Immediate Actions Required 🚨
+1. **URGENT**: Execute complete invoice table migration
+2. **URGENT**: Create invoice_instructions table for standing orders
+3. **URGENT**: Add credit/debit note transaction types
+4. **URGENT**: Test all financial statement generation functions
 
-### Next Steps 🎯
-1. Implement complete payment flow generation from CSV data
-2. Create corresponding `payprop_report_all_payments` entries
-3. Verify financial dashboard functionality with dual-entry data
-4. Establish automated commission calculation based on property-specific rates
+### Long-term Fixes 🎯
+1. Import standing instructions from old database (244 records)
+2. Implement automated invoice generation from standing instructions
+3. Create complete invoice lifecycle management
+4. Establish proper invoice-to-payment reconciliation
 
 ---
 
-*Analysis completed: 2025-01-16*
-*Database schemas: PayProp v2024 + Custom Extensions*
-*CSV source: Historical transaction data (Jan-Aug 2025)*
+*Analysis completed: 2025-09-17*
+*Critical database structure gaps identified and urgent fixes prioritized*
+*Old database: ballast.proxy.rlwy.net (244 standing instructions, 2,971 actual invoices)*
+*New database: switchyard.proxy.rlwy.net (incomplete structure causing system failures)*
