@@ -2321,6 +2321,14 @@ public class PropertyOwnerController {
     }
 
     /**
+     * Redirect GET requests to statements page
+     */
+    @GetMapping("/property-owner/generate-statement-xlsx")
+    public String redirectToStatements() {
+        return "redirect:/property-owner/statements";
+    }
+
+    /**
      * Property Owner Generate Statement (Local XLSX Download)
      */
     @PostMapping("/property-owner/generate-statement-xlsx")
