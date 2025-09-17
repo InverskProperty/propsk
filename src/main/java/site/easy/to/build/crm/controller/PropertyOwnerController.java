@@ -1572,8 +1572,15 @@ public class PropertyOwnerController {
             
             // ✅ FIXED: Handle case where database returns nested Object[] instead of individual values
             if (value instanceof Object[]) {
-                System.out.println("⚠️ WARNING: Received nested Object[] at index " + index + ", database query may have returned no results");
-                return BigDecimal.ZERO;
+                Object[] nestedArray = (Object[]) value;
+                System.out.println("🔄 FIXING: Detected nested Object[] with " + nestedArray.length + " elements, extracting index " + index);
+                if (nestedArray.length > index && nestedArray[index] != null) {
+                    value = nestedArray[index];
+                    System.out.println("🔄 FIXED: Extracted value: " + value + " (Type: " + value.getClass().getSimpleName() + ")");
+                } else {
+                    System.out.println("⚠️ WARNING: Nested array doesn't have index " + index + " or value is null");
+                    return BigDecimal.ZERO;
+                }
             }
             
             // Handle different types that might be returned from the database
@@ -1620,8 +1627,15 @@ public class PropertyOwnerController {
             
             // ✅ FIXED: Handle case where database returns nested Object[] instead of individual values
             if (value instanceof Object[]) {
-                System.out.println("⚠️ WARNING: Received nested Object[] at index " + index + ", database query may have returned no results");
-                return 0L;
+                Object[] nestedArray = (Object[]) value;
+                System.out.println("🔄 FIXING: Detected nested Object[] with " + nestedArray.length + " elements for transaction count, extracting index " + index);
+                if (nestedArray.length > index && nestedArray[index] != null) {
+                    value = nestedArray[index];
+                    System.out.println("🔄 FIXED: Extracted transaction count: " + value + " (Type: " + value.getClass().getSimpleName() + ")");
+                } else {
+                    System.out.println("⚠️ WARNING: Nested array doesn't have index " + index + " or value is null");
+                    return 0L;
+                }
             }
             
             if (value instanceof Number) {
