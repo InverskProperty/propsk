@@ -105,7 +105,7 @@ public class GoogleSheetsServiceAccountService {
 
         for (Property property : properties) {
             List<FinancialTransaction> transactions = financialTransactionRepository
-                .findByPropertyIdAndDateBetween(property.getPropertyId(), fromDate, toDate);
+                .findByPropertyIdAndTransactionDateBetween(property.getPayPropId(), fromDate, toDate);
 
             BigDecimal propertyIncome = transactions.stream()
                 .filter(t -> t.getAmount() != null && t.getAmount().compareTo(BigDecimal.ZERO) > 0)
@@ -136,7 +136,7 @@ public class GoogleSheetsServiceAccountService {
 
         for (Property property : properties) {
             List<FinancialTransaction> transactions = financialTransactionRepository
-                .findByPropertyIdAndDateBetween(property.getPropertyId(), fromDate, toDate);
+                .findByPropertyIdAndTransactionDateBetween(property.getPayPropId(), fromDate, toDate);
 
             BigDecimal propertyIncome = transactions.stream()
                 .filter(t -> t.getAmount() != null && t.getAmount().compareTo(BigDecimal.ZERO) > 0)
@@ -151,8 +151,8 @@ public class GoogleSheetsServiceAccountService {
             BigDecimal propertyNet = propertyIncome.subtract(propertyExpenses);
 
             values.add(Arrays.asList(
-                property.getPropertyName() != null ? property.getPropertyName() : "Property " + property.getPropertyId(),
-                property.getAddress() != null ? property.getAddress() : "No address",
+                property.getPropertyName() != null ? property.getPropertyName() : "Property " + property.getPayPropId(),
+                property.getFullAddress() != null ? property.getFullAddress() : "No address",
                 "£" + propertyIncome.setScale(2, BigDecimal.ROUND_HALF_UP),
                 "£" + propertyExpenses.setScale(2, BigDecimal.ROUND_HALF_UP),
                 "£" + propertyNet.setScale(2, BigDecimal.ROUND_HALF_UP)
@@ -209,8 +209,8 @@ public class GoogleSheetsServiceAccountService {
         // Tenant info
         values.add(Arrays.asList("Tenant:", getCustomerName(tenant)));
         if (property != null) {
-            values.add(Arrays.asList("Property:", property.getPropertyName() != null ? property.getPropertyName() : "Property " + property.getPropertyId()));
-            values.add(Arrays.asList("Address:", property.getAddress() != null ? property.getAddress() : "No address"));
+            values.add(Arrays.asList("Property:", property.getPropertyName() != null ? property.getPropertyName() : "Property " + property.getPayPropId()));
+            values.add(Arrays.asList("Address:", property.getFullAddress() != null ? property.getFullAddress() : "No address"));
         }
         values.add(Arrays.asList("Period:", fromDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) +
                                           " to " + toDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))));
@@ -220,7 +220,7 @@ public class GoogleSheetsServiceAccountService {
         // Transaction details
         if (property != null) {
             List<FinancialTransaction> transactions = financialTransactionRepository
-                .findByPropertyIdAndDateBetween(property.getPropertyId(), fromDate, toDate);
+                .findByPropertyIdAndTransactionDateBetween(property.getPayPropId(), fromDate, toDate);
 
             values.add(Arrays.asList("TRANSACTIONS"));
             values.add(Arrays.asList("Date", "Description", "Amount", "Type"));
