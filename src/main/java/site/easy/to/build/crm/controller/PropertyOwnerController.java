@@ -1404,17 +1404,44 @@ public class PropertyOwnerController {
             }
 
             // Property status calculations
-            enhanced.put("monthlyRent", property.getMonthlyPaymentRequired() != null ? property.getMonthlyPaymentRequired() : BigDecimal.ZERO);
+            enhanced.put("monthlyRent", property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO);
             enhanced.put("valuation", property.getEstimatedCurrentValue() != null ? property.getEstimatedCurrentValue() : BigDecimal.ZERO);
 
             // Calculate ROI if valuation exists
             BigDecimal valuation = (BigDecimal) enhanced.get("valuation");
             BigDecimal totalRent = (BigDecimal) enhanced.get("totalRent");
-            if (valuation.compareTo(BigDecimal.ZERO) > 0 && totalRent.compareTo(BigDecimal.ZERO) > 0) {
+
+            // Valuation data availability check
+            boolean hasValuationData = valuation.compareTo(BigDecimal.ZERO) > 0;
+            enhanced.put("hasValuationData", hasValuationData);
+
+            if (hasValuationData && totalRent.compareTo(BigDecimal.ZERO) > 0) {
                 BigDecimal roi = totalRent.multiply(BigDecimal.valueOf(100)).divide(valuation, 2, RoundingMode.HALF_UP);
                 enhanced.put("roi", roi.toString() + "%");
+
+                // Add valuation-related fields
+                enhanced.put("estimatedCurrentValue", valuation);
+                enhanced.put("totalAcquisitionCost", property.getTotalAcquisitionCost() != null ? property.getTotalAcquisitionCost() : BigDecimal.ZERO);
+                enhanced.put("annualRentalYield", roi);
+
+                // Calculate capital gain if we have acquisition cost
+                BigDecimal acquisitionCost = (BigDecimal) enhanced.get("totalAcquisitionCost");
+                if (acquisitionCost.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal capitalGain = valuation.subtract(acquisitionCost);
+                    BigDecimal capitalGainPercentage = capitalGain.multiply(BigDecimal.valueOf(100)).divide(acquisitionCost, 2, RoundingMode.HALF_UP);
+                    enhanced.put("estimatedCapitalGain", capitalGain);
+                    enhanced.put("estimatedCapitalGainPercentage", capitalGainPercentage);
+                } else {
+                    enhanced.put("estimatedCapitalGain", BigDecimal.ZERO);
+                    enhanced.put("estimatedCapitalGainPercentage", BigDecimal.ZERO);
+                }
             } else {
                 enhanced.put("roi", "N/A");
+                enhanced.put("estimatedCurrentValue", BigDecimal.ZERO);
+                enhanced.put("totalAcquisitionCost", BigDecimal.ZERO);
+                enhanced.put("annualRentalYield", BigDecimal.ZERO);
+                enhanced.put("estimatedCapitalGain", BigDecimal.ZERO);
+                enhanced.put("estimatedCapitalGainPercentage", BigDecimal.ZERO);
             }
 
             // Property status
