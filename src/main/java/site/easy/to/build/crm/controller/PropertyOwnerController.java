@@ -46,8 +46,12 @@ import java.util.*;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import site.easy.to.build.crm.service.statements.XLSXStatementService;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -79,6 +83,10 @@ public class PropertyOwnerController {
     // NEW PORTFOLIO SERVICE - Add this one only
     @Autowired(required = false)
     private PortfolioService portfolioService;
+
+    // XLSX Statement Service for local file generation
+    @Autowired
+    private XLSXStatementService xlsxStatementService;
 
     @Autowired
     public PropertyOwnerController(PropertyService propertyService,
@@ -2316,30 +2324,46 @@ public class PropertyOwnerController {
      * Property Owner Generate Statement (Local XLSX Download)
      */
     @PostMapping("/property-owner/generate-statement-xlsx")
-    public String generateStatementXLSX(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
-                                       @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
-                                       Authentication authentication,
-                                       RedirectAttributes redirectAttributes) {
+    public ResponseEntity<byte[]> generateStatementXLSX(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+                                                        @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+                                                        Authentication authentication) {
         System.out.println("📊 Property Owner Generate Statement (XLSX) - Starting...");
 
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
             if (customer == null) {
-                redirectAttributes.addFlashAttribute("error", "Authentication required");
-                return "redirect:/customer-login";
+                throw new RuntimeException("Authentication required");
             }
 
-            // Redirect to the XLSX statement controller (no Google auth required)
-            System.out.println("✅ Redirecting to XLSX statement generation with customer: " + customer.getCustomerId());
-            redirectAttributes.addAttribute("propertyOwnerId", customer.getCustomerId().intValue());
-            redirectAttributes.addAttribute("fromDate", fromDate);
-            redirectAttributes.addAttribute("toDate", toDate);
-            return "redirect:/statements/property-owner/xlsx";
+            System.out.println("✅ Generating XLSX statement for customer: " + customer.getCustomerId());
+
+            // Use the XLSXStatementService directly
+            byte[] xlsxContent = xlsxStatementService.generatePropertyOwnerStatementXLSX(
+                customer, fromDate, toDate
+            );
+
+            // Set response headers for file download
+            String filename = String.format("property-owner-statement_%s_%s_to_%s.xlsx",
+                customer.getName() != null ? customer.getName().replaceAll("[^a-zA-Z0-9]", "_") : "statement",
+                fromDate.toString(), toDate.toString());
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+            headers.setContentDispositionFormData("attachment", filename);
+            headers.setContentLength(xlsxContent.length);
+
+            System.out.println("✅ XLSX statement generated successfully, file size: " + xlsxContent.length + " bytes");
+            return ResponseEntity.ok().headers(headers).body(xlsxContent);
 
         } catch (Exception e) {
             System.err.println("❌ Error generating XLSX statement: " + e.getMessage());
-            redirectAttributes.addFlashAttribute("error", "Error generating statement: " + e.getMessage());
-            return "redirect:/property-owner/statements";
+            e.printStackTrace();
+
+            // Return error response
+            String errorMessage = "Error generating statement: " + e.getMessage();
+            return ResponseEntity.status(500)
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(errorMessage.getBytes());
         }
     }
     
@@ -2385,30 +2409,46 @@ public class PropertyOwnerController {
      * Property Owner Generate Portfolio Statement (Local XLSX Download)
      */
     @PostMapping("/property-owner/generate-portfolio-xlsx")
-    public String generatePortfolioXLSX(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
-                                       @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
-                                       Authentication authentication,
-                                       RedirectAttributes redirectAttributes) {
+    public ResponseEntity<byte[]> generatePortfolioXLSX(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+                                                        @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+                                                        Authentication authentication) {
         System.out.println("📊 Property Owner Generate Portfolio (XLSX) - Starting...");
 
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
             if (customer == null) {
-                redirectAttributes.addFlashAttribute("error", "Authentication required");
-                return "redirect:/customer-login";
+                throw new RuntimeException("Authentication required");
             }
 
-            // Redirect to the XLSX portfolio controller (no Google auth required)
-            System.out.println("✅ Redirecting to XLSX portfolio generation with customer: " + customer.getCustomerId());
-            redirectAttributes.addAttribute("propertyOwnerId", customer.getCustomerId().intValue());
-            redirectAttributes.addAttribute("fromDate", fromDate);
-            redirectAttributes.addAttribute("toDate", toDate);
-            return "redirect:/statements/property-owner/xlsx";  // Same XLSX endpoint handles both individual and portfolio
+            System.out.println("✅ Generating XLSX portfolio for customer: " + customer.getCustomerId());
+
+            // Use the XLSXStatementService directly for portfolio generation
+            byte[] xlsxContent = xlsxStatementService.generatePortfolioStatementXLSX(
+                customer, fromDate, toDate
+            );
+
+            // Set response headers for file download
+            String filename = String.format("portfolio-statement_%s_%s_to_%s.xlsx",
+                customer.getName() != null ? customer.getName().replaceAll("[^a-zA-Z0-9]", "_") : "portfolio",
+                fromDate.toString(), toDate.toString());
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+            headers.setContentDispositionFormData("attachment", filename);
+            headers.setContentLength(xlsxContent.length);
+
+            System.out.println("✅ XLSX portfolio generated successfully, file size: " + xlsxContent.length + " bytes");
+            return ResponseEntity.ok().headers(headers).body(xlsxContent);
 
         } catch (Exception e) {
             System.err.println("❌ Error generating XLSX portfolio: " + e.getMessage());
-            redirectAttributes.addFlashAttribute("error", "Error generating portfolio: " + e.getMessage());
-            return "redirect:/property-owner/statements";
+            e.printStackTrace();
+
+            // Return error response
+            String errorMessage = "Error generating portfolio: " + e.getMessage();
+            return ResponseEntity.status(500)
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(errorMessage.getBytes());
         }
     }
     
