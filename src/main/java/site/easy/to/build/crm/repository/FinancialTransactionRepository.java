@@ -519,7 +519,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     @Query(value = "(" +
            // Financial transactions (existing outgoing transactions)
            "SELECT ft.id, ft.transaction_date, ft.property_name, ft.transaction_type, " +
-           "       ft.amount, ft.commission_amount, ft.net_to_owner_amount, ft.description, " +
+           "       ft.amount, ft.commission_amount, ft.actual_commission_amount, ft.net_to_owner_amount, ft.description, " +
            "       ft.payprop_batch_id, 'financial_transaction' as source_table " +
            "FROM financial_transactions ft " +
            "WHERE ft.property_id IN (" +
@@ -537,6 +537,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "  'tenant_payment' as transaction_type, " +
            "  prap.incoming_transaction_amount as amount, " +
            "  NULL as commission_amount, " +
+           "  NULL as actual_commission_amount, " +
            "  NULL as net_to_owner_amount, " +
            "  CONCAT('Payment from ', prap.incoming_tenant_name, ' - ', COALESCE(prap.incoming_transaction_type, 'Rent')) as description, " +
            "  prap.payment_batch_id as payprop_batch_id, " +
@@ -576,7 +577,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
     @Query(value = "(" +
            // Financial transactions (existing outgoing transactions) 
            "SELECT ft.id, ft.transaction_date, ft.property_name, ft.transaction_type, " +
-           "       ft.amount, ft.commission_amount, ft.net_to_owner_amount, ft.description, " +
+           "       ft.amount, ft.commission_amount, ft.actual_commission_amount, ft.net_to_owner_amount, ft.description, " +
            "       ft.payprop_batch_id, ft.property_id, 'financial_transaction' as source_table " +
            "FROM financial_transactions ft " +
            "WHERE ft.property_id = :propertyId " +
@@ -590,6 +591,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "  'tenant_payment' as transaction_type, " +
            "  prap.incoming_transaction_amount as amount, " +
            "  NULL as commission_amount, " +
+           "  NULL as actual_commission_amount, " +
            "  NULL as net_to_owner_amount, " +
            "  CONCAT('Payment from ', prap.incoming_tenant_name, ' - ', COALESCE(prap.incoming_transaction_type, 'Rent')) as description, " +
            "  prap.payment_batch_id as payprop_batch_id, " +
