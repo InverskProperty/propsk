@@ -1,0 +1,33 @@
+/* Material Design Icons CSS */
+@font-face {
+    font-family: 'Material Design Icons';
+    src: url('../fonts/materialdesignicons-webfont.eot?v=5.4.55');
+    src: url('../fonts/materialdesignicons-webfont.eot?#iefix&v=5.4.55') format('embedded-opentype'),
+         url('../fonts/materialdesignicons-webfont.woff2?v=5.4.55') format('woff2'),
+         url('../fonts/materialdesignicons-webfont.woff?v=5.4.55') format('woff'),
+         url('../fonts/materialdesignicons-webfont.ttf?v=5.4.55') format('truetype'),
+         url('../fonts/materialdesignicons-webfont.svg?v=5.4.55#materialdesignicons') format('svg');
+    font-weight: normal;
+    font-style: normal;
+}
+
+.mdi:before,
+.mdi-set {
+    display: inline-block;
+    font: normal normal normal 24px/1 "Material Design Icons";
+    font-size: inherit;
+    text-rendering: auto;
+    line-height: inherit;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Additional icon classes can be added here */
+.fa {
+    display: inline-block;
+    font: normal normal normal 14px/1 FontAwesome;
+    font-size: inherit;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}

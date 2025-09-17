@@ -180,11 +180,11 @@
 		     FILE PROCESSING & UTILITIES
 		     ===================================== -->
 
-		<!-- Apache Commons IO for file operations -->
+		<!-- Apache Commons IO for file operations - Updated for POI 5.2.4 compatibility -->
 		<dependency>
 			<groupId>commons-io</groupId>
 			<artifactId>commons-io</artifactId>
-			<version>2.11.0</version>
+			<version>2.13.0</version>
 		</dependency>
 
 		<!-- Apache Commons FileUpload for multipart file handling -->
