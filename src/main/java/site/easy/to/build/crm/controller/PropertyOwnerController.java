@@ -44,6 +44,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
+import site.easy.to.build.crm.repository.InvoiceRepository;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -1207,14 +1208,13 @@ public class PropertyOwnerController {
                 .map(Property::getMonthlyPayment)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            // Count occupied properties based on whether they have recent transactions (activity in last 3 months)
+            // Count occupied properties based on whether they have active invoices
             long occupiedPropertiesCount = enhancedProperties.stream()
-                .mapToLong(ep -> (Long) ep.getOrDefault("transactionCount", 0L))
-                .filter(count -> count > 0)
-                .count();
+                .mapToLong(ep -> (Boolean) ep.getOrDefault("isOccupied", false) ? 1L : 0L)
+                .sum();
 
             BigDecimal actualMonthlyRent = enhancedProperties.stream()
-                .filter(ep -> (Long) ep.getOrDefault("transactionCount", 0L) > 0)
+                .filter(ep -> (Boolean) ep.getOrDefault("isOccupied", false))
                 .map(ep -> {
                     String payPropId = (String) ep.get("payPropId");
                     return properties.stream()
@@ -1584,9 +1584,15 @@ public class PropertyOwnerController {
                 enhanced.put("estimatedCapitalGainPercentage", BigDecimal.ZERO);
             }
 
-            // Property status
-            enhanced.put("status", property.getStatus() != null ? property.getStatus() : "ACTIVE");
-            enhanced.put("isOccupied", property.getStatus() != null && property.getStatus().equals("OCCUPIED"));
+            // Property status - determine occupancy based on active invoices (proper tenant relationship)
+            boolean hasActiveInvoice = invoiceRepository.findActiveInvoicesForProperty(property, LocalDate.now()).size() > 0;
+            String propertyStatus = hasActiveInvoice ? "Occupied" : "Vacant";
+
+            enhanced.put("status", propertyStatus);
+            enhanced.put("isOccupied", hasActiveInvoice);
+
+            System.out.println("🏠 Property '" + property.getPropertyName() + "' status: " + propertyStatus +
+                             " (based on active invoices: " + hasActiveInvoice + ")");
 
             // Portfolio names (placeholder - would need portfolio service integration)
             enhanced.put("portfolioNames", "");
