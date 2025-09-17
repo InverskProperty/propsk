@@ -1119,7 +1119,7 @@ public class PropertyOwnerController {
             }
 
             // 🏠 Create enhanced properties data with financial metrics
-            List<Map<String, Object>> enhancedProperties = createEnhancedPropertiesData(properties, propertyBreakdown);
+            List<Map<String, Object>> enhancedProperties = createEnhancedPropertiesData(properties, propertyBreakdown, portfolios);
 
             // 📅 Add maintenance statistics
             Map<String, Object> maintenanceStats;
@@ -1368,7 +1368,7 @@ public class PropertyOwnerController {
     /**
      * Create enhanced properties data with financial metrics for Property Performance table
      */
-    private List<Map<String, Object>> createEnhancedPropertiesData(List<Property> properties, List<Object[]> propertyBreakdown) {
+    private List<Map<String, Object>> createEnhancedPropertiesData(List<Property> properties, List<Object[]> propertyBreakdown, List<Portfolio> portfolios) {
         List<Map<String, Object>> enhancedProperties = new ArrayList<>();
 
         // Create a map of property breakdown data by property ID for quick lookup
@@ -1386,20 +1386,21 @@ public class PropertyOwnerController {
             // Basic property info
             enhanced.put("property", property);
             enhanced.put("propertyName", property.getPropertyName());
+            enhanced.put("payPropId", property.getPayPropId());
             enhanced.put("id", property.getId());
 
             // Get financial data from breakdown
             Object[] breakdown = breakdownMap.get(property.getPayPropId());
-            if (breakdown != null && breakdown.length >= 4) {
-                enhanced.put("totalRent", parseObjectValue(breakdown[1], BigDecimal.ZERO));
-                enhanced.put("commission", parseObjectValue(breakdown[2], BigDecimal.ZERO));
-                enhanced.put("netToOwner", parseObjectValue(breakdown[3], BigDecimal.ZERO));
-                enhanced.put("transactions", parseObjectValue(breakdown[4], 0L));
+            if (breakdown != null && breakdown.length >= 6) {
+                enhanced.put("totalRent", parseObjectValue(breakdown[2], BigDecimal.ZERO));
+                enhanced.put("totalCommission", parseObjectValue(breakdown[3], BigDecimal.ZERO));
+                enhanced.put("totalNetToOwner", parseObjectValue(breakdown[4], BigDecimal.ZERO));
+                enhanced.put("transactionCount", parseObjectValue(breakdown[5], 0L));
             } else {
                 enhanced.put("totalRent", BigDecimal.ZERO);
-                enhanced.put("commission", BigDecimal.ZERO);
-                enhanced.put("netToOwner", BigDecimal.ZERO);
-                enhanced.put("transactions", 0L);
+                enhanced.put("totalCommission", BigDecimal.ZERO);
+                enhanced.put("totalNetToOwner", BigDecimal.ZERO);
+                enhanced.put("transactionCount", 0L);
             }
 
             // Property status calculations
@@ -1418,6 +1419,22 @@ public class PropertyOwnerController {
 
             // Property status
             enhanced.put("status", property.getStatus() != null ? property.getStatus() : "ACTIVE");
+
+            // Portfolio names (placeholder - would need portfolio service integration)
+            enhanced.put("portfolioNames", "");
+
+            // Performance rating based on financial data
+            BigDecimal propertyTotalRent = (BigDecimal) enhanced.get("totalRent");
+            Long propertyTransactionCount = (Long) enhanced.get("transactionCount");
+            if (propertyTotalRent.compareTo(BigDecimal.valueOf(1000)) >= 0 && propertyTransactionCount >= 10) {
+                enhanced.put("performanceRating", "excellent");
+            } else if (propertyTotalRent.compareTo(BigDecimal.valueOf(500)) >= 0 && propertyTransactionCount >= 5) {
+                enhanced.put("performanceRating", "good");
+            } else if (propertyTotalRent.compareTo(BigDecimal.ZERO) > 0) {
+                enhanced.put("performanceRating", "average");
+            } else {
+                enhanced.put("performanceRating", "poor");
+            }
 
             enhancedProperties.add(enhanced);
         }
