@@ -98,13 +98,19 @@
                     </div>
                 </div>
 
-                <!-- Statement Generation (only show if Google auth is available) -->
-                <div th:if="${hasGoogleAuth}" class="row">
+                <!-- Statement Generation -->
+                <div class="row">
                     <div class="col-12">
                         <div class="card">
                             <div class="card-header">
                                 <h4 class="card-title">Generate Statements</h4>
-                                <p class="text-muted">Create rental statements and financial reports in Google Sheets</p>
+                                <p class="text-muted">Create rental statements and financial reports</p>
+                                <div th:if="${supportsBothFormats}" class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i>
+                                    <strong>Two Format Options Available:</strong>
+                                    <span th:if="${hasGoogleAuth}">Google Sheets (cloud) and</span>
+                                    XLSX Download (local file)
+                                </div>
                             </div>
                             <div class="card-body">
                                 <!-- Property Owner Statement -->
@@ -113,31 +119,46 @@
                                         <div class="col-md-8">
                                             <h5><i class="fas fa-user-tie text-primary"></i> Property Owner Statement</h5>
                                             <p class="text-muted">Generate a comprehensive financial statement for your property portfolio including income, expenses, and net profit analysis.</p>
-                                            
-                                            <form action="/property-owner/generate-statement" method="post" class="mt-3">
-                                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                                            <!-- Form Fields (shared by both buttons) -->
+                                            <div class="mt-3" id="propertyOwnerForm">
                                                 <div class="row">
                                                     <div class="col-md-4">
                                                         <label for="fromDate1">From Date:</label>
-                                                        <input type="date" id="fromDate1" name="fromDate" class="form-control" 
+                                                        <input type="date" id="fromDate1" name="fromDate" class="form-control"
                                                                th:value="${defaultFromDate}" required>
                                                     </div>
                                                     <div class="col-md-4">
                                                         <label for="toDate1">To Date:</label>
-                                                        <input type="date" id="toDate1" name="toDate" class="form-control" 
+                                                        <input type="date" id="toDate1" name="toDate" class="form-control"
                                                                th:value="${defaultToDate}" required>
                                                     </div>
                                                     <div class="col-md-4">
                                                         <label>Property Owner:</label>
-                                                        <input type="hidden" name="propertyOwnerId" th:value="${customer.customerId}">
+                                                        <input type="hidden" id="propertyOwnerId1" name="propertyOwnerId" th:value="${customer.customerId}">
                                                         <input type="text" class="form-control" th:value="${customer.name}" disabled>
                                                         <small class="text-muted">Your account</small>
                                                     </div>
                                                 </div>
-                                                <button type="submit" class="btn btn-primary mt-3">
-                                                    <i class="fas fa-file-excel"></i> Generate Property Owner Statement
-                                                </button>
-                                            </form>
+
+                                                <!-- Button Group -->
+                                                <div class="mt-3">
+                                                    <!-- XLSX Download Button (always available) -->
+                                                    <button type="button" class="btn btn-primary me-2" onclick="generatePropertyOwnerXLSX()">
+                                                        <i class="fas fa-download"></i> Download XLSX Statement
+                                                    </button>
+
+                                                    <!-- Google Sheets Button (only if authenticated) -->
+                                                    <button th:if="${hasGoogleAuth}" type="button" class="btn btn-success" onclick="generatePropertyOwnerSheets()">
+                                                        <i class="fab fa-google"></i> Create Google Sheet
+                                                    </button>
+
+                                                    <!-- Auth prompt if no Google auth -->
+                                                    <a th:unless="${hasGoogleAuth}" href="/oauth2/authorization/google" class="btn btn-outline-success">
+                                                        <i class="fab fa-google"></i> Connect Google for Sheets
+                                                    </a>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div class="col-md-4 text-center">
                                             <i class="fas fa-chart-line fa-3x text-primary mb-3"></i>
@@ -158,31 +179,46 @@
                                         <div class="col-md-8">
                                             <h5><i class="fas fa-briefcase text-success"></i> Portfolio Statement</h5>
                                             <p class="text-muted">Generate a detailed portfolio analysis with property performance metrics, maintenance costs, and investment returns.</p>
-                                            
-                                            <form action="/property-owner/generate-portfolio" method="post" class="mt-3">
-                                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                                            <!-- Form Fields (shared by both buttons) -->
+                                            <div class="mt-3" id="portfolioForm">
                                                 <div class="row">
                                                     <div class="col-md-4">
                                                         <label for="fromDate3">From Date:</label>
-                                                        <input type="date" id="fromDate3" name="fromDate" class="form-control" 
+                                                        <input type="date" id="fromDate3" name="fromDate" class="form-control"
                                                                th:value="${defaultFromDate}" required>
                                                     </div>
                                                     <div class="col-md-4">
                                                         <label for="toDate3">To Date:</label>
-                                                        <input type="date" id="toDate3" name="toDate" class="form-control" 
+                                                        <input type="date" id="toDate3" name="toDate" class="form-control"
                                                                th:value="${defaultToDate}" required>
                                                     </div>
                                                     <div class="col-md-4">
                                                         <label>Property Owner:</label>
-                                                        <input type="hidden" name="propertyOwnerId" th:value="${customer.customerId}">
+                                                        <input type="hidden" id="propertyOwnerId3" name="propertyOwnerId" th:value="${customer.customerId}">
                                                         <input type="text" class="form-control" th:value="${customer.name}" disabled>
                                                         <small class="text-muted">Your portfolio</small>
                                                     </div>
                                                 </div>
-                                                <button type="submit" class="btn btn-success mt-3">
-                                                    <i class="fas fa-chart-pie"></i> Generate Portfolio Statement
-                                                </button>
-                                            </form>
+
+                                                <!-- Button Group -->
+                                                <div class="mt-3">
+                                                    <!-- XLSX Download Button (always available) -->
+                                                    <button type="button" class="btn btn-success me-2" onclick="generatePortfolioXLSX()">
+                                                        <i class="fas fa-download"></i> Download Portfolio XLSX
+                                                    </button>
+
+                                                    <!-- Google Sheets Button (only if authenticated) -->
+                                                    <button th:if="${hasGoogleAuth}" type="button" class="btn btn-info" onclick="generatePortfolioSheets()">
+                                                        <i class="fab fa-google"></i> Create Google Sheet
+                                                    </button>
+
+                                                    <!-- Auth prompt if no Google auth -->
+                                                    <a th:unless="${hasGoogleAuth}" href="/oauth2/authorization/google" class="btn btn-outline-info">
+                                                        <i class="fab fa-google"></i> Connect Google for Sheets
+                                                    </a>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div class="col-md-4 text-center">
                                             <i class="fas fa-chart-pie fa-3x text-success mb-3"></i>
@@ -248,6 +284,183 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Statements page loaded for property owner');
         });
+
+        // CSRF Token for form submissions
+        const csrfToken = document.querySelector('meta[name="_csrf"]')?.getAttribute('content') ||
+                         document.querySelector('input[name="csrf"]')?.value ||
+                         /*[[${_csrf.token}]]*/ '';
+
+        // Property Owner XLSX Generation
+        function generatePropertyOwnerXLSX() {
+            const fromDate = document.getElementById('fromDate1').value;
+            const toDate = document.getElementById('toDate1').value;
+            const propertyOwnerId = document.getElementById('propertyOwnerId1').value;
+
+            if (!fromDate || !toDate) {
+                alert('Please select both from and to dates');
+                return;
+            }
+
+            // Create a form and submit it for XLSX download
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/property-owner/generate-statement-xlsx';
+
+            // Add CSRF token
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = /*[[${_csrf.parameterName}]]*/ 'csrf';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+
+            // Add form fields
+            const fields = [
+                { name: 'fromDate', value: fromDate },
+                { name: 'toDate', value: toDate },
+                { name: 'propertyOwnerId', value: propertyOwnerId }
+            ];
+
+            fields.forEach(field => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = field.name;
+                input.value = field.value;
+                form.appendChild(input);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
+
+        // Property Owner Google Sheets Generation
+        function generatePropertyOwnerSheets() {
+            const fromDate = document.getElementById('fromDate1').value;
+            const toDate = document.getElementById('toDate1').value;
+            const propertyOwnerId = document.getElementById('propertyOwnerId1').value;
+
+            if (!fromDate || !toDate) {
+                alert('Please select both from and to dates');
+                return;
+            }
+
+            // Create a form and submit it for Google Sheets
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/property-owner/generate-statement';
+
+            // Add CSRF token
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = /*[[${_csrf.parameterName}]]*/ 'csrf';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+
+            // Add form fields
+            const fields = [
+                { name: 'fromDate', value: fromDate },
+                { name: 'toDate', value: toDate },
+                { name: 'propertyOwnerId', value: propertyOwnerId }
+            ];
+
+            fields.forEach(field => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = field.name;
+                input.value = field.value;
+                form.appendChild(input);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
+
+        // Portfolio XLSX Generation
+        function generatePortfolioXLSX() {
+            const fromDate = document.getElementById('fromDate3').value;
+            const toDate = document.getElementById('toDate3').value;
+            const propertyOwnerId = document.getElementById('propertyOwnerId3').value;
+
+            if (!fromDate || !toDate) {
+                alert('Please select both from and to dates');
+                return;
+            }
+
+            // Create a form and submit it for XLSX download
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/property-owner/generate-portfolio-xlsx';
+
+            // Add CSRF token
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = /*[[${_csrf.parameterName}]]*/ 'csrf';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+
+            // Add form fields
+            const fields = [
+                { name: 'fromDate', value: fromDate },
+                { name: 'toDate', value: toDate },
+                { name: 'propertyOwnerId', value: propertyOwnerId }
+            ];
+
+            fields.forEach(field => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = field.name;
+                input.value = field.value;
+                form.appendChild(input);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
+
+        // Portfolio Google Sheets Generation
+        function generatePortfolioSheets() {
+            const fromDate = document.getElementById('fromDate3').value;
+            const toDate = document.getElementById('toDate3').value;
+            const propertyOwnerId = document.getElementById('propertyOwnerId3').value;
+
+            if (!fromDate || !toDate) {
+                alert('Please select both from and to dates');
+                return;
+            }
+
+            // Create a form and submit it for Google Sheets
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/property-owner/generate-portfolio';
+
+            // Add CSRF token
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = /*[[${_csrf.parameterName}]]*/ 'csrf';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+
+            // Add form fields
+            const fields = [
+                { name: 'fromDate', value: fromDate },
+                { name: 'toDate', value: toDate },
+                { name: 'propertyOwnerId', value: propertyOwnerId }
+            ];
+
+            fields.forEach(field => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = field.name;
+                input.value = field.value;
+                form.appendChild(input);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
     </script>
 </body>
 </html>

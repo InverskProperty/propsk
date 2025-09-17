@@ -839,19 +839,21 @@ public class PropertyOwnerController {
             
             System.out.println("✅ Loading statements centre for customer: " + customer.getCustomerId());
             
-            // Check OAuth/Google connection
+            // Check OAuth/Google connection (optional for Google Sheets)
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             boolean hasGoogleAuth = (oAuthUser != null && oAuthUser.getAccessToken() != null);
-            
+
             model.addAttribute("customer", customer);
             model.addAttribute("customerId", customer.getCustomerId());
             model.addAttribute("pageTitle", "Statements Centre");
             model.addAttribute("hasGoogleAuth", hasGoogleAuth);
             model.addAttribute("isPropertyOwner", true);
-            
+            model.addAttribute("supportsBothFormats", true); // Enable both XLSX and Google Sheets options
+
+            // No longer show error - users can use XLSX without Google Auth
             if (!hasGoogleAuth) {
-                model.addAttribute("error", "Google account not connected. Please connect your Google account first.");
-                model.addAttribute("googleAuthRequired", true);
+                model.addAttribute("info", "Google account not connected. You can still download XLSX statements or connect Google for Sheets integration.");
+                model.addAttribute("xlsxAvailable", true);
             }
             
             // Get property owner's properties for statement generation
@@ -2272,29 +2274,29 @@ public class PropertyOwnerController {
     }
     
     /**
-     * Property Owner Generate Statement
+     * Property Owner Generate Statement (Google Sheets)
      */
-    @PostMapping("/property-owner/generate-statement") 
+    @PostMapping("/property-owner/generate-statement")
     public String generateStatement(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
                                   @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
                                   Authentication authentication,
                                   RedirectAttributes redirectAttributes) {
-        System.out.println("📊 Property Owner Generate Statement - Starting...");
-        
+        System.out.println("📊 Property Owner Generate Statement (Google Sheets) - Starting...");
+
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
             if (customer == null) {
                 redirectAttributes.addFlashAttribute("error", "Authentication required");
                 return "redirect:/customer-login";
             }
-            
+
             // Check OAuth/Google connection
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
                 redirectAttributes.addFlashAttribute("error", "Google account not connected. Please connect your Google account first.");
                 return "redirect:/property-owner/statements";
             }
-            
+
             // Redirect to the main statement controller's POST endpoint for property owners
             // This allows us to reuse the existing Google Sheets integration
             System.out.println("✅ Redirecting to existing statement generation with customer: " + customer.getCustomerId());
@@ -2302,47 +2304,109 @@ public class PropertyOwnerController {
             redirectAttributes.addAttribute("fromDate", fromDate);
             redirectAttributes.addAttribute("toDate", toDate);
             return "redirect:/statements/property-owner";
-            
+
         } catch (Exception e) {
             System.err.println("❌ Error generating statement: " + e.getMessage());
             redirectAttributes.addFlashAttribute("error", "Error generating statement: " + e.getMessage());
             return "redirect:/property-owner/statements";
         }
     }
-    
+
     /**
-     * Property Owner Generate Portfolio Statement  
+     * Property Owner Generate Statement (Local XLSX Download)
      */
-    @PostMapping("/property-owner/generate-portfolio")
-    public String generatePortfolio(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
-                                  @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
-                                  Authentication authentication,
-                                  RedirectAttributes redirectAttributes) {
-        System.out.println("📊 Property Owner Generate Portfolio - Starting...");
-        
+    @PostMapping("/property-owner/generate-statement-xlsx")
+    public String generateStatementXLSX(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+                                       @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+                                       Authentication authentication,
+                                       RedirectAttributes redirectAttributes) {
+        System.out.println("📊 Property Owner Generate Statement (XLSX) - Starting...");
+
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
             if (customer == null) {
                 redirectAttributes.addFlashAttribute("error", "Authentication required");
                 return "redirect:/customer-login";
             }
-            
+
+            // Redirect to the XLSX statement controller (no Google auth required)
+            System.out.println("✅ Redirecting to XLSX statement generation with customer: " + customer.getCustomerId());
+            redirectAttributes.addAttribute("propertyOwnerId", customer.getCustomerId().intValue());
+            redirectAttributes.addAttribute("fromDate", fromDate);
+            redirectAttributes.addAttribute("toDate", toDate);
+            return "redirect:/statements/property-owner/xlsx";
+
+        } catch (Exception e) {
+            System.err.println("❌ Error generating XLSX statement: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error generating statement: " + e.getMessage());
+            return "redirect:/property-owner/statements";
+        }
+    }
+    
+    /**
+     * Property Owner Generate Portfolio Statement (Google Sheets)
+     */
+    @PostMapping("/property-owner/generate-portfolio")
+    public String generatePortfolio(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+                                  @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+                                  Authentication authentication,
+                                  RedirectAttributes redirectAttributes) {
+        System.out.println("📊 Property Owner Generate Portfolio (Google Sheets) - Starting...");
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                redirectAttributes.addFlashAttribute("error", "Authentication required");
+                return "redirect:/customer-login";
+            }
+
             // Check OAuth/Google connection
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
                 redirectAttributes.addFlashAttribute("error", "Google account not connected. Please connect your Google account first.");
                 return "redirect:/property-owner/statements";
             }
-            
+
             // Redirect to the main statement controller's POST endpoint for portfolio
             System.out.println("✅ Redirecting to existing portfolio generation with customer: " + customer.getCustomerId());
             redirectAttributes.addAttribute("propertyOwnerId", customer.getCustomerId());
             redirectAttributes.addAttribute("fromDate", fromDate);
             redirectAttributes.addAttribute("toDate", toDate);
             return "redirect:/statements/portfolio";
-            
+
         } catch (Exception e) {
             System.err.println("❌ Error generating portfolio: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error generating portfolio: " + e.getMessage());
+            return "redirect:/property-owner/statements";
+        }
+    }
+
+    /**
+     * Property Owner Generate Portfolio Statement (Local XLSX Download)
+     */
+    @PostMapping("/property-owner/generate-portfolio-xlsx")
+    public String generatePortfolioXLSX(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+                                       @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+                                       Authentication authentication,
+                                       RedirectAttributes redirectAttributes) {
+        System.out.println("📊 Property Owner Generate Portfolio (XLSX) - Starting...");
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                redirectAttributes.addFlashAttribute("error", "Authentication required");
+                return "redirect:/customer-login";
+            }
+
+            // Redirect to the XLSX portfolio controller (no Google auth required)
+            System.out.println("✅ Redirecting to XLSX portfolio generation with customer: " + customer.getCustomerId());
+            redirectAttributes.addAttribute("propertyOwnerId", customer.getCustomerId().intValue());
+            redirectAttributes.addAttribute("fromDate", fromDate);
+            redirectAttributes.addAttribute("toDate", toDate);
+            return "redirect:/statements/property-owner/xlsx";  // Same XLSX endpoint handles both individual and portfolio
+
+        } catch (Exception e) {
+            System.err.println("❌ Error generating XLSX portfolio: " + e.getMessage());
             redirectAttributes.addFlashAttribute("error", "Error generating portfolio: " + e.getMessage());
             return "redirect:/property-owner/statements";
         }
