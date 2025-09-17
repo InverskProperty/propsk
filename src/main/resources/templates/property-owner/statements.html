@@ -4,6 +4,8 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
     <title>Statements Centre - Property Owner Portal</title>
     <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
     <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
