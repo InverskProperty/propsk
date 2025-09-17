@@ -4,6 +4,8 @@ package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -17,6 +19,7 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.sheets.GoogleSheetsStatementService;
+import site.easy.to.build.crm.service.statements.XLSXStatementService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.service.user.OAuthUserService;
 
@@ -32,6 +35,7 @@ import java.util.Arrays;
 public class StatementController {
 
     private final GoogleSheetsStatementService statementService;
+    private final XLSXStatementService xlsxStatementService;
     private final CustomerService customerService;
     private final PropertyService propertyService;
     private final OAuthUserService oAuthUserService;
@@ -39,11 +43,13 @@ public class StatementController {
 
     @Autowired
     public StatementController(GoogleSheetsStatementService statementService,
+                             XLSXStatementService xlsxStatementService,
                              CustomerService customerService,
                              PropertyService propertyService,
                              OAuthUserService oAuthUserService,
                              AuthenticationUtils authenticationUtils) {
         this.statementService = statementService;
+        this.xlsxStatementService = xlsxStatementService;
         this.customerService = customerService;
         this.propertyService = propertyService;
         this.oAuthUserService = oAuthUserService;
@@ -378,6 +384,195 @@ public class StatementController {
             redirectAttributes.addFlashAttribute("error", 
                 "Error generating portfolio statement: " + e.getMessage());
             return "redirect:/statements";
+        }
+    }
+
+    // ===== XLSX DOWNLOAD ENDPOINTS =====
+
+    /**
+     * Generate and download property owner statement as XLSX (NO Google authentication required)
+     */
+    @PostMapping("/property-owner/xlsx")
+    public ResponseEntity<byte[]> generatePropertyOwnerStatementXLSX(
+            @RequestParam("propertyOwnerId") Integer propertyOwnerId,
+            @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            Authentication authentication) {
+
+        try {
+            System.out.println("🏢 XLSX: Generating property owner statement for ID: " + propertyOwnerId);
+
+            // Reuse existing authorization logic
+            Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+
+            if (currentCustomer != null && currentCustomer.getIsPropertyOwner() != null && currentCustomer.getIsPropertyOwner()) {
+                if (!currentCustomer.getCustomerId().equals(propertyOwnerId.longValue())) {
+                    System.out.println("❌ XLSX: Authorization failed - customer can only access own statements");
+                    return ResponseEntity.status(403).build();
+                }
+            } else if (!isAdminOrEmployee(authentication)) {
+                System.out.println("❌ XLSX: Authorization failed - not admin/employee and not property owner");
+                return ResponseEntity.status(403).build();
+            }
+
+            Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId.longValue());
+            if (propertyOwner == null) {
+                System.out.println("❌ XLSX: Property owner not found: " + propertyOwnerId);
+                return ResponseEntity.notFound().build();
+            }
+
+            // Generate XLSX using new service
+            byte[] excelData = xlsxStatementService.generatePropertyOwnerStatementXLSX(
+                propertyOwner, fromDate, toDate);
+
+            String filename = String.format("Statement_%s_%s.xlsx",
+                propertyOwner.getName().replaceAll("[^a-zA-Z0-9]", "_"),
+                fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM")));
+
+            System.out.println("✅ XLSX: Generated statement - " + excelData.length + " bytes");
+
+            return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(excelData);
+
+        } catch (Exception e) {
+            System.err.println("❌ XLSX: Error generating property owner statement: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    /**
+     * Handle GET redirects to property owner XLSX statement
+     */
+    @GetMapping("/property-owner/xlsx")
+    public ResponseEntity<byte[]> handlePropertyOwnerXLSXRedirect(
+            @RequestParam("propertyOwnerId") Integer propertyOwnerId,
+            @RequestParam("fromDate") String fromDate,
+            @RequestParam("toDate") String toDate,
+            Authentication authentication) {
+
+        try {
+            // Parse dates - handle both DD/MM/YYYY and YYYY-MM-DD formats
+            LocalDate parsedFromDate, parsedToDate;
+
+            if (fromDate.contains("/")) {
+                String decodedFromDate = fromDate.replace("%2F", "/");
+                String decodedToDate = toDate.replace("%2F", "/");
+
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                parsedFromDate = LocalDate.parse(decodedFromDate, formatter);
+                parsedToDate = LocalDate.parse(decodedToDate, formatter);
+            } else {
+                parsedFromDate = LocalDate.parse(fromDate);
+                parsedToDate = LocalDate.parse(toDate);
+            }
+
+            // Call POST method with parsed dates
+            return generatePropertyOwnerStatementXLSX(propertyOwnerId, parsedFromDate, parsedToDate, authentication);
+
+        } catch (Exception e) {
+            System.err.println("❌ XLSX GET: Error parsing dates or generating statement: " + e.getMessage());
+            return ResponseEntity.status(400).build();
+        }
+    }
+
+    /**
+     * Generate and download tenant statement as XLSX
+     */
+    @PostMapping("/tenant/xlsx")
+    public ResponseEntity<byte[]> generateTenantStatementXLSX(
+            @RequestParam("tenantId") Integer tenantId,
+            @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            Authentication authentication) {
+
+        try {
+            System.out.println("🏠 XLSX: Generating tenant statement for ID: " + tenantId);
+
+            // Check authorization
+            Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+
+            if (currentCustomer != null && currentCustomer.getIsTenant() != null && currentCustomer.getIsTenant()) {
+                if (!currentCustomer.getCustomerId().equals(tenantId.longValue())) {
+                    return ResponseEntity.status(403).build();
+                }
+            } else if (!isAdminOrEmployee(authentication)) {
+                return ResponseEntity.status(403).build();
+            }
+
+            Customer tenant = customerService.findByCustomerId(tenantId.longValue());
+            if (tenant == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Generate XLSX
+            byte[] excelData = xlsxStatementService.generateTenantStatementXLSX(
+                tenant, fromDate, toDate);
+
+            String filename = String.format("Tenant_Statement_%s_%s.xlsx",
+                tenant.getName().replaceAll("[^a-zA-Z0-9]", "_"),
+                fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM")));
+
+            return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(excelData);
+
+        } catch (Exception e) {
+            System.err.println("❌ XLSX: Error generating tenant statement: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    /**
+     * Generate and download portfolio statement as XLSX
+     */
+    @PostMapping("/portfolio/xlsx")
+    public ResponseEntity<byte[]> generatePortfolioStatementXLSX(
+            @RequestParam("propertyOwnerId") Integer propertyOwnerId,
+            @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            Authentication authentication) {
+
+        try {
+            System.out.println("📊 XLSX: Generating portfolio statement for ID: " + propertyOwnerId);
+
+            // Check authorization (same as property owner statement)
+            Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+
+            if (currentCustomer != null && currentCustomer.getIsPropertyOwner() != null && currentCustomer.getIsPropertyOwner()) {
+                if (!currentCustomer.getCustomerId().equals(propertyOwnerId.longValue())) {
+                    return ResponseEntity.status(403).build();
+                }
+            } else if (!isAdminOrEmployee(authentication)) {
+                return ResponseEntity.status(403).build();
+            }
+
+            Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId.longValue());
+            if (propertyOwner == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Generate XLSX
+            byte[] excelData = xlsxStatementService.generatePortfolioStatementXLSX(
+                propertyOwner, fromDate, toDate);
+
+            String filename = String.format("Portfolio_Statement_%s_%s.xlsx",
+                propertyOwner.getName().replaceAll("[^a-zA-Z0-9]", "_"),
+                fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM")));
+
+            return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(excelData);
+
+        } catch (Exception e) {
+            System.err.println("❌ XLSX: Error generating portfolio statement: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
         }
     }
 

@@ -84,9 +84,14 @@
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewStatement('property-owner', 'propertyOwnerForm')">
                                 <i class="fas fa-eye"></i> Preview
                             </button>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-file-excel"></i> Generate Statement
-                            </button>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-success" onclick="downloadXLSX('property-owner', 'propertyOwnerForm')">
+                                    <i class="fas fa-download"></i> Download XLSX
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fab fa-google"></i> Google Sheets
+                                </button>
+                            </div>
                         </div>
                     </form>
                     
@@ -126,9 +131,14 @@
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewStatement('tenant', 'tenantForm')">
                                 <i class="fas fa-eye"></i> Preview
                             </button>
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-file-excel"></i> Generate Statement
-                            </button>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-success" onclick="downloadXLSX('tenant', 'tenantForm')">
+                                    <i class="fas fa-download"></i> Download XLSX
+                                </button>
+                                <button type="submit" class="btn btn-outline-success">
+                                    <i class="fab fa-google"></i> Google Sheets
+                                </button>
+                            </div>
                         </div>
                     </form>
                     
@@ -170,9 +180,14 @@
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewStatement('portfolio', 'portfolioForm')">
                                 <i class="fas fa-eye"></i> Preview
                             </button>
-                            <button type="submit" class="btn btn-warning">
-                                <i class="fas fa-file-excel"></i> Generate Portfolio
-                            </button>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-success" onclick="downloadXLSX('portfolio', 'portfolioForm')">
+                                    <i class="fas fa-download"></i> Download XLSX
+                                </button>
+                                <button type="submit" class="btn btn-outline-warning">
+                                    <i class="fab fa-google"></i> Google Sheets
+                                </button>
+                            </div>
                         </div>
                     </form>
                     
@@ -190,17 +205,21 @@
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-md-4">
-                                <h6><i class="fas fa-1 text-primary"></i> Connect Google Account</h6>
-                                <p>Make sure your Google account is connected to enable Google Sheets creation.</p>
+                            <div class="col-md-3">
+                                <h6><i class="fas fa-download text-success"></i> Download XLSX</h6>
+                                <p>Instantly download professional Excel statements with formulas - no Google account needed!</p>
                             </div>
-                            <div class="col-md-4">
-                                <h6><i class="fas fa-2 text-primary"></i> Select Data</h6>
-                                <p>Choose the property owner or tenant and select the date range for the statement.</p>
+                            <div class="col-md-3">
+                                <h6><i class="fab fa-google text-primary"></i> Google Sheets</h6>
+                                <p>Create statements in Google Sheets for online collaboration (requires Google account).</p>
                             </div>
-                            <div class="col-md-4">
-                                <h6><i class="fas fa-3 text-primary"></i> Generate & Share</h6>
-                                <p>The statement will be created in Google Sheets and automatically shared with you.</p>
+                            <div class="col-md-3">
+                                <h6><i class="fas fa-eye text-info"></i> Preview First</h6>
+                                <p>Use the preview feature to check data before generating statements.</p>
+                            </div>
+                            <div class="col-md-3">
+                                <h6><i class="fas fa-calculator text-warning"></i> Live Formulas</h6>
+                                <p>Excel files include working formulas for management fees, totals, and calculations.</p>
                             </div>
                         </div>
                     </div>
@@ -280,6 +299,55 @@
                     console.error('Error generating preview:', error);
                     alert('Error generating preview');
                 });
+        }
+
+        // Download XLSX statement
+        function downloadXLSX(type, formId) {
+            const form = document.getElementById(formId);
+            const formData = new FormData(form);
+
+            const customerId = type === 'tenant' ? formData.get('tenantId') : formData.get('propertyOwnerId');
+            const fromDate = formData.get('fromDate');
+            const toDate = formData.get('toDate');
+
+            if (!customerId || !fromDate || !toDate) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            // Show loading state
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+            button.disabled = true;
+
+            // Create download URL
+            let downloadUrl;
+            if (type === 'property-owner') {
+                downloadUrl = `/statements/property-owner/xlsx?propertyOwnerId=${customerId}&fromDate=${fromDate}&toDate=${toDate}`;
+            } else if (type === 'tenant') {
+                downloadUrl = `/statements/tenant/xlsx?tenantId=${customerId}&fromDate=${fromDate}&toDate=${toDate}`;
+            } else if (type === 'portfolio') {
+                downloadUrl = `/statements/portfolio/xlsx?propertyOwnerId=${customerId}&fromDate=${fromDate}&toDate=${toDate}`;
+            }
+
+            // Create temporary download link
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+
+            // Trigger download
+            link.click();
+
+            // Clean up
+            document.body.removeChild(link);
+
+            // Reset button after short delay
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }, 2000);
         }
     </script>
 </body>

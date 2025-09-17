@@ -72,6 +72,9 @@ public class PropertyOwnerController {
     @Autowired
     private FinancialTransactionRepository financialTransactionRepository;
 
+    @Autowired
+    private InvoiceRepository invoiceRepository;
+
     // NEW PORTFOLIO SERVICE - Add this one only
     @Autowired(required = false)
     private PortfolioService portfolioService;
@@ -1197,6 +1200,43 @@ public class PropertyOwnerController {
             model.addAttribute("totalNetToOwner", totalNetToOwner);
             model.addAttribute("totalTransactions", totalTransactions);
             model.addAttribute("commissionRate", commissionRate);
+
+            // 📊 Monthly Overview Calculations
+            BigDecimal totalMonthlyRent = properties.stream()
+                .filter(p -> p.getMonthlyPayment() != null)
+                .map(Property::getMonthlyPayment)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            // Count occupied properties based on whether they have recent transactions (activity in last 3 months)
+            long occupiedPropertiesCount = enhancedProperties.stream()
+                .mapToLong(ep -> (Long) ep.getOrDefault("transactionCount", 0L))
+                .filter(count -> count > 0)
+                .count();
+
+            BigDecimal actualMonthlyRent = enhancedProperties.stream()
+                .filter(ep -> (Long) ep.getOrDefault("transactionCount", 0L) > 0)
+                .map(ep -> {
+                    String payPropId = (String) ep.get("payPropId");
+                    return properties.stream()
+                        .filter(p -> payPropId.equals(p.getPayPropId()))
+                        .findFirst()
+                        .map(p -> p.getMonthlyPayment() != null ? p.getMonthlyPayment() : BigDecimal.ZERO)
+                        .orElse(BigDecimal.ZERO);
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            BigDecimal lostMonthlyIncome = totalMonthlyRent.subtract(actualMonthlyRent);
+            BigDecimal occupancyRate = totalMonthlyRent.compareTo(BigDecimal.ZERO) > 0 ?
+                actualMonthlyRent.multiply(BigDecimal.valueOf(100)).divide(totalMonthlyRent, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+
+            model.addAttribute("totalMonthlyRent", totalMonthlyRent);
+            model.addAttribute("lostMonthlyIncome", lostMonthlyIncome);
+            model.addAttribute("occupancyRate", occupancyRate);
+
+            System.out.println("📊 Monthly Overview - Potential: £" + totalMonthlyRent +
+                             ", Actual: £" + actualMonthlyRent +
+                             ", Lost: £" + lostMonthlyIncome +
+                             ", Occupancy: " + occupancyRate + "%");
             
             // 🏠 Property Breakdown Data
             model.addAttribute("propertyBreakdown", propertyBreakdown);
@@ -1422,6 +1462,12 @@ public class PropertyOwnerController {
             BigDecimal commissionRate = totalRent.compareTo(BigDecimal.ZERO) > 0 ?
                 totalCommission.multiply(BigDecimal.valueOf(100)).divide(totalRent, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
 
+            // Create enhanced properties data for frontend
+            List<Portfolio> portfolios = List.of(); // For filtering, we don't need all portfolios
+            List<Map<String, Object>> enhancedProperties = createEnhancedPropertiesData(properties, propertyBreakdown, portfolios);
+
+            System.out.println("🔍 DEBUG: Created " + enhancedProperties.size() + " enhanced properties for filtered response");
+
             // Return filtered data
             Map<String, Object> result = new HashMap<>();
             result.put("totalRent", totalRent);
@@ -1430,6 +1476,7 @@ public class PropertyOwnerController {
             result.put("totalTransactions", totalTransactions);
             result.put("commissionRate", commissionRate);
             result.put("propertyBreakdown", propertyBreakdown);
+            result.put("enhancedProperties", enhancedProperties); // Add enhanced properties for frontend
 
             return result;
 
