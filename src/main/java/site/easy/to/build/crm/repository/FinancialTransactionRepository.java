@@ -662,7 +662,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "FROM customer_property_assignments cpa " +
            "JOIN properties pr ON cpa.property_id = pr.id " +
            "JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
-           "WHERE cpa.customer_id = :customerId AND cpa.is_active = 1",
+           "WHERE cpa.customer_id = :customerId AND (cpa.end_date IS NULL OR cpa.end_date > CURDATE())",
            nativeQuery = true)
     Object[] getPropertyOwnerFinancialSummaryDirect(@Param("customerId") Long customerId);
 
@@ -676,7 +676,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "FROM customer_property_assignments cpa " +
            "JOIN properties pr ON cpa.property_id = pr.id " +
            "LEFT JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
-           "WHERE cpa.customer_id = :customerId AND cpa.is_active = 1 " +
+           "WHERE cpa.customer_id = :customerId AND (cpa.end_date IS NULL OR cpa.end_date > CURDATE()) " +
            "ORDER BY pr.property_name",
            nativeQuery = true)
     List<Object[]> getPropertyOwnerPropertyBreakdownDirect(@Param("customerId") Long customerId);
