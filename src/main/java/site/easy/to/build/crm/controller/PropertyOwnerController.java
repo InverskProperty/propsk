@@ -1102,7 +1102,25 @@ public class PropertyOwnerController {
             
             // 🏠 Get basic property information for context
             List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
-            
+
+            // 📁 Get portfolios for selection dropdown
+            List<Portfolio> portfolios;
+            try {
+                if (portfolioService != null) {
+                    portfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                    System.out.println("✅ Found " + portfolios.size() + " portfolios for customer " + customer.getCustomerId());
+                } else {
+                    portfolios = List.of();
+                    System.out.println("⚠️ PortfolioService not available");
+                }
+            } catch (Exception e) {
+                System.err.println("❌ Error loading portfolios: " + e.getMessage());
+                portfolios = List.of();
+            }
+
+            // 🏠 Create enhanced properties data with financial metrics
+            List<Map<String, Object>> enhancedProperties = createEnhancedPropertiesData(properties, propertyBreakdown);
+
             // 📅 Add maintenance statistics
             Map<String, Object> maintenanceStats;
             try {
@@ -1116,6 +1134,8 @@ public class PropertyOwnerController {
             model.addAttribute("customer", customer);
             model.addAttribute("customerId", customer.getCustomerId());
             model.addAttribute("properties", properties);
+            model.addAttribute("enhancedProperties", enhancedProperties);
+            model.addAttribute("portfolios", portfolios);
             model.addAttribute("totalProperties", properties.size());
             
             // 💰 Financial Summary Data
@@ -1285,6 +1305,158 @@ public class PropertyOwnerController {
         defaultStats.put("totalProperties", 0);
         defaultStats.put("totalTickets", 0L);
         return defaultStats;
+    }
+
+    /**
+     * Enhanced Financials with Portfolio and Data Source Filtering
+     */
+    @GetMapping("/property-owner/financials/filter")
+    @ResponseBody
+    public Map<String, Object> getFilteredFinancials(
+            @RequestParam(required = false) Long portfolioId,
+            @RequestParam(required = false) String dataSource,
+            Authentication authentication) {
+
+        System.out.println("🔍 Filtering financials - Portfolio: " + portfolioId + ", Data Source: " + dataSource);
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return Map.of("error", "Customer not found");
+            }
+
+            // Get financial data with filters
+            Object[] financialSummary;
+            List<Object[]> propertyBreakdown;
+
+            if (portfolioId != null) {
+                // Filter by specific portfolio
+                financialSummary = financialTransactionRepository.getPortfolioFinancialSummary(portfolioId);
+                propertyBreakdown = financialTransactionRepository.getPortfolioPropertyBreakdown(portfolioId);
+            } else {
+                // Use all portfolios (existing queries)
+                financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummary(customer.getCustomerId());
+                propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdown(customer.getCustomerId());
+            }
+
+            // Parse financial data
+            BigDecimal totalRent = parseFinancialValue(financialSummary, 0);
+            BigDecimal totalCommission = parseFinancialValue(financialSummary, 1);
+            BigDecimal totalNetToOwner = parseFinancialValue(financialSummary, 2);
+            Long totalTransactions = parseTransactionCount(financialSummary, 3);
+
+            BigDecimal commissionRate = totalRent.compareTo(BigDecimal.ZERO) > 0 ?
+                totalCommission.multiply(BigDecimal.valueOf(100)).divide(totalRent, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+
+            // Return filtered data
+            Map<String, Object> result = new HashMap<>();
+            result.put("totalRent", totalRent);
+            result.put("totalCommission", totalCommission);
+            result.put("totalNetToOwner", totalNetToOwner);
+            result.put("totalTransactions", totalTransactions);
+            result.put("commissionRate", commissionRate);
+            result.put("propertyBreakdown", propertyBreakdown);
+
+            return result;
+
+        } catch (Exception e) {
+            System.err.println("❌ Error in filtered financials: " + e.getMessage());
+            return Map.of("error", e.getMessage());
+        }
+    }
+
+    /**
+     * Create enhanced properties data with financial metrics for Property Performance table
+     */
+    private List<Map<String, Object>> createEnhancedPropertiesData(List<Property> properties, List<Object[]> propertyBreakdown) {
+        List<Map<String, Object>> enhancedProperties = new ArrayList<>();
+
+        // Create a map of property breakdown data by property ID for quick lookup
+        Map<String, Object[]> breakdownMap = new HashMap<>();
+        for (Object[] row : propertyBreakdown) {
+            if (row.length > 0 && row[0] != null) {
+                String propertyId = row[0].toString();
+                breakdownMap.put(propertyId, row);
+            }
+        }
+
+        for (Property property : properties) {
+            Map<String, Object> enhanced = new HashMap<>();
+
+            // Basic property info
+            enhanced.put("property", property);
+            enhanced.put("propertyName", property.getPropertyName());
+            enhanced.put("id", property.getId());
+
+            // Get financial data from breakdown
+            Object[] breakdown = breakdownMap.get(property.getPayPropId());
+            if (breakdown != null && breakdown.length >= 4) {
+                enhanced.put("totalRent", parseObjectValue(breakdown[1], BigDecimal.ZERO));
+                enhanced.put("commission", parseObjectValue(breakdown[2], BigDecimal.ZERO));
+                enhanced.put("netToOwner", parseObjectValue(breakdown[3], BigDecimal.ZERO));
+                enhanced.put("transactions", parseObjectValue(breakdown[4], 0L));
+            } else {
+                enhanced.put("totalRent", BigDecimal.ZERO);
+                enhanced.put("commission", BigDecimal.ZERO);
+                enhanced.put("netToOwner", BigDecimal.ZERO);
+                enhanced.put("transactions", 0L);
+            }
+
+            // Property status calculations
+            enhanced.put("monthlyRent", property.getMonthlyPaymentRequired() != null ? property.getMonthlyPaymentRequired() : BigDecimal.ZERO);
+            enhanced.put("valuation", property.getEstimatedCurrentValue() != null ? property.getEstimatedCurrentValue() : BigDecimal.ZERO);
+
+            // Calculate ROI if valuation exists
+            BigDecimal valuation = (BigDecimal) enhanced.get("valuation");
+            BigDecimal totalRent = (BigDecimal) enhanced.get("totalRent");
+            if (valuation.compareTo(BigDecimal.ZERO) > 0 && totalRent.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal roi = totalRent.multiply(BigDecimal.valueOf(100)).divide(valuation, 2, RoundingMode.HALF_UP);
+                enhanced.put("roi", roi.toString() + "%");
+            } else {
+                enhanced.put("roi", "N/A");
+            }
+
+            // Property status
+            enhanced.put("status", property.getStatus() != null ? property.getStatus() : "ACTIVE");
+
+            enhancedProperties.add(enhanced);
+        }
+
+        return enhancedProperties;
+    }
+
+    /**
+     * Helper method to safely parse object values from database results
+     */
+    private <T> T parseObjectValue(Object value, T defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+
+        try {
+            if (defaultValue instanceof BigDecimal) {
+                if (value instanceof BigDecimal) {
+                    return (T) value;
+                } else if (value instanceof Number) {
+                    return (T) BigDecimal.valueOf(((Number) value).doubleValue());
+                } else {
+                    return (T) new BigDecimal(value.toString());
+                }
+            } else if (defaultValue instanceof Long) {
+                if (value instanceof Long) {
+                    return (T) value;
+                } else if (value instanceof Number) {
+                    return (T) Long.valueOf(((Number) value).longValue());
+                } else {
+                    return (T) Long.valueOf(value.toString());
+                }
+            } else {
+                return (T) value;
+            }
+        } catch (Exception e) {
+            System.err.println("⚠️ Error parsing value: " + value + " to type " + defaultValue.getClass().getSimpleName());
+            return defaultValue;
+        }
     }
 
     // ✅ NEW: Safe financial value parsing to handle scientific notation and null values

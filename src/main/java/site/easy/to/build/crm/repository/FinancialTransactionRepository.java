@@ -620,4 +620,33 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "ORDER BY pr.property_name",
            nativeQuery = true)
     List<Object[]> getPropertyOwnerPropertyBreakdown(@Param("customerId") Long customerId);
+
+    /**
+     * Get financial summary for a specific portfolio
+     */
+    @Query(value = "SELECT " +
+           "SUM(CASE WHEN fs.total_rent IS NOT NULL THEN fs.total_rent ELSE 0 END), " +
+           "SUM(CASE WHEN fs.total_commission IS NOT NULL THEN fs.total_commission ELSE 0 END), " +
+           "SUM(CASE WHEN fs.total_net_to_owner IS NOT NULL THEN fs.total_net_to_owner ELSE 0 END), " +
+           "SUM(CASE WHEN fs.transaction_count IS NOT NULL THEN fs.transaction_count ELSE 0 END) " +
+           "FROM property_portfolio_assignments ppa " +
+           "JOIN properties pr ON ppa.property_id = pr.id " +
+           "JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
+           "WHERE ppa.portfolio_id = :portfolioId AND ppa.is_active = 1",
+           nativeQuery = true)
+    Object[] getPortfolioFinancialSummary(@Param("portfolioId") Long portfolioId);
+
+    /**
+     * Get property breakdown for a specific portfolio
+     */
+    @Query(value = "SELECT pr.property_name, pr.payprop_id, " +
+           "COALESCE(fs.total_rent, 0), COALESCE(fs.total_commission, 0), " +
+           "COALESCE(fs.total_net_to_owner, 0), COALESCE(fs.transaction_count, 0) " +
+           "FROM property_portfolio_assignments ppa " +
+           "JOIN properties pr ON ppa.property_id = pr.id " +
+           "LEFT JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
+           "WHERE ppa.portfolio_id = :portfolioId AND ppa.is_active = 1 " +
+           "ORDER BY pr.property_name",
+           nativeQuery = true)
+    List<Object[]> getPortfolioPropertyBreakdown(@Param("portfolioId") Long portfolioId);
 }

@@ -80,6 +80,56 @@
                 </div>
             </div>
 
+            <!-- Portfolio Selection & Filtering -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body py-3">
+                            <div class="row align-items-center">
+                                <div class="col-md-4">
+                                    <label for="portfolioSelect" class="form-label mb-1">
+                                        <i class="fas fa-folder text-primary"></i> <strong>Portfolio Selection</strong>
+                                    </label>
+                                    <select class="form-control" id="portfolioSelect" onchange="filterFinancials()">
+                                        <option value="">All Portfolios</option>
+                                        <option th:each="portfolio : ${portfolios}"
+                                                th:value="${portfolio.id}"
+                                                th:text="${portfolio.name}">
+                                            Portfolio Name
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="dataSourceSelect" class="form-label mb-1">
+                                        <i class="fas fa-database text-info"></i> <strong>Data Source Filter</strong>
+                                    </label>
+                                    <select class="form-control" id="dataSourceSelect" onchange="filterFinancials()">
+                                        <option value="">All Data Sources</option>
+                                        <option value="HISTORICAL_IMPORT">Historical Import</option>
+                                        <option value="PAYPROP_SYNC">PayProp Sync</option>
+                                        <option value="COMMISSION_PAYMENT">Commission Payments</option>
+                                        <option value="MANUAL_ENTRY">Manual Entry</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label mb-1">
+                                        <i class="fas fa-sync-alt text-success"></i> <strong>Quick Actions</strong>
+                                    </label>
+                                    <div class="btn-group w-100">
+                                        <button class="btn btn-outline-primary" onclick="refreshDashboard()">
+                                            <i class="fas fa-refresh"></i> Refresh
+                                        </button>
+                                        <button class="btn btn-outline-secondary" onclick="exportData()">
+                                            <i class="fas fa-download"></i> Export
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- PayProp Financial Dashboard Alert -->
             <div class="row">
                 <div class="col-12">
@@ -88,6 +138,7 @@
                         <h4><i class="icon fas fa-chart-line"></i> PayProp Financial Dashboard</h4>
                         Real-time financial data from PayProp showing actual rent receipts, commissions, and net payments to you.
                         <br><small><strong>Data Sources:</strong> ACTUAL Real PayProp data | CALCULATED System generated | SYNTHETIC Derived data</small>
+                        <span id="currentFilters" class="badge badge-primary ml-2" style="display: none;"></span>
                     </div>
                 </div>
             </div>
@@ -195,22 +246,32 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <tr th:each="property : ${propertyBreakdown}">
+                                        <tr th:each="property : ${enhancedProperties}" class="property-row">
                                             <td>
-                                                <strong th:text="${property[0]}">Property Name</strong><br>
-                                                <small class="text-muted" th:text="${property[1]}">PayProp ID</small>
+                                                <strong th:text="${property.propertyName}">Property Name</strong><br>
+                                                <small class="text-muted" th:text="${property.payPropId}">PayProp ID</small>
+                                                <div th:if="${property.portfolioNames != null and !#strings.isEmpty(property.portfolioNames)}" class="mt-1">
+                                                    <small class="text-primary">
+                                                        <i class="fas fa-folder"></i> <span th:text="${property.portfolioNames}">Portfolio Names</span>
+                                                    </small>
+                                                </div>
                                             </td>
                                             <td class="text-success">
-                                                <strong>£<span th:text="${#numbers.formatDecimal(property[2] ?: 0, 1, 2)}">0.00</span></strong>
+                                                <strong>£<span th:text="${#numbers.formatDecimal(property.totalRent ?: 0, 1, 2)}">0.00</span></strong>
                                             </td>
                                             <td class="text-info">
-                                                £<span th:text="${#numbers.formatDecimal(property[3] ?: 0, 1, 2)}">0.00</span>
+                                                £<span th:text="${#numbers.formatDecimal(property.totalCommission ?: 0, 1, 2)}">0.00</span>
                                             </td>
                                             <td class="text-primary">
-                                                <strong>£<span th:text="${#numbers.formatDecimal(property[4] ?: 0, 1, 2)}">0.00</span></strong>
+                                                <strong>£<span th:text="${#numbers.formatDecimal(property.totalNetToOwner ?: 0, 1, 2)}">0.00</span></strong>
                                             </td>
                                             <td>
-                                                <span class="badge badge-secondary" th:text="${property[5] ?: 0}">0</span>
+                                                <span class="badge badge-secondary" th:text="${property.transactionCount ?: 0}">0</span>
+                                                <div th:if="${property.performanceRating != null}" class="mt-1">
+                                                    <small th:class="'text-' + ${property.performanceRating == 'excellent' ? 'success' : property.performanceRating == 'good' ? 'info' : property.performanceRating == 'average' ? 'warning' : 'danger'}">
+                                                        <i class="fas fa-star"></i> <span th:text="${#strings.capitalize(property.performanceRating)}">Rating</span>
+                                                    </small>
+                                                </div>
                                             </td>
                                         </tr>
                                         <tr th:if="${#lists.isEmpty(propertyBreakdown)}">
@@ -1046,15 +1107,200 @@ function calculateROI() {
     const rent = parseFloat(document.getElementById('calcRent').value) || 0;
     const investment = parseFloat(document.getElementById('calcInvestment').value) || 0;
     const expenses = parseFloat(document.getElementById('calcExpenses').value) || 0;
-    
+
     const annualRent = rent * 12;
     const grossYield = investment > 0 ? (annualRent / investment * 100) : 0;
     const netYield = investment > 0 ? ((annualRent - expenses) / investment * 100) : 0;
     const annualCashFlow = annualRent - expenses;
-    
+
     document.getElementById('grossYield').textContent = grossYield.toFixed(1) + '%';
     document.getElementById('netYield').textContent = netYield.toFixed(1) + '%';
     document.getElementById('annualCashFlow').textContent = '£' + annualCashFlow.toLocaleString();
+}
+
+// Portfolio and Data Source Filtering Functions
+function filterFinancials() {
+    const portfolioId = document.getElementById('portfolioSelect').value;
+    const dataSource = document.getElementById('dataSourceSelect').value;
+
+    // Show loading state
+    showLoadingState();
+
+    // Build filter parameters
+    const params = new URLSearchParams();
+    if (portfolioId) params.append('portfolioId', portfolioId);
+    if (dataSource) params.append('dataSource', dataSource);
+
+    // Make AJAX request to filtered endpoint
+    fetch(`/property-owner/financials/filter?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            updateDashboardData(data);
+            updateFilterDisplay(portfolioId, dataSource);
+        })
+        .catch(error => {
+            console.error('Error filtering data:', error);
+            alert('Error filtering financial data. Please try again.');
+        })
+        .finally(() => {
+            hideLoadingState();
+        });
+}
+
+function updateDashboardData(data) {
+    // Update financial metrics
+    updateMetricCard('.income-card h3', data.totalRent, '£');
+    updateMetricCard('.expense-card h3', data.totalCommission, '£');
+    updateMetricCard('.profit-card h3', data.totalNetToOwner, '£');
+    updateMetricCard('.occupancy-card h3', data.totalTransactions, '');
+
+    // Update property breakdown table
+    updatePropertyBreakdownTable(data.enhancedProperties);
+
+    // Update totals in recent transactions footer
+    updateTransactionTotals(data);
+}
+
+function updateMetricCard(selector, value, prefix) {
+    const element = document.querySelector(selector);
+    if (element) {
+        const formattedValue = typeof value === 'number' ?
+            (prefix === '£' ? prefix + value.toFixed(2) : value.toString()) :
+            prefix + '0';
+        element.textContent = formattedValue;
+    }
+}
+
+function updatePropertyBreakdownTable(properties) {
+    const tbody = document.querySelector('.property-row')?.parentElement;
+    if (!tbody) return;
+
+    // Clear existing rows
+    tbody.querySelectorAll('.property-row').forEach(row => row.remove());
+
+    if (!properties || properties.length === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = `
+            <td colspan="5" class="text-center text-muted">
+                <i class="fas fa-exclamation-triangle"></i> No financial data available for selected filters
+            </td>
+        `;
+        tbody.appendChild(emptyRow);
+        return;
+    }
+
+    // Add filtered properties
+    properties.forEach(property => {
+        const row = document.createElement('tr');
+        row.className = 'property-row';
+        row.innerHTML = `
+            <td>
+                <strong>${property.propertyName || 'Unnamed Property'}</strong><br>
+                <small class="text-muted">${property.payPropId || 'No ID'}</small>
+                ${property.portfolioNames ? `
+                    <div class="mt-1">
+                        <small class="text-primary">
+                            <i class="fas fa-folder"></i> ${property.portfolioNames}
+                        </small>
+                    </div>
+                ` : ''}
+            </td>
+            <td class="text-success">
+                <strong>£${(property.totalRent || 0).toFixed(2)}</strong>
+            </td>
+            <td class="text-info">
+                £${(property.totalCommission || 0).toFixed(2)}
+            </td>
+            <td class="text-primary">
+                <strong>£${(property.totalNetToOwner || 0).toFixed(2)}</strong>
+            </td>
+            <td>
+                <span class="badge badge-secondary">${property.transactionCount || 0}</span>
+                ${property.performanceRating ? `
+                    <div class="mt-1">
+                        <small class="text-${getPerformanceColor(property.performanceRating)}">
+                            <i class="fas fa-star"></i> ${property.performanceRating.charAt(0).toUpperCase() + property.performanceRating.slice(1)}
+                        </small>
+                    </div>
+                ` : ''}
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function getPerformanceColor(rating) {
+    switch(rating) {
+        case 'excellent': return 'success';
+        case 'good': return 'info';
+        case 'average': return 'warning';
+        default: return 'danger';
+    }
+}
+
+function updateTransactionTotals(data) {
+    // Update totals in the footer
+    const footerCells = document.querySelectorAll('tfoot td');
+    if (footerCells.length >= 6) {
+        footerCells[3].innerHTML = `<strong>£${(data.totalRent || 0).toFixed(2)}</strong><br><small class="text-muted">Invoiced</small>`;
+        footerCells[4].innerHTML = `<strong>£${(data.totalCommission || 0).toFixed(2)}</strong><br><small class="text-muted">Commission</small>`;
+        footerCells[5].innerHTML = `<strong>£${(data.totalNetToOwner || 0).toFixed(2)}</strong><br><small class="text-muted">Received</small>`;
+        footerCells[6].innerHTML = `<small class="text-muted">${data.totalTransactions || 0} transactions</small>`;
+    }
+}
+
+function updateFilterDisplay(portfolioId, dataSource) {
+    const filterBadge = document.getElementById('currentFilters');
+    const portfolioSelect = document.getElementById('portfolioSelect');
+    const dataSourceSelect = document.getElementById('dataSourceSelect');
+
+    const filters = [];
+    if (portfolioId) {
+        const portfolioName = portfolioSelect.options[portfolioSelect.selectedIndex].text;
+        filters.push(`Portfolio: ${portfolioName}`);
+    }
+    if (dataSource) {
+        const dataSourceName = dataSourceSelect.options[dataSourceSelect.selectedIndex].text;
+        filters.push(`Source: ${dataSourceName}`);
+    }
+
+    if (filters.length > 0) {
+        filterBadge.textContent = filters.join(' | ');
+        filterBadge.style.display = 'inline';
+    } else {
+        filterBadge.style.display = 'none';
+    }
+}
+
+function showLoadingState() {
+    // Add loading spinners to metric cards
+    document.querySelectorAll('.financial-card h3').forEach(card => {
+        card.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    });
+}
+
+function hideLoadingState() {
+    // Loading state will be cleared by updateDashboardData
+}
+
+function refreshDashboard() {
+    // Clear filters and reload
+    document.getElementById('portfolioSelect').value = '';
+    document.getElementById('dataSourceSelect').value = '';
+    window.location.reload();
+}
+
+function exportData() {
+    const portfolioId = document.getElementById('portfolioSelect').value;
+    const dataSource = document.getElementById('dataSourceSelect').value;
+
+    const params = new URLSearchParams();
+    if (portfolioId) params.append('portfolioId', portfolioId);
+    if (dataSource) params.append('dataSource', dataSource);
+    params.append('export', 'csv');
+
+    // Open export URL in new window
+    window.open(`/property-owner/financials/export?${params.toString()}`, '_blank');
 }
 </script>
 
