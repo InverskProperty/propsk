@@ -12,14 +12,14 @@ rem Try to execute the migration script using mysql command
 echo Connecting to %DB_HOST%:%DB_PORT%/%DB_NAME%...
 
 rem If mysql is available, execute the script
-mysql -h %DB_HOST% -P %DB_PORT% -u %DB_USER% -p%DB_PASS% %DB_NAME% < migrate_blocks_to_simple_owner_tags.sql
+mysql -h %DB_HOST% -P %DB_PORT% -u %DB_USER% -p%DB_PASS% %DB_NAME% < add_actual_commission_amount_column.sql
 
 rem If mysql not available, show manual instructions
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo MySQL CLI not available. Please execute the following SQL manually:
     echo.
-    type migrate_blocks_to_simple_owner_tags.sql
+    type add_actual_commission_amount_column.sql
     echo.
     echo Connection details:
     echo Host: %DB_HOST%

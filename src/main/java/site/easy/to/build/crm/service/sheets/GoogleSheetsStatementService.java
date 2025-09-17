@@ -326,7 +326,7 @@ public class GoogleSheetsStatementService {
         values.add(Arrays.asList("Unit No.", "Tenant", "Tenancy Dates", 
             "Rent\n Due\n Amount", "Rent\n Received\n Date", "Rent\n Received\n Amount", 
             "Management\n Fee\n 10%", "Service\n Fee\n 5%", 
-            "Net\n Due to\n " + data.getPropertyOwner().getName().split(" ")[0], 
+            "Net\n Due to\n " + getFirstNameSafe(data.getPropertyOwner()), 
             "Date\n Paid", "Rent\n Due less\n Received", "Comments", "Payment Batch"));
         
         // Income Statement Data Rows - Enhanced with proper formatting and data
@@ -439,7 +439,7 @@ public class GoogleSheetsStatementService {
         values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
         
         // Calculate final net due: Total Net Due - Expenses
-        values.add(Arrays.asList("Net Due to " + data.getPropertyOwner().getName().split(" ")[0], "", "", 
+        values.add(Arrays.asList("Net Due to " + getFirstNameSafe(data.getPropertyOwner()), "", "", 
                                 "=I" + totalRowNumber + "+I" + expenseRowNumber, "", "", "", "", "", "", "", "", ""));
         
         return values;
@@ -1264,6 +1264,23 @@ public class GoogleSheetsStatementService {
               });
             }
             """;
+    }
+
+    /**
+     * Safely get the first name from a customer, handling null names gracefully
+     */
+    private String getFirstNameSafe(Customer customer) {
+        if (customer == null) {
+            return "Owner";
+        }
+
+        String name = customer.getName();
+        if (name == null || name.trim().isEmpty()) {
+            return "Owner";
+        }
+
+        String[] nameParts = name.trim().split("\\s+");
+        return nameParts.length > 0 ? nameParts[0] : "Owner";
     }
 
 }

@@ -19,6 +19,7 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.sheets.GoogleSheetsStatementService;
+import site.easy.to.build.crm.service.sheets.GoogleSheetsServiceAccountService;
 import site.easy.to.build.crm.service.statements.XLSXStatementService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.service.user.OAuthUserService;
@@ -35,6 +36,7 @@ import java.util.Arrays;
 public class StatementController {
 
     private final GoogleSheetsStatementService statementService;
+    private final GoogleSheetsServiceAccountService serviceAccountSheetsService;
     private final XLSXStatementService xlsxStatementService;
     private final CustomerService customerService;
     private final PropertyService propertyService;
@@ -43,12 +45,14 @@ public class StatementController {
 
     @Autowired
     public StatementController(GoogleSheetsStatementService statementService,
+                             GoogleSheetsServiceAccountService serviceAccountSheetsService,
                              XLSXStatementService xlsxStatementService,
                              CustomerService customerService,
                              PropertyService propertyService,
                              OAuthUserService oAuthUserService,
                              AuthenticationUtils authenticationUtils) {
         this.statementService = statementService;
+        this.serviceAccountSheetsService = serviceAccountSheetsService;
         this.xlsxStatementService = xlsxStatementService;
         this.customerService = customerService;
         this.propertyService = propertyService;
@@ -425,8 +429,9 @@ public class StatementController {
             byte[] excelData = xlsxStatementService.generatePropertyOwnerStatementXLSX(
                 propertyOwner, fromDate, toDate);
 
+            String customerName = propertyOwner.getName() != null ? propertyOwner.getName() : "Customer" + propertyOwner.getCustomerId();
             String filename = String.format("Statement_%s_%s.xlsx",
-                propertyOwner.getName().replaceAll("[^a-zA-Z0-9]", "_"),
+                customerName.replaceAll("[^a-zA-Z0-9]", "_"),
                 fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM")));
 
             System.out.println("✅ XLSX: Generated statement - " + excelData.length + " bytes");
@@ -511,8 +516,9 @@ public class StatementController {
             byte[] excelData = xlsxStatementService.generateTenantStatementXLSX(
                 tenant, fromDate, toDate);
 
+            String tenantName = tenant.getName() != null ? tenant.getName() : "Customer" + tenant.getCustomerId();
             String filename = String.format("Tenant_Statement_%s_%s.xlsx",
-                tenant.getName().replaceAll("[^a-zA-Z0-9]", "_"),
+                tenantName.replaceAll("[^a-zA-Z0-9]", "_"),
                 fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM")));
 
             return ResponseEntity.ok()
@@ -560,8 +566,9 @@ public class StatementController {
             byte[] excelData = xlsxStatementService.generatePortfolioStatementXLSX(
                 propertyOwner, fromDate, toDate);
 
+            String ownerName = propertyOwner.getName() != null ? propertyOwner.getName() : "Customer" + propertyOwner.getCustomerId();
             String filename = String.format("Portfolio_Statement_%s_%s.xlsx",
-                propertyOwner.getName().replaceAll("[^a-zA-Z0-9]", "_"),
+                ownerName.replaceAll("[^a-zA-Z0-9]", "_"),
                 fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM")));
 
             return ResponseEntity.ok()
@@ -831,6 +838,112 @@ public class StatementController {
             return ResponseEntity.badRequest().build();
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error generating preview: " + e.getMessage());
+        }
+    }
+
+    // ===== SERVICE ACCOUNT GOOGLE SHEETS ENDPOINTS (NO USER AUTHENTICATION REQUIRED) =====
+
+    /**
+     * Generate property owner statement using service account (no Google OAuth required)
+     */
+    @PostMapping("/property-owner/service-account")
+    public String generatePropertyOwnerStatementServiceAccount(
+            @RequestParam("propertyOwnerId") Integer propertyOwnerId,
+            @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            Authentication authentication,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            // Check authorization (same as regular endpoints)
+            Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+
+            if (currentCustomer != null && currentCustomer.getIsPropertyOwner() != null && currentCustomer.getIsPropertyOwner()) {
+                if (!currentCustomer.getCustomerId().equals(propertyOwnerId.longValue())) {
+                    redirectAttributes.addFlashAttribute("error", "You can only generate statements for your own account.");
+                    return "redirect:/statements";
+                }
+            } else if (!isAdminOrEmployee(authentication)) {
+                redirectAttributes.addFlashAttribute("error", "Access denied.");
+                return "redirect:/statements";
+            }
+
+            // Get property owner
+            Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId.longValue());
+            if (propertyOwner == null) {
+                redirectAttributes.addFlashAttribute("error", "Property owner not found.");
+                return "redirect:/statements";
+            }
+
+            // Generate statement using service account
+            String spreadsheetId = serviceAccountSheetsService.createPropertyOwnerStatement(
+                propertyOwner, fromDate, toDate);
+
+            // Success message with link to Google Sheets
+            String sheetsUrl = "https://docs.google.com/spreadsheets/d/" + spreadsheetId;
+            redirectAttributes.addFlashAttribute("success",
+                "Statement generated successfully! <a href='" + sheetsUrl + "' target='_blank'>View in Google Sheets</a>");
+
+            return "redirect:/statements";
+
+        } catch (Exception e) {
+            System.err.println("❌ Error generating service account statement: " + e.getMessage());
+            e.printStackTrace();
+            redirectAttributes.addFlashAttribute("error",
+                "Error generating statement: " + e.getMessage());
+            return "redirect:/statements";
+        }
+    }
+
+    /**
+     * Generate tenant statement using service account (no Google OAuth required)
+     */
+    @PostMapping("/tenant/service-account")
+    public String generateTenantStatementServiceAccount(
+            @RequestParam("tenantId") Integer tenantId,
+            @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            Authentication authentication,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            // Check authorization
+            Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+
+            if (currentCustomer != null && currentCustomer.getIsTenant() != null && currentCustomer.getIsTenant()) {
+                if (!currentCustomer.getCustomerId().equals(tenantId.longValue())) {
+                    redirectAttributes.addFlashAttribute("error", "You can only generate statements for your own tenancy.");
+                    return "redirect:/statements";
+                }
+            } else if (!isAdminOrEmployee(authentication)) {
+                redirectAttributes.addFlashAttribute("error", "Access denied.");
+                return "redirect:/statements";
+            }
+
+            // Get tenant
+            Customer tenant = customerService.findByCustomerId(tenantId.longValue());
+            if (tenant == null) {
+                redirectAttributes.addFlashAttribute("error", "Tenant not found.");
+                return "redirect:/statements";
+            }
+
+            // Generate statement using service account
+            String spreadsheetId = serviceAccountSheetsService.createTenantStatement(
+                tenant, fromDate, toDate);
+
+            // Success message with link to Google Sheets
+            String sheetsUrl = "https://docs.google.com/spreadsheets/d/" + spreadsheetId;
+            redirectAttributes.addFlashAttribute("success",
+                "Tenant statement generated successfully! <a href='" + sheetsUrl + "' target='_blank'>View in Google Sheets</a>");
+
+            return "redirect:/statements";
+
+        } catch (Exception e) {
+            System.err.println("❌ Error generating service account tenant statement: " + e.getMessage());
+            e.printStackTrace();
+            redirectAttributes.addFlashAttribute("error",
+                "Error generating tenant statement: " + e.getMessage());
+            return "redirect:/statements";
         }
     }
 }

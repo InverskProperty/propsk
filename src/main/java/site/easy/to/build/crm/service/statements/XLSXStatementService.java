@@ -591,7 +591,7 @@ public class XLSXStatementService {
             "Expense 2 Label", "Expense 2 Amount", "Expense 2 Comment",
             "Expense 3 Label", "Expense 3 Amount", "Expense 3 Comment",
             "Expense 4 Label", "Expense 4 Amount", "Expense 4 Comment",
-            "Total Expenses", "Net\nDue to\n" + data.getPropertyOwner().getName().split(" ")[0],
+            "Total Expenses", "Net\nDue to\n" + getFirstNameSafe(data.getPropertyOwner()),
             "Net Due from Propsk Old Account", "Net Due from Propsk PayProp Account",
             "Net Due from Propsk Total", "Date\nPaid", "Rent\nDue less\nReceived", "Comments"
         ));
@@ -1459,5 +1459,22 @@ public class XLSXStatementService {
 
         public String getComment() { return comment; }
         public void setComment(String comment) { this.comment = comment; }
+    }
+
+    /**
+     * Safely get the first name from a customer, handling null names gracefully
+     */
+    private String getFirstNameSafe(Customer customer) {
+        if (customer == null) {
+            return "Owner";
+        }
+
+        String name = customer.getName();
+        if (name == null || name.trim().isEmpty()) {
+            return "Owner";
+        }
+
+        String[] nameParts = name.trim().split("\\s+");
+        return nameParts.length > 0 ? nameParts[0] : "Owner";
     }
 }
