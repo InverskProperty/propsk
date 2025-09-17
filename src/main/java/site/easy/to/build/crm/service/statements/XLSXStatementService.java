@@ -697,9 +697,10 @@ public class XLSXStatementService {
 
     private Boolean isPaidToOldAccount(Property property, List<FinancialTransaction> transactions) {
         // Check if property uses old Propsk account
-        // Look for transactions that indicate old account usage
+        // Look for transactions that indicate old account usage based on data source or description
         return transactions.stream()
-            .anyMatch(t -> t.getAccountType() != null && t.getAccountType().contains("old")) ||
+            .anyMatch(t -> (t.getDataSource() != null && t.getDataSource().contains("old")) ||
+                          (t.getDescription() != null && t.getDescription().toLowerCase().contains("old account"))) ||
                property.getComment() != null && property.getComment().toLowerCase().contains("old account");
     }
 
@@ -711,8 +712,9 @@ public class XLSXStatementService {
     private Integer extractRentDueDay(Property property) {
         // Extract rent due day from property data or tenant data
         Customer tenant = getTenantForProperty(property.getId());
-        if (tenant != null && tenant.getRentDueDay() != null) {
-            return tenant.getRentDueDay();
+        if (tenant != null) {
+            // Since getRentDueDay() doesn't exist, use a default logic or extract from other fields
+            // You could add this field to Customer entity later, for now use a default
         }
 
         // Default common rent due days
