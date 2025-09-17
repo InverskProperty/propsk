@@ -1065,7 +1065,7 @@ public class PropertyOwnerController {
 
             // 🚀 NEW: Get real PayProp financial data using verified queries
             Object[] financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummary(customer.getCustomerId());
-            
+
             // 🔍 DEBUG: Check the actual structure of the returned data
             if (financialSummary != null) {
                 System.out.println("🔍 DEBUG: Financial summary array length: " + financialSummary.length);
@@ -1075,6 +1075,13 @@ public class PropertyOwnerController {
                 }
             } else {
                 System.out.println("🔍 DEBUG: Financial summary is null");
+            }
+
+            // FALLBACK: If portfolio-based query returns no data, use direct customer assignment query
+            if (financialSummary == null || financialSummary.length == 0 || parseFinancialValue(financialSummary, 0).compareTo(BigDecimal.ZERO) == 0) {
+                System.out.println("🔄 Portfolio-based financial summary returned no data, trying direct customer assignment query...");
+                financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummaryDirect(customer.getCustomerId());
+                System.out.println("🔄 Direct financial summary: " + (financialSummary != null ? java.util.Arrays.toString(financialSummary) : "NULL"));
             }
             
             // 💰 Parse financial summary (total_rent, total_commission, total_net_to_owner, transaction_count)
@@ -1089,6 +1096,13 @@ public class PropertyOwnerController {
 
             // 🏠 Get property-level financial breakdown
             List<Object[]> propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdown(customer.getCustomerId());
+
+            // FALLBACK: If portfolio-based property breakdown returns no data, use direct customer assignment query
+            if (propertyBreakdown == null || propertyBreakdown.isEmpty()) {
+                System.out.println("🔄 Portfolio-based property breakdown returned no data, trying direct customer assignment query...");
+                propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdownDirect(customer.getCustomerId());
+                System.out.println("🔄 Direct property breakdown count: " + (propertyBreakdown != null ? propertyBreakdown.size() : "NULL"));
+            }
             
             // 📋 Get recent transactions (last 10) - FIXED: Added date parameter
             Pageable recentLimit = PageRequest.of(0, 10);
@@ -1334,16 +1348,37 @@ public class PropertyOwnerController {
                 financialSummary = financialTransactionRepository.getPortfolioFinancialSummary(portfolioId);
                 propertyBreakdown = financialTransactionRepository.getPortfolioPropertyBreakdown(portfolioId);
             } else {
-                // Use all portfolios (existing queries)
+                // Try portfolio-based queries first
                 financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummary(customer.getCustomerId());
                 propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdown(customer.getCustomerId());
+
+                // FALLBACK: If portfolio-based queries return no data, use direct customer assignment queries
+                if ((financialSummary == null || financialSummary.length == 0 || parseFinancialValue(financialSummary, 0).compareTo(BigDecimal.ZERO) == 0) &&
+                    (propertyBreakdown == null || propertyBreakdown.isEmpty())) {
+                    System.out.println("🔄 Portfolio-based queries returned no data, trying direct customer assignment queries...");
+                    financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummaryDirect(customer.getCustomerId());
+                    propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdownDirect(customer.getCustomerId());
+                    System.out.println("🔄 Direct query results - Summary: " + (financialSummary != null ? java.util.Arrays.toString(financialSummary) : "NULL"));
+                    System.out.println("🔄 Direct query results - Breakdown count: " + (propertyBreakdown != null ? propertyBreakdown.size() : "NULL"));
+                }
             }
+
+            // Get properties for enhanced data
+            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+
+            // DEBUG: Check what data we're getting
+            System.out.println("🔍 Customer ID: " + customer.getCustomerId());
+            System.out.println("🔍 Properties count: " + properties.size());
+            System.out.println("🔍 Financial summary result: " + (financialSummary != null ? java.util.Arrays.toString(financialSummary) : "NULL"));
+            System.out.println("🔍 Property breakdown count: " + (propertyBreakdown != null ? propertyBreakdown.size() : "NULL"));
 
             // Parse financial data
             BigDecimal totalRent = parseFinancialValue(financialSummary, 0);
             BigDecimal totalCommission = parseFinancialValue(financialSummary, 1);
             BigDecimal totalNetToOwner = parseFinancialValue(financialSummary, 2);
             Long totalTransactions = parseTransactionCount(financialSummary, 3);
+
+            System.out.println("🔍 Parsed totals - Rent: " + totalRent + ", Commission: " + totalCommission + ", Net: " + totalNetToOwner + ", Transactions: " + totalTransactions);
 
             BigDecimal commissionRate = totalRent.compareTo(BigDecimal.ZERO) > 0 ?
                 totalCommission.multiply(BigDecimal.valueOf(100)).divide(totalRent, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
