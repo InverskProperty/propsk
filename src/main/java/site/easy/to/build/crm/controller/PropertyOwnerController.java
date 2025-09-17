@@ -1563,24 +1563,41 @@ public class PropertyOwnerController {
     // ✅ NEW: Safe financial value parsing to handle scientific notation and null values
     private BigDecimal parseFinancialValue(Object[] resultArray, int index) {
         try {
-            if (resultArray == null || resultArray.length <= index || resultArray[index] == null) {
+            if (resultArray == null || resultArray.length == 0) {
+                System.out.println("❌ NULL/EMPTY: Result array is null or empty");
                 return BigDecimal.ZERO;
             }
-            
-            Object value = resultArray[index];
-            System.out.println("🔍 DEBUG: Parsing financial value at index " + index + ": " + value + " (Type: " + value.getClass().getSimpleName() + ")");
-            
+
+            System.out.println("🔍 DEBUG: parseFinancialValue - resultArray.length=" + resultArray.length + ", requesting index=" + index);
+            for (int i = 0; i < resultArray.length; i++) {
+                System.out.println("   resultArray[" + i + "] = " + resultArray[i] + " (Type: " + (resultArray[i] != null ? resultArray[i].getClass().getSimpleName() : "null") + ")");
+            }
+
+            Object value;
+
             // ✅ FIXED: Handle case where database returns nested Object[] instead of individual values
-            if (value instanceof Object[]) {
-                Object[] nestedArray = (Object[]) value;
-                System.out.println("🔄 FIXING: Detected nested Object[] with " + nestedArray.length + " elements, extracting index " + index);
+            // Check if we have a single element that is itself an Object[] (common with Spring JPA aggregate queries)
+            if (resultArray.length == 1 && resultArray[0] instanceof Object[]) {
+                Object[] nestedArray = (Object[]) resultArray[0];
+                System.out.println("🔄 FIXING: Detected single nested Object[] with " + nestedArray.length + " elements, extracting index " + index);
+                for (int i = 0; i < nestedArray.length; i++) {
+                    System.out.println("   nestedArray[" + i + "] = " + nestedArray[i] + " (Type: " + (nestedArray[i] != null ? nestedArray[i].getClass().getSimpleName() : "null") + ")");
+                }
+
                 if (nestedArray.length > index && nestedArray[index] != null) {
                     value = nestedArray[index];
-                    System.out.println("🔄 FIXED: Extracted value: " + value + " (Type: " + value.getClass().getSimpleName() + ")");
+                    System.out.println("🔄 FIXED: Extracted value from nested array[" + index + "]: " + value + " (Type: " + value.getClass().getSimpleName() + ")");
                 } else {
-                    System.out.println("⚠️ WARNING: Nested array doesn't have index " + index + " or value is null");
+                    System.out.println("❌ NESTED ARRAY ISSUE: Index " + index + " not available or null in nested array of length " + nestedArray.length);
                     return BigDecimal.ZERO;
                 }
+            } else if (resultArray.length > index && resultArray[index] != null) {
+                // Normal array case: [value1, value2, value3, value4]
+                value = resultArray[index];
+                System.out.println("🔍 DEBUG: Parsing financial value from normal array[" + index + "]: " + value + " (Type: " + value.getClass().getSimpleName() + ")");
+            } else {
+                System.out.println("❌ ARRAY ISSUE: Index " + index + " not available in result array of length " + resultArray.length);
+                return BigDecimal.ZERO;
             }
             
             // Handle different types that might be returned from the database
@@ -1618,24 +1635,35 @@ public class PropertyOwnerController {
     // ✅ NEW: Safe transaction count parsing
     private Long parseTransactionCount(Object[] resultArray, int index) {
         try {
-            if (resultArray == null || resultArray.length <= index || resultArray[index] == null) {
+            if (resultArray == null || resultArray.length == 0) {
+                System.out.println("❌ NULL/EMPTY: Result array is null or empty for transaction count");
                 return 0L;
             }
-            
-            Object value = resultArray[index];
-            System.out.println("🔍 DEBUG: Parsing transaction count at index " + index + ": " + value + " (Type: " + value.getClass().getSimpleName() + ")");
-            
+
+            System.out.println("🔍 DEBUG: parseTransactionCount - resultArray.length=" + resultArray.length + ", requesting index=" + index);
+
+            Object value;
+
             // ✅ FIXED: Handle case where database returns nested Object[] instead of individual values
-            if (value instanceof Object[]) {
-                Object[] nestedArray = (Object[]) value;
-                System.out.println("🔄 FIXING: Detected nested Object[] with " + nestedArray.length + " elements for transaction count, extracting index " + index);
+            // Check if we have a single element that is itself an Object[] (common with Spring JPA aggregate queries)
+            if (resultArray.length == 1 && resultArray[0] instanceof Object[]) {
+                Object[] nestedArray = (Object[]) resultArray[0];
+                System.out.println("🔄 FIXING: Detected single nested Object[] with " + nestedArray.length + " elements for transaction count, extracting index " + index);
+
                 if (nestedArray.length > index && nestedArray[index] != null) {
                     value = nestedArray[index];
-                    System.out.println("🔄 FIXED: Extracted transaction count: " + value + " (Type: " + value.getClass().getSimpleName() + ")");
+                    System.out.println("🔄 FIXED: Extracted transaction count from nested array[" + index + "]: " + value + " (Type: " + value.getClass().getSimpleName() + ")");
                 } else {
-                    System.out.println("⚠️ WARNING: Nested array doesn't have index " + index + " or value is null");
+                    System.out.println("❌ NESTED ARRAY ISSUE: Index " + index + " not available or null in nested array of length " + nestedArray.length);
                     return 0L;
                 }
+            } else if (resultArray.length > index && resultArray[index] != null) {
+                // Normal array case: [value1, value2, value3, value4]
+                value = resultArray[index];
+                System.out.println("🔍 DEBUG: Parsing transaction count from normal array[" + index + "]: " + value + " (Type: " + value.getClass().getSimpleName() + ")");
+            } else {
+                System.out.println("❌ ARRAY ISSUE: Index " + index + " not available in result array of length " + resultArray.length);
+                return 0L;
             }
             
             if (value instanceof Number) {
