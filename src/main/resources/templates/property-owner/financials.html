@@ -4,6 +4,8 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
     <meta name="description" content="">
     <meta name="author" content="">
     <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
@@ -959,6 +961,14 @@
 <script th:src="@{/js/library/custom.min.js}"></script>
 
 <script>
+// Wait for document ready to ensure jQuery is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if jQuery is available
+    if (typeof $ === 'undefined') {
+        console.warn('jQuery is not loaded yet, some functionality may not work');
+    }
+});
+
 function showComingSoon(feature) {
     alert(feature + ' is coming soon! We\'re working on bringing you comprehensive financial management tools.');
 }
@@ -985,15 +995,29 @@ function saveQuickValuation() {
     const form = document.getElementById('quickValuationForm');
     const formData = new FormData(form);
     const propertyId = document.getElementById('modalPropertyId').value;
-    
+
+    // Add CSRF token
+    const csrfToken = document.querySelector('meta[name="_csrf"]')?.getAttribute('content');
+    const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.getAttribute('content');
+
+    if (csrfToken) {
+        formData.append('_csrf', csrfToken);
+    }
+
     // Show loading state
     const saveButton = document.querySelector('#valuationModal .btn-primary');
     const originalText = saveButton.innerHTML;
     saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
     saveButton.disabled = true;
-    
+
+    const headers = {};
+    if (csrfToken && csrfHeader) {
+        headers[csrfHeader] = csrfToken;
+    }
+
     fetch(`/property-owner/property/${propertyId}/valuation`, {
         method: 'POST',
+        headers: headers,
         body: formData
     })
     .then(response => response.json())
