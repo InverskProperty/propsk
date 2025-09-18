@@ -784,11 +784,16 @@ public class PortfolioServiceImpl implements PortfolioService {
         return portfolioRepository.findByPropertyOwnerId(propertyOwnerId);
     }
     
-    @Override 
+    @Override
     public List<Portfolio> findPortfoliosForPropertyOwnerWithBlocks(Integer propertyOwnerId) {
         return portfolioRepository.findByPropertyOwnerIdWithBlocks(propertyOwnerId);
     }
-    
+
+    @Override
+    public List<Portfolio> findPortfoliosForCustomerWithAssignments(Integer customerId) {
+        return portfolioRepository.findPortfoliosForCustomerWithAssignments(customerId);
+    }
+
     @Override
     public List<Portfolio> findSharedPortfolios() {
         return portfolioRepository.findByIsShared("Y");

@@ -187,7 +187,15 @@ public class PropertyOwnerController {
                     if (portfolioService != null) {
                         System.out.println("🔍 STEP 6A: PortfolioService is available, loading portfolios...");
                         try {
-                            List<Portfolio> userPortfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                            // Use enhanced method for delegated users to include properties via assignments
+                            List<Portfolio> userPortfolios;
+                            if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
+                                userPortfolios = portfolioService.findPortfoliosForCustomerWithAssignments(customer.getCustomerId().intValue());
+                                System.out.println("🔍 DELEGATED_USER: Using findPortfoliosForCustomerWithAssignments for customer " + customer.getCustomerId());
+                            } else {
+                                userPortfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                                System.out.println("🔍 PROPERTY_OWNER: Using findPortfoliosForPropertyOwnerWithBlocks for customer " + customer.getCustomerId());
+                            }
                             
                             // Add property counts to portfolios using junction table method
                             Map<Long, Integer> portfolioPropertyCounts = new HashMap<>();
@@ -366,7 +374,15 @@ public class PropertyOwnerController {
                     if (portfolioService != null) {
                         System.out.println("DEBUG: PortfolioService is available, attempting to load portfolios...");
                         
-                        List<Portfolio> userPortfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                        // Use enhanced method for delegated users to include properties via assignments
+                        List<Portfolio> userPortfolios;
+                        if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
+                            userPortfolios = portfolioService.findPortfoliosForCustomerWithAssignments(customer.getCustomerId().intValue());
+                            System.out.println("DEBUG: DELEGATED_USER - Using findPortfoliosForCustomerWithAssignments for customer " + customer.getCustomerId());
+                        } else {
+                            userPortfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                            System.out.println("DEBUG: PROPERTY_OWNER - Using findPortfoliosForPropertyOwnerWithBlocks for customer " + customer.getCustomerId());
+                        }
                         model.addAttribute("portfolios", userPortfolios);
                         System.out.println("DEBUG: Found " + userPortfolios.size() + " portfolios for customer " + customer.getCustomerId());
                         
@@ -941,7 +957,13 @@ public class PropertyOwnerController {
             // Add portfolio statistics if available
             try {
                 if (portfolioService != null) {
-                    List<Portfolio> portfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                    // Use enhanced method for delegated users to include properties via assignments
+                    List<Portfolio> portfolios;
+                    if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
+                        portfolios = portfolioService.findPortfoliosForCustomerWithAssignments(customer.getCustomerId().intValue());
+                    } else {
+                        portfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                    }
                     model.addAttribute("portfolios", portfolios);
                     model.addAttribute("portfolioSystemEnabled", true);
                 } else {
@@ -1174,7 +1196,12 @@ public class PropertyOwnerController {
             List<Portfolio> portfolios;
             try {
                 if (portfolioService != null) {
-                    portfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                    // Use enhanced method for delegated users to include properties via assignments
+                    if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
+                        portfolios = portfolioService.findPortfoliosForCustomerWithAssignments(customer.getCustomerId().intValue());
+                    } else {
+                        portfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                    }
                     System.out.println("✅ Found " + portfolios.size() + " portfolios for customer " + customer.getCustomerId());
                 } else {
                     portfolios = List.of();
@@ -1902,15 +1929,18 @@ public class PropertyOwnerController {
                     System.out.println("DEBUG: Customer type: " + customer.getCustomerType());
                     System.out.println("DEBUG: Is property owner: " + customer.getIsPropertyOwner());
                     
-                    // Verify this is a property owner
-                    boolean isPropertyOwnerByType = customer.getCustomerType() != null && 
+                    // Verify this is a property owner OR delegated user with property owner access
+                    boolean isPropertyOwnerByType = customer.getCustomerType() != null &&
                         customer.getCustomerType() == CustomerType.PROPERTY_OWNER;
+                    boolean isDelegatedUser = customer.getCustomerType() != null &&
+                        customer.getCustomerType() == CustomerType.DELEGATED_USER;
                     boolean isPropertyOwnerByFlag = Boolean.TRUE.equals(customer.getIsPropertyOwner());
-                    
+
                     System.out.println("DEBUG: Is property owner by type: " + isPropertyOwnerByType);
+                    System.out.println("DEBUG: Is delegated user: " + isDelegatedUser);
                     System.out.println("DEBUG: Is property owner by flag: " + isPropertyOwnerByFlag);
-                    
-                    if (isPropertyOwnerByType || isPropertyOwnerByFlag) {
+
+                    if (isPropertyOwnerByType || isDelegatedUser || isPropertyOwnerByFlag) {
                         System.out.println("DEBUG: ✅ Customer validation passed, returning customer: " + customer.getCustomerId());
                         return customer;
                     } else {

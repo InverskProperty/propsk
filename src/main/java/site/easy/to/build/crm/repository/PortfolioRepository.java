@@ -93,6 +93,14 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
     
     @Query("SELECT DISTINCT p FROM Portfolio p LEFT JOIN FETCH p.blocks WHERE p.propertyOwnerId = :propertyOwnerId")
     List<Portfolio> findByPropertyOwnerIdWithBlocks(@Param("propertyOwnerId") Integer propertyOwnerId);
+
+    // Enhanced query for delegated users - finds portfolios containing properties they have access to
+    @Query(value = "SELECT DISTINCT p.* FROM portfolios p " +
+           "LEFT JOIN property_portfolio_assignment ppa ON p.id = ppa.portfolio_id " +
+           "LEFT JOIN customer_property_assignments cpa ON ppa.property_id = cpa.property_id " +
+           "WHERE (p.property_owner_id = :customerId OR cpa.customer_id = :customerId) " +
+           "AND p.is_active = 'Y'", nativeQuery = true)
+    List<Portfolio> findPortfoliosForCustomerWithAssignments(@Param("customerId") Integer customerId);
     
     // Portfolio property count analytics - UPDATED to use PropertyPortfolioAssignment junction table
     @Query("SELECT p, COUNT(ppa) as propertyCount FROM Portfolio p " +

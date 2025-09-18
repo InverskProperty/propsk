@@ -22,6 +22,7 @@ public interface PortfolioService {
     List<Portfolio> findPortfoliosForUser(Authentication authentication);
     List<Portfolio> findPortfoliosForPropertyOwner(Integer propertyOwnerId);
     List<Portfolio> findPortfoliosForPropertyOwnerWithBlocks(Integer propertyOwnerId);
+    List<Portfolio> findPortfoliosForCustomerWithAssignments(Integer customerId);
     List<Portfolio> findSharedPortfolios();
 
     /**
