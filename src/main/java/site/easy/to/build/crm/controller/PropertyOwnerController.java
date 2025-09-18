@@ -5,6 +5,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -1090,6 +1091,7 @@ public class PropertyOwnerController {
      * Property Owner Financial Summary - Enhanced with PayProp Financial Data
      */
     @GetMapping("/property-owner/financials")
+    @Transactional
     public String viewFinancials(Model model, Authentication authentication) {
         System.out.println("💰 Property Owner Financial Dashboard - Loading...");
         try {
@@ -1442,6 +1444,7 @@ public class PropertyOwnerController {
      */
     @GetMapping("/property-owner/financials/filter")
     @ResponseBody
+    @Transactional
     public Map<String, Object> getFilteredFinancials(
             @RequestParam(required = false) Long portfolioId,
             @RequestParam(required = false) String dataSource,

@@ -96,7 +96,7 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
 
     // Enhanced query for delegated users - finds portfolios containing properties they have access to
     @Query(value = "SELECT DISTINCT p.* FROM portfolios p " +
-           "LEFT JOIN property_portfolio_assignment ppa ON p.id = ppa.portfolio_id " +
+           "LEFT JOIN property_portfolio_assignments ppa ON p.id = ppa.portfolio_id " +
            "LEFT JOIN customer_property_assignments cpa ON ppa.property_id = cpa.property_id " +
            "WHERE (p.property_owner_id = :customerId OR cpa.customer_id = :customerId) " +
            "AND p.is_active = 'Y'", nativeQuery = true)
