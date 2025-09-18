@@ -1020,16 +1020,23 @@ function saveQuickValuation() {
         headers: headers,
         body: formData
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             // Show success message
             alert('Valuation data saved successfully!');
-            
+
             // Close modal and reload page
             const modal = bootstrap.Modal.getInstance(document.getElementById('valuationModal'));
             modal.hide();
-            window.location.reload();
+
+            // Delay reload slightly to ensure modal closes
+            setTimeout(() => window.location.reload(), 100);
         } else {
             alert('Error saving valuation data: ' + (data.error || 'Unknown error'));
         }

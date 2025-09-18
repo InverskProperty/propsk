@@ -6,7 +6,8 @@ package site.easy.to.build.crm.entity;
  */
 public enum CustomerType {
     REGULAR_CUSTOMER("Regular Customer", "customer"),
-    PROPERTY_OWNER("Property Owner", "property_owner"), 
+    PROPERTY_OWNER("Property Owner", "property_owner"),
+    DELEGATED_USER("Delegated User", "delegated_user"),
     TENANT("Tenant", "tenant"),
     CONTRACTOR("Contractor", "contractor"),
     EMPLOYEE("Employee", "employee"),
@@ -30,6 +31,7 @@ public enum CustomerType {
     }
     
     // PayProp integration helper - only tenants and property owners sync with PayProp
+    // Note: DELEGATED_USER gets property owner permissions but is NOT a PayProp entity
     public boolean isPayPropEntity() {
         return this == TENANT || this == PROPERTY_OWNER;
     }

@@ -167,6 +167,9 @@ public class CustomerLoginSuccessHandler implements AuthenticationSuccessHandler
                 case PROPERTY_OWNER:
                     System.out.println("DEBUG: Redirecting PROPERTY_OWNER to /property-owner/dashboard");
                     return "/property-owner/dashboard";
+                case DELEGATED_USER:
+                    System.out.println("DEBUG: Redirecting DELEGATED_USER to /property-owner/dashboard");
+                    return "/property-owner/dashboard";
                 case TENANT:
                     System.out.println("DEBUG: Redirecting TENANT to /tenant/dashboard");
                     return "/tenant/dashboard";

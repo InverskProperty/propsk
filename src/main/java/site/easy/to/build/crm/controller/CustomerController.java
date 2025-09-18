@@ -1365,6 +1365,13 @@ public class CustomerController {
                 customer.setCustomerType(CustomerType.PROPERTY_OWNER);
                 customer.setEntityType("property_owner");
                 System.out.println("🔍 Setting as PROPERTY_OWNER");
+            } else if ("DELEGATED_USER".equals(finalCustomerType)) {
+                customer.setIsPropertyOwner(false);
+                customer.setIsTenant(false);
+                customer.setIsContractor(false);
+                customer.setCustomerType(CustomerType.DELEGATED_USER);
+                customer.setEntityType("delegated_user");
+                System.out.println("🔍 Setting as DELEGATED_USER");
             } else if ("CONTRACTOR".equals(finalCustomerType)) {
                 customer.setIsContractor(true);
                 customer.setIsTenant(false);

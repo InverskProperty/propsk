@@ -122,6 +122,9 @@ public class CustomerUserDetails implements UserDetailsService {
                 case PROPERTY_OWNER:
                     System.out.println("DEBUG: CustomerType is PROPERTY_OWNER, returning ROLE_PROPERTY_OWNER");
                     return "ROLE_PROPERTY_OWNER";
+                case DELEGATED_USER:
+                    System.out.println("DEBUG: CustomerType is DELEGATED_USER, returning ROLE_PROPERTY_OWNER");
+                    return "ROLE_PROPERTY_OWNER";
                 case TENANT:
                     System.out.println("DEBUG: CustomerType is TENANT, returning ROLE_TENANT");
                     return "ROLE_TENANT";

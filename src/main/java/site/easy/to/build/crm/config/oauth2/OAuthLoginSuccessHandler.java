@@ -507,6 +507,9 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
                 case PROPERTY_OWNER:
                     System.out.println("DEBUG: Redirecting PROPERTY_OWNER to /property-owner/dashboard");
                     return "/property-owner/dashboard";
+                case DELEGATED_USER:
+                    System.out.println("DEBUG: Redirecting DELEGATED_USER to /property-owner/dashboard");
+                    return "/property-owner/dashboard";
                 case TENANT:
                     System.out.println("DEBUG: Redirecting TENANT to /tenant/dashboard");
                     return "/tenant/dashboard";
@@ -607,6 +610,9 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
             switch (customerType) {
                 case PROPERTY_OWNER:
                     System.out.println("🔐 ROLE: CustomerType is PROPERTY_OWNER, returning ROLE_PROPERTY_OWNER");
+                    return "ROLE_PROPERTY_OWNER";
+                case DELEGATED_USER:
+                    System.out.println("🔐 ROLE: CustomerType is DELEGATED_USER, returning ROLE_PROPERTY_OWNER");
                     return "ROLE_PROPERTY_OWNER";
                 case TENANT:
                     return "ROLE_TENANT";
