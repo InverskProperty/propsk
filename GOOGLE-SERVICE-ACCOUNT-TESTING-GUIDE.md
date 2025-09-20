@@ -73,7 +73,6 @@ curl http://localhost:8080/api/test/google-service-account/connectivity
 {
   "driveTest": {"status": "SUCCESS", "filesCount": "5"},
   "sheetsTest": {"status": "SUCCESS", "testSheetId": "1AbC..."},
-  "gmailTest": {"status": "SUCCESS", "serviceAccountEmail": "property-statement-generator@crecrm.iam.gserviceaccount.com"},
   "overallStatus": "SUCCESS",
   "timestamp": "2025-09-20T..."
 }
@@ -134,7 +133,6 @@ curl -X POST "http://localhost:8080/api/test/google-service-account/integrated-w
 ### `/connectivity`
 - Tests Drive API by listing files
 - Tests Sheets API by creating a temporary spreadsheet
-- Tests Gmail API by accessing profile
 - Returns comprehensive status report
 
 ### `/create-folder`
@@ -170,7 +168,7 @@ After successful tests, you should see this structure in Google Drive:
 ## Production Deployment Checklist
 
 - [ ] `GOOGLE_SERVICE_ACCOUNT_KEY` environment variable set
-- [ ] Google Cloud APIs enabled (Drive, Sheets, Gmail)
+- [ ] Google Cloud APIs enabled (Drive, Sheets)
 - [ ] Service account has proper permissions
 - [ ] Application starts without errors
 - [ ] `/health` endpoint returns UP

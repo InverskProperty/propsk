@@ -213,12 +213,7 @@ public class GoogleServiceAccountTestController {
                 info.put("sheetsService", "FAILED: " + e.getMessage());
             }
 
-            try {
-                googleService.getGmailService();
-                info.put("gmailService", "AVAILABLE");
-            } catch (Exception e) {
-                info.put("gmailService", "FAILED: " + e.getMessage());
-            }
+            info.put("gmailService", "NOT_IMPLEMENTED");
 
             info.put("integrationService", integrationService != null ? "AVAILABLE" : "NOT_AVAILABLE");
             info.put("timestamp", java.time.LocalDateTime.now().toString());

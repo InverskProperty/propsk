@@ -10,8 +10,6 @@ import com.google.api.services.drive.model.FileList;
 import com.google.api.services.sheets.v4.Sheets;
 import com.google.api.services.sheets.v4.SheetsScopes;
 import com.google.api.services.sheets.v4.model.*;
-import com.google.api.services.gmail.Gmail;
-import com.google.api.services.gmail.GmailScopes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,7 +36,6 @@ public class GoogleServiceAccountService {
     // Cached services to avoid recreating
     private Drive driveService;
     private Sheets sheetsService;
-    private Gmail gmailService;
 
     /**
      * Test Google service account connectivity
@@ -54,9 +51,6 @@ public class GoogleServiceAccountService {
 
             // Test Sheets API
             results.put("sheetsTest", testSheetsAccess());
-
-            // Test Gmail API
-            results.put("gmailTest", testGmailAccess());
 
             results.put("overallStatus", "SUCCESS");
             results.put("timestamp", LocalDateTime.now().toString());
@@ -117,24 +111,6 @@ public class GoogleServiceAccountService {
         return result;
     }
 
-    private Map<String, String> testGmailAccess() throws Exception {
-        Map<String, String> result = new HashMap<>();
-        try {
-            Gmail gmail = getGmailService();
-
-            // Test by getting profile (basic access test)
-            com.google.api.services.gmail.model.Profile profile = gmail.users().getProfile("me").execute();
-
-            result.put("status", "SUCCESS");
-            result.put("serviceAccountEmail", profile.getEmailAddress());
-            result.put("message", "Gmail API accessible");
-
-        } catch (Exception e) {
-            result.put("status", "FAILED");
-            result.put("error", e.getMessage());
-        }
-        return result;
-    }
 
     /**
      * Get or create Drive service
@@ -178,26 +154,6 @@ public class GoogleServiceAccountService {
         return sheetsService;
     }
 
-    /**
-     * Get or create Gmail service
-     */
-    public Gmail getGmailService() throws IOException, GeneralSecurityException {
-        if (gmailService == null) {
-            GoogleCredential credential = GoogleCredential
-                .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
-                .createScoped(Collections.singleton(GmailScopes.GMAIL_SEND));
-
-            gmailService = new Gmail.Builder(
-                GoogleNetHttpTransport.newTrustedTransport(),
-                JSON_FACTORY,
-                credential)
-                .setApplicationName(APPLICATION_NAME)
-                .build();
-
-            log.debug("✅ Gmail service initialized");
-        }
-        return gmailService;
-    }
 
     /**
      * Create a folder in Google Drive
