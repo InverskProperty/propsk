@@ -240,26 +240,36 @@ public class StatementController {
                 redirectAttributes.addFlashAttribute("error", "Access denied.");
                 return "redirect:/statements";
             }
-            
-            // Get OAuth user for Google Sheets
-            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-            
-            if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
-                redirectAttributes.addFlashAttribute("error", 
-                    "Google account not connected. Please connect your Google account first.");
-                return "redirect:/statements";
-            }
-            
-            // Get property owner
+
+            // Get property owner first
             Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId.longValue());
             if (propertyOwner == null) {
                 redirectAttributes.addFlashAttribute("error", "Property owner not found.");
                 return "redirect:/statements";
             }
-            
-            // Generate statement
-            String spreadsheetId = statementService.createPropertyOwnerStatement(
-                oAuthUser, propertyOwner, fromDate, toDate);
+
+            // Try OAuth first, fall back to service account
+            OAuthUser oAuthUser = null;
+            boolean useServiceAccount = false;
+            String spreadsheetId = null;
+
+            try {
+                oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+                if (oAuthUser != null && oAuthUser.getAccessToken() != null) {
+                    // Use OAuth method
+                    spreadsheetId = statementService.createPropertyOwnerStatement(oAuthUser, propertyOwner, fromDate, toDate);
+                } else {
+                    useServiceAccount = true;
+                }
+            } catch (Exception e) {
+                useServiceAccount = true;
+            }
+
+            if (useServiceAccount) {
+                System.out.println("📝 Statement generation: Using service account fallback for " + propertyOwner.getEmail());
+                // Use service account method
+                spreadsheetId = serviceAccountSheetsService.createPropertyOwnerStatement(propertyOwner, fromDate, toDate);
+            }
             
             // Success message with link to Google Sheets
             String sheetsUrl = "https://docs.google.com/spreadsheets/d/" + spreadsheetId;
