@@ -22,6 +22,7 @@ import site.easy.to.build.crm.service.drive.CustomerDriveOrganizationService;
 import site.easy.to.build.crm.service.drive.GoogleDriveFileService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentService;
+import site.easy.to.build.crm.service.google.GoogleServiceAccountService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.io.IOException;
@@ -43,15 +44,17 @@ public class GoogleDriveController {
     private final CustomerDriveOrganizationService customerDriveOrganizationService;
     private final GoogleDriveFileService googleDriveFileService;
     private final CustomerPropertyAssignmentService assignmentService;
+    private final GoogleServiceAccountService googleServiceAccountService;
 
     @Autowired
-    public GoogleDriveController(GoogleDriveApiService googleDriveApiService, 
+    public GoogleDriveController(GoogleDriveApiService googleDriveApiService,
                                AuthenticationUtils authenticationUtils,
                                PropertyService propertyService,
                                CustomerService customerService,
                                CustomerDriveOrganizationService customerDriveOrganizationService,
                                GoogleDriveFileService googleDriveFileService,
-                               CustomerPropertyAssignmentService assignmentService) {
+                               CustomerPropertyAssignmentService assignmentService,
+                               GoogleServiceAccountService googleServiceAccountService) {
         this.googleDriveApiService = googleDriveApiService;
         this.authenticationUtils = authenticationUtils;
         this.propertyService = propertyService;
@@ -59,6 +62,7 @@ public class GoogleDriveController {
         this.customerDriveOrganizationService = customerDriveOrganizationService;
         this.googleDriveFileService = googleDriveFileService;
         this.assignmentService = assignmentService;
+        this.googleServiceAccountService = googleServiceAccountService;
     }
 
     @GetMapping("/list-files")
@@ -67,7 +71,7 @@ public class GoogleDriveController {
                                     @RequestParam(value = "customerId", required = false) Long customerId,
                                     Model model, Authentication authentication) {
         if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            return "/google-error";
+            return "google-error";
         }
         
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
@@ -195,6 +199,57 @@ public class GoogleDriveController {
         model.addAttribute("isPropertyView", true);
         model.addAttribute("propertyFolderId", propertyFolderId);
         
+        return "google-drive/property-files";
+    }
+
+    /**
+     * Property-specific file management using service account (for non-OAuth users)
+     */
+    private String handlePropertyFilesWithServiceAccount(Property property, Model model) throws IOException, GeneralSecurityException {
+        // Get property files from database (stored Google Drive file records)
+        List<site.easy.to.build.crm.entity.GoogleDriveFile> entityFiles = googleDriveFileService.getFilesByProperty(property.getId());
+
+        // Convert entity files to API model format for consistency with template
+        List<GoogleDriveFile> files = new ArrayList<>();
+        Map<String, List<GoogleDriveFile>> filesByCategory = new HashMap<>();
+
+        for (site.easy.to.build.crm.entity.GoogleDriveFile entityFile : entityFiles) {
+            // Convert entity to API model
+            GoogleDriveFile apiFile = new GoogleDriveFile();
+            apiFile.setId(entityFile.getDriveFileId());
+            apiFile.setName(entityFile.getFileName());
+            // Note: Entity doesn't have direct web links - these would need service account calls to get
+            apiFile.setMimeType(entityFile.getFileType()); // Use fileType as mimeType fallback
+
+            files.add(apiFile);
+
+            // Organize by category
+            String category = entityFile.getFileCategory() != null ? entityFile.getFileCategory() : "General";
+            filesByCategory.computeIfAbsent(category, k -> new ArrayList<>()).add(apiFile);
+        }
+
+        // Load customers safely
+        List<Customer> propertyOwners = new ArrayList<>();
+        List<Customer> tenants = new ArrayList<>();
+
+        try {
+            propertyOwners = loadPropertyCustomersSafely(property.getId(), AssignmentType.OWNER);
+            tenants = loadPropertyCustomersSafely(property.getId(), AssignmentType.TENANT);
+        } catch (Exception e) {
+            System.err.println("Error loading customers for property " + property.getId() + ": " + e.getMessage());
+        }
+
+        model.addAttribute("property", property);
+        model.addAttribute("files", files);
+        model.addAttribute("filesByCategory", filesByCategory);
+        model.addAttribute("propertyOwners", propertyOwners);
+        model.addAttribute("tenants", tenants);
+        model.addAttribute("pageTitle", "Files for " + property.getPropertyName());
+        model.addAttribute("breadcrumb", property.getPropertyName());
+        model.addAttribute("isPropertyView", true);
+        model.addAttribute("isServiceAccount", true); // Flag to indicate service account mode
+        model.addAttribute("message", "Viewing files via service account - limited functionality");
+
         return "google-drive/property-files";
     }
 
@@ -398,7 +453,7 @@ public class GoogleDriveController {
     public String listFilesInFolder(Model model, @ModelAttribute("file") GoogleDriveFile file, BindingResult bindingResult, Authentication authentication, @PathVariable("id") String id,
                                      RedirectAttributes redirectAttributes){
         if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            return "/google-error";
+            return "google-error";
         }
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
 
@@ -417,7 +472,7 @@ public class GoogleDriveController {
     @GetMapping("/create-folder")
     public String showFolderCreationForm(Model model, Authentication authentication){
         if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            return "/google-error";
+            return "google-error";
         }
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         if(!oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/drive.file")) {
@@ -437,24 +492,23 @@ public class GoogleDriveController {
 
     @GetMapping("/property-files/{propertyId}")
     public String showPropertyFiles(@PathVariable Long propertyId, Model model, Authentication authentication) {
-        // Check if user is authenticated via OAuth2 (required for Google Drive access)
-        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            // For non-OAuth users, provide a simple file listing or redirect to property view
-            model.addAttribute("message", "Google Drive integration requires OAuth authentication");
-            model.addAttribute("propertyId", propertyId);
-            return "redirect:/employee/property/" + propertyId + "?message=drive_oauth_required";
-        }
-        
-        OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         Property property = propertyService.findById(propertyId);
-        
+
         if (property == null) {
             model.addAttribute("errorMessage", "Property not found.");
             return "error/not-found";
         }
-        
+
         try {
-            return handlePropertyFiles(property, model, oAuthUser);
+            // Check if user is authenticated via OAuth2
+            if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User) {
+                // Use OAuth for Google Drive access
+                OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+                return handlePropertyFiles(property, model, oAuthUser);
+            } else {
+                // Use service account for non-OAuth users
+                return handlePropertyFilesWithServiceAccount(property, model);
+            }
         } catch (IOException | GeneralSecurityException e) {
             e.printStackTrace();
             model.addAttribute("errorMessage", "Failed to load property files: " + e.getMessage());
@@ -466,7 +520,7 @@ public class GoogleDriveController {
     public String createFolder(Authentication authentication, @ModelAttribute("folder") @Valid GoogleDriveFolder folder,
                                BindingResult bindingResult, Model model) {
         if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            return "/google-error";
+            return "google-error";
         }
         if (bindingResult.hasErrors()) {
             return "google-drive/create-folder";
@@ -483,7 +537,7 @@ public class GoogleDriveController {
     @GetMapping("/create-file")
     public String showFileCreationForm(Model model, Authentication authentication){
         if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            return "/google-error";
+            return "google-error";
         }
 
         List<GoogleDriveFolder> folders;
@@ -502,7 +556,7 @@ public class GoogleDriveController {
     public String createFileInFolder(Authentication authentication, @ModelAttribute("file") @Valid GoogleDriveFile file,
                                      BindingResult bindingResult, Model model) {
         if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            return "/google-error";
+            return "google-error";
         }
         List<GoogleDriveFolder> folders;
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);

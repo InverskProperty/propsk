@@ -56,7 +56,7 @@ public class GoogleGmailController {
     @GetMapping("/send")
     public String showEmailForm(Model model, Authentication authentication) {
         if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "/google-error";
+            return "google-error";
         }
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         if(!oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.send")){
@@ -142,7 +142,7 @@ public class GoogleGmailController {
     public String showEmails(HttpSession session, Authentication authentication, Model model,
                              @RequestParam(value = "page", defaultValue = "1") int page) throws IOException {
         if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "/google-error";
+            return "google-error";
         }
 
         EmailPage emailsPerPage;
@@ -210,7 +210,7 @@ public class GoogleGmailController {
                                  @PathVariable("label") String label,
                                  @RequestParam(value = "page", defaultValue = "1") int page, @RequestParam(value = "success", required = false) boolean success) {
         if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "/google-error";
+            return "google-error";
         }
         if (success) {
             model.addAttribute("successMessage", "Email sent successfully!");
@@ -302,7 +302,7 @@ public class GoogleGmailController {
     @GetMapping("/email-details/{id}")
     public String showEmailDetails(@PathVariable("id") String emailId, Authentication authentication, Model model, HttpSession session) {
         if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "/google-error";
+            return "google-error";
         }
 
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);

@@ -55,7 +55,7 @@ public class GoogleCalendarController {
     @GetMapping("/list-events")
     public String listEvents(Model model, Authentication authentication) {
         if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "/google-error";
+            return "google-error";
         }
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         List<EventDisplay> eventDisplays;
@@ -73,7 +73,7 @@ public class GoogleCalendarController {
     @GetMapping("/create-event")
     public String showCreateEventForm(Model model, Authentication authentication, @RequestParam(value = "leadId", required = false) Integer leadId) {
         if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "/google-error";
+            return "google-error";
         }
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         if(!oAuthUser.getGrantedScopes().contains(GoogleAccessService.SCOPE_CALENDAR)) {
@@ -112,7 +112,7 @@ public class GoogleCalendarController {
             return "calendar/event-form";
         }
         if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "/google-error";
+            return "google-error";
         }
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         Event event = new Event();
@@ -292,7 +292,7 @@ public class GoogleCalendarController {
     @RequestMapping("/delete-event/{id}")
     public String deleteEvent(@PathVariable("id") String eventId, Authentication authentication, Model model){
         if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "/google-error";
+            return "google-error";
         }
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         try {
