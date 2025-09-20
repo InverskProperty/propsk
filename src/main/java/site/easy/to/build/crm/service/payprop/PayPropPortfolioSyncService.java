@@ -62,6 +62,13 @@ public class PayPropPortfolioSyncService {
     private TagNamespaceService tagNamespaceService;
 
     @Autowired
+    private UserRepository userRepository;
+
+    @Autowired(required = false)
+    @Lazy
+    private site.easy.to.build.crm.service.integration.PayPropGoogleIntegrationService integrationService;
+
+    @Autowired
     public PayPropPortfolioSyncService(PortfolioRepository portfolioRepository,
                                       BlockRepository blockRepository,
                                       PropertyService propertyService,
@@ -77,8 +84,35 @@ public class PayPropPortfolioSyncService {
     }
     
     // ===== PORTFOLIO TO PAYPROP SYNCHRONIZATION =====
-    
+
     /**
+     * Enhanced sync with Google documentation (NEW - uses integration service)
+     */
+    public SyncResult syncPortfolioToPayPropWithDocumentation(Long portfolioId, String initiatedByEmail) {
+        if (integrationService != null) {
+            try {
+                log.info("🔄 Using enhanced sync with Google documentation for portfolio {}", portfolioId);
+
+                var result = integrationService.syncPortfolioWithDocumentation(portfolioId, initiatedByEmail);
+
+                return SyncResult.success("Enhanced sync completed", Map.of(
+                    "tagId", result.getTagId(),
+                    "googleDocumentation", result.getGoogleResult() != null ? "created" : "skipped"
+                ));
+
+            } catch (Exception e) {
+                log.warn("Enhanced sync failed, falling back to basic sync: {}", e.getMessage());
+                // Fall back to basic sync if integration service fails
+                return syncPortfolioToPayProp(portfolioId, 1L); // Default user ID
+            }
+        } else {
+            log.debug("Integration service not available, using basic sync");
+            return syncPortfolioToPayProp(portfolioId, 1L);
+        }
+    }
+
+    /**
+     * Basic sync (existing functionality - unchanged)
      * Sync a portfolio to PayProp by creating/updating tags and assigning them to properties
      */
     public SyncResult syncPortfolioToPayProp(Long portfolioId, Long initiatedBy) {
@@ -1143,18 +1177,28 @@ public class PayPropPortfolioSyncService {
         try {
             return syncLogRepository.save(syncLog);
         } catch (DataIntegrityViolationException e) {
-            log.warn("Sync log creation failed due to foreign key constraint. User ID: {}", 
+            log.warn("Sync log creation failed due to foreign key constraint. User ID: {}",
                     syncLog.getInitiatedBy());
-            
+
             // Create a minimal log without user reference
             syncLog.setInitiatedBy(null);
             try {
                 return syncLogRepository.save(syncLog);
             } catch (Exception e2) {
                 log.error("Unable to create sync log even without user reference: {}", e2.getMessage());
-                // Return a transient log that won't cause issues
-                syncLog.setId(System.currentTimeMillis());
-                return syncLog;
+                // Return a new transient log that won't interfere with Hibernate session
+                PortfolioSyncLog fallbackLog = new PortfolioSyncLog();
+                fallbackLog.setPortfolioId(syncLog.getPortfolioId());
+                fallbackLog.setBlockId(syncLog.getBlockId());
+                fallbackLog.setPropertyId(syncLog.getPropertyId());
+                fallbackLog.setSyncType(syncLog.getSyncType());
+                fallbackLog.setOperation(syncLog.getOperation());
+                fallbackLog.setStatus("FAILED");
+                fallbackLog.setErrorMessage("Unable to persist sync log: " + e2.getMessage());
+                fallbackLog.setSyncStartedAt(syncLog.getSyncStartedAt());
+                fallbackLog.setInitiatedBy(null);
+                // Don't set ID - let it remain null for transient state
+                return fallbackLog;
             }
         }
     }
@@ -1164,10 +1208,17 @@ public class PayPropPortfolioSyncService {
     private Long findValidSystemUserId() {
         // Try to find any valid user ID, or return null
         try {
-            // You'll need to inject a UserRepository or similar
-            // For now, return null to allow the sync to proceed
+            // Find the first active user as a system fallback
+            List<User> users = userRepository.findAll();
+            if (!users.isEmpty()) {
+                User firstUser = users.get(0);
+                log.debug("Using system user ID {} for sync log", firstUser.getId());
+                return firstUser.getId().longValue();
+            }
+            log.warn("No users found in system, sync log will have null initiatedBy");
             return null;
         } catch (Exception e) {
+            log.warn("Error finding system user: {}", e.getMessage());
             return null;
         }
     }
@@ -1175,27 +1226,46 @@ public class PayPropPortfolioSyncService {
     private Long validateUserId(Long userId) {
         // Validate that the user exists
         try {
-            // You'll need to inject a UserRepository to check if user exists
-            // For now, return null if validation fails
-            return userId;
+            if (userId == null) {
+                return null;
+            }
+
+            // Check if user exists (UserRepository uses Integer, but we need Long)
+            User user = userRepository.findById(userId.intValue());
+            if (user != null) {
+                log.debug("Validated user ID {} exists", userId);
+                return userId;
+            } else {
+                log.warn("User ID {} not found, setting to null", userId);
+                return null;
+            }
         } catch (Exception e) {
-            log.warn("User ID {} not found, setting to null", userId);
+            log.warn("Error validating user ID {}: {}", userId, e.getMessage());
             return null;
         }
     }
         
     private void completeSyncLog(PortfolioSyncLog syncLog, String status, String errorMessage, Map<String, Object> payloadReceived) {
-        syncLog.setStatus(status);
-        syncLog.setErrorMessage(errorMessage);
-        syncLog.setPayloadReceived(payloadReceived);
-        syncLog.setSyncCompletedAt(LocalDateTime.now());
-        
-        // FIXED: Add duplicate key handling for sync log completion
+        // Skip if this is a transient fallback log (no ID)
+        if (syncLog == null || syncLog.getId() == null) {
+            log.debug("Skipping completion of transient sync log");
+            return;
+        }
+
         try {
+            syncLog.setStatus(status);
+            syncLog.setErrorMessage(errorMessage);
+            syncLog.setPayloadReceived(payloadReceived);
+            syncLog.setSyncCompletedAt(LocalDateTime.now());
+
             syncLogRepository.save(syncLog);
         } catch (DataIntegrityViolationException e) {
             log.warn("Sync log {} already exists when completing, skipping save", syncLog.getId());
+        } catch (Exception e) {
+            log.error("Error completing sync log {}: {}", syncLog.getId(), e.getMessage());
+            // Don't throw - this is a logging operation and shouldn't break the main flow
         }
+    }
     }
     
     // ===== HIERARCHICAL SYNC METHODS (Task 3.2) =====

@@ -89,6 +89,11 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
            "(SELECT ppa FROM PropertyPortfolioAssignment ppa WHERE ppa.property.id = p.id AND ppa.portfolio.id = :portfolioId AND ppa.isActive = true)")
     long countByPortfolioId(@Param("portfolioId") Long portfolioId);
 
+    // ✅ Find properties by portfolio ID - using PropertyPortfolioAssignment junction table
+    @Query("SELECT p FROM Property p WHERE EXISTS " +
+           "(SELECT ppa FROM PropertyPortfolioAssignment ppa WHERE ppa.property.id = p.id AND ppa.portfolio.id = :portfolioId AND ppa.isActive = true)")
+    List<Property> findByPortfolioId(@Param("portfolioId") Long portfolioId);
+
     @Query("SELECT COUNT(p) FROM Property p WHERE p.block.id = :blockId")
     long countByBlockId(@Param("blockId") Long blockId);
 
