@@ -93,10 +93,10 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
             
             if (targetPortfolio.getPropertyOwnerId() != null) {
                 // Owner-specific portfolio - only show properties for this owner
-                Integer ownerId = targetPortfolio.getPropertyOwnerId();
+                Long ownerId = targetPortfolio.getPropertyOwnerId();
                 
                 // Get properties for this owner
-                allProperties = propertyService.findPropertiesByCustomerAssignments(ownerId.longValue());
+                allProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
                 
                 // Get properties already in this specific portfolio
                 List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
@@ -173,10 +173,10 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
             
             if (portfolio.getPropertyOwnerId() != null) {
                 // Owner-specific portfolio - only show properties for this owner
-                Integer ownerId = portfolio.getPropertyOwnerId();
+                Long ownerId = portfolio.getPropertyOwnerId();
                 log.info("Portfolio {} is owner-specific for owner ID: {}", portfolioId, ownerId);
                 
-                List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(ownerId.longValue());
+                List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
                 log.info("Owner has {} total properties from junction table", ownerProperties.size());
                 
                 // Get properties already in this portfolio using junction table

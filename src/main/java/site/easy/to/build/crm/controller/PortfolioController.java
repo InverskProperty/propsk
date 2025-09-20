@@ -369,7 +369,7 @@ public class PortfolioController {
                 if (selectedOwnerId != null && selectedOwnerId > 0) {
                     // Verify owner exists
                     if (customerService != null && customerService.existsById(selectedOwnerId.longValue())) {
-                        portfolio.setPropertyOwnerId(selectedOwnerId);
+                        portfolio.setPropertyOwnerId(selectedOwnerId.longValue());
                         portfolio.setIsShared("N");
                         System.out.println("✅ Manager creating owner-specific portfolio for: " + selectedOwnerId);
                     } else {
@@ -758,7 +758,7 @@ public class PortfolioController {
             portfolio.setCreatedBy((long) userId);
             
             if (AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
-                portfolio.setPropertyOwnerId(userId);
+                portfolio.setPropertyOwnerId((long) userId);
                 portfolio.setIsShared("N");
             } else {
                 portfolio.setIsShared("Y");
@@ -926,10 +926,10 @@ public class PortfolioController {
             
             if (targetPortfolio.getPropertyOwnerId() != null) {
                 // Owner-specific portfolio - only show properties for this owner
-                Integer ownerId = targetPortfolio.getPropertyOwnerId();
+                Long ownerId = targetPortfolio.getPropertyOwnerId();
                 
                 // Use the existing method that works with junction table
-                allProperties = propertyService.findPropertiesByCustomerAssignments(ownerId.longValue());
+                allProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
                 
                 // ✅ FIXED: Filter to get unassigned properties using junction table logic
                 unassignedProperties = allProperties.stream()
@@ -996,11 +996,11 @@ public class PortfolioController {
             
             if (portfolio.getPropertyOwnerId() != null) {
                 // Owner-specific portfolio - only show properties for this owner
-                Integer ownerId = portfolio.getPropertyOwnerId();
+                Long ownerId = portfolio.getPropertyOwnerId();
                 System.out.println("🎯 [Controller] Portfolio " + portfolioId + " is owner-specific for owner ID: " + ownerId);
                 
                 // Get all properties for this owner using junction table
-                List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(ownerId.longValue());
+                List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
                 System.out.println("📦 [Controller] Owner has " + ownerProperties.size() + " total properties from junction table");
                 
                 // Get properties already in this portfolio using junction table

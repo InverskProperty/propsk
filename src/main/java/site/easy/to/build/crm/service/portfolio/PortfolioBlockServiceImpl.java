@@ -78,7 +78,7 @@ public class PortfolioBlockServiceImpl implements PortfolioBlockService {
         block.setBlockType(blockType != null ? blockType : BlockType.BUILDING);
         block.setPortfolio(portfolio);
         block.setSyncStatus(SyncStatus.pending);
-        block.setPropertyOwnerId(portfolio.getPropertyOwnerId());
+        block.setPropertyOwnerId(portfolio.getPropertyOwnerId() != null ? portfolio.getPropertyOwnerId().intValue() : null);
         block.setIsActive("Y");
         block.setDisplayOrder(displayOrder);
         block.setCreatedBy(createdBy);

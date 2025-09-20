@@ -770,7 +770,7 @@ public class PortfolioServiceImpl implements PortfolioService {
         
         if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER")) {
             // For property owners, get their customer ID
-            propertyOwnerId = userId;
+            propertyOwnerId = (long) userId;
         } else {
             // For employees/managers, they can see shared portfolios
             isEmployee = true;
@@ -884,7 +884,7 @@ public class PortfolioServiceImpl implements PortfolioService {
         Block block = new Block(name, portfolio, createdBy);
         block.setDescription(description);
         block.setBlockType(type);
-        block.setPropertyOwnerId(portfolio.getPropertyOwnerId());
+        block.setPropertyOwnerId(portfolio.getPropertyOwnerId() != null ? portfolio.getPropertyOwnerId().intValue() : null);
         
         // TEMPORARILY DISABLED: Block tag generation until portfolio assignment is fixed
         // Using simple block naming for now to avoid conflicts
