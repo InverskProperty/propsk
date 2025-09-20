@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Set;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Optional;
 
@@ -923,36 +924,44 @@ public class PortfolioController {
             // ✅ FIXED: Filter properties based on portfolio ownership using junction table logic
             List<Property> allProperties;
             List<Property> unassignedProperties;
-            
-            if (targetPortfolio.getPropertyOwnerId() != null) {
+
+            // Check if user is a manager - managers can assign any property to any portfolio
+            boolean isManager = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER");
+
+            if (isManager) {
+                // Managers see ALL properties, regardless of portfolio ownership
+                allProperties = propertyService.findAll();
+                System.out.println("Manager access - showing all " + allProperties.size() + " properties in system");
+            } else if (targetPortfolio.getPropertyOwnerId() != null) {
                 // Owner-specific portfolio - only show properties for this owner
                 Long ownerId = targetPortfolio.getPropertyOwnerId();
-                
+
                 // Use the existing method that works with junction table
                 allProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
-                
-                // ✅ FIXED: Filter to get unassigned properties using junction table logic
-                unassignedProperties = allProperties.stream()
-                    .filter(property -> !hasAnyPortfolioAssignment(property.getId()))
-                    .filter(property -> !"Y".equals(property.getIsArchived()))
-                    .collect(Collectors.toList());
-                    
-                System.out.println("✅ Owner-specific portfolio " + portfolioId + 
-                                " for owner " + ownerId + 
-                                " - showing " + allProperties.size() + " total properties, " +
-                                unassignedProperties.size() + " unassigned (junction table logic)");
+                System.out.println("Owner-specific portfolio " + portfolioId +
+                                  " for owner " + ownerId +
+                                  " - showing " + allProperties.size() + " properties for this owner");
             } else {
-                // Shared portfolio - show all unassigned properties
+                // Shared portfolio - show all properties
                 allProperties = propertyService.findAll();
-                unassignedProperties = allProperties.stream()
-                    .filter(property -> !hasAnyPortfolioAssignment(property.getId()))
-                    .filter(property -> !"Y".equals(property.getIsArchived()))
-                    .collect(Collectors.toList());
-                    
-                System.out.println("✅ Shared portfolio " + portfolioId + 
-                                " - showing " + allProperties.size() + " total properties, " +
-                                unassignedProperties.size() + " unassigned (junction table logic)");
+                System.out.println("Shared portfolio " + portfolioId + " - showing all " + allProperties.size() + " properties");
             }
+
+            // Get properties already in this specific portfolio
+            List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
+            Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
+                .map(Property::getId)
+                .collect(Collectors.toSet());
+
+            // Filter to get properties NOT in this specific portfolio (available for assignment)
+            unassignedProperties = allProperties.stream()
+                .filter(property -> !assignedPropertyIds.contains(property.getId()))
+                .filter(property -> !"Y".equals(property.getIsArchived()))
+                .collect(Collectors.toList());
+
+            System.out.println("Portfolio " + portfolioId + " assignment: " + allProperties.size() +
+                             " total properties, " + propertiesInPortfolio.size() +
+                             " already assigned, " + unassignedProperties.size() + " available for assignment");
             
             // Add the attributes
             model.addAttribute("targetPortfolio", targetPortfolio);
@@ -993,67 +1002,65 @@ public class PortfolioController {
             }
             
             List<Property> availableProperties;
-            
-            if (portfolio.getPropertyOwnerId() != null) {
-                // Owner-specific portfolio - only show properties for this owner
+            List<Property> allProperties;
+
+            // Check if user is a manager - managers can assign any property to any portfolio
+            boolean isManager = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER");
+
+            // Get authenticated user for delegated access checks
+            AuthenticatedUser authUser = getAuthenticatedUser(authentication);
+
+            if (isManager) {
+                // Managers see ALL properties, regardless of portfolio ownership
+                allProperties = propertyService.findAll();
+                System.out.println("🔑 [Controller] Manager access - showing all " + allProperties.size() + " properties in system");
+            } else if (portfolio.getPropertyOwnerId() != null) {
+                // Owner-specific portfolio - show properties for this owner
                 Long ownerId = portfolio.getPropertyOwnerId();
                 System.out.println("🎯 [Controller] Portfolio " + portfolioId + " is owner-specific for owner ID: " + ownerId);
-                
+
                 // Get all properties for this owner using junction table
-                List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
-                System.out.println("📦 [Controller] Owner has " + ownerProperties.size() + " total properties from junction table");
-                
-                // Get properties already in this portfolio using junction table
-                List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
-                System.out.println("📌 [Controller] Portfolio already has " + propertiesInPortfolio.size() + " properties");
-                
-                // Create set of IDs already in portfolio
-                Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
-                    .map(Property::getId)
-                    .collect(Collectors.toSet());
-                
-                // Filter to get properties NOT already in this portfolio
-                availableProperties = ownerProperties.stream()
-                    .filter(property -> !assignedPropertyIds.contains(property.getId()))
-                    .collect(Collectors.toList());
-                    
-                System.out.println("✅ [Controller] Owner " + ownerId + " - found " + 
-                                ownerProperties.size() + " total properties, " +
-                                propertiesInPortfolio.size() + " already in portfolio, " +
-                                availableProperties.size() + " available for assignment");
-                
-                // Debug: Show which properties are available
-                if (availableProperties.size() > 0) {
-                    System.out.println("📋 Available properties:");
-                    for (Property p : availableProperties) {
-                        System.out.println("   - ID " + p.getId() + ": " + p.getPropertyName());
-                    }
-                }
-                
+                allProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
+                System.out.println("📦 [Controller] Owner has " + allProperties.size() + " total properties from junction table");
             } else {
-                // Shared portfolio - show all properties not in this portfolio
-                System.out.println("🌐 [Controller] Portfolio " + portfolioId + " is a shared portfolio");
-                
-                List<Property> allProperties = propertyService.findAll();
-                System.out.println("📦 [Controller] Total properties in system: " + allProperties.size());
-                
-                // Get properties already in this portfolio
-                List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
-                System.out.println("📌 [Controller] Portfolio already has " + propertiesInPortfolio.size() + " properties");
-                
-                Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
-                    .map(Property::getId)
-                    .collect(Collectors.toSet());
-                
-                availableProperties = allProperties.stream()
-                    .filter(property -> !assignedPropertyIds.contains(property.getId()))
-                    .filter(property -> !"Y".equals(property.getIsArchived()))
-                    .collect(Collectors.toList());
-                    
-                System.out.println("✅ [Controller] Shared portfolio - " + 
-                                allProperties.size() + " total properties, " +
-                                propertiesInPortfolio.size() + " already in portfolio, " +
-                                availableProperties.size() + " available for assignment");
+                // Shared portfolio - different logic based on user type
+                if (authUser != null && "CUSTOMER".equals(authUser.getType())) {
+                    // Property owners and delegated users see their own properties
+                    allProperties = propertyService.findPropertiesByCustomerAssignments(authUser.getId().longValue());
+                    System.out.println("👤 [Controller] Customer/delegated user - showing " + allProperties.size() + " properties for customer " + authUser.getId());
+                } else {
+                    // Other users (employees) see all properties
+                    allProperties = propertyService.findAll();
+                    System.out.println("🌐 [Controller] Shared portfolio - showing all " + allProperties.size() + " properties");
+                }
+            }
+
+            // Get properties already in this portfolio
+            List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
+            System.out.println("📌 [Controller] Portfolio already has " + propertiesInPortfolio.size() + " properties");
+
+            // Create set of IDs already in portfolio
+            Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
+                .map(Property::getId)
+                .collect(Collectors.toSet());
+
+            // Filter to get properties NOT already in this portfolio
+            availableProperties = allProperties.stream()
+                .filter(property -> !assignedPropertyIds.contains(property.getId()))
+                .filter(property -> !"Y".equals(property.getIsArchived()))
+                .collect(Collectors.toList());
+
+            System.out.println("✅ [Controller] Found " +
+                            allProperties.size() + " total properties, " +
+                            propertiesInPortfolio.size() + " already in portfolio, " +
+                            availableProperties.size() + " available for assignment");
+
+            // Debug: Show which properties are available
+            if (availableProperties.size() > 0) {
+                System.out.println("📋 Available properties:");
+                for (Property p : availableProperties) {
+                    System.out.println("   - ID " + p.getId() + ": " + p.getPropertyName());
+                }
             }
             
             // Convert to simple DTOs for JSON response
@@ -2402,11 +2409,30 @@ public class PortfolioController {
         
         if (AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
             boolean hasAccess = portfolio.getCreatedBy().equals(authUser.getId());
-            System.out.println("   Employee access check: portfolio creator=" + portfolio.getCreatedBy() + 
+            System.out.println("   Employee access check: portfolio creator=" + portfolio.getCreatedBy() +
                               ", user=" + authUser.getId() + " → " + hasAccess);
             return hasAccess;
         }
-        
+
+        // Check for delegated user access
+        if ("CUSTOMER".equals(authUser.getType())) {
+            // Delegated users can edit portfolios if they have property assignments for properties in the portfolio
+            List<Property> portfolioProperties = portfolioService.getPropertiesForPortfolio(portfolioId);
+            if (!portfolioProperties.isEmpty()) {
+                List<Property> userProperties = propertyService.findPropertiesByCustomerAssignments(authUser.getId().longValue());
+
+                // Check if user has any properties assigned that are also in this portfolio
+                boolean hasPropertyInPortfolio = portfolioProperties.stream()
+                    .anyMatch(portfolioProperty -> userProperties.stream()
+                        .anyMatch(userProperty -> userProperty.getId().equals(portfolioProperty.getId())));
+
+                System.out.println("   Delegated user access check: has properties in portfolio → " + hasPropertyInPortfolio);
+                if (hasPropertyInPortfolio) {
+                    return true;
+                }
+            }
+        }
+
         System.out.println("   No matching role found, denying access");
         return false;
     }
