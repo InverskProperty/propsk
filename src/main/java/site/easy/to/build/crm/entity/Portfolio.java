@@ -51,7 +51,7 @@ public class Portfolio {
     private Long createdBy; // User who created this portfolio
     
     @Column(name = "property_owner_id")
-    private Integer propertyOwnerId; // NULL = shared/employee portfolio
+    private Long propertyOwnerId; // NULL = shared/employee portfolio
     
     @Column(name = "is_shared")
     private String isShared = "N"; // Y = visible to all employees, N = owner-specific
@@ -111,7 +111,7 @@ public class Portfolio {
         this.updatedAt = LocalDateTime.now();
     }
     
-    public Portfolio(String name, Long createdBy, Integer propertyOwnerId) {
+    public Portfolio(String name, Long createdBy, Long propertyOwnerId) {
         this(name, createdBy);
         this.propertyOwnerId = propertyOwnerId;
         this.isShared = "N";
@@ -149,8 +149,8 @@ public class Portfolio {
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
     
-    public Integer getPropertyOwnerId() { return propertyOwnerId; }
-    public void setPropertyOwnerId(Integer propertyOwnerId) { this.propertyOwnerId = propertyOwnerId; }
+    public Long getPropertyOwnerId() { return propertyOwnerId; }
+    public void setPropertyOwnerId(Long propertyOwnerId) { this.propertyOwnerId = propertyOwnerId; }
     
     public String getIsShared() { return isShared; }
     public void setIsShared(String isShared) { this.isShared = isShared; }

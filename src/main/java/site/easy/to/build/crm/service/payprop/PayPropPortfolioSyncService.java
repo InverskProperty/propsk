@@ -1266,7 +1266,6 @@ public class PayPropPortfolioSyncService {
             // Don't throw - this is a logging operation and shouldn't break the main flow
         }
     }
-    }
     
     // ===== HIERARCHICAL SYNC METHODS (Task 3.2) =====
     

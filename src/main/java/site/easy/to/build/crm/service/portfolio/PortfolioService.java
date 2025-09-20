@@ -20,9 +20,9 @@ public interface PortfolioService {
     
     // User-based portfolio access
     List<Portfolio> findPortfoliosForUser(Authentication authentication);
-    List<Portfolio> findPortfoliosForPropertyOwner(Integer propertyOwnerId);
-    List<Portfolio> findPortfoliosForPropertyOwnerWithBlocks(Integer propertyOwnerId);
-    List<Portfolio> findPortfoliosForCustomerWithAssignments(Integer customerId);
+    List<Portfolio> findPortfoliosForPropertyOwner(Long propertyOwnerId);
+    List<Portfolio> findPortfoliosForPropertyOwnerWithBlocks(Long propertyOwnerId);
+    List<Portfolio> findPortfoliosForCustomerWithAssignments(Long customerId);
     List<Portfolio> findSharedPortfolios();
 
     /**
@@ -33,7 +33,7 @@ public interface PortfolioService {
     /**
      * Create portfolio from PayProp tag (for adoption)
      */
-    Portfolio createPortfolioFromPayPropTag(String tagId, PayPropTagDTO tagData, Long createdBy, Integer propertyOwnerId);
+    Portfolio createPortfolioFromPayPropTag(String tagId, PayPropTagDTO tagData, Long createdBy, Long propertyOwnerId);
 
     /**
      * Check if a PayProp tag is already adopted
@@ -41,8 +41,8 @@ public interface PortfolioService {
     boolean isPayPropTagAdopted(String tagId);
     
     // Portfolio management
-    Portfolio createPortfolio(String name, String description, PortfolioType type, 
-                             Integer propertyOwnerId, Long createdBy);
+    Portfolio createPortfolio(String name, String description, PortfolioType type,
+                             Long propertyOwnerId, Long createdBy);
     
     // ===== LEGACY METHODS (DEPRECATED - Use junction table methods instead) =====
     @Deprecated
@@ -173,7 +173,7 @@ public interface PortfolioService {
     List<Portfolio> findPortfoliosNeedingSync();
     
     // Search and filtering
-    List<Portfolio> searchPortfolios(String name, PortfolioType type, Integer propertyOwnerId, 
+    List<Portfolio> searchPortfolios(String name, PortfolioType type, Long propertyOwnerId,
                                    Boolean isShared, Boolean isActive);
     
     // Auto-assignment
@@ -182,5 +182,5 @@ public interface PortfolioService {
     
     // Validation
     boolean canUserAccessPortfolio(Long portfolioId, Authentication authentication);
-    boolean isPortfolioNameUnique(String name, Integer propertyOwnerId, Long excludeId);
+    boolean isPortfolioNameUnique(String name, Long propertyOwnerId, Long excludeId);
 }

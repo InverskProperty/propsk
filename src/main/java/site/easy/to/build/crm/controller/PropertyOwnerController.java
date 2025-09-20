@@ -191,10 +191,10 @@ public class PropertyOwnerController {
                             // Use enhanced method for delegated users to include properties via assignments
                             List<Portfolio> userPortfolios;
                             if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
-                                userPortfolios = portfolioService.findPortfoliosForCustomerWithAssignments(customer.getCustomerId().intValue());
+                                userPortfolios = portfolioService.findPortfoliosForCustomerWithAssignments(customer.getCustomerId());
                                 System.out.println("🔍 DELEGATED_USER: Using findPortfoliosForCustomerWithAssignments for customer " + customer.getCustomerId());
                             } else {
-                                userPortfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                                userPortfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId());
                                 System.out.println("🔍 PROPERTY_OWNER: Using findPortfoliosForPropertyOwnerWithBlocks for customer " + customer.getCustomerId());
                             }
                             
@@ -378,10 +378,10 @@ public class PropertyOwnerController {
                         // Use enhanced method for delegated users to include properties via assignments
                         List<Portfolio> userPortfolios;
                         if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
-                            userPortfolios = portfolioService.findPortfoliosForCustomerWithAssignments(customer.getCustomerId().intValue());
+                            userPortfolios = portfolioService.findPortfoliosForCustomerWithAssignments(customer.getCustomerId());
                             System.out.println("DEBUG: DELEGATED_USER - Using findPortfoliosForCustomerWithAssignments for customer " + customer.getCustomerId());
                         } else {
-                            userPortfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                            userPortfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId());
                             System.out.println("DEBUG: PROPERTY_OWNER - Using findPortfoliosForPropertyOwnerWithBlocks for customer " + customer.getCustomerId());
                         }
                         model.addAttribute("portfolios", userPortfolios);
@@ -961,9 +961,9 @@ public class PropertyOwnerController {
                     // Use enhanced method for delegated users to include properties via assignments
                     List<Portfolio> portfolios;
                     if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
-                        portfolios = portfolioService.findPortfoliosForCustomerWithAssignments(customer.getCustomerId().intValue());
+                        portfolios = portfolioService.findPortfoliosForCustomerWithAssignments(customer.getCustomerId());
                     } else {
-                        portfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                        portfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId());
                     }
                     model.addAttribute("portfolios", portfolios);
                     model.addAttribute("portfolioSystemEnabled", true);
@@ -1200,9 +1200,9 @@ public class PropertyOwnerController {
                 if (portfolioService != null) {
                     // Use enhanced method for delegated users to include properties via assignments
                     if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
-                        portfolios = portfolioService.findPortfoliosForCustomerWithAssignments(customer.getCustomerId().intValue());
+                        portfolios = portfolioService.findPortfoliosForCustomerWithAssignments(customer.getCustomerId());
                     } else {
-                        portfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId().intValue());
+                        portfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId());
                     }
                     System.out.println("✅ Found " + portfolios.size() + " portfolios for customer " + customer.getCustomerId());
                 } else {

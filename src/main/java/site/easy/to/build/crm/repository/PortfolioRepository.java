@@ -18,7 +18,7 @@ import java.util.Optional;
 public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
     
     // Basic finders
-    List<Portfolio> findByPropertyOwnerId(Integer propertyOwnerId);
+    List<Portfolio> findByPropertyOwnerId(Long propertyOwnerId);
     List<Portfolio> findByPropertyOwnerIdIsNull(); // Shared/employee portfolios
     List<Portfolio> findByCreatedBy(Long userId);
     List<Portfolio> findByPortfolioType(PortfolioType portfolioType);
@@ -36,7 +36,7 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
            "(p.createdBy = :userId) " +
            "AND p.isActive = 'Y' " +
            "ORDER BY p.displayOrder, p.name")
-    List<Portfolio> findPortfoliosForUser(@Param("propertyOwnerId") Integer propertyOwnerId,
+    List<Portfolio> findPortfoliosForUser(@Param("propertyOwnerId") Long propertyOwnerId,
                                          @Param("userId") Long userId,
                                          @Param("isEmployee") Boolean isEmployee);
     
@@ -68,13 +68,13 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
     List<Portfolio> searchPortfolios(@Param("name") String name,
                                    @Param("description") String description,
                                    @Param("portfolioType") PortfolioType portfolioType,
-                                   @Param("propertyOwnerId") Integer propertyOwnerId,
+                                   @Param("propertyOwnerId") Long propertyOwnerId,
                                    @Param("isShared") String isShared,
                                    @Param("isActive") String isActive,
                                    @Param("createdBy") Long createdBy);
     
     // Count methods
-    long countByPropertyOwnerId(Integer propertyOwnerId);
+    long countByPropertyOwnerId(Long propertyOwnerId);
     long countByCreatedBy(Long userId);
     long countByPortfolioType(PortfolioType portfolioType);
     long countByIsActive(String isActive);
@@ -92,7 +92,7 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
     Optional<Portfolio> findByIdWithBlocks(@Param("portfolioId") Long portfolioId);
     
     @Query("SELECT DISTINCT p FROM Portfolio p LEFT JOIN FETCH p.blocks WHERE p.propertyOwnerId = :propertyOwnerId")
-    List<Portfolio> findByPropertyOwnerIdWithBlocks(@Param("propertyOwnerId") Integer propertyOwnerId);
+    List<Portfolio> findByPropertyOwnerIdWithBlocks(@Param("propertyOwnerId") Long propertyOwnerId);
 
     // Enhanced query for delegated users - finds portfolios containing properties they have access to
     @Query(value = "SELECT DISTINCT p.* FROM portfolios p " +
@@ -100,7 +100,7 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
            "LEFT JOIN customer_property_assignments cpa ON ppa.property_id = cpa.property_id " +
            "WHERE (p.property_owner_id = :customerId OR cpa.customer_id = :customerId) " +
            "AND p.is_active = 'Y'", nativeQuery = true)
-    List<Portfolio> findPortfoliosForCustomerWithAssignments(@Param("customerId") Integer customerId);
+    List<Portfolio> findPortfoliosForCustomerWithAssignments(@Param("customerId") Long customerId);
     
     // Portfolio property count analytics - UPDATED to use PropertyPortfolioAssignment junction table
     @Query("SELECT p, COUNT(ppa) as propertyCount FROM Portfolio p " +
@@ -111,10 +111,10 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
     List<Object[]> findPortfoliosWithPropertyCounts();
     
     // Duplicate prevention
-    boolean existsByNameAndPropertyOwnerId(String name, Integer propertyOwnerId);
+    boolean existsByNameAndPropertyOwnerId(String name, Long propertyOwnerId);
     boolean existsByNameAndPropertyOwnerIdIsNull(String name);
     
-    Optional<Portfolio> findByNameAndPropertyOwnerId(String name, Integer propertyOwnerId);
+    Optional<Portfolio> findByNameAndPropertyOwnerId(String name, Long propertyOwnerId);
     Optional<Portfolio> findByNameAndPropertyOwnerIdIsNull(String name);
     
     // Recent activity
@@ -128,5 +128,5 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
     @Query("SELECT p FROM Portfolio p WHERE p.autoAssignNewProperties = 'Y' AND " +
            "p.isActive = 'Y' AND " +
            "(p.propertyOwnerId = :propertyOwnerId OR p.isShared = 'Y')")
-    List<Portfolio> findAutoAssignPortfoliosForOwner(@Param("propertyOwnerId") Integer propertyOwnerId);
+    List<Portfolio> findAutoAssignPortfoliosForOwner(@Param("propertyOwnerId") Long propertyOwnerId);
 }

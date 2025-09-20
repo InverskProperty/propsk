@@ -385,7 +385,7 @@ public class PortfolioController {
                 }
             } else if ("CUSTOMER".equals(authUser.getType())) {
                 // Customer creating their own portfolio
-                portfolio.setPropertyOwnerId(authUser.getId().intValue());
+                portfolio.setPropertyOwnerId(authUser.getId().longValue());
                 portfolio.setIsShared("N");
                 System.out.println("✅ Customer creating personal portfolio for customer ID: " + authUser.getId());
             } else {
@@ -2394,7 +2394,7 @@ public class PortfolioController {
         if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") || 
             AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
             boolean hasAccess = portfolio.getPropertyOwnerId() != null && 
-                               portfolio.getPropertyOwnerId().equals(authUser.getId().intValue());
+                               portfolio.getPropertyOwnerId().equals(authUser.getId().longValue());
             System.out.println("   Customer access check: portfolio owner=" + portfolio.getPropertyOwnerId() + 
                               ", user=" + authUser.getId() + " → " + hasAccess);
             return hasAccess;
@@ -3135,7 +3135,7 @@ public class PortfolioController {
                     String email = ((OAuth2User) authentication.getPrincipal()).getAttribute("email");
                     if (email != null) {
                         Customer customer = customerService.findByEmail(email);
-                        if (customer == null || !portfolio.getPropertyOwnerId().equals(customer.getCustomerId().intValue())) {
+                        if (customer == null || !portfolio.getPropertyOwnerId().equals(customer.getCustomerId())) {
                             response.put("error", "Access denied to this portfolio");
                             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
                         }

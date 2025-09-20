@@ -683,7 +683,7 @@ public class PortfolioServiceImpl implements PortfolioService {
     // ===== REMAINING EXISTING METHODS (UNCHANGED) =====
 
     @Override
-    public Portfolio createPortfolioFromPayPropTag(String tagId, PayPropTagDTO tagData, Long createdBy, Integer propertyOwnerId) {
+    public Portfolio createPortfolioFromPayPropTag(String tagId, PayPropTagDTO tagData, Long createdBy, Long propertyOwnerId) {
         // Check if tag is already adopted
         if (isPayPropTagAdopted(tagId)) {
             throw new IllegalArgumentException("PayProp tag is already adopted as a portfolio");
@@ -765,7 +765,7 @@ public class PortfolioServiceImpl implements PortfolioService {
     @Override
     public List<Portfolio> findPortfoliosForUser(Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
-        Integer propertyOwnerId = null;
+        Long propertyOwnerId = null;
         boolean isEmployee = false;
         
         if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER")) {
@@ -780,17 +780,17 @@ public class PortfolioServiceImpl implements PortfolioService {
     }
     
     @Override
-    public List<Portfolio> findPortfoliosForPropertyOwner(Integer propertyOwnerId) {
+    public List<Portfolio> findPortfoliosForPropertyOwner(Long propertyOwnerId) {
         return portfolioRepository.findByPropertyOwnerId(propertyOwnerId);
     }
     
     @Override
-    public List<Portfolio> findPortfoliosForPropertyOwnerWithBlocks(Integer propertyOwnerId) {
+    public List<Portfolio> findPortfoliosForPropertyOwnerWithBlocks(Long propertyOwnerId) {
         return portfolioRepository.findByPropertyOwnerIdWithBlocks(propertyOwnerId);
     }
 
     @Override
-    public List<Portfolio> findPortfoliosForCustomerWithAssignments(Integer customerId) {
+    public List<Portfolio> findPortfoliosForCustomerWithAssignments(Long customerId) {
         return portfolioRepository.findPortfoliosForCustomerWithAssignments(customerId);
     }
 
@@ -801,7 +801,7 @@ public class PortfolioServiceImpl implements PortfolioService {
     
     @Override
     public Portfolio createPortfolio(String name, String description, PortfolioType type, 
-                                   Integer propertyOwnerId, Long createdBy) {
+                                   Long propertyOwnerId, Long createdBy) {
         // Check for duplicate names
         if (!isPortfolioNameUnique(name, propertyOwnerId, null)) {
             throw new IllegalArgumentException("Portfolio name already exists for this owner");
@@ -1068,7 +1068,7 @@ public class PortfolioServiceImpl implements PortfolioService {
     }
     
     @Override
-    public List<Portfolio> searchPortfolios(String name, PortfolioType type, Integer propertyOwnerId, 
+    public List<Portfolio> searchPortfolios(String name, PortfolioType type, Long propertyOwnerId, 
                                           Boolean isShared, Boolean isActive) {
         String sharedString = isShared != null ? (isShared ? "Y" : "N") : null;
         String activeString = isActive != null ? (isActive ? "Y" : "N") : null;
@@ -1092,7 +1092,7 @@ public class PortfolioServiceImpl implements PortfolioService {
     public void processAutoAssignment(Property property) {
         // Get auto-assignment portfolios for this property owner
         List<Portfolio> autoAssignPortfolios = portfolioRepository
-            .findAutoAssignPortfoliosForOwner(property.getPropertyOwnerId().intValue());
+            .findAutoAssignPortfoliosForOwner(property.getPropertyOwnerId());
         
         for (Portfolio portfolio : autoAssignPortfolios) {
             if (shouldAutoAssignToPortfolio(property, portfolio)) {
@@ -1147,7 +1147,7 @@ public class PortfolioServiceImpl implements PortfolioService {
                     if (customer != null) {
                         Long customerId = Long.valueOf(customer.getCustomerId());
                         boolean hasAccess = portfolio.getPropertyOwnerId() != null && 
-                                          portfolio.getPropertyOwnerId().equals(customerId.intValue());
+                                          portfolio.getPropertyOwnerId().equals(customerId);
                         
                         System.out.println("🔍 canUserAccessPortfolio: Customer " + customerId + 
                                           " checking portfolio " + portfolioId + 
@@ -1178,7 +1178,7 @@ public class PortfolioServiceImpl implements PortfolioService {
     }
     
     @Override
-    public boolean isPortfolioNameUnique(String name, Integer propertyOwnerId, Long excludeId) {
+    public boolean isPortfolioNameUnique(String name, Long propertyOwnerId, Long excludeId) {
         boolean exists;
         if (propertyOwnerId != null) {
             exists = portfolioRepository.existsByNameAndPropertyOwnerId(name, propertyOwnerId);
