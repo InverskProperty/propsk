@@ -20,6 +20,7 @@ import site.easy.to.build.crm.google.service.acess.GoogleAccessService;
 import site.easy.to.build.crm.google.service.calendar.GoogleCalendarApiService;
 import site.easy.to.build.crm.service.lead.LeadService;
 import site.easy.to.build.crm.service.user.UserService;
+import site.easy.to.build.crm.service.google.GoogleServiceAccountService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.google.util.TimeDateUtil;
 
@@ -43,20 +44,30 @@ public class GoogleCalendarController {
     final private LeadService leadService;
 
     final private UserService userService;
+    final private GoogleServiceAccountService googleServiceAccountService;
 
     @Autowired
-    public GoogleCalendarController(GoogleCalendarApiService googleCalendarApiService, AuthenticationUtils authenticationUtils, LeadService leadService, UserService userService) {
+    public GoogleCalendarController(GoogleCalendarApiService googleCalendarApiService, AuthenticationUtils authenticationUtils, LeadService leadService, UserService userService, GoogleServiceAccountService googleServiceAccountService) {
         this.googleCalendarApiService = googleCalendarApiService;
         this.authenticationUtils = authenticationUtils;
         this.leadService = leadService;
         this.userService = userService;
+        this.googleServiceAccountService = googleServiceAccountService;
     }
 
     @GetMapping("/list-events")
     public String listEvents(Model model, Authentication authentication) {
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "google-error";
+
+        boolean isOAuthUser = !(authentication instanceof UsernamePasswordAuthenticationToken);
+
+        if (!isOAuthUser) {
+            // For service account users, show limited calendar view
+            model.addAttribute("isServiceAccount", true);
+            model.addAttribute("message", "Service account mode - calendar events require OAuth");
+            model.addAttribute("events", new java.util.ArrayList<>());
+            return "calendar/events";
         }
+
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         List<EventDisplay> eventDisplays;
         try {
@@ -72,9 +83,17 @@ public class GoogleCalendarController {
 
     @GetMapping("/create-event")
     public String showCreateEventForm(Model model, Authentication authentication, @RequestParam(value = "leadId", required = false) Integer leadId) {
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "google-error";
+
+        boolean isOAuthUser = !(authentication instanceof UsernamePasswordAuthenticationToken);
+
+        if (!isOAuthUser) {
+            // For service account users, show limited event creation
+            model.addAttribute("isServiceAccount", true);
+            model.addAttribute("message", "Service account mode - event creation uses shared calendar");
+            model.addAttribute("eventDisplay", new EventDisplay());
+            return "calendar/event-form";
         }
+
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         if(!oAuthUser.getGrantedScopes().contains(GoogleAccessService.SCOPE_CALENDAR)) {
             String code = "403";
@@ -111,9 +130,17 @@ public class GoogleCalendarController {
             model.addAttribute("eventDisplay", eventDisplay);
             return "calendar/event-form";
         }
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "google-error";
+
+        boolean isOAuthUser = !(authentication instanceof UsernamePasswordAuthenticationToken);
+
+        if (!isOAuthUser) {
+            // For service account users, show limited functionality
+            model.addAttribute("isServiceAccount", true);
+            model.addAttribute("message", "Service account mode - calendar operations use shared account");
+            model.addAttribute("eventDisplay", eventDisplay);
+            return "calendar/event-form";
         }
+
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         Event event = new Event();
 
@@ -291,9 +318,16 @@ public class GoogleCalendarController {
 
     @RequestMapping("/delete-event/{id}")
     public String deleteEvent(@PathVariable("id") String eventId, Authentication authentication, Model model){
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "google-error";
+
+        boolean isOAuthUser = !(authentication instanceof UsernamePasswordAuthenticationToken);
+
+        if (!isOAuthUser) {
+            // For service account users, show limited delete functionality
+            model.addAttribute("isServiceAccount", true);
+            model.addAttribute("message", "Service account mode - event deletion uses shared calendar");
+            return "redirect:/employee/calendar/list-events";
         }
+
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         try {
             googleCalendarApiService.deleteEvent("primary",oAuthUser,eventId);

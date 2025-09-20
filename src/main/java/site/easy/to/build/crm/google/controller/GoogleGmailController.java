@@ -26,6 +26,7 @@ import site.easy.to.build.crm.google.model.gmail.EmailPage;
 import site.easy.to.build.crm.google.service.gmail.GmailEmailService;
 import site.easy.to.build.crm.google.service.gmail.GoogleGmailApiService;
 import site.easy.to.build.crm.google.service.gmail.GoogleGmailLabelService;
+import site.easy.to.build.crm.service.google.GoogleServiceAccountService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.google.util.PageTokenManager;
 import site.easy.to.build.crm.util.SessionUtils;
@@ -44,20 +45,30 @@ public class GoogleGmailController {
     private final GoogleGmailApiService googleGmailApiService;
 
     private final GoogleGmailLabelService googleGmailLabelService;
+    private final GoogleServiceAccountService googleServiceAccountService;
 
     @Autowired
-    public GoogleGmailController(AuthenticationUtils authenticationUtils, GmailEmailService gmailEmailService, GoogleGmailApiService googleGmailApiService, GoogleGmailLabelService googleGmailLabelService) {
+    public GoogleGmailController(AuthenticationUtils authenticationUtils, GmailEmailService gmailEmailService, GoogleGmailApiService googleGmailApiService, GoogleGmailLabelService googleGmailLabelService, GoogleServiceAccountService googleServiceAccountService) {
         this.authenticationUtils = authenticationUtils;
         this.gmailEmailService = gmailEmailService;
         this.googleGmailApiService = googleGmailApiService;
         this.googleGmailLabelService = googleGmailLabelService;
+        this.googleServiceAccountService = googleServiceAccountService;
     }
 
     @GetMapping("/send")
     public String showEmailForm(Model model, Authentication authentication) {
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "google-error";
+
+        boolean isOAuthUser = !(authentication instanceof UsernamePasswordAuthenticationToken);
+
+        if (!isOAuthUser) {
+            // For service account users, show limited email form
+            model.addAttribute("isServiceAccount", true);
+            model.addAttribute("message", "Service account mode - email sending uses shared service account");
+            model.addAttribute("emailForm", new GmailEmailInfo());
+            return "gmail/email-form";
         }
+
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         if(!oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.send")){
             String link = "employee/settings/google-services";
@@ -141,8 +152,15 @@ public class GoogleGmailController {
     @GetMapping("/emails")
     public String showEmails(HttpSession session, Authentication authentication, Model model,
                              @RequestParam(value = "page", defaultValue = "1") int page) throws IOException {
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "google-error";
+
+        boolean isOAuthUser = !(authentication instanceof UsernamePasswordAuthenticationToken);
+
+        if (!isOAuthUser) {
+            // For service account users, show limited email view
+            model.addAttribute("isServiceAccount", true);
+            model.addAttribute("message", "Service account mode - email reading requires OAuth");
+            model.addAttribute("emails", new java.util.ArrayList<>());
+            return "gmail/emails";
         }
 
         EmailPage emailsPerPage;
@@ -209,8 +227,15 @@ public class GoogleGmailController {
     public String showSentEmails(HttpServletRequest request, HttpSession session, Authentication authentication, Model model,
                                  @PathVariable("label") String label,
                                  @RequestParam(value = "page", defaultValue = "1") int page, @RequestParam(value = "success", required = false) boolean success) {
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "google-error";
+
+        boolean isOAuthUser = !(authentication instanceof UsernamePasswordAuthenticationToken);
+
+        if (!isOAuthUser) {
+            // For service account users, show limited email view
+            model.addAttribute("isServiceAccount", true);
+            model.addAttribute("message", "Service account mode - email reading requires OAuth");
+            model.addAttribute("emails", new java.util.ArrayList<>());
+            return "gmail/emails";
         }
         if (success) {
             model.addAttribute("successMessage", "Email sent successfully!");
@@ -301,8 +326,14 @@ public class GoogleGmailController {
     }
     @GetMapping("/email-details/{id}")
     public String showEmailDetails(@PathVariable("id") String emailId, Authentication authentication, Model model, HttpSession session) {
-        if((authentication instanceof UsernamePasswordAuthenticationToken)) {
-            return "google-error";
+
+        boolean isOAuthUser = !(authentication instanceof UsernamePasswordAuthenticationToken);
+
+        if (!isOAuthUser) {
+            // For service account users, show limited email details
+            model.addAttribute("isServiceAccount", true);
+            model.addAttribute("message", "Service account mode - email details require OAuth");
+            return "gmail/email-details";
         }
 
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);

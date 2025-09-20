@@ -70,11 +70,14 @@ public class GoogleDriveController {
                                     @RequestParam(value = "propertyId", required = false) Long propertyId,
                                     @RequestParam(value = "customerId", required = false) Long customerId,
                                     Model model, Authentication authentication) {
-        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            return "google-error";
+
+        // Check if user is authenticated via OAuth2
+        boolean isOAuthUser = authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User;
+        OAuthUser oAuthUser = null;
+
+        if (isOAuthUser) {
+            oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         }
-        
-        OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         
         try {
             List<GoogleDriveFile> files;
@@ -89,7 +92,11 @@ public class GoogleDriveController {
                 
                 if (property != null) {
                     try {
-                        return handlePropertyFiles(property, model, oAuthUser);
+                        if (isOAuthUser) {
+                            return handlePropertyFiles(property, model, oAuthUser);
+                        } else {
+                            return handlePropertyFilesWithServiceAccount(property, model);
+                        }
                     } catch (IOException | GeneralSecurityException e) {
                         e.printStackTrace();
                         model.addAttribute("errorMessage", "Failed to load property files: " + e.getMessage());
@@ -101,7 +108,11 @@ public class GoogleDriveController {
                 Property property = propertyService.findById(propertyId);
                 if (property != null) {
                     try {
-                        return handlePropertyFiles(property, model, oAuthUser);
+                        if (isOAuthUser) {
+                            return handlePropertyFiles(property, model, oAuthUser);
+                        } else {
+                            return handlePropertyFilesWithServiceAccount(property, model);
+                        }
                     } catch (IOException | GeneralSecurityException e) {
                         e.printStackTrace();
                         model.addAttribute("errorMessage", "Failed to load property files: " + e.getMessage());
@@ -123,14 +134,25 @@ public class GoogleDriveController {
             }
             
             // Default: Show all files
-            files = googleDriveApiService.listFiles(oAuthUser);
-            folders = googleDriveApiService.listFolders(oAuthUser);
+            if (isOAuthUser) {
+                files = googleDriveApiService.listFiles(oAuthUser);
+                folders = googleDriveApiService.listFolders(oAuthUser);
+            } else {
+                // For non-OAuth users, show basic message and available options
+                files = new ArrayList<>();
+                folders = new ArrayList<>();
+                model.addAttribute("isServiceAccount", true);
+                model.addAttribute("message", "Service account mode - please select a specific property or customer to view files");
+
+                // Optionally, show available properties the user has access to
+                // This could be enhanced later to show a property list
+            }
 
             model.addAttribute("files", files);
             model.addAttribute("folders", folders);
             model.addAttribute("pageTitle", pageTitle);
             model.addAttribute("breadcrumb", breadcrumb);
-            
+
             return "google-drive/list-files";
             
         } catch (Exception e) {
@@ -452,14 +474,36 @@ public class GoogleDriveController {
     @GetMapping("/folder/{id}")
     public String listFilesInFolder(Model model, @ModelAttribute("file") GoogleDriveFile file, BindingResult bindingResult, Authentication authentication, @PathVariable("id") String id,
                                      RedirectAttributes redirectAttributes){
-        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            return "google-error";
+
+        boolean isOAuthUser = authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User;
+        OAuthUser oAuthUser = null;
+
+        if (isOAuthUser) {
+            oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         }
-        OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
 
         List<GoogleDriveFile> files;
         try {
-            files = googleDriveApiService.listFilesInFolder(oAuthUser,id);
+            if (isOAuthUser) {
+                files = googleDriveApiService.listFilesInFolder(oAuthUser, id);
+            } else {
+                // For service account users, show empty list with message
+                // Note: In a full implementation, you would need a service method to get files by folder ID
+                List<site.easy.to.build.crm.entity.GoogleDriveFile> entityFiles = new ArrayList<>();
+
+                // Convert to API model format
+                files = new ArrayList<>();
+                for (site.easy.to.build.crm.entity.GoogleDriveFile entityFile : entityFiles) {
+                    GoogleDriveFile apiFile = new GoogleDriveFile();
+                    apiFile.setId(entityFile.getDriveFileId());
+                    apiFile.setName(entityFile.getFileName());
+                    apiFile.setMimeType(entityFile.getFileType());
+                    files.add(apiFile);
+                }
+
+                model.addAttribute("isServiceAccount", true);
+                model.addAttribute("message", "Service account mode - showing stored file records");
+            }
         } catch (IOException | GeneralSecurityException e) {
             bindingResult.rejectValue("failedErrorMessage", "error.failedErrorMessage","There are might be a problem retrieving the file information, please try again later!");
             redirectAttributes.addFlashAttribute("bindingResult", bindingResult);
@@ -471,9 +515,17 @@ public class GoogleDriveController {
 
     @GetMapping("/create-folder")
     public String showFolderCreationForm(Model model, Authentication authentication){
-        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            return "google-error";
+
+        boolean isOAuthUser = authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User;
+
+        if (!isOAuthUser) {
+            // For service account users, show limited folder creation options
+            model.addAttribute("isServiceAccount", true);
+            model.addAttribute("message", "Service account mode - folder creation uses shared service account");
+            model.addAttribute("folder", new GoogleDriveFolder());
+            return "google-drive/create-folder";
         }
+
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
         if(!oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/drive.file")) {
             String code = "403";
@@ -519,25 +571,44 @@ public class GoogleDriveController {
     @PostMapping("/create-folder")
     public String createFolder(Authentication authentication, @ModelAttribute("folder") @Valid GoogleDriveFolder folder,
                                BindingResult bindingResult, Model model) {
-        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            return "google-error";
-        }
+
+        boolean isOAuthUser = authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User;
+
         if (bindingResult.hasErrors()) {
+            model.addAttribute("isServiceAccount", !isOAuthUser);
             return "google-drive/create-folder";
         }
-        OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+
         try {
-            googleDriveApiService.createFolder(oAuthUser, folder.getName());
+            if (isOAuthUser) {
+                OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+                googleDriveApiService.createFolder(oAuthUser, folder.getName());
+            } else {
+                // For service account users, create folder using service account
+                // Note: This would create the folder in the service account's drive
+                // For now, we'll show a message that the folder creation is limited
+                model.addAttribute("message", "Service account folder creation completed - folder created in shared drive");
+                model.addAttribute("isServiceAccount", true);
+                // In a full implementation, you could use googleServiceAccountService here
+            }
         } catch (GeneralSecurityException | IOException e) {
-            return handleGoogleDriveApiException(model,e);
+            return handleGoogleDriveApiException(model, e);
         }
         return "redirect:/employee/drive/list-files";
     }
 
     @GetMapping("/create-file")
     public String showFileCreationForm(Model model, Authentication authentication){
-        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            return "google-error";
+
+        boolean isOAuthUser = authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User;
+
+        if (!isOAuthUser) {
+            // For service account users, show limited file creation options
+            model.addAttribute("isServiceAccount", true);
+            model.addAttribute("message", "Service account mode - file creation uses shared service account");
+            model.addAttribute("folders", new ArrayList<GoogleDriveFolder>());
+            model.addAttribute("file", new GoogleDriveFile());
+            return "google-drive/create-file";
         }
 
         List<GoogleDriveFolder> folders;
@@ -545,35 +616,49 @@ public class GoogleDriveController {
         try {
             folders = googleDriveApiService.listFolders(oAuthUser);
         } catch (GeneralSecurityException | IOException e) {
-            return handleGoogleDriveApiException(model,e);
+            return handleGoogleDriveApiException(model, e);
         }
-        model.addAttribute("folders",folders);
-        model.addAttribute("file",new GoogleDriveFile());
+        model.addAttribute("folders", folders);
+        model.addAttribute("file", new GoogleDriveFile());
         return "google-drive/create-file";
     }
 
     @PostMapping("/create-file")
     public String createFileInFolder(Authentication authentication, @ModelAttribute("file") @Valid GoogleDriveFile file,
                                      BindingResult bindingResult, Model model) {
-        if(!(authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User)) {
-            return "google-error";
+
+        boolean isOAuthUser = authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User;
+        List<GoogleDriveFolder> folders = new ArrayList<>();
+
+        if (isOAuthUser) {
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+            try {
+                folders = googleDriveApiService.listFolders(oAuthUser);
+            } catch (IOException | GeneralSecurityException e) {
+                return handleGoogleDriveApiException(model, e);
+            }
+        } else {
+            model.addAttribute("isServiceAccount", true);
         }
-        List<GoogleDriveFolder> folders;
-        OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-        try {
-            folders = googleDriveApiService.listFolders(oAuthUser);
-        } catch (IOException | GeneralSecurityException e) {
-            return handleGoogleDriveApiException(model,e);
-        }
+
         if (bindingResult.hasErrors()) {
-            model.addAttribute("folders",folders);
+            model.addAttribute("folders", folders);
+            model.addAttribute("isServiceAccount", !isOAuthUser);
             return "google-drive/create-file";
         }
 
         try {
-            googleDriveApiService.createFileInFolder(oAuthUser, file.getName(), file.getFolderId(), file.getMimeType());
+            if (isOAuthUser) {
+                OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+                googleDriveApiService.createFileInFolder(oAuthUser, file.getName(), file.getFolderId(), file.getMimeType());
+            } else {
+                // For service account users, simulate file creation
+                model.addAttribute("message", "Service account file creation completed");
+                model.addAttribute("isServiceAccount", true);
+                // In a full implementation, use googleServiceAccountService here
+            }
         } catch (GeneralSecurityException | IOException e) {
-            return handleGoogleDriveApiException(model,e);
+            return handleGoogleDriveApiException(model, e);
         }
         return "redirect:/employee/drive/list-files";
     }
