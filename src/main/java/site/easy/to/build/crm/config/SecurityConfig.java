@@ -162,7 +162,8 @@ public class SecurityConfig {
                         .requestMatchers("/test-password").permitAll()
                         .requestMatchers("/privacy-policy").permitAll()
                         .requestMatchers("/terms-of-service").permitAll()
-                        
+                        .requestMatchers("/google*.html").permitAll() // Google verification files
+
                         // Static resources
                         .requestMatchers("/font-awesome/**").permitAll()
                         .requestMatchers("/fonts/**").permitAll()
