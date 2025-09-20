@@ -22,7 +22,7 @@ public class GoogleServiceAccountTestController {
     private GoogleServiceAccountService googleService;
 
     @Autowired
-    private PayPropGoogleIntegrationService integrationService;
+    private site.easy.to.build.crm.service.integration.SimpleGoogleIntegrationService simpleIntegrationService;
 
     @Autowired
     private PayPropPortfolioSyncService portfolioSyncService;
@@ -157,33 +157,35 @@ public class GoogleServiceAccountTestController {
     }
 
     /**
-     * Test PayProp tag creation with Google documentation
-     * POST /api/test/google-service-account/tag-with-docs
+     * Test simple Google integration
+     * POST /api/test/google-service-account/simple-integration
      */
-    @PostMapping("/tag-with-docs")
-    public ResponseEntity<Map<String, Object>> testTagCreationWithDocs(
-            @RequestParam Long portfolioId,
-            @RequestParam(defaultValue = "test@example.com") String initiatedByEmail) {
+    @PostMapping("/simple-integration")
+    public ResponseEntity<Map<String, Object>> testSimpleIntegration(
+            @RequestParam(defaultValue = "test@example.com") String userEmail,
+            @RequestParam(defaultValue = "Test Portfolio") String portfolioName) {
         try {
-            log.info("🏷️ Testing tag creation with Google documentation for portfolio: {}", portfolioId);
+            log.info("🏷️ Testing simple Google integration for portfolio: {}", portfolioName);
 
-            var result = integrationService.syncPortfolioWithDocumentation(portfolioId, initiatedByEmail);
+            var result = simpleIntegrationService.testGoogleIntegration(userEmail, portfolioName);
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", result.getStatus());
-            response.put("tagId", result.getTagId());
-            response.put("googleDocumentation", result.getGoogleResult());
-            response.put("message", "Tag creation with documentation completed");
+            response.put("userEmail", result.getUserEmail());
+            response.put("portfolioName", result.getPortfolioName());
+            response.put("customerFolderId", result.getCustomerFolderId());
+            response.put("trackingSheetId", result.getTrackingSheetId());
+            response.put("documentationSheetId", result.getDocumentationSheetId());
+            response.put("message", result.getMessage());
 
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("❌ Tag creation with docs test failed: {}", e.getMessage(), e);
+            log.error("❌ Simple integration test failed: {}", e.getMessage(), e);
 
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("status", "FAILED");
             errorResponse.put("error", e.getMessage());
-            errorResponse.put("portfolioId", portfolioId);
 
             return ResponseEntity.status(500).body(errorResponse);
         }
@@ -215,7 +217,7 @@ public class GoogleServiceAccountTestController {
 
             info.put("gmailService", "NOT_IMPLEMENTED");
 
-            info.put("integrationService", integrationService != null ? "AVAILABLE" : "NOT_AVAILABLE");
+            info.put("simpleIntegrationService", simpleIntegrationService != null ? "AVAILABLE" : "NOT_AVAILABLE");
             info.put("timestamp", java.time.LocalDateTime.now().toString());
 
             return ResponseEntity.ok(info);

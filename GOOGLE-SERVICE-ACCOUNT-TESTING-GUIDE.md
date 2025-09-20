@@ -38,14 +38,14 @@ title=My Test Sheet
 ```
 **Expected**: Creates Google Sheet with test data and returns sheet ID
 
-### 6. Test Integrated Workflow (requires existing portfolio)
+### 6. Test Simple Google Integration
 ```
-POST http://localhost:8080/api/test/google-service-account/integrated-workflow
+POST http://localhost:8080/api/test/google-service-account/simple-integration
 Content-Type: application/x-www-form-urlencoded
 
-portfolioId=1&initiatedByEmail=admin@example.com
+userEmail=admin@example.com&portfolioName=Test Portfolio
 ```
-**Expected**: Runs PayProp + Google integration for portfolio
+**Expected**: Creates Google folders and sheets for portfolio tracking
 
 ## Step-by-Step Testing Instructions
 
@@ -90,10 +90,10 @@ curl -X POST "http://localhost:8080/api/test/google-service-account/create-sheet
   -d "title=CRM Integration Test Sheet"
 ```
 
-### Step 6: Test PayProp Integration (if you have portfolios)
+### Step 6: Test Simple Google Integration
 ```bash
-curl -X POST "http://localhost:8080/api/test/google-service-account/integrated-workflow" \
-  -d "portfolioId=1&initiatedByEmail=admin@yourcompany.com"
+curl -X POST "http://localhost:8080/api/test/google-service-account/simple-integration" \
+  -d "userEmail=admin@yourcompany.com&portfolioName=My Test Portfolio"
 ```
 
 ## Troubleshooting
