@@ -231,6 +231,9 @@ public class SecurityConfig {
                         // Property routes
                         .requestMatchers("/property/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
 
+                        // Statement generation routes - Allow managers, employees, and property owners
+                        .requestMatchers("/statements/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
+
                         // Default - require authentication
                         .anyRequest().authenticated()
                 )
