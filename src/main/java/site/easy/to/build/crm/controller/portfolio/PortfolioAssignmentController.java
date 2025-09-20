@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.service.portfolio.PortfolioAssignmentService;
+import site.easy.to.build.crm.util.AuthorizationUtil;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -90,46 +91,42 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
             // Filter properties based on portfolio ownership using junction table logic
             List<Property> allProperties;
             List<Property> unassignedProperties;
-            
-            if (targetPortfolio.getPropertyOwnerId() != null) {
+
+            // Check if user is a manager - managers can assign any property to any portfolio
+            boolean isManager = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER");
+
+            if (isManager) {
+                // Managers see ALL properties, regardless of portfolio ownership
+                allProperties = propertyService.findAll();
+                log.info("Manager access - showing all {} properties in system", allProperties.size());
+            } else if (targetPortfolio.getPropertyOwnerId() != null) {
                 // Owner-specific portfolio - only show properties for this owner
                 Long ownerId = targetPortfolio.getPropertyOwnerId();
-                
+
                 // Get properties for this owner
                 allProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
-                
-                // Get properties already in this specific portfolio
-                List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
-                Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
-                    .map(Property::getId)
-                    .collect(Collectors.toSet());
-                
-                // Filter to get properties NOT in this specific portfolio (available for assignment)
-                unassignedProperties = allProperties.stream()
-                    .filter(property -> !assignedPropertyIds.contains(property.getId()))
-                    .filter(property -> !"Y".equals(property.getIsArchived()))
-                    .collect(Collectors.toList());
-                    
-                log.info("Owner-specific portfolio {} for owner {} - showing {} total properties, {} already in this portfolio, {} available for assignment", 
-                    portfolioId, ownerId, allProperties.size(), propertiesInPortfolio.size(), unassignedProperties.size());
+                log.info("Owner-specific portfolio {} for owner {} - showing {} properties for this owner",
+                    portfolioId, ownerId, allProperties.size());
             } else {
-                // Shared portfolio - show properties not in this specific portfolio
+                // Shared portfolio - show all properties
                 allProperties = propertyService.findAll();
-                
-                // Get properties already in this specific portfolio
-                List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
-                Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
-                    .map(Property::getId)
-                    .collect(Collectors.toSet());
-                
-                unassignedProperties = allProperties.stream()
-                    .filter(property -> !assignedPropertyIds.contains(property.getId()))
-                    .filter(property -> !"Y".equals(property.getIsArchived()))
-                    .collect(Collectors.toList());
-                    
-                log.info("Shared portfolio {} - showing {} total properties, {} already in this portfolio, {} available for assignment", 
-                    portfolioId, allProperties.size(), propertiesInPortfolio.size(), unassignedProperties.size());
+                log.info("Shared portfolio {} - showing all {} properties", portfolioId, allProperties.size());
             }
+
+            // Get properties already in this specific portfolio
+            List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
+            Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
+                .map(Property::getId)
+                .collect(Collectors.toSet());
+
+            // Filter to get properties NOT in this specific portfolio (available for assignment)
+            unassignedProperties = allProperties.stream()
+                .filter(property -> !assignedPropertyIds.contains(property.getId()))
+                .filter(property -> !"Y".equals(property.getIsArchived()))
+                .collect(Collectors.toList());
+
+            log.info("Portfolio {} assignment: {} total properties, {} already assigned, {} available for assignment",
+                portfolioId, allProperties.size(), propertiesInPortfolio.size(), unassignedProperties.size());
             
             model.addAttribute("targetPortfolio", targetPortfolio);
             model.addAttribute("portfolios", allPortfolios);
@@ -170,56 +167,45 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
             }
             
             List<Property> availableProperties;
-            
-            if (portfolio.getPropertyOwnerId() != null) {
+
+            // Check if user is a manager - managers can assign any property to any portfolio
+            boolean isManager = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER");
+
+            List<Property> allSystemProperties;
+            if (isManager) {
+                // Managers see ALL properties, regardless of portfolio ownership
+                allSystemProperties = propertyService.findAll();
+                log.info("Manager access - showing all {} properties in system", allSystemProperties.size());
+            } else if (portfolio.getPropertyOwnerId() != null) {
                 // Owner-specific portfolio - only show properties for this owner
                 Long ownerId = portfolio.getPropertyOwnerId();
                 log.info("Portfolio {} is owner-specific for owner ID: {}", portfolioId, ownerId);
-                
-                List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
-                log.info("Owner has {} total properties from junction table", ownerProperties.size());
-                
-                // Get properties already in this portfolio using junction table
-                List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
-                log.info("Portfolio already has {} properties", propertiesInPortfolio.size());
-                
-                // Create set of IDs already in portfolio
-                Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
-                    .map(Property::getId)
-                    .collect(Collectors.toSet());
-                
-                // Filter to get properties NOT already in this portfolio
-                availableProperties = ownerProperties.stream()
-                    .filter(property -> !assignedPropertyIds.contains(property.getId()))
-                    .filter(property -> !"Y".equals(property.getIsArchived()))
-                    .collect(Collectors.toList());
-                    
-                log.info("Owner {} - found {} total properties, {} already in portfolio, {} available for assignment", 
-                    ownerId, ownerProperties.size(), propertiesInPortfolio.size(), availableProperties.size());
-                
+
+                allSystemProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
+                log.info("Owner has {} total properties from assignments", allSystemProperties.size());
             } else {
-                // Shared portfolio - show all properties not in this portfolio
-                log.info("Portfolio {} is a shared portfolio", portfolioId);
-                
-                List<Property> allProperties = propertyService.findAll();
-                log.info("Total properties in system: {}", allProperties.size());
-                
-                // Get properties already in this portfolio
-                List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
-                log.info("Portfolio already has {} properties", propertiesInPortfolio.size());
-                
-                Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
-                    .map(Property::getId)
-                    .collect(Collectors.toSet());
-                
-                availableProperties = allProperties.stream()
-                    .filter(property -> !assignedPropertyIds.contains(property.getId()))
-                    .filter(property -> !"Y".equals(property.getIsArchived()))
-                    .collect(Collectors.toList());
-                    
-                log.info("Shared portfolio - {} total properties, {} already in portfolio, {} available for assignment", 
-                    allProperties.size(), propertiesInPortfolio.size(), availableProperties.size());
+                // Shared portfolio - show all properties
+                allSystemProperties = propertyService.findAll();
+                log.info("Shared portfolio {} - showing all {} properties", portfolioId, allSystemProperties.size());
             }
+
+            // Get properties already in this portfolio using junction table
+            List<Property> propertiesInPortfolio = portfolioService.getPropertiesForPortfolio(portfolioId);
+            log.info("Portfolio already has {} properties", propertiesInPortfolio.size());
+
+            // Create set of IDs already in portfolio
+            Set<Long> assignedPropertyIds = propertiesInPortfolio.stream()
+                .map(Property::getId)
+                .collect(Collectors.toSet());
+
+            // Filter to get properties NOT already in this portfolio
+            availableProperties = allSystemProperties.stream()
+                .filter(property -> !assignedPropertyIds.contains(property.getId()))
+                .filter(property -> !"Y".equals(property.getIsArchived()))
+                .collect(Collectors.toList());
+
+            log.info("Portfolio {} assignment API: {} total properties, {} already assigned, {} available for assignment",
+                portfolioId, allSystemProperties.size(), propertiesInPortfolio.size(), availableProperties.size());
             
             // Convert to simple format for frontend
             List<Map<String, Object>> propertyData = availableProperties.stream()

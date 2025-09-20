@@ -7,7 +7,8 @@ package site.easy.to.build.crm.entity;
 public enum DataSource {
     PAYPROP("PayProp API Sync"),
     UPLOADED("Historical Upload"),
-    MANUAL("Manual Entry");
+    MANUAL("Manual Entry"),
+    HISTORICAL_IMPORT("Historical Import");
 
     private final String description;
 
@@ -29,5 +30,9 @@ public enum DataSource {
 
     public boolean isManual() {
         return this == MANUAL;
+    }
+
+    public boolean isHistoricalImport() {
+        return this == HISTORICAL_IMPORT;
     }
 }

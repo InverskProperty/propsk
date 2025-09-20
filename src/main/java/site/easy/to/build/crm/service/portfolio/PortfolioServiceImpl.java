@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -765,17 +766,23 @@ public class PortfolioServiceImpl implements PortfolioService {
     @Override
     public List<Portfolio> findPortfoliosForUser(Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);
+
+        // Managers can see all portfolios
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+            return portfolioRepository.findActivePortfolios();
+        }
+
         Long propertyOwnerId = null;
         boolean isEmployee = false;
-        
+
         if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER")) {
             // For property owners, get their customer ID
             propertyOwnerId = (long) userId;
         } else {
-            // For employees/managers, they can see shared portfolios
+            // For employees (non-managers), they can see shared portfolios
             isEmployee = true;
         }
-        
+
         return portfolioRepository.findPortfoliosForUser(propertyOwnerId, (long) userId, isEmployee);
     }
     
@@ -1139,19 +1146,57 @@ public class PortfolioServiceImpl implements PortfolioService {
             
             // For customers, get their ID from customer lookup instead of user lookup
             try {
-                String email = ((org.springframework.security.oauth2.core.user.OAuth2User) 
-                    authentication.getPrincipal()).getAttribute("email");
-                
+                String email = null;
+
+                // Handle both OAuth and regular authentication
+                if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User) {
+                    email = ((org.springframework.security.oauth2.core.user.OAuth2User)
+                        authentication.getPrincipal()).getAttribute("email");
+                } else if (authentication.getPrincipal() instanceof org.springframework.security.core.userdetails.UserDetails) {
+                    email = ((org.springframework.security.core.userdetails.UserDetails)
+                        authentication.getPrincipal()).getUsername();
+                }
+
                 if (email != null && customerService != null) {
                     Customer customer = customerService.findByEmail(email);
                     if (customer != null) {
                         Long customerId = Long.valueOf(customer.getCustomerId());
-                        boolean hasAccess = portfolio.getPropertyOwnerId() != null && 
-                                          portfolio.getPropertyOwnerId().equals(customerId);
-                        
-                        System.out.println("🔍 canUserAccessPortfolio: Customer " + customerId + 
-                                          " checking portfolio " + portfolioId + 
-                                          " (owner=" + portfolio.getPropertyOwnerId() + ") → " + hasAccess);
+
+                        // Check direct ownership first
+                        boolean isDirectOwner = portfolio.getPropertyOwnerId() != null &&
+                                              portfolio.getPropertyOwnerId().equals(customerId);
+
+                        // For delegated users, also check if they have access via property assignments
+                        boolean hasDelegatedAccess = false;
+                        if (!isDirectOwner && customer.getCustomerType() == CustomerType.DELEGATED_USER) {
+                            // Get properties in this portfolio
+                            List<Property> portfolioProperties = getPropertiesForPortfolio(portfolioId);
+                            if (portfolioProperties != null && !portfolioProperties.isEmpty()) {
+                                // Get properties the delegated user has access to
+                                List<Property> userProperties = propertyService.findPropertiesByCustomerAssignments(customerId);
+                                if (userProperties != null && !userProperties.isEmpty()) {
+                                    // Check if there's any overlap
+                                    Set<Long> portfolioPropertyIds = portfolioProperties.stream()
+                                        .map(Property::getId).collect(Collectors.toSet());
+                                    Set<Long> userPropertyIds = userProperties.stream()
+                                        .map(Property::getId).collect(Collectors.toSet());
+
+                                    portfolioPropertyIds.retainAll(userPropertyIds);
+                                    hasDelegatedAccess = !portfolioPropertyIds.isEmpty();
+
+                                    System.out.println("🔍 DELEGATED ACCESS: Customer " + customerId +
+                                                      " has access to " + portfolioPropertyIds.size() +
+                                                      " properties in portfolio " + portfolioId);
+                                }
+                            }
+                        }
+
+                        boolean hasAccess = isDirectOwner || hasDelegatedAccess;
+                        System.out.println("🔍 canUserAccessPortfolio: Customer " + customerId +
+                                          " checking portfolio " + portfolioId +
+                                          " (owner=" + portfolio.getPropertyOwnerId() +
+                                          ", direct=" + isDirectOwner +
+                                          ", delegated=" + hasDelegatedAccess + ") → " + hasAccess);
                         return hasAccess;
                     }
                 }
