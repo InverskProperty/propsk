@@ -232,7 +232,7 @@ public class SecurityConfig {
                         .requestMatchers("/property/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
 
                         // Statement generation routes - Allow managers, employees, and property owners (FIXED ACCESS ISSUE)
-                        .requestMatchers("/statements/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
+                        .requestMatchers("/statements/**").hasAnyAuthority("ROLE_MANAGER", "ROLE_EMPLOYEE", "ROLE_PROPERTY_OWNER", "OIDC_USER")
 
                         // Default - require authentication
                         .anyRequest().authenticated()
