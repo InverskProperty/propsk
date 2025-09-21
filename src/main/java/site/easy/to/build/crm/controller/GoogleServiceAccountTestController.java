@@ -296,7 +296,11 @@ public class GoogleServiceAccountTestController {
                 log.info("🧪 Attempting to create diagnostic test sheet: {}", testTitle);
 
                 // This will use our enhanced error handling
-                String sheetId = googleService.createTestSheet(testTitle);
+                java.util.List<java.util.List<Object>> testData = java.util.Arrays.asList(
+                    java.util.Arrays.asList("Diagnostic Test", "Timestamp", java.time.LocalDateTime.now().toString()),
+                    java.util.Arrays.asList("Test", "Success", "Service account working")
+                );
+                String sheetId = googleService.createSpreadsheet(testTitle, testData);
 
                 sheetsTest.put("status", "SUCCESS");
                 sheetsTest.put("testSheetId", sheetId);
