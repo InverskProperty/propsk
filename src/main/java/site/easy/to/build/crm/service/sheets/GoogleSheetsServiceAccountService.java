@@ -48,16 +48,38 @@ public class GoogleSheetsServiceAccountService {
      * Create a Sheets service using service account credentials
      */
     private Sheets createSheetsService() throws IOException, GeneralSecurityException {
-        GoogleCredential credential = GoogleCredential
-            .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
-            .createScoped(Collections.singleton(SheetsScopes.SPREADSHEETS));
+        System.out.println("🔧 ServiceAccount: Creating Google Sheets service...");
 
-        return new Sheets.Builder(
-            GoogleNetHttpTransport.newTrustedTransport(),
-            GsonFactory.getDefaultInstance(),
-            credential)
-            .setApplicationName("CRM Property Management")
-            .build();
+        try {
+            // Check if service account key is available
+            if (serviceAccountKey == null || serviceAccountKey.trim().isEmpty()) {
+                throw new IOException("Service account key is not configured (GOOGLE_SERVICE_ACCOUNT_KEY environment variable)");
+            }
+
+            System.out.println("🔧 ServiceAccount: Key length: " + serviceAccountKey.length() + " characters");
+
+            GoogleCredential credential = GoogleCredential
+                .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
+                .createScoped(Collections.singleton(SheetsScopes.SPREADSHEETS));
+
+            System.out.println("🔧 ServiceAccount: Credential created successfully");
+            System.out.println("🔧 ServiceAccount: Service account email: " + credential.getServiceAccountId());
+
+            Sheets service = new Sheets.Builder(
+                GoogleNetHttpTransport.newTrustedTransport(),
+                GsonFactory.getDefaultInstance(),
+                credential)
+                .setApplicationName("CRM Property Management")
+                .build();
+
+            System.out.println("✅ ServiceAccount: Google Sheets service created successfully");
+            return service;
+
+        } catch (Exception e) {
+            System.err.println("❌ ServiceAccount: Failed to create Sheets service: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     /**
@@ -66,17 +88,35 @@ public class GoogleSheetsServiceAccountService {
     public String createPropertyOwnerStatement(Customer propertyOwner, LocalDate fromDate, LocalDate toDate)
             throws IOException, GeneralSecurityException {
 
+        System.out.println("📊 ServiceAccount: Creating property owner statement for: " + getCustomerName(propertyOwner));
+
         Sheets service = createSheetsService();
 
         // Create new spreadsheet
-        Spreadsheet spreadsheet = new Spreadsheet()
-            .setProperties(new SpreadsheetProperties()
-                .setTitle(String.format("Property Owner Statement - %s - %s to %s",
-                    getCustomerName(propertyOwner),
-                    fromDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
-                    toDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))));
+        String title = String.format("Property Owner Statement - %s - %s to %s",
+            getCustomerName(propertyOwner),
+            fromDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+            toDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
 
-        spreadsheet = service.spreadsheets().create(spreadsheet).execute();
+        System.out.println("📊 ServiceAccount: Creating spreadsheet with title: " + title);
+
+        Spreadsheet spreadsheet = new Spreadsheet()
+            .setProperties(new SpreadsheetProperties().setTitle(title));
+
+        try {
+            System.out.println("📊 ServiceAccount: Calling Google Sheets API to create spreadsheet...");
+            spreadsheet = service.spreadsheets().create(spreadsheet).execute();
+            System.out.println("✅ ServiceAccount: Spreadsheet created successfully: " + spreadsheet.getSpreadsheetId());
+        } catch (Exception e) {
+            System.err.println("❌ ServiceAccount: Failed to create spreadsheet: " + e.getMessage());
+            if (e.getMessage().contains("403") || e.getMessage().contains("forbidden")) {
+                System.err.println("💡 ServiceAccount: This is likely a permissions issue. Check:");
+                System.err.println("   1. Google Sheets API is enabled in Google Cloud Console");
+                System.err.println("   2. Service account has proper permissions");
+                System.err.println("   3. Service account key is valid and not expired");
+            }
+            throw e;
+        }
         String spreadsheetId = spreadsheet.getSpreadsheetId();
 
         // Get properties for this owner
