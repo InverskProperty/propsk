@@ -65,4 +65,38 @@ public class PayPropTestPageController {
             return ResponseEntity.status(500).body(result);
         }
     }
+
+    /**
+     * Test basic Google API access with service account
+     * Access at: /payprop/test-basic-api
+     */
+    @GetMapping("/test-basic-api")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testBasicApiAccess() {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            System.out.println("🧪 TEST: Starting basic Google API service account test...");
+
+            // Test basic authentication and token access
+            String message = googleSheetsServiceAccountService.testBasicGoogleApiAccess();
+
+            result.put("success", true);
+            result.put("message", message);
+            result.put("test", "basic-api-authentication");
+
+            System.out.println("✅ TEST: Basic API test successful");
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            System.err.println("❌ TEST: Basic API test failed - " + e.getMessage());
+            e.printStackTrace();
+
+            result.put("success", false);
+            result.put("message", "Basic Google API access test failed: " + e.getMessage());
+            result.put("error", e.getClass().getSimpleName());
+
+            return ResponseEntity.status(500).body(result);
+        }
+    }
 }

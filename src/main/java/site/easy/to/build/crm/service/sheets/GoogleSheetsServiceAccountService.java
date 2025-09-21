@@ -110,6 +110,40 @@ public class GoogleSheetsServiceAccountService {
     }
 
     /**
+     * Test basic Google API access with service account (simpler than Sheets)
+     */
+    public String testBasicGoogleApiAccess() throws IOException, GeneralSecurityException {
+        System.out.println("🧪 ServiceAccount: Testing basic Google API access...");
+
+        try {
+            // Test 1: Try to get information about the service account itself
+            System.out.println("🧪 ServiceAccount: Testing service account token validation...");
+
+            // Create a minimal credential test
+            com.google.api.client.googleapis.auth.oauth2.GoogleCredential credential =
+                com.google.api.client.googleapis.auth.oauth2.GoogleCredential
+                    .fromStream(new java.io.ByteArrayInputStream(serviceAccountKey.getBytes()))
+                    .createScoped(java.util.Collections.singleton(
+                        "https://www.googleapis.com/auth/cloud-platform.read-only"));
+
+            System.out.println("🧪 ServiceAccount: Credential created with read-only scope");
+            System.out.println("🧪 ServiceAccount: Service account ID: " + credential.getServiceAccountId());
+
+            // Try to refresh the token
+            boolean refreshed = credential.refreshToken();
+            System.out.println("🧪 ServiceAccount: Token refresh successful: " + refreshed);
+            System.out.println("🧪 ServiceAccount: Access token exists: " + (credential.getAccessToken() != null));
+
+            return "Basic API access test successful - service account can authenticate";
+
+        } catch (Exception e) {
+            System.err.println("❌ ServiceAccount: Basic API access test failed: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
+    /**
      * Creates a property owner statement in Google Sheets
      */
     public String createPropertyOwnerStatement(Customer propertyOwner, LocalDate fromDate, LocalDate toDate)
