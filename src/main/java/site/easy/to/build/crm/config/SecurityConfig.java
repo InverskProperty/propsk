@@ -180,7 +180,10 @@ public class SecurityConfig {
                         // PayProp Raw Import Test Routes (temporary - remove after testing)
                         .requestMatchers("/test/payprop-raw/**").hasAnyRole("MANAGER", "ADMIN", "SUPER_ADMIN")
                         .requestMatchers("/debug/payprop-raw/**").permitAll()
-                        
+
+                        // CRITICAL: Statement generation routes - MUST be early to avoid conflicts
+                        .requestMatchers("/statements/**").hasAnyAuthority("ROLE_MANAGER", "ROLE_EMPLOYEE", "ROLE_PROPERTY_OWNER", "OIDC_USER")
+
                         // Role-based access - Manager routes
                         .requestMatchers(AntPathRequestMatcher.antMatcher("/**/manager/**")).hasRole("MANAGER")
                         
@@ -230,9 +233,6 @@ public class SecurityConfig {
                         .requestMatchers("/employee/property/api/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
                         // Property routes
                         .requestMatchers("/property/**").hasAnyRole("MANAGER", "EMPLOYEE", "PROPERTY_OWNER", "OIDC_USER")
-
-                        // Statement generation routes - Allow managers, employees, and property owners (FIXED ACCESS ISSUE)
-                        .requestMatchers("/statements/**").hasAnyAuthority("ROLE_MANAGER", "ROLE_EMPLOYEE", "ROLE_PROPERTY_OWNER", "OIDC_USER")
 
                         // Default - require authentication
                         .anyRequest().authenticated()
