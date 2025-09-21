@@ -93,13 +93,16 @@ public class StatementController {
             System.out.println("Error checking customers: " + e.getMessage());
         }
         
-        // Get OAuth user for Google Sheets access
+        // Get OAuth user for Google Sheets access (but allow service account fallback)
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-        
-        if (oAuthUser == null || oAuthUser.getAccessToken() == null) {
-            model.addAttribute("error", "Google account not connected. Please connect your Google account first.");
-            model.addAttribute("googleAuthRequired", true);
-            return "statements/generate-statement";
+        boolean useServiceAccount = (oAuthUser == null || oAuthUser.getAccessToken() == null);
+
+        if (useServiceAccount) {
+            System.out.println("🔧 Using service account for statement generation (no OAuth)");
+            model.addAttribute("useServiceAccount", true);
+        } else {
+            System.out.println("✅ Using OAuth user for statement generation");
+            model.addAttribute("useServiceAccount", false);
         }
         
         // Determine what statements the user can generate
