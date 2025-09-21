@@ -201,6 +201,7 @@ public class SecurityConfig {
                         .requestMatchers("/customer/**").hasRole("CUSTOMER")
 
                         // CRITICAL FIX: PayProp routes - MUST come BEFORE /portfolio/**
+                        .requestMatchers("/api/test/**").permitAll() // Allow test endpoints without auth for debugging
                         .requestMatchers("/api/payprop/sync/**").permitAll() // Allow sync endpoints without auth
                         .requestMatchers("/admin/payprop/**").hasAnyRole("MANAGER", "OIDC_USER")
                         .requestMatchers("/payprop/**").hasAnyRole("MANAGER", "ADMIN", "SUPER_ADMIN", "OIDC_USER") // PayProp import pages

@@ -242,4 +242,128 @@ public class GoogleServiceAccountTestController {
         health.put("timestamp", java.time.LocalDateTime.now().toString());
         return ResponseEntity.ok(health);
     }
+
+    /**
+     * Comprehensive 403 diagnostics endpoint
+     * GET /api/test/google-service-account/diagnose-403
+     */
+    @GetMapping("/diagnose-403")
+    public ResponseEntity<Map<String, Object>> diagnose403() {
+        Map<String, Object> diagnostics = new HashMap<>();
+
+        try {
+            log.info("🔍 Running comprehensive 403 diagnostics...");
+
+            // Test 1: Service Account Key Analysis
+            Map<String, Object> keyAnalysis = new HashMap<>();
+            try {
+                // This will trigger the enhanced debugging in createSheetsService
+                googleService.getSheetsService();
+                keyAnalysis.put("status", "SUCCESS");
+                keyAnalysis.put("message", "Service account key loaded and parsed successfully");
+            } catch (Exception e) {
+                keyAnalysis.put("status", "FAILED");
+                keyAnalysis.put("error", e.getMessage());
+                keyAnalysis.put("errorType", e.getClass().getSimpleName());
+            }
+            diagnostics.put("serviceAccountKeyTest", keyAnalysis);
+
+            // Test 2: Basic Google API Authentication
+            Map<String, Object> authTest = new HashMap<>();
+            try {
+                Map<String, Object> result = googleService.testConnectivity();
+                authTest.put("status", "SUCCESS");
+                authTest.put("result", result);
+            } catch (Exception e) {
+                authTest.put("status", "FAILED");
+                authTest.put("error", e.getMessage());
+                authTest.put("errorType", e.getClass().getSimpleName());
+
+                // Parse 403 specific details
+                if (e.getMessage().contains("403") || e.getMessage().contains("forbidden")) {
+                    authTest.put("errorCategory", "PERMISSION_DENIED");
+                    authTest.put("suggestedFix", "Check Google Cloud IAM permissions for service account");
+                }
+            }
+            diagnostics.put("googleApiAuthTest", authTest);
+
+            // Test 3: Specific Sheets API Test
+            Map<String, Object> sheetsTest = new HashMap<>();
+            try {
+                // Try to create a minimal test sheet
+                String testTitle = "Diagnostic-Test-" + System.currentTimeMillis();
+
+                log.info("🧪 Attempting to create diagnostic test sheet: {}", testTitle);
+
+                // This will use our enhanced error handling
+                String sheetId = googleService.createTestSheet(testTitle);
+
+                sheetsTest.put("status", "SUCCESS");
+                sheetsTest.put("testSheetId", sheetId);
+                sheetsTest.put("message", "Successfully created test sheet");
+
+            } catch (Exception e) {
+                sheetsTest.put("status", "FAILED");
+                sheetsTest.put("error", e.getMessage());
+                sheetsTest.put("errorType", e.getClass().getSimpleName());
+
+                // Enhanced 403 analysis
+                if (e.getMessage().contains("403")) {
+                    sheetsTest.put("errorCategory", "GOOGLE_SHEETS_PERMISSION_DENIED");
+                    sheetsTest.put("possibleCauses", java.util.Arrays.asList(
+                        "Service account lacks Editor role in Google Cloud Project",
+                        "Google Sheets API not enabled",
+                        "Billing not enabled on Google Cloud Project",
+                        "Service account key expired or invalid",
+                        "Project ID mismatch between key and actual project"
+                    ));
+                    sheetsTest.put("suggestedActions", java.util.Arrays.asList(
+                        "Verify service account has 'Editor' role in IAM",
+                        "Enable Google Sheets API in Google Cloud Console",
+                        "Check billing status",
+                        "Regenerate service account key if needed",
+                        "Verify project ID matches in key and console"
+                    ));
+                }
+            }
+            diagnostics.put("googleSheetsApiTest", sheetsTest);
+
+            // Test 4: Environment and Configuration Analysis
+            Map<String, Object> envTest = new HashMap<>();
+            try {
+                // Check if service account key environment variable is set
+                String keyVar = System.getenv("GOOGLE_SERVICE_ACCOUNT_KEY");
+                envTest.put("serviceAccountKeyEnvSet", keyVar != null && !keyVar.trim().isEmpty());
+                envTest.put("serviceAccountKeyLength", keyVar != null ? keyVar.length() : 0);
+
+                // Check for common configuration issues
+                if (keyVar != null) {
+                    envTest.put("containsClientEmail", keyVar.contains("client_email"));
+                    envTest.put("containsProjectId", keyVar.contains("project_id"));
+                    envTest.put("containsPrivateKey", keyVar.contains("private_key"));
+                    envTest.put("isValidJson", keyVar.trim().startsWith("{") && keyVar.trim().endsWith("}"));
+                }
+
+                envTest.put("status", "SUCCESS");
+            } catch (Exception e) {
+                envTest.put("status", "FAILED");
+                envTest.put("error", e.getMessage());
+            }
+            diagnostics.put("environmentTest", envTest);
+
+            diagnostics.put("timestamp", java.time.LocalDateTime.now().toString());
+            diagnostics.put("overallStatus", "DIAGNOSTIC_COMPLETE");
+
+            return ResponseEntity.ok(diagnostics);
+
+        } catch (Exception e) {
+            log.error("❌ 403 diagnostics failed: {}", e.getMessage(), e);
+
+            diagnostics.put("status", "DIAGNOSTIC_FAILED");
+            diagnostics.put("error", e.getMessage());
+            diagnostics.put("timestamp", java.time.LocalDateTime.now().toString());
+
+            return ResponseEntity.status(500).body(diagnostics);
+        }
+    }
 }

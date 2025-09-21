@@ -58,12 +58,39 @@ public class GoogleSheetsServiceAccountService {
 
             System.out.println("🔧 ServiceAccount: Key length: " + serviceAccountKey.length() + " characters");
 
+            // Parse and log key details for debugging
+            try {
+                if (serviceAccountKey.contains("client_email")) {
+                    String email = extractServiceAccountEmail();
+                    System.out.println("🔧 ServiceAccount: Extracted email from key: " + email);
+                }
+                if (serviceAccountKey.contains("project_id")) {
+                    String projectId = extractProjectId();
+                    System.out.println("🔧 ServiceAccount: Project ID: " + projectId);
+                }
+            } catch (Exception e) {
+                System.out.println("⚠️ ServiceAccount: Could not extract key details: " + e.getMessage());
+            }
+
             GoogleCredential credential = GoogleCredential
                 .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
                 .createScoped(Collections.singleton(SheetsScopes.SPREADSHEETS));
 
             System.out.println("🔧 ServiceAccount: Credential created successfully");
             System.out.println("🔧 ServiceAccount: Service account email: " + credential.getServiceAccountId());
+            System.out.println("🔧 ServiceAccount: Scopes: " + credential.getServiceAccountScopesAsString());
+
+            // Test token creation before building service
+            try {
+                boolean refreshed = credential.refreshToken();
+                System.out.println("🔧 ServiceAccount: Token refresh test: " + refreshed);
+                System.out.println("🔧 ServiceAccount: Access token available: " + (credential.getAccessToken() != null));
+                if (credential.getAccessToken() != null) {
+                    System.out.println("🔧 ServiceAccount: Access token length: " + credential.getAccessToken().length());
+                }
+            } catch (Exception e) {
+                System.err.println("❌ ServiceAccount: Token refresh failed: " + e.getMessage());
+            }
 
             Sheets service = new Sheets.Builder(
                 GoogleNetHttpTransport.newTrustedTransport(),
@@ -168,15 +195,32 @@ public class GoogleSheetsServiceAccountService {
             System.out.println("📊 ServiceAccount: Calling Google Sheets API to create spreadsheet...");
             spreadsheet = service.spreadsheets().create(spreadsheet).execute();
             System.out.println("✅ ServiceAccount: Spreadsheet created successfully: " + spreadsheet.getSpreadsheetId());
+        } catch (com.google.api.client.googleapis.json.GoogleJsonResponseException e) {
+            System.err.println("❌ ServiceAccount: Failed to create spreadsheet: " + e.getMessage());
+
+            if (e.getStatusCode() == 403) {
+                System.err.println("💡 ServiceAccount: This is a permissions issue (403 Forbidden). Possible solutions:");
+                System.err.println("   1. Enable Google Sheets API in Google Cloud Console:");
+                System.err.println("      - Go to https://console.cloud.google.com/apis/library");
+                System.err.println("      - Search for 'Google Sheets API' and enable it");
+                System.err.println("   2. Grant proper permissions to service account:");
+                System.err.println("      - Service account email: " + (serviceAccountKey.contains("client_email") ?
+                    extractServiceAccountEmail() : "Check service account key"));
+                System.err.println("      - The service account needs 'Editor' or 'Owner' role on the project");
+                System.err.println("   3. Verify service account key is valid and not expired");
+                System.err.println("   4. Check billing is enabled for the Google Cloud project");
+
+                throw new IOException("Google Sheets API permission denied. Service account lacks proper permissions to create spreadsheets.", e);
+            } else if (e.getStatusCode() == 429) {
+                System.err.println("💡 ServiceAccount: Rate limit exceeded. Please wait before retrying.");
+                throw new IOException("Google Sheets API rate limit exceeded. Please try again later.", e);
+            } else {
+                System.err.println("💡 ServiceAccount: Unexpected Google API error (status: " + e.getStatusCode() + ")");
+                throw new IOException("Google Sheets API error: " + e.getMessage(), e);
+            }
         } catch (Exception e) {
             System.err.println("❌ ServiceAccount: Failed to create spreadsheet: " + e.getMessage());
-            if (e.getMessage().contains("403") || e.getMessage().contains("forbidden")) {
-                System.err.println("💡 ServiceAccount: This is likely a permissions issue. Check:");
-                System.err.println("   1. Google Sheets API is enabled in Google Cloud Console");
-                System.err.println("   2. Service account has proper permissions");
-                System.err.println("   3. Service account key is valid and not expired");
-            }
-            throw e;
+            throw new IOException("Failed to create Google Sheets statement: " + e.getMessage(), e);
         }
         String spreadsheetId = spreadsheet.getSpreadsheetId();
 
@@ -356,5 +400,51 @@ public class GoogleSheetsServiceAccountService {
      */
     private String getCustomerName(Customer customer) {
         return customer.getName() != null ? customer.getName() : "Customer " + customer.getCustomerId();
+    }
+
+    /**
+     * Helper method to extract service account email from JSON key
+     */
+    private String extractServiceAccountEmail() {
+        try {
+            if (serviceAccountKey != null && serviceAccountKey.contains("client_email")) {
+                String[] parts = serviceAccountKey.split("\"client_email\":");
+                if (parts.length > 1) {
+                    String emailPart = parts[1].trim();
+                    if (emailPart.startsWith("\"")) {
+                        int endIndex = emailPart.indexOf("\"", 1);
+                        if (endIndex > 0) {
+                            return emailPart.substring(1, endIndex);
+                        }
+                    }
+                }
+            }
+            return "Unable to extract email from service account key";
+        } catch (Exception e) {
+            return "Error extracting email: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Helper method to extract project ID from JSON key
+     */
+    private String extractProjectId() {
+        try {
+            if (serviceAccountKey != null && serviceAccountKey.contains("project_id")) {
+                String[] parts = serviceAccountKey.split("\"project_id\":");
+                if (parts.length > 1) {
+                    String projectPart = parts[1].trim();
+                    if (projectPart.startsWith("\"")) {
+                        int endIndex = projectPart.indexOf("\"", 1);
+                        if (endIndex > 0) {
+                            return projectPart.substring(1, endIndex);
+                        }
+                    }
+                }
+            }
+            return "Unable to extract project ID from service account key";
+        } catch (Exception e) {
+            return "Error extracting project ID: " + e.getMessage();
+        }
     }
 }

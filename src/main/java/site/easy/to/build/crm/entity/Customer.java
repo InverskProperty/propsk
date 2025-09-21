@@ -17,6 +17,7 @@ import java.util.HashMap;
 
 @Entity
 @Table(name = "customers")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Customer {
 
     public interface CustomerUpdateValidationGroupInclusion {}
