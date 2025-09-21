@@ -83,6 +83,33 @@ public class GoogleSheetsServiceAccountService {
     }
 
     /**
+     * Creates a simple test spreadsheet to verify service account access
+     */
+    public String createTestSpreadsheet() throws IOException, GeneralSecurityException {
+        System.out.println("🧪 ServiceAccount: Creating test spreadsheet...");
+
+        Sheets service = createSheetsService();
+
+        // Create simple test spreadsheet
+        String title = "Google Sheets API Test - " + new java.util.Date();
+        System.out.println("🧪 ServiceAccount: Creating test spreadsheet with title: " + title);
+
+        Spreadsheet spreadsheet = new Spreadsheet()
+            .setProperties(new SpreadsheetProperties().setTitle(title));
+
+        try {
+            System.out.println("🧪 ServiceAccount: Calling Google Sheets API to create test spreadsheet...");
+            spreadsheet = service.spreadsheets().create(spreadsheet).execute();
+            String spreadsheetId = spreadsheet.getSpreadsheetId();
+            System.out.println("✅ ServiceAccount: Test spreadsheet created successfully: " + spreadsheetId);
+            return spreadsheetId;
+        } catch (Exception e) {
+            System.err.println("❌ ServiceAccount: Failed to create test spreadsheet: " + e.getMessage());
+            throw e;
+        }
+    }
+
+    /**
      * Creates a property owner statement in Google Sheets
      */
     public String createPropertyOwnerStatement(Customer propertyOwner, LocalDate fromDate, LocalDate toDate)
