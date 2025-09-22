@@ -91,18 +91,29 @@ public class GoogleServiceAccountService {
     private Map<String, String> testSheetsAccess() throws Exception {
         Map<String, String> result = new HashMap<>();
         try {
+            // WORKAROUND: Based on API metrics, CreateSpreadsheet has 71% error rate
+            // Use Drive API to create spreadsheet, then Sheets API to verify access
+
+            String title = "CRM Test Sheet - " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+
+            // Step 1: Create spreadsheet using Drive API (which works)
+            Drive drive = getDriveService();
+
+            com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
+            fileMetadata.setName(title);
+            fileMetadata.setMimeType("application/vnd.google-apps.spreadsheet");
+
+            com.google.api.services.drive.model.File file = drive.files().create(fileMetadata).execute();
+            String spreadsheetId = file.getId();
+
+            // Step 2: Verify Sheets API access by reading the created sheet
             Sheets sheets = getSheetsService();
-
-            // Test by creating a simple spreadsheet
-            Spreadsheet spreadsheet = new Spreadsheet()
-                .setProperties(new SpreadsheetProperties()
-                    .setTitle("CRM Test Sheet - " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))));
-
-            Spreadsheet createdSheet = sheets.spreadsheets().create(spreadsheet).execute();
+            Spreadsheet spreadsheet = sheets.spreadsheets().get(spreadsheetId).execute();
 
             result.put("status", "SUCCESS");
-            result.put("testSheetId", createdSheet.getSpreadsheetId());
-            result.put("message", "Sheets API accessible - test sheet created");
+            result.put("testSheetId", spreadsheetId);
+            result.put("message", "Sheets API accessible via Drive API workaround");
+            result.put("method", "Drive API create + Sheets API verify");
 
         } catch (Exception e) {
             result.put("status", "FAILED");

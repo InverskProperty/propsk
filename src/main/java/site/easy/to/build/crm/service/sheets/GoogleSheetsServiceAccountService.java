@@ -6,6 +6,8 @@ import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.sheets.v4.Sheets;
 import com.google.api.services.sheets.v4.SheetsScopes;
 import com.google.api.services.sheets.v4.model.*;
+import com.google.api.services.drive.Drive;
+import com.google.api.services.drive.DriveScopes;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -115,23 +117,61 @@ public class GoogleSheetsServiceAccountService {
     public String createTestSpreadsheet() throws IOException, GeneralSecurityException {
         System.out.println("🧪 ServiceAccount: Creating test spreadsheet...");
 
-        Sheets service = createSheetsService();
+        // WORKAROUND: Based on API metrics, CreateSpreadsheet has 71% error rate
+        // but other Sheets operations work. Use Drive API to create, then Sheets API to populate.
 
-        // Create simple test spreadsheet
         String title = "Google Sheets API Test - " + new java.util.Date();
         System.out.println("🧪 ServiceAccount: Creating test spreadsheet with title: " + title);
 
-        Spreadsheet spreadsheet = new Spreadsheet()
-            .setProperties(new SpreadsheetProperties().setTitle(title));
-
         try {
-            System.out.println("🧪 ServiceAccount: Calling Google Sheets API to create test spreadsheet...");
-            spreadsheet = service.spreadsheets().create(spreadsheet).execute();
-            String spreadsheetId = spreadsheet.getSpreadsheetId();
-            System.out.println("✅ ServiceAccount: Test spreadsheet created successfully: " + spreadsheetId);
+            System.out.println("🧪 ServiceAccount: Using Drive API workaround for spreadsheet creation...");
+
+            // Step 1: Create spreadsheet using Drive API (which works)
+            // Note: We need to create a Drive service like we do for Sheets
+            GoogleCredential credential = GoogleCredential
+                .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
+                .createScoped(Collections.singleton(DriveScopes.DRIVE));
+
+            Drive driveService = new Drive.Builder(
+                GoogleNetHttpTransport.newTrustedTransport(),
+                GsonFactory.getDefaultInstance(),
+                credential)
+                .setApplicationName("CRM Property Management")
+                .build();
+
+            com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
+            fileMetadata.setName(title);
+            fileMetadata.setMimeType("application/vnd.google-apps.spreadsheet");
+
+            com.google.api.services.drive.model.File file = driveService.files().create(fileMetadata).execute();
+            String spreadsheetId = file.getId();
+
+            System.out.println("✅ ServiceAccount: Spreadsheet created via Drive API: " + spreadsheetId);
+
+            // Step 2: Add test data using Sheets API (which works according to metrics)
+            System.out.println("🧪 ServiceAccount: Adding test data using Sheets API...");
+
+            Sheets sheetsService = createSheetsService();
+
+            List<List<Object>> testData = List.of(
+                List.of("Google Sheets API Test", "Status", "Working"),
+                List.of("Service Account", "property-statement-generator@crecrm.iam.gserviceaccount.com"),
+                List.of("Created", new java.util.Date().toString()),
+                List.of("Method", "Drive API + Sheets API workaround")
+            );
+
+            ValueRange body = new ValueRange().setValues(testData);
+
+            sheetsService.spreadsheets().values()
+                .update(spreadsheetId, "A1", body)
+                .setValueInputOption("RAW")
+                .execute();
+
+            System.out.println("✅ ServiceAccount: Test data added successfully - workaround complete!");
             return spreadsheetId;
+
         } catch (Exception e) {
-            System.err.println("❌ ServiceAccount: Failed to create test spreadsheet: " + e.getMessage());
+            System.err.println("❌ ServiceAccount: Drive API workaround failed: " + e.getMessage());
             throw e;
         }
     }

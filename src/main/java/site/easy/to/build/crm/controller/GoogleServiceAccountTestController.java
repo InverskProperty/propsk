@@ -381,6 +381,91 @@ public class GoogleServiceAccountTestController {
     }
 
     /**
+     * Test successful operations from metrics
+     * GET /api/test/google-service-account/test-working-operations
+     */
+    @GetMapping("/test-working-operations")
+    public ResponseEntity<Map<String, Object>> testWorkingOperations() {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            log.info("🧪 Testing operations that work according to metrics...");
+
+            // Based on your metrics, these operations have 0% error rate:
+            // - AppendValues (3 requests, 0% errors)
+            // - BatchUpdateSpreadsheet (9 requests, 0% errors)
+            // - UpdateValues (9 requests, 0% errors)
+
+            // Step 1: Create a sheet using Drive API (workaround)
+            String title = "Working-Operations-Test-" + System.currentTimeMillis();
+
+            // Create via Drive API
+            try {
+                var driveService = googleService.getDriveService();
+
+                com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
+                fileMetadata.setName(title);
+                fileMetadata.setMimeType("application/vnd.google-apps.spreadsheet");
+
+                var file = driveService.files().create(fileMetadata).execute();
+                String sheetId = file.getId();
+
+                result.put("driveCreateResult", "SUCCESS - Created sheet: " + sheetId);
+
+                // Step 2: Test UpdateValues (0% error rate according to metrics)
+                try {
+                    var sheetsService = googleService.getSheetsService();
+
+                    java.util.List<java.util.List<Object>> values = java.util.Arrays.asList(
+                        java.util.Arrays.asList("Metric Test", "Status", "Working"),
+                        java.util.Arrays.asList("Operation", "UpdateValues", "0% error rate"),
+                        java.util.Arrays.asList("Method", "Drive API + Sheets UpdateValues")
+                    );
+
+                    com.google.api.services.sheets.v4.model.ValueRange body =
+                        new com.google.api.services.sheets.v4.model.ValueRange().setValues(values);
+
+                    sheetsService.spreadsheets().values()
+                        .update(sheetId, "A1", body)
+                        .setValueInputOption("RAW")
+                        .execute();
+
+                    result.put("updateValuesResult", "SUCCESS - UpdateValues operation works!");
+
+                    // Step 3: Test AppendValues (0% error rate according to metrics)
+                    java.util.List<java.util.List<Object>> appendData = java.util.Arrays.asList(
+                        java.util.Arrays.asList("Append Test", "AppendValues working", java.time.LocalDateTime.now().toString())
+                    );
+
+                    com.google.api.services.sheets.v4.model.ValueRange appendBody =
+                        new com.google.api.services.sheets.v4.model.ValueRange().setValues(appendData);
+
+                    sheetsService.spreadsheets().values()
+                        .append(sheetId, "A:C", appendBody)
+                        .setValueInputOption("RAW")
+                        .execute();
+
+                    result.put("appendValuesResult", "SUCCESS - AppendValues operation works!");
+
+                    result.put("conclusion", "SOLUTION CONFIRMED: Drive API + Sheets operations work perfectly!");
+                    result.put("sheetUrl", "https://docs.google.com/spreadsheets/d/" + sheetId);
+
+                } catch (Exception e) {
+                    result.put("sheetsOperationsResult", "FAILED: " + e.getMessage());
+                }
+
+            } catch (Exception e) {
+                result.put("driveCreateResult", "FAILED: " + e.getMessage());
+            }
+
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+        }
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
      * Health check endpoint
      * GET /api/test/google-service-account/health
      */
