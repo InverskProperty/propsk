@@ -197,6 +197,14 @@
             document.getElementById('fileBrowserModalLabel').textContent = 'Browse ' + formatFolderName(folderType);
             document.getElementById('currentFolder').textContent = formatFolderName(folderType);
 
+            // Update modal footer upload button visibility
+            const uploadButton = document.querySelector('.modal-footer .btn-success');
+            if (folderType === 'property-documents') {
+                uploadButton.style.display = 'none';
+            } else {
+                uploadButton.style.display = 'inline-block';
+            }
+
             // Show modal
             const modal = new bootstrap.Modal(document.getElementById('fileBrowserModal'));
             modal.show();
@@ -286,16 +294,30 @@
 
             // Show empty state
             if ((!data.folders || data.folders.length === 0) && (!data.files || data.files.length === 0)) {
-                html = `
-                    <div class="text-center py-4">
-                        <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
-                        <h5>No files found</h5>
-                        <p class="text-muted">This folder is empty. Upload files to get started.</p>
-                        <button class="btn btn-primary" onclick="uploadFiles()">
-                            <i class="fas fa-upload"></i> Upload Files
-                        </button>
-                    </div>
-                `;
+                if (currentFolderType === 'property-documents') {
+                    html = `
+                        <div class="text-center py-4">
+                            <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                            <h5>No property folders found</h5>
+                            <p class="text-muted">Your property folders will appear here once they are created automatically when you access specific properties.</p>
+                            <div class="alert alert-info mt-3">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>How it works:</strong> Property folders are created automatically based on your property assignments. If you don't see any folders, please contact support.
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html = `
+                        <div class="text-center py-4">
+                            <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                            <h5>No files found</h5>
+                            <p class="text-muted">This folder is empty. Upload files to get started.</p>
+                            <button class="btn btn-primary" onclick="uploadFiles()">
+                                <i class="fas fa-upload"></i> Upload Files
+                            </button>
+                        </div>
+                    `;
+                }
             }
 
             container.innerHTML = html;
@@ -345,6 +367,12 @@
         }
 
         function uploadFiles() {
+            // Check if this is property-documents folder type
+            if (currentFolderType === 'property-documents') {
+                alert('Please select a specific property folder first.\n\nYou cannot upload directly to Property Documents. Please:\n1. Click "Open" on a property folder\n2. Choose a subfolder (EICR, EPC, Insurance, etc.)\n3. Upload your files there');
+                return;
+            }
+
             // Create file input element
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
@@ -383,7 +411,7 @@
                         loadFiles(currentFolderType);
                     } else {
                         container.innerHTML = originalContent;
-                        alert('Upload failed: ' + (data.error || 'Unknown error'));
+                        alert('Upload failed: ' + (data.error || data.message || 'Unknown error'));
                     }
                 })
                 .catch(error => {

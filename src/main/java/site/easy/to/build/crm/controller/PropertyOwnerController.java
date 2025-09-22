@@ -1088,6 +1088,14 @@ public class PropertyOwnerController {
                 return ResponseEntity.status(503).body(Map.of("error", "Service account not configured"));
             }
 
+            // Special handling for property-documents - user needs to select a specific property folder first
+            if ("property-documents".equalsIgnoreCase(folderType)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Please select a specific property folder first",
+                    "message", "You cannot upload directly to Property Documents. Please open a property folder (like 'Property-1' or 'Property-2') and upload to a subfolder like EICR, EPC, or Insurance."
+                ));
+            }
+
             List<Map<String, Object>> uploadedFiles = new ArrayList<>();
             List<String> errors = new ArrayList<>();
 
