@@ -150,15 +150,32 @@
                                                         <i class="fas fa-download"></i> Download XLSX Statement
                                                     </button>
 
-                                                    <!-- Google Sheets Button (only if authenticated) -->
-                                                    <button th:if="${hasGoogleAuth}" type="button" class="btn btn-success" onclick="generatePropertyOwnerSheets()">
-                                                        <i class="fab fa-google"></i> Create Google Sheet
+                                                    <!-- Service Account Google Sheets Button (always available if service account configured) -->
+                                                    <button th:if="${hasServiceAccount}" type="button" class="btn btn-success me-2" onclick="generatePropertyOwnerSheetsServiceAccount()">
+                                                        <i class="fas fa-cloud"></i> Generate Google Sheet
                                                     </button>
 
-                                                    <!-- Auth prompt if no Google auth -->
-                                                    <a th:unless="${hasGoogleAuth}" href="/oauth2/authorization/google" class="btn btn-outline-success">
+                                                    <!-- Personal Google Sheets Button (only if authenticated) -->
+                                                    <button th:if="${hasGoogleAuth}" type="button" class="btn btn-outline-success me-2" onclick="generatePropertyOwnerSheets()">
+                                                        <i class="fab fa-google"></i> Create in My Drive
+                                                    </button>
+
+                                                    <!-- Auth prompt if no Google auth and no service account -->
+                                                    <a th:if="${!hasGoogleAuth and !hasServiceAccount}" href="/oauth2/authorization/google" class="btn btn-outline-success">
                                                         <i class="fab fa-google"></i> Connect Google for Sheets
                                                     </a>
+
+                                                    <!-- Info about sheet location -->
+                                                    <div class="mt-2">
+                                                        <small class="text-muted">
+                                                            <span th:if="${hasServiceAccount}">
+                                                                <i class="fas fa-info-circle"></i> Google Sheets are created in our secure shared drive and shared with you
+                                                            </span>
+                                                            <span th:if="${hasGoogleAuth and !hasServiceAccount}">
+                                                                <i class="fas fa-info-circle"></i> Google Sheets are created in your personal Google Drive
+                                                            </span>
+                                                        </small>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -210,15 +227,32 @@
                                                         <i class="fas fa-download"></i> Download Portfolio XLSX
                                                     </button>
 
-                                                    <!-- Google Sheets Button (only if authenticated) -->
-                                                    <button th:if="${hasGoogleAuth}" type="button" class="btn btn-info" onclick="generatePortfolioSheets()">
-                                                        <i class="fab fa-google"></i> Create Google Sheet
+                                                    <!-- Service Account Google Sheets Button (always available if service account configured) -->
+                                                    <button th:if="${hasServiceAccount}" type="button" class="btn btn-info me-2" onclick="generatePortfolioSheetsServiceAccount()">
+                                                        <i class="fas fa-cloud"></i> Generate Google Sheet
                                                     </button>
 
-                                                    <!-- Auth prompt if no Google auth -->
-                                                    <a th:unless="${hasGoogleAuth}" href="/oauth2/authorization/google" class="btn btn-outline-info">
+                                                    <!-- Personal Google Sheets Button (only if authenticated) -->
+                                                    <button th:if="${hasGoogleAuth}" type="button" class="btn btn-outline-info me-2" onclick="generatePortfolioSheets()">
+                                                        <i class="fab fa-google"></i> Create in My Drive
+                                                    </button>
+
+                                                    <!-- Auth prompt if no Google auth and no service account -->
+                                                    <a th:if="${!hasGoogleAuth and !hasServiceAccount}" href="/oauth2/authorization/google" class="btn btn-outline-info">
                                                         <i class="fab fa-google"></i> Connect Google for Sheets
                                                     </a>
+
+                                                    <!-- Info about sheet location -->
+                                                    <div class="mt-2">
+                                                        <small class="text-muted">
+                                                            <span th:if="${hasServiceAccount}">
+                                                                <i class="fas fa-info-circle"></i> Google Sheets are created in our secure shared drive and shared with you
+                                                            </span>
+                                                            <span th:if="${hasGoogleAuth and !hasServiceAccount}">
+                                                                <i class="fas fa-info-circle"></i> Google Sheets are created in your personal Google Drive
+                                                            </span>
+                                                        </small>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -436,6 +470,92 @@
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = '/property-owner/generate-portfolio';
+
+            // Add CSRF token
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = /*[[${_csrf.parameterName}]]*/ 'csrf';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+
+            // Add form fields
+            const fields = [
+                { name: 'fromDate', value: fromDate },
+                { name: 'toDate', value: toDate },
+                { name: 'propertyOwnerId', value: propertyOwnerId }
+            ];
+
+            fields.forEach(field => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = field.name;
+                input.value = field.value;
+                form.appendChild(input);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
+
+        // Service Account Property Owner Statement Generation
+        function generatePropertyOwnerSheetsServiceAccount() {
+            const fromDate = document.getElementById('fromDate1').value;
+            const toDate = document.getElementById('toDate1').value;
+            const propertyOwnerId = document.getElementById('propertyOwnerId1').value;
+
+            if (!fromDate || !toDate) {
+                alert('Please select both from and to dates');
+                return;
+            }
+
+            // Create a form and submit it for service account sheets
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/property-owner/generate-statement-service-account';
+
+            // Add CSRF token
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = /*[[${_csrf.parameterName}]]*/ 'csrf';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+
+            // Add form fields
+            const fields = [
+                { name: 'fromDate', value: fromDate },
+                { name: 'toDate', value: toDate },
+                { name: 'propertyOwnerId', value: propertyOwnerId }
+            ];
+
+            fields.forEach(field => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = field.name;
+                input.value = field.value;
+                form.appendChild(input);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
+
+        // Service Account Portfolio Statement Generation
+        function generatePortfolioSheetsServiceAccount() {
+            const fromDate = document.getElementById('fromDate3').value;
+            const toDate = document.getElementById('toDate3').value;
+            const propertyOwnerId = document.getElementById('propertyOwnerId3').value;
+
+            if (!fromDate || !toDate) {
+                alert('Please select both from and to dates');
+                return;
+            }
+
+            // Create a form and submit it for service account sheets
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/property-owner/generate-portfolio-service-account';
 
             // Add CSRF token
             const csrfInput = document.createElement('input');

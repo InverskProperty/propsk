@@ -52,6 +52,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import site.easy.to.build.crm.service.statements.XLSXStatementService;
+import site.easy.to.build.crm.service.sheets.GoogleSheetsServiceAccountService;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -88,6 +89,10 @@ public class PropertyOwnerController {
     // XLSX Statement Service for local file generation
     @Autowired
     private XLSXStatementService xlsxStatementService;
+
+    // Google Sheets Service Account Service for shared drive generation
+    @Autowired
+    private GoogleSheetsServiceAccountService googleSheetsServiceAccountService;
 
     @Autowired
     public PropertyOwnerController(PropertyService propertyService,
@@ -868,15 +873,22 @@ public class PropertyOwnerController {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             boolean hasGoogleAuth = (oAuthUser != null && oAuthUser.getAccessToken() != null);
 
+            // Check if service account is available for shared drive access
+            boolean hasServiceAccount = serviceAccountAvailable();
+
             model.addAttribute("customer", customer);
             model.addAttribute("customerId", customer.getCustomerId());
             model.addAttribute("pageTitle", "Statements Centre");
             model.addAttribute("hasGoogleAuth", hasGoogleAuth);
+            model.addAttribute("hasServiceAccount", hasServiceAccount);
             model.addAttribute("isPropertyOwner", true);
             model.addAttribute("supportsBothFormats", true); // Enable both XLSX and Google Sheets options
 
-            // No longer show error - users can use XLSX without Google Auth
-            if (!hasGoogleAuth) {
+            // Set appropriate messages based on available options
+            if (hasServiceAccount) {
+                model.addAttribute("info", "Google Sheets available via secure shared drive. " +
+                    (hasGoogleAuth ? "You can also create sheets in your personal Drive." : "Connect your Google account to also create sheets in your personal Drive."));
+            } else if (!hasGoogleAuth) {
                 model.addAttribute("info", "Google account not connected. You can still download XLSX statements or connect Google for Sheets integration.");
                 model.addAttribute("xlsxAvailable", true);
             }
@@ -2518,7 +2530,77 @@ public class PropertyOwnerController {
                 .body(errorMessage.getBytes());
         }
     }
-    
+
+    /**
+     * Property Owner Generate Statement via Service Account (Shared Drive)
+     */
+    @PostMapping("/property-owner/generate-statement-service-account")
+    public String generateStatementServiceAccount(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+                                                 @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+                                                 Authentication authentication,
+                                                 RedirectAttributes redirectAttributes) {
+        System.out.println("📊 Property Owner Generate Statement (Service Account) - Starting...");
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                redirectAttributes.addFlashAttribute("error", "Authentication required");
+                return "redirect:/customer-login";
+            }
+
+            System.out.println("✅ Using service account for customer: " + customer.getCustomerId());
+
+            // Use the service account service directly (no OAuth required)
+            String spreadsheetId = googleSheetsServiceAccountService.createPropertyOwnerStatement(customer, fromDate, toDate);
+
+            String googleSheetsUrl = "https://docs.google.com/spreadsheets/d/" + spreadsheetId;
+            redirectAttributes.addFlashAttribute("success",
+                "Statement generated successfully! <a href='" + googleSheetsUrl + "' target='_blank' class='alert-link'>Open Google Sheet</a>");
+
+            return "redirect:/property-owner/statements";
+
+        } catch (Exception e) {
+            System.err.println("❌ Error generating service account statement: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error generating statement: " + e.getMessage());
+            return "redirect:/property-owner/statements";
+        }
+    }
+
+    /**
+     * Property Owner Generate Portfolio via Service Account (Shared Drive)
+     */
+    @PostMapping("/property-owner/generate-portfolio-service-account")
+    public String generatePortfolioServiceAccount(@RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+                                                 @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+                                                 Authentication authentication,
+                                                 RedirectAttributes redirectAttributes) {
+        System.out.println("📊 Property Owner Generate Portfolio (Service Account) - Starting...");
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                redirectAttributes.addFlashAttribute("error", "Authentication required");
+                return "redirect:/customer-login";
+            }
+
+            System.out.println("✅ Using service account for portfolio for customer: " + customer.getCustomerId());
+
+            // For now, use the property owner statement service (portfolio can be added later)
+            String spreadsheetId = googleSheetsServiceAccountService.createPropertyOwnerStatement(customer, fromDate, toDate);
+
+            String googleSheetsUrl = "https://docs.google.com/spreadsheets/d/" + spreadsheetId;
+            redirectAttributes.addFlashAttribute("success",
+                "Portfolio statement generated successfully! <a href='" + googleSheetsUrl + "' target='_blank' class='alert-link'>Open Google Sheet</a>");
+
+            return "redirect:/property-owner/statements";
+
+        } catch (Exception e) {
+            System.err.println("❌ Error generating service account portfolio: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error generating portfolio: " + e.getMessage());
+            return "redirect:/property-owner/statements";
+        }
+    }
+
     /**
      * Update Property Valuation Data - Property Owner
      */
