@@ -466,6 +466,114 @@ public class GoogleServiceAccountTestController {
     }
 
     /**
+     * Check Drive storage usage for service account
+     * GET /api/test/google-service-account/storage-usage
+     */
+    @GetMapping("/storage-usage")
+    public ResponseEntity<Map<String, Object>> checkStorageUsage() {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            log.info("📊 Checking Drive storage usage for service account...");
+
+            var driveService = googleService.getDriveService();
+
+            // Get storage quota information
+            try {
+                var about = driveService.about().get().setFields("storageQuota,user").execute();
+                var quota = about.getStorageQuota();
+
+                if (quota != null) {
+                    result.put("quotaLimit", quota.getLimit());
+                    result.put("quotaUsage", quota.getUsage());
+                    result.put("quotaUsageInDrive", quota.getUsageInDrive());
+
+                    if (quota.getLimit() != null && quota.getUsage() != null) {
+                        long limitBytes = quota.getLimit();
+                        long usageBytes = quota.getUsage();
+                        double usagePercent = (double) usageBytes / limitBytes * 100;
+
+                        result.put("quotaLimitGB", limitBytes / (1024.0 * 1024.0 * 1024.0));
+                        result.put("quotaUsageGB", usageBytes / (1024.0 * 1024.0 * 1024.0));
+                        result.put("quotaUsagePercent", Math.round(usagePercent * 100.0) / 100.0);
+                    }
+                }
+
+                var user = about.getUser();
+                if (user != null) {
+                    result.put("userEmail", user.getEmailAddress());
+                    result.put("userDisplayName", user.getDisplayName());
+                }
+            } catch (Exception e) {
+                result.put("quotaError", e.getMessage());
+            }
+
+            // List all files to see what's taking space
+            var fileList = driveService.files().list()
+                .setFields("files(id,name,size,createdTime,mimeType)")
+                .setPageSize(100)
+                .execute();
+
+            var files = fileList.getFiles();
+            result.put("totalFileCount", files.size());
+
+            // Analyze files by type and size
+            long totalSize = 0;
+            int spreadsheetCount = 0;
+            int testFileCount = 0;
+            long largestFileSize = 0;
+            String largestFileName = "";
+
+            java.util.List<Map<String, Object>> largeFiles = new java.util.ArrayList<>();
+
+            for (var file : files) {
+                if (file.getSize() != null) {
+                    long fileSize = file.getSize();
+                    totalSize += fileSize;
+
+                    if (fileSize > largestFileSize) {
+                        largestFileSize = fileSize;
+                        largestFileName = file.getName();
+                    }
+
+                    // Track files over 1MB
+                    if (fileSize > 1024 * 1024) {
+                        Map<String, Object> fileInfo = new HashMap<>();
+                        fileInfo.put("name", file.getName());
+                        fileInfo.put("sizeMB", Math.round(fileSize / (1024.0 * 1024.0) * 100.0) / 100.0);
+                        fileInfo.put("created", file.getCreatedTime());
+                        fileInfo.put("mimeType", file.getMimeType());
+                        largeFiles.add(fileInfo);
+                    }
+                }
+
+                if ("application/vnd.google-apps.spreadsheet".equals(file.getMimeType())) {
+                    spreadsheetCount++;
+                }
+
+                String fileName = file.getName();
+                if (fileName != null && (fileName.contains("Test") || fileName.contains("Diagnostic"))) {
+                    testFileCount++;
+                }
+            }
+
+            result.put("totalSizeMB", Math.round(totalSize / (1024.0 * 1024.0) * 100.0) / 100.0);
+            result.put("spreadsheetCount", spreadsheetCount);
+            result.put("testFileCount", testFileCount);
+            result.put("largestFileSizeMB", Math.round(largestFileSize / (1024.0 * 1024.0) * 100.0) / 100.0);
+            result.put("largestFileName", largestFileName);
+            result.put("filesOver1MB", largeFiles);
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+            result.put("errorType", e.getClass().getSimpleName());
+            return ResponseEntity.status(500).body(result);
+        }
+    }
+
+    /**
      * Health check endpoint
      * GET /api/test/google-service-account/health
      */

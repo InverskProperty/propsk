@@ -226,34 +226,81 @@ public class GoogleSheetsServiceAccountService {
         System.out.println("📊 ServiceAccount: Creating spreadsheet with title: " + title);
 
         String spreadsheetId;
+
+        System.out.println("📊 ServiceAccount: BYPASSING DRIVE API - Using direct Sheets API approach!");
+
         try {
-            System.out.println("📊 ServiceAccount: Using Drive API workaround for spreadsheet creation...");
+            // Skip Drive API entirely - use direct Sheets API
+            Sheets sheetsService = createSheetsService();
 
-            // Step 1: Create spreadsheet using Drive API (which works according to your metrics)
-            GoogleCredential credential = GoogleCredential
-                .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
-                .createScoped(Collections.singleton(DriveScopes.DRIVE));
+            System.out.println("📊 ServiceAccount: Creating spreadsheet directly via Sheets API...");
 
-            Drive driveService = new Drive.Builder(
-                GoogleNetHttpTransport.newTrustedTransport(),
-                GsonFactory.getDefaultInstance(),
-                credential)
-                .setApplicationName("CRM Property Management")
-                .build();
+            Spreadsheet spreadsheet = new Spreadsheet()
+                .setProperties(new SpreadsheetProperties().setTitle(title));
 
-            com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
-            fileMetadata.setName(title);
-            fileMetadata.setMimeType("application/vnd.google-apps.spreadsheet");
+            spreadsheet = sheetsService.spreadsheets().create(spreadsheet).execute();
+            spreadsheetId = spreadsheet.getSpreadsheetId();
 
-            com.google.api.services.drive.model.File file = driveService.files().create(fileMetadata).execute();
-            spreadsheetId = file.getId();
+            System.out.println("✅ ServiceAccount: Spreadsheet created! ID: " + spreadsheetId);
 
-            System.out.println("✅ ServiceAccount: Spreadsheet created via Drive API: " + spreadsheetId);
+            // CRITICAL FIX: Transfer ownership to avoid service account quota limits
+            System.out.println("📝 ServiceAccount: Transferring ownership to avoid quota limits...");
 
+            try {
+                // Create Drive service to transfer ownership
+                GoogleCredential driveCredential = GoogleCredential
+                    .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
+                    .createScoped(Collections.singleton(DriveScopes.DRIVE));
+
+                Drive driveService = new Drive.Builder(
+                    GoogleNetHttpTransport.newTrustedTransport(),
+                    GsonFactory.getDefaultInstance(),
+                    driveCredential)
+                    .setApplicationName("CRM Property Management")
+                    .build();
+
+                // Transfer ownership to the admin account
+                com.google.api.services.drive.model.Permission permission = new com.google.api.services.drive.model.Permission();
+                permission.setRole("owner");
+                permission.setType("user");
+                permission.setEmailAddress("sajidkazmi@propsk.com"); // Admin account
+
+                driveService.permissions().create(spreadsheetId, permission)
+                    .setTransferOwnership(true)
+                    .execute();
+
+                System.out.println("✅ ServiceAccount: Ownership transferred to sajidkazmi@propsk.com");
+
+                // Give the property owner access to their statement
+                String customerEmail = propertyOwner.getEmail();
+                if (customerEmail != null && !customerEmail.isEmpty()) {
+                    try {
+                        com.google.api.services.drive.model.Permission customerPermission = new com.google.api.services.drive.model.Permission();
+                        customerPermission.setRole("reader"); // Can view but not edit
+                        customerPermission.setType("user");
+                        customerPermission.setEmailAddress(customerEmail);
+
+                        driveService.permissions().create(spreadsheetId, customerPermission).execute();
+
+                        System.out.println("✅ ServiceAccount: Property owner (" + customerEmail + ") granted access to their statement");
+                    } catch (Exception customerAccessError) {
+                        System.err.println("⚠️ ServiceAccount: Could not grant access to customer: " + customerAccessError.getMessage());
+                    }
+                } else {
+                    System.err.println("⚠️ ServiceAccount: Customer email not found - cannot grant access");
+                }
+
+            } catch (Exception ownershipError) {
+                System.err.println("⚠️ ServiceAccount: Could not transfer ownership: " + ownershipError.getMessage());
+                System.err.println("⚠️ ServiceAccount: File created but may hit quota limits for future operations");
+            }
+
+        } catch (IOException e) {
+            throw e; // Re-throw IOException as-is
         } catch (Exception e) {
-            System.err.println("❌ ServiceAccount: Drive API workaround failed: " + e.getMessage());
+            System.err.println("❌ ServiceAccount: Unexpected error in statement creation: " + e.getMessage());
             e.printStackTrace();
-            throw new IOException("Failed to create Google Sheets statement via Drive API: " + e.getMessage(), e);
+            throw new IOException("Failed to create Google Sheets statement: " + e.getMessage(), e);
         }
 
         // Step 2: Create Sheets service for populating data (UpdateValues has 0% error rate)
