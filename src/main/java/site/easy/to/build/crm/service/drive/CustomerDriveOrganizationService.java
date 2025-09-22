@@ -341,7 +341,7 @@ public class CustomerDriveOrganizationService {
             return createCustomerFolderStructureInSharedDrive(customer);
         } else if (oAuthUser != null) {
             System.out.println("📁 Using OAuth approach for customer folders");
-            return createCustomerFolderStructure(customer, oAuthUser);
+            return createCustomerFolderStructure(oAuthUser, customer);
         } else {
             throw new IllegalStateException("Neither service account nor OAuth available for folder creation");
         }
