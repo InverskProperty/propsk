@@ -2,18 +2,30 @@ package site.easy.to.build.crm.service.drive;
 
 import com.google.api.services.drive.model.File;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.GoogleDriveFile;
 import site.easy.to.build.crm.entity.OAuthUser;
+import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.google.service.drive.GoogleDriveApiService;
 import site.easy.to.build.crm.service.customer.CustomerService;
+import site.easy.to.build.crm.service.property.PropertyService;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.time.LocalDateTime;
 import java.util.*;
+
+// Shared drive imports
+import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import com.google.api.services.drive.Drive;
+import com.google.api.services.drive.DriveScopes;
+import java.io.ByteArrayInputStream;
+import java.util.Collections;
 
 @Service
 public class CustomerDriveOrganizationService {
@@ -21,6 +33,14 @@ public class CustomerDriveOrganizationService {
     private final GoogleDriveApiService googleDriveApiService;
     private final GoogleDriveFileService googleDriveFileService;
     private final CustomerService customerService;
+    private final PropertyService propertyService;
+
+    @Value("${GOOGLE_SERVICE_ACCOUNT_KEY:}")
+    private String serviceAccountKey;
+
+    // Shared Drive ID for CRM property documents
+    private static final String SHARED_DRIVE_ID = "0ADaFlidiFrFDUk9PVA";
+    private static final String SHARED_DRIVE_DOCUMENTS_FOLDER = "Property-Documents";
 
     // Folder structure definitions
     private static final Map<CustomerType, List<String>> FOLDER_STRUCTURES = Map.of(
@@ -34,12 +54,14 @@ public class CustomerDriveOrganizationService {
     );
 
     @Autowired
-    public CustomerDriveOrganizationService(GoogleDriveApiService googleDriveApiService, 
+    public CustomerDriveOrganizationService(GoogleDriveApiService googleDriveApiService,
                                           GoogleDriveFileService googleDriveFileService,
-                                          CustomerService customerService) {
+                                          CustomerService customerService,
+                                          PropertyService propertyService) {
         this.googleDriveApiService = googleDriveApiService;
         this.googleDriveFileService = googleDriveFileService;
         this.customerService = customerService;
+        this.propertyService = propertyService;
     }
 
     /**
@@ -243,6 +265,192 @@ public class CustomerDriveOrganizationService {
     private void saveFolderStructureToDatabase(CustomerFolderStructure structure) {
         // Save folder structure to database for future reference
         // You might want to create a customer_folder_structures table
+    }
+
+    /**
+     * Create customer folder structure in shared drive (service account approach)
+     * This allows property owners to access their documents without connecting Google accounts
+     */
+    public CustomerFolderStructure createCustomerFolderStructureInSharedDrive(Customer customer)
+            throws IOException, GeneralSecurityException {
+
+        System.out.println("📁 Creating customer folder structure in shared drive for: " + customer.getName());
+
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured for shared drive access");
+        }
+
+        Drive driveService = createServiceAccountDriveService();
+
+        // Create or find the main documents folder in shared drive
+        String documentsFolderId = findOrCreateDocumentsFolder(driveService);
+
+        // Create customer folder under documents
+        String customerFolderName = generateCustomerFolderName(customer);
+        String customerFolderId = createFolderInSharedDrive(driveService, customerFolderName, documentsFolderId);
+
+        // Grant the customer access to their folder
+        grantCustomerAccess(driveService, customerFolderId, customer.getEmail());
+
+        CustomerFolderStructure structure = new CustomerFolderStructure();
+        structure.setCustomerId(customer.getCustomerId());
+        structure.setMainFolderId(customerFolderId);
+        structure.setMainFolderName(customerFolderName);
+
+        Map<String, String> subFolders = new HashMap<>();
+
+        // Create customer-type specific folders
+        List<String> folderNames = FOLDER_STRUCTURES.get(customer.getCustomerType());
+        if (folderNames != null) {
+            for (String folderName : folderNames) {
+                String subFolderId = createFolderInSharedDrive(driveService, folderName, customerFolderId);
+                subFolders.put(folderName, subFolderId);
+            }
+        }
+
+        // For property owners, create property-specific folders
+        if (customer.getCustomerType() == CustomerType.PROPERTY_OWNER) {
+            List<Property> properties = getCustomerProperties(customer);
+            for (Property property : properties) {
+                String propertyFolderName = generatePropertyFolderName(property);
+                String propertyFolderId = createFolderInSharedDrive(driveService, propertyFolderName, customerFolderId);
+
+                // Create property subfolders (EICR, EPC, Insurance, etc.)
+                for (String propertyFolder : PROPERTY_FOLDERS) {
+                    String subFolderId = createFolderInSharedDrive(driveService, propertyFolder, propertyFolderId);
+                    subFolders.put(propertyFolderName + "/" + propertyFolder, subFolderId);
+                }
+            }
+        }
+
+        structure.setSubFolders(subFolders);
+
+        System.out.println("✅ Created shared drive folder structure with " + subFolders.size() + " subfolders");
+        return structure;
+    }
+
+    /**
+     * Hybrid method: Create folder structure using either OAuth or service account
+     */
+    public CustomerFolderStructure createCustomerFolderStructureHybrid(Customer customer, OAuthUser oAuthUser)
+            throws IOException, GeneralSecurityException {
+
+        // Prefer shared drive if available
+        if (hasServiceAccount()) {
+            System.out.println("📁 Using shared drive approach for customer folders");
+            return createCustomerFolderStructureInSharedDrive(customer);
+        } else if (oAuthUser != null) {
+            System.out.println("📁 Using OAuth approach for customer folders");
+            return createCustomerFolderStructure(customer, oAuthUser);
+        } else {
+            throw new IllegalStateException("Neither service account nor OAuth available for folder creation");
+        }
+    }
+
+    // Helper methods for shared drive operations
+
+    private boolean hasServiceAccount() {
+        return serviceAccountKey != null && !serviceAccountKey.trim().isEmpty();
+    }
+
+    private Drive createServiceAccountDriveService() throws IOException, GeneralSecurityException {
+        String formattedKey = getFormattedServiceAccountKey();
+        GoogleCredential credential = GoogleCredential
+            .fromStream(new ByteArrayInputStream(formattedKey.getBytes()))
+            .createScoped(Collections.singleton(DriveScopes.DRIVE));
+
+        return new Drive.Builder(
+            GoogleNetHttpTransport.newTrustedTransport(),
+            GsonFactory.getDefaultInstance(),
+            credential)
+            .setApplicationName("CRM Property Management")
+            .build();
+    }
+
+    private String getFormattedServiceAccountKey() {
+        if (serviceAccountKey.contains("\\n")) {
+            return serviceAccountKey.replace("\\n", "\n");
+        }
+        return serviceAccountKey;
+    }
+
+    private String findOrCreateDocumentsFolder(Drive driveService) throws IOException {
+        // Search for existing documents folder in shared drive
+        String query = "name='" + SHARED_DRIVE_DOCUMENTS_FOLDER + "' and parents in '" + SHARED_DRIVE_ID + "' and trashed=false";
+
+        com.google.api.services.drive.Drive.Files.List request = driveService.files().list()
+            .setQ(query)
+            .setSupportsAllDrives(true)
+            .setIncludeItemsFromAllDrives(true);
+
+        List<com.google.api.services.drive.model.File> files = request.execute().getFiles();
+
+        if (!files.isEmpty()) {
+            return files.get(0).getId();
+        }
+
+        // Create the documents folder if it doesn't exist
+        return createFolderInSharedDrive(driveService, SHARED_DRIVE_DOCUMENTS_FOLDER, SHARED_DRIVE_ID);
+    }
+
+    private String createFolderInSharedDrive(Drive driveService, String folderName, String parentId) throws IOException {
+        com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
+        fileMetadata.setName(folderName);
+        fileMetadata.setMimeType("application/vnd.google-apps.folder");
+        fileMetadata.setParents(Collections.singletonList(parentId));
+
+        com.google.api.services.drive.model.File file = driveService.files()
+            .create(fileMetadata)
+            .setSupportsAllDrives(true)
+            .execute();
+
+        System.out.println("📁 Created folder: " + folderName + " (ID: " + file.getId() + ")");
+        return file.getId();
+    }
+
+    private void grantCustomerAccess(Drive driveService, String folderId, String customerEmail) {
+        if (customerEmail == null || customerEmail.trim().isEmpty()) {
+            System.out.println("⚠️ Customer email not provided, skipping access grant");
+            return;
+        }
+
+        try {
+            com.google.api.services.drive.model.Permission permission = new com.google.api.services.drive.model.Permission();
+            permission.setRole("writer"); // Can add/edit files in their folder
+            permission.setType("user");
+            permission.setEmailAddress(customerEmail);
+
+            driveService.permissions().create(folderId, permission)
+                .setSupportsAllDrives(true)
+                .execute();
+
+            System.out.println("✅ Granted access to " + customerEmail + " for folder: " + folderId);
+        } catch (Exception e) {
+            System.err.println("⚠️ Could not grant access to customer: " + e.getMessage());
+        }
+    }
+
+    private List<Property> getCustomerProperties(Customer customer) {
+        try {
+            // Use the same method as PropertyOwnerController for consistency
+            return propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+        } catch (Exception e) {
+            System.err.println("⚠️ Error getting customer properties: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    private String generatePropertyFolderName(Property property) {
+        if (property.getPropertyName() != null && !property.getPropertyName().trim().isEmpty()) {
+            return property.getPropertyName().replaceAll("[^a-zA-Z0-9\\s-]", "").trim();
+        }
+
+        String address = property.getAddressLine1();
+        if (address != null && !address.trim().isEmpty()) {
+            return address.replaceAll("[^a-zA-Z0-9\\s-]", "").trim();
+        }
+
+        return "Property-" + property.getId();
     }
 
     // Inner class for folder structure
