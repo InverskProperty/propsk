@@ -907,32 +907,58 @@ public class PropertyOwnerController {
     }
     
     /**
-     * Property Owner Files - Access to Google Drive file system  
+     * Property Owner Files - Access to Google Drive file system
+     * Now supports both OAuth2 and service account access
      */
     @GetMapping("/property-owner/files")
     public String fileSystem(Model model, Authentication authentication) {
         System.out.println("📁 Property Owner Files - Loading...");
-        
+
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
             if (customer == null) {
                 return "redirect:/customer-login?error=not_found";
             }
-            
+
             System.out.println("✅ Loading files system for customer: " + customer.getCustomerId());
-            
-            // Load customer's files directly instead of redirecting
-            // This avoids authentication issues with redirects to other controllers
+
+            // Load customer's files and properties
             model.addAttribute("customer", customer);
             model.addAttribute("customerId", customer.getCustomerId());
             model.addAttribute("pageTitle", "Document Files");
-            
+
+            // Get customer's properties for file organization
+            List<Property> properties = propertyService.getPropertiesByOwner(customer.getCustomerId());
+            model.addAttribute("properties", properties);
+
+            // Check if service account is available for shared drive access
+            boolean hasServiceAccount = serviceAccountAvailable();
+            model.addAttribute("hasServiceAccount", hasServiceAccount);
+            model.addAttribute("sharedDriveAccess", hasServiceAccount);
+
+            System.out.println("📁 Service account available: " + hasServiceAccount);
+            System.out.println("📁 Properties count: " + properties.size());
+
             return "property-owner/files";
-            
+
         } catch (Exception e) {
             System.err.println("❌ Error loading files system: " + e.getMessage());
             model.addAttribute("error", "Error loading files: " + e.getMessage());
             return "property-owner/dashboard";
+        }
+    }
+
+    /**
+     * Check if service account is available for shared drive operations
+     */
+    private boolean serviceAccountAvailable() {
+        try {
+            // This would normally check environment variable or service
+            // For now, return true if we have the key configured
+            String serviceAccountKey = System.getenv("GOOGLE_SERVICE_ACCOUNT_KEY");
+            return serviceAccountKey != null && !serviceAccountKey.trim().isEmpty();
+        } catch (Exception e) {
+            return false;
         }
     }
     

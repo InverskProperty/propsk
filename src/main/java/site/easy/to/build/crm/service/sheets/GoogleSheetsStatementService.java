@@ -6,7 +6,10 @@ import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.sheets.v4.Sheets;
 import com.google.api.services.sheets.v4.SheetsScopes;
 import com.google.api.services.sheets.v4.model.*;
+import com.google.api.services.drive.Drive;
+import com.google.api.services.drive.DriveScopes;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerType;
@@ -34,8 +37,14 @@ public class GoogleSheetsStatementService {
     private final PropertyService propertyService;
     private final FinancialTransactionRepository financialTransactionRepository;
 
+    @Value("${GOOGLE_SERVICE_ACCOUNT_KEY:}")
+    private String serviceAccountKey;
+
+    // Shared Drive ID for CRM statements - service account has Manager access
+    private static final String SHARED_DRIVE_ID = "0ADaFlidiFrFDUk9PVA";
+
     @Autowired
-    public GoogleSheetsStatementService(CustomerService customerService, 
+    public GoogleSheetsStatementService(CustomerService customerService,
                                       PropertyService propertyService,
                                       FinancialTransactionRepository financialTransactionRepository) {
         this.customerService = customerService;
@@ -45,22 +54,40 @@ public class GoogleSheetsStatementService {
 
     /**
      * Creates a property owner statement in Google Sheets with enhanced formatting and Apps Script integration
+     * Now supports both OAuth2 and service account (shared drive) approaches
      */
-    public String createPropertyOwnerStatement(OAuthUser oAuthUser, Customer propertyOwner, 
-                                             LocalDate fromDate, LocalDate toDate) 
+    public String createPropertyOwnerStatement(OAuthUser oAuthUser, Customer propertyOwner,
+                                             LocalDate fromDate, LocalDate toDate)
             throws IOException, GeneralSecurityException {
-        
-        Sheets sheetsService = getSheetsService(oAuthUser);
-        
-        // Create new spreadsheet with enhanced properties
-        Spreadsheet spreadsheet = new Spreadsheet()
-            .setProperties(new SpreadsheetProperties()
-                .setTitle(generateStatementTitle(propertyOwner, fromDate, toDate))
-                .setLocale("en_GB")  // UK locale for proper currency formatting
-                .setTimeZone("Europe/London"));
-        
-        Spreadsheet createdSheet = sheetsService.spreadsheets().create(spreadsheet).execute();
-        String spreadsheetId = createdSheet.getSpreadsheetId();
+
+        System.out.println("📊 Creating property owner statement for: " + propertyOwner.getName());
+        System.out.println("📊 OAuth user available: " + (oAuthUser != null));
+        System.out.println("📊 Service account available: " + (serviceAccountKey != null && !serviceAccountKey.trim().isEmpty()));
+
+        String spreadsheetId;
+        Sheets sheetsService;
+
+        // Try shared drive approach first (preferred), fallback to OAuth2
+        if (serviceAccountKey != null && !serviceAccountKey.trim().isEmpty()) {
+            System.out.println("📊 Using shared drive approach with service account");
+            spreadsheetId = createSpreadsheetInSharedDrive(propertyOwner, fromDate, toDate);
+            sheetsService = createServiceAccountSheetsService();
+        } else if (oAuthUser != null) {
+            System.out.println("📊 Using OAuth2 approach (fallback)");
+            sheetsService = getSheetsService(oAuthUser);
+
+            // Create new spreadsheet with enhanced properties
+            Spreadsheet spreadsheet = new Spreadsheet()
+                .setProperties(new SpreadsheetProperties()
+                    .setTitle(generateStatementTitle(propertyOwner, fromDate, toDate))
+                    .setLocale("en_GB")  // UK locale for proper currency formatting
+                    .setTimeZone("Europe/London"));
+
+            Spreadsheet createdSheet = sheetsService.spreadsheets().create(spreadsheet).execute();
+            spreadsheetId = createdSheet.getSpreadsheetId();
+        } else {
+            throw new IllegalStateException("Neither service account nor OAuth2 user available for statement creation");
+        }
         
         // Build statement data
         PropertyOwnerStatementData data = buildPropertyOwnerStatementData(propertyOwner, fromDate, toDate);
@@ -1281,6 +1308,98 @@ public class GoogleSheetsStatementService {
 
         String[] nameParts = name.trim().split("\\s+");
         return nameParts.length > 0 ? nameParts[0] : "Owner";
+    }
+
+    /**
+     * Creates a spreadsheet in the shared drive using service account
+     */
+    private String createSpreadsheetInSharedDrive(Customer propertyOwner, LocalDate fromDate, LocalDate toDate)
+            throws IOException, GeneralSecurityException {
+
+        String title = generateStatementTitle(propertyOwner, fromDate, toDate);
+        System.out.println("📊 Creating spreadsheet in shared drive: " + title);
+
+        // Create Drive service for shared drive operations
+        String formattedKey = getFormattedServiceAccountKey();
+        GoogleCredential driveCredential = GoogleCredential
+            .fromStream(new java.io.ByteArrayInputStream(formattedKey.getBytes()))
+            .createScoped(Collections.singleton(DriveScopes.DRIVE));
+
+        Drive driveService = new Drive.Builder(
+            GoogleNetHttpTransport.newTrustedTransport(),
+            GsonFactory.getDefaultInstance(),
+            driveCredential)
+            .setApplicationName("CRM Property Management")
+            .build();
+
+        // Create spreadsheet file in shared drive
+        com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
+        fileMetadata.setName(title);
+        fileMetadata.setMimeType("application/vnd.google-apps.spreadsheet");
+        fileMetadata.setParents(Collections.singletonList(SHARED_DRIVE_ID));
+
+        com.google.api.services.drive.model.File file = driveService.files()
+            .create(fileMetadata)
+            .setSupportsAllDrives(true)  // Required for shared drives
+            .execute();
+
+        String spreadsheetId = file.getId();
+        System.out.println("✅ Spreadsheet created in shared drive! ID: " + spreadsheetId);
+
+        // Give the property owner access to their statement
+        String customerEmail = propertyOwner.getEmail();
+        if (customerEmail != null && !customerEmail.isEmpty()) {
+            try {
+                com.google.api.services.drive.model.Permission customerPermission = new com.google.api.services.drive.model.Permission();
+                customerPermission.setRole("reader"); // Can view but not edit
+                customerPermission.setType("user");
+                customerPermission.setEmailAddress(customerEmail);
+
+                driveService.permissions().create(spreadsheetId, customerPermission)
+                    .setSupportsAllDrives(true)  // Required for shared drives
+                    .execute();
+
+                System.out.println("✅ Property owner (" + customerEmail + ") granted access to their statement");
+            } catch (Exception customerAccessError) {
+                System.err.println("⚠️ Could not grant access to customer: " + customerAccessError.getMessage());
+            }
+        }
+
+        return spreadsheetId;
+    }
+
+    /**
+     * Creates a Sheets service using service account credentials
+     */
+    private Sheets createServiceAccountSheetsService() throws IOException, GeneralSecurityException {
+        String formattedKey = getFormattedServiceAccountKey();
+        GoogleCredential credential = GoogleCredential
+            .fromStream(new java.io.ByteArrayInputStream(formattedKey.getBytes()))
+            .createScoped(Collections.singleton(SheetsScopes.SPREADSHEETS));
+
+        return new Sheets.Builder(
+            GoogleNetHttpTransport.newTrustedTransport(),
+            GsonFactory.getDefaultInstance(),
+            credential)
+            .setApplicationName("CRM Property Management")
+            .build();
+    }
+
+    /**
+     * Get properly formatted service account key (handle escaped newlines)
+     */
+    private String getFormattedServiceAccountKey() {
+        if (serviceAccountKey == null || serviceAccountKey.trim().isEmpty()) {
+            throw new IllegalStateException("Service account key is not configured");
+        }
+
+        // If the key contains escaped newlines, replace them with actual newlines
+        if (serviceAccountKey.contains("\\n")) {
+            System.out.println("🔧 Converting escaped newlines in service account key");
+            return serviceAccountKey.replace("\\n", "\n");
+        }
+
+        return serviceAccountKey;
     }
 
 }
