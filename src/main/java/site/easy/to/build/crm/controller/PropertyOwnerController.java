@@ -1192,6 +1192,137 @@ public class PropertyOwnerController {
     }
 
     /**
+     * Browse property subfolders (EICR, EPC, Insurance, etc.)
+     */
+    @GetMapping("/property-owner/files/browse/property/{propertyId}/subfolders")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> browsePropertySubfolders(@PathVariable Long propertyId,
+                                                                       Authentication authentication) {
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
+            }
+
+            // Return the standard subfolders - they will be created on-demand
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("propertyId", propertyId);
+            response.put("folders", Arrays.asList("EICR", "EPC", "Insurance", "Statements", "Tenancy", "Maintenance"));
+            response.put("files", new ArrayList<>());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error browsing property subfolders: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "Error browsing property subfolders: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Browse files in a specific property subfolder
+     */
+    @GetMapping("/property-owner/files/browse/property/{propertyId}/subfolder/{subfolderName}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> browsePropertySubfolderFiles(@PathVariable Long propertyId,
+                                                                           @PathVariable String subfolderName,
+                                                                           Authentication authentication) {
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
+            }
+
+            if (!serviceAccountAvailable()) {
+                return ResponseEntity.status(503).body(Map.of("error", "Service account not configured"));
+            }
+
+            // Use SharedDriveFileService to list files in the property subfolder
+            String folderPath = "property-" + propertyId + "/" + subfolderName;
+            List<Map<String, Object>> files = sharedDriveFileService.listFiles(customer, folderPath);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("propertyId", propertyId);
+            response.put("subfolderName", subfolderName);
+            response.put("files", files);
+            response.put("folders", new ArrayList<>());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error browsing property subfolder files: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "Error browsing property subfolder files: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Upload files to a specific property subfolder
+     */
+    @PostMapping("/property-owner/files/upload/property/{propertyId}/subfolder/{subfolderName}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> uploadPropertySubfolderFiles(@PathVariable Long propertyId,
+                                                                           @PathVariable String subfolderName,
+                                                                           @RequestParam("files") MultipartFile[] files,
+                                                                           Authentication authentication) {
+        System.out.println("📤 Uploading " + files.length + " files to property " + propertyId + " subfolder: " + subfolderName);
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
+            }
+
+            if (!serviceAccountAvailable()) {
+                return ResponseEntity.status(503).body(Map.of("error", "Service account not configured"));
+            }
+
+            List<Map<String, Object>> uploadedFiles = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
+
+            String folderPath = "property-" + propertyId + "/" + subfolderName;
+
+            for (MultipartFile file : files) {
+                try {
+                    if (file.isEmpty()) {
+                        errors.add("File " + file.getOriginalFilename() + " is empty");
+                        continue;
+                    }
+
+                    Map<String, Object> uploadResult = sharedDriveFileService.uploadFile(customer, folderPath, file);
+                    uploadedFiles.add(uploadResult);
+                    System.out.println("✅ Uploaded to property " + propertyId + "/" + subfolderName + ": " + file.getOriginalFilename());
+
+                } catch (Exception e) {
+                    errors.add("Failed to upload " + file.getOriginalFilename() + ": " + e.getMessage());
+                    System.err.println("❌ Upload error for " + file.getOriginalFilename() + ": " + e.getMessage());
+                }
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", uploadedFiles.size() > 0);
+            response.put("uploadedFiles", uploadedFiles);
+            response.put("uploadedCount", uploadedFiles.size());
+            response.put("totalCount", files.length);
+            response.put("propertyId", propertyId);
+            response.put("subfolderName", subfolderName);
+
+            if (!errors.isEmpty()) {
+                response.put("errors", errors);
+                response.put("message", uploadedFiles.size() + " of " + files.length + " files uploaded successfully");
+            } else {
+                response.put("message", "All files uploaded successfully");
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error uploading property subfolder files: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "Error uploading property subfolder files: " + e.getMessage()));
+        }
+    }
+
+    /**
      * Check if service account is available for shared drive operations
      */
     private boolean serviceAccountAvailable() {

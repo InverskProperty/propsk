@@ -204,6 +204,25 @@ public class SharedDriveFileService {
             return null;
         }
 
+        // Handle property subfolder paths like "property-123/EICR"
+        if (folderType.contains("/")) {
+            String[] parts = folderType.split("/");
+            if (parts.length == 2 && parts[0].startsWith("property-")) {
+                String propertyId = parts[0].substring("property-".length());
+                String subfolderName = parts[1];
+
+                // Find property folder first
+                Property property = propertyService.findById(Long.parseLong(propertyId));
+                if (property != null) {
+                    String propertyFolderName = generatePropertyFolderName(property);
+                    String propertyFolderId = getOrCreatePropertyFolder(driveService, customerFolderId, propertyFolderName);
+
+                    // Then find/create subfolder within property folder
+                    return getOrCreateSubfolderInProperty(driveService, propertyFolderId, subfolderName);
+                }
+            }
+        }
+
         String targetFolderName = getFolderNameFromType(folderType);
         String query = String.format(
             "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
@@ -389,7 +408,37 @@ public class SharedDriveFileService {
         return createFolderInParent(driveService, propertyFolderName, customerFolderId);
     }
 
+    private String getOrCreateSubfolderInProperty(Drive driveService, String propertyFolderId, String subfolderName) throws IOException {
+        // Search for existing subfolder
+        String query = String.format(
+            "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
+            subfolderName, propertyFolderId
+        );
+
+        FileList result = driveService.files().list()
+            .setQ(query)
+            .setSupportsAllDrives(true)
+            .setIncludeItemsFromAllDrives(true)
+            .execute();
+
+        List<File> files = result.getFiles();
+        if (!files.isEmpty()) {
+            return files.get(0).getId(); // Return existing subfolder
+        }
+
+        // Create new subfolder
+        return createFolderInParent(driveService, subfolderName, propertyFolderId);
+    }
+
     private String getFolderNameFromType(String folderType) {
+        // Handle property subfolder paths like "property-123/EICR"
+        if (folderType.contains("/")) {
+            String[] parts = folderType.split("/");
+            if (parts.length == 2 && parts[0].startsWith("property-")) {
+                return parts[1]; // Return the subfolder name (EICR, EPC, etc.)
+            }
+        }
+
         switch (folderType.toLowerCase()) {
             case "property-documents": return "Management Agreement";
             case "tenant-documents": return "Tenancy";
