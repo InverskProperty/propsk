@@ -11,6 +11,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.service.property.PropertyService;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -24,6 +26,12 @@ public class SharedDriveFileService {
 
     @Value("${GOOGLE_SERVICE_ACCOUNT_KEY:}")
     private String serviceAccountKey;
+
+    private final PropertyService propertyService;
+
+    public SharedDriveFileService(PropertyService propertyService) {
+        this.propertyService = propertyService;
+    }
 
     // Shared Drive ID for CRM property documents
     private static final String SHARED_DRIVE_ID = "0ADaFlidiFrFDUk9PVA";
@@ -59,10 +67,34 @@ public class SharedDriveFileService {
         String customerFolderId = findCustomerMainFolder(driveService, customer);
 
         if (customerFolderId == null) {
-            return new ArrayList<>(); // Customer folder doesn't exist yet
+            // Auto-create customer main folder if it doesn't exist
+            System.out.println("📁 Customer folder not found, creating folder structure for: " + customer.getEmail());
+            customerFolderId = getOrCreateCustomerMainFolder(driveService, customer);
         }
 
-        return listFoldersInFolder(driveService, customerFolderId);
+        // Get customer's actual properties
+        List<Property> customerProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+        System.out.println("📁 Found " + customerProperties.size() + " properties for customer " + customer.getCustomerId());
+
+        List<Map<String, Object>> propertyFolders = new ArrayList<>();
+
+        // Create/find folders for each property
+        for (Property property : customerProperties) {
+            String propertyFolderName = generatePropertyFolderName(property);
+            String propertyFolderId = getOrCreatePropertyFolder(driveService, customerFolderId, propertyFolderName);
+
+            Map<String, Object> folderInfo = new HashMap<>();
+            folderInfo.put("id", propertyFolderId);
+            folderInfo.put("name", propertyFolderName);
+            folderInfo.put("type", "folder");
+            folderInfo.put("modified", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
+            folderInfo.put("subfolders", Arrays.asList("EICR", "EPC", "Insurance", "Statements", "Tenancy", "Maintenance"));
+
+            propertyFolders.add(folderInfo);
+            System.out.println("📁 Property folder: " + propertyFolderName + " (ID: " + propertyFolderId + ")");
+        }
+
+        return propertyFolders;
     }
 
     /**
@@ -319,6 +351,42 @@ public class SharedDriveFileService {
             return "Customer-" + customer.getEmail();
         }
         return "Customer-" + customer.getCustomerId();
+    }
+
+    private String generatePropertyFolderName(Property property) {
+        String propertyName = property.getPropertyName();
+        if (propertyName != null && !propertyName.trim().isEmpty()) {
+            return propertyName;
+        }
+
+        String address = property.getAddressLine1();
+        if (address != null && !address.trim().isEmpty()) {
+            return address;
+        }
+
+        return "Property-" + property.getId();
+    }
+
+    private String getOrCreatePropertyFolder(Drive driveService, String customerFolderId, String propertyFolderName) throws IOException {
+        // Search for existing property folder
+        String query = String.format(
+            "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
+            propertyFolderName, customerFolderId
+        );
+
+        FileList result = driveService.files().list()
+            .setQ(query)
+            .setSupportsAllDrives(true)
+            .setIncludeItemsFromAllDrives(true)
+            .execute();
+
+        List<File> files = result.getFiles();
+        if (!files.isEmpty()) {
+            return files.get(0).getId(); // Return existing folder
+        }
+
+        // Create new property folder
+        return createFolderInParent(driveService, propertyFolderName, customerFolderId);
     }
 
     private String getFolderNameFromType(String folderType) {
