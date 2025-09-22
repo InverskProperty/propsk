@@ -33,7 +33,10 @@ public class GoogleServiceAccountService {
     private static final String APPLICATION_NAME = "CRM Property Management";
     private static final GsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
 
-    // User to impersonate for creating files (admin account with proper permissions)
+    // Shared Drive ID for CRM statements - service account has Manager access
+    private static final String SHARED_DRIVE_ID = "0ADaFlidiFrFDUk9PVA";
+
+    // User to impersonate for creating files (fallback if shared drive doesn't work)
     private static final String IMPERSONATE_USER = "sajidkazmi@propsk.com";
 
     // Cached services to avoid recreating
@@ -53,7 +56,7 @@ public class GoogleServiceAccountService {
                 debug.put("keyPresent", true);
                 debug.put("keyLength", serviceAccountKey.length());
 
-                // Extract key details safely
+                // Extract key details safely - handle both escaped and unescaped formats
                 if (serviceAccountKey.contains("\"client_email\":\"")) {
                     int start = serviceAccountKey.indexOf("\"client_email\":\"") + 16;
                     int end = serviceAccountKey.indexOf("\"", start);
@@ -76,6 +79,14 @@ public class GoogleServiceAccountService {
                     if (end > start) {
                         debug.put("client_id", serviceAccountKey.substring(start, end));
                     }
+                }
+
+                // Check if the key has escaped newlines (indicating environment variable format issue)
+                if (serviceAccountKey.contains("\\n")) {
+                    debug.put("hasEscapedNewlines", true);
+                    debug.put("issue", "Environment variable contains \\n instead of actual newlines");
+                } else {
+                    debug.put("hasEscapedNewlines", false);
                 }
 
                 // Check first/last 50 chars to identify the key
@@ -211,12 +222,34 @@ public class GoogleServiceAccountService {
 
 
     /**
+     * Get properly formatted service account key (handle escaped newlines)
+     */
+    private String getFormattedServiceAccountKey() {
+        if (serviceAccountKey == null) {
+            return null;
+        }
+
+        // If the key contains escaped newlines, replace them with actual newlines
+        if (serviceAccountKey.contains("\\n")) {
+            log.info("🔧 Converting escaped newlines in service account key");
+            return serviceAccountKey.replace("\\n", "\n");
+        }
+
+        return serviceAccountKey;
+    }
+
+    /**
      * Get or create Drive service
      */
     public Drive getDriveService() throws IOException, GeneralSecurityException {
         if (driveService == null) {
+            String formattedKey = getFormattedServiceAccountKey();
+            if (formattedKey == null) {
+                throw new IllegalStateException("Service account key is not configured");
+            }
+
             GoogleCredential credential = GoogleCredential
-                .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
+                .fromStream(new ByteArrayInputStream(formattedKey.getBytes()))
                 .createScoped(Collections.singleton(DriveScopes.DRIVE));
 
             driveService = new Drive.Builder(
@@ -236,8 +269,13 @@ public class GoogleServiceAccountService {
      */
     public Sheets getSheetsService() throws IOException, GeneralSecurityException {
         if (sheetsService == null) {
+            String formattedKey = getFormattedServiceAccountKey();
+            if (formattedKey == null) {
+                throw new IllegalStateException("Service account key is not configured");
+            }
+
             GoogleCredential credential = GoogleCredential
-                .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
+                .fromStream(new ByteArrayInputStream(formattedKey.getBytes()))
                 .createScoped(Collections.singleton(SheetsScopes.SPREADSHEETS));
 
             sheetsService = new Sheets.Builder(
@@ -258,8 +296,13 @@ public class GoogleServiceAccountService {
      */
     public Drive getImpersonatedDriveService() throws IOException, GeneralSecurityException {
         if (impersonatedDriveService == null) {
+            String formattedKey = getFormattedServiceAccountKey();
+            if (formattedKey == null) {
+                throw new IllegalStateException("Service account key is not configured");
+            }
+
             GoogleCredential credential = GoogleCredential
-                .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
+                .fromStream(new ByteArrayInputStream(formattedKey.getBytes()))
                 .createScoped(Collections.singleton(DriveScopes.DRIVE))
                 .createDelegated(IMPERSONATE_USER);
 
@@ -281,8 +324,13 @@ public class GoogleServiceAccountService {
      */
     public Sheets getImpersonatedSheetsService() throws IOException, GeneralSecurityException {
         if (impersonatedSheetsService == null) {
+            String formattedKey = getFormattedServiceAccountKey();
+            if (formattedKey == null) {
+                throw new IllegalStateException("Service account key is not configured");
+            }
+
             GoogleCredential credential = GoogleCredential
-                .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
+                .fromStream(new ByteArrayInputStream(formattedKey.getBytes()))
                 .createScoped(Collections.singleton(SheetsScopes.SPREADSHEETS))
                 .createDelegated(IMPERSONATE_USER);
 
@@ -329,42 +377,98 @@ public class GoogleServiceAccountService {
     }
 
     /**
-     * Create a Google Sheets spreadsheet using impersonated user
+     * Create a Google Sheets spreadsheet in shared drive (preferred) or using impersonation (fallback)
      */
     public String createSpreadsheet(String title, List<List<Object>> data) throws Exception {
+        log.info("📊 Creating spreadsheet '{}' using shared drive approach", title);
+
+        // Try shared drive approach first (Google's recommended practice)
+        try {
+            return createSpreadsheetInSharedDrive(title, data);
+        } catch (Exception sharedDriveError) {
+            log.warn("⚠️ Shared drive approach failed: {}", sharedDriveError.getMessage());
+            log.info("📊 Falling back to impersonation approach for '{}'", title);
+
+            try {
+                return createSpreadsheetWithImpersonation(title, data);
+            } catch (Exception impersonationError) {
+                log.error("❌ Both shared drive and impersonation approaches failed");
+                throw new Exception("Failed to create spreadsheet. Shared drive error: " + sharedDriveError.getMessage() + "; Impersonation error: " + impersonationError.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Create spreadsheet in shared drive (Google's recommended approach)
+     */
+    private String createSpreadsheetInSharedDrive(String title, List<List<Object>> data) throws Exception {
+        log.info("📊 Creating spreadsheet '{}' in shared drive: {}", title, SHARED_DRIVE_ID);
+
+        // Use regular Drive service to create in shared drive
+        Drive drive = getDriveService();
+
+        // Create spreadsheet file in shared drive
+        com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
+        fileMetadata.setName(title);
+        fileMetadata.setMimeType("application/vnd.google-apps.spreadsheet");
+        fileMetadata.setParents(Collections.singletonList(SHARED_DRIVE_ID));
+
+        com.google.api.services.drive.model.File file = drive.files()
+            .create(fileMetadata)
+            .setSupportsAllDrives(true)  // Required for shared drives
+            .execute();
+
+        String spreadsheetId = file.getId();
+        log.info("✅ Created spreadsheet in shared drive with ID: {}", spreadsheetId);
+
+        // Add data if provided
+        if (data != null && !data.isEmpty()) {
+            Sheets sheets = getSheetsService();
+            ValueRange valueRange = new ValueRange().setValues(data);
+
+            sheets.spreadsheets().values()
+                .update(spreadsheetId, "A1", valueRange)
+                .setValueInputOption("RAW")
+                .execute();
+
+            log.info("📊 Added {} rows of data to spreadsheet", data.size());
+        }
+
+        log.info("✅ Successfully created spreadsheet '{}' in shared drive with ID: {}", title, spreadsheetId);
+        return spreadsheetId;
+    }
+
+    /**
+     * Create spreadsheet using impersonation (fallback approach)
+     */
+    private String createSpreadsheetWithImpersonation(String title, List<List<Object>> data) throws Exception {
         log.info("📊 Creating spreadsheet '{}' using impersonated user: {}", title, IMPERSONATE_USER);
 
-        try {
-            // Use impersonated Sheets service
-            Sheets sheets = getImpersonatedSheetsService();
+        // Use impersonated Sheets service
+        Sheets sheets = getImpersonatedSheetsService();
 
-            // Create spreadsheet
-            Spreadsheet spreadsheet = new Spreadsheet()
-                .setProperties(new SpreadsheetProperties().setTitle(title));
+        // Create spreadsheet
+        Spreadsheet spreadsheet = new Spreadsheet()
+            .setProperties(new SpreadsheetProperties().setTitle(title));
 
-            Spreadsheet createdSheet = sheets.spreadsheets().create(spreadsheet).execute();
-            String spreadsheetId = createdSheet.getSpreadsheetId();
+        Spreadsheet createdSheet = sheets.spreadsheets().create(spreadsheet).execute();
+        String spreadsheetId = createdSheet.getSpreadsheetId();
 
-            // Add data if provided
-            if (data != null && !data.isEmpty()) {
-                ValueRange valueRange = new ValueRange()
-                    .setValues(data);
+        // Add data if provided
+        if (data != null && !data.isEmpty()) {
+            ValueRange valueRange = new ValueRange()
+                .setValues(data);
 
-                sheets.spreadsheets().values()
-                    .update(spreadsheetId, "A1", valueRange)
-                    .setValueInputOption("RAW")
-                    .execute();
+            sheets.spreadsheets().values()
+                .update(spreadsheetId, "A1", valueRange)
+                .setValueInputOption("RAW")
+                .execute();
 
-                log.info("📊 Added {} rows of data to spreadsheet", data.size());
-            }
-
-            log.info("✅ Successfully created spreadsheet '{}' with ID: {}", title, spreadsheetId);
-            return spreadsheetId;
-
-        } catch (Exception e) {
-            log.error("❌ Failed to create spreadsheet '{}' using impersonation: {}", title, e.getMessage());
-            throw new Exception("Failed to create impersonated spreadsheet: " + e.getMessage(), e);
+            log.info("📊 Added {} rows of data to spreadsheet", data.size());
         }
+
+        log.info("✅ Successfully created spreadsheet '{}' with ID: {}", title, spreadsheetId);
+        return spreadsheetId;
     }
 
     /**
