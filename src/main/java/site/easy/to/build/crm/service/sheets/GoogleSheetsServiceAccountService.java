@@ -37,6 +37,9 @@ public class GoogleSheetsServiceAccountService {
     @Value("${GOOGLE_SERVICE_ACCOUNT_KEY}")
     private String serviceAccountKey;
 
+    // Shared Drive ID for CRM statements - service account has Manager access
+    private static final String SHARED_DRIVE_ID = "0ADaFlidiFrFDUk9PVA";
+
     @Autowired
     public GoogleSheetsServiceAccountService(CustomerService customerService,
                                            PropertyService propertyService,
@@ -47,27 +50,44 @@ public class GoogleSheetsServiceAccountService {
     }
 
     /**
+     * Get properly formatted service account key (handle escaped newlines)
+     */
+    private String getFormattedServiceAccountKey() {
+        if (serviceAccountKey == null) {
+            return null;
+        }
+
+        // If the key contains escaped newlines, replace them with actual newlines
+        if (serviceAccountKey.contains("\\n")) {
+            System.out.println("🔧 ServiceAccount: Converting escaped newlines in service account key");
+            return serviceAccountKey.replace("\\n", "\n");
+        }
+
+        return serviceAccountKey;
+    }
+
+    /**
      * Create a Sheets service using service account credentials
      */
     private Sheets createSheetsService() throws IOException, GeneralSecurityException {
         System.out.println("🔧 ServiceAccount: Creating Google Sheets service...");
 
         try {
-            // Check if service account key is available
-            if (serviceAccountKey == null || serviceAccountKey.trim().isEmpty()) {
+            String formattedKey = getFormattedServiceAccountKey();
+            if (formattedKey == null || formattedKey.trim().isEmpty()) {
                 throw new IOException("Service account key is not configured (GOOGLE_SERVICE_ACCOUNT_KEY environment variable)");
             }
 
-            System.out.println("🔧 ServiceAccount: Key length: " + serviceAccountKey.length() + " characters");
+            System.out.println("🔧 ServiceAccount: Key length: " + formattedKey.length() + " characters");
 
             // Parse and log key details for debugging
             try {
-                if (serviceAccountKey.contains("client_email")) {
-                    String email = extractServiceAccountEmail();
+                if (formattedKey.contains("client_email")) {
+                    String email = extractServiceAccountEmail(formattedKey);
                     System.out.println("🔧 ServiceAccount: Extracted email from key: " + email);
                 }
-                if (serviceAccountKey.contains("project_id")) {
-                    String projectId = extractProjectId();
+                if (formattedKey.contains("project_id")) {
+                    String projectId = extractProjectId(formattedKey);
                     System.out.println("🔧 ServiceAccount: Project ID: " + projectId);
                 }
             } catch (Exception e) {
@@ -75,7 +95,7 @@ public class GoogleSheetsServiceAccountService {
             }
 
             GoogleCredential credential = GoogleCredential
-                .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
+                .fromStream(new ByteArrayInputStream(formattedKey.getBytes()))
                 .createScoped(Collections.singleton(SheetsScopes.SPREADSHEETS));
 
             System.out.println("🔧 ServiceAccount: Credential created successfully");
@@ -227,72 +247,57 @@ public class GoogleSheetsServiceAccountService {
 
         String spreadsheetId;
 
-        System.out.println("📊 ServiceAccount: BYPASSING DRIVE API - Using direct Sheets API approach!");
+        System.out.println("📊 ServiceAccount: Using SHARED DRIVE approach (Google recommended)!");
 
         try {
-            // Skip Drive API entirely - use direct Sheets API
-            Sheets sheetsService = createSheetsService();
+            // Create spreadsheet in shared drive - service account has Manager access
+            String formattedKey = getFormattedServiceAccountKey();
+            GoogleCredential driveCredential = GoogleCredential
+                .fromStream(new ByteArrayInputStream(formattedKey.getBytes()))
+                .createScoped(Collections.singleton(DriveScopes.DRIVE));
 
-            System.out.println("📊 ServiceAccount: Creating spreadsheet directly via Sheets API...");
+            Drive driveService = new Drive.Builder(
+                GoogleNetHttpTransport.newTrustedTransport(),
+                GsonFactory.getDefaultInstance(),
+                driveCredential)
+                .setApplicationName("CRM Property Management")
+                .build();
 
-            Spreadsheet spreadsheet = new Spreadsheet()
-                .setProperties(new SpreadsheetProperties().setTitle(title));
+            System.out.println("📊 ServiceAccount: Creating spreadsheet in shared drive: " + SHARED_DRIVE_ID);
 
-            spreadsheet = sheetsService.spreadsheets().create(spreadsheet).execute();
-            spreadsheetId = spreadsheet.getSpreadsheetId();
+            // Create spreadsheet file in shared drive
+            com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
+            fileMetadata.setName(title);
+            fileMetadata.setMimeType("application/vnd.google-apps.spreadsheet");
+            fileMetadata.setParents(Collections.singletonList(SHARED_DRIVE_ID));
 
-            System.out.println("✅ ServiceAccount: Spreadsheet created! ID: " + spreadsheetId);
+            com.google.api.services.drive.model.File file = driveService.files()
+                .create(fileMetadata)
+                .setSupportsAllDrives(true)  // Required for shared drives
+                .execute();
 
-            // CRITICAL FIX: Transfer ownership to avoid service account quota limits
-            System.out.println("📝 ServiceAccount: Transferring ownership to avoid quota limits...");
+            spreadsheetId = file.getId();
+            System.out.println("✅ ServiceAccount: Spreadsheet created in shared drive! ID: " + spreadsheetId);
 
-            try {
-                // Create Drive service to transfer ownership
-                GoogleCredential driveCredential = GoogleCredential
-                    .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
-                    .createScoped(Collections.singleton(DriveScopes.DRIVE));
+            // Give the property owner access to their statement (optional)
+            String customerEmail = propertyOwner.getEmail();
+            if (customerEmail != null && !customerEmail.isEmpty()) {
+                try {
+                    com.google.api.services.drive.model.Permission customerPermission = new com.google.api.services.drive.model.Permission();
+                    customerPermission.setRole("reader"); // Can view but not edit
+                    customerPermission.setType("user");
+                    customerPermission.setEmailAddress(customerEmail);
 
-                Drive driveService = new Drive.Builder(
-                    GoogleNetHttpTransport.newTrustedTransport(),
-                    GsonFactory.getDefaultInstance(),
-                    driveCredential)
-                    .setApplicationName("CRM Property Management")
-                    .build();
+                    driveService.permissions().create(spreadsheetId, customerPermission)
+                        .setSupportsAllDrives(true)  // Required for shared drives
+                        .execute();
 
-                // Transfer ownership to the admin account
-                com.google.api.services.drive.model.Permission permission = new com.google.api.services.drive.model.Permission();
-                permission.setRole("owner");
-                permission.setType("user");
-                permission.setEmailAddress("sajidkazmi@propsk.com"); // Admin account
-
-                driveService.permissions().create(spreadsheetId, permission)
-                    .setTransferOwnership(true)
-                    .execute();
-
-                System.out.println("✅ ServiceAccount: Ownership transferred to sajidkazmi@propsk.com");
-
-                // Give the property owner access to their statement
-                String customerEmail = propertyOwner.getEmail();
-                if (customerEmail != null && !customerEmail.isEmpty()) {
-                    try {
-                        com.google.api.services.drive.model.Permission customerPermission = new com.google.api.services.drive.model.Permission();
-                        customerPermission.setRole("reader"); // Can view but not edit
-                        customerPermission.setType("user");
-                        customerPermission.setEmailAddress(customerEmail);
-
-                        driveService.permissions().create(spreadsheetId, customerPermission).execute();
-
-                        System.out.println("✅ ServiceAccount: Property owner (" + customerEmail + ") granted access to their statement");
-                    } catch (Exception customerAccessError) {
-                        System.err.println("⚠️ ServiceAccount: Could not grant access to customer: " + customerAccessError.getMessage());
-                    }
-                } else {
-                    System.err.println("⚠️ ServiceAccount: Customer email not found - cannot grant access");
+                    System.out.println("✅ ServiceAccount: Property owner (" + customerEmail + ") granted access to their statement");
+                } catch (Exception customerAccessError) {
+                    System.err.println("⚠️ ServiceAccount: Could not grant access to customer: " + customerAccessError.getMessage());
                 }
-
-            } catch (Exception ownershipError) {
-                System.err.println("⚠️ ServiceAccount: Could not transfer ownership: " + ownershipError.getMessage());
-                System.err.println("⚠️ ServiceAccount: File created but may hit quota limits for future operations");
+            } else {
+                System.err.println("⚠️ ServiceAccount: Customer email not found - cannot grant access");
             }
 
         } catch (IOException e) {
@@ -516,10 +521,10 @@ public class GoogleSheetsServiceAccountService {
     /**
      * Helper method to extract service account email from JSON key
      */
-    private String extractServiceAccountEmail() {
+    private String extractServiceAccountEmail(String key) {
         try {
-            if (serviceAccountKey != null && serviceAccountKey.contains("client_email")) {
-                String[] parts = serviceAccountKey.split("\"client_email\":");
+            if (key != null && key.contains("client_email")) {
+                String[] parts = key.split("\"client_email\":");
                 if (parts.length > 1) {
                     String emailPart = parts[1].trim();
                     if (emailPart.startsWith("\"")) {
@@ -539,10 +544,10 @@ public class GoogleSheetsServiceAccountService {
     /**
      * Helper method to extract project ID from JSON key
      */
-    private String extractProjectId() {
+    private String extractProjectId(String key) {
         try {
-            if (serviceAccountKey != null && serviceAccountKey.contains("project_id")) {
-                String[] parts = serviceAccountKey.split("\"project_id\":");
+            if (key != null && key.contains("project_id")) {
+                String[] parts = key.split("\"project_id\":");
                 if (parts.length > 1) {
                     String projectPart = parts[1].trim();
                     if (projectPart.startsWith("\"")) {
