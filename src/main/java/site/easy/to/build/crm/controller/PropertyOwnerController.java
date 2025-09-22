@@ -53,7 +53,10 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import site.easy.to.build.crm.service.statements.XLSXStatementService;
 import site.easy.to.build.crm.service.sheets.GoogleSheetsServiceAccountService;
+import site.easy.to.build.crm.service.drive.CustomerDriveOrganizationService;
+import site.easy.to.build.crm.service.drive.SharedDriveFileService;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -93,6 +96,13 @@ public class PropertyOwnerController {
     // Google Sheets Service Account Service for shared drive generation
     @Autowired
     private GoogleSheetsServiceAccountService googleSheetsServiceAccountService;
+
+    // Customer Drive Organization Service for file management
+    @Autowired
+    private CustomerDriveOrganizationService customerDriveOrganizationService;
+
+    @Autowired
+    private SharedDriveFileService sharedDriveFileService;
 
     @Autowired
     public PropertyOwnerController(PropertyService propertyService,
@@ -957,6 +967,219 @@ public class PropertyOwnerController {
             System.err.println("❌ Error loading files system: " + e.getMessage());
             model.addAttribute("error", "Error loading files: " + e.getMessage());
             return "property-owner/dashboard";
+        }
+    }
+
+    /**
+     * Browse files in a specific folder for property owner
+     */
+    @GetMapping("/property-owner/files/browse/{folderType}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> browseFiles(@PathVariable String folderType,
+                                                          Authentication authentication) {
+        System.out.println("📁 Browsing files for folder type: " + folderType);
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
+            }
+
+            // Use SharedDriveFileService for real Google Drive integration
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("folderType", folderType);
+            response.put("customerName", customer.getName());
+
+            List<Map<String, Object>> folders = new ArrayList<>();
+            List<Map<String, Object>> files = new ArrayList<>();
+
+            try {
+                switch (folderType.toLowerCase()) {
+                    case "property-documents":
+                        // Show property-specific folders from Google Drive
+                        folders = sharedDriveFileService.listPropertyFolders(customer);
+                        break;
+
+                    case "tenant-documents":
+                    case "financial-statements":
+                    case "maintenance-records":
+                        // List files in the specific folder type
+                        files = sharedDriveFileService.listFiles(customer, folderType);
+                        break;
+
+                    default:
+                        return ResponseEntity.badRequest().body(Map.of("error", "Unknown folder type: " + folderType));
+                }
+            } catch (Exception e) {
+                System.err.println("❌ Error accessing shared drive: " + e.getMessage());
+                // Fallback to empty lists on error
+                folders = new ArrayList<>();
+                files = new ArrayList<>();
+                response.put("warning", "Could not access shared drive: " + e.getMessage());
+            }
+
+            response.put("folders", folders);
+            response.put("files", files);
+            response.put("hasServiceAccount", serviceAccountAvailable());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error browsing files: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "Error browsing files: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Create customer folder structure if it doesn't exist
+     */
+    @PostMapping("/property-owner/files/initialize")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> initializeFolderStructure(Authentication authentication) {
+        System.out.println("📁 Initializing folder structure for property owner");
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
+            }
+
+            // Check if service account is available for shared drive
+            if (serviceAccountAvailable()) {
+                System.out.println("📁 Creating shared drive folder structure");
+                customerDriveOrganizationService.createCustomerFolderStructureInSharedDrive(customer);
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Folder structure created in shared drive",
+                    "approach", "shared-drive"
+                ));
+            } else {
+                return ResponseEntity.ok(Map.of(
+                    "success", false,
+                    "message", "Service account not available. Please contact support for folder setup.",
+                    "approach", "none"
+                ));
+            }
+
+        } catch (Exception e) {
+            System.err.println("❌ Error initializing folder structure: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "Error initializing folders: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Upload files to a specific folder
+     */
+    @PostMapping("/property-owner/files/upload/{folderType}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> uploadFiles(@PathVariable String folderType,
+                                                          @RequestParam("files") MultipartFile[] files,
+                                                          Authentication authentication) {
+        System.out.println("📤 Uploading " + files.length + " files to folder type: " + folderType);
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
+            }
+
+            if (!serviceAccountAvailable()) {
+                return ResponseEntity.status(503).body(Map.of("error", "Service account not configured"));
+            }
+
+            List<Map<String, Object>> uploadedFiles = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
+
+            for (MultipartFile file : files) {
+                try {
+                    if (file.isEmpty()) {
+                        errors.add("File " + file.getOriginalFilename() + " is empty");
+                        continue;
+                    }
+
+                    Map<String, Object> uploadResult = sharedDriveFileService.uploadFile(customer, folderType, file);
+                    uploadedFiles.add(uploadResult);
+                    System.out.println("✅ Uploaded: " + file.getOriginalFilename());
+
+                } catch (Exception e) {
+                    errors.add("Failed to upload " + file.getOriginalFilename() + ": " + e.getMessage());
+                    System.err.println("❌ Upload error for " + file.getOriginalFilename() + ": " + e.getMessage());
+                }
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", uploadedFiles.size() > 0);
+            response.put("uploadedFiles", uploadedFiles);
+            response.put("uploadedCount", uploadedFiles.size());
+            response.put("totalCount", files.length);
+
+            if (!errors.isEmpty()) {
+                response.put("errors", errors);
+                response.put("message", uploadedFiles.size() + " of " + files.length + " files uploaded successfully");
+            } else {
+                response.put("message", "All files uploaded successfully");
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error uploading files: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "Error uploading files: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get download URL for a file
+     */
+    @GetMapping("/property-owner/files/download/{fileId}")
+    public ResponseEntity<Map<String, Object>> getDownloadUrl(@PathVariable String fileId,
+                                                             Authentication authentication) {
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
+            }
+
+            String downloadUrl = sharedDriveFileService.getDownloadUrl(fileId);
+            String directDownloadUrl = sharedDriveFileService.getDirectDownloadUrl(fileId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("downloadUrl", downloadUrl);
+            response.put("directDownloadUrl", directDownloadUrl);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error getting download URL: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "Error getting download URL: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get view URL for a file
+     */
+    @GetMapping("/property-owner/files/view/{fileId}")
+    public ResponseEntity<Map<String, Object>> getViewUrl(@PathVariable String fileId,
+                                                         Authentication authentication) {
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
+            }
+
+            String viewUrl = sharedDriveFileService.getDownloadUrl(fileId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("viewUrl", viewUrl);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error getting view URL: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "Error getting view URL: " + e.getMessage()));
         }
     }
 
