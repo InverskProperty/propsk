@@ -574,6 +574,106 @@ public class GoogleServiceAccountTestController {
     }
 
     /**
+     * Test domain-wide delegation impersonation
+     * GET /api/test/google-service-account/test-impersonation
+     */
+    @GetMapping("/test-impersonation")
+    public ResponseEntity<Map<String, Object>> testImpersonation() {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            log.info("🔍 Testing domain-wide delegation with user impersonation...");
+
+            // Test 1: Try to get impersonated services
+            Map<String, Object> serviceTest = new HashMap<>();
+            try {
+                var impersonatedDrive = googleService.getImpersonatedDriveService();
+                serviceTest.put("impersonatedDriveService", "SUCCESS");
+
+                var impersonatedSheets = googleService.getImpersonatedSheetsService();
+                serviceTest.put("impersonatedSheetsService", "SUCCESS");
+
+            } catch (Exception e) {
+                serviceTest.put("impersonatedServiceCreation", "FAILED: " + e.getMessage());
+            }
+            result.put("serviceCreationTest", serviceTest);
+
+            // Test 2: Try impersonated folder creation
+            Map<String, Object> folderTest = new HashMap<>();
+            try {
+                String testFolderName = "Impersonation-Test-" + System.currentTimeMillis();
+                String folderId = googleService.createFolder(testFolderName, null);
+
+                folderTest.put("status", "SUCCESS");
+                folderTest.put("folderId", folderId);
+                folderTest.put("message", "Impersonated folder creation successful");
+
+            } catch (Exception e) {
+                folderTest.put("status", "FAILED");
+                folderTest.put("error", e.getMessage());
+                folderTest.put("errorType", e.getClass().getSimpleName());
+            }
+            result.put("folderCreationTest", folderTest);
+
+            // Test 3: Try impersonated sheet creation
+            Map<String, Object> sheetTest = new HashMap<>();
+            try {
+                String testSheetTitle = "Impersonation-Sheet-Test-" + System.currentTimeMillis();
+                java.util.List<java.util.List<Object>> testData = java.util.Arrays.asList(
+                    java.util.Arrays.asList("Impersonation Test", "Status", "Testing"),
+                    java.util.Arrays.asList("User", "sajidkazmi@propsk.com", "Impersonated"),
+                    java.util.Arrays.asList("Timestamp", java.time.LocalDateTime.now().toString())
+                );
+
+                String sheetId = googleService.createSpreadsheet(testSheetTitle, testData);
+
+                sheetTest.put("status", "SUCCESS");
+                sheetTest.put("sheetId", sheetId);
+                sheetTest.put("sheetUrl", "https://docs.google.com/spreadsheets/d/" + sheetId);
+                sheetTest.put("message", "Impersonated sheet creation successful");
+
+            } catch (Exception e) {
+                sheetTest.put("status", "FAILED");
+                sheetTest.put("error", e.getMessage());
+                sheetTest.put("errorType", e.getClass().getSimpleName());
+
+                // Analyze the specific error
+                if (e.getMessage().contains("delegation")) {
+                    sheetTest.put("errorCategory", "DOMAIN_WIDE_DELEGATION_NOT_CONFIGURED");
+                    sheetTest.put("solution", "Need to configure domain-wide delegation in Google Workspace Admin Console");
+                } else if (e.getMessage().contains("403")) {
+                    sheetTest.put("errorCategory", "PERMISSION_DENIED");
+                    sheetTest.put("solution", "Service account needs domain-wide delegation permissions");
+                }
+            }
+            result.put("sheetCreationTest", sheetTest);
+
+            // Test 4: Configuration status
+            Map<String, Object> configStatus = new HashMap<>();
+            configStatus.put("impersonationUser", "sajidkazmi@propsk.com");
+            configStatus.put("requiredScopes", java.util.Arrays.asList(
+                "https://www.googleapis.com/auth/drive",
+                "https://www.googleapis.com/auth/spreadsheets"
+            ));
+            configStatus.put("domainWideDelegationRequired", true);
+            configStatus.put("setupInstructions", java.util.Arrays.asList(
+                "1. Get service account client ID from /client-id endpoint",
+                "2. In Google Workspace Admin Console: Security → API Controls → Domain-wide delegation",
+                "3. Add client ID with required scopes",
+                "4. Save and wait 10-15 minutes for propagation"
+            ));
+            result.put("configurationStatus", configStatus);
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+            result.put("errorType", e.getClass().getSimpleName());
+            return ResponseEntity.status(500).body(result);
+        }
+    }
+
+    /**
      * Health check endpoint
      * GET /api/test/google-service-account/health
      */
