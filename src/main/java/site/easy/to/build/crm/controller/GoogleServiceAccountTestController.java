@@ -231,6 +231,156 @@ public class GoogleServiceAccountTestController {
     }
 
     /**
+     * Test quota and API limits analysis
+     * GET /api/test/google-service-account/quota-test
+     */
+    @GetMapping("/quota-test")
+    public ResponseEntity<Map<String, Object>> testQuotaLimits() {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            log.info("📊 Testing API quota and limits...");
+
+            // Test 1: Try different Sheets operations to isolate the issue
+            Map<String, Object> operationTests = new HashMap<>();
+
+            try {
+                var sheetsService = googleService.getSheetsService();
+                operationTests.put("sheetsServiceCreation", "SUCCESS");
+
+                // Test 1a: Try to list existing spreadsheets (read operation)
+                try {
+                    // This would require different permissions/setup, but let's see the error
+                    operationTests.put("readOperationTest", "Would need existing sheet ID");
+                } catch (Exception e) {
+                    operationTests.put("readOperationTest", "ERROR: " + e.getMessage());
+                }
+
+                // Test 1b: Try to create with minimal data
+                try {
+                    com.google.api.services.sheets.v4.model.Spreadsheet minimalSheet =
+                        new com.google.api.services.sheets.v4.model.Spreadsheet()
+                            .setProperties(new com.google.api.services.sheets.v4.model.SpreadsheetProperties()
+                                .setTitle("Quota-Test-" + System.currentTimeMillis()));
+
+                    var created = sheetsService.spreadsheets().create(minimalSheet).execute();
+                    operationTests.put("createMinimalSheet", "SUCCESS: " + created.getSpreadsheetId());
+                } catch (Exception e) {
+                    operationTests.put("createMinimalSheet", "FAILED: " + e.getMessage());
+
+                    // Check if it's a quota issue
+                    if (e.getMessage().contains("quota") || e.getMessage().contains("limit") || e.getMessage().contains("exceeded")) {
+                        operationTests.put("quotaIssue", "LIKELY - error mentions quota/limits");
+                    } else if (e.getMessage().contains("403")) {
+                        operationTests.put("quotaIssue", "UNLIKELY - 403 usually means permissions, not quota");
+                    }
+                }
+
+            } catch (Exception e) {
+                operationTests.put("sheetsServiceCreation", "FAILED: " + e.getMessage());
+            }
+
+            result.put("operationTests", operationTests);
+
+            // Test 2: Check Drive API operations for comparison
+            Map<String, Object> driveComparison = new HashMap<>();
+            try {
+                var driveService = googleService.getDriveService();
+
+                // List files (read operation) - this works
+                var fileList = driveService.files().list().setPageSize(1).execute();
+                driveComparison.put("driveReadOperation", "SUCCESS - found " + fileList.getFiles().size() + " files");
+
+                // Try to create a folder (write operation) to compare with Sheets
+                try {
+                    com.google.api.services.drive.model.File folderMetadata = new com.google.api.services.drive.model.File();
+                    folderMetadata.setName("Quota-Test-Folder-" + System.currentTimeMillis());
+                    folderMetadata.setMimeType("application/vnd.google-apps.folder");
+
+                    var createdFolder = driveService.files().create(folderMetadata).execute();
+                    driveComparison.put("driveWriteOperation", "SUCCESS - created folder " + createdFolder.getId());
+
+                    // If Drive write works but Sheets write fails, it's not a general permissions issue
+                    driveComparison.put("conclusion", "Drive WRITE works - issue is Sheets-specific, not general write permissions");
+
+                } catch (Exception e) {
+                    driveComparison.put("driveWriteOperation", "FAILED: " + e.getMessage());
+                    driveComparison.put("conclusion", "Both Drive and Sheets writes fail - could be general write permission issue");
+                }
+
+            } catch (Exception e) {
+                driveComparison.put("driveService", "FAILED: " + e.getMessage());
+            }
+
+            result.put("driveComparison", driveComparison);
+
+            // Test 3: Analysis and recommendations
+            Map<String, Object> analysis = new HashMap<>();
+            analysis.put("nextStepsToCheck", java.util.Arrays.asList(
+                "Google Cloud Console → APIs & Services → Google Sheets API → Quotas",
+                "Check if Sheets API has usage restrictions or requires special approval",
+                "Verify if service account needs 'Sheets Editor' role (not just project Editor)",
+                "Check if there are Sheets-specific organization policies"
+            ));
+
+            result.put("analysis", analysis);
+            result.put("timestamp", java.time.LocalDateTime.now().toString());
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(result);
+        }
+    }
+
+    /**
+     * Get service account Client ID for domain delegation
+     * GET /api/test/google-service-account/client-id
+     */
+    @GetMapping("/client-id")
+    public ResponseEntity<Map<String, Object>> getClientId() {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            String keyVar = System.getenv("GOOGLE_SERVICE_ACCOUNT_KEY");
+            if (keyVar != null) {
+                // Extract client_id from service account key
+                if (keyVar.contains("\"client_id\":\"")) {
+                    String clientId = keyVar.substring(keyVar.indexOf("\"client_id\":\"") + 13);
+                    clientId = clientId.substring(0, clientId.indexOf("\""));
+                    result.put("clientId", clientId);
+                }
+
+                // Extract client_email for verification
+                if (keyVar.contains("\"client_email\":\"")) {
+                    String email = keyVar.substring(keyVar.indexOf("\"client_email\":\"") + 16);
+                    email = email.substring(0, email.indexOf("\""));
+                    result.put("serviceAccountEmail", email);
+                }
+            }
+
+            result.put("requiredScopes", java.util.Arrays.asList(
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ));
+
+            result.put("instructions", java.util.Arrays.asList(
+                "1. Copy the clientId value below",
+                "2. In Google Workspace Admin Console: Security → API Controls → Domain-wide delegation",
+                "3. Add new: Client ID = [clientId], Scopes = [paste scopes]",
+                "4. Save and wait 10-15 minutes"
+            ));
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(result);
+        }
+    }
+
+    /**
      * Health check endpoint
      * GET /api/test/google-service-account/health
      */
@@ -241,6 +391,120 @@ public class GoogleServiceAccountTestController {
         health.put("service", "Google Service Account Test Controller");
         health.put("timestamp", java.time.LocalDateTime.now().toString());
         return ResponseEntity.ok(health);
+    }
+
+    /**
+     * Deep technical diagnostics for 403 issue
+     * GET /api/test/google-service-account/deep-diagnosis
+     */
+    @GetMapping("/deep-diagnosis")
+    public ResponseEntity<Map<String, Object>> deepDiagnosis() {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            log.info("🔍 Running deep technical diagnostics for 403 issue...");
+
+            // Test 1: Check project-level API restrictions
+            Map<String, Object> projectTest = new HashMap<>();
+            try {
+                // Try to access Google Cloud Resource Manager API to check project details
+                var driveService = googleService.getDriveService();
+                var sheetsService = googleService.getSheetsService();
+
+                projectTest.put("driveServiceCreation", "SUCCESS");
+                projectTest.put("sheetsServiceCreation", "SUCCESS");
+
+                // Test if the issue is in the actual API call vs service creation
+                try {
+                    driveService.files().list().setPageSize(1).execute();
+                    projectTest.put("driveApiCall", "SUCCESS");
+                } catch (Exception e) {
+                    projectTest.put("driveApiCall", "FAILED: " + e.getMessage());
+                }
+
+                try {
+                    // Try to create a minimal spreadsheet
+                    com.google.api.services.sheets.v4.model.Spreadsheet testSheet =
+                        new com.google.api.services.sheets.v4.model.Spreadsheet()
+                            .setProperties(new com.google.api.services.sheets.v4.model.SpreadsheetProperties()
+                                .setTitle("Deep-Diagnosis-Test-" + System.currentTimeMillis()));
+
+                    sheetsService.spreadsheets().create(testSheet).execute();
+                    projectTest.put("sheetsApiCall", "SUCCESS");
+                } catch (Exception e) {
+                    projectTest.put("sheetsApiCall", "FAILED: " + e.getMessage());
+                    projectTest.put("sheetsErrorType", e.getClass().getSimpleName());
+
+                    // Parse the error for more details
+                    if (e.getMessage().contains("403")) {
+                        projectTest.put("errorAnalysis", "403 error on Sheets create operation");
+                        projectTest.put("possibleCauses", java.util.Arrays.asList(
+                            "Service account lacks 'Editor' role specifically for Sheets API",
+                            "Google Cloud Project has Sheets API restrictions enabled",
+                            "Service account was created in wrong project context",
+                            "Billing account not properly linked",
+                            "Organization policies blocking Sheets API usage",
+                            "API quota exceeded or suspended"
+                        ));
+                    }
+                }
+
+            } catch (Exception e) {
+                projectTest.put("serviceCreation", "FAILED: " + e.getMessage());
+            }
+            result.put("projectLevelTest", projectTest);
+
+            // Test 2: Service account metadata analysis
+            Map<String, Object> serviceAccountTest = new HashMap<>();
+            try {
+                String keyVar = System.getenv("GOOGLE_SERVICE_ACCOUNT_KEY");
+                if (keyVar != null) {
+                    // Check if the service account email matches the project
+                    if (keyVar.contains("\"client_email\"")) {
+                        String email = keyVar.substring(keyVar.indexOf("\"client_email\":\"") + 16);
+                        email = email.substring(0, email.indexOf("\""));
+                        serviceAccountTest.put("extractedEmail", email);
+
+                        // Check if email domain matches project
+                        if (email.contains("@")) {
+                            String domain = email.substring(email.indexOf("@") + 1);
+                            serviceAccountTest.put("serviceAccountDomain", domain);
+                            serviceAccountTest.put("expectedDomain", "crecrm.iam.gserviceaccount.com");
+                            serviceAccountTest.put("domainMatch", domain.equals("crecrm.iam.gserviceaccount.com"));
+                        }
+                    }
+
+                    if (keyVar.contains("\"project_id\"")) {
+                        String projectId = keyVar.substring(keyVar.indexOf("\"project_id\":\"") + 14);
+                        projectId = projectId.substring(0, projectId.indexOf("\""));
+                        serviceAccountTest.put("extractedProjectId", projectId);
+                        serviceAccountTest.put("expectedProjectId", "crecrm");
+                        serviceAccountTest.put("projectIdMatch", projectId.equals("crecrm"));
+                    }
+                }
+            } catch (Exception e) {
+                serviceAccountTest.put("error", e.getMessage());
+            }
+            result.put("serviceAccountAnalysis", serviceAccountTest);
+
+            // Test 3: API-specific diagnostics
+            Map<String, Object> apiTest = new HashMap<>();
+            apiTest.put("observation", "Drive API works but Sheets API fails with same service account");
+            apiTest.put("technicalImplication", "Issue is API-specific, not general authentication");
+            apiTest.put("nextSteps", java.util.Arrays.asList(
+                "Check Google Cloud Console for API-specific restrictions",
+                "Verify billing account has Sheets API usage enabled",
+                "Check if service account needs additional Sheets-specific permissions",
+                "Review organization policies for API usage restrictions"
+            ));
+            result.put("apiSpecificAnalysis", apiTest);
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(result);
+        }
     }
 
     /**

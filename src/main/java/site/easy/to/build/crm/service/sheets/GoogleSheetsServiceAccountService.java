@@ -150,10 +150,9 @@ public class GoogleSheetsServiceAccountService {
             com.google.api.client.googleapis.auth.oauth2.GoogleCredential credential =
                 com.google.api.client.googleapis.auth.oauth2.GoogleCredential
                     .fromStream(new java.io.ByteArrayInputStream(serviceAccountKey.getBytes()))
-                    .createScoped(java.util.Collections.singleton(
-                        "https://www.googleapis.com/auth/cloud-platform.read-only"));
+                    .createScoped(java.util.Collections.singleton(SheetsScopes.SPREADSHEETS));
 
-            System.out.println("🧪 ServiceAccount: Credential created with read-only scope");
+            System.out.println("🧪 ServiceAccount: Credential created with Sheets write scope");
             System.out.println("🧪 ServiceAccount: Service account ID: " + credential.getServiceAccountId());
 
             // Try to refresh the token
