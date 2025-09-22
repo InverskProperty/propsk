@@ -84,14 +84,15 @@ public class SharedDriveFileService {
             String propertyFolderId = getOrCreatePropertyFolder(driveService, customerFolderId, propertyFolderName);
 
             Map<String, Object> folderInfo = new HashMap<>();
-            folderInfo.put("id", propertyFolderId);
+            folderInfo.put("id", property.getId()); // Use property database ID, not folder ID
+            folderInfo.put("folderId", propertyFolderId); // Keep folder ID for reference
             folderInfo.put("name", propertyFolderName);
             folderInfo.put("type", "folder");
             folderInfo.put("modified", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
             folderInfo.put("subfolders", Arrays.asList("EICR", "EPC", "Insurance", "Statements", "Tenancy", "Maintenance"));
 
             propertyFolders.add(folderInfo);
-            System.out.println("📁 Property folder: " + propertyFolderName + " (ID: " + propertyFolderId + ")");
+            System.out.println("📁 Property folder: " + propertyFolderName + " (Property ID: " + property.getId() + ", Folder ID: " + propertyFolderId + ")");
         }
 
         return propertyFolders;
