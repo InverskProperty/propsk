@@ -71,7 +71,7 @@ public class SecurityConfig {
 
         http.csrf((csrf) -> csrf
                 .csrfTokenRepository(httpSessionCsrfTokenRepository)
-                .ignoringRequestMatchers("/api/payprop/**", "/portfolio/**")
+                .ignoringRequestMatchers("/api/payprop/**", "/portfolio/**", "/property-owner/files/upload/**")
         );
         
         // CRITICAL FIX: Only match specific customer routes - NO wildcards that could catch /portfolio/**
@@ -122,7 +122,7 @@ public class SecurityConfig {
 
         http.csrf((csrf) -> csrf
                 .csrfTokenRepository(httpSessionCsrfTokenRepository)
-                .ignoringRequestMatchers("/api/payprop/**", "/portfolio/**")
+                .ignoringRequestMatchers("/api/payprop/**", "/portfolio/**", "/property-owner/files/upload/**")
         );
 
         // ADD DEBUG FILTER - ENHANCED FOR PAYPROP
