@@ -217,9 +217,7 @@ public class GoogleSheetsServiceAccountService {
 
         System.out.println("📊 ServiceAccount: Creating property owner statement for: " + getCustomerName(propertyOwner));
 
-        Sheets service = createSheetsService();
-
-        // Create new spreadsheet
+        // WORKAROUND: Use Drive API to create spreadsheet (works), then Sheets API to populate (0% error rate)
         String title = String.format("Property Owner Statement - %s - %s to %s",
             getCustomerName(propertyOwner),
             fromDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
@@ -227,41 +225,39 @@ public class GoogleSheetsServiceAccountService {
 
         System.out.println("📊 ServiceAccount: Creating spreadsheet with title: " + title);
 
-        Spreadsheet spreadsheet = new Spreadsheet()
-            .setProperties(new SpreadsheetProperties().setTitle(title));
-
+        String spreadsheetId;
         try {
-            System.out.println("📊 ServiceAccount: Calling Google Sheets API to create spreadsheet...");
-            spreadsheet = service.spreadsheets().create(spreadsheet).execute();
-            System.out.println("✅ ServiceAccount: Spreadsheet created successfully: " + spreadsheet.getSpreadsheetId());
-        } catch (com.google.api.client.googleapis.json.GoogleJsonResponseException e) {
-            System.err.println("❌ ServiceAccount: Failed to create spreadsheet: " + e.getMessage());
+            System.out.println("📊 ServiceAccount: Using Drive API workaround for spreadsheet creation...");
 
-            if (e.getStatusCode() == 403) {
-                System.err.println("💡 ServiceAccount: This is a permissions issue (403 Forbidden). Possible solutions:");
-                System.err.println("   1. Enable Google Sheets API in Google Cloud Console:");
-                System.err.println("      - Go to https://console.cloud.google.com/apis/library");
-                System.err.println("      - Search for 'Google Sheets API' and enable it");
-                System.err.println("   2. Grant proper permissions to service account:");
-                System.err.println("      - Service account email: " + (serviceAccountKey.contains("client_email") ?
-                    extractServiceAccountEmail() : "Check service account key"));
-                System.err.println("      - The service account needs 'Editor' or 'Owner' role on the project");
-                System.err.println("   3. Verify service account key is valid and not expired");
-                System.err.println("   4. Check billing is enabled for the Google Cloud project");
+            // Step 1: Create spreadsheet using Drive API (which works according to your metrics)
+            GoogleCredential credential = GoogleCredential
+                .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
+                .createScoped(Collections.singleton(DriveScopes.DRIVE));
 
-                throw new IOException("Google Sheets API permission denied. Service account lacks proper permissions to create spreadsheets.", e);
-            } else if (e.getStatusCode() == 429) {
-                System.err.println("💡 ServiceAccount: Rate limit exceeded. Please wait before retrying.");
-                throw new IOException("Google Sheets API rate limit exceeded. Please try again later.", e);
-            } else {
-                System.err.println("💡 ServiceAccount: Unexpected Google API error (status: " + e.getStatusCode() + ")");
-                throw new IOException("Google Sheets API error: " + e.getMessage(), e);
-            }
+            Drive driveService = new Drive.Builder(
+                GoogleNetHttpTransport.newTrustedTransport(),
+                GsonFactory.getDefaultInstance(),
+                credential)
+                .setApplicationName("CRM Property Management")
+                .build();
+
+            com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
+            fileMetadata.setName(title);
+            fileMetadata.setMimeType("application/vnd.google-apps.spreadsheet");
+
+            com.google.api.services.drive.model.File file = driveService.files().create(fileMetadata).execute();
+            spreadsheetId = file.getId();
+
+            System.out.println("✅ ServiceAccount: Spreadsheet created via Drive API: " + spreadsheetId);
+
         } catch (Exception e) {
-            System.err.println("❌ ServiceAccount: Failed to create spreadsheet: " + e.getMessage());
-            throw new IOException("Failed to create Google Sheets statement: " + e.getMessage(), e);
+            System.err.println("❌ ServiceAccount: Drive API workaround failed: " + e.getMessage());
+            e.printStackTrace();
+            throw new IOException("Failed to create Google Sheets statement via Drive API: " + e.getMessage(), e);
         }
-        String spreadsheetId = spreadsheet.getSpreadsheetId();
+
+        // Step 2: Create Sheets service for populating data (UpdateValues has 0% error rate)
+        Sheets service = createSheetsService();
 
         // Get properties for this owner
         List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
@@ -367,18 +363,47 @@ public class GoogleSheetsServiceAccountService {
     public String createTenantStatement(Customer tenant, LocalDate fromDate, LocalDate toDate)
             throws IOException, GeneralSecurityException {
 
+        // WORKAROUND: Use Drive API to create spreadsheet (works), then Sheets API to populate (0% error rate)
+        String title = String.format("Tenant Statement - %s - %s to %s",
+            getCustomerName(tenant),
+            fromDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+            toDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+
+        System.out.println("📊 ServiceAccount: Creating tenant statement with title: " + title);
+
+        String spreadsheetId;
+        try {
+            System.out.println("📊 ServiceAccount: Using Drive API workaround for tenant statement creation...");
+
+            // Step 1: Create spreadsheet using Drive API (which works according to your metrics)
+            GoogleCredential credential = GoogleCredential
+                .fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes()))
+                .createScoped(Collections.singleton(DriveScopes.DRIVE));
+
+            Drive driveService = new Drive.Builder(
+                GoogleNetHttpTransport.newTrustedTransport(),
+                GsonFactory.getDefaultInstance(),
+                credential)
+                .setApplicationName("CRM Property Management")
+                .build();
+
+            com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
+            fileMetadata.setName(title);
+            fileMetadata.setMimeType("application/vnd.google-apps.spreadsheet");
+
+            com.google.api.services.drive.model.File file = driveService.files().create(fileMetadata).execute();
+            spreadsheetId = file.getId();
+
+            System.out.println("✅ ServiceAccount: Tenant statement created via Drive API: " + spreadsheetId);
+
+        } catch (Exception e) {
+            System.err.println("❌ ServiceAccount: Drive API workaround failed for tenant statement: " + e.getMessage());
+            e.printStackTrace();
+            throw new IOException("Failed to create tenant statement via Drive API: " + e.getMessage(), e);
+        }
+
+        // Step 2: Create Sheets service for populating data (UpdateValues has 0% error rate)
         Sheets service = createSheetsService();
-
-        // Create new spreadsheet
-        Spreadsheet spreadsheet = new Spreadsheet()
-            .setProperties(new SpreadsheetProperties()
-                .setTitle(String.format("Tenant Statement - %s - %s to %s",
-                    getCustomerName(tenant),
-                    fromDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
-                    toDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))));
-
-        spreadsheet = service.spreadsheets().create(spreadsheet).execute();
-        String spreadsheetId = spreadsheet.getSpreadsheetId();
 
         // Get tenant's property
         Property property = propertyService.getPropertyByTenant(tenant.getCustomerId());
