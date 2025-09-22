@@ -335,6 +335,67 @@ public class GoogleServiceAccountTestController {
     }
 
     /**
+     * DEBUG: Compare service account key sources
+     * GET /api/test/google-service-account/debug-key-sources
+     */
+    @GetMapping("/debug-key-sources")
+    public ResponseEntity<Map<String, Object>> debugKeySources() {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            // Method 1: System.getenv() - how you'd expect it to work
+            String envKey = System.getenv("GOOGLE_SERVICE_ACCOUNT_KEY");
+            result.put("systemGetEnv", envKey != null ? "PRESENT (" + envKey.length() + " chars)" : "NULL");
+
+            // Method 2: System.getProperty() - Java system properties
+            String propKey = System.getProperty("GOOGLE_SERVICE_ACCOUNT_KEY");
+            result.put("systemGetProperty", propKey != null ? "PRESENT (" + propKey.length() + " chars)" : "NULL");
+
+            // Method 3: What the GoogleService actually has via @Value annotation
+            String serviceKey = null;
+            try {
+                java.lang.reflect.Field field = googleService.getClass().getDeclaredField("serviceAccountKey");
+                field.setAccessible(true);
+                serviceKey = (String) field.get(googleService);
+                result.put("springValueAnnotation", serviceKey != null ? "PRESENT (" + serviceKey.length() + " chars)" : "NULL");
+
+                // If we got the service key, test if it contains expected fields
+                if (serviceKey != null) {
+                    result.put("serviceKey_hasClientId", serviceKey.contains("\"client_id\":"));
+                    result.put("serviceKey_hasClientEmail", serviceKey.contains("\"client_email\":"));
+                    result.put("serviceKey_hasProjectId", serviceKey.contains("\"project_id\":"));
+
+                    // Try to extract client_id from service key
+                    if (serviceKey.contains("\"client_id\":\"")) {
+                        int start = serviceKey.indexOf("\"client_id\":\"") + 13;
+                        int end = serviceKey.indexOf("\"", start);
+                        if (end > start) {
+                            String extractedClientId = serviceKey.substring(start, end);
+                            result.put("extractedClientId", extractedClientId);
+                        }
+                    }
+                }
+
+            } catch (Exception e) {
+                result.put("springValueError", e.getMessage());
+            }
+
+            // Method 4: Compare first 100 chars of each (if present) to see if they're the same
+            if (envKey != null && serviceKey != null) {
+                String envStart = envKey.substring(0, Math.min(100, envKey.length()));
+                String serviceStart = serviceKey.substring(0, Math.min(100, serviceKey.length()));
+                result.put("envVsServiceMatch", envStart.equals(serviceStart));
+            }
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(result);
+        }
+    }
+
+    /**
      * Get service account Client ID for domain delegation
      * GET /api/test/google-service-account/client-id
      */
@@ -343,21 +404,63 @@ public class GoogleServiceAccountTestController {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            String keyVar = System.getenv("GOOGLE_SERVICE_ACCOUNT_KEY");
-            if (keyVar != null) {
+            // Use the actual key that the service is using
+            String keyVar = null;
+            try {
+                java.lang.reflect.Field field = googleService.getClass().getDeclaredField("serviceAccountKey");
+                field.setAccessible(true);
+                keyVar = (String) field.get(googleService);
+            } catch (Exception e) {
+                result.put("reflectionError", e.getMessage());
+                // Fallback to environment variable
+                keyVar = System.getenv("GOOGLE_SERVICE_ACCOUNT_KEY");
+            }
+
+            if (keyVar != null && !keyVar.trim().isEmpty()) {
+                log.info("🔍 Extracting client ID from service account key...");
+
                 // Extract client_id from service account key
                 if (keyVar.contains("\"client_id\":\"")) {
-                    String clientId = keyVar.substring(keyVar.indexOf("\"client_id\":\"") + 13);
-                    clientId = clientId.substring(0, clientId.indexOf("\""));
-                    result.put("clientId", clientId);
+                    int startIndex = keyVar.indexOf("\"client_id\":\"") + 13;
+                    int endIndex = keyVar.indexOf("\"", startIndex);
+                    if (endIndex > startIndex) {
+                        String clientId = keyVar.substring(startIndex, endIndex);
+                        result.put("clientId", clientId);
+                        log.info("✅ Extracted client ID: {}...", clientId.substring(0, Math.min(10, clientId.length())));
+                    }
+                } else {
+                    result.put("clientIdError", "client_id not found in service account key");
                 }
 
                 // Extract client_email for verification
                 if (keyVar.contains("\"client_email\":\"")) {
-                    String email = keyVar.substring(keyVar.indexOf("\"client_email\":\"") + 16);
-                    email = email.substring(0, email.indexOf("\""));
-                    result.put("serviceAccountEmail", email);
+                    int startIndex = keyVar.indexOf("\"client_email\":\"") + 16;
+                    int endIndex = keyVar.indexOf("\"", startIndex);
+                    if (endIndex > startIndex) {
+                        String email = keyVar.substring(startIndex, endIndex);
+                        result.put("serviceAccountEmail", email);
+                        log.info("✅ Extracted client email: {}", email);
+                    }
+                } else {
+                    result.put("emailError", "client_email not found in service account key");
                 }
+
+                // Extract project_id for verification
+                if (keyVar.contains("\"project_id\":\"")) {
+                    int startIndex = keyVar.indexOf("\"project_id\":\"") + 14;
+                    int endIndex = keyVar.indexOf("\"", startIndex);
+                    if (endIndex > startIndex) {
+                        String projectId = keyVar.substring(startIndex, endIndex);
+                        result.put("projectId", projectId);
+                        log.info("✅ Extracted project ID: {}", projectId);
+                    }
+                }
+
+                result.put("keyLength", keyVar.length());
+                result.put("keyPresent", true);
+            } else {
+                result.put("keyPresent", false);
+                result.put("error", "GOOGLE_SERVICE_ACCOUNT_KEY environment variable not set or empty");
             }
 
             result.put("requiredScopes", java.util.Arrays.asList(
@@ -670,6 +773,22 @@ public class GoogleServiceAccountTestController {
             result.put("error", e.getMessage());
             result.put("errorType", e.getClass().getSimpleName());
             return ResponseEntity.status(500).body(result);
+        }
+    }
+
+    /**
+     * Debug what service account key the app is actually using
+     * GET /api/test/google-service-account/key-debug
+     */
+    @GetMapping("/key-debug")
+    public ResponseEntity<Map<String, Object>> debugServiceAccountKey() {
+        try {
+            Map<String, Object> result = googleService.debugServiceAccountKey();
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(500).body(error);
         }
     }
 

@@ -43,6 +43,57 @@ public class GoogleServiceAccountService {
     private Sheets impersonatedSheetsService;
 
     /**
+     * Debug: Get service account key details that the service is actually using
+     */
+    public Map<String, Object> debugServiceAccountKey() {
+        Map<String, Object> debug = new HashMap<>();
+
+        try {
+            if (serviceAccountKey != null) {
+                debug.put("keyPresent", true);
+                debug.put("keyLength", serviceAccountKey.length());
+
+                // Extract key details safely
+                if (serviceAccountKey.contains("\"client_email\":\"")) {
+                    int start = serviceAccountKey.indexOf("\"client_email\":\"") + 16;
+                    int end = serviceAccountKey.indexOf("\"", start);
+                    if (end > start) {
+                        debug.put("client_email", serviceAccountKey.substring(start, end));
+                    }
+                }
+
+                if (serviceAccountKey.contains("\"project_id\":\"")) {
+                    int start = serviceAccountKey.indexOf("\"project_id\":\"") + 14;
+                    int end = serviceAccountKey.indexOf("\"", start);
+                    if (end > start) {
+                        debug.put("project_id", serviceAccountKey.substring(start, end));
+                    }
+                }
+
+                if (serviceAccountKey.contains("\"client_id\":\"")) {
+                    int start = serviceAccountKey.indexOf("\"client_id\":\"") + 13;
+                    int end = serviceAccountKey.indexOf("\"", start);
+                    if (end > start) {
+                        debug.put("client_id", serviceAccountKey.substring(start, end));
+                    }
+                }
+
+                // Check first/last 50 chars to identify the key
+                debug.put("keyStart", serviceAccountKey.substring(0, Math.min(50, serviceAccountKey.length())));
+                debug.put("keyEnd", serviceAccountKey.substring(Math.max(0, serviceAccountKey.length() - 50)));
+
+            } else {
+                debug.put("keyPresent", false);
+                debug.put("error", "Service account key is null");
+            }
+        } catch (Exception e) {
+            debug.put("error", e.getMessage());
+        }
+
+        return debug;
+    }
+
+    /**
      * Test Google service account connectivity
      */
     public Map<String, Object> testConnectivity() {
