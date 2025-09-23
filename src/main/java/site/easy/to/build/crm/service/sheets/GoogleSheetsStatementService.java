@@ -19,6 +19,7 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
+import site.easy.to.build.crm.service.statements.BodenHouseStatementTemplateService;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -36,6 +37,7 @@ public class GoogleSheetsStatementService {
     private final CustomerService customerService;
     private final PropertyService propertyService;
     private final FinancialTransactionRepository financialTransactionRepository;
+    private final BodenHouseStatementTemplateService bodenHouseTemplateService;
 
     @Value("${GOOGLE_SERVICE_ACCOUNT_KEY:}")
     private String serviceAccountKey;
@@ -46,10 +48,12 @@ public class GoogleSheetsStatementService {
     @Autowired
     public GoogleSheetsStatementService(CustomerService customerService,
                                       PropertyService propertyService,
-                                      FinancialTransactionRepository financialTransactionRepository) {
+                                      FinancialTransactionRepository financialTransactionRepository,
+                                      BodenHouseStatementTemplateService bodenHouseTemplateService) {
         this.customerService = customerService;
         this.propertyService = propertyService;
         this.financialTransactionRepository = financialTransactionRepository;
+        this.bodenHouseTemplateService = bodenHouseTemplateService;
     }
 
     /**
@@ -89,11 +93,17 @@ public class GoogleSheetsStatementService {
             throw new IllegalStateException("Neither service account nor OAuth2 user available for statement creation");
         }
         
-        // Build statement data
-        PropertyOwnerStatementData data = buildPropertyOwnerStatementData(propertyOwner, fromDate, toDate);
-        
-        // Create headers and data rows with formula support
-        List<List<Object>> values = buildEnhancedPropertyOwnerStatementValues(data);
+        // Build statement data using new Boden House template
+        List<List<Object>> values;
+
+        // Determine if this is a property owner or portfolio statement
+        if (isPortfolioStatement(propertyOwner)) {
+            System.out.println("📊 Using Boden House template for portfolio statement");
+            values = bodenHouseTemplateService.generatePortfolioStatement(propertyOwner, fromDate, toDate);
+        } else {
+            System.out.println("🏢 Using Boden House template for property owner statement");
+            values = bodenHouseTemplateService.generatePropertyOwnerStatement(propertyOwner, fromDate, toDate);
+        }
         
         // Write data to sheet with USER_ENTERED to enable formulas
         ValueRange body = new ValueRange().setValues(values);
@@ -103,7 +113,7 @@ public class GoogleSheetsStatementService {
             .execute();
         
         // Apply enhanced formatting with currency, colors, and borders
-        applyEnhancedPropertyOwnerStatementFormatting(sheetsService, spreadsheetId, data);
+        applyBodenHouseGoogleSheetsFormatting(sheetsService, spreadsheetId);
         
         // Add Apps Script for dynamic calculations and interactions
         addAppsScriptEnhancements(sheetsService, spreadsheetId);
@@ -316,161 +326,6 @@ public class GoogleSheetsStatementService {
         return data;
     }
 
-    private List<List<Object>> buildEnhancedPropertyOwnerStatementValues(PropertyOwnerStatementData data) {
-        List<List<Object>> values = new ArrayList<>();
-        
-        // Header section - match CSV format exactly (12 columns)
-        values.add(Arrays.asList("", "", "", "", "PROPSK LTD", "", "", "", "", "%", "", ""));
-        values.add(Arrays.asList("", "", "", "", "1 Poplar Court, Greensward Lane, Hockley, England, SS5 5JB", "", "", "", "", "Management Fee", "10", ""));
-        values.add(Arrays.asList("", "", "", "", "Company number 15933011", "", "", "", "", "Service Fee", "5", ""));
-        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", ""));
-        values.add(Arrays.asList("", "", "", "", "STATEMENT", "", "", "", "", "", "", ""));
-        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", ""));
-        
-        // Client, Property, Period information
-        values.add(Arrays.asList("CLIENT:", data.getPropertyOwner().getName(), "", "", "", "", "", "", "", "", "", ""));
-        
-        // Get property name 
-        String propertyName = data.getProperties().isEmpty() ? "PROPERTY PORTFOLIO" : data.getProperties().get(0).getPropertyName();
-        values.add(Arrays.asList("PROPERTY:", propertyName, "", "", "", "", "", "", "", "", "", ""));
-        
-        // Format period dates
-        String fromDateFormatted = data.getFromDate().format(DateTimeFormatter.ofPattern("d")) + 
-                                 getOrdinalSuffix(data.getFromDate().getDayOfMonth()) + " " +
-                                 data.getFromDate().format(DateTimeFormatter.ofPattern("MMM yyyy"));
-        String toDateFormatted = data.getToDate().format(DateTimeFormatter.ofPattern("d")) + 
-                               getOrdinalSuffix(data.getToDate().getDayOfMonth()) + " " +
-                               data.getToDate().format(DateTimeFormatter.ofPattern("MMM yyyy"));
-        values.add(Arrays.asList("PERIOD:", fromDateFormatted + " to " + toDateFormatted, "", "", "", "", "", "", "", "", "", ""));
-        
-        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", ""));
-        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", ""));
-        
-        // Income Statement Header
-        values.add(Arrays.asList("Income Statement", "", "", "", "", "", "", "", "", "", "", ""));
-        
-        // Column headers with line breaks (matching CSV format)
-        values.add(Arrays.asList("Unit No.", "Tenant", "Tenancy Dates", 
-            "Rent\n Due\n Amount", "Rent\n Received\n Date", "Rent\n Received\n Amount", 
-            "Management\n Fee\n 10%", "Service\n Fee\n 5%", 
-            "Net\n Due to\n " + getFirstNameSafe(data.getPropertyOwner()), 
-            "Date\n Paid", "Rent\n Due less\n Received", "Comments", "Payment Batch"));
-        
-        // Income Statement Data Rows - Enhanced with proper formatting and data
-        int dataStartRow = values.size() + 1; // Track row number for formulas
-        
-        for (PropertyRentalData rental : data.getRentalData()) {
-            // Get actual payment data from financial transactions - ENHANCED: Now includes incoming payments with batch IDs
-            List<FinancialTransaction> transactions = financialTransactionRepository
-                .findPropertyTransactionsForStatement(rental.getProperty().getPayPropId(), data.getFromDate(), data.getToDate());
-                
-            BigDecimal rentDue = rental.getRentAmount();
-            BigDecimal rentReceived = calculateActualRentReceived(transactions);
-            
-            // We'll use formulas for calculations in the sheet
-            int currentRow = values.size() + 1; // Current row in Google Sheets (1-based)
-            String managementFeeFormula = "=-F" + currentRow + "*0.1"; // -10% of rent received
-            String serviceFeeFormula = "=-F" + currentRow + "*0.05"; // -5% of rent received  
-            String netDueFormula = "=F" + currentRow + "+G" + currentRow + "+H" + currentRow; // Rent + Management + Service
-            String outstandingFormula = "=D" + currentRow + "-F" + currentRow; // Rent Due - Rent Received
-            
-            // Get payment details
-            String rentReceivedDate = getPaymentDate(transactions);
-            String datePaid = getDistributionDate(transactions);
-            String paymentBatch = getPaymentBatchInfo(transactions);
-            String comments = "";
-            
-            values.add(Arrays.asList(
-                rental.getUnitNumber(),
-                rental.getTenantName(),
-                formatTenancyDate(rental.getStartDate()),
-                rentDue, // Raw number for formula calculations
-                rentReceivedDate,
-                rentReceived, // Raw number for formula calculations
-                managementFeeFormula, // Google Sheets formula
-                serviceFeeFormula, // Google Sheets formula
-                netDueFormula, // Google Sheets formula
-                datePaid,
-                outstandingFormula, // Google Sheets formula
-                comments,
-                paymentBatch
-            ));
-        }
-        
-        values.add(Arrays.asList(""));
-        
-        // Empty rows to match CSV spacing
-        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
-        
-        // OFFICE row (vacant unit)
-        values.add(Arrays.asList("OFFICE", "", "", "", "", "", "", "", "0", "", "0", "Vacant", ""));
-        
-        // TOTAL row with SUM formulas - calculate range dynamically
-        int dataEndRow = values.size() - 2; // Last row of data before empty rows
-        values.add(Arrays.asList("TOTAL", "", "", 
-                                "=SUM(D" + (dataStartRow + 1) + ":D" + dataEndRow + ")", "", // Sum of Rent Due
-                                "=SUM(F" + (dataStartRow + 1) + ":F" + dataEndRow + ")", // Sum of Rent Received  
-                                "=SUM(G" + (dataStartRow + 1) + ":G" + dataEndRow + ")", // Sum of Management Fee
-                                "=SUM(H" + (dataStartRow + 1) + ":H" + dataEndRow + ")", // Sum of Service Fee
-                                "=SUM(I" + (dataStartRow + 1) + ":I" + dataEndRow + ")", // Sum of Net Due
-                                "", 
-                                "=SUM(K" + (dataStartRow + 1) + ":K" + dataEndRow + ")", // Sum of Outstanding
-                                "", ""));
-        
-        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
-        
-        // Expenses Section
-        values.add(Arrays.asList("Expenses", "", "", "", "", "", "", "", "", "", "", "", ""));
-        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
-        
-        // Expenses headers - match CSV format exactly
-        values.add(Arrays.asList("Unit No.", "Expense Label", "", "", "", 
-                                "Expense \n Amount", "Management\n Contribution", "", 
-                                "Net Expense \n Amount", "", "", "Comments", ""));
-        
-        // Get expense data from financial transactions
-        BigDecimal totalExpenses = BigDecimal.ZERO;
-        List<FinancialTransaction> expenseTransactions = getExpenseTransactions(data.getProperties(), data.getFromDate(), data.getToDate());
-        
-        for (FinancialTransaction expense : expenseTransactions) {
-            String unitNo = getUnitNumberFromProperty(expense.getPropertyId());
-            String expenseLabel = expense.getCategoryName() != null ? expense.getCategoryName() : expense.getDescription();
-            BigDecimal expenseAmount = expense.getAmount();
-            BigDecimal netExpenseAmount = expenseAmount.negate(); // Show as negative
-            
-            values.add(Arrays.asList(unitNo, expenseLabel, "", "", "", 
-                                   formatCurrency(expenseAmount), "", "", 
-                                   formatCurrency(netExpenseAmount), "", "", "", ""));
-            totalExpenses = totalExpenses.add(expenseAmount);
-        }
-        
-        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
-        values.add(Arrays.asList("TOTAL", "", "", "", "", formatCurrency(totalExpenses), "", "", 
-                                formatCurrency(totalExpenses.negate()), "", "", "Deducted from rent", ""));
-        
-        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
-        
-        // SUMMARY Section
-        values.add(Arrays.asList("SUMMARY", "", "", "", "", "", "", "", "", "", "", "", ""));
-        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
-        // Reference formulas to the TOTAL row calculated earlier
-        int totalRowNumber = dataStartRow + data.getRentalData().size() + 4; // Approximate TOTAL row number
-        int expenseRowNumber = totalRowNumber + 15; // Approximate expense total row
-        
-        values.add(Arrays.asList("Total Rent Due for the Period", "", "", "=D" + totalRowNumber, "", "", "", "", "", "", "", "", ""));
-        values.add(Arrays.asList("Total Received by Propsk", "", "", "=F" + totalRowNumber, "", "", "", "", "", "", "", "", ""));
-        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
-        values.add(Arrays.asList("Management Fee", "", "", "=G" + totalRowNumber, "", "", "", "", "", "", "", "", ""));
-        values.add(Arrays.asList("Service Charge", "", "", "=H" + totalRowNumber, "", "", "", "", "", "", "", "", ""));
-        values.add(Arrays.asList("Expenses Paid by Agent", "", "", "=I" + expenseRowNumber, "", "", "", "", "", "", "", "", ""));
-        values.add(Arrays.asList("", "", "", "", "", "", "", "", "", "", "", "", ""));
-        
-        // Calculate final net due: Total Net Due - Expenses
-        values.add(Arrays.asList("Net Due to " + getFirstNameSafe(data.getPropertyOwner()), "", "", 
-                                "=I" + totalRowNumber + "+I" + expenseRowNumber, "", "", "", "", "", "", "", "", ""));
-        
-        return values;
-    }
     
     // Helper methods for the new statement format
     
@@ -878,70 +733,6 @@ public class GoogleSheetsStatementService {
         return values;
     }
 
-    // Enhanced Formatting methods
-    private void applyEnhancedPropertyOwnerStatementFormatting(Sheets sheetsService, String spreadsheetId, PropertyOwnerStatementData data) 
-            throws IOException {
-        List<Request> requests = new ArrayList<>();
-        
-        // 1. Header formatting (Bold, larger font, background color)
-        requests.add(new Request().setRepeatCell(new RepeatCellRequest()
-            .setRange(new GridRange().setSheetId(0).setStartRowIndex(0).setEndRowIndex(6))
-            .setCell(new CellData().setUserEnteredFormat(new CellFormat()
-                .setTextFormat(new TextFormat().setBold(true).setFontSize(12))
-                .setBackgroundColor(new Color().setRed(0.9f).setGreen(0.95f).setBlue(1.0f))))
-            .setFields("userEnteredFormat.textFormat.bold,userEnteredFormat.textFormat.fontSize,userEnteredFormat.backgroundColor")));
-        
-        // 2. Currency formatting for amount columns (D, F, G, H, I, K)
-        int[] currencyColumns = {3, 5, 6, 7, 8, 10}; // 0-based: D=3, F=5, G=6, H=7, I=8, K=10
-        for (int col : currencyColumns) {
-            requests.add(new Request().setRepeatCell(new RepeatCellRequest()
-                .setRange(new GridRange().setSheetId(0)
-                    .setStartRowIndex(13).setEndRowIndex(50) // Data rows
-                    .setStartColumnIndex(col).setEndColumnIndex(col + 1))
-                .setCell(new CellData().setUserEnteredFormat(new CellFormat()
-                    .setNumberFormat(new com.google.api.services.sheets.v4.model.NumberFormat()
-                        .setType("CURRENCY")
-                        .setPattern("£#,##0.00"))))
-                .setFields("userEnteredFormat.numberFormat")));
-        }
-        
-        // 3. Column headers formatting (Bold, centered, wrapped text)
-        requests.add(new Request().setRepeatCell(new RepeatCellRequest()
-            .setRange(new GridRange().setSheetId(0).setStartRowIndex(12).setEndRowIndex(13))
-            .setCell(new CellData().setUserEnteredFormat(new CellFormat()
-                .setTextFormat(new TextFormat().setBold(true).setFontSize(10))
-                .setHorizontalAlignment("CENTER")
-                .setWrapStrategy("WRAP")
-                .setBackgroundColor(new Color().setRed(0.8f).setGreen(0.9f).setBlue(1.0f))))
-            .setFields("userEnteredFormat.textFormat.bold,userEnteredFormat.textFormat.fontSize,userEnteredFormat.horizontalAlignment,userEnteredFormat.wrapStrategy,userEnteredFormat.backgroundColor")));
-        
-        // 4. TOTAL row formatting (Bold, background color)
-        int totalRowIndex = 13 + data.getRentalData().size() + 3; // Approximate total row
-        requests.add(new Request().setRepeatCell(new RepeatCellRequest()
-            .setRange(new GridRange().setSheetId(0)
-                .setStartRowIndex(totalRowIndex).setEndRowIndex(totalRowIndex + 1))
-            .setCell(new CellData().setUserEnteredFormat(new CellFormat()
-                .setTextFormat(new TextFormat().setBold(true))
-                .setBackgroundColor(new Color().setRed(1.0f).setGreen(0.95f).setBlue(0.8f))))
-            .setFields("userEnteredFormat.textFormat.bold,userEnteredFormat.backgroundColor")));
-        
-        // 5. Borders around data table
-        requests.add(new Request().setUpdateBorders(new UpdateBordersRequest()
-            .setRange(new GridRange().setSheetId(0)
-                .setStartRowIndex(12).setEndRowIndex(totalRowIndex + 1)
-                .setStartColumnIndex(0).setEndColumnIndex(13))
-            .setTop(new Border().setStyle("SOLID").setWidth(1))
-            .setBottom(new Border().setStyle("SOLID").setWidth(1))
-            .setLeft(new Border().setStyle("SOLID").setWidth(1))
-            .setRight(new Border().setStyle("SOLID").setWidth(1))
-            .setInnerHorizontal(new Border().setStyle("SOLID").setWidth(1))
-            .setInnerVertical(new Border().setStyle("SOLID").setWidth(1))));
-        
-        // Execute all formatting requests
-        BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
-            .setRequests(requests);
-        sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
-    }
     
     private void applyPropertyOwnerStatementFormatting(Sheets sheetsService, String spreadsheetId) 
             throws IOException {
@@ -962,13 +753,13 @@ public class GoogleSheetsStatementService {
     private void applyTenantStatementFormatting(Sheets sheetsService, String spreadsheetId) 
             throws IOException {
         // Similar formatting as property owner statement
-        applyPropertyOwnerStatementFormatting(sheetsService, spreadsheetId);
+        applyBodenHouseGoogleSheetsFormatting(sheetsService, spreadsheetId);
     }
 
     private void applyPortfolioStatementFormatting(Sheets sheetsService, String spreadsheetId) 
             throws IOException {
         // Similar formatting as property owner statement
-        applyPropertyOwnerStatementFormatting(sheetsService, spreadsheetId);
+        applyBodenHouseGoogleSheetsFormatting(sheetsService, spreadsheetId);
     }
 
     // Helper methods - Implemented with real database queries
@@ -1400,6 +1191,158 @@ public class GoogleSheetsStatementService {
         }
 
         return serviceAccountKey;
+    }
+
+    /**
+     * Determine if this should be treated as a portfolio statement
+     */
+    private boolean isPortfolioStatement(Customer propertyOwner) {
+        // Get properties for this owner
+        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+
+        // If owner has multiple properties or properties in different buildings, treat as portfolio
+        if (properties.size() > 5) {
+            return true;
+        }
+
+        // Check if properties are in different buildings
+        Set<String> buildings = properties.stream()
+            .map(this::extractBuildingName)
+            .collect(java.util.stream.Collectors.toSet());
+
+        return buildings.size() > 1;
+    }
+
+    private String extractBuildingName(Property property) {
+        if (property.getPropertyName() == null) return "UNKNOWN";
+
+        String name = property.getPropertyName().toUpperCase();
+        if (name.contains("BODEN HOUSE") || name.contains("WEST GATE")) {
+            return "BODEN HOUSE";
+        } else if (name.contains("KNIGHTON HAYES")) {
+            return "KNIGHTON HAYES";
+        }
+        return property.getPropertyName().toUpperCase();
+    }
+
+    /**
+     * Apply Boden House specific formatting to Google Sheets
+     */
+    private void applyBodenHouseGoogleSheetsFormatting(Sheets sheetsService, String spreadsheetId)
+            throws IOException {
+
+        List<Request> requests = new ArrayList<>();
+
+        // Format company header (PROPSK LTD section)
+        requests.add(new Request()
+            .setRepeatCell(new RepeatCellRequest()
+                .setRange(new GridRange()
+                    .setSheetId(0)
+                    .setStartRowIndex(30)
+                    .setEndRowIndex(36)
+                    .setStartColumnIndex(37)
+                    .setEndColumnIndex(38))
+                .setCell(new CellData()
+                    .setUserEnteredFormat(new CellFormat()
+                        .setTextFormat(new TextFormat()
+                            .setBold(true)
+                            .setFontSize(12)
+                            .setFontFamily("Calibri"))
+                        .setHorizontalAlignment("RIGHT")))
+                .setFields("userEnteredFormat(textFormat,horizontalAlignment)")));
+
+        // Format column headers
+        requests.add(new Request()
+            .setRepeatCell(new RepeatCellRequest()
+                .setRange(new GridRange()
+                    .setSheetId(0)
+                    .setStartRowIndex(39)
+                    .setEndRowIndex(40)
+                    .setStartColumnIndex(0)
+                    .setEndColumnIndex(38))
+                .setCell(new CellData()
+                    .setUserEnteredFormat(new CellFormat()
+                        .setTextFormat(new TextFormat()
+                            .setBold(true)
+                            .setFontSize(10)
+                            .setFontFamily("Calibri"))
+                        .setHorizontalAlignment("CENTER")
+                        .setVerticalAlignment("MIDDLE")
+                        .setWrapStrategy("WRAP")
+                        .setBackgroundColor(new Color()
+                            .setRed(0.9f)
+                            .setGreen(0.9f)
+                            .setBlue(0.9f))
+                        .setBorders(new Borders()
+                            .setTop(new Border().setStyle("SOLID").setWidth(1))
+                            .setBottom(new Border().setStyle("SOLID").setWidth(1))
+                            .setLeft(new Border().setStyle("SOLID").setWidth(1))
+                            .setRight(new Border().setStyle("SOLID").setWidth(1)))))
+                .setFields("userEnteredFormat")));
+
+        // Format currency columns
+        int[] currencyColumns = {5, 10, 11, 12, 13, 15, 17, 18, 20, 22, 24, 26, 28, 30, 31, 32, 33, 34, 36};
+        for (int col : currencyColumns) {
+            requests.add(new Request()
+                .setRepeatCell(new RepeatCellRequest()
+                    .setRange(new GridRange()
+                        .setSheetId(0)
+                        .setStartRowIndex(40)
+                        .setEndRowIndex(1000) // Large range to cover all data
+                        .setStartColumnIndex(col)
+                        .setEndColumnIndex(col + 1))
+                    .setCell(new CellData()
+                        .setUserEnteredFormat(new CellFormat()
+                            .setNumberFormat(new com.google.api.services.sheets.v4.model.NumberFormat()
+                                .setType("CURRENCY")
+                                .setPattern("£#,##0.00;(£#,##0.00)"))
+                            .setHorizontalAlignment("RIGHT")))
+                    .setFields("userEnteredFormat(numberFormat,horizontalAlignment)")));
+        }
+
+        // Format percentage columns
+        int[] percentageColumns = {14, 16};
+        for (int col : percentageColumns) {
+            requests.add(new Request()
+                .setRepeatCell(new RepeatCellRequest()
+                    .setRange(new GridRange()
+                        .setSheetId(0)
+                        .setStartRowIndex(40)
+                        .setEndRowIndex(1000)
+                        .setStartColumnIndex(col)
+                        .setEndColumnIndex(col + 1))
+                    .setCell(new CellData()
+                        .setUserEnteredFormat(new CellFormat()
+                            .setNumberFormat(new com.google.api.services.sheets.v4.model.NumberFormat()
+                                .setType("PERCENT")
+                                .setPattern("0.00%"))
+                            .setHorizontalAlignment("CENTER")))
+                    .setFields("userEnteredFormat")));
+        }
+
+        // Set column widths to match your spreadsheet
+        requests.add(new Request()
+            .setUpdateDimensionProperties(new UpdateDimensionPropertiesRequest()
+                .setRange(new DimensionRange()
+                    .setSheetId(0)
+                    .setDimension("COLUMNS")
+                    .setStartIndex(0)
+                    .setEndIndex(38))
+                .setProperties(new DimensionProperties()
+                    .setPixelSize(100)) // Default width
+                .setFields("pixelSize")));
+
+        // Execute all formatting requests
+        if (!requests.isEmpty()) {
+            BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
+                .setRequests(requests);
+
+            sheetsService.spreadsheets()
+                .batchUpdate(spreadsheetId, batchRequest)
+                .execute();
+
+            System.out.println("✅ Applied Boden House formatting to Google Sheets");
+        }
     }
 
 }

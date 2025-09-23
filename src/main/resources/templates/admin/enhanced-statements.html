@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Statement Generation - Data Source Selection</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .data-source-card {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+        .data-source-card:hover {
+            border-color: #0d6efd;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .data-source-card.selected {
+            border-color: #0d6efd;
+            background-color: #f8f9ff;
+        }
+        .data-source-icon {
+            font-size: 1.5rem;
+            margin-right: 10px;
+        }
+        .preview-section {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="bi bi-file-earmark-spreadsheet"></i> Enhanced Statement Generation</h2>
+                    <a href="/admin/dashboard" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="bi bi-gear"></i> Statement Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="statementForm">
+                            <div class="row">
+                                <!-- Property Owner Selection -->
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="propertyOwnerId" class="form-label">
+                                            <i class="bi bi-person"></i> Property Owner
+                                        </label>
+                                        <select class="form-select" id="propertyOwnerId" name="propertyOwnerId" required>
+                                            <option value="">Select a property owner...</option>
+                                            <option th:each="owner : ${propertyOwners}"
+                                                    th:value="${owner.customerId}"
+                                                    th:text="${owner.name}"></option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Date Range -->
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="fromDate" class="form-label">
+                                            <i class="bi bi-calendar"></i> From Date
+                                        </label>
+                                        <input type="date" class="form-control" id="fromDate" name="fromDate"
+                                               th:value="${defaultFromDate}" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="mb-3">
+                                        <label for="toDate" class="form-label">
+                                            <i class="bi bi-calendar"></i> To Date
+                                        </label>
+                                        <input type="date" class="form-control" id="toDate" name="toDate"
+                                               th:value="${defaultToDate}" required>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Data Source Selection -->
+                            <div class="mb-4">
+                                <h6><i class="bi bi-database"></i> Select Data Sources to Include</h6>
+                                <p class="text-muted small">Choose which data sources to include in your statement. You can select multiple sources.</p>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="data-source-card" th:each="dataSource : ${dataSources}">
+                                            <div class="form-check">
+                                                <input class="form-check-input data-source-checkbox" type="checkbox"
+                                                       th:id="'dataSource_' + ${dataSource.name()}"
+                                                       th:value="${dataSource.name()}"
+                                                       name="dataSources"
+                                                       checked>
+                                                <label class="form-check-label w-100" th:for="'dataSource_' + ${dataSource.name()}">
+                                                    <div class="d-flex align-items-center">
+                                                        <i th:class="${dataSource.name() == 'HISTORICAL_PAYPROP' ? 'bi bi-clock-history text-info' :
+                                                                      dataSource.name() == 'HISTORICAL_OLD_BANK' ? 'bi bi-bank text-warning' :
+                                                                      dataSource.name() == 'HISTORICAL_ROBERT_ELLIS' ? 'bi bi-person-badge text-secondary' :
+                                                                      dataSource.name() == 'LIVE_PAYPROP' ? 'bi bi-lightning text-success' :
+                                                                      'bi bi-pc-display text-primary'} data-source-icon"></i>
+                                                        <div>
+                                                            <strong th:text="${dataSource.displayName}">Data Source</strong>
+                                                            <br>
+                                                            <small class="text-muted" th:text="${dataSource.description}">Description</small>
+                                                        </div>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="preview-section">
+                                            <h6><i class="bi bi-eye"></i> Selected Data Sources Preview</h6>
+                                            <div id="selectedSourcesPreview">
+                                                <div class="text-muted">All data sources selected</div>
+                                            </div>
+                                            <hr>
+                                            <small class="text-muted">
+                                                <strong>Tip:</strong> Historical data includes imported records from previous systems.
+                                                Live data includes current PayProp API data and manual entries.
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Statement Options -->
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <h6><i class="bi bi-sliders"></i> Statement Options</h6>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="includeExpenses" name="includeExpenses" checked>
+                                        <label class="form-check-label" for="includeExpenses">
+                                            Include Expenses Section
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="includeFormulas" name="includeFormulas" checked>
+                                        <label class="form-check-label" for="includeFormulas">
+                                            Include Excel Formulas
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6><i class="bi bi-info-circle"></i> Output Information</h6>
+                                    <p class="small text-muted mb-1">
+                                        <strong>XLSX:</strong> Excel file with your Boden House template format<br>
+                                        <strong>Google Sheets:</strong> Online spreadsheet with live collaboration
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="row">
+                                <div class="col-12">
+                                    <h6><i class="bi bi-download"></i> Generate Statement</h6>
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-success" onclick="generateStatement('property-owner', 'xlsx')">
+                                            <i class="bi bi-file-earmark-excel"></i> Property Owner XLSX
+                                        </button>
+                                        <button type="button" class="btn btn-info" onclick="generateStatement('property-owner', 'google-sheets')">
+                                            <i class="bi bi-google"></i> Property Owner Google Sheets
+                                        </button>
+                                        <button type="button" class="btn btn-warning" onclick="generateStatement('portfolio', 'xlsx')">
+                                            <i class="bi bi-collection"></i> Portfolio XLSX
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Results Section -->
+                <div id="resultsSection" class="mt-4" style="display: none;">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0"><i class="bi bi-check-circle"></i> Statement Generated Successfully</h5>
+                        </div>
+                        <div class="card-body" id="resultsContent">
+                            <!-- Results will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Data source selection handling
+        document.addEventListener('DOMContentLoaded', function() {
+            const checkboxes = document.querySelectorAll('.data-source-checkbox');
+            const preview = document.getElementById('selectedSourcesPreview');
+
+            function updatePreview() {
+                const selected = Array.from(checkboxes)
+                    .filter(cb => cb.checked)
+                    .map(cb => {
+                        const card = cb.closest('.data-source-card');
+                        const label = card.querySelector('strong').textContent;
+                        return label;
+                    });
+
+                if (selected.length === 0) {
+                    preview.innerHTML = '<div class="text-warning">No data sources selected</div>';
+                } else if (selected.length === checkboxes.length) {
+                    preview.innerHTML = '<div class="text-success">All data sources selected</div>';
+                } else {
+                    preview.innerHTML = selected.map(source =>
+                        `<span class="badge bg-primary me-1">${source}</span>`
+                    ).join('');
+                }
+
+                // Update card styling
+                checkboxes.forEach(cb => {
+                    const card = cb.closest('.data-source-card');
+                    if (cb.checked) {
+                        card.classList.add('selected');
+                    } else {
+                        card.classList.remove('selected');
+                    }
+                });
+            }
+
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', updatePreview);
+            });
+
+            updatePreview();
+        });
+
+        function generateStatement(type, format) {
+            const form = document.getElementById('statementForm');
+            const formData = new FormData(form);
+
+            // Validate form
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            // Check if at least one data source is selected
+            const selectedSources = formData.getAll('dataSources');
+            if (selectedSources.length === 0) {
+                alert('Please select at least one data source.');
+                return;
+            }
+
+            // Build URL
+            const baseUrl = `/admin/enhanced-statements/${type}/${format}`;
+
+            // Show loading
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsContent = document.getElementById('resultsContent');
+            resultsContent.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Generating...</span>
+                    </div>
+                    <p class="mt-2">Generating statement with selected data sources...</p>
+                </div>
+            `;
+            resultsSection.style.display = 'block';
+
+            if (format === 'xlsx') {
+                // For XLSX, create a form and submit to download
+                const downloadForm = document.createElement('form');
+                downloadForm.method = 'POST';
+                downloadForm.action = baseUrl;
+
+                // Add all form data to download form
+                for (let [key, value] of formData.entries()) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = value;
+                    downloadForm.appendChild(input);
+                }
+
+                document.body.appendChild(downloadForm);
+                downloadForm.submit();
+                document.body.removeChild(downloadForm);
+
+                // Update results
+                setTimeout(() => {
+                    resultsContent.innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="bi bi-download"></i> Excel file download started!
+                            <br><small>Check your downloads folder for the generated statement.</small>
+                        </div>
+                    `;
+                }, 1000);
+
+            } else if (format === 'google-sheets') {
+                // For Google Sheets, use fetch to get the URL
+                fetch(baseUrl, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+
+                    resultsContent.innerHTML = `
+                        <div class="alert alert-success">
+                            <h6><i class="bi bi-google"></i> Google Sheets Created Successfully!</h6>
+                            <p><strong>Data Sources:</strong> ${data.dataSources}</p>
+                            <a href="${data.url}" target="_blank" class="btn btn-primary">
+                                <i class="bi bi-box-arrow-up-right"></i> Open Google Sheets
+                            </a>
+                            <br><br>
+                            <small class="text-muted">Spreadsheet ID: ${data.spreadsheetId}</small>
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    resultsContent.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle"></i> Error: ${error.message}
+                        </div>
+                    `;
+                });
+            }
+        }
+    </script>
+</body>
+</html>

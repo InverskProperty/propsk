@@ -27,30 +27,33 @@ public class XLSXStatementService {
     private final CustomerService customerService;
     private final PropertyService propertyService;
     private final FinancialTransactionRepository financialTransactionRepository;
+    private final BodenHouseStatementTemplateService bodenHouseTemplateService;
 
     @Autowired
     public XLSXStatementService(CustomerService customerService,
                                PropertyService propertyService,
-                               FinancialTransactionRepository financialTransactionRepository) {
+                               FinancialTransactionRepository financialTransactionRepository,
+                               BodenHouseStatementTemplateService bodenHouseTemplateService) {
         this.customerService = customerService;
         this.propertyService = propertyService;
         this.financialTransactionRepository = financialTransactionRepository;
+        this.bodenHouseTemplateService = bodenHouseTemplateService;
     }
 
     /**
-     * Generate Property Owner Statement as XLSX with formulas
+     * Generate Property Owner Statement as XLSX using Boden House template
      */
     public byte[] generatePropertyOwnerStatementXLSX(Customer propertyOwner,
                                                    LocalDate fromDate, LocalDate toDate)
             throws IOException {
 
-        System.out.println("🏢 Generating XLSX statement for: " + propertyOwner.getName());
+        System.out.println("🏢 Generating XLSX Property Owner statement using Boden House template for: " + propertyOwner.getName());
 
-        // Build statement data using existing logic
-        PropertyOwnerStatementData data = buildPropertyOwnerStatementData(propertyOwner, fromDate, toDate);
+        // Use new Boden House template
+        List<List<Object>> values = bodenHouseTemplateService.generatePropertyOwnerStatement(propertyOwner, fromDate, toDate);
 
-        // Create Excel workbook with formulas
-        return createExcelStatement(data);
+        // Create Excel workbook with the new template
+        return createBodenHouseExcelStatement(values, "Property Owner Statement");
     }
 
     /**
@@ -67,19 +70,91 @@ public class XLSXStatementService {
     }
 
     /**
-     * Generate Portfolio Statement as XLSX
+     * Generate Portfolio Statement as XLSX using Boden House template
      */
     public byte[] generatePortfolioStatementXLSX(Customer propertyOwner,
                                                LocalDate fromDate, LocalDate toDate)
             throws IOException {
 
-        System.out.println("📊 Generating portfolio XLSX statement for: " + propertyOwner.getName());
+        System.out.println("📊 Generating portfolio XLSX statement using Boden House template for: " + propertyOwner.getName());
 
-        PortfolioStatementData data = buildPortfolioStatementData(propertyOwner, fromDate, toDate);
-        return createPortfolioExcelStatement(data);
+        // Use new Boden House template for portfolio
+        List<List<Object>> values = bodenHouseTemplateService.generatePortfolioStatement(propertyOwner, fromDate, toDate);
+
+        // Create Excel workbook with the new template
+        return createBodenHouseExcelStatement(values, "Portfolio Statement");
     }
 
     // ===== EXCEL CREATION METHODS =====
+
+    /**
+     * Create Excel statement using Boden House template (NEW METHOD)
+     */
+    private byte[] createBodenHouseExcelStatement(List<List<Object>> values, String sheetName) throws IOException {
+        XSSFWorkbook workbook = new XSSFWorkbook();
+        XSSFSheet sheet = workbook.createSheet(sheetName);
+
+        // Create rows and cells following your exact template structure
+        for (int rowIndex = 0; rowIndex < values.size(); rowIndex++) {
+            Row row = sheet.createRow(rowIndex);
+            List<Object> rowData = values.get(rowIndex);
+
+            for (int colIndex = 0; colIndex < rowData.size(); colIndex++) {
+                Cell cell = row.createCell(colIndex);
+                Object value = rowData.get(colIndex);
+
+                if (value instanceof String && ((String) value).startsWith("=")) {
+                    // Excel formula - remove leading "=" and set as formula
+                    try {
+                        cell.setCellFormula(((String) value).substring(1));
+                    } catch (Exception e) {
+                        // Fallback to text if formula is invalid
+                        cell.setCellValue(value.toString());
+                    }
+                } else if (value instanceof BigDecimal) {
+                    cell.setCellValue(((BigDecimal) value).doubleValue());
+                } else if (value instanceof Number) {
+                    cell.setCellValue(((Number) value).doubleValue());
+                } else if (value instanceof Boolean) {
+                    cell.setCellValue(((Boolean) value) ? "TRUE" : "FALSE");
+                } else if (value != null) {
+                    cell.setCellValue(value.toString());
+                }
+            }
+        }
+
+        // Apply Boden House specific formatting
+        applyBodenHouseFormatting(workbook, sheet);
+
+        // Auto-size columns for better readability (38 columns like your spreadsheet)
+        for (int i = 0; i < 38; i++) {
+            try {
+                sheet.autoSizeColumn(i);
+                // Set minimum width to prevent too narrow columns
+                if (sheet.getColumnWidth(i) < 1500) {
+                    sheet.setColumnWidth(i, 1500);
+                }
+                // Set maximum width to prevent too wide columns
+                if (sheet.getColumnWidth(i) > 6000) {
+                    sheet.setColumnWidth(i, 6000);
+                }
+            } catch (Exception e) {
+                // Continue if auto-sizing fails for any column
+            }
+        }
+
+        // Force formula evaluation
+        workbook.getCreationHelper().createFormulaEvaluator().evaluateAll();
+
+        // Convert to byte array
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        workbook.write(outputStream);
+        workbook.close();
+
+        System.out.println("✅ Boden House XLSX statement generated successfully - " + outputStream.size() + " bytes");
+
+        return outputStream.toByteArray();
+    }
 
     private byte[] createExcelStatement(PropertyOwnerStatementData data) throws IOException {
         XSSFWorkbook workbook = new XSSFWorkbook();
@@ -419,6 +494,206 @@ public class XLSXStatementService {
     private void addTableBorders(XSSFWorkbook workbook, XSSFSheet sheet, int startRow, int endRow, int startCol, int endCol) {
         // This would add borders using POI's border utilities
         // For now, we'll skip complex border implementation
+    }
+
+    /**
+     * Apply Boden House specific formatting (matching your spreadsheet style)
+     */
+    private void applyBodenHouseFormatting(XSSFWorkbook workbook, XSSFSheet sheet) {
+        CellStyle headerStyle = createBodenHouseHeaderStyle(workbook);
+        CellStyle currencyStyle = createBodenHouseCurrencyStyle(workbook);
+        CellStyle percentageStyle = createBodenHousePercentageStyle(workbook);
+        CellStyle companyHeaderStyle = createBodenHouseCompanyHeaderStyle(workbook);
+
+        // Apply company header formatting (PROPSK LTD section)
+        for (int rowIndex = 30; rowIndex <= 35; rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row != null) {
+                Cell companyCell = row.getCell(37); // Company info in column 37
+                if (companyCell != null) {
+                    companyCell.setCellStyle(companyHeaderStyle);
+                }
+            }
+        }
+
+        // Apply header formatting to column headers row
+        Row headerRow = sheet.getRow(39); // Assuming headers are around row 39
+        if (headerRow != null) {
+            for (int colIndex = 0; colIndex < 38; colIndex++) {
+                Cell cell = headerRow.getCell(colIndex);
+                if (cell != null) {
+                    cell.setCellStyle(headerStyle);
+                }
+            }
+        }
+
+        // Apply currency formatting to amount columns
+        int[] currencyColumns = {5, 10, 11, 12, 13, 15, 17, 18, 20, 22, 24, 26, 28, 30, 31, 32, 33, 34, 36};
+        for (int rowIndex = 40; rowIndex < sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row != null) {
+                for (int colIndex : currencyColumns) {
+                    Cell cell = row.getCell(colIndex);
+                    if (cell != null && cell.getCellType() == CellType.NUMERIC) {
+                        cell.setCellStyle(currencyStyle);
+                    }
+                }
+            }
+        }
+
+        // Apply percentage formatting to percentage columns
+        int[] percentageColumns = {14, 16};
+        for (int rowIndex = 40; rowIndex < sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row != null) {
+                for (int colIndex : percentageColumns) {
+                    Cell cell = row.getCell(colIndex);
+                    if (cell != null) {
+                        cell.setCellStyle(percentageStyle);
+                    }
+                }
+            }
+        }
+
+        // Set column widths to match your spreadsheet
+        setBodenHouseColumnWidths(sheet);
+    }
+
+    private CellStyle createBodenHouseHeaderStyle(XSSFWorkbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setBold(true);
+        font.setFontHeightInPoints((short) 10);
+        font.setFontName("Calibri");
+        style.setFont(font);
+
+        // Background color (light grey)
+        style.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+        // Borders
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+
+        // Center alignment
+        style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+        style.setWrapText(true);
+
+        return style;
+    }
+
+    private CellStyle createBodenHouseCurrencyStyle(XSSFWorkbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setFontHeightInPoints((short) 10);
+        font.setFontName("Calibri");
+        style.setFont(font);
+
+        // Currency format (£)
+        DataFormat format = workbook.createDataFormat();
+        style.setDataFormat(format.getFormat("£#,##0.00;(£#,##0.00)"));
+
+        // Alignment
+        style.setAlignment(HorizontalAlignment.RIGHT);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+
+        // Borders
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+
+        return style;
+    }
+
+    private CellStyle createBodenHousePercentageStyle(XSSFWorkbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setFontHeightInPoints((short) 10);
+        font.setFontName("Calibri");
+        style.setFont(font);
+
+        // Percentage format
+        DataFormat format = workbook.createDataFormat();
+        style.setDataFormat(format.getFormat("0.00%"));
+
+        // Alignment
+        style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+
+        // Borders
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+
+        return style;
+    }
+
+    private CellStyle createBodenHouseCompanyHeaderStyle(XSSFWorkbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setBold(true);
+        font.setFontHeightInPoints((short) 12);
+        font.setFontName("Calibri");
+        style.setFont(font);
+
+        // Alignment
+        style.setAlignment(HorizontalAlignment.RIGHT);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+
+        return style;
+    }
+
+    private void setBodenHouseColumnWidths(XSSFSheet sheet) {
+        // Set column widths to match your spreadsheet (in Excel units)
+        int[] columnWidths = {
+            800,   // cde
+            2500,  // Unit No.
+            4000,  // Tenant
+            2000,  // Tenancy Dates
+            1500,  // Rent Due Date
+            2000,  // Rent Due Amount
+            2000,  // Rent Received Date
+            2000,  // Paid to Robert Ellis
+            2500,  // Paid to Propsk Old Account
+            2500,  // Paid to Propsk PayProp
+            2000,  // Rent Received Amount
+            2500,  // Amount received in Payprop
+            2500,  // Amount Received Old Account
+            2500,  // Total Rent Received By Propsk
+            1500,  // Management Fee (%)
+            2000,  // Management Fee (£)
+            1500,  // Service Fee (%)
+            2000,  // Service Fee (£)
+            2500,  // Total Fees Charged by Propsk
+            2000,  // Expense 1 Label
+            2000,  // Expense 1 Amount
+            3000,  // Expense 1 Comment
+            2000,  // Expense 2 Label
+            2000,  // Expense 2 Amount
+            3000,  // Expense 2 Comment
+            2000,  // Expense 3 Label
+            2000,  // Expense 3 Amount
+            3000,  // Expense 3 Comment
+            2000,  // Expense 4 Label
+            2000,  // Expense 4 Amount
+            3000,  // Expense 4 Comment
+            2000,  // Total Expenses
+            2500,  // Total Expenses and Commission
+            2500,  // Net Due to Prestvale
+            3000,  // Net Due from Propsk After Expenses and Commissions
+            1500,  // Date Paid
+            2000,  // Rent Due less Received
+            2000   // Comments
+        };
+
+        for (int i = 0; i < columnWidths.length && i < 38; i++) {
+            sheet.setColumnWidth(i, columnWidths[i]);
+        }
     }
 
     // ===== DATA BUILDING METHODS (Copied from GoogleSheetsStatementService) =====
