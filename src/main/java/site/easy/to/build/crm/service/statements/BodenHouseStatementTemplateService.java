@@ -8,6 +8,7 @@ import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.dto.StatementGenerationRequest;
 import site.easy.to.build.crm.enums.StatementDataSource;
+import site.easy.to.build.crm.service.tenant.TenantBalanceService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -38,6 +39,9 @@ public class BodenHouseStatementTemplateService {
 
     @Autowired
     private FinancialTransactionRepository financialTransactionRepository;
+
+    @Autowired
+    private TenantBalanceService tenantBalanceService;
 
     /**
      * Generate Property Owner Statement using Boden House template
@@ -434,6 +438,9 @@ public class BodenHouseStatementTemplateService {
         Object[] row = new Object[38];
         Arrays.fill(row, "");
 
+        // Calculate current row number for formulas (Excel rows are 1-based)
+        int currentRow = values.size() + 1;
+
         row[0] = ""; // cde
         row[1] = unit.unitNumber;
         row[2] = unit.tenantName;
@@ -445,14 +452,16 @@ public class BodenHouseStatementTemplateService {
         row[8] = unit.paidToPropskOldAccount ? "TRUE" : "FALSE";
         row[9] = unit.paidToPropskPayProp ? "TRUE" : "FALSE";
         row[10] = unit.rentReceivedAmount;
-        row[11] = unit.amountReceivedPayProp;
-        row[12] = unit.amountReceivedOldAccount;
-        row[13] = unit.totalRentReceivedByPropsk;
-        row[14] = unit.managementFeePercentage + "%";
-        row[15] = unit.managementFeeAmount;
-        row[16] = unit.serviceFeePercentage + "%";
-        row[17] = unit.serviceFeeAmount;
-        row[18] = unit.totalFeesChargedByPropsk;
+
+        // Excel formulas matching your spreadsheet exactly
+        row[11] = "=L" + currentRow + "*K" + currentRow; // Amount received in Payprop
+        row[12] = "=J" + currentRow + "*L" + currentRow; // Amount Received Old Account
+        row[13] = "=(L" + currentRow + "*J" + currentRow + ")+(L" + currentRow + "*K" + currentRow + ")"; // Total Rent Received By Propsk
+        row[14] = "10%"; // Management Fee %
+        row[15] = "=L" + currentRow + "*-P" + currentRow; // Management Fee £
+        row[16] = "5%"; // Service Fee %
+        row[17] = "=L" + currentRow + "*-R" + currentRow; // Service Fee £
+        row[18] = "=Q" + currentRow + "+S" + currentRow; // Total Fees Charged by Propsk
 
         // Expenses (up to 4 expenses like your spreadsheet)
         for (int i = 0; i < 4 && i < unit.expenses.size(); i++) {
@@ -462,13 +471,17 @@ public class BodenHouseStatementTemplateService {
             row[21 + (i * 3)] = expense.comment;
         }
 
-        row[31] = unit.totalExpenses;
-        row[32] = unit.totalExpensesAndCommission;
-        row[33] = unit.netDueToOwner;
-        row[34] = unit.netDueToOwner; // Net Due from Propsk After Expenses and Commissions
+        // More formulas matching your spreadsheet
+        row[31] = "=-V" + currentRow + "+-Y" + currentRow + "+-AB" + currentRow + "+-AE" + currentRow; // Total Expenses
+        row[32] = "=AG" + currentRow + "+T" + currentRow; // Total Expenses and Commission
+        row[33] = "=L" + currentRow + "+T" + currentRow + "+AG" + currentRow; // Net Due to Owner
+        row[34] = "=O" + currentRow + "+AH" + currentRow; // Net Due from Propsk After Expenses and Commissions
         row[35] = unit.datePaid;
-        row[36] = unit.rentDueLessReceived;
-        row[37] = unit.comments;
+        row[36] = "=G" + currentRow + "-L" + currentRow; // Rent Due less Received
+
+        // Generate cross-sheet reference for running tenant balance (like your spreadsheet)
+        String tenantBalanceFormula = generateTenantBalanceFormula(unit, currentRow);
+        row[37] = tenantBalanceFormula; // Tenant Balance with cross-sheet reference
 
         values.add(Arrays.asList(row));
     }
@@ -477,18 +490,28 @@ public class BodenHouseStatementTemplateService {
 
     private void addGroupTotals(List<List<Object>> values, PropertyGroup group, Object[] emptyRow) {
         Object[] totalRow = emptyRow.clone();
+
+        // Calculate the range for SUM formulas
+        int currentRow = values.size() + 1;
+        int startDataRow = currentRow - group.units.size(); // Start of data rows
+        int endDataRow = currentRow - 1; // End of data rows
+
         totalRow[1] = "TOTAL";
-        totalRow[5] = group.totalRentDue;
-        totalRow[10] = group.totalRentReceived;
-        totalRow[11] = group.totalReceivedPayProp;
-        totalRow[12] = group.totalReceivedOldAccount;
-        totalRow[13] = group.totalReceivedByPropsk;
-        totalRow[15] = group.totalManagementFees;
-        totalRow[17] = group.totalServiceFees;
-        totalRow[18] = group.totalFees;
-        totalRow[31] = group.totalExpenses;
-        totalRow[32] = group.totalExpensesAndCommission;
-        totalRow[33] = group.totalNetDue;
+
+        // SUM formulas matching your spreadsheet exactly
+        totalRow[5] = "=SUM(G" + startDataRow + ":G" + endDataRow + ")"; // Rent Due
+        totalRow[10] = "=SUM(L" + startDataRow + ":L" + endDataRow + ")"; // Rent Received
+        totalRow[11] = "=SUM(M" + startDataRow + ":M" + endDataRow + ")"; // Amount received in Payprop
+        totalRow[12] = "=SUM(N" + startDataRow + ":N" + endDataRow + ")"; // Amount Received Old Account
+        totalRow[13] = "=SUM(O" + startDataRow + ":O" + endDataRow + ")"; // Total Rent Received By Propsk
+        totalRow[15] = "=SUM(Q" + startDataRow + ":Q" + endDataRow + ")"; // Management Fees
+        totalRow[17] = "=SUM(S" + startDataRow + ":S" + endDataRow + ")"; // Service Fees
+        totalRow[18] = "=SUM(T" + startDataRow + ":T" + endDataRow + ")"; // Total Fees
+        totalRow[31] = "=SUM(AG" + startDataRow + ":AG" + endDataRow + ")"; // Total Expenses
+        totalRow[32] = "=SUM(AH" + startDataRow + ":AH" + endDataRow + ")"; // Total Expenses and Commission
+        totalRow[33] = "=SUM(AI" + startDataRow + ":AI" + endDataRow + ")"; // Net Due
+        totalRow[36] = "=SUM(AL" + startDataRow + ":AL" + endDataRow + ")"; // Rent Due less Received
+
         values.add(Arrays.asList(totalRow));
     }
 
@@ -777,6 +800,7 @@ public class BodenHouseStatementTemplateService {
         public String unitNumber;
         public String propertyAddress;
         public String tenantName;
+        public String tenantId; // For tenant balance tracking
         public String tenancyDates;
         public Integer rentDueDate;
         public BigDecimal rentDueAmount = BigDecimal.ZERO;
@@ -883,6 +907,39 @@ public class BodenHouseStatementTemplateService {
         expense.amount = transaction.getAmount();
         expense.comment = transaction.getDescription();
         return expense;
+    }
+
+    /**
+     * Generate tenant balance formula with cross-sheet reference
+     * Mimics: =AL14+'May Propsk Statement'!AM14
+     */
+    private String generateTenantBalanceFormula(PropertyUnit unit, int currentRow) {
+        // Current period calculation: Rent Due - Rent Received
+        String currentBalance = "AL" + currentRow;
+
+        // Try to generate cross-sheet reference if there's historical data
+        if (unit.tenantId != null && !unit.tenantId.isEmpty()) {
+            LocalDate currentPeriod = LocalDate.now(); // Or get from context
+            String crossSheetRef = tenantBalanceService.generateCrossSheetFormula(
+                currentBalance, unit.tenantId, currentPeriod, currentRow);
+
+            return crossSheetRef;
+        } else {
+            // No tenant ID, just use current calculation
+            return currentBalance;
+        }
+    }
+
+    /**
+     * Update all tenant balances for statement period
+     */
+    public void updateTenantBalancesForPeriod(Customer propertyOwner, LocalDate fromDate, LocalDate toDate) {
+        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+
+        for (Property property : properties) {
+            // Update balances for each property
+            tenantBalanceService.updatePropertyBalances(property, toDate);
+        }
     }
 
 }
