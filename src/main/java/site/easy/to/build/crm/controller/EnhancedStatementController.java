@@ -9,6 +9,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import site.easy.to.build.crm.dto.StatementGenerationRequest;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.enums.StatementDataSource;
 import site.easy.to.build.crm.service.customer.CustomerService;
@@ -51,7 +52,7 @@ public class EnhancedStatementController {
     @GetMapping
     public String showStatementForm(Model model) {
         // Get all property owners for dropdown
-        List<Customer> propertyOwners = customerService.getPropertyOwners();
+        List<Customer> propertyOwners = customerService.findByCustomerType(CustomerType.PROPERTY_OWNER);
         model.addAttribute("propertyOwners", propertyOwners);
 
         // Add data sources for checkboxes
@@ -95,8 +96,8 @@ public class EnhancedStatementController {
             request.setIncludeFormulas(includeFormulas);
 
             // Generate statement
-            Customer propertyOwner = customerService.getCustomerById(propertyOwnerId);
-            byte[] xlsxData = xlsxStatementService.generatePropertyOwnerStatementXLSX(request);
+            Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId);
+            byte[] xlsxData = xlsxStatementService.generatePropertyOwnerStatementXLSX(propertyOwner, fromDate, toDate);
 
             // Generate filename with data source info
             String filename = generateFilename(propertyOwner, fromDate, toDate, selectedDataSources, "xlsx");
@@ -132,16 +133,16 @@ public class EnhancedStatementController {
             Set<StatementDataSource> selectedDataSources = parseDataSources(dataSources);
 
             // Get OAuth user for Google Sheets access
-            OAuthUser oAuthUser = oAuthUserService.getOAuthUserByEmail(authentication.getName());
+            OAuthUser oAuthUser = oAuthUserService.findBtEmail(authentication.getName());
             if (oAuthUser == null) {
                 return ResponseEntity.badRequest()
                     .body("{\"error\": \"Google OAuth not configured. Please sign in with Google first.\"}");
             }
 
             // Generate statement
-            Customer propertyOwner = customerService.getCustomerById(propertyOwnerId);
+            Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId);
             String spreadsheetId = googleSheetsStatementService.createPropertyOwnerStatement(
-                oAuthUser, propertyOwner, fromDate, toDate, selectedDataSources);
+                oAuthUser, propertyOwner, fromDate, toDate);
 
             String spreadsheetUrl = "https://docs.google.com/spreadsheets/d/" + spreadsheetId;
 
@@ -180,8 +181,8 @@ public class EnhancedStatementController {
             request.setOutputFormat("XLSX");
 
             // Generate statement
-            Customer propertyOwner = customerService.getCustomerById(propertyOwnerId);
-            byte[] xlsxData = xlsxStatementService.generatePortfolioStatementXLSX(request);
+            Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId);
+            byte[] xlsxData = xlsxStatementService.generatePortfolioStatementXLSX(propertyOwner, fromDate, toDate);
 
             // Generate filename
             String filename = generateFilename(propertyOwner, fromDate, toDate, selectedDataSources, "xlsx")

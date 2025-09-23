@@ -59,7 +59,7 @@ public class BodenHouseStatementTemplateService {
      * Generate Property Owner Statement using StatementGenerationRequest
      */
     public List<List<Object>> generatePropertyOwnerStatement(StatementGenerationRequest request) {
-        Customer propertyOwner = customerService.getCustomerById(request.getPropertyOwnerId());
+        Customer propertyOwner = customerService.findByCustomerId(request.getPropertyOwnerId());
         return generatePropertyOwnerStatement(propertyOwner, request.getFromDate(), request.getToDate(), request.getIncludedDataSources());
     }
 
@@ -837,11 +837,40 @@ public class BodenHouseStatementTemplateService {
      * Get filtered expenses for property
      */
     private List<ExpenseItem> getFilteredExpensesForProperty(Property property, LocalDate fromDate, LocalDate toDate, Set<StatementDataSource> includedDataSources) {
-        List<FinancialTransaction> allExpenseTransactions = getExpensesForProperty(property, fromDate, toDate);
+        // Get all expense transactions directly from financial transactions
+        List<FinancialTransaction> allExpenseTransactions = getExpenseTransactionsForProperty(property, fromDate, toDate);
         List<FinancialTransaction> filteredExpenses = filterTransactionsByDataSource(allExpenseTransactions, includedDataSources);
 
         return filteredExpenses.stream()
             .map(this::convertToExpenseItem)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Check if transaction is an expense
+     */
+    private boolean isExpenseTransaction(FinancialTransaction transaction) {
+        String type = transaction.getTransactionType();
+        return type != null && (
+            type.contains("payment") ||
+            type.contains("expense") ||
+            type.contains("debit") ||
+            type.equals("payment_to_contractor") ||
+            type.equals("payment_to_beneficiary")
+        );
+    }
+
+    /**
+     * Get expense transactions for property (returns FinancialTransaction list)
+     */
+    private List<FinancialTransaction> getExpenseTransactionsForProperty(Property property, LocalDate fromDate, LocalDate toDate) {
+        if (property.getPayPropId() == null) {
+            return new ArrayList<>();
+        }
+
+        return financialTransactionRepository.findByPropertyAndDateRange(property.getPayPropId(), fromDate, toDate)
+            .stream()
+            .filter(this::isExpenseTransaction)
             .collect(Collectors.toList());
     }
 
