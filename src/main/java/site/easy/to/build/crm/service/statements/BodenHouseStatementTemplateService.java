@@ -191,7 +191,7 @@ public class BodenHouseStatementTemplateService {
         setPaymentRouting(unit, transactions);
 
         // Calculate amounts
-        calculateUnitAmounts(unit, transactions);
+        calculateUnitAmounts(unit, property, transactions);
 
         // Get expenses for this property
         unit.expenses = getExpensesForProperty(property, fromDate, toDate);
@@ -230,7 +230,7 @@ public class BodenHouseStatementTemplateService {
         setPaymentRouting(unit, filteredTransactions);
 
         // Calculate amounts using filtered transactions
-        calculateUnitAmounts(unit, filteredTransactions);
+        calculateUnitAmounts(unit, property, filteredTransactions);
 
         // Get expenses for this property (also filtered)
         unit.expenses = getFilteredExpensesForProperty(property, fromDate, toDate, includedDataSources);
@@ -266,16 +266,39 @@ public class BodenHouseStatementTemplateService {
     /**
      * Calculate all unit amounts following your spreadsheet formulas
      */
-    private void calculateUnitAmounts(PropertyUnit unit, List<FinancialTransaction> transactions) {
+    private void calculateUnitAmounts(PropertyUnit unit, Property property, List<FinancialTransaction> transactions) {
         // Calculate rent received
         unit.rentReceivedAmount = calculateTotalRentReceived(transactions);
         unit.amountReceivedPayProp = calculatePayPropAmount(transactions);
         unit.amountReceivedOldAccount = calculateOldAccountAmount(transactions);
         unit.totalRentReceivedByPropsk = unit.amountReceivedPayProp.add(unit.amountReceivedOldAccount);
 
-        // Commission calculations (10% + 5% = 15%)
-        unit.managementFeePercentage = new BigDecimal("10.00");
-        unit.serviceFeePercentage = new BigDecimal("5.00");
+        // Commission calculations - split total commission like PayProp would
+        BigDecimal totalCommission = property.getCommissionPercentage() != null ?
+            property.getCommissionPercentage() : new BigDecimal("15.00");
+
+        // Split total commission into management and service components
+        // Business rule: Standard split is 10% management + 5% service = 15% total
+        // For other totals, proportionally adjust management while keeping 5% service
+        if (totalCommission.equals(new BigDecimal("15.00"))) {
+            // Standard case: 10% + 5% = 15%
+            unit.managementFeePercentage = new BigDecimal("10.00");
+            unit.serviceFeePercentage = new BigDecimal("5.00");
+        } else if (totalCommission.equals(new BigDecimal("10.00"))) {
+            // Knighton Hayes case: 10% + 0% = 10% (no service fee)
+            unit.managementFeePercentage = new BigDecimal("10.00");
+            unit.serviceFeePercentage = new BigDecimal("0.00");
+        } else {
+            // Variable rate: subtract 5% service fee, remainder is management
+            unit.serviceFeePercentage = new BigDecimal("5.00");
+            unit.managementFeePercentage = totalCommission.subtract(unit.serviceFeePercentage);
+
+            // Ensure management fee is not negative
+            if (unit.managementFeePercentage.compareTo(BigDecimal.ZERO) < 0) {
+                unit.managementFeePercentage = totalCommission;
+                unit.serviceFeePercentage = BigDecimal.ZERO;
+            }
+        }
 
         if (unit.rentReceivedAmount.compareTo(BigDecimal.ZERO) > 0) {
             unit.managementFeeAmount = unit.rentReceivedAmount
@@ -462,10 +485,14 @@ public class BodenHouseStatementTemplateService {
         row[11] = "=L" + currentRow + "*K" + currentRow; // Amount received in Payprop
         row[12] = "=J" + currentRow + "*L" + currentRow; // Amount Received Old Account
         row[13] = "=(L" + currentRow + "*J" + currentRow + ")+(L" + currentRow + "*K" + currentRow + ")"; // Total Rent Received By Propsk
-        row[14] = "10%"; // Management Fee %
-        row[15] = "=L" + currentRow + "*-P" + currentRow; // Management Fee £
-        row[16] = "5%"; // Service Fee %
-        row[17] = "=L" + currentRow + "*-R" + currentRow; // Service Fee £
+        // Store percentages as decimals for Excel formulas but display as percentages
+        BigDecimal managementDecimal = unit.managementFeePercentage.divide(new BigDecimal("100"), 4, BigDecimal.ROUND_HALF_UP);
+        BigDecimal serviceDecimal = unit.serviceFeePercentage.divide(new BigDecimal("100"), 4, BigDecimal.ROUND_HALF_UP);
+
+        row[14] = managementDecimal; // Management Fee % (as decimal for Excel) - Column O
+        row[15] = "=L" + currentRow + "*-O" + currentRow; // Management Fee £ - Column P
+        row[16] = serviceDecimal; // Service Fee % (as decimal for Excel) - Column Q
+        row[17] = "=L" + currentRow + "*-Q" + currentRow; // Service Fee £ - Column R
         row[18] = "=Q" + currentRow + "+S" + currentRow; // Total Fees Charged by Propsk
 
         // Expenses (up to 4 expenses like your spreadsheet)
@@ -954,25 +981,28 @@ public class BodenHouseStatementTemplateService {
     private List<Property> generateSampleProperties(Customer propertyOwner) {
         List<Property> sampleProperties = new ArrayList<>();
 
-        // Create sample Boden House property
+        // Create sample properties with total commission rates (like PayProp)
         Property bodenFlat1 = new Property();
         bodenFlat1.setId(999L);
         bodenFlat1.setPayPropId("SAMPLE_BODEN_FLAT1");
-        bodenFlat1.setPropertyName("FLAT 1, BODEN HOUSE");
-        bodenFlat1.setMonthlyPayment(new BigDecimal("1200.00"));
+        bodenFlat1.setPropertyName("FLAT 1 - 3 WEST GATE");
+        bodenFlat1.setMonthlyPayment(new BigDecimal("795.00"));
+        bodenFlat1.setCommissionPercentage(new BigDecimal("15.00")); // Total commission (10% mgmt + 5% service)
 
         Property bodenFlat2 = new Property();
         bodenFlat2.setId(998L);
         bodenFlat2.setPayPropId("SAMPLE_BODEN_FLAT2");
-        bodenFlat2.setPropertyName("FLAT 2, BODEN HOUSE");
-        bodenFlat2.setMonthlyPayment(new BigDecimal("1350.00"));
+        bodenFlat2.setPropertyName("FLAT 2 - 3 WEST GATE");
+        bodenFlat2.setMonthlyPayment(new BigDecimal("740.00"));
+        bodenFlat2.setCommissionPercentage(new BigDecimal("15.00")); // Total commission (10% mgmt + 5% service)
 
-        // Create sample Knighton Hayes property
+        // Create sample Knighton Hayes property (total 10% commission, no service fee)
         Property knightonFlat1 = new Property();
         knightonFlat1.setId(997L);
         knightonFlat1.setPayPropId("SAMPLE_KNIGHTON_FLAT1");
-        knightonFlat1.setPropertyName("FLAT 1, KNIGHTON HAYES");
-        knightonFlat1.setMonthlyPayment(new BigDecimal("1100.00"));
+        knightonFlat1.setPropertyName("Apartment F - Knighton Hayes");
+        knightonFlat1.setMonthlyPayment(new BigDecimal("1125.00"));
+        knightonFlat1.setCommissionPercentage(new BigDecimal("10.00")); // Total commission (10% mgmt + 0% service)
 
         sampleProperties.add(bodenFlat1);
         sampleProperties.add(bodenFlat2);

@@ -104,6 +104,12 @@ public class Property {
     @Column(name = "commission_amount", precision = 10, scale = 2)
     private BigDecimal commissionAmount;
 
+    @Column(name = "service_fee_percentage", precision = 5, scale = 2)
+    private BigDecimal serviceFeePercentage;
+
+    @Column(name = "service_fee_amount", precision = 10, scale = 2)
+    private BigDecimal serviceFeeAmount;
+
     @Column(name = "account_balance", precision = 10, scale = 2)
     private BigDecimal accountBalance;
     
@@ -384,6 +390,12 @@ public class Property {
 
     public BigDecimal getCommissionAmount() { return commissionAmount; }
     public void setCommissionAmount(BigDecimal commissionAmount) { this.commissionAmount = commissionAmount; }
+
+    public BigDecimal getServiceFeePercentage() { return serviceFeePercentage; }
+    public void setServiceFeePercentage(BigDecimal serviceFeePercentage) { this.serviceFeePercentage = serviceFeePercentage; }
+
+    public BigDecimal getServiceFeeAmount() { return serviceFeeAmount; }
+    public void setServiceFeeAmount(BigDecimal serviceFeeAmount) { this.serviceFeeAmount = serviceFeeAmount; }
 
     public BigDecimal getAccountBalance() { return accountBalance; }
     public void setAccountBalance(BigDecimal accountBalance) { this.accountBalance = accountBalance; }
