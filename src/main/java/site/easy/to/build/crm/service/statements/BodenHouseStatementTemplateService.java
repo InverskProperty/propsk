@@ -88,6 +88,11 @@ public class BodenHouseStatementTemplateService {
         // Get all properties for this owner
         List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
 
+        // TEMPORARY: If no properties found, generate sample data for testing
+        if (properties.isEmpty()) {
+            properties = generateSampleProperties(propertyOwner);
+        }
+
         // Group properties by building/location (like your spreadsheet)
         Map<String, List<Property>> propertiesByBuilding = properties.stream()
             .collect(Collectors.groupingBy(this::extractBuildingName));
@@ -940,6 +945,40 @@ public class BodenHouseStatementTemplateService {
             // Update balances for each property
             tenantBalanceService.updatePropertyBalances(property, toDate);
         }
+    }
+
+    /**
+     * TEMPORARY: Generate sample properties for testing formulas when no real data exists
+     * This will be removed once real property data is imported
+     */
+    private List<Property> generateSampleProperties(Customer propertyOwner) {
+        List<Property> sampleProperties = new ArrayList<>();
+
+        // Create sample Boden House property
+        Property bodenFlat1 = new Property();
+        bodenFlat1.setId(999L);
+        bodenFlat1.setPayPropId("SAMPLE_BODEN_FLAT1");
+        bodenFlat1.setPropertyName("FLAT 1, BODEN HOUSE");
+        bodenFlat1.setMonthlyPayment(new BigDecimal("1200.00"));
+
+        Property bodenFlat2 = new Property();
+        bodenFlat2.setId(998L);
+        bodenFlat2.setPayPropId("SAMPLE_BODEN_FLAT2");
+        bodenFlat2.setPropertyName("FLAT 2, BODEN HOUSE");
+        bodenFlat2.setMonthlyPayment(new BigDecimal("1350.00"));
+
+        // Create sample Knighton Hayes property
+        Property knightonFlat1 = new Property();
+        knightonFlat1.setId(997L);
+        knightonFlat1.setPayPropId("SAMPLE_KNIGHTON_FLAT1");
+        knightonFlat1.setPropertyName("FLAT 1, KNIGHTON HAYES");
+        knightonFlat1.setMonthlyPayment(new BigDecimal("1100.00"));
+
+        sampleProperties.add(bodenFlat1);
+        sampleProperties.add(bodenFlat2);
+        sampleProperties.add(knightonFlat1);
+
+        return sampleProperties;
     }
 
 }
