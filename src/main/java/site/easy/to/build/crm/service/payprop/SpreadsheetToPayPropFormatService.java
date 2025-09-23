@@ -77,12 +77,31 @@ public class SpreadsheetToPayPropFormatService {
         LocalDate periodDate = parsePeriodDate(period);
 
         try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
-            Sheet sheet = workbook.getSheetAt(0); // First sheet
+            // Process all sheets in the workbook to handle cross-sheet references
+            logger.info("Processing {} sheets in workbook", workbook.getNumberOfSheets());
 
-            boolean inPropertySection = false;
-            String currentProperty = null;
+            for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
+                Sheet sheet = workbook.getSheetAt(sheetIndex);
+                String sheetName = sheet.getSheetName();
+                logger.info("Processing sheet: {}", sheetName);
 
-            for (Row row : sheet) {
+                // Skip summary or calculation sheets
+                if (sheetName.toLowerCase().contains("summary") ||
+                    sheetName.toLowerCase().contains("total")) {
+                    continue;
+                }
+
+                // Auto-detect period from sheet name (e.g., "May Propsk Statement")
+                LocalDate sheetPeriodDate = extractPeriodFromSheetName(sheetName);
+                if (sheetPeriodDate != null) {
+                    periodDate = sheetPeriodDate;
+                    logger.info("Using period {} from sheet name: {}", periodDate, sheetName);
+                }
+
+                boolean inPropertySection = false;
+                String currentProperty = null;
+
+                for (Row row : sheet) {
                 if (row == null) continue;
 
                 // Convert row to string array for processing
@@ -115,7 +134,8 @@ public class SpreadsheetToPayPropFormatService {
                 if (rowText.contains("BUILDING ADDITIONAL INCOME") || rowText.contains("Maintenance")) {
                     transactions.addAll(processExpenseTransaction(columns, periodDate, currentProperty));
                 }
-            }
+            } // End row loop
+            } // End sheet loop
         }
 
         logger.info("Extracted {} transactions from Excel spreadsheet", transactions.size());
@@ -426,6 +446,56 @@ public class SpreadsheetToPayPropFormatService {
         }
 
         return LocalDate.now(); // Fallback to current date
+    }
+
+    /**
+     * Extract period from sheet name like "May Propsk Statement" or "Jun 2025 Statement"
+     */
+    private LocalDate extractPeriodFromSheetName(String sheetName) {
+        try {
+            String lower = sheetName.toLowerCase();
+
+            // Handle "May Propsk Statement" format
+            String[] parts = sheetName.split(" ");
+            for (int i = 0; i < parts.length; i++) {
+                String part = parts[i].toLowerCase();
+                int monthNum = switch (part) {
+                    case "jan", "january" -> 1;
+                    case "feb", "february" -> 2;
+                    case "mar", "march" -> 3;
+                    case "apr", "april" -> 4;
+                    case "may" -> 5;
+                    case "jun", "june" -> 6;
+                    case "jul", "july" -> 7;
+                    case "aug", "august" -> 8;
+                    case "sep", "september" -> 9;
+                    case "oct", "october" -> 10;
+                    case "nov", "november" -> 11;
+                    case "dec", "december" -> 12;
+                    default -> 0;
+                };
+
+                if (monthNum > 0) {
+                    // Found month, look for year in next parts or use current year
+                    int year = LocalDate.now().getYear();
+                    for (int j = i + 1; j < parts.length; j++) {
+                        try {
+                            int parsedYear = Integer.parseInt(parts[j].replaceAll("[^0-9]", ""));
+                            if (parsedYear > 2000 && parsedYear < 3000) {
+                                year = parsedYear;
+                                break;
+                            }
+                        } catch (NumberFormatException ignored) {}
+                    }
+
+                    return LocalDate.of(year, monthNum, 1); // First day of month
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Could not extract period from sheet name: {}", sheetName);
+        }
+
+        return null;
     }
 
     private String extractPropertyName(String line) {
