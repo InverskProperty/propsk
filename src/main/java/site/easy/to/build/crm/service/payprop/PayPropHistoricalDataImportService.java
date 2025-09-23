@@ -159,6 +159,17 @@ public class PayPropHistoricalDataImportService {
             Property property = findMatchingProperty(imported.propertyReference, propertyMap);
             if (property == null) {
                 result.addWarning("Property not found: " + imported.propertyReference);
+                result.skippedCount++;
+                return;
+            }
+
+            // Check for duplicate transaction
+            if (isDuplicateTransaction(imported, property)) {
+                result.addWarning("Skipped duplicate transaction: " + imported.description +
+                                " for property " + imported.propertyReference +
+                                " on " + imported.transactionDate);
+                result.skippedCount++;
+                return;
             }
 
             // Create FinancialTransaction (PayProp-compatible format)
@@ -470,6 +481,73 @@ public class PayPropHistoricalDataImportService {
         };
     }
 
+    /**
+     * Check if transaction is a duplicate of existing data
+     * Uses multiple criteria to detect duplicates across different import sources
+     */
+    private boolean isDuplicateTransaction(ImportedTransaction imported, Property property) {
+        // Define duplicate detection criteria
+        LocalDate startDate = imported.transactionDate.minusDays(2); // Allow 2-day tolerance
+        LocalDate endDate = imported.transactionDate.plusDays(2);
+
+        // Look for existing transactions with same property, similar date, and same amount
+        List<FinancialTransaction> existingTransactions = financialTransactionRepository
+            .findByPropertyAndDateRange(property.getPayPropId(), startDate, endDate);
+
+        for (FinancialTransaction existing : existingTransactions) {
+            // Check for exact match on key fields
+            if (isExactMatch(imported, existing)) {
+                logger.debug("Found exact duplicate: {} on {}", imported.description, imported.transactionDate);
+                return true;
+            }
+
+            // Check for similar transaction (different sources, same financial impact)
+            if (isSimilarTransaction(imported, existing)) {
+                logger.debug("Found similar transaction: {} on {}", imported.description, imported.transactionDate);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check for exact match (same import source, same data)
+     */
+    private boolean isExactMatch(ImportedTransaction imported, FinancialTransaction existing) {
+        return imported.amount.compareTo(existing.getAmount()) == 0 &&
+               imported.transactionDate.equals(existing.getTransactionDate()) &&
+               imported.description.equals(existing.getDescription());
+    }
+
+    /**
+     * Check for similar transaction (different sources, same financial impact)
+     */
+    private boolean isSimilarTransaction(ImportedTransaction imported, FinancialTransaction existing) {
+        // Same amount and date within tolerance
+        boolean sameAmountAndDate = imported.amount.compareTo(existing.getAmount()) == 0 &&
+                                   Math.abs(imported.transactionDate.toEpochDay() - existing.getTransactionDate().toEpochDay()) <= 1;
+
+        if (!sameAmountAndDate) {
+            return false;
+        }
+
+        // Check if descriptions are similar (rent payments, same category)
+        String importedDesc = imported.description.toLowerCase();
+        String existingDesc = existing.getDescription() != null ? existing.getDescription().toLowerCase() : "";
+
+        // Consider similar if both are rent payments
+        boolean bothRentPayments = (importedDesc.contains("rent") && existingDesc.contains("rent")) ||
+                                  (imported.category != null && imported.category.toLowerCase().contains("rent") &&
+                                   existing.getCategoryName() != null && existing.getCategoryName().toLowerCase().contains("rent"));
+
+        // Consider similar if categories match
+        boolean categoriesMatch = imported.category != null && existing.getCategoryName() != null &&
+                                 imported.category.equalsIgnoreCase(existing.getCategoryName());
+
+        return bothRentPayments || categoriesMatch;
+    }
+
     // ===== INNER CLASSES =====
 
     /**
@@ -497,6 +575,7 @@ public class PayPropHistoricalDataImportService {
         public LocalDateTime startTime;
         public LocalDateTime endTime;
         public int processedCount = 0;
+        public int skippedCount = 0;
         public int errorCount = 0;
         public int warningCount = 0;
         public List<String> errors = new ArrayList<>();
