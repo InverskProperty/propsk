@@ -22,7 +22,8 @@
       "Read(/C:\\Users\\sajid\\crecrm\\src\\main\\java\\site\\easy\\to\\build\\crm\\config/**)",
       "Bash(taskkill:*)",
       "Bash(powershell:*)",
-      "Bash(mvn clean:*)"
+      "Bash(mvn clean:*)",
+      "Bash(\"C:\\Program Files\\MySQL\\MySQL Server 9.3\\bin\\mysql.exe\" -u root -p12345 -D crm -e \"SELECT DISTINCT category FROM payprop_payments_categories LIMIT 20;\")"
     ],
     "deny": [],
     "ask": [],
