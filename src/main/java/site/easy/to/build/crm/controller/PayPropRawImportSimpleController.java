@@ -1276,17 +1276,59 @@ public class PayPropRawImportSimpleController {
                         return item;
                     });
             }
-            
+
+            // CRITICAL FIX: Now actually save the data to database using import services
+            log.info("💾 Saving {} items to database for endpoint: {}", items.size(), config.path);
+
+            int savedCount = 0;
+            String importStatus = "success";
+            String importError = null;
+
+            try {
+                // Route to appropriate import service based on endpoint
+                if (config.path.equals("/report/all-payments")) {
+                    log.info("🔄 Calling allPaymentsImportService for {} items", items.size());
+                    var importResult = allPaymentsImportService.importAllPayments();
+                    savedCount = importResult.getTotalImported();
+                    if (!importResult.isSuccess()) {
+                        importStatus = "failed";
+                        importError = importResult.getErrorMessage();
+                    }
+                } else if (config.path.equals("/report/icdn")) {
+                    log.info("🔄 Calling icdnImportService for {} items", items.size());
+                    var importResult = icdnImportService.importIcdn();
+                    savedCount = importResult.getTotalImported();
+                    if (!importResult.isSuccess()) {
+                        importStatus = "failed";
+                        importError = importResult.getErrorMessage();
+                    }
+                } else {
+                    // For other endpoints, we just fetched but don't have dedicated import services yet
+                    log.info("ℹ️ No dedicated import service for endpoint: {} - data fetched but not saved", config.path);
+                    savedCount = 0; // Not actually saved for non-report endpoints
+                }
+
+                log.info("✅ Import completed for {}: {} fetched, {} saved", config.path, items.size(), savedCount);
+
+            } catch (Exception e) {
+                log.error("❌ Database import failed for {}: {}", config.path, e.getMessage(), e);
+                importStatus = "error";
+                importError = e.getMessage();
+            }
+
             Map<String, Object> result = Map.of(
-                "totalProcessed", items.size(),
-                "items", items
+                "totalFetched", items.size(),
+                "totalSaved", savedCount,
+                "importStatus", importStatus,
+                "importError", importError != null ? importError : "none"
             );
-            
+
             return Map.of(
-                "success", true,
+                "success", importStatus.equals("success"),
                 "endpoint", config.path,
                 "description", config.description,
                 "total_items", items.size(),
+                "saved_items", savedCount,
                 "summary", result
             );
             
