@@ -1296,7 +1296,7 @@ public class PayPropRawImportSimpleController {
                     }
                 } else if (config.path.equals("/report/icdn")) {
                     log.info("🔄 Calling icdnImportService for {} items", items.size());
-                    var importResult = icdnImportService.importIcdn();
+                    var importResult = icdnImportService.importIcdnComplete();
                     savedCount = importResult.getTotalImported();
                     if (!importResult.isSuccess()) {
                         importStatus = "failed";
