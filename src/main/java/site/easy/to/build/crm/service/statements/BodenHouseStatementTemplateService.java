@@ -9,6 +9,8 @@ import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.dto.StatementGenerationRequest;
 import site.easy.to.build.crm.enums.StatementDataSource;
 import site.easy.to.build.crm.service.tenant.TenantBalanceService;
+import javax.sql.DataSource;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -42,6 +44,17 @@ public class BodenHouseStatementTemplateService {
 
     @Autowired
     private TenantBalanceService tenantBalanceService;
+
+    @Autowired
+    private DataSource dataSource;
+
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    public void setDataSource(DataSource dataSource) {
+        this.dataSource = dataSource;
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
+    }
 
     /**
      * Generate Property Owner Statement using Boden House template
@@ -180,9 +193,17 @@ public class BodenHouseStatementTemplateService {
         unit.tenancyDates = tenant != null && tenant.getMoveInDate() != null ?
             tenant.getMoveInDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "";
 
-        // Rent information
-        unit.rentDueAmount = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
-        unit.rentDueDate = extractRentDueDay(property);
+        // Enhanced rent information with PayProp data
+        enhanceWithPayPropInvoiceData(unit, property, fromDate, toDate);
+        if (unit.rentDueAmount.equals(BigDecimal.ZERO)) {
+            unit.rentDueAmount = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
+        }
+        if (unit.rentDueDate == null) {
+            unit.rentDueDate = extractRentDueDay(property);
+        }
+
+        // Add tenant balance/arrears data
+        enhanceWithTenantBalanceData(unit, property);
 
         // Get financial transactions for this property
         List<FinancialTransaction> transactions = getTransactionsForProperty(property, fromDate, toDate);
@@ -190,11 +211,13 @@ public class BodenHouseStatementTemplateService {
         // Determine payment routing (following your spreadsheet logic)
         setPaymentRouting(unit, transactions);
 
-        // Calculate amounts
+        // Calculate amounts with enhanced PayProp data
         calculateUnitAmounts(unit, property, transactions);
+        enhanceWithOwnerPaymentData(unit, property, fromDate, toDate);
 
-        // Get expenses for this property
+        // Get expenses for this property with enhanced data
         unit.expenses = getExpensesForProperty(property, fromDate, toDate);
+        enhanceExpensesWithComments(unit, property, fromDate, toDate);
 
         // Set comments
         unit.comments = determineComments(unit, property);
@@ -218,9 +241,17 @@ public class BodenHouseStatementTemplateService {
         unit.tenancyDates = tenant != null && tenant.getMoveInDate() != null ?
             tenant.getMoveInDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "";
 
-        // Rent information
-        unit.rentDueAmount = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
-        unit.rentDueDate = extractRentDueDay(property);
+        // Enhanced rent information with PayProp data
+        enhanceWithPayPropInvoiceData(unit, property, fromDate, toDate);
+        if (unit.rentDueAmount.equals(BigDecimal.ZERO)) {
+            unit.rentDueAmount = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
+        }
+        if (unit.rentDueDate == null) {
+            unit.rentDueDate = extractRentDueDay(property);
+        }
+
+        // Add tenant balance/arrears data
+        enhanceWithTenantBalanceData(unit, property);
 
         // Get financial transactions for this property with data source filtering
         List<FinancialTransaction> allTransactions = getTransactionsForProperty(property, fromDate, toDate);
@@ -229,11 +260,13 @@ public class BodenHouseStatementTemplateService {
         // Determine payment routing (following your spreadsheet logic)
         setPaymentRouting(unit, filteredTransactions);
 
-        // Calculate amounts using filtered transactions
+        // Calculate amounts using filtered transactions with enhanced PayProp data
         calculateUnitAmounts(unit, property, filteredTransactions);
+        enhanceWithOwnerPaymentData(unit, property, fromDate, toDate);
 
-        // Get expenses for this property (also filtered)
+        // Get expenses for this property (also filtered) with enhanced data
         unit.expenses = getFilteredExpensesForProperty(property, fromDate, toDate, includedDataSources);
+        enhanceExpensesWithComments(unit, property, fromDate, toDate);
 
         // Set comments
         unit.comments = "";
@@ -856,6 +889,12 @@ public class BodenHouseStatementTemplateService {
         public String datePaid;
         public BigDecimal rentDueLessReceived = BigDecimal.ZERO;
         public String comments;
+
+        // Enhanced PayProp fields
+        public BigDecimal tenantBalance = BigDecimal.ZERO;  // From payprop_report_tenant_balances
+        public BigDecimal payment1PayPropAccount = BigDecimal.ZERO;  // Owner payments
+        public BigDecimal payment1OldAccount = BigDecimal.ZERO;
+        public BigDecimal totalOwnerPayments = BigDecimal.ZERO;
     }
 
     public static class ExpenseItem {
@@ -1009,6 +1048,173 @@ public class BodenHouseStatementTemplateService {
         sampleProperties.add(knightonFlat1);
 
         return sampleProperties;
+    }
+
+    // ===== ENHANCED PAYPROP DATA INTEGRATION METHODS =====
+
+    /**
+     * Enhance unit with PayProp invoice data (rent due, payment day, etc.)
+     */
+    private void enhanceWithPayPropInvoiceData(PropertyUnit unit, Property property, LocalDate fromDate, LocalDate toDate) {
+        if (property.getPayPropId() == null) return;
+
+        try {
+            String sql = """
+                SELECT gross_amount, payment_day, from_date, to_date, frequency
+                FROM payprop_export_invoices
+                WHERE property_id = ?
+                AND is_active_instruction = TRUE
+                AND (from_date <= ? OR from_date IS NULL)
+                AND (to_date >= ? OR to_date IS NULL)
+                ORDER BY from_date DESC
+                LIMIT 1
+                """;
+
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql,
+                property.getPayPropId(), toDate, fromDate);
+
+            if (!results.isEmpty()) {
+                Map<String, Object> invoice = results.get(0);
+
+                // Set rent due amount from PayProp invoice
+                Object grossAmount = invoice.get("gross_amount");
+                if (grossAmount != null) {
+                    unit.rentDueAmount = new BigDecimal(grossAmount.toString());
+                }
+
+                // Set payment day from PayProp
+                Object paymentDay = invoice.get("payment_day");
+                if (paymentDay != null) {
+                    unit.rentDueDate = Integer.parseInt(paymentDay.toString());
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Could not enhance with PayProp invoice data for property " +
+                             property.getPayPropId() + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * Enhance unit with tenant balance data from PayProp
+     */
+    private void enhanceWithTenantBalanceData(PropertyUnit unit, Property property) {
+        if (property.getPayPropId() == null) return;
+
+        try {
+            String sql = """
+                SELECT balance_amount, last_updated
+                FROM payprop_report_tenant_balances
+                WHERE property_id = ?
+                ORDER BY last_updated DESC
+                LIMIT 1
+                """;
+
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql, property.getPayPropId());
+
+            if (!results.isEmpty()) {
+                Map<String, Object> balance = results.get(0);
+                Object balanceAmount = balance.get("balance_amount");
+
+                if (balanceAmount != null) {
+                    BigDecimal tenantBalance = new BigDecimal(balanceAmount.toString());
+
+                    // If tenant has arrears, adjust rent received to show shortfall
+                    if (tenantBalance.compareTo(BigDecimal.ZERO) > 0) {
+                        unit.tenantBalance = tenantBalance;
+                        // Add arrears to comments
+                        if (unit.comments == null || unit.comments.isEmpty()) {
+                            unit.comments = "Arrears: £" + tenantBalance;
+                        } else {
+                            unit.comments += " | Arrears: £" + tenantBalance;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Could not enhance with tenant balance data for property " +
+                             property.getPayPropId() + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * Enhance unit with owner payment data from PayProp
+     */
+    private void enhanceWithOwnerPaymentData(PropertyUnit unit, Property property, LocalDate fromDate, LocalDate toDate) {
+        if (property.getPayPropId() == null) return;
+
+        try {
+            String sql = """
+                SELECT SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as total_owner_payments
+                FROM payprop_report_all_payments
+                WHERE property_id = ?
+                AND beneficiary_type = 'beneficiary'
+                AND reconciliation_date BETWEEN ? AND ?
+                """;
+
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql,
+                property.getPayPropId(), fromDate, toDate);
+
+            if (!results.isEmpty()) {
+                Map<String, Object> payments = results.get(0);
+                Object ownerPayments = payments.get("total_owner_payments");
+
+                if (ownerPayments != null) {
+                    BigDecimal totalOwnerPayments = new BigDecimal(ownerPayments.toString());
+
+                    // Set owner payment fields for the spreadsheet format
+                    unit.payment1PayPropAccount = totalOwnerPayments;
+                    unit.totalOwnerPayments = totalOwnerPayments;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Could not enhance with owner payment data for property " +
+                             property.getPayPropId() + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * Enhance expenses with comments from historical spreadsheet data
+     */
+    private void enhanceExpensesWithComments(PropertyUnit unit, Property property, LocalDate fromDate, LocalDate toDate) {
+        // For historical data, try to get expense comments from financial_transactions notes field
+        try {
+            String sql = """
+                SELECT description, notes, category_name, amount
+                FROM financial_transactions
+                WHERE property_id = ?
+                AND transaction_date BETWEEN ? AND ?
+                AND transaction_type IN ('payment_to_contractor', 'expense', 'maintenance')
+                AND notes IS NOT NULL
+                AND notes != ''
+                """;
+
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql,
+                property.getPayPropId(), fromDate, toDate);
+
+            // Enhance existing expenses with comments
+            for (Map<String, Object> expenseData : results) {
+                String notes = (String) expenseData.get("notes");
+                String description = (String) expenseData.get("description");
+                BigDecimal amount = (BigDecimal) expenseData.get("amount");
+
+                // Find matching expense in unit.expenses and add comment
+                if (unit.expenses != null) {
+                    for (ExpenseItem expense : unit.expenses) {
+                        if (expense.amount.abs().equals(amount.abs())) {
+                            if (notes != null && !notes.isEmpty()) {
+                                expense.comment = notes;
+                            } else if (description != null && !description.isEmpty()) {
+                                expense.comment = description;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Could not enhance expenses with comments for property " +
+                             property.getPayPropId() + ": " + e.getMessage());
+        }
     }
 
 }

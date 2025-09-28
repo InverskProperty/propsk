@@ -121,12 +121,14 @@ public class SpreadsheetToPayPropFormatService {
                 String unitName = getColumnValue(columns, 2); // Unit No.
                 String tenant = getColumnValue(columns, 3);   // Tenant
                 String rentDueStr = getColumnValue(columns, 6); // Rent Due Amount
-                String rentReceivedDateStr = getColumnValue(columns, 7); // Rent Received Date
+                String rentReceivedStr = getColumnValue(columns, 13); // Rent Received Amount
+                String rentReceivedDateStr = getColumnValue(columns, 12); // Rent Received Date
+                String generalComments = getColumnValue(columns, 57); // General Comments
 
                 if (isValidRentRow(unitName, rentDueStr)) {
-                    transactions.addAll(processRentTransaction(
-                        unitName, tenant, rentDueStr, rentReceivedDateStr,
-                        columns, periodDate, currentProperty
+                    transactions.addAll(processEnhancedRentTransaction(
+                        unitName, tenant, rentDueStr, rentReceivedStr, rentReceivedDateStr,
+                        columns, periodDate, currentProperty, generalComments
                     ));
 
                     // NEW: Process owner payments for this property unit
@@ -173,12 +175,14 @@ public class SpreadsheetToPayPropFormatService {
             String unitName = getColumnValue(columns, 2); // Unit No.
             String tenant = getColumnValue(columns, 3);   // Tenant
             String rentDueStr = getColumnValue(columns, 6); // Rent Due Amount
-            String rentReceivedDateStr = getColumnValue(columns, 7); // Rent Received Date
+            String rentReceivedStr = getColumnValue(columns, 13); // Rent Received Amount
+            String rentReceivedDateStr = getColumnValue(columns, 12); // Rent Received Date
+            String generalComments = getColumnValue(columns, 57); // General Comments
 
             if (isValidRentRow(unitName, rentDueStr)) {
-                transactions.addAll(processRentTransaction(
-                    unitName, tenant, rentDueStr, rentReceivedDateStr,
-                    columns, periodDate, currentProperty
+                transactions.addAll(processEnhancedRentTransaction(
+                    unitName, tenant, rentDueStr, rentReceivedStr, rentReceivedDateStr,
+                    columns, periodDate, currentProperty, generalComments
                 ));
 
                 // NEW: Process owner payments for this property unit
@@ -260,40 +264,152 @@ public class SpreadsheetToPayPropFormatService {
     }
 
     /**
+     * Enhanced rent transaction processing with arrears tracking and actual payment dates
+     */
+    private List<PayPropTransaction> processEnhancedRentTransaction(
+            String unitName, String tenant, String rentDueStr, String rentReceivedStr,
+            String rentReceivedDateStr, String[] columns, LocalDate periodDate,
+            String property, String generalComments) {
+
+        List<PayPropTransaction> transactions = new ArrayList<>();
+
+        try {
+            BigDecimal rentDue = parseAmount(rentDueStr);
+            BigDecimal rentReceived = parseAmount(rentReceivedStr);
+
+            if (rentDue.compareTo(BigDecimal.ZERO) <= 0) {
+                return transactions; // Skip zero/negative amounts
+            }
+
+            LocalDate actualPaymentDate = parseTransactionDate(rentReceivedDateStr, periodDate);
+            String propertyReference = buildPropertyReference(unitName, property);
+            String paymentMethod = determinePaymentMethod(columns);
+            String bankReference = generateBankReference(unitName, actualPaymentDate, paymentMethod);
+
+            // 1. Rent Payment Transaction (use actual amount received)
+            BigDecimal paymentAmount = rentReceived.compareTo(BigDecimal.ZERO) > 0 ? rentReceived : rentDue;
+
+            PayPropTransaction rentPayment = new PayPropTransaction();
+            rentPayment.transactionDate = actualPaymentDate;
+            rentPayment.amount = paymentAmount;
+            rentPayment.description = String.format("Rent payment - %s",
+                actualPaymentDate.format(DateTimeFormatter.ofPattern("MMMM yyyy")));
+            rentPayment.transactionType = "deposit";
+            rentPayment.category = "rent";
+            rentPayment.propertyReference = propertyReference;
+            rentPayment.customerReference = cleanTenantName(tenant);
+            rentPayment.bankReference = bankReference;
+            rentPayment.paymentMethod = paymentMethod;
+
+            // Enhanced notes with comments and arrears info
+            String notes = "Monthly rent collection";
+            if (generalComments != null && !generalComments.trim().isEmpty()) {
+                notes += " | " + generalComments.trim();
+            }
+            if (rentReceived.compareTo(BigDecimal.ZERO) > 0 && rentReceived.compareTo(rentDue) < 0) {
+                BigDecimal shortfall = rentDue.subtract(rentReceived);
+                notes += " | Shortfall: £" + shortfall;
+            }
+            rentPayment.notes = notes;
+
+            transactions.add(rentPayment);
+
+            // 2. Arrears Transaction (if rent received < rent due)
+            if (rentReceived.compareTo(BigDecimal.ZERO) > 0 && rentReceived.compareTo(rentDue) < 0) {
+                BigDecimal arrearsAmount = rentDue.subtract(rentReceived);
+
+                PayPropTransaction arrears = new PayPropTransaction();
+                arrears.transactionDate = actualPaymentDate;
+                arrears.amount = arrearsAmount;
+                arrears.description = String.format("Rent arrears - %s (Due: £%s, Received: £%s)",
+                    actualPaymentDate.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
+                    rentDue, rentReceived);
+                arrears.transactionType = "arrears";
+                arrears.category = "rent_arrears";
+                arrears.propertyReference = propertyReference;
+                arrears.customerReference = cleanTenantName(tenant);
+                arrears.bankReference = bankReference + "-ARR";
+                arrears.paymentMethod = paymentMethod;
+                arrears.notes = "Outstanding rent amount";
+
+                transactions.add(arrears);
+            }
+
+            // 3. Commission Transaction (based on amount received, not due)
+            BigDecimal commissionRate = new BigDecimal("15.00");
+            BigDecimal commissionAmount = paymentAmount
+                .multiply(commissionRate)
+                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+
+            PayPropTransaction commission = new PayPropTransaction();
+            commission.transactionDate = actualPaymentDate;
+            commission.amount = commissionAmount.negate(); // Negative for commission
+            commission.description = String.format("Commission - %s (10%% mgmt + 5%% service)",
+                actualPaymentDate.format(DateTimeFormatter.ofPattern("MMMM yyyy")));
+            commission.transactionType = "fee";
+            commission.category = "commission";
+            commission.propertyReference = propertyReference;
+            commission.customerReference = cleanTenantName(tenant);
+            commission.bankReference = generateCommissionReference(unitName, actualPaymentDate);
+            commission.paymentMethod = paymentMethod;
+            commission.notes = "15% total commission";
+
+            transactions.add(commission);
+
+        } catch (Exception e) {
+            logger.warn("Failed to process enhanced rent transaction for unit {}: {}", unitName, e.getMessage());
+        }
+
+        return transactions;
+    }
+
+    /**
      * Process expense transactions
      */
     private List<PayPropTransaction> processExpenseTransaction(String[] columns, LocalDate periodDate, String property) {
         List<PayPropTransaction> transactions = new ArrayList<>();
 
-        // Extract expense details from columns
-        String expenseLabel = getColumnValue(columns, 20); // Expense 1 Label
-        String expenseAmountStr = getColumnValue(columns, 21); // Expense 1 Amount
-        String expenseComment = getColumnValue(columns, 22); // Expense 1 Comment
+        // Process all 4 expense categories as identified by the other Claude
+        // Based on spreadsheet structure: Expense Label + Amount + Comment in groups
+        int[][] expenseColumns = {
+            {24, 25, 26}, // Expense 1: Label, Amount, Comment
+            {30, 31, 32}, // Expense 2: Label, Amount, Comment
+            {36, 37, 38}, // Expense 3: Label, Amount, Comment
+            {42, 43, 44}  // Expense 4: Label, Amount, Comment
+        };
 
-        if (expenseLabel != null && !expenseLabel.trim().isEmpty() &&
-            expenseAmountStr != null && !expenseAmountStr.trim().isEmpty()) {
+        for (int i = 0; i < expenseColumns.length; i++) {
+            int[] expenseCols = expenseColumns[i];
+            String expenseLabel = getColumnValue(columns, expenseCols[0]);
+            String expenseAmountStr = getColumnValue(columns, expenseCols[1]);
+            String expenseComment = getColumnValue(columns, expenseCols[2]);
 
-            try {
-                BigDecimal expenseAmount = parseAmount(expenseAmountStr);
-                if (expenseAmount.compareTo(BigDecimal.ZERO) != 0) {
+            if (expenseLabel != null && !expenseLabel.trim().isEmpty() &&
+                expenseAmountStr != null && !expenseAmountStr.trim().isEmpty()) {
 
-                    PayPropTransaction expense = new PayPropTransaction();
-                    expense.transactionDate = periodDate;
-                    expense.amount = expenseAmount.abs().negate(); // Ensure negative
-                    expense.description = String.format("%s - %s", expenseLabel,
-                        expenseComment != null ? expenseComment : "Property expense");
-                    expense.transactionType = "expense";
-                    expense.category = categorizeExpense(expenseLabel);
-                    expense.propertyReference = property != null ? property : "BODEN HOUSE";
-                    expense.customerReference = "";
-                    expense.bankReference = generateExpenseReference(expenseLabel, periodDate);
-                    expense.paymentMethod = "Direct Payment";
-                    expense.notes = expenseComment;
+                try {
+                    BigDecimal expenseAmount = parseAmount(expenseAmountStr);
+                    if (expenseAmount.compareTo(BigDecimal.ZERO) != 0) {
 
-                    transactions.add(expense);
+                        PayPropTransaction expense = new PayPropTransaction();
+                        expense.transactionDate = periodDate;
+                        expense.amount = expenseAmount.abs().negate(); // Ensure negative
+                        expense.description = String.format("%s - %s", expenseLabel,
+                            expenseComment != null && !expenseComment.trim().isEmpty() ?
+                            expenseComment : "Property expense");
+                        expense.transactionType = "expense";
+                        expense.category = categorizeExpense(expenseLabel);
+                        expense.propertyReference = property != null ? property : "BODEN HOUSE";
+                        expense.customerReference = "";
+                        expense.bankReference = generateExpenseReference(expenseLabel + "_" + (i+1), periodDate);
+                        expense.paymentMethod = "Direct Payment";
+                        expense.notes = expenseComment != null ? expenseComment.trim() : "";
+
+                        transactions.add(expense);
+                    }
+                } catch (Exception e) {
+                    logger.warn("Failed to process expense {}: {}", expenseLabel, e.getMessage());
                 }
-            } catch (Exception e) {
-                logger.warn("Failed to process expense {}: {}", expenseLabel, e.getMessage());
             }
         }
 
