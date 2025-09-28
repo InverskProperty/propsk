@@ -153,12 +153,26 @@ public class SecurityConfig {
             }
         }, UsernamePasswordAuthenticationFilter.class);
 
+        // Add debug logging for security decisions
+        http.addFilterBefore((request, response, chain) -> {
+            jakarta.servlet.http.HttpServletRequest httpRequest = (jakarta.servlet.http.HttpServletRequest) request;
+            if (httpRequest.getRequestURI().contains("/employee/transaction")) {
+                System.out.println("🔍 SECURITY DEBUG: " + httpRequest.getMethod() + " " + httpRequest.getRequestURI());
+                System.out.println("🔍 User Principal: " + httpRequest.getUserPrincipal());
+                System.out.println("🔍 Remote User: " + httpRequest.getRemoteUser());
+                if (httpRequest.getUserPrincipal() != null) {
+                    System.out.println("🔍 Principal Name: " + httpRequest.getUserPrincipal().getName());
+                }
+            }
+            chain.doFilter(request, response);
+        }, UsernamePasswordAuthenticationFilter.class);
+
         http.authorizeHttpRequests((authorize) -> authorize
                         // Public access routes
                         .requestMatchers("/register/**").permitAll()
                         .requestMatchers("/set-employee-password/**").permitAll()
                         .requestMatchers("/change-password/**").permitAll()
-                        .requestMatchers("/login", "/login/**").permitAll() 
+                        .requestMatchers("/login", "/login/**").permitAll()
                         .requestMatchers("/test-password").permitAll()
                         .requestMatchers("/privacy-policy").permitAll()
                         .requestMatchers("/terms-of-service").permitAll()
@@ -171,22 +185,25 @@ public class SecurityConfig {
                         .requestMatchers("/js/**").permitAll()
                         .requestMatchers("/css/**").permitAll()
                         .requestMatchers("/save").permitAll()
-                        
+
                         // Debug routes (temporary)
                         .requestMatchers("/debug/**").permitAll()
                         .requestMatchers("/test-password").permitAll()
                         .requestMatchers("/set-test-password").permitAll()
-                        
+
                         // PayProp Raw Import Test Routes (temporary - remove after testing)
-                        .requestMatchers("/test/payprop-raw/**").hasAnyRole("MANAGER", "ADMIN", "SUPER_ADMIN")
+                        .requestMatchers("/test/payprop-raw/**").hasAnyAuthority("ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN")
                         .requestMatchers("/debug/payprop-raw/**").permitAll()
 
                         // CRITICAL: Statement generation routes - MUST be early to avoid conflicts
                         .requestMatchers("/statements/**").hasAnyAuthority("ROLE_MANAGER", "ROLE_EMPLOYEE", "ROLE_PROPERTY_OWNER", "OIDC_USER")
 
-                        // Role-based access - Manager routes
-                        .requestMatchers(AntPathRequestMatcher.antMatcher("/**/manager/**")).hasRole("MANAGER")
-                        
+                        // CRITICAL FIX: Transaction import routes - MUST come BEFORE manager and employee patterns
+                        .requestMatchers("/employee/transaction/**").hasAnyAuthority("ROLE_MANAGER", "ROLE_EMPLOYEE", "OIDC_USER")
+
+                        // Role-based access - Manager routes (moved after specific transaction routes)
+                        .requestMatchers(AntPathRequestMatcher.antMatcher("/**/manager/**")).hasAuthority("ROLE_MANAGER")
+
                         // CUSTOMER MANAGEMENT FIX: Specific employee customer routes FIRST
                         .requestMatchers("/employee/customer/add-customer").hasAnyAuthority("ROLE_MANAGER", "ROLE_EMPLOYEE", "ROLE_SUPER_ADMIN", "OIDC_USER")
                         .requestMatchers("/employee/customer/**").hasAnyAuthority("ROLE_MANAGER", "ROLE_EMPLOYEE", "ROLE_SUPER_ADMIN", "OIDC_USER")

@@ -74,6 +74,7 @@ public class HistoricalTransactionImportController {
     @GetMapping("/debug-auth")
     @ResponseBody
     public String debugAuth(Authentication authentication) {
+        log.info("🔍 DEBUG-AUTH endpoint reached!");
         StringBuilder debug = new StringBuilder();
         debug.append("Authentication: ").append(authentication != null ? "Present" : "Null").append("\n");
         if (authentication != null) {
@@ -85,6 +86,31 @@ public class HistoricalTransactionImportController {
     }
 
     /**
+     * Test POST endpoint to debug security
+     */
+    @PostMapping("/debug-post")
+    @ResponseBody
+    public String debugPost(Authentication authentication) {
+        log.info("🔍 DEBUG-POST endpoint reached!");
+        StringBuilder debug = new StringBuilder();
+        debug.append("POST Authentication: ").append(authentication != null ? "Present" : "Null").append("\n");
+        if (authentication != null) {
+            debug.append("Name: ").append(authentication.getName()).append("\n");
+            debug.append("Authorities: ").append(authentication.getAuthorities()).append("\n");
+            debug.append("Is Authenticated: ").append(authentication.isAuthenticated()).append("\n");
+        }
+        return debug.toString();
+    }
+
+    /**
+     * Simple test page for debugging forms
+     */
+    @GetMapping("/test-form")
+    public String testForm() {
+        return "transaction/test-form";
+    }
+
+    /**
      * Handle CSV file upload
      */
     @PostMapping("/import/csv")
@@ -93,7 +119,9 @@ public class HistoricalTransactionImportController {
             @RequestParam(value = "batchDescription", defaultValue = "") String batchDescription,
             RedirectAttributes redirectAttributes,
             Authentication authentication) {
-        
+
+        log.info("🚀 CSV IMPORT ENDPOINT REACHED! This confirms security is working!");
+
         try {
             log.info("📊 CSV Import: {} (size: {} bytes)", file.getOriginalFilename(), file.getSize());
             log.info("🔐 Authentication: {} - Authorities: {}",
