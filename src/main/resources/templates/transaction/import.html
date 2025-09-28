@@ -91,7 +91,8 @@
                                 <!-- CSV Upload Tab -->
                                 <div class="tab-pane fade show active" id="csv-upload" role="tabpanel">
                                     <form method="post" th:action="@{/employee/transaction/import/csv}" enctype="multipart/form-data" id="csvForm">
-                                        
+                                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+
                                         <div class="row">
                                             <div class="col-md-12">
                                                 <div class="form-group">
@@ -134,7 +135,8 @@
                                 <!-- JSON Upload Tab -->
                                 <div class="tab-pane fade" id="json-upload" role="tabpanel">
                                     <form method="post" th:action="@{/employee/transaction/import/json}" enctype="multipart/form-data" id="jsonForm">
-                                        
+                                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+
                                         <div class="row">
                                             <div class="col-md-12">
                                                 <div class="form-group">
