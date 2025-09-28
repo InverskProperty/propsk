@@ -128,6 +128,9 @@ public class SpreadsheetToPayPropFormatService {
                         unitName, tenant, rentDueStr, rentReceivedDateStr,
                         columns, periodDate, currentProperty
                     ));
+
+                    // NEW: Process owner payments for this property unit
+                    transactions.addAll(processOwnerPaymentTransaction(columns, periodDate, currentProperty));
                 }
 
                 // Handle expenses
@@ -177,6 +180,9 @@ public class SpreadsheetToPayPropFormatService {
                     unitName, tenant, rentDueStr, rentReceivedDateStr,
                     columns, periodDate, currentProperty
                 ));
+
+                // NEW: Process owner payments for this property unit
+                transactions.addAll(processOwnerPaymentTransaction(columns, periodDate, currentProperty));
             }
 
             // Handle expenses
@@ -292,6 +298,94 @@ public class SpreadsheetToPayPropFormatService {
         }
 
         return transactions;
+    }
+
+    /**
+     * Process owner payment transactions from CSV columns
+     * Extracts payment amounts that represent money paid out to property owners
+     */
+    private List<PayPropTransaction> processOwnerPaymentTransaction(String[] columns, LocalDate periodDate, String property) {
+        List<PayPropTransaction> transactions = new ArrayList<>();
+
+        try {
+            // Based on CSV structure analysis, these columns contain owner payments
+            // Looking for payment amounts that represent payments TO owners (not from tenants)
+
+            // Column analysis from your CSV:
+            // Around columns 38-50 should contain owner payment data
+            // We'll extract Net Due amounts and any explicit owner payment columns
+
+            String netDueOldAccountStr = getColumnValue(columns, 38); // Net Due to Prestvale Propsk Old Account
+            String netDuePayPropStr = getColumnValue(columns, 39);    // Net Due to Prestvale Propsk PayProp Account
+            String netDueTotalStr = getColumnValue(columns, 40);      // Net Due to Prestvale Total
+
+            String unitName = getColumnValue(columns, 2); // Unit No.
+            String propertyReference = buildPropertyReference(unitName, property);
+
+            // Process Old Account owner payment
+            if (netDueOldAccountStr != null && !netDueOldAccountStr.trim().isEmpty() &&
+                !netDueOldAccountStr.equals("-") && !netDueOldAccountStr.equals("0")) {
+
+                BigDecimal ownerPaymentAmount = parseAmount(netDueOldAccountStr);
+                if (ownerPaymentAmount.compareTo(BigDecimal.ZERO) > 0) {
+
+                    PayPropTransaction ownerPayment = new PayPropTransaction();
+                    ownerPayment.transactionDate = periodDate;
+                    ownerPayment.amount = ownerPaymentAmount.negate(); // Negative for money going OUT to owner
+                    ownerPayment.description = String.format("Owner payment - Propsk Old Account - %s",
+                        periodDate.format(DateTimeFormatter.ofPattern("MMMM yyyy")));
+                    ownerPayment.transactionType = "payment"; // Will be mapped to payment_to_beneficiary
+                    ownerPayment.category = "owner";
+                    ownerPayment.propertyReference = propertyReference;
+                    ownerPayment.customerReference = ""; // Owner payment, not tenant-specific
+                    ownerPayment.bankReference = generateOwnerPaymentReference(unitName, periodDate, "OLD_ACCOUNT");
+                    ownerPayment.paymentMethod = "Propsk Old Account";
+                    ownerPayment.notes = "Owner payment from old account";
+
+                    transactions.add(ownerPayment);
+                    logger.debug("Created owner payment (Old Account): £{} for {}", ownerPaymentAmount, propertyReference);
+                }
+            }
+
+            // Process PayProp Account owner payment
+            if (netDuePayPropStr != null && !netDuePayPropStr.trim().isEmpty() &&
+                !netDuePayPropStr.equals("-") && !netDuePayPropStr.equals("0")) {
+
+                BigDecimal ownerPaymentAmount = parseAmount(netDuePayPropStr);
+                if (ownerPaymentAmount.compareTo(BigDecimal.ZERO) > 0) {
+
+                    PayPropTransaction ownerPayment = new PayPropTransaction();
+                    ownerPayment.transactionDate = periodDate;
+                    ownerPayment.amount = ownerPaymentAmount.negate(); // Negative for money going OUT to owner
+                    ownerPayment.description = String.format("Owner payment - Propsk PayProp Account - %s",
+                        periodDate.format(DateTimeFormatter.ofPattern("MMMM yyyy")));
+                    ownerPayment.transactionType = "payment"; // Will be mapped to payment_to_beneficiary
+                    ownerPayment.category = "owner";
+                    ownerPayment.propertyReference = propertyReference;
+                    ownerPayment.customerReference = ""; // Owner payment, not tenant-specific
+                    ownerPayment.bankReference = generateOwnerPaymentReference(unitName, periodDate, "PAYPROP");
+                    ownerPayment.paymentMethod = "PayProp";
+                    ownerPayment.notes = "Owner payment from PayProp account";
+
+                    transactions.add(ownerPayment);
+                    logger.debug("Created owner payment (PayProp): £{} for {}", ownerPaymentAmount, propertyReference);
+                }
+            }
+
+        } catch (Exception e) {
+            logger.warn("Failed to process owner payment for property {}: {}", property, e.getMessage());
+        }
+
+        return transactions;
+    }
+
+    /**
+     * Generate owner payment reference
+     */
+    private String generateOwnerPaymentReference(String unitName, LocalDate date, String accountType) {
+        String formattedDate = date.format(DateTimeFormatter.ofPattern("MMyy"));
+        String cleanUnit = unitName != null ? unitName.replaceAll("[^A-Za-z0-9]", "") : "UNK";
+        return String.format("OWN-%s-%s-%s", accountType, cleanUnit, formattedDate);
     }
 
     /**

@@ -17,6 +17,11 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.property.PropertyService;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -42,6 +47,7 @@ public class PayPropFinancialSyncService {
     private final FinancialTransactionRepository financialTransactionRepository;
     private final BatchPaymentRepository batchPaymentRepository;
     private final PropertyService propertyService;
+    private final DataSource dataSource;
     
     // PayProp API base URL
     @Value("${payprop.api.base-url}")
@@ -57,7 +63,8 @@ public class PayPropFinancialSyncService {
         PaymentCategoryRepository paymentCategoryRepository,
         FinancialTransactionRepository financialTransactionRepository,
         BatchPaymentRepository batchPaymentRepository,
-        PropertyService propertyService
+        PropertyService propertyService,
+        DataSource dataSource
     ) {
         this.oAuth2Service = oAuth2Service;
         this.restTemplate = restTemplate;
@@ -68,6 +75,7 @@ public class PayPropFinancialSyncService {
         this.financialTransactionRepository = financialTransactionRepository;
         this.batchPaymentRepository = batchPaymentRepository;
         this.propertyService = propertyService;
+        this.dataSource = dataSource;
     }
     
     /**
@@ -119,7 +127,11 @@ public class PayPropFinancialSyncService {
             Map<String, Object> linkingResult = linkActualCommissionToTransactions();
             syncResults.put("commission_linking", linkingResult);
             
-            // 11. 🚨 CRITICAL: Validate instruction vs completion data integrity
+            // 11. 🚨 NEW: Sync owner payments from payprop_report_all_payments to financial_transactions
+            Map<String, Object> ownerPaymentsResult = syncOwnerPaymentsToFinancialTransactions();
+            syncResults.put("owner_payments", ownerPaymentsResult);
+
+            // 12. 🚨 CRITICAL: Validate instruction vs completion data integrity
             Map<String, Object> validationResult = validateInstructionCompletionIntegrity();
             syncResults.put("data_integrity", validationResult);
 
@@ -2322,6 +2334,158 @@ public class PayPropFinancialSyncService {
             result.put("error", e.getMessage());
         }
         
+        return result;
+    }
+
+    /**
+     * Sync owner payments from payprop_report_all_payments to financial_transactions
+     * Creates payment_to_beneficiary transactions for the 72 owner payments that exist but aren't synced
+     */
+    @Transactional
+    public Map<String, Object> syncOwnerPaymentsToFinancialTransactions() {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            logger.info("🏦 Starting owner payment sync from payprop_report_all_payments to financial_transactions");
+
+            // Query owner payments from payprop_report_all_payments where beneficiary_type = 'beneficiary'
+            // and amount is negative (payments out to owners)
+            String query = """
+                SELECT
+                    payprop_id, amount, description, due_date, reference,
+                    beneficiary_payprop_id, beneficiary_name, beneficiary_type,
+                    category_payprop_id, category_name,
+                    incoming_property_payprop_id, incoming_property_name,
+                    payment_batch_id, payment_batch_transfer_date,
+                    reconciliation_date
+                FROM payprop_report_all_payments
+                WHERE beneficiary_type = 'beneficiary'
+                AND amount < 0
+                AND reconciliation_date IS NOT NULL
+                ORDER BY reconciliation_date DESC
+                """;
+
+            List<Map<String, Object>> ownerPayments = new ArrayList<>();
+
+            try (Connection conn = dataSource.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(query);
+                 ResultSet rs = stmt.executeQuery()) {
+
+                while (rs.next()) {
+                    Map<String, Object> payment = new HashMap<>();
+                    payment.put("payprop_id", rs.getString("payprop_id"));
+                    payment.put("amount", rs.getBigDecimal("amount"));
+                    payment.put("description", rs.getString("description"));
+                    payment.put("due_date", rs.getDate("due_date") != null ? rs.getDate("due_date").toLocalDate() : null);
+                    payment.put("reference", rs.getString("reference"));
+                    payment.put("beneficiary_payprop_id", rs.getString("beneficiary_payprop_id"));
+                    payment.put("beneficiary_name", rs.getString("beneficiary_name"));
+                    payment.put("category_name", rs.getString("category_name"));
+                    payment.put("incoming_property_payprop_id", rs.getString("incoming_property_payprop_id"));
+                    payment.put("incoming_property_name", rs.getString("incoming_property_name"));
+                    payment.put("payment_batch_id", rs.getString("payment_batch_id"));
+                    payment.put("payment_batch_transfer_date", rs.getDate("payment_batch_transfer_date") != null ?
+                        rs.getDate("payment_batch_transfer_date").toLocalDate() : null);
+                    payment.put("reconciliation_date", rs.getDate("reconciliation_date") != null ?
+                        rs.getDate("reconciliation_date").toLocalDate() : null);
+                    ownerPayments.add(payment);
+                }
+            }
+
+            logger.info("Found {} owner payments in payprop_report_all_payments", ownerPayments.size());
+
+            int processed = 0;
+            int created = 0;
+            int skipped = 0;
+            int errors = 0;
+            BigDecimal totalAmount = BigDecimal.ZERO;
+
+            for (Map<String, Object> payment : ownerPayments) {
+                try {
+                    processed++;
+                    String payPropId = (String) payment.get("payprop_id");
+
+                    // Check if already exists in financial_transactions
+                    FinancialTransaction existingTransaction = financialTransactionRepository
+                        .findByPayPropTransactionId(payPropId);
+
+                    if (existingTransaction != null) {
+                        skipped++;
+                        continue;
+                    }
+
+                    // Create new financial transaction
+                    FinancialTransaction transaction = new FinancialTransaction();
+
+                    // PayProp integration fields
+                    transaction.setPayPropTransactionId(payPropId);
+
+                    // Financial details
+                    BigDecimal amount = (BigDecimal) payment.get("amount");
+                    transaction.setAmount(amount.abs()); // Store as positive for consistency
+                    transaction.setMatchedAmount(amount.abs());
+
+                    LocalDate transactionDate = (LocalDate) payment.get("reconciliation_date");
+                    if (transactionDate == null) {
+                        transactionDate = (LocalDate) payment.get("due_date");
+                    }
+                    if (transactionDate == null) {
+                        transactionDate = LocalDate.now();
+                    }
+                    transaction.setTransactionDate(transactionDate);
+
+                    transaction.setTransactionType("payment_to_beneficiary");
+                    transaction.setDescription((String) payment.get("description"));
+                    transaction.setHasTax(false);
+
+                    // Property information
+                    transaction.setPropertyId((String) payment.get("incoming_property_payprop_id"));
+                    transaction.setPropertyName((String) payment.get("incoming_property_name"));
+
+                    // Category information
+                    transaction.setCategoryName("owner"); // Standard owner payment category
+
+                    // Data source tracking
+                    transaction.setDataSource("LIVE_PAYPROP_OWNER_PAYMENTS");
+                    transaction.setInstructionId((String) payment.get("payment_batch_id"));
+                    transaction.setReconciliationDate((LocalDate) payment.get("reconciliation_date"));
+                    transaction.setInstructionDate((LocalDate) payment.get("payment_batch_transfer_date"));
+
+                    // Additional PayProp batch tracking
+                    transaction.setPayPropBatchId((String) payment.get("payment_batch_id"));
+
+                    // Save transaction
+                    financialTransactionRepository.save(transaction);
+                    created++;
+                    totalAmount = totalAmount.add(amount.abs());
+
+                    logger.debug("Created owner payment transaction: {} for £{} to {}",
+                        payPropId, amount.abs(), payment.get("beneficiary_name"));
+
+                } catch (Exception e) {
+                    errors++;
+                    logger.error("Error processing owner payment {}: {}",
+                        payment.get("payprop_id"), e.getMessage(), e);
+                }
+            }
+
+            result.put("status", "SUCCESS");
+            result.put("total_found", ownerPayments.size());
+            result.put("processed", processed);
+            result.put("created", created);
+            result.put("skipped", skipped);
+            result.put("errors", errors);
+            result.put("total_amount", totalAmount);
+
+            logger.info("✅ Owner payment sync completed: {} created, {} skipped, {} errors, £{} total",
+                created, skipped, errors, totalAmount);
+
+        } catch (Exception e) {
+            logger.error("❌ Failed to sync owner payments", e);
+            result.put("status", "FAILED");
+            result.put("error", e.getMessage());
+        }
+
         return result;
     }
 

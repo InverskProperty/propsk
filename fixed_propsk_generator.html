@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Complete Propsk Spreadsheet Generator - Full 94 Column Version</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .button-container {
+            margin: 30px 0;
+            text-align: center;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border-left: 4px solid #0c5460;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Complete Propsk Spreadsheet Generator - Full 94 Columns</h1>
+        
+        <div class="info">
+            <strong>ℹ️ This will generate:</strong>
+            <ul>
+                <li>REQUESTED summary sheet with 12 months and proper INDIRECT formulas</li>
+                <li>12 monthly statement sheets (December through November)</li>
+                <li>Full 94-column structure with ALL formulas and headers</li>
+                <li>Complete property data for both Boden House (rows 14-56) and Knighton Hayes (rows 60-61)</li>
+                <li>All calculation columns with IF, IFERROR, and SUM formulas</li>
+                <li>Complete summary section in rows 68-113</li>
+            </ul>
+        </div>
+
+        <div class="button-container">
+            <button onclick="generateSpreadsheet()">📥 Download Complete Spreadsheet</button>
+        </div>
+        
+        <div id="status" class="status" style="display: none;"></div>
+    </div>
+
+    <script>
+        function updateStatus(message) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = message;
+        }
+
+        function generateSpreadsheet() {
+            try {
+                updateStatus('Starting spreadsheet generation...');
+                const wb = XLSX.utils.book_new();
+                const months = ['December', 'January', 'February', 'March', 'April', 'May', 
+                              'June', 'July', 'August', 'September', 'October', 'November'];
+                
+                // Create REQUESTED sheet
+                updateStatus('Creating REQUESTED summary sheet...');
+                const requestedData = [];
+                
+                // Row 1 - Date (bop)
+                const row1 = [];
+                row1.push({v: '', t: 's'});
+                row1.push({v: '', t: 's'});
+                row1.push({v: 'Date (bop)', t: 's'});
+                row1.push({v: '', t: 's'});
+                row1.push({v: '', t: 's'});
+                for (let i = 0; i < 12; i++) {
+                    if (i === 0) {
+                        row1.push({f: 'E2+1', t: 'n'});
+                    } else {
+                        const prevCol = String.fromCharCode(70 + i - 1);
+                        row1.push({f: prevCol + '2+1', t: 'n'});
+                    }
+                }
+                requestedData.push(row1);
+                
+                // Row 2 - Date (eop)
+                const row2 = [];
+                row2.push({v: '', t: 's'});
+                row2.push({v: '', t: 's'});
+                row2.push({v: 'Date (eop)', t: 's'});
+                row2.push({v: '', t: 's'});
+                row2.push({v: 44916, t: 'n', z: 'd/m/yyyy'});
+                for (let i = 0; i < 12; i++) {
+                    const col = String.fromCharCode(69 + i);
+                    row2.push({f: 'EOMONTH(' + col + '2,0)+21', t: 'n', z: 'd/m/yyyy'});
+                }
+                requestedData.push(row2);
+                
+                // Row 3 - Month names
+                const row3 = [];
+                row3.push({v: '', t: 's'});
+                row3.push({v: '', t: 's'});
+                row3.push({v: 'Month', t: 's'});
+                row3.push({v: '', t: 's'});
+                row3.push({v: '', t: 's'});
+                for (let month of months) {
+                    row3.push({v: month, t: 's'});
+                }
+                requestedData.push(row3);
+                
+                // Row 4 - Config row with full sheet names
+                const row4 = [];
+                row4.push({v: '', t: 's'});
+                row4.push({v: '', t: 's'});
+                row4.push({v: 'Sheet Names (Config)', t: 's'});
+                row4.push({v: '', t: 's'});
+                row4.push({v: '', t: 's'});
+                for (let month of months) {
+                    row4.push({v: month + ' Propsk Statement', t: 's'});
+                }
+                requestedData.push(row4);
+                
+                // Row 5 - Empty
+                const emptyRow = [];
+                for (let i = 0; i < 17; i++) {
+                    emptyRow.push({v: '', t: 's'});
+                }
+                requestedData.push(emptyRow);
+                
+                // Add data rows with INDIRECT formulas
+                const dataLabels = [
+                    'Rent Due to Prestvale',
+                    'Rent Due From Robert Ellis Amount',
+                    'Rent Due From Propsk Old Account Amount',
+                    'Rent Due from Propsk PayProp Amount',
+                    'Total Rent Due Amount',
+                    '',
+                    '',
+                    'Rent Received',
+                    '',
+                    'Amount Received by Robert Ellis',
+                    'Amount Received in Propsk Old Account',
+                    'Amount received in Payprop Account',
+                    'Total Rent Received',
+                    '',
+                    '',
+                    'Management Fee',
+                    '',
+                    'Managment Fee charged by Robert Ellis',
+                    'Management Fee Charged to Propsk Old Account',
+                    'Management Fee charged by Payprop Account',
+                    'Total Management Fees',
+                    '',
+                    '',
+                    'Expenses',
+                    '',
+                    'Total Robert Ellis Expenses',
+                    'Total Propsk Old Account Expenses',
+                    'Total Propsk PayProp Account Expenses',
+                    'Total Expenses',
+                    '',
+                    '',
+                    'Net Due to Prestvale',
+                    '',
+                    'Total Net Due to Prestvale From Robert Ellis',
+                    'Total Net Due to Prestvale from Propsk Old Account',
+                    'Total Net Due to Prestvale Propsk PayProp Account',
+                    'Total Net Due to Prestvale',
+                    '',
+                    '',
+                    'Rent Due Less Rent Received',
+                    '',
+                    'Rent Due Less Received From Robert Ellis',
+                    'Rent Due Less Rent Received from Propsk Old Account',
+                    'Rent Due Less Rent Received from Propsk PayProp Account',
+                    'Total Rent Due Less Rent Received'
+                ];
+                
+                let summaryRow = 68;
+                for (let i = 0; i < dataLabels.length; i++) {
+                    const dataRow = [];
+                    dataRow.push({v: dataLabels[i], t: 's'});
+                    dataRow.push({v: '', t: 's'});
+                    dataRow.push({v: '', t: 's'});
+                    
+                    // Add sum formula in column D for certain rows
+                    if (dataLabels[i] && [0,1,2,3,4,9,10,11,12,17,18,19,20,25,26,27,28,33,34,35,36,41,42,43,44].includes(i)) {
+                        const rowNum = i + 6;
+                        dataRow.push({f: 'SUM($F' + rowNum + ':$Q' + rowNum + ')', t: 'n'});
+                    } else {
+                        dataRow.push({v: '', t: 's'});
+                    }
+                    
+                    dataRow.push({v: '', t: 's'}); // Column E
+                    
+                    // Add INDIRECT formulas for months using row 4 for sheet names
+                    for (let j = 0; j < 12; j++) {
+                        const col = String.fromCharCode(70 + j);
+                        dataRow.push({f: 'INDIRECT("\'"&' + col + '$4&"\'!$D$' + summaryRow + '")', t: 'n'});
+                    }
+                    
+                    requestedData.push(dataRow);
+                    summaryRow++;
+                }
+                
+                // Create REQUESTED worksheet
+                const ws_requested = XLSX.utils.aoa_to_sheet(requestedData);
+                ws_requested['!cols'] = [
+                    {wch: 40}, {wch: 10}, {wch: 15}, {wch: 15}, {wch: 12},
+                    {wch: 12}, {wch: 12}, {wch: 12}, {wch: 12}, {wch: 12},
+                    {wch: 12}, {wch: 12}, {wch: 12}, {wch: 12}, {wch: 12},
+                    {wch: 12}, {wch: 12}
+                ];
+                
+                XLSX.utils.book_append_sheet(wb, ws_requested, "REQUESTED");
+                
+                // Create monthly statement sheets with full 94 columns
+                updateStatus('Creating monthly sheets with full 94-column structure...');
+                for (let monthIdx = 0; monthIdx < months.length; monthIdx++) {
+                    const month = months[monthIdx];
+                    updateStatus(`Creating ${month} sheet...`);
+                    const statementData = [];
+                    
+                    // Initialize all rows up to 113 with 94 columns
+                    for (let i = 0; i < 113; i++) {
+                        const row = [];
+                        for (let j = 0; j < 94; j++) {
+                            row.push({v: '', t: 's'});
+                        }
+                        statementData.push(row);
+                    }
+                    
+                    // Add headers
+                    statementData[0][6] = {v: 'PROPSK LTD', t: 's'};
+                    statementData[1][6] = {v: '1 Poplar Court, Greensward Lane, Hockley, England, SS5 5JB', t: 's'};
+                    statementData[2][6] = {v: 'Company number 15933011', t: 's'};
+                    statementData[4][6] = {v: 'STATEMENT', t: 's'};
+                    
+                    // Client row
+                    statementData[6][0] = {v: 'CLIENT:', t: 's'};
+                    statementData[6][1] = {v: 'PRESTVALE PROPERTIES LIMITED', t: 's'};
+                    
+                    // Period row
+                    const monthShort = ['Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
+                    const year = monthIdx === 0 ? 2025 : 2026;
+                    const nextMonthIdx = (monthIdx + 1) % 12;
+                    const nextYear = nextMonthIdx === 0 ? 2027 : year;
+                    
+                    statementData[7][0] = {v: 'PERIOD:', t: 's'};
+                    statementData[7][1] = {v: '22nd ' + monthShort[monthIdx] + ' ' + year + ' to 21st ' + monthShort[nextMonthIdx] + ' ' + nextYear, t: 's'};
+                    
+                    // Complete column headers at row 9 (ALL of them)
+                    statementData[9][2] = {v: 'Unit No.', t: 's'};
+                    statementData[9][3] = {v: 'Tenant', t: 's'};
+                    statementData[9][4] = {v: 'Tenancy Dates', t: 's'};
+                    statementData[9][5] = {v: 'Rent Due Date', t: 's'};
+                    statementData[9][6] = {v: 'Rent\n Due\n Amount', t: 's'};
+                    statementData[9][7] = {v: 'Rent Due Source (1=Robert Ellis 2=Propsk Old Account, 3=Propsk PayProp Account', t: 's'};
+                    statementData[9][8] = {v: 'Rent Due From Robert Ellis', t: 's'};
+                    statementData[9][9] = {v: 'Rent Due From Propsk Old Account Amount', t: 's'};
+                    statementData[9][10] = {v: 'Rent Due from Propsk PayProp', t: 's'};
+                    statementData[9][11] = {v: 'Rent Due From Robert Ellis Amount', t: 's'};
+                    statementData[9][12] = {v: 'Rent Due From Propsk Old Account Amount', t: 's'};
+                    statementData[9][13] = {v: 'Rent Due from Propsk PayProp Amount', t: 's'};
+                    statementData[9][14] = {v: 'Rent\n Received\n Date', t: 's'};
+                    statementData[9][15] = {v: 'Rent Received Source (1=Robert Ellis 2=Propsk Old Account, 3=Propsk PayProp Account', t: 's'};
+                    statementData[9][16] = {v: 'Rent Received by Robert Ellis', t: 's'};
+                    statementData[9][17] = {v: 'Rent Received by Propsk Old Account', t: 's'};
+                    statementData[9][18] = {v: 'Rent Received by Propsk PayProp Account', t: 's'};
+                    statementData[9][19] = {v: 'Rent\n Received\n Amount', t: 's'};
+                    statementData[9][20] = {v: 'Amount Received by Robert Ellis', t: 's'};
+                    statementData[9][21] = {v: 'Amount Received in Propsk Old Account', t: 's'};
+                    statementData[9][22] = {v: 'Amount received in Payprop Account', t: 's'};
+                    statementData[9][23] = {v: 'Management Fee Source (1=Robert Ellis 2=Propsk Old Account, 3=Propsk PayProp Account', t: 's'};
+                    statementData[9][24] = {v: 'Management Fee Received by Robert Ellis', t: 's'};
+                    statementData[9][25] = {v: 'Management Fee Received by Propsk Old Account', t: 's'};
+                    statementData[9][26] = {v: 'Management Fee Received by Propsk PayProp Account', t: 's'};
+                    statementData[9][27] = {v: 'Fee\n(%)', t: 's'};
+                    statementData[9][28] = {v: 'Management Fee Amount', t: 's'};
+                    statementData[9][29] = {v: 'Managment Fee charged by Robert Ellis', t: 's'};
+                    statementData[9][30] = {v: 'Management Fee Charged to Propsk Old Account', t: 's'};
+                    statementData[9][31] = {v: 'Management Fee charged by Payprop Account', t: 's'};
+                    
+                    // Expense columns
+                    for (let exp = 1; exp <= 4; exp++) {
+                        const baseCol = 32 + (exp - 1) * 7;
+                        statementData[9][baseCol] = {v: `Expense ${exp} Source (1=Robert Ellis 2=Propsk Old Account, 3=Propsk PayProp Account`, t: 's'};
+                        statementData[9][baseCol + 1] = {v: `Expense ${exp} Chargeable to Robert Ellis`, t: 's'};
+                        statementData[9][baseCol + 2] = {v: `Expense ${exp} Chargeable to Propsk Old Account Rent`, t: 's'};
+                        statementData[9][baseCol + 3] = {v: `Expense ${exp} Chargeable to Propsk PayProp Account`, t: 's'};
+                        statementData[9][baseCol + 4] = {v: `Expense ${exp} Label`, t: 's'};
+                        statementData[9][baseCol + 5] = {v: `Expense ${exp} Amount`, t: 's'};
+                        statementData[9][baseCol + 6] = {v: `Expense ${exp} Comment`, t: 's'};
+                    }
+                    
+                    // Total and calculation columns
+                    statementData[9][60] = {v: 'Total Robert Ellis Expenses', t: 's'};
+                    statementData[9][61] = {v: 'Total Propsk Old Account Expenses', t: 's'};
+                    statementData[9][62] = {v: 'Total Propsk PayProp Account Expenses', t: 's'};
+                    statementData[9][63] = {v: 'Total Expenses', t: 's'};
+                    statementData[9][64] = {v: 'Total Robert Ellis Fees and Expemses', t: 's'};
+                    statementData[9][65] = {v: 'Total Propsk Old Account Fees and Expenses', t: 's'};
+                    statementData[9][66] = {v: 'Total Propsk PayProp Account Fees and Expenses', t: 's'};
+                    statementData[9][67] = {v: 'Total Fees and Expenses', t: 's'};
+                    statementData[9][68] = {v: 'Total Net Due to Prestvale From Robert Ellis', t: 's'};
+                    statementData[9][69] = {v: 'Total Net Due to Prestvale from Propsk Old Account', t: 's'};
+                    statementData[9][70] = {v: 'Total Net Due to Prestvale Propsk PayProp Account', t: 's'};
+                    statementData[9][71] = {v: 'Total Net\nDue to\nPrestvale', t: 's'};
+                    statementData[9][72] = {v: 'Rent Due Less Received From Robert Ellis', t: 's'};
+                    statementData[9][73] = {v: 'Rent Due Less Rent Received from Propsk Old Account', t: 's'};
+                    statementData[9][74] = {v: 'Rent Due Less Rent Received from Propsk PayProp Account', t: 's'};
+                    statementData[9][75] = {v: 'Total Rent Due Less Rent Received', t: 's'};
+                    
+                    // BODEN HOUSE property header at row 11
+                    statementData[11][0] = {v: 'PROPERTY:', t: 's'};
+                    statementData[11][1] = {v: 'BODEN HOUSE', t: 's'};
+                    
+                    // Add property rows with formulas (rows 14-56)
+                    const propertyItems = [];
+                    
+                    // Flats 1-30
+                    for (let flat = 1; flat <= 30; flat++) {
+                        propertyItems.push({name: `FLAT ${flat} - 3 WEST GATE`, tenant: '', source: 1});
+                    }
+                    // Office and additional items
+                    propertyItems.push({name: 'OFFICE', tenant: '', source: 1});
+                    propertyItems.push({name: 'BUILDING ADDITIONAL INCOME', tenant: '', source: 1});
+                    // Parking spaces 1-10
+                    for (let space = 1; space <= 10; space++) {
+                        propertyItems.push({name: `PARKING SPACE ${space}`, tenant: '', source: 1});
+                    }
+                    
+                    // Add each property item with formulas
+                    for (let i = 0; i < propertyItems.length && i < 43; i++) {
+                        const row = 13 + i;
+                        const item = propertyItems[i];
+                        
+                        statementData[row][2] = {v: item.name, t: 's'};
+                        statementData[row][3] = {v: item.tenant, t: 's'};
+                        statementData[row][4] = {v: '', t: 's'}; // Tenancy dates
+                        statementData[row][5] = {v: 0, t: 'n'}; // Rent due date
+                        statementData[row][6] = {v: 0, t: 'n'}; // Rent amount
+                        statementData[row][7] = {v: item.source, t: 'n'};
+                        
+                        // Add formulas for calculated columns
+                        // Rent Due split by source (columns I, J, K)
+                        statementData[row][8] = {f: `IF($H${row+1}=1,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][9] = {f: `IF($H${row+1}=2,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][10] = {f: `IF($H${row+1}=3,TRUE,FALSE)`, t: 'b'};
+                        
+                        // Rent Due amounts by source (columns L, M, N)
+                        statementData[row][11] = {f: `G${row+1}*I${row+1}`, t: 'n'};
+                        statementData[row][12] = {f: `G${row+1}*J${row+1}`, t: 'n'};
+                        statementData[row][13] = {f: `G${row+1}*K${row+1}`, t: 'n'};
+                        
+                        // Rent Received date and source (columns O, P)
+                        statementData[row][14] = {v: 0, t: 'n'}; // Rent received date
+                        statementData[row][15] = {v: item.source, t: 'n'}; // Rent received source
+                        
+                        // Rent Received split by source (columns Q, R, S)
+                        statementData[row][16] = {f: `IF($P${row+1}=1,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][17] = {f: `IF($P${row+1}=2,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][18] = {f: `IF($P${row+1}=3,TRUE,FALSE)`, t: 'b'};
+                        
+                        // Rent Received amounts (columns T, U, V, W)
+                        statementData[row][19] = {v: 0, t: 'n'}; // Rent received amount
+                        statementData[row][20] = {f: `IFERROR(Q${row+1}*T${row+1},0)`, t: 'n'};
+                        statementData[row][21] = {f: `IFERROR(T${row+1}*R${row+1},0)`, t: 'n'};
+                        statementData[row][22] = {f: `IFERROR(S${row+1}*T${row+1},0)`, t: 'n'};
+                        
+                        // Management Fee
+                        statementData[row][23] = {v: item.source, t: 'n'};
+                        statementData[row][24] = {f: `IF($X${row+1}=1,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][25] = {f: `IF($X${row+1}=2,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][26] = {f: `IF($X${row+1}=3,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][27] = {v: 0.15, t: 'n', z: '0%'}; // Fee percentage as number
+                        statementData[row][28] = {f: `AB${row+1}*T${row+1}`, t: 'n'};
+                        statementData[row][29] = {f: `-AC${row+1}*Y${row+1}`, t: 'n'};
+                        statementData[row][30] = {f: `-AC${row+1}*Z${row+1}`, t: 'n'};
+                        statementData[row][31] = {f: `-AC${row+1}*AA${row+1}`, t: 'n'};
+                        
+                        // Expense 1 (columns AG-AM)
+                        statementData[row][32] = {v: 1, t: 'n'}; // Expense 1 source
+                        statementData[row][33] = {f: `IF($AG${row+1}=1,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][34] = {f: `IF($AG${row+1}=2,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][35] = {f: `IF($AG${row+1}=3,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][36] = {v: '', t: 's'}; // Expense 1 label
+                        statementData[row][37] = {v: 0, t: 'n'}; // Expense 1 amount
+                        statementData[row][38] = {v: '', t: 's'}; // Expense 1 comment
+                        
+                        // Expense 2 (columns AN-AT)
+                        statementData[row][39] = {v: 1, t: 'n'}; // Expense 2 source
+                        statementData[row][40] = {f: `IF($AN${row+1}=1,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][41] = {f: `IF($AN${row+1}=2,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][42] = {f: `IF($AN${row+1}=3,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][43] = {v: '', t: 's'}; // Expense 2 label
+                        statementData[row][44] = {v: 0, t: 'n'}; // Expense 2 amount
+                        statementData[row][45] = {v: '', t: 's'}; // Expense 2 comment
+                        
+                        // Expense 3 (columns AU-BA)
+                        statementData[row][46] = {v: 1, t: 'n'}; // Expense 3 source
+                        statementData[row][47] = {f: `IF($AU${row+1}=1,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][48] = {f: `IF($AU${row+1}=2,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][49] = {f: `IF($AU${row+1}=3,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][50] = {v: '', t: 's'}; // Expense 3 label
+                        statementData[row][51] = {v: 0, t: 'n'}; // Expense 3 amount
+                        statementData[row][52] = {v: '', t: 's'}; // Expense 3 comment
+                        
+                        // Expense 4 (columns BB-BH)
+                        statementData[row][53] = {v: 1, t: 'n'}; // Expense 4 source
+                        statementData[row][54] = {f: `IF($BB${row+1}=1,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][55] = {f: `IF($BB${row+1}=2,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][56] = {f: `IF($BB${row+1}=3,TRUE,FALSE)`, t: 'b'};
+                        statementData[row][57] = {v: '', t: 's'}; // Expense 4 label
+                        statementData[row][58] = {v: 0, t: 'n'}; // Expense 4 amount
+                        statementData[row][59] = {v: '', t: 's'}; // Expense 4 comment
+                        
+                        // Expense calculations (columns BI-BL)
+                        statementData[row][60] = {f: `((AH${row+1}*AL${row+1})+(AO${row+1}*AS${row+1})+(AV${row+1}*AZ${row+1})+(BC${row+1}*BG${row+1}))*-1`, t: 'n'};
+                        statementData[row][61] = {f: `((AI${row+1}*AL${row+1})+(AP${row+1}*AS${row+1})+(AW${row+1}*AZ${row+1})+(BD${row+1}*BG${row+1}))*-1`, t: 'n'};
+                        statementData[row][62] = {f: `((AJ${row+1}*AL${row+1})+(AQ${row+1}*AS${row+1})+(AX${row+1}*AZ${row+1})+(BE${row+1}*BG${row+1}))*-1`, t: 'n'};
+                        statementData[row][63] = {f: `-AL${row+1}+-AS${row+1}+-AZ${row+1}+-BG${row+1}`, t: 'n'};
+                        
+                        // Total Fees and Expenses (columns BM-BP)
+                        statementData[row][64] = {f: `BI${row+1}+AD${row+1}`, t: 'n'};
+                        statementData[row][65] = {f: `BJ${row+1}+AE${row+1}`, t: 'n'};
+                        statementData[row][66] = {f: `BK${row+1}+AF${row+1}`, t: 'n'};
+                        statementData[row][67] = {f: `BL${row+1}+AF${row+1}`, t: 'n'};
+                        
+                        // Net Due to Prestvale (columns BQ-BT)
+                        statementData[row][68] = {f: `U${row+1}+AD${row+1}+BM${row+1}`, t: 'n'};
+                        statementData[row][69] = {f: `V${row+1}+AE${row+1}+BN${row+1}`, t: 'n'};
+                        statementData[row][70] = {f: `W${row+1}+AF${row+1}+BO${row+1}`, t: 'n'};
+                        statementData[row][71] = {f: `T${row+1}+AF${row+1}+BL${row+1}`, t: 'n'};
+                        
+                        // Rent Due Less Received (columns BU-BX)
+                        statementData[row][72] = {f: `L${row+1}-U${row+1}`, t: 'n'};
+                        statementData[row][73] = {f: `M${row+1}-V${row+1}`, t: 'n'};
+                        statementData[row][74] = {f: `N${row+1}-W${row+1}`, t: 'n'};
+                        statementData[row][75] = {f: `SUM(BU${row+1}:BW${row+1})`, t: 'n'};
+                    }
+                    
+                    // TOTAL row for Boden House at row 57 with all SUM formulas
+                    statementData[56][2] = {v: 'TOTAL', t: 's'};
+                    statementData[56][6] = {f: 'SUM(G14:G56)', t: 'n'};
+                    statementData[56][11] = {f: 'SUM(L14:L56)', t: 'n'};
+                    statementData[56][12] = {f: 'SUM(M14:M56)', t: 'n'};
+                    statementData[56][13] = {f: 'SUM(N14:N56)', t: 'n'};
+                    statementData[56][19] = {f: 'SUM(T14:T56)', t: 'n'};
+                    statementData[56][20] = {f: 'SUM(U14:U56)', t: 'n'};
+                    statementData[56][21] = {f: 'SUM(V14:V56)', t: 'n'};
+                    statementData[56][22] = {f: 'SUM(W14:W56)', t: 'n'};
+                    statementData[56][28] = {f: 'SUM(AC14:AC56)', t: 'n'};
+                    statementData[56][29] = {f: 'SUM(AD14:AD56)', t: 'n'};
+                    statementData[56][30] = {f: 'SUM(AE14:AE56)', t: 'n'};
+                    statementData[56][31] = {f: 'SUM(AF14:AF56)', t: 'n'};
+                    statementData[56][60] = {f: 'SUM(BI14:BI56)', t: 'n'};
+                    statementData[56][61] = {f: 'SUM(BJ14:BJ56)', t: 'n'};
+                    statementData[56][62] = {f: 'SUM(BK14:BK56)', t: 'n'};
+                    statementData[56][63] = {f: 'SUM(BL14:BL56)', t: 'n'};
+                    statementData[56][64] = {f: 'SUM(BM14:BM56)', t: 'n'};
+                    statementData[56][65] = {f: 'SUM(BN14:BN56)', t: 'n'};
+                    statementData[56][66] = {f: 'SUM(BO14:BO56)', t: 'n'};
+                    statementData[56][67] = {f: 'SUM(BP14:BP56)', t: 'n'};
+                    statementData[56][68] = {f: 'SUM(BQ14:BQ56)', t: 'n'};
+                    statementData[56][69] = {f: 'SUM(BR14:BR56)', t: 'n'};
+                    statementData[56][70] = {f: 'SUM(BS14:BS56)', t: 'n'};
+                    statementData[56][71] = {f: 'SUM(BT14:BT56)', t: 'n'};
+                    statementData[56][72] = {f: 'SUM(BU14:BU56)', t: 'n'};
+                    statementData[56][73] = {f: 'SUM(BV14:BV56)', t: 'n'};
+                    statementData[56][74] = {f: 'SUM(BW14:BW56)', t: 'n'};
+                    statementData[56][75] = {f: 'SUM(BX14:BX56)', t: 'n'};
+                    
+                    // KNIGHTON HAYES property header at row 59
+                    statementData[59][0] = {v: 'PROPERTY:', t: 's'};
+                    statementData[59][1] = {v: 'KNIGHTON HAYES', t: 's'};
+                    
+                    // Add Knighton Hayes flat with COMPLETE structure like other properties
+                    statementData[60][2] = {v: 'Apartment F - Knighton Hayes', t: 's'};
+                    statementData[60][3] = {v: 'Riaz', t: 's'};
+                    statementData[60][4] = {v: '22/12/2025', t: 's'};
+                    statementData[60][5] = {v: 22, t: 'n'};
+                    statementData[60][6] = {v: 1125, t: 'n'};
+                    statementData[60][7] = {v: 2, t: 'n'};
+                    
+                    // Rent Due split by source (columns I, J, K)
+                    statementData[60][8] = {f: 'IF($H61=1,TRUE,FALSE)', t: 'b'};
+                    statementData[60][9] = {f: 'IF($H61=2,TRUE,FALSE)', t: 'b'};
+                    statementData[60][10] = {f: 'IF($H61=3,TRUE,FALSE)', t: 'b'};
+                    
+                    // Rent Due amounts by source (columns L, M, N)
+                    statementData[60][11] = {f: 'G61*I61', t: 'n'};
+                    statementData[60][12] = {f: 'G61*J61', t: 'n'};
+                    statementData[60][13] = {f: 'G61*K61', t: 'n'};
+                    
+                    // Rent Received date and source
+                    statementData[60][14] = {v: 0, t: 'n'}; // Rent received date
+                    statementData[60][15] = {v: 2, t: 'n'}; // Source
+                    
+                    // Rent Received split by source (columns Q, R, S)
+                    statementData[60][16] = {f: 'IF($P61=1,TRUE,FALSE)', t: 'b'};
+                    statementData[60][17] = {f: 'IF($P61=2,TRUE,FALSE)', t: 'b'};
+                    statementData[60][18] = {f: 'IF($P61=3,TRUE,FALSE)', t: 'b'};
+                    
+                    // Rent Received amounts
+                    statementData[60][19] = {v: 0, t: 'n'}; // Amount
+                    statementData[60][20] = {f: 'IFERROR(Q61*T61,0)', t: 'n'};
+                    statementData[60][21] = {f: 'IFERROR(T61*R61,0)', t: 'n'};
+                    statementData[60][22] = {f: 'IFERROR(S61*T61,0)', t: 'n'};
+                    
+                    // Management fee
+                    statementData[60][23] = {v: 2, t: 'n'};
+                    statementData[60][24] = {f: 'IF($X61=1,TRUE,FALSE)', t: 'b'};
+                    statementData[60][25] = {f: 'IF($X61=2,TRUE,FALSE)', t: 'b'};
+                    statementData[60][26] = {f: 'IF($X61=3,TRUE,FALSE)', t: 'b'};
+                    statementData[60][27] = {v: 0.10, t: 'n', z: '0%'}; // 10% for Knighton Hayes
+                    statementData[60][28] = {f: 'AB61*T61', t: 'n'};
+                    statementData[60][29] = {f: 'AC61*Y61', t: 'n'};
+                    statementData[60][30] = {f: 'AC61*Z61', t: 'n'};
+                    statementData[60][31] = {f: 'AC61*AA61', t: 'n'};
+                    
+                    // Expense 1 (columns AG-AM)
+                    statementData[60][32] = {v: 1, t: 'n'}; // Expense 1 source
+                    statementData[60][33] = {f: 'IF($AG61=1,TRUE,FALSE)', t: 'b'};
+                    statementData[60][34] = {f: 'IF($AG61=2,TRUE,FALSE)', t: 'b'};
+                    statementData[60][35] = {f: 'IF($AG61=3,TRUE,FALSE)', t: 'b'};
+                    statementData[60][36] = {v: '', t: 's'}; // Expense 1 label
+                    statementData[60][37] = {v: 0, t: 'n'}; // Expense 1 amount
+                    statementData[60][38] = {v: '', t: 's'}; // Expense 1 comment
+                    
+                    // Expense 2 (columns AN-AT)
+                    statementData[60][39] = {v: 1, t: 'n'};
+                    statementData[60][40] = {f: 'IF($AN61=1,TRUE,FALSE)', t: 'b'};
+                    statementData[60][41] = {f: 'IF($AN61=2,TRUE,FALSE)', t: 'b'};
+                    statementData[60][42] = {f: 'IF($AN61=3,TRUE,FALSE)', t: 'b'};
+                    statementData[60][43] = {v: '', t: 's'};
+                    statementData[60][44] = {v: 0, t: 'n'};
+                    statementData[60][45] = {v: '', t: 's'};
+                    
+                    // Expense 3 (columns AU-BA)
+                    statementData[60][46] = {v: 1, t: 'n'};
+                    statementData[60][47] = {f: 'IF($AU61=1,TRUE,FALSE)', t: 'b'};
+                    statementData[60][48] = {f: 'IF($AU61=2,TRUE,FALSE)', t: 'b'};
+                    statementData[60][49] = {f: 'IF($AU61=3,TRUE,FALSE)', t: 'b'};
+                    statementData[60][50] = {v: '', t: 's'};
+                    statementData[60][51] = {v: 0, t: 'n'};
+                    statementData[60][52] = {v: '', t: 's'};
+                    
+                    // Expense 4 (columns BB-BH)
+                    statementData[60][53] = {v: 1, t: 'n'};
+                    statementData[60][54] = {f: 'IF($BB61=1,TRUE,FALSE)', t: 'b'};
+                    statementData[60][55] = {f: 'IF($BB61=2,TRUE,FALSE)', t: 'b'};
+                    statementData[60][56] = {f: 'IF($BB61=3,TRUE,FALSE)', t: 'b'};
+                    statementData[60][57] = {v: '', t: 's'};
+                    statementData[60][58] = {v: 0, t: 'n'};
+                    statementData[60][59] = {v: '', t: 's'};
+                    
+                    // Expense calculations (columns BI-BL)
+                    statementData[60][60] = {f: '((AH61*AL61)+(AO61*AS61)+(AV61*AZ61)+(BC61*BG61))*-1', t: 'n'};
+                    statementData[60][61] = {f: '((AI61*AL61)+(AP61*AS61)+(AW61*AZ61)+(BD61*BG61))*-1', t: 'n'};
+                    statementData[60][62] = {f: '((AJ61*AL61)+(AQ61*AS61)+(AX61*AZ61)+(BE61*BG61))*-1', t: 'n'};
+                    statementData[60][63] = {f: '-AL61+-AS61+-AZ61+-BG61', t: 'n'};
+                    
+                    // Total Fees and Expenses (columns BM-BP)
+                    statementData[60][64] = {f: 'BI61+AD61', t: 'n'};
+                    statementData[60][65] = {f: 'BJ61+AE61', t: 'n'};
+                    statementData[60][66] = {f: 'BK61+AF61', t: 'n'};
+                    statementData[60][67] = {f: 'BL61+AF61', t: 'n'};
+                    
+                    // Net Due to Prestvale (columns BQ-BT)
+                    statementData[60][68] = {f: 'U61+AD61+BM61', t: 'n'};
+                    statementData[60][69] = {f: 'V61+AE61+BN61', t: 'n'};
+                    statementData[60][70] = {f: 'W61+AF61+BO61', t: 'n'};
+                    statementData[60][71] = {f: 'T61+AF61+BL61', t: 'n'};
+                    
+                    // Rent Due Less Received (columns BU-BX)
+                    statementData[60][72] = {f: 'L61-U61', t: 'n'};
+                    statementData[60][73] = {f: 'M61-V61', t: 'n'};
+                    statementData[60][74] = {f: 'N61-W61', t: 'n'};
+                    statementData[60][75] = {f: 'SUM(BU61:BW61)', t: 'n'};
+                    
+                    // Knighton Hayes totals at row 62 - with ALL columns like Boden House
+                    statementData[61][2] = {v: 'TOTAL', t: 's'};
+                    statementData[61][6] = {f: 'SUM(G61:G61)', t: 'n'};
+                    statementData[61][11] = {f: 'SUM(L61:L61)', t: 'n'};
+                    statementData[61][12] = {f: 'SUM(M61:M61)', t: 'n'};
+                    statementData[61][13] = {f: 'SUM(N61:N61)', t: 'n'};
+                    statementData[61][19] = {f: 'SUM(T61:T61)', t: 'n'};
+                    statementData[61][20] = {f: 'SUM(U61:U61)', t: 'n'};
+                    statementData[61][21] = {f: 'SUM(V61:V61)', t: 'n'};
+                    statementData[61][22] = {f: 'SUM(W61:W61)', t: 'n'};
+                    statementData[61][28] = {f: 'SUM(AC61:AC61)', t: 'n'};
+                    statementData[61][29] = {f: 'SUM(AD61:AD61)', t: 'n'};
+                    statementData[61][30] = {f: 'SUM(AE61:AE61)', t: 'n'};
+                    statementData[61][31] = {f: 'SUM(AF61:AF61)', t: 'n'};
+                    statementData[61][37] = {f: 'SUM(AL61:AL61)', t: 'n'}; // Expense 1 amount total
+                    statementData[61][44] = {f: 'SUM(AS61:AS61)', t: 'n'}; // Expense 2 amount total
+                    statementData[61][51] = {f: 'SUM(AZ61:AZ61)', t: 'n'}; // Expense 3 amount total
+                    statementData[61][58] = {f: 'SUM(BG61:BG61)', t: 'n'}; // Expense 4 amount total
+                    statementData[61][60] = {f: 'SUM(BI61:BI61)', t: 'n'};
+                    statementData[61][61] = {f: 'SUM(BJ61:BJ61)', t: 'n'};
+                    statementData[61][62] = {f: 'SUM(BK61:BK61)', t: 'n'};
+                    statementData[61][63] = {f: 'SUM(BL61:BL61)', t: 'n'};
+                    statementData[61][64] = {f: 'SUM(BM61:BM61)', t: 'n'};
+                    statementData[61][65] = {f: 'SUM(BN61:BN61)', t: 'n'};
+                    statementData[61][66] = {f: 'SUM(BO61:BO61)', t: 'n'};
+                    statementData[61][67] = {f: 'SUM(BP61:BP61)', t: 'n'};
+                    statementData[61][68] = {f: 'SUM(BQ61:BQ61)', t: 'n'};
+                    statementData[61][69] = {f: 'SUM(BR61:BR61)', t: 'n'};
+                    statementData[61][70] = {f: 'SUM(BS61:BS61)', t: 'n'};
+                    statementData[61][71] = {f: 'SUM(BT61:BT61)', t: 'n'};
+                    statementData[61][72] = {f: 'SUM(BU61:BU61)', t: 'n'};
+                    statementData[61][73] = {f: 'SUM(BV61:BV61)', t: 'n'};
+                    statementData[61][74] = {f: 'SUM(BW61:BW61)', t: 'n'};
+                    statementData[61][75] = {f: 'SUM(BX61:BX61)', t: 'n'};
+                    
+                    // Overall totals at row 65
+                    statementData[64][1] = {v: 'TOTALS', t: 's'};
+                    statementData[64][6] = {f: 'G57+G62', t: 'n'};
+                    statementData[64][11] = {f: 'L57+L62', t: 'n'};
+                    statementData[64][12] = {f: 'M57+M62', t: 'n'};
+                    statementData[64][13] = {f: 'N57+N62', t: 'n'};
+                    statementData[64][19] = {f: 'T57+T62', t: 'n'};
+                    statementData[64][20] = {f: 'U57+U62', t: 'n'};
+                    statementData[64][21] = {f: 'V57+V62', t: 'n'};
+                    statementData[64][22] = {f: 'W57+W62', t: 'n'};
+                    statementData[64][28] = {f: 'AC57+AC62', t: 'n'};
+                    statementData[64][29] = {f: 'AD57+AD62', t: 'n'};
+                    statementData[64][30] = {f: 'AE57+AE62', t: 'n'};
+                    statementData[64][31] = {f: 'AF57+AF62', t: 'n'};
+                    statementData[64][60] = {f: 'BI57+BI62', t: 'n'};
+                    statementData[64][61] = {f: 'BJ57+BJ62', t: 'n'};
+                    statementData[64][62] = {f: 'BK57+BK62', t: 'n'};
+                    statementData[64][63] = {f: 'BL57+BL62', t: 'n'};
+                    statementData[64][64] = {f: 'BM57+BM62', t: 'n'};
+                    statementData[64][65] = {f: 'BN57+BN62', t: 'n'};
+                    statementData[64][66] = {f: 'BO57+BO62', t: 'n'};
+                    statementData[64][67] = {f: 'BP57+BP62', t: 'n'};
+                    statementData[64][68] = {f: 'BQ57+BQ62', t: 'n'};
+                    statementData[64][69] = {f: 'BR57+BR62', t: 'n'};
+                    statementData[64][70] = {f: 'BS57+BS62', t: 'n'};
+                    statementData[64][71] = {f: 'BT57+BT62', t: 'n'};
+                    statementData[64][72] = {f: 'BU57+BU62', t: 'n'};
+                    statementData[64][73] = {f: 'BV57+BV62', t: 'n'};
+                    statementData[64][74] = {f: 'BW57+BW62', t: 'n'};
+                    statementData[64][75] = {f: 'BX57+BX62', t: 'n'};
+                    
+                    // Add summary section starting at row 67 (0-indexed) with proper references
+                    // Row 68 in Excel (index 67) - matches REQUESTED row 6
+                    statementData[67][0] = {v: 'Rent Due to Prestvale', t: 's'};
+                    statementData[67][3] = {f: 'SUM(G14:G56)', t: 'n'};
+                    
+                    // Row 70 in Excel (index 69) - matches REQUESTED row 7
+                    statementData[68][0] = {v: 'Rent Due From Robert Ellis Amount', t: 's'};
+                    statementData[68][3] = {f: 'L65', t: 'n'};
+                    
+                    // Row 71 in Excel (index 70) - matches REQUESTED row 8
+                    statementData[69][0] = {v: 'Rent Due From Propsk Old Account Amount', t: 's'};
+                    statementData[69][3] = {f: 'M65', t: 'n'};
+                    
+                    // Row 72 in Excel (index 71) - matches REQUESTED row 9
+                    statementData[70][0] = {v: 'Rent Due from Propsk PayProp Amount', t: 's'};
+                    statementData[70][3] = {f: 'N65', t: 'n'};
+                    
+                    // Row 73 in Excel (index 72) - matches REQUESTED row 10
+                    statementData[71][0] = {v: 'Total Rent Due Amount', t: 's'};
+                    statementData[71][3] = {f: 'G65', t: 'n'};
+                    
+                    // Row 76 in Excel (index 75) - matches REQUESTED row 13
+                    statementData[74][0] = {v: 'Rent Received', t: 's'};
+                    
+                    // Row 78 in Excel (index 77) - matches REQUESTED row 15
+                    statementData[76][0] = {v: 'Amount Received by Robert Ellis', t: 's'};
+                    statementData[76][3] = {f: 'U65', t: 'n'};
+                    
+                    // Row 79 in Excel (index 78) - matches REQUESTED row 16
+                    statementData[77][0] = {v: 'Amount Received in Propsk Old Account', t: 's'};
+                    statementData[77][3] = {f: 'V65', t: 'n'};
+                    
+                    // Row 80 in Excel (index 79) - matches REQUESTED row 17
+                    statementData[78][0] = {v: 'Amount received in Payprop Account', t: 's'};
+                    statementData[78][3] = {f: 'W65', t: 'n'};
+                    
+                    // Row 81 in Excel (index 80) - matches REQUESTED row 18
+                    statementData[79][0] = {v: 'Total Rent Received', t: 's'};
+                    statementData[79][3] = {f: 'T65', t: 'n'};
+                    
+                    // Row 84 in Excel (index 83) - matches REQUESTED row 21
+                    statementData[82][0] = {v: 'Management Fee', t: 's'};
+                    
+                    // Row 86 in Excel (index 85) - matches REQUESTED row 23
+                    statementData[84][0] = {v: 'Managment Fee charged by Robert Ellis', t: 's'};
+                    statementData[84][3] = {f: 'AD65', t: 'n'};
+                    
+                    // Row 87 in Excel (index 86) - matches REQUESTED row 24
+                    statementData[85][0] = {v: 'Management Fee Charged to Propsk Old Account', t: 's'};
+                    statementData[85][3] = {f: 'AE65', t: 'n'};
+                    
+                    // Row 88 in Excel (index 87) - matches REQUESTED row 25
+                    statementData[86][0] = {v: 'Management Fee charged by Payprop Account', t: 's'};
+                    statementData[86][3] = {f: 'AF65', t: 'n'};
+                    
+                    // Row 89 in Excel (index 88) - matches REQUESTED row 26
+                    statementData[87][0] = {v: 'Total Management Fees', t: 's'};
+                    statementData[87][3] = {f: 'AC65', t: 'n'};
+                    
+                    // Row 92 in Excel (index 91) - matches REQUESTED row 29
+                    statementData[90][0] = {v: 'Expenses', t: 's'};
+                    
+                    // Row 94 in Excel (index 93) - matches REQUESTED row 31
+                    statementData[92][0] = {v: 'Total Robert Ellis Expenses', t: 's'};
+                    statementData[92][3] = {f: 'BI65', t: 'n'};
+                    
+                    // Row 95 in Excel (index 94) - matches REQUESTED row 32
+                    statementData[93][0] = {v: 'Total Propsk Old Account Expenses', t: 's'};
+                    statementData[93][3] = {f: 'BJ65', t: 'n'};
+                    
+                    // Row 96 in Excel (index 95) - matches REQUESTED row 33
+                    statementData[94][0] = {v: 'Total Propsk PayProp Account Expenses', t: 's'};
+                    statementData[94][3] = {f: 'BK65', t: 'n'};
+                    
+                    // Row 97 in Excel (index 96) - matches REQUESTED row 34
+                    statementData[95][0] = {v: 'Total Expenses', t: 's'};
+                    statementData[95][3] = {f: 'BL65', t: 'n'};
+                    
+                    // Row 100 in Excel (index 99) - matches REQUESTED row 37
+                    statementData[98][0] = {v: 'Net Due to Prestvale', t: 's'};
+                    
+                    // Row 102 in Excel (index 101) - matches REQUESTED row 39
+                    statementData[100][0] = {v: 'Total Net Due to Prestvale From Robert Ellis', t: 's'};
+                    statementData[100][3] = {f: 'BQ65', t: 'n'};
+                    
+                    // Row 103 in Excel (index 102) - matches REQUESTED row 40
+                    statementData[101][0] = {v: 'Total Net Due to Prestvale from Propsk Old Account', t: 's'};
+                    statementData[101][3] = {f: 'BR65', t: 'n'};
+                    
+                    // Row 104 in Excel (index 103) - matches REQUESTED row 41
+                    statementData[102][0] = {v: 'Total Net Due to Prestvale Propsk PayProp Account', t: 's'};
+                    statementData[102][3] = {f: 'BS65', t: 'n'};
+                    
+                    // Row 105 in Excel (index 104) - matches REQUESTED row 42
+                    statementData[103][0] = {v: 'Total Net Due to Prestvale', t: 's'};
+                    statementData[103][3] = {f: 'BT65', t: 'n'};
+                    
+                    // Row 108 in Excel (index 107) - matches REQUESTED row 45
+                    statementData[106][0] = {v: 'Rent Due Less Rent Received', t: 's'};
+                    statementData[106][3] = {f: 'BX65', t: 'n'};
+                    
+                    // Row 110 in Excel (index 109) - matches REQUESTED row 47
+                    statementData[108][0] = {v: 'Rent Due Less Received From Robert Ellis', t: 's'};
+                    statementData[108][3] = {f: 'BU65', t: 'n'};
+                    
+                    // Row 111 in Excel (index 110) - matches REQUESTED row 48
+                    statementData[109][0] = {v: 'Rent Due Less Rent Received from Propsk Old Account', t: 's'};
+                    statementData[109][3] = {f: 'BV65', t: 'n'};
+                    
+                    // Row 112 in Excel (index 111) - matches REQUESTED row 49
+                    statementData[110][0] = {v: 'Rent Due Less Rent Received from Propsk PayProp Account', t: 's'};
+                    statementData[110][3] = {f: 'BW65', t: 'n'};
+                    
+                    // Row 113 in Excel (index 112) - matches REQUESTED row 50
+                    statementData[111][0] = {v: 'Total Rent Due Less Rent Received', t: 's'};
+                    statementData[111][3] = {f: 'BX65', t: 'n'};
+                    
+                    // Create worksheet with 94 columns
+                    const ws_statement = XLSX.utils.aoa_to_sheet(statementData);
+                    const cols = [];
+                    for (let i = 0; i < 94; i++) {
+                        cols.push({wch: 12});
+                    }
+                    // Set specific column widths
+                    cols[2] = {wch: 25};
+                    cols[3] = {wch: 35};
+                    ws_statement['!cols'] = cols;
+                    
+                    XLSX.utils.book_append_sheet(wb, ws_statement, month + ' Propsk Statement');
+                }
+                
+                // Write the file
+                updateStatus('Writing file...');
+                XLSX.writeFile(wb, "Complete_Propsk_Monthly_Statements_Full.xlsx");
+                updateStatus('<strong>✅ Success!</strong> Spreadsheet generated with all 94 columns and formulas.');
+                
+            } catch (error) {
+                console.error('Error generating spreadsheet:', error);
+                updateStatus('<strong>❌ Error:</strong> ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

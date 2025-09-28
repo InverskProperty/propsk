@@ -60,6 +60,9 @@ public class PayPropAdminController {
     private LocalPayPropDataService localPayPropDataService;
 
     @Autowired
+    private site.easy.to.build.crm.service.payprop.PayPropFinancialSyncService financialSyncService;
+
+    @Autowired
     public PayPropAdminController(PayPropOAuth2Service oAuth2Service,
                                  PayPropSyncService syncService,
                                  PropertyService propertyService,
@@ -858,6 +861,42 @@ public class PayPropAdminController {
             log.error("❌ Local PayProp table creation failed: {}", e.getMessage(), e);
             response.put("success", false);
             response.put("message", "Table creation failed: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * TEST: Sync owner payments from payprop_report_all_payments to financial_transactions
+     */
+    @PostMapping("/sync/owner-payments")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> syncOwnerPayments(Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // Check authorization
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                response.put("success", false);
+                response.put("message", "Access denied - MANAGER role required");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+
+            log.info("🏦 Starting owner payment sync test by user: {}", authentication.getName());
+
+            // Execute owner payment sync
+            Map<String, Object> syncResult = financialSyncService.syncOwnerPaymentsToFinancialTransactions();
+
+            response.put("success", true);
+            response.put("message", "Owner payment sync completed");
+            response.put("sync_result", syncResult);
+
+            log.info("✅ Owner payment sync completed successfully");
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Owner payment sync failed: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Sync failed: " + e.getMessage());
             return ResponseEntity.status(500).body(response);
         }
     }
