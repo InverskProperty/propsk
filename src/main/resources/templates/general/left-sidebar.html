@@ -255,7 +255,10 @@
                         
                         <!-- Data Import Page -->
                         <li><a th:href="${home + 'payprop/import'}"><i class="fas fa-download"></i> Data Import</a></li>
-                        
+
+                        <!-- NEW: Enhanced Historical Import (with owner payments) -->
+                        <li><a th:href="${home + 'admin/payprop-import'}"><i class="fas fa-file-excel text-success"></i> Historical Spreadsheet Import</a></li>
+
                         <!-- Test Page -->
                         <li><a th:href="${home + 'payprop/test'}"><i class="fas fa-vial"></i> PayProp Test</a></li>
                         
@@ -300,6 +303,9 @@
                         <li><a th:href="${home + 'employee/invoice?status=synced'}"><i class="fas fa-check-circle text-success"></i> PayProp Synced</a></li>
                         <li><a th:href="${home + 'employee/invoice?status=error'}"><i class="fas fa-exclamation-triangle text-danger"></i> Sync Errors</a></li>
                         <li><a th:href="${home + 'employee/transaction/import'}"><i class="fas fa-file-upload text-info"></i> Import Historical Data</a></li>
+
+                        <!-- NEW: Enhanced Statement Generation (with data source filtering) -->
+                        <li th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}"><a th:href="${home + 'admin/enhanced-statements'}"><i class="fas fa-chart-line text-primary"></i> Enhanced Statements</a></li>
                     </ul>
                 </li>
                 
