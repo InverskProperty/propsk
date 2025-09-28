@@ -69,6 +69,22 @@ public class HistoricalTransactionImportController {
     }
     
     /**
+     * Debug endpoint to test security
+     */
+    @GetMapping("/debug-auth")
+    @ResponseBody
+    public String debugAuth(Authentication authentication) {
+        StringBuilder debug = new StringBuilder();
+        debug.append("Authentication: ").append(authentication != null ? "Present" : "Null").append("\n");
+        if (authentication != null) {
+            debug.append("Name: ").append(authentication.getName()).append("\n");
+            debug.append("Authorities: ").append(authentication.getAuthorities()).append("\n");
+            debug.append("Is Authenticated: ").append(authentication.isAuthenticated()).append("\n");
+        }
+        return debug.toString();
+    }
+
+    /**
      * Handle CSV file upload
      */
     @PostMapping("/import/csv")
@@ -80,6 +96,9 @@ public class HistoricalTransactionImportController {
         
         try {
             log.info("📊 CSV Import: {} (size: {} bytes)", file.getOriginalFilename(), file.getSize());
+            log.info("🔐 Authentication: {} - Authorities: {}",
+                    authentication != null ? authentication.getName() : "null",
+                    authentication != null ? authentication.getAuthorities() : "null");
             
             // Validate file
             if (file.isEmpty()) {
