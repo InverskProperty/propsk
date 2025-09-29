@@ -273,6 +273,7 @@ public class HistoricalTransaction {
             case payment -> "text-success";
             case invoice -> "text-primary";
             case expense -> "text-danger";
+            case maintenance -> "text-warning";
             case deposit -> "text-info";
             case withdrawal -> "text-warning";
             case transfer -> "text-secondary";
@@ -387,8 +388,9 @@ public class HistoricalTransaction {
     
     public enum TransactionType {
         payment("Payment"),
-        invoice("Invoice"), 
+        invoice("Invoice"),
         expense("Expense"),
+        maintenance("Maintenance"),
         deposit("Deposit"),
         withdrawal("Withdrawal"),
         transfer("Transfer"),

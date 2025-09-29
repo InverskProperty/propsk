@@ -1,0 +1,9 @@
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source
+2025-07-04,675.00,Monthly rent - Flat 8,payment,rent,FLAT 8 - 3 WEST GATE,Mr Shermal Wijesinghage,PP-001,PayProp,Monthly payment,PAYPROP
+2025-07-04,60.00,Parking space income,payment,parking,PARKING SPACE 1 - 3 WEST GATE,Mr Shermal Wijesinghage,PP-001,PayProp,Parking payment,PAYPROP
+2025-07-04,-110.25,Management fee - Flat 8,fee,commission,FLAT 8 - 3 WEST GATE,Mr Shermal Wijesinghage,,,15% management fee,PAYPROP
+2025-07-15,750.00,Monthly rent - Flat 1,payment,rent,FLAT 1 - 3 WEST GATE,John Smith,OLD-001,Old Account,Old bank payment,OLD_ACCOUNT
+2025-01-20,-150.00,Boiler service,maintenance,heating,FLAT 2 - 3 WEST GATE,,SVC-001,Bank Transfer,Annual service,OLD_ACCOUNT
+2025-01-21,-75.00,Electrical safety check,maintenance,electrical,FLAT 2 - 3 WEST GATE,,ELEC-002,PayProp,PAT testing,PAYPROP
+2025-06-15,795.00,Rent paid in old account,payment,rent,FLAT 5 - 3 WEST GATE,Mike Jones,OLD-003,Old Account,Pre-PayProp payment,OLD_ACCOUNT
+2025-06-15,-795.00,Credit note - rent paid old account,adjustment,credit_note,FLAT 5 - 3 WEST GATE,Mike Jones,CN-001,PayProp,Balancing PayProp,PAYPROP

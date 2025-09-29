@@ -284,18 +284,28 @@ public class HistoricalTransactionImportService {
     }
     
     /**
-     * Parse single transaction from CSV values
+     * Parse single transaction from CSV values with enhanced dual-source and parking support
      */
-    private HistoricalTransaction parseCsvTransaction(String[] values, Map<String, Integer> columnMap, 
+    private HistoricalTransaction parseCsvTransaction(String[] values, Map<String, Integer> columnMap,
                                                     String batchId, User currentUser) {
         HistoricalTransaction transaction = new HistoricalTransaction();
-        
+
         // Required fields
         transaction.setTransactionDate(parseDate(getValue(values, columnMap, "transaction_date")));
         transaction.setAmount(new BigDecimal(getValue(values, columnMap, "amount")));
         transaction.setDescription(getValue(values, columnMap, "description"));
         transaction.setTransactionType(parseTransactionType(getValue(values, columnMap, "transaction_type")));
-        
+
+        // Enhanced dual-source support
+        String paymentSource = getValue(values, columnMap, "payment_source");
+        if (paymentSource != null && !paymentSource.isEmpty()) {
+            validatePaymentSource(paymentSource); // Validate payment source
+            transaction.setPaymentMethod(paymentSource); // Store payment source in payment_method for now
+        }
+
+        // Note: Parking spaces are now handled as separate properties
+        // No special parking space column processing needed
+
         // Optional fields
         setOptionalField(transaction::setCategory, values, columnMap, "category");
         setOptionalField(transaction::setSubcategory, values, columnMap, "subcategory");
@@ -385,18 +395,70 @@ public class HistoricalTransactionImportService {
     }
     
     /**
-     * Parse transaction type from string
+     * Parse transaction type from string with smart mapping for maintenance-related types
      */
     private TransactionType parseTransactionType(String typeStr) {
         if (typeStr == null || typeStr.isEmpty()) {
             throw new IllegalArgumentException("Transaction type is required");
         }
-        
+
+        // Normalize the type string
+        String normalizedType = typeStr.toLowerCase().trim();
+
+        // Smart mapping for maintenance-related transaction types
+        if (normalizedType.contains("maintenance") || normalizedType.contains("repair") ||
+            normalizedType.contains("contractor") || normalizedType.contains("upkeep")) {
+            return TransactionType.maintenance;
+        }
+
+        // Smart mapping for other common variations
+        switch (normalizedType) {
+            case "payment_to_contractor":
+            case "contractor_payment":
+            case "service_payment":
+                return TransactionType.maintenance;
+            case "rent":
+            case "rental":
+            case "rental_payment":
+            case "parking":
+                return TransactionType.payment;
+            case "management_fee":
+            case "commission":
+            case "service_fee":
+                return TransactionType.fee;
+            case "owner_payment":
+            case "payment_to_beneficiary":
+                return TransactionType.payment;
+            default:
+                break;
+        }
+
         try {
-            return TransactionType.valueOf(typeStr.toLowerCase());
+            return TransactionType.valueOf(normalizedType);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid transaction type: " + typeStr + 
-                                             ". Valid types: " + Arrays.toString(TransactionType.values()));
+            throw new IllegalArgumentException("Invalid transaction type: " + typeStr +
+                                             ". Valid types: " + Arrays.toString(TransactionType.values()) +
+                                             ". Note: maintenance-related types are automatically mapped to 'maintenance'.");
+        }
+    }
+
+    /**
+     * Validate payment source value
+     */
+    private void validatePaymentSource(String paymentSource) {
+        if (paymentSource == null || paymentSource.isEmpty()) {
+            return; // Optional field
+        }
+
+        String normalizedSource = paymentSource.toUpperCase().trim();
+        switch (normalizedSource) {
+            case "OLD_ACCOUNT":
+            case "PAYPROP":
+            case "BOTH":
+                break; // Valid values
+            default:
+                throw new IllegalArgumentException("Invalid payment source: " + paymentSource +
+                                                 ". Valid sources: OLD_ACCOUNT, PAYPROP, BOTH");
         }
     }
     
