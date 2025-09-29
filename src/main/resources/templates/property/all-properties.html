@@ -397,10 +397,15 @@
                         <a href="/employee/ticket/contractor-bids" class="btn btn-secondary">
                             <i class="fas fa-gavel"></i> Contractor Bids
                         </a>
-                        <a th:href="${home + 'employee/property/sync-status'}" 
+                        <a th:href="${home + 'employee/property/sync-status'}"
                            class="btn btn-dark">
                             <i class="fas fa-sync"></i> PayProp Sync Status
                         </a>
+                        <!-- PayProp Import Button (Manager Only) -->
+                        <button th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}"
+                                type="button" class="btn btn-purple" onclick="showPayPropImportModal()">
+                            <i class="fas fa-download"></i> Import from PayProp
+                        </button>
                     </div>
                 </div>
             </div>
@@ -950,8 +955,148 @@ $(document).ready(function() {
         console.error("Error during initialization:", error);
     }
 });
+
+// PayProp Import Modal Functions
+function showPayPropImportModal() {
+    $('#payPropImportModal').modal('show');
+}
+
+function startPayPropImport() {
+    const selectedTypes = [];
+    $('input[name="importType"]:checked').each(function() {
+        selectedTypes.push($(this).val());
+    });
+
+    if (selectedTypes.length === 0) {
+        alert('Please select at least one import type.');
+        return;
+    }
+
+    // Disable button and show loading
+    const importBtn = $('#startImportBtn');
+    importBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Importing...');
+
+    // Start import process
+    $.ajax({
+        url: '/api/payprop/raw-import/sync-all-endpoints',
+        method: 'POST',
+        success: function(data) {
+            if (data.success) {
+                $('#importResults').html(`
+                    <div class="alert alert-success">
+                        <h6><i class="fas fa-check-circle"></i> Import Completed Successfully!</h6>
+                        <p>Summary: ${data.summary.successful} successful, ${data.summary.errors} errors</p>
+                        <small>Duration: ${data.summary.duration_ms}ms</small>
+                    </div>
+                `);
+
+                // Refresh the page after 3 seconds
+                setTimeout(() => {
+                    location.reload();
+                }, 3000);
+            } else {
+                $('#importResults').html(`
+                    <div class="alert alert-danger">
+                        <h6><i class="fas fa-exclamation-triangle"></i> Import Failed</h6>
+                        <p>${data.message || 'Unknown error occurred'}</p>
+                    </div>
+                `);
+            }
+        },
+        error: function(xhr, status, error) {
+            $('#importResults').html(`
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-exclamation-triangle"></i> Import Error</h6>
+                    <p>Failed to connect to PayProp: ${error}</p>
+                </div>
+            `);
+        },
+        complete: function() {
+            importBtn.prop('disabled', false).html('<i class="fas fa-download"></i> Start Import');
+        }
+    });
+}
+
 /*]]>*/
 </script>
+
+<!-- PayProp Import Modal -->
+<div class="modal fade" id="payPropImportModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-download"></i> Import Properties from PayProp
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle"></i> PayProp Import</h6>
+                    <p class="mb-0">This will import all properties and related data from your PayProp account. Select the types of data you want to import:</p>
+                </div>
+
+                <form id="importForm">
+                    <div class="form-group">
+                        <label class="font-weight-bold">Select Import Types:</label>
+                        <div class="mt-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="importType" value="properties" id="importProperties" checked>
+                                <label class="form-check-label" for="importProperties">
+                                    <strong>Properties</strong> - Import all property details, addresses, and settings
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="importType" value="tenants" id="importTenants" checked>
+                                <label class="form-check-label" for="importTenants">
+                                    <strong>Tenants</strong> - Import tenant information and contact details
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="importType" value="beneficiaries" id="importBeneficiaries" checked>
+                                <label class="form-check-label" for="importBeneficiaries">
+                                    <strong>Property Owners</strong> - Import beneficiary/owner information
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="importType" value="invoices" id="importInvoices">
+                                <label class="form-check-label" for="importInvoices">
+                                    <strong>Invoices</strong> - Import rental invoices and payment instructions
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="importType" value="payments" id="importPayments">
+                                <label class="form-check-label" for="importPayments">
+                                    <strong>Payments</strong> - Import payment transactions and history
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <h6><i class="fas fa-exclamation-triangle"></i> Important Notes:</h6>
+                        <ul class="mb-0">
+                            <li>This process may take several minutes for large portfolios</li>
+                            <li>Existing properties will be updated, not duplicated</li>
+                            <li>You can run this import multiple times safely</li>
+                            <li>Manager privileges are required for this operation</li>
+                        </ul>
+                    </div>
+
+                    <div id="importResults"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="startImportBtn" onclick="startPayPropImport()">
+                    <i class="fas fa-download"></i> Start Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>

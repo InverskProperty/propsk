@@ -23,7 +23,8 @@
       "Bash(taskkill:*)",
       "Bash(powershell:*)",
       "Bash(mvn clean:*)",
-      "Bash(\"C:\\Program Files\\MySQL\\MySQL Server 9.3\\bin\\mysql.exe\" -u root -p12345 -D crm -e \"SELECT DISTINCT category FROM payprop_payments_categories LIMIT 20;\")"
+      "Bash(\"C:\\Program Files\\MySQL\\MySQL Server 9.3\\bin\\mysql.exe\" -u root -p12345 -D crm -e \"SELECT DISTINCT category FROM payprop_payments_categories LIMIT 20;\")",
+      "Bash(\"C:\\Program Files\\MySQL\\MySQL Server 9.3\\bin\\mysql.exe\" -h switchyard.proxy.rlwy.net -P 21517 -u root -pIKHmZoGWamNlgQRHLbfHjrQjRAOVgqyH -D railway -e \"SELECT id, property_name, property_type FROM properties WHERE id BETWEEN 320 AND 340 ORDER BY id;\")"
     ],
     "deny": [],
     "ask": [],
