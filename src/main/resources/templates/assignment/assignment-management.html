@@ -239,8 +239,8 @@
                                                 <small class="text-muted" th:text="${assignment.property.city}">City</small>
                                             </td>
                                             <td>
-                                                <span class="badge" th:classappend="${assignment.assignmentType == T(site.easy.to.build.crm.entity.AssignmentType).OWNER} ? 'badge-primary' : 
-                                                                                   ${assignment.assignmentType == T(site.easy.to.build.crm.entity.AssignmentType).TENANT} ? 'badge-success' : 'badge-info'"
+                                                <span class="badge"
+                                                      th:classappend="${assignment.assignmentType == T(site.easy.to.build.crm.entity.AssignmentType).OWNER} ? 'badge-primary' : (${assignment.assignmentType == T(site.easy.to.build.crm.entity.AssignmentType).TENANT} ? 'badge-success' : 'badge-info')"
                                                       th:text="${assignment.assignmentType}">
                                                 </span>
                                             </td>
