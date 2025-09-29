@@ -253,8 +253,8 @@
                                                 <small th:text="${#temporals.format(assignment.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2025 10:30</small>
                                             </td>
                                             <td>
-                                                <span th:if="${assignment.isActive}" class="badge badge-success">Active</span>
-                                                <span th:if="${!assignment.isActive}" class="badge badge-secondary">Inactive</span>
+                                                <span th:if="${assignment.endDate == null}" class="badge badge-success">Active</span>
+                                                <span th:if="${assignment.endDate != null}" class="badge badge-secondary">Ended</span>
                                             </td>
                                             <td>
                                                 <form method="post" th:action="@{'/employee/assignment/delete/' + ${assignment.id}}" 
