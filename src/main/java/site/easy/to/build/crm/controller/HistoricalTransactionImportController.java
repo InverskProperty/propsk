@@ -51,18 +51,20 @@ public class HistoricalTransactionImportController {
     @GetMapping("/import")
     public String showImportPage(Model model, Authentication authentication) {
         try {
-            // Get properties and customers for reference
-            List<Property> properties = propertyService.findAll();
-            List<Customer> customers = customerService.findAll();
-            
-            model.addAttribute("properties", properties);
-            model.addAttribute("customers", customers);
+            log.info("🔍 Loading import page for user: {}",
+                authentication != null ? authentication.getName() : "unknown");
+
+            // Skip database queries for now to avoid timeouts
+            // Just show the import form without data counts
+            model.addAttribute("propertyCount", "N/A");
+            model.addAttribute("customerCount", "N/A");
             model.addAttribute("pageTitle", "Historical Transaction Import");
-            
+
+            log.info("✅ Import page loaded successfully (fast mode)");
             return "transaction/import";
-            
+
         } catch (Exception e) {
-            log.error("Error loading import page: {}", e.getMessage());
+            log.error("❌ Error loading import page: {}", e.getMessage(), e);
             model.addAttribute("error", "Error loading import page: " + e.getMessage());
             return "error/500";
         }

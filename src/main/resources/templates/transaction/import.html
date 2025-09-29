@@ -290,11 +290,11 @@
                         <div class="card-body">
                             <div class="row text-center">
                                 <div class="col-6">
-                                    <h5 class="text-primary" th:text="${#lists.size(properties)}">0</h5>
+                                    <h5 class="text-primary" th:text="${propertyCount != null ? propertyCount : 0}">0</h5>
                                     <small class="text-muted">Properties</small>
                                 </div>
                                 <div class="col-6">
-                                    <h5 class="text-success" th:text="${#lists.size(customers)}">0</h5>
+                                    <h5 class="text-success" th:text="${customerCount != null ? customerCount : 0}">0</h5>
                                     <small class="text-muted">Customers</small>
                                 </div>
                             </div>
