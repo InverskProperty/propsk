@@ -47,7 +47,10 @@ public class PayPropRawImportSimpleController {
 
     @Autowired
     private PayPropSyncOrchestrator payPropSyncOrchestrator;
-    
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     @Autowired
     private site.easy.to.build.crm.service.payprop.raw.PayPropRawBeneficiariesCompleteImportService beneficiariesCompleteImportService;
     
@@ -332,7 +335,7 @@ public class PayPropRawImportSimpleController {
                             log.debug("Could not get current user, using system user for sync");
                         }
 
-                        // Sync properties from payprop_export_properties → properties table
+                        // STEP 2A: Sync properties from payprop_export_properties → properties table
                         SyncResult propertiesSync = payPropSyncOrchestrator.syncPropertiesFromPayPropEnhanced(userId);
 
                         int propertiesCreated = (int) propertiesSync.getDetails().getOrDefault("created", 0);
@@ -343,12 +346,58 @@ public class PayPropRawImportSimpleController {
                             propertiesCreated, propertiesUpdated, propertiesMerged);
 
                         // Add sync results to response
-                        response.put("properties_sync", Map.of(
+                        Map<String, Object> syncResults = new HashMap<>();
+                        syncResults.put("properties_sync", Map.of(
                             "success", propertiesSync.isSuccess(),
                             "created", propertiesCreated,
                             "updated", propertiesUpdated,
                             "message", propertiesSync.getMessage()
                         ));
+
+                        // STEP 2B: Extract owner relationships from imported payments
+                        log.info("🔗 Extracting owner relationships from payment data...");
+                        Map<String, Object> relationships = extractOwnerRelationshipsFromPayments();
+                        int relationshipsFound = (int) relationships.getOrDefault("count", 0);
+                        log.info("✅ Found {} owner-property relationships", relationshipsFound);
+
+                        // STEP 2C: Sync property owners as customers
+                        log.info("👥 Syncing property owners to customers table...");
+                        SyncResult ownersSync = payPropSyncOrchestrator.syncPropertyOwnersAsCustomers(
+                            userId,
+                            (Map<String, site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator.PropertyRelationship>)
+                                relationships.get("relationships")
+                        );
+
+                        int ownersCreated = (int) ownersSync.getDetails().getOrDefault("created", 0);
+                        int ownersUpdated = (int) ownersSync.getDetails().getOrDefault("updated", 0);
+                        log.info("✅ Owners sync: {} created, {} updated", ownersCreated, ownersUpdated);
+
+                        syncResults.put("owners_sync", Map.of(
+                            "success", ownersSync.isSuccess(),
+                            "created", ownersCreated,
+                            "updated", ownersUpdated,
+                            "relationships_found", relationshipsFound,
+                            "message", ownersSync.getMessage()
+                        ));
+
+                        // STEP 2D: Create property assignments (owner → property links)
+                        log.info("🏠 Creating property assignments...");
+                        SyncResult assignmentsSync = payPropSyncOrchestrator.establishPropertyAssignments(
+                            (Map<String, site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator.PropertyRelationship>)
+                                relationships.get("relationships")
+                        );
+
+                        int assignmentsCreated = (int) assignmentsSync.getDetails().getOrDefault("globalAssignments", 0);
+                        log.info("✅ Assignments created: {}", assignmentsCreated);
+
+                        syncResults.put("assignments_sync", Map.of(
+                            "success", assignmentsSync.isSuccess(),
+                            "created", assignmentsCreated,
+                            "message", assignmentsSync.getMessage()
+                        ));
+
+                        // Add all sync results to response
+                        response.putAll(syncResults);
 
                     } catch (Exception e) {
                         log.warn("⚠️ Automatic sync to main tables failed (but import succeeded): {}", e.getMessage());
@@ -1389,13 +1438,71 @@ public class PayPropRawImportSimpleController {
     }
     
     /**
+     * Extract owner-property relationships from already-imported payment data
+     * This reads from payprop_export_payments table and extracts ownership relationships
+     */
+    private Map<String, Object> extractOwnerRelationshipsFromPayments() {
+        Map<String, site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator.PropertyRelationship> relationships = new HashMap<>();
+
+        try {
+            // Query the payprop_export_payments table for Owner category payments
+            String sql = """
+                SELECT
+                    beneficiary as beneficiary_id,
+                    property_payprop_id,
+                    gross_percentage,
+                    enabled,
+                    property_name
+                FROM payprop_export_payments
+                WHERE category = 'Owner'
+                AND enabled = 1
+                AND sync_status = 'active'
+                """;
+
+            jdbcTemplate.query(sql, rs -> {
+                String beneficiaryId = rs.getString("beneficiary_id");
+                String propertyId = rs.getString("property_payprop_id");
+                Double percentage = rs.getDouble("gross_percentage");
+
+                if (beneficiaryId != null && propertyId != null) {
+                    String key = propertyId + "_" + beneficiaryId;
+
+                    site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator.PropertyRelationship rel =
+                        new site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator.PropertyRelationship();
+                    rel.setOwnerPayPropId(beneficiaryId);
+                    rel.setPropertyPayPropId(propertyId);
+                    rel.setOwnershipType("OWNER");
+                    rel.setOwnershipPercentage(percentage != null ? percentage : 100.0);
+
+                    relationships.put(key, rel);
+                }
+            });
+
+            log.info("🔗 Extracted {} owner relationships from payment data", relationships.size());
+
+            return Map.of(
+                "relationships", relationships,
+                "count", relationships.size()
+            );
+
+        } catch (Exception e) {
+            log.error("❌ Failed to extract owner relationships: {}", e.getMessage(), e);
+            return Map.of(
+                "relationships", relationships,
+                "count", 0,
+                "error", e.getMessage()
+            );
+        }
+    }
+
+    /**
      * Helper class for endpoint configuration
      */
     private static class EndpointConfig {
         final String path;
         final String description;
         final Map<String, String> parameters;
-        
+
         EndpointConfig(String path, String description, Map<String, String> parameters) {
             this.path = path;
             this.description = description;
