@@ -1084,20 +1084,195 @@ public class PayPropSyncOrchestrator {
 
     private boolean createOrUpdateProperty(Map<String, Object> propertyData, Long initiatedBy) {
         String payPropId = (String) propertyData.get("id");
+
+        // Level 1: Check by PayProp ID (exact match - already synced)
         Optional<Property> existingOpt = propertyService.findByPayPropId(payPropId);
-        
+
         if (existingOpt.isPresent()) {
+            // Property already synced - just update it
             Property existing = existingOpt.get();
             updatePropertyFromPayPropData(existing, propertyData);
             existing.setUpdatedBy(initiatedBy);
             propertyService.save(existing);
+            log.debug("Updated existing PayProp property: {}", payPropId);
+            return false; // updated
+        }
+
+        // Level 2: Check for duplicate by address (local property without PayProp ID)
+        Property duplicate = findLocalDuplicateByAddress(propertyData);
+
+        if (duplicate != null) {
+            // Found local property that matches - MERGE instead of creating new
+            log.info("🔄 Merging local property '{}' (ID {}) with PayProp property '{}' (PayProp ID: {})",
+                duplicate.getPropertyName(), duplicate.getId(),
+                propertyData.get("property_name"), payPropId);
+
+            // Link the local property to PayProp (this is the key step!)
+            duplicate.setPayPropId(payPropId);
+
+            // Update with PayProp data (address, rent, etc.)
+            updatePropertyFromPayPropData(duplicate, propertyData);
+            duplicate.setUpdatedBy(initiatedBy);
+            propertyService.save(duplicate);
+
+            log.info("✅ Successfully merged: Local property {} is now linked to PayProp ID {}",
+                duplicate.getId(), payPropId);
+            return false; // merged (treated as update, not new)
+        }
+
+        // Level 3: No match found - create new property
+        Property property = createPropertyFromPayPropData(propertyData);
+        property.setCreatedBy(initiatedBy);
+        propertyService.save(property);
+        log.debug("Created new property from PayProp: {} (ID: {})",
+            property.getPropertyName(), payPropId);
+        return true; // created
+    }
+
+    /**
+     * Find local property that matches PayProp property by address
+     * Used to detect duplicates and merge them instead of creating new entries
+     */
+    private Property findLocalDuplicateByAddress(Map<String, Object> payPropData) {
+        // Extract address from PayProp data
+        Map<String, Object> address = (Map<String, Object>) payPropData.get("address");
+        if (address == null) {
+            log.debug("No address data in PayProp property, cannot detect duplicates");
+            return null;
+        }
+
+        String addressLine1 = normalizeString((String) address.get("first_line"));
+        String postcode = normalizeString((String) address.get("postal_code"));
+        String city = normalizeString((String) address.get("city"));
+
+        if (addressLine1 == null || postcode == null) {
+            log.debug("Insufficient address data for duplicate detection");
+            return null;
+        }
+
+        // Get property name for similarity matching
+        String payPropName = normalizeString((String) payPropData.get("property_name"));
+
+        // Find local properties WITHOUT PayProp ID at same address
+        List<Property> allProperties = propertyService.findAll();
+
+        for (Property prop : allProperties) {
+            // Skip properties already synced to PayProp
+            if (prop.getPayPropId() != null && !prop.getPayPropId().isEmpty()) {
+                continue;
+            }
+
+            // Skip archived properties
+            if ("Y".equals(prop.getIsArchived())) {
+                continue;
+            }
+
+            // Check address match
+            String localAddr = normalizeString(prop.getAddressLine1());
+            String localPostcode = normalizeString(prop.getPostcode());
+            String localCity = normalizeString(prop.getCity());
+
+            // Address and postcode must match
+            if (addressLine1.equals(localAddr) && postcode.equals(localPostcode)) {
+                // Found address match - check name similarity
+                String localName = normalizeString(prop.getPropertyName());
+
+                // If names are reasonably similar, consider it a duplicate
+                if (namesAreSimilar(localName, payPropName)) {
+                    log.info("Found potential duplicate: Local '{}' matches PayProp '{}' at address: {}, {}",
+                        prop.getPropertyName(), payPropData.get("property_name"),
+                        addressLine1, postcode);
+                    return prop;
+                }
+            }
+        }
+
+        return null; // No duplicate found
+    }
+
+    /**
+     * Normalize string for comparison (lowercase, trim, handle nulls)
+     */
+    private String normalizeString(String s) {
+        if (s == null) {
+            return null;
+        }
+        return s.trim().toLowerCase();
+    }
+
+    /**
+     * Check if two property names are similar enough to be considered duplicates
+     * Handles variations like "Parking Space 1" vs "Parking Space 1 - 3 West Gate"
+     */
+    private boolean namesAreSimilar(String name1, String name2) {
+        if (name1 == null || name2 == null) {
             return false;
-        } else {
-            Property property = createPropertyFromPayPropData(propertyData);
-            property.setCreatedBy(initiatedBy);
-            propertyService.save(property);
+        }
+
+        // Exact match
+        if (name1.equals(name2)) {
             return true;
         }
+
+        // One contains the other (e.g., "parking space 1" contains "parking space 1, long eaton")
+        if (name1.contains(name2) || name2.contains(name1)) {
+            return true;
+        }
+
+        // Extract core name (remove building-specific suffixes)
+        String core1 = extractCoreName(name1);
+        String core2 = extractCoreName(name2);
+
+        if (core1.equals(core2)) {
+            return true;
+        }
+
+        // Check if they share significant words
+        return tokenSimilarity(name1, name2) > 0.6; // 60% word overlap
+    }
+
+    /**
+     * Extract core property name (remove building/address suffixes)
+     */
+    private String extractCoreName(String name) {
+        // Remove common suffixes like "- 3 West Gate", ", Long Eaton", etc.
+        return name.replaceAll("\\s*[-,]\\s*3 west gate.*", "")
+                   .replaceAll("\\s*,\\s*long eaton.*", "")
+                   .replaceAll("\\s*,.*", "")
+                   .trim();
+    }
+
+    /**
+     * Calculate word overlap similarity between two strings
+     */
+    private double tokenSimilarity(String s1, String s2) {
+        Set<String> tokens1 = tokenize(s1);
+        Set<String> tokens2 = tokenize(s2);
+
+        if (tokens1.isEmpty() || tokens2.isEmpty()) {
+            return 0.0;
+        }
+
+        // Calculate Jaccard similarity (intersection / union)
+        Set<String> intersection = new HashSet<>(tokens1);
+        intersection.retainAll(tokens2);
+
+        Set<String> union = new HashSet<>(tokens1);
+        union.addAll(tokens2);
+
+        return (double) intersection.size() / union.size();
+    }
+
+    /**
+     * Split string into word tokens for comparison
+     */
+    private Set<String> tokenize(String s) {
+        return Arrays.stream(s.split("[\\s,\\-]+"))
+            .map(String::trim)
+            .map(String::toLowerCase)
+            .filter(t -> !t.isEmpty())
+            .filter(t -> t.length() > 1) // Skip single characters
+            .collect(Collectors.toSet());
     }
 
     private boolean createOrUpdatePropertyOwnerCustomer(Map<String, Object> beneficiaryData, 

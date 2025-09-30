@@ -977,9 +977,18 @@ function startPayPropImport() {
     importBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Importing...');
 
     // Start import process
+    const csrfToken = $('meta[name="_csrf"]').attr('content');
+    const csrfHeader = $('meta[name="_csrf_header"]').attr('content');
+
     $.ajax({
         url: '/api/payprop/raw-import/sync-all-endpoints',
         method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json',
+            [csrfHeader]: csrfToken
+        },
+        data: JSON.stringify({}),
         success: function(data) {
             if (data.success) {
                 $('#importResults').html(`

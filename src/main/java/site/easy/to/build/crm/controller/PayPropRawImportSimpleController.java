@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.service.payprop.PayPropApiClient;
 import site.easy.to.build.crm.service.payprop.PayPropFinancialSyncService;
+import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator;
+import site.easy.to.build.crm.service.payprop.SyncResult;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.time.LocalDate;
@@ -36,12 +38,15 @@ public class PayPropRawImportSimpleController {
     
     @Autowired
     private PayPropApiClient apiClient;
-    
-    @Autowired 
+
+    @Autowired
     private PayPropFinancialSyncService financialSyncService;
-    
+
     @Autowired
     private AuthenticationUtils authenticationUtils;
+
+    @Autowired
+    private PayPropSyncOrchestrator payPropSyncOrchestrator;
     
     @Autowired
     private site.easy.to.build.crm.service.payprop.raw.PayPropRawBeneficiariesCompleteImportService beneficiariesCompleteImportService;
@@ -304,13 +309,54 @@ public class PayPropRawImportSimpleController {
             response.put("endpoint_results", endpointResults);
             
             if (wasCancelled) {
-                log.warn("🛑 SYNC CANCELLED: {} successful, {} errors, {} cancelled in {}ms", 
+                log.warn("🛑 SYNC CANCELLED: {} successful, {} errors, {} cancelled in {}ms",
                          successCount, errorCount, cancelledCount, duration);
             } else {
-                log.info("🎯 ALL ENDPOINTS SYNC COMPLETE: {} successful, {} errors in {}ms", 
+                log.info("🎯 ALL ENDPOINTS SYNC COMPLETE: {} successful, {} errors in {}ms",
                          successCount, errorCount, duration);
+
+                // STEP 2: Automatically sync from payprop_export_* to main tables
+                // This ensures properties appear in all features (assignment, etc.)
+                if (errorCount == 0) {
+                    log.info("📊 Starting automatic sync from export tables to main tables...");
+                    try {
+                        // Get current user ID for audit trail
+                        Long userId = 1L; // Default system user for background sync
+                        try {
+                            org.springframework.security.core.Authentication auth =
+                                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                            if (auth != null) {
+                                userId = authenticationUtils.getLoggedInUserIdSecure(auth);
+                            }
+                        } catch (Exception e) {
+                            log.debug("Could not get current user, using system user for sync");
+                        }
+
+                        // Sync properties from payprop_export_properties → properties table
+                        SyncResult propertiesSync = payPropSyncOrchestrator.syncPropertiesFromPayPropEnhanced(userId);
+
+                        int propertiesCreated = (int) propertiesSync.getDetails().getOrDefault("created", 0);
+                        int propertiesUpdated = (int) propertiesSync.getDetails().getOrDefault("updated", 0);
+                        int propertiesMerged = propertiesUpdated - propertiesCreated; // merged are counted as updates
+
+                        log.info("✅ Properties sync: {} created, {} updated, {} merged",
+                            propertiesCreated, propertiesUpdated, propertiesMerged);
+
+                        // Add sync results to response
+                        response.put("properties_sync", Map.of(
+                            "success", propertiesSync.isSuccess(),
+                            "created", propertiesCreated,
+                            "updated", propertiesUpdated,
+                            "message", propertiesSync.getMessage()
+                        ));
+
+                    } catch (Exception e) {
+                        log.warn("⚠️ Automatic sync to main tables failed (but import succeeded): {}", e.getMessage());
+                        response.put("sync_warning", "Import succeeded but sync to main tables failed: " + e.getMessage());
+                    }
+                }
             }
-            
+
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
