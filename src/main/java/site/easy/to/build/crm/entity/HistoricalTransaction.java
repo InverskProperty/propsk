@@ -156,7 +156,74 @@ public class HistoricalTransaction {
     
     @Column(name = "tags", length = 500)
     private String tags;
-    
+
+    // ===== PAYPROP INTEGRATION FIELDS =====
+
+    @Column(name = "payprop_transaction_id", unique = true, length = 100)
+    private String paypropTransactionId;
+
+    @Column(name = "payprop_property_id", length = 100)
+    private String paypropPropertyId;
+
+    @Column(name = "payprop_tenant_id", length = 100)
+    private String paypropTenantId;
+
+    @Column(name = "payprop_beneficiary_id", length = 100)
+    private String paypropBeneficiaryId;
+
+    @Column(name = "payprop_category_id", length = 100)
+    private String paypropCategoryId;
+
+    // ===== COMMISSION AND FEE TRACKING =====
+
+    @Column(name = "commission_rate", precision = 5, scale = 2)
+    private BigDecimal commissionRate;
+
+    @Column(name = "commission_amount", precision = 10, scale = 2)
+    private BigDecimal commissionAmount;
+
+    @Column(name = "service_fee_rate", precision = 5, scale = 2)
+    private BigDecimal serviceFeeRate;
+
+    @Column(name = "service_fee_amount", precision = 10, scale = 2)
+    private BigDecimal serviceFeeAmount;
+
+    @Column(name = "net_to_owner_amount", precision = 12, scale = 2)
+    private BigDecimal netToOwnerAmount;
+
+    // ===== INSTRUCTION TRACKING =====
+
+    @Column(name = "is_instruction")
+    private Boolean isInstruction = false;
+
+    @Column(name = "is_actual_transaction")
+    private Boolean isActualTransaction = false;
+
+    @Column(name = "instruction_id", length = 100)
+    private String instructionId;
+
+    @Column(name = "instruction_date")
+    private LocalDate instructionDate;
+
+    // ===== BATCH PAYMENT SUPPORT =====
+
+    @Column(name = "batch_payment_id")
+    private Long batchPaymentId;
+
+    @Column(name = "payprop_batch_id", length = 100)
+    private String paypropBatchId;
+
+    @Column(name = "batch_sequence_number")
+    private Integer batchSequenceNumber;
+
+    // ===== ADDITIONAL FIELDS =====
+
+    @Column(name = "deposit_id", length = 100)
+    private String depositId;
+
+    @Column(name = "reference", length = 255)
+    private String reference;
+
     // ===== CONSTRUCTORS =====
     
     public HistoricalTransaction() {
@@ -383,7 +450,66 @@ public class HistoricalTransaction {
     
     public String getTags() { return tags; }
     public void setTags(String tags) { this.tags = tags; }
-    
+
+    // ===== PAYPROP FIELD GETTERS AND SETTERS =====
+
+    public String getPaypropTransactionId() { return paypropTransactionId; }
+    public void setPaypropTransactionId(String paypropTransactionId) { this.paypropTransactionId = paypropTransactionId; }
+
+    public String getPaypropPropertyId() { return paypropPropertyId; }
+    public void setPaypropPropertyId(String paypropPropertyId) { this.paypropPropertyId = paypropPropertyId; }
+
+    public String getPaypropTenantId() { return paypropTenantId; }
+    public void setPaypropTenantId(String paypropTenantId) { this.paypropTenantId = paypropTenantId; }
+
+    public String getPaypropBeneficiaryId() { return paypropBeneficiaryId; }
+    public void setPaypropBeneficiaryId(String paypropBeneficiaryId) { this.paypropBeneficiaryId = paypropBeneficiaryId; }
+
+    public String getPaypropCategoryId() { return paypropCategoryId; }
+    public void setPaypropCategoryId(String paypropCategoryId) { this.paypropCategoryId = paypropCategoryId; }
+
+    public BigDecimal getCommissionRate() { return commissionRate; }
+    public void setCommissionRate(BigDecimal commissionRate) { this.commissionRate = commissionRate; }
+
+    public BigDecimal getCommissionAmount() { return commissionAmount; }
+    public void setCommissionAmount(BigDecimal commissionAmount) { this.commissionAmount = commissionAmount; }
+
+    public BigDecimal getServiceFeeRate() { return serviceFeeRate; }
+    public void setServiceFeeRate(BigDecimal serviceFeeRate) { this.serviceFeeRate = serviceFeeRate; }
+
+    public BigDecimal getServiceFeeAmount() { return serviceFeeAmount; }
+    public void setServiceFeeAmount(BigDecimal serviceFeeAmount) { this.serviceFeeAmount = serviceFeeAmount; }
+
+    public BigDecimal getNetToOwnerAmount() { return netToOwnerAmount; }
+    public void setNetToOwnerAmount(BigDecimal netToOwnerAmount) { this.netToOwnerAmount = netToOwnerAmount; }
+
+    public Boolean getIsInstruction() { return isInstruction; }
+    public void setIsInstruction(Boolean isInstruction) { this.isInstruction = isInstruction; }
+
+    public Boolean getIsActualTransaction() { return isActualTransaction; }
+    public void setIsActualTransaction(Boolean isActualTransaction) { this.isActualTransaction = isActualTransaction; }
+
+    public String getInstructionId() { return instructionId; }
+    public void setInstructionId(String instructionId) { this.instructionId = instructionId; }
+
+    public LocalDate getInstructionDate() { return instructionDate; }
+    public void setInstructionDate(LocalDate instructionDate) { this.instructionDate = instructionDate; }
+
+    public Long getBatchPaymentId() { return batchPaymentId; }
+    public void setBatchPaymentId(Long batchPaymentId) { this.batchPaymentId = batchPaymentId; }
+
+    public String getPaypropBatchId() { return paypropBatchId; }
+    public void setPaypropBatchId(String paypropBatchId) { this.paypropBatchId = paypropBatchId; }
+
+    public Integer getBatchSequenceNumber() { return batchSequenceNumber; }
+    public void setBatchSequenceNumber(Integer batchSequenceNumber) { this.batchSequenceNumber = batchSequenceNumber; }
+
+    public String getDepositId() { return depositId; }
+    public void setDepositId(String depositId) { this.depositId = depositId; }
+
+    public String getReference() { return reference; }
+    public void setReference(String reference) { this.reference = reference; }
+
     // ===== ENUMS =====
     
     public enum TransactionType {

@@ -374,4 +374,46 @@ public interface HistoricalTransactionRepository extends JpaRepository<Historica
     @Query("SELECT ht FROM HistoricalTransaction ht WHERE " +
            "(ht.category IS NULL OR ht.category = '') AND ht.status = 'active'")
     List<HistoricalTransaction> findTransactionsWithoutCategory();
+
+    // ===== PAYPROP INTEGRATION QUERIES =====
+
+    /**
+     * Check if transaction exists by PayProp transaction ID (for deduplication)
+     */
+    boolean existsByPaypropTransactionId(String paypropTransactionId);
+
+    /**
+     * Find transaction by PayProp transaction ID
+     */
+    HistoricalTransaction findByPaypropTransactionId(String paypropTransactionId);
+
+    /**
+     * Find transactions by PayProp property ID
+     */
+    List<HistoricalTransaction> findByPaypropPropertyId(String paypropPropertyId);
+
+    /**
+     * Find transactions for property statement generation (by PayProp ID and date range)
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.paypropPropertyId = :paypropPropertyId " +
+           "AND ht.transactionDate BETWEEN :fromDate AND :toDate " +
+           "AND ht.status = 'active' ORDER BY ht.transactionDate DESC")
+    List<HistoricalTransaction> findPropertyTransactionsForStatement(@Param("paypropPropertyId") String paypropPropertyId,
+                                                                     @Param("fromDate") LocalDate fromDate,
+                                                                     @Param("toDate") LocalDate toDate);
+
+    /**
+     * Find transactions by account source
+     */
+    List<HistoricalTransaction> findByAccountSource(String accountSource);
+
+    /**
+     * Find transactions by account source and date range
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.accountSource = :accountSource " +
+           "AND ht.transactionDate BETWEEN :fromDate AND :toDate " +
+           "AND ht.status = 'active' ORDER BY ht.transactionDate DESC")
+    List<HistoricalTransaction> findByAccountSourceAndDateRange(@Param("accountSource") String accountSource,
+                                                               @Param("fromDate") LocalDate fromDate,
+                                                               @Param("toDate") LocalDate toDate);
 }
