@@ -332,6 +332,7 @@ public class HistoricalTransaction {
             case bank_import -> "Bank Import";
             case spreadsheet_import -> "Spreadsheet Import";
             case system_migration -> "System Migration";
+            case api_sync -> "API Sync";
         };
     }
     
