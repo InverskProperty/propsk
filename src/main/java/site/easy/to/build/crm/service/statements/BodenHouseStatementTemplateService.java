@@ -541,10 +541,10 @@ public class BodenHouseStatementTemplateService {
         }
 
         // More formulas matching your spreadsheet
-        row[31] = "=-V" + currentRow + "+-Y" + currentRow + "+-AB" + currentRow + "+-AE" + currentRow; // Total Expenses
-        row[32] = "=AG" + currentRow + "+T" + currentRow; // Total Expenses and Commission
-        row[33] = "=L" + currentRow + "+T" + currentRow + "+AG" + currentRow; // Net Due to Owner
-        row[34] = "=O" + currentRow + "+AH" + currentRow; // Net Due from Propsk After Expenses and Commissions
+        row[31] = "=U" + currentRow + "+X" + currentRow + "+AA" + currentRow + "+AD" + currentRow; // Total Expenses (sum of 4 expense amounts)
+        row[32] = "=AF" + currentRow + "+S" + currentRow; // Total Expenses and Commission (Total Expenses + Total Fees)
+        row[33] = "=N" + currentRow + "-S" + currentRow + "-AF" + currentRow; // Net Due to Owner (Total Rent Received - Fees - Expenses)
+        row[34] = "=AH" + currentRow; // Net Due from Propsk (same as Net Due to Owner for now)
         row[35] = unit.datePaid;
         row[36] = "=G" + currentRow + "-L" + currentRow; // Rent Due less Received
 
