@@ -519,18 +519,18 @@ public class BodenHouseStatementTemplateService {
         row[10] = unit.rentReceivedAmount;
 
         // Excel formulas matching your spreadsheet exactly
-        row[11] = "=L" + currentRow + "*K" + currentRow; // Amount received in Payprop
-        row[12] = "=J" + currentRow + "*L" + currentRow; // Amount Received Old Account
-        row[13] = "=(L" + currentRow + "*J" + currentRow + ")+(L" + currentRow + "*K" + currentRow + ")"; // Total Rent Received By Propsk
+        row[11] = "=K" + currentRow + "*J" + currentRow; // Amount received in Payprop (Rent Received * PayProp Flag)
+        row[12] = "=K" + currentRow + "*I" + currentRow; // Amount Received Old Account (Rent Received * Old Account Flag)
+        row[13] = "=L" + currentRow + "+M" + currentRow; // Total Rent Received By Propsk (sum of L and M)
         // Store percentages as decimals for Excel formulas but display as percentages
         BigDecimal managementDecimal = unit.managementFeePercentage.divide(new BigDecimal("100"), 4, BigDecimal.ROUND_HALF_UP);
         BigDecimal serviceDecimal = unit.serviceFeePercentage.divide(new BigDecimal("100"), 4, BigDecimal.ROUND_HALF_UP);
 
         row[14] = managementDecimal; // Management Fee % (as decimal for Excel) - Column O
-        row[15] = "=L" + currentRow + "*-O" + currentRow; // Management Fee £ - Column P
+        row[15] = "=N" + currentRow + "*O" + currentRow; // Management Fee £ - Column P (Total Rent Received * Management Fee %)
         row[16] = serviceDecimal; // Service Fee % (as decimal for Excel) - Column Q
-        row[17] = "=L" + currentRow + "*-Q" + currentRow; // Service Fee £ - Column R
-        row[18] = "=Q" + currentRow + "+S" + currentRow; // Total Fees Charged by Propsk
+        row[17] = "=N" + currentRow + "*Q" + currentRow; // Service Fee £ - Column R (Total Rent Received * Service Fee %)
+        row[18] = "=P" + currentRow + "+R" + currentRow; // Total Fees Charged by Propsk (Column S = P + R)
 
         // Expenses (up to 4 expenses like your spreadsheet)
         for (int i = 0; i < 4 && i < unit.expenses.size(); i++) {

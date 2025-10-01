@@ -1148,6 +1148,7 @@ public class GoogleSheetsStatementService {
 
                 driveService.permissions().create(spreadsheetId, customerPermission)
                     .setSupportsAllDrives(true)  // Required for shared drives
+                    .setSendNotificationEmail(false)  // Don't notify customer by email
                     .execute();
 
                 System.out.println("✅ Property owner (" + customerEmail + ") granted access to their statement");
