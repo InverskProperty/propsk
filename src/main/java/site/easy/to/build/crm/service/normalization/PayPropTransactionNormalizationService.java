@@ -125,7 +125,7 @@ public class PayPropTransactionNormalizationService {
 
         // Map to internal property if available
         if (ft.getPropertyId() != null) {
-            Property property = propertyRepository.findByPaypropId(ft.getPropertyId());
+            Property property = propertyRepository.findByPayPropId(ft.getPropertyId()).orElse(null);
             if (property != null) {
                 ht.setProperty(property);
             } else {

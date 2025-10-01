@@ -74,14 +74,17 @@ public class HistoricalTransaction {
     private String subcategory;
     
     // ===== SOURCE AND PROVENANCE FIELDS =====
-    
+
     @Enumerated(EnumType.STRING)
     @Column(name = "source", nullable = false)
     private TransactionSource source = TransactionSource.historical_import;
-    
+
+    @Column(name = "account_source", length = 50)
+    private String accountSource;
+
     @Column(name = "source_reference", length = 255)
     private String sourceReference;
-    
+
     @Column(name = "import_batch_id", length = 100)
     private String importBatchId;
     
@@ -390,7 +393,10 @@ public class HistoricalTransaction {
     
     public TransactionSource getSource() { return source; }
     public void setSource(TransactionSource source) { this.source = source; }
-    
+
+    public String getAccountSource() { return accountSource; }
+    public void setAccountSource(String accountSource) { this.accountSource = accountSource; }
+
     public String getSourceReference() { return sourceReference; }
     public void setSourceReference(String sourceReference) { this.sourceReference = sourceReference; }
     
@@ -538,14 +544,15 @@ public class HistoricalTransaction {
         manual_entry("Manual Entry"),
         bank_import("Bank Import"),
         spreadsheet_import("Spreadsheet Import"),
-        system_migration("System Migration");
-        
+        system_migration("System Migration"),
+        api_sync("API Sync");
+
         private final String displayName;
-        
+
         TransactionSource(String displayName) {
             this.displayName = displayName;
         }
-        
+
         public String getDisplayName() { return displayName; }
     }
     
