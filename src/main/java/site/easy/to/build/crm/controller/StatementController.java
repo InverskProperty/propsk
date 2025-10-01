@@ -422,10 +422,13 @@ public class StatementController {
             @RequestParam("propertyOwnerId") Integer propertyOwnerId,
             @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(value = "periodBreakdown", defaultValue = "SINGLE") String periodBreakdown,
+            @RequestParam(value = "accountSources", required = false) List<String> accountSourceNames,
             Authentication authentication) {
 
         try {
             System.out.println("🏢 XLSX: Generating property owner statement for ID: " + propertyOwnerId);
+            System.out.println("🏢 XLSX: Period breakdown: " + periodBreakdown);
 
             // Reuse existing authorization logic
             Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
@@ -446,13 +449,28 @@ public class StatementController {
                 return ResponseEntity.notFound().build();
             }
 
-            // Generate XLSX using new service
-            byte[] excelData = xlsxStatementService.generatePropertyOwnerStatementXLSX(
-                propertyOwner, fromDate, toDate);
+            // Parse account sources
+            Set<StatementDataSource> includedSources = parseAccountSources(accountSourceNames);
+
+            // Generate XLSX using appropriate service method
+            byte[] excelData;
+            boolean isMonthlyBreakdown = "MONTHLY".equals(periodBreakdown);
+
+            if (isMonthlyBreakdown) {
+                System.out.println("🏢 XLSX: Generating MONTHLY breakdown statement");
+                excelData = xlsxStatementService.generateMonthlyPropertyOwnerStatementXLSX(
+                    propertyOwner, fromDate, toDate, includedSources);
+            } else {
+                System.out.println("🏢 XLSX: Generating SINGLE statement");
+                excelData = xlsxStatementService.generatePropertyOwnerStatementXLSX(
+                    propertyOwner, fromDate, toDate);
+            }
 
             String customerName = propertyOwner.getName() != null ? propertyOwner.getName() : "Customer" + propertyOwner.getCustomerId();
-            String filename = String.format("Statement_%s_%s.xlsx",
+            String periodInfo = isMonthlyBreakdown ? "_Monthly" : "";
+            String filename = String.format("Statement_%s%s_%s.xlsx",
                 customerName.replaceAll("[^a-zA-Z0-9]", "_"),
+                periodInfo,
                 fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM")));
 
             System.out.println("✅ XLSX: Generated statement - " + excelData.length + " bytes");
@@ -477,6 +495,8 @@ public class StatementController {
             @RequestParam("propertyOwnerId") Integer propertyOwnerId,
             @RequestParam("fromDate") String fromDate,
             @RequestParam("toDate") String toDate,
+            @RequestParam(value = "periodBreakdown", defaultValue = "SINGLE") String periodBreakdown,
+            @RequestParam(value = "sources", required = false) String sources,
             Authentication authentication) {
 
         try {
@@ -495,8 +515,13 @@ public class StatementController {
                 parsedToDate = LocalDate.parse(toDate);
             }
 
+            // Parse sources
+            List<String> accountSourceNames = sources != null && !sources.isEmpty() ?
+                Arrays.asList(sources.split(",")) : List.of();
+
             // Call POST method with parsed dates
-            return generatePropertyOwnerStatementXLSX(propertyOwnerId, parsedFromDate, parsedToDate, authentication);
+            return generatePropertyOwnerStatementXLSX(propertyOwnerId, parsedFromDate, parsedToDate,
+                periodBreakdown, accountSourceNames, authentication);
 
         } catch (Exception e) {
             System.err.println("❌ XLSX GET: Error parsing dates or generating statement: " + e.getMessage());
@@ -723,6 +748,7 @@ public class StatementController {
             @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(value = "accountSources", required = false) List<String> accountSourceNames,
+            @RequestParam(value = "periodBreakdown", defaultValue = "SINGLE") String periodBreakdown,
             @RequestParam(value = "outputFormat", defaultValue = "GOOGLE_SHEETS") String outputFormat,
             Authentication authentication,
             RedirectAttributes redirectAttributes) {
@@ -765,26 +791,41 @@ public class StatementController {
                 redirectAttributes.addFlashAttribute("info", "Downloading XLSX statement with selected sources...");
                 return "redirect:/statements/property-owner/xlsx?propertyOwnerId=" + propertyOwnerId +
                        "&fromDate=" + fromDate + "&toDate=" + toDate +
+                       "&periodBreakdown=" + periodBreakdown +
                        "&sources=" + String.join(",", accountSourceNames != null ? accountSourceNames : List.of());
             } else {
                 // Google Sheets generation
                 OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
                 String spreadsheetId;
 
-                if (oAuthUser != null && oAuthUser.getAccessToken() != null) {
-                    // Use OAuth with source filtering
-                    spreadsheetId = statementService.createPropertyOwnerStatement(oAuthUser, propertyOwner, fromDate, toDate);
+                // Check if monthly breakdown is requested
+                boolean isMonthlyBreakdown = "MONTHLY".equals(periodBreakdown);
+
+                if (isMonthlyBreakdown) {
+                    // Generate multi-sheet monthly breakdown
+                    if (oAuthUser != null && oAuthUser.getAccessToken() != null) {
+                        spreadsheetId = statementService.createMonthlyPropertyOwnerStatement(
+                            oAuthUser, propertyOwner, fromDate, toDate, includedSources);
+                    } else {
+                        spreadsheetId = serviceAccountSheetsService.createMonthlyPropertyOwnerStatement(
+                            propertyOwner, fromDate, toDate, includedSources);
+                    }
                 } else {
-                    // Use service account
-                    spreadsheetId = serviceAccountSheetsService.createPropertyOwnerStatement(propertyOwner, fromDate, toDate);
+                    // Generate single sheet statement
+                    if (oAuthUser != null && oAuthUser.getAccessToken() != null) {
+                        spreadsheetId = statementService.createPropertyOwnerStatement(oAuthUser, propertyOwner, fromDate, toDate);
+                    } else {
+                        spreadsheetId = serviceAccountSheetsService.createPropertyOwnerStatement(propertyOwner, fromDate, toDate);
+                    }
                 }
 
                 String sheetsUrl = "https://docs.google.com/spreadsheets/d/" + spreadsheetId;
                 String sourceInfo = includedSources.isEmpty() ? "all sources" :
                     includedSources.stream().map(StatementDataSource::getDisplayName).collect(Collectors.joining(", "));
+                String periodInfo = isMonthlyBreakdown ? " (monthly breakdown)" : "";
 
                 redirectAttributes.addFlashAttribute("success",
-                    "Statement generated successfully with sources: " + sourceInfo + "! " +
+                    "Statement generated successfully" + periodInfo + " with sources: " + sourceInfo + "! " +
                     "<a href='" + sheetsUrl + "' target='_blank'>View in Google Sheets</a>");
 
                 return "redirect:/statements";

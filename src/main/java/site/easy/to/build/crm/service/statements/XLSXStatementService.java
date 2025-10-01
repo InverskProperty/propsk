@@ -9,9 +9,12 @@ import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.FinancialTransaction;
 import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.enums.StatementDataSource;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
+import site.easy.to.build.crm.util.RentCyclePeriodCalculator;
+import site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -54,6 +57,232 @@ public class XLSXStatementService {
 
         // Create Excel workbook with the new template
         return createBodenHouseExcelStatement(values, "Property Owner Statement");
+    }
+
+    /**
+     * Generate Property Owner Statement with monthly breakdown as XLSX
+     */
+    public byte[] generateMonthlyPropertyOwnerStatementXLSX(Customer propertyOwner,
+                                                           LocalDate fromDate, LocalDate toDate,
+                                                           Set<StatementDataSource> includedDataSources)
+            throws IOException {
+
+        System.out.println("🏢 Generating XLSX MONTHLY Property Owner statement for: " + propertyOwner.getName());
+        System.out.println("📊 Date range: " + fromDate + " to " + toDate);
+
+        // Calculate rent cycle periods
+        List<RentCyclePeriod> periods = RentCyclePeriodCalculator.calculateMonthlyPeriods(fromDate, toDate);
+        System.out.println("📊 Splitting into " + periods.size() + " monthly periods");
+
+        // Create workbook with multiple sheets
+        XSSFWorkbook workbook = new XSSFWorkbook();
+
+        // Generate a sheet for each period
+        for (int i = 0; i < periods.size(); i++) {
+            RentCyclePeriod period = periods.get(i);
+            String sheetName = sanitizeSheetName(period.getSheetName());
+
+            System.out.println("📊 Generating sheet " + (i + 1) + "/" + periods.size() + ": " + sheetName);
+
+            // Generate statement data for this period
+            List<List<Object>> values = bodenHouseTemplateService.generatePropertyOwnerStatement(
+                propertyOwner, period.getStartDate(), period.getEndDate());
+
+            // Create sheet and populate data
+            XSSFSheet sheet = workbook.createSheet(sheetName);
+            populateSheetWithData(sheet, values);
+            applyBodenHouseFormatting(workbook, sheet);
+
+            System.out.println("✅ Completed sheet: " + sheetName);
+        }
+
+        // Create summary sheet
+        createPeriodSummarySheetXLSX(workbook, propertyOwner, periods);
+
+        // Force formula evaluation
+        workbook.getCreationHelper().createFormulaEvaluator().evaluateAll();
+
+        // Convert to byte array
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        workbook.write(outputStream);
+        workbook.close();
+
+        System.out.println("✅ Monthly XLSX statement generated successfully - " + outputStream.size() + " bytes");
+
+        return outputStream.toByteArray();
+    }
+
+    /**
+     * Sanitize sheet name for Excel (max 31 chars, no invalid chars)
+     */
+    private String sanitizeSheetName(String name) {
+        // Remove invalid characters: \ / * ? [ ]
+        String sanitized = name.replaceAll("[\\\\/*?\\[\\]]", "-");
+
+        // Excel sheet names must be 31 characters or less
+        if (sanitized.length() > 31) {
+            sanitized = sanitized.substring(0, 31);
+        }
+
+        return sanitized;
+    }
+
+    /**
+     * Populate sheet with data
+     */
+    private void populateSheetWithData(XSSFSheet sheet, List<List<Object>> values) {
+        for (int rowIndex = 0; rowIndex < values.size(); rowIndex++) {
+            Row row = sheet.createRow(rowIndex);
+            List<Object> rowData = values.get(rowIndex);
+
+            for (int colIndex = 0; colIndex < rowData.size(); colIndex++) {
+                Cell cell = row.createCell(colIndex);
+                Object value = rowData.get(colIndex);
+
+                if (value instanceof String && ((String) value).startsWith("=")) {
+                    // Excel formula - remove leading "=" and set as formula
+                    try {
+                        cell.setCellFormula(((String) value).substring(1));
+                    } catch (Exception e) {
+                        // Fallback to text if formula is invalid
+                        cell.setCellValue(value.toString());
+                    }
+                } else if (value instanceof BigDecimal) {
+                    cell.setCellValue(((BigDecimal) value).doubleValue());
+                } else if (value instanceof Number) {
+                    cell.setCellValue(((Number) value).doubleValue());
+                } else if (value instanceof Boolean) {
+                    cell.setCellValue(((Boolean) value) ? "TRUE" : "FALSE");
+                } else if (value != null) {
+                    cell.setCellValue(value.toString());
+                }
+            }
+        }
+
+        // Auto-size columns for better readability (38 columns)
+        for (int i = 0; i < 38; i++) {
+            try {
+                sheet.autoSizeColumn(i);
+                // Set minimum width to prevent too narrow columns
+                if (sheet.getColumnWidth(i) < 1500) {
+                    sheet.setColumnWidth(i, 1500);
+                }
+                // Set maximum width to prevent too wide columns
+                if (sheet.getColumnWidth(i) > 6000) {
+                    sheet.setColumnWidth(i, 6000);
+                }
+            } catch (Exception e) {
+                // Continue if auto-sizing fails for any column
+            }
+        }
+    }
+
+    /**
+     * Create Period Summary sheet in XLSX workbook
+     */
+    private void createPeriodSummarySheetXLSX(XSSFWorkbook workbook, Customer propertyOwner,
+                                             List<RentCyclePeriod> periods) {
+        System.out.println("📊 Creating Period Summary sheet");
+
+        XSSFSheet summarySheet = workbook.createSheet("Period Summary");
+
+        // Build summary data
+        List<List<Object>> summaryData = new ArrayList<>();
+
+        // Header
+        summaryData.add(Arrays.asList("PERIOD SUMMARY"));
+        summaryData.add(Arrays.asList(""));
+        summaryData.add(Arrays.asList("Property Owner:", propertyOwner.getName()));
+        summaryData.add(Arrays.asList(""));
+
+        // Column headers
+        summaryData.add(Arrays.asList("Period", "Total Rent Due", "Total Received", "Management Fee",
+                                      "Service Fee", "Total Expenses", "Net Due to Owner"));
+
+        // Period rows with formulas referencing other sheets
+        for (RentCyclePeriod period : periods) {
+            String sheetName = sanitizeSheetName(period.getSheetName());
+
+            summaryData.add(Arrays.asList(
+                period.getDisplayName(),
+                "='" + sheetName + "'!D" + (13 + 5),
+                "='" + sheetName + "'!F" + (13 + 5),
+                "='" + sheetName + "'!G" + (13 + 5),
+                "='" + sheetName + "'!H" + (13 + 5),
+                "='" + sheetName + "'!I" + (13 + 10),
+                "='" + sheetName + "'!I" + (13 + 5)
+            ));
+        }
+
+        // Grand totals row
+        int firstDataRow = 6;
+        int lastDataRow = firstDataRow + periods.size() - 1;
+        summaryData.add(Arrays.asList(""));
+        summaryData.add(Arrays.asList(
+            "TOTAL",
+            "=SUM(B" + firstDataRow + ":B" + lastDataRow + ")",
+            "=SUM(C" + firstDataRow + ":C" + lastDataRow + ")",
+            "=SUM(D" + firstDataRow + ":D" + lastDataRow + ")",
+            "=SUM(E" + firstDataRow + ":E" + lastDataRow + ")",
+            "=SUM(F" + firstDataRow + ":F" + lastDataRow + ")",
+            "=SUM(G" + firstDataRow + ":G" + lastDataRow + ")"
+        ));
+
+        // Populate summary sheet
+        populateSheetWithData(summarySheet, summaryData);
+
+        // Apply summary-specific formatting
+        CellStyle headerStyle = workbook.createCellStyle();
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        headerFont.setFontHeightInPoints((short) 16);
+        headerStyle.setFont(headerFont);
+        headerStyle.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
+        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        Font whiteFont = workbook.createFont();
+        whiteFont.setColor(IndexedColors.WHITE.getIndex());
+        headerStyle.setFont(whiteFont);
+
+        Row headerRow = summarySheet.getRow(0);
+        if (headerRow != null && headerRow.getCell(0) != null) {
+            headerRow.getCell(0).setCellStyle(headerStyle);
+        }
+
+        // Column headers formatting
+        CellStyle columnHeaderStyle = workbook.createCellStyle();
+        Font columnHeaderFont = workbook.createFont();
+        columnHeaderFont.setBold(true);
+        columnHeaderStyle.setFont(columnHeaderFont);
+        columnHeaderStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        columnHeaderStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+        Row columnHeaderRow = summarySheet.getRow(4);
+        if (columnHeaderRow != null) {
+            for (int i = 0; i < 7; i++) {
+                Cell cell = columnHeaderRow.getCell(i);
+                if (cell != null) {
+                    cell.setCellStyle(columnHeaderStyle);
+                }
+            }
+        }
+
+        // Currency formatting for amount columns (B through G)
+        CellStyle currencyStyle = workbook.createCellStyle();
+        currencyStyle.setDataFormat(workbook.createDataFormat().getFormat("£#,##0.00"));
+
+        for (int rowIdx = 5; rowIdx < summaryData.size(); rowIdx++) {
+            Row row = summarySheet.getRow(rowIdx);
+            if (row != null) {
+                for (int colIdx = 1; colIdx <= 6; colIdx++) {
+                    Cell cell = row.getCell(colIdx);
+                    if (cell != null) {
+                        cell.setCellStyle(currencyStyle);
+                    }
+                }
+            }
+        }
+
+        System.out.println("✅ Period Summary sheet created");
     }
 
     /**

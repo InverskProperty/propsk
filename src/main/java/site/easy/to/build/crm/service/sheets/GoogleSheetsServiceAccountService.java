@@ -17,6 +17,9 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
+import site.easy.to.build.crm.enums.StatementDataSource;
+import site.easy.to.build.crm.util.RentCyclePeriodCalculator;
+import site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -335,6 +338,353 @@ public class GoogleSheetsServiceAccountService {
 
         System.out.println("✅ Created Google Sheets statement: " + spreadsheetId);
         return spreadsheetId;
+    }
+
+    /**
+     * Creates a property owner statement with monthly breakdown (separate sheet per period)
+     */
+    public String createMonthlyPropertyOwnerStatement(Customer propertyOwner, LocalDate fromDate, LocalDate toDate,
+                                                     Set<StatementDataSource> includedDataSources)
+            throws IOException, GeneralSecurityException {
+
+        System.out.println("📊 ServiceAccount: Creating MONTHLY property owner statement for: " + getCustomerName(propertyOwner));
+        System.out.println("📊 ServiceAccount: Date range: " + fromDate + " to " + toDate);
+        System.out.println("📊 ServiceAccount: Data sources: " + includedDataSources);
+
+        // Calculate rent cycle periods
+        List<RentCyclePeriod> periods = RentCyclePeriodCalculator.calculateMonthlyPeriods(fromDate, toDate);
+        System.out.println("📊 ServiceAccount: Splitting into " + periods.size() + " monthly periods");
+
+        // Create spreadsheet title
+        String title = generateMonthlyStatementTitle(propertyOwner, fromDate, toDate);
+        System.out.println("📊 ServiceAccount: Creating spreadsheet with title: " + title);
+
+        // Create spreadsheet in shared drive
+        String spreadsheetId = createMultiPeriodSpreadsheetInSharedDrive(title);
+        System.out.println("✅ ServiceAccount: Multi-period spreadsheet created: " + spreadsheetId);
+
+        // Create Sheets service
+        Sheets sheetsService = createSheetsService();
+
+        // Generate a statement sheet for each period
+        for (int i = 0; i < periods.size(); i++) {
+            RentCyclePeriod period = periods.get(i);
+            String sheetName = period.getSheetName();
+
+            System.out.println("📊 ServiceAccount: Generating sheet " + (i + 1) + "/" + periods.size() + ": " + sheetName);
+
+            // Build statement data for this period
+            PropertyOwnerStatementData data = buildPropertyOwnerStatementData(
+                propertyOwner, period.getStartDate(), period.getEndDate());
+            List<List<Object>> values = buildEnhancedPropertyOwnerStatementValues(data);
+
+            int sheetId;
+            if (i == 0) {
+                // Rename the default "Sheet1" to the first period name
+                sheetId = renameSheet(sheetsService, spreadsheetId, 0, sheetName);
+            } else {
+                // Create a new sheet for subsequent periods
+                sheetId = createNewSheet(sheetsService, spreadsheetId, sheetName);
+            }
+
+            // Write data to this sheet
+            ValueRange body = new ValueRange().setValues(values);
+            sheetsService.spreadsheets().values()
+                .update(spreadsheetId, sheetName + "!A1", body)
+                .setValueInputOption("USER_ENTERED")
+                .execute();
+
+            // Apply formatting to this sheet
+            applyBodenHouseGoogleSheetsFormattingToSheet(sheetsService, spreadsheetId, sheetId, data);
+
+            System.out.println("✅ ServiceAccount: Completed sheet: " + sheetName);
+        }
+
+        // Create summary sheet
+        createPeriodSummarySheet(sheetsService, spreadsheetId, propertyOwner, periods);
+
+        // Grant access to property owner without notification
+        grantAccessToPropertyOwner(spreadsheetId, propertyOwner);
+
+        System.out.println("✅ ServiceAccount: Monthly breakdown statement complete!");
+        return spreadsheetId;
+    }
+
+    /**
+     * Generate title for monthly breakdown statement
+     */
+    private String generateMonthlyStatementTitle(Customer propertyOwner, LocalDate fromDate, LocalDate toDate) {
+        String periodDescription = RentCyclePeriodCalculator.getPeriodDescription(fromDate, toDate);
+        return String.format("Property Owner Statement - %s - %s",
+            getCustomerName(propertyOwner),
+            periodDescription);
+    }
+
+    /**
+     * Rename an existing sheet
+     */
+    private int renameSheet(Sheets sheetsService, String spreadsheetId, int sheetId, String newName)
+            throws IOException {
+        Request renameRequest = new Request()
+            .setUpdateSheetProperties(new UpdateSheetPropertiesRequest()
+                .setProperties(new SheetProperties()
+                    .setSheetId(sheetId)
+                    .setTitle(newName))
+                .setFields("title"));
+
+        BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
+            .setRequests(Collections.singletonList(renameRequest));
+
+        sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
+        return sheetId;
+    }
+
+    /**
+     * Create a new sheet in the spreadsheet
+     */
+    private int createNewSheet(Sheets sheetsService, String spreadsheetId, String sheetName)
+            throws IOException {
+        Request addSheetRequest = new Request()
+            .setAddSheet(new AddSheetRequest()
+                .setProperties(new SheetProperties()
+                    .setTitle(sheetName)));
+
+        BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
+            .setRequests(Collections.singletonList(addSheetRequest));
+
+        BatchUpdateSpreadsheetResponse response = sheetsService.spreadsheets()
+            .batchUpdate(spreadsheetId, batchRequest)
+            .execute();
+
+        return response.getReplies().get(0).getAddSheet().getProperties().getSheetId();
+    }
+
+    /**
+     * Apply Boden House formatting to a specific sheet
+     */
+    private void applyBodenHouseGoogleSheetsFormattingToSheet(Sheets sheetsService, String spreadsheetId,
+                                                              int sheetId, PropertyOwnerStatementData data)
+            throws IOException {
+        List<Request> requests = new ArrayList<>();
+
+        // Header formatting (rows 0-6)
+        requests.add(new Request().setRepeatCell(new RepeatCellRequest()
+            .setRange(new GridRange()
+                .setSheetId(sheetId)
+                .setStartRowIndex(0)
+                .setEndRowIndex(6))
+            .setCell(new CellData().setUserEnteredFormat(new CellFormat()
+                .setTextFormat(new TextFormat().setBold(true).setFontSize(12))
+                .setBackgroundColor(new Color().setRed(0.9f).setGreen(0.95f).setBlue(1.0f))))
+            .setFields("userEnteredFormat.textFormat.bold,userEnteredFormat.textFormat.fontSize,userEnteredFormat.backgroundColor")));
+
+        // Currency formatting for amount columns
+        int[] currencyColumns = {3, 5, 6, 7, 8, 10};
+        for (int col : currencyColumns) {
+            requests.add(new Request().setRepeatCell(new RepeatCellRequest()
+                .setRange(new GridRange()
+                    .setSheetId(sheetId)
+                    .setStartRowIndex(13)
+                    .setEndRowIndex(50)
+                    .setStartColumnIndex(col)
+                    .setEndColumnIndex(col + 1))
+                .setCell(new CellData().setUserEnteredFormat(new CellFormat()
+                    .setNumberFormat(new NumberFormat()
+                        .setType("CURRENCY")
+                        .setPattern("£#,##0.00"))))
+                .setFields("userEnteredFormat.numberFormat")));
+        }
+
+        // Execute formatting
+        BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
+            .setRequests(requests);
+        sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
+    }
+
+    /**
+     * Create spreadsheet in shared drive for multi-period statement
+     */
+    private String createMultiPeriodSpreadsheetInSharedDrive(String title)
+            throws IOException, GeneralSecurityException {
+        String formattedKey = getFormattedServiceAccountKey();
+        GoogleCredential driveCredential = GoogleCredential
+            .fromStream(new ByteArrayInputStream(formattedKey.getBytes()))
+            .createScoped(Collections.singleton(DriveScopes.DRIVE));
+
+        Drive driveService = new Drive.Builder(
+            GoogleNetHttpTransport.newTrustedTransport(),
+            GsonFactory.getDefaultInstance(),
+            driveCredential)
+            .setApplicationName("CRM Property Management")
+            .build();
+
+        System.out.println("📊 ServiceAccount: Creating multi-period spreadsheet in shared drive: " + SHARED_DRIVE_ID);
+
+        // Create spreadsheet file in shared drive
+        com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
+        fileMetadata.setName(title);
+        fileMetadata.setMimeType("application/vnd.google-apps.spreadsheet");
+        fileMetadata.setParents(Collections.singletonList(SHARED_DRIVE_ID));
+
+        com.google.api.services.drive.model.File file = driveService.files()
+            .create(fileMetadata)
+            .setSupportsAllDrives(true)
+            .execute();
+
+        String spreadsheetId = file.getId();
+        System.out.println("✅ ServiceAccount: Multi-period spreadsheet created in shared drive! ID: " + spreadsheetId);
+
+        return spreadsheetId;
+    }
+
+    /**
+     * Grant access to property owner
+     */
+    private void grantAccessToPropertyOwner(String spreadsheetId, Customer propertyOwner)
+            throws IOException, GeneralSecurityException {
+        String customerEmail = propertyOwner.getEmail();
+        if (customerEmail == null || customerEmail.isEmpty()) {
+            System.err.println("⚠️ ServiceAccount: Customer email not found - cannot grant access");
+            return;
+        }
+
+        try {
+            String formattedKey = getFormattedServiceAccountKey();
+            GoogleCredential driveCredential = GoogleCredential
+                .fromStream(new ByteArrayInputStream(formattedKey.getBytes()))
+                .createScoped(Collections.singleton(DriveScopes.DRIVE));
+
+            Drive driveService = new Drive.Builder(
+                GoogleNetHttpTransport.newTrustedTransport(),
+                GsonFactory.getDefaultInstance(),
+                driveCredential)
+                .setApplicationName("CRM Property Management")
+                .build();
+
+            com.google.api.services.drive.model.Permission customerPermission =
+                new com.google.api.services.drive.model.Permission();
+            customerPermission.setRole("reader");
+            customerPermission.setType("user");
+            customerPermission.setEmailAddress(customerEmail);
+
+            driveService.permissions().create(spreadsheetId, customerPermission)
+                .setSupportsAllDrives(true)
+                .setSendNotificationEmail(false)
+                .execute();
+
+            System.out.println("✅ ServiceAccount: Property owner (" + customerEmail + ") granted access");
+        } catch (Exception e) {
+            System.err.println("⚠️ ServiceAccount: Could not grant access to customer: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Create summary sheet aggregating all periods
+     */
+    private void createPeriodSummarySheet(Sheets sheetsService, String spreadsheetId,
+                                         Customer propertyOwner, List<RentCyclePeriod> periods)
+            throws IOException {
+        System.out.println("📊 ServiceAccount: Creating Period Summary sheet");
+
+        // Create summary sheet
+        int summarySheetId = createNewSheet(sheetsService, spreadsheetId, "Period Summary");
+
+        // Build summary data
+        List<List<Object>> summaryData = new ArrayList<>();
+
+        // Header
+        summaryData.add(Arrays.asList("PERIOD SUMMARY"));
+        summaryData.add(Arrays.asList(""));
+        summaryData.add(Arrays.asList("Property Owner:", getCustomerName(propertyOwner)));
+        summaryData.add(Arrays.asList(""));
+
+        // Column headers
+        summaryData.add(Arrays.asList("Period", "Total Rent Due", "Total Received", "Management Fee",
+                                      "Service Fee", "Total Expenses", "Net Due to Owner"));
+
+        // Period rows with formulas referencing other sheets
+        for (RentCyclePeriod period : periods) {
+            String sheetName = period.getSheetName();
+
+            summaryData.add(Arrays.asList(
+                period.getDisplayName(),
+                "='" + sheetName + "'!D" + (13 + 5), // Adjust row number based on template
+                "='" + sheetName + "'!F" + (13 + 5),
+                "='" + sheetName + "'!G" + (13 + 5),
+                "='" + sheetName + "'!H" + (13 + 5),
+                "='" + sheetName + "'!I" + (13 + 10), // Expenses row
+                "='" + sheetName + "'!I" + (13 + 5)
+            ));
+        }
+
+        // Grand totals row
+        int firstDataRow = 6;
+        int lastDataRow = firstDataRow + periods.size() - 1;
+        summaryData.add(Arrays.asList(""));
+        summaryData.add(Arrays.asList(
+            "TOTAL",
+            "=SUM(B" + firstDataRow + ":B" + lastDataRow + ")",
+            "=SUM(C" + firstDataRow + ":C" + lastDataRow + ")",
+            "=SUM(D" + firstDataRow + ":D" + lastDataRow + ")",
+            "=SUM(E" + firstDataRow + ":E" + lastDataRow + ")",
+            "=SUM(F" + firstDataRow + ":F" + lastDataRow + ")",
+            "=SUM(G" + firstDataRow + ":G" + lastDataRow + ")"
+        ));
+
+        // Write summary data
+        ValueRange summaryBody = new ValueRange().setValues(summaryData);
+        sheetsService.spreadsheets().values()
+            .update(spreadsheetId, "Period Summary!A1", summaryBody)
+            .setValueInputOption("USER_ENTERED")
+            .execute();
+
+        // Apply formatting to summary sheet
+        List<Request> formatRequests = new ArrayList<>();
+
+        // Header formatting
+        formatRequests.add(new Request().setRepeatCell(new RepeatCellRequest()
+            .setRange(new GridRange()
+                .setSheetId(summarySheetId)
+                .setStartRowIndex(0)
+                .setEndRowIndex(1))
+            .setCell(new CellData().setUserEnteredFormat(new CellFormat()
+                .setTextFormat(new TextFormat().setBold(true).setFontSize(16))
+                .setBackgroundColor(new Color().setRed(0.2f).setGreen(0.4f).setBlue(0.8f))
+                .setTextFormat(new TextFormat().setForegroundColor(new Color().setRed(1.0f).setGreen(1.0f).setBlue(1.0f)))))
+            .setFields("userEnteredFormat")));
+
+        // Column headers formatting
+        formatRequests.add(new Request().setRepeatCell(new RepeatCellRequest()
+            .setRange(new GridRange()
+                .setSheetId(summarySheetId)
+                .setStartRowIndex(4)
+                .setEndRowIndex(5))
+            .setCell(new CellData().setUserEnteredFormat(new CellFormat()
+                .setTextFormat(new TextFormat().setBold(true))
+                .setBackgroundColor(new Color().setRed(0.9f).setGreen(0.9f).setBlue(0.9f))))
+            .setFields("userEnteredFormat")));
+
+        // Currency formatting for amount columns (B through G)
+        for (int col = 1; col <= 6; col++) {
+            formatRequests.add(new Request().setRepeatCell(new RepeatCellRequest()
+                .setRange(new GridRange()
+                    .setSheetId(summarySheetId)
+                    .setStartRowIndex(5)
+                    .setEndRowIndex(50)
+                    .setStartColumnIndex(col)
+                    .setEndColumnIndex(col + 1))
+                .setCell(new CellData().setUserEnteredFormat(new CellFormat()
+                    .setNumberFormat(new NumberFormat()
+                        .setType("CURRENCY")
+                        .setPattern("£#,##0.00"))))
+                .setFields("userEnteredFormat.numberFormat")));
+        }
+
+        BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
+            .setRequests(formatRequests);
+        sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
+
+        System.out.println("✅ ServiceAccount: Period Summary sheet created");
     }
 
     /**

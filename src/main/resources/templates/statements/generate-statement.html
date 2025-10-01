@@ -97,7 +97,25 @@
                             </div>
                             <small class="text-muted">Leave all unchecked to include all sources</small>
                         </div>
-                        
+
+                        <!-- Period Breakdown Option -->
+                        <div class="mb-3">
+                            <label class="form-label">Period Breakdown</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="periodBreakdown" id="singlePeriod1" value="SINGLE" checked>
+                                <label class="form-check-label" for="singlePeriod1">
+                                    Single Statement
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="periodBreakdown" id="monthlyBreakdown1" value="MONTHLY">
+                                <label class="form-check-label" for="monthlyBreakdown1">
+                                    Monthly Breakdown (separate sheets per month)
+                                </label>
+                            </div>
+                            <small class="text-muted">Monthly breakdown creates one sheet per rent cycle period</small>
+                        </div>
+
                         <input type="hidden" name="outputFormat" value="GOOGLE_SHEETS" id="outputFormat1">
 
                         <div class="mt-3">
