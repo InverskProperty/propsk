@@ -109,13 +109,16 @@ public class StatementGenerationRequest {
     }
 
     public boolean includesHistoricalData() {
-        return includesDataSource(StatementDataSource.HISTORICAL_PAYPROP) ||
-               includesDataSource(StatementDataSource.HISTORICAL_OLD_BANK) ||
-               includesDataSource(StatementDataSource.HISTORICAL_ROBERT_ELLIS);
+        if (includedDataSources == null) {
+            return false;
+        }
+        return includedDataSources.stream().anyMatch(StatementDataSource::isHistorical);
     }
 
     public boolean includesLiveData() {
-        return includesDataSource(StatementDataSource.LIVE_PAYPROP) ||
-               includesDataSource(StatementDataSource.LOCAL_CRM);
+        if (includedDataSources == null) {
+            return false;
+        }
+        return includedDataSources.stream().anyMatch(StatementDataSource::isLive);
     }
 }

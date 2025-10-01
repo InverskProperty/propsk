@@ -30,6 +30,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Arrays;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.stream.Collectors;
+import site.easy.to.build.crm.enums.StatementDataSource;
+import site.easy.to.build.crm.dto.StatementGenerationRequest;
 
 @Controller
 @RequestMapping("/statements")
@@ -159,7 +164,10 @@ public class StatementController {
         model.addAttribute("defaultFromDate", startOfMonth);
         model.addAttribute("defaultToDate", endOfMonth);
         model.addAttribute("hasGoogleAuth", true);
-        
+
+        // Add available account sources for selection
+        model.addAttribute("availableAccountSources", Arrays.asList(StatementDataSource.values()));
+
         return "statements/generate-statement";
     }
 
@@ -702,6 +710,136 @@ public class StatementController {
 
         System.out.println("   🔑 Access granted: " + hasAccess);
         return hasAccess;
+    }
+
+    // ===== ACCOUNT SOURCE SELECTION ENDPOINTS =====
+
+    /**
+     * Generate property owner statement with account source selection
+     */
+    @PostMapping("/property-owner/with-sources")
+    public String generatePropertyOwnerStatementWithSources(
+            @RequestParam("propertyOwnerId") Integer propertyOwnerId,
+            @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(value = "accountSources", required = false) List<String> accountSourceNames,
+            @RequestParam(value = "outputFormat", defaultValue = "GOOGLE_SHEETS") String outputFormat,
+            Authentication authentication,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            // Check authorization
+            Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+
+            if (currentCustomer != null && currentCustomer.getIsPropertyOwner() != null && currentCustomer.getIsPropertyOwner()) {
+                if (!currentCustomer.getCustomerId().equals(propertyOwnerId.longValue())) {
+                    redirectAttributes.addFlashAttribute("error", "You can only generate statements for your own account.");
+                    return "redirect:/statements";
+                }
+            } else if (!isAdminOrEmployee(authentication)) {
+                redirectAttributes.addFlashAttribute("error", "Access denied.");
+                return "redirect:/statements";
+            }
+
+            // Parse account sources
+            Set<StatementDataSource> includedSources = parseAccountSources(accountSourceNames);
+
+            // Get property owner
+            Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId.longValue());
+            if (propertyOwner == null) {
+                redirectAttributes.addFlashAttribute("error", "Property owner not found.");
+                return "redirect:/statements";
+            }
+
+            // Create request DTO
+            StatementGenerationRequest request = new StatementGenerationRequest();
+            request.setPropertyOwnerId(propertyOwnerId.longValue());
+            request.setFromDate(fromDate);
+            request.setToDate(toDate);
+            request.setIncludedDataSources(includedSources);
+            request.setOutputFormat(outputFormat);
+
+            // Generate based on output format
+            if ("XLSX".equals(outputFormat)) {
+                // Redirect to XLSX download endpoint
+                redirectAttributes.addFlashAttribute("info", "Downloading XLSX statement with selected sources...");
+                return "redirect:/statements/property-owner/xlsx?propertyOwnerId=" + propertyOwnerId +
+                       "&fromDate=" + fromDate + "&toDate=" + toDate +
+                       "&sources=" + String.join(",", accountSourceNames != null ? accountSourceNames : List.of());
+            } else {
+                // Google Sheets generation
+                OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+                String spreadsheetId;
+
+                if (oAuthUser != null && oAuthUser.getAccessToken() != null) {
+                    // Use OAuth with source filtering
+                    spreadsheetId = statementService.createPropertyOwnerStatement(oAuthUser, propertyOwner, fromDate, toDate);
+                } else {
+                    // Use service account
+                    spreadsheetId = serviceAccountSheetsService.createPropertyOwnerStatement(propertyOwner, fromDate, toDate);
+                }
+
+                String sheetsUrl = "https://docs.google.com/spreadsheets/d/" + spreadsheetId;
+                String sourceInfo = includedSources.isEmpty() ? "all sources" :
+                    includedSources.stream().map(StatementDataSource::getDisplayName).collect(Collectors.joining(", "));
+
+                redirectAttributes.addFlashAttribute("success",
+                    "Statement generated successfully with sources: " + sourceInfo + "! " +
+                    "<a href='" + sheetsUrl + "' target='_blank'>View in Google Sheets</a>");
+
+                return "redirect:/statements";
+            }
+
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error",
+                "Error generating statement: " + e.getMessage());
+            return "redirect:/statements";
+        }
+    }
+
+    /**
+     * Get available account sources as JSON (AJAX endpoint)
+     */
+    @GetMapping("/api/account-sources")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, String>>> getAvailableAccountSources() {
+        try {
+            List<Map<String, String>> sources = Arrays.stream(StatementDataSource.values())
+                .map(source -> Map.of(
+                    "key", source.name(),
+                    "displayName", source.getDisplayName(),
+                    "description", source.getDescription(),
+                    "accountSourceValue", source.getAccountSourceValue(),
+                    "isHistorical", String.valueOf(source.isHistorical()),
+                    "isLive", String.valueOf(source.isLive())
+                ))
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(sources);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    /**
+     * Parse account source names into StatementDataSource set
+     */
+    private Set<StatementDataSource> parseAccountSources(List<String> accountSourceNames) {
+        if (accountSourceNames == null || accountSourceNames.isEmpty()) {
+            return new HashSet<>(); // Return empty set = include all
+        }
+
+        return accountSourceNames.stream()
+            .map(name -> {
+                try {
+                    return StatementDataSource.valueOf(name);
+                } catch (IllegalArgumentException e) {
+                    System.err.println("Invalid account source name: " + name);
+                    return null;
+                }
+            })
+            .filter(source -> source != null)
+            .collect(Collectors.toSet());
     }
 
     /**

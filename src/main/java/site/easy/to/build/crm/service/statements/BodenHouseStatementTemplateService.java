@@ -6,6 +6,7 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
+import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.dto.StatementGenerationRequest;
 import site.easy.to.build.crm.enums.StatementDataSource;
 import site.easy.to.build.crm.service.tenant.TenantBalanceService;
@@ -41,6 +42,9 @@ public class BodenHouseStatementTemplateService {
 
     @Autowired
     private FinancialTransactionRepository financialTransactionRepository;
+
+    @Autowired
+    private HistoricalTransactionRepository historicalTransactionRepository;
 
     @Autowired
     private TenantBalanceService tenantBalanceService;
@@ -908,7 +912,7 @@ public class BodenHouseStatementTemplateService {
     // =====================================================
 
     /**
-     * Filter transactions by selected data sources
+     * Filter transactions by selected data sources (for FinancialTransaction - legacy)
      */
     private List<FinancialTransaction> filterTransactionsByDataSource(List<FinancialTransaction> transactions, Set<StatementDataSource> includedDataSources) {
         if (includedDataSources == null || includedDataSources.isEmpty()) {
@@ -921,11 +925,37 @@ public class BodenHouseStatementTemplateService {
     }
 
     /**
-     * Check if transaction should be included based on data sources
+     * Filter historical transactions by account_source
+     */
+    private List<HistoricalTransaction> filterHistoricalTransactionsByAccountSource(List<HistoricalTransaction> transactions, Set<StatementDataSource> includedDataSources) {
+        if (includedDataSources == null || includedDataSources.isEmpty()) {
+            return transactions; // Include all if no filter specified
+        }
+
+        return transactions.stream()
+            .filter(transaction -> isHistoricalTransactionIncluded(transaction, includedDataSources))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Check if transaction should be included based on data sources (legacy)
      */
     private boolean isTransactionIncluded(FinancialTransaction transaction, Set<StatementDataSource> includedDataSources) {
         return includedDataSources.stream()
-            .anyMatch(dataSource -> dataSource.matchesTransaction(transaction.getDataSource()));
+            .anyMatch(dataSource -> dataSource.matchesAccountSource(transaction.getDataSource()));
+    }
+
+    /**
+     * Check if historical transaction should be included based on account_source
+     */
+    private boolean isHistoricalTransactionIncluded(HistoricalTransaction transaction, Set<StatementDataSource> includedDataSources) {
+        String accountSource = transaction.getAccountSource();
+        if (accountSource == null) {
+            return false; // Exclude transactions without account_source
+        }
+
+        return includedDataSources.stream()
+            .anyMatch(dataSource -> dataSource.matchesAccountSource(accountSource));
     }
 
     /**

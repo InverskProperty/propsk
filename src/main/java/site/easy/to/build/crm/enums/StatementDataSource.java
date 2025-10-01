@@ -1,24 +1,28 @@
 package site.easy.to.build.crm.enums;
 
 /**
- * Enum representing different data sources for statement generation
+ * Enum representing different payment account sources for statement generation
+ * Maps to the account_source field in historical_transactions table
  */
 public enum StatementDataSource {
 
-    HISTORICAL_PAYPROP("Historical PayProp Data", "HISTORICAL_PAYPROP", "Data imported from historical PayProp records"),
-    HISTORICAL_OLD_BANK("Historical Old Bank Data", "HISTORICAL_OLD_BANK", "Data from old Propsk bank account records"),
-    HISTORICAL_ROBERT_ELLIS("Historical Robert Ellis Data", "HISTORICAL_ROBERT_ELLIS", "Data from Robert Ellis management period"),
-    LIVE_PAYPROP("Live PayProp Data", "LIVE_PAYPROP", "Current PayProp API data"),
-    LOCAL_CRM("Local CRM Data", "LOCAL_CRM", "Data entered directly in the CRM system");
+    PROPSK_OLD_ACCOUNT("Propsk Old Account", "PROPSK_OLD_ACCOUNT", "Historical Propsk bank account (pre-PayProp)", "2"),
+    PROPSK_PAYPROP_ACCOUNT("Propsk PayProp Account", "PROPSK_PAYPROP_ACCOUNT", "Current PayProp managed account", "3"),
+    PAYPROP_API_SYNC("PayProp API Live Data", "PAYPROP_API_SYNC", "Live PayProp API synced transactions", "PAYPROP_API"),
+    LOCAL_CRM_MANUAL("Local CRM Manual Entry", "LOCAL_CRM_MANUAL", "Manually entered in CRM system", "LOCAL_CRM"),
+    CSV_IMPORT("CSV Import", "CSV_IMPORT", "Imported from CSV file", "CSV_IMPORT"),
+    ROBERT_ELLIS("Robert Ellis Historical", "ROBERT_ELLIS", "Robert Ellis management period data", "ROBERT_ELLIS");
 
     private final String displayName;
     private final String dataSourceKey;
     private final String description;
+    private final String accountSourceValue; // Maps to account_source field in database
 
-    StatementDataSource(String displayName, String dataSourceKey, String description) {
+    StatementDataSource(String displayName, String dataSourceKey, String description, String accountSourceValue) {
         this.displayName = displayName;
         this.dataSourceKey = dataSourceKey;
         this.description = description;
+        this.accountSourceValue = accountSourceValue;
     }
 
     public String getDisplayName() {
@@ -33,28 +37,56 @@ public enum StatementDataSource {
         return description;
     }
 
+    public String getAccountSourceValue() {
+        return accountSourceValue;
+    }
+
     /**
-     * Check if this data source matches a transaction's data source field
+     * Check if this data source matches a transaction's account_source field
+     * Now uses direct comparison with account_source values
      */
-    public boolean matchesTransaction(String transactionDataSource) {
-        if (transactionDataSource == null) {
-            return this == LOCAL_CRM;
+    public boolean matchesAccountSource(String accountSource) {
+        if (accountSource == null) {
+            return false;
         }
 
-        return switch (this) {
-            case HISTORICAL_PAYPROP -> transactionDataSource.contains("HISTORICAL_PAYPROP") ||
-                                     transactionDataSource.contains("PAYPROP_HISTORICAL");
-            case HISTORICAL_OLD_BANK -> transactionDataSource.contains("PROPSK_OLD") ||
-                                      transactionDataSource.contains("OLD_BANK");
-            case HISTORICAL_ROBERT_ELLIS -> transactionDataSource.contains("ROBERT_ELLIS") ||
-                                          transactionDataSource.contains("ELLIS_HISTORICAL");
-            case LIVE_PAYPROP -> transactionDataSource.contains("ICDN_ACTUAL") ||
-                               transactionDataSource.contains("PAYMENT_INSTRUCTION") ||
-                               transactionDataSource.contains("COMMISSION_PAYMENT") ||
-                               transactionDataSource.equals("PAYPROP");
-            case LOCAL_CRM -> transactionDataSource.contains("LOCAL") ||
-                            transactionDataSource.contains("CRM") ||
-                            transactionDataSource.equals("MANUAL");
-        };
+        // Direct match or contains check for flexibility
+        return accountSource.equals(this.accountSourceValue) ||
+               accountSource.contains(this.accountSourceValue);
+    }
+
+    /**
+     * Get StatementDataSource from account_source value
+     */
+    public static StatementDataSource fromAccountSource(String accountSource) {
+        if (accountSource == null) {
+            return null;
+        }
+
+        for (StatementDataSource source : values()) {
+            if (source.matchesAccountSource(accountSource)) {
+                return source;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if this is a historical data source
+     */
+    public boolean isHistorical() {
+        return this == PROPSK_OLD_ACCOUNT ||
+               this == ROBERT_ELLIS ||
+               this == CSV_IMPORT;
+    }
+
+    /**
+     * Check if this is a live/current data source
+     */
+    public boolean isLive() {
+        return this == PROPSK_PAYPROP_ACCOUNT ||
+               this == PAYPROP_API_SYNC ||
+               this == LOCAL_CRM_MANUAL;
     }
 }
