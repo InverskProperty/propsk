@@ -567,19 +567,19 @@ public class BodenHouseStatementTemplateService {
 
         totalRow[1] = "TOTAL";
 
-        // SUM formulas matching your spreadsheet exactly
-        totalRow[5] = "=SUM(G" + startDataRow + ":G" + endDataRow + ")"; // Rent Due
-        totalRow[10] = "=SUM(L" + startDataRow + ":L" + endDataRow + ")"; // Rent Received
-        totalRow[11] = "=SUM(M" + startDataRow + ":M" + endDataRow + ")"; // Amount received in Payprop
-        totalRow[12] = "=SUM(N" + startDataRow + ":N" + endDataRow + ")"; // Amount Received Old Account
-        totalRow[13] = "=SUM(O" + startDataRow + ":O" + endDataRow + ")"; // Total Rent Received By Propsk
-        totalRow[15] = "=SUM(Q" + startDataRow + ":Q" + endDataRow + ")"; // Management Fees
-        totalRow[17] = "=SUM(S" + startDataRow + ":S" + endDataRow + ")"; // Service Fees
-        totalRow[18] = "=SUM(T" + startDataRow + ":T" + endDataRow + ")"; // Total Fees
-        totalRow[31] = "=SUM(AG" + startDataRow + ":AG" + endDataRow + ")"; // Total Expenses
-        totalRow[32] = "=SUM(AH" + startDataRow + ":AH" + endDataRow + ")"; // Total Expenses and Commission
-        totalRow[33] = "=SUM(AI" + startDataRow + ":AI" + endDataRow + ")"; // Net Due
-        totalRow[36] = "=SUM(AL" + startDataRow + ":AL" + endDataRow + ")"; // Rent Due less Received
+        // SUM formulas with correct column mapping (row index to Excel column)
+        totalRow[5] = "=SUM(F" + startDataRow + ":F" + endDataRow + ")"; // Rent Due (Column F, index 5)
+        totalRow[10] = "=SUM(K" + startDataRow + ":K" + endDataRow + ")"; // Rent Received Amount (Column K, index 10)
+        totalRow[11] = "=SUM(L" + startDataRow + ":L" + endDataRow + ")"; // Amount received in Payprop (Column L, index 11)
+        totalRow[12] = "=SUM(M" + startDataRow + ":M" + endDataRow + ")"; // Amount Received Old Account (Column M, index 12)
+        totalRow[13] = "=SUM(N" + startDataRow + ":N" + endDataRow + ")"; // Total Rent Received By Propsk (Column N, index 13)
+        totalRow[15] = "=SUM(P" + startDataRow + ":P" + endDataRow + ")"; // Management Fees (Column P, index 15)
+        totalRow[17] = "=SUM(R" + startDataRow + ":R" + endDataRow + ")"; // Service Fees (Column R, index 17)
+        totalRow[18] = "=SUM(S" + startDataRow + ":S" + endDataRow + ")"; // Total Fees (Column S, index 18)
+        totalRow[31] = "=SUM(AF" + startDataRow + ":AF" + endDataRow + ")"; // Total Expenses (Column AF, index 31)
+        totalRow[32] = "=SUM(AG" + startDataRow + ":AG" + endDataRow + ")"; // Total Expenses and Commission (Column AG, index 32)
+        totalRow[33] = "=SUM(AH" + startDataRow + ":AH" + endDataRow + ")"; // Net Due (Column AH, index 33)
+        totalRow[36] = "=SUM(AK" + startDataRow + ":AK" + endDataRow + ")"; // Rent Due less Received (Column AK, index 36)
 
         values.add(Arrays.asList(totalRow));
     }
