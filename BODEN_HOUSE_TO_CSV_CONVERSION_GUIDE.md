@@ -81,8 +81,16 @@ transaction_date,amount,description,transaction_type,category,property_reference
 2025-05-27,795.00,Rent Due - May 2025,invoice,rent,FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO & MR I HALII,,,Rent due on 27th,OLD_ACCOUNT
 2025-05-06,795.00,Rent Received - May 2025,payment,rent,FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO & MR I HALII,,,Monthly rent collection,OLD_ACCOUNT
 2025-05-06,-119.00,Management Fee - 15%,fee,commission,FLAT 1 - 3 WEST GATE,,,,15% management fee on £795,OLD_ACCOUNT
-2025-05-27,-676.00,Owner Payment - May 2025,payment,owner_payment,FLAT 1 - 3 WEST GATE,,,,Net rental payment to landlord,OLD_ACCOUNT
+2025-05-31,-676.00,Owner Liability Accrual - May 2025,adjustment,owner_liability,FLAT 1 - 3 WEST GATE,,,,Net amount owed to landlord (not yet paid),OLD_ACCOUNT
 ```
+
+**PLUS - Actual Payment Transactions (from bottom of spreadsheet):**
+```csv
+2025-05-27,-17111.56,Actual Owner Payment - 27 May 2025,payment,owner_payment,PORTFOLIO PAYMENT,Prestvale,,,Bank transfer to landlord - Payment 1,OLD_ACCOUNT
+2025-05-28,-923.21,Actual Owner Payment - 28 May 2025,payment,owner_payment,PORTFOLIO PAYMENT,Prestvale,,,Bank transfer to landlord - Payment 2,OLD_ACCOUNT
+```
+
+**Total for May 2025:** £18,034.77 actual payments reconcile against total accrued liabilities across all properties.
 
 ---
 
@@ -151,19 +159,82 @@ For **each property row** in your spreadsheet, you create **multiple CSV transac
 
 **Repeat for Expense 2, Expense 3, Expense 4** using their respective columns.
 
-### 5️⃣ **Owner Payment (Net to Landlord)**
+### 5️⃣ **Owner Liability (Net Due to Landlord)** ⚠️ ACCRUAL ONLY
 **When to create:** If "Net Due to Prestvale" ≠ 0
+**⚠️ IMPORTANT:** This is what you OWE, not what you PAID. See [Actual Payments](#actual-owner-payments) below.
 
 | Field | Value | Source |
 |-------|-------|--------|
-| `transaction_date` | End of period or payment date | Use last day of month (e.g., 2025-05-31) |
-| `amount` | **Negative** amount (outgoing) | "Net Due to Prestvale" (negate if positive) |
-| `description` | "Owner Payment - {Month} {Year}" | Construct: e.g., "Owner Payment - May 2025" |
-| `transaction_type` | `payment` | Fixed value |
-| `category` | `owner_payment` | Fixed value |
+| `transaction_date` | End of period | Use last day of month (e.g., 2025-05-31) |
+| `amount` | **Negative** amount (outgoing liability) | "Net Due to Prestvale Propsk Old Account" or "Net Due to Prestvale Propsk PayProp Account" |
+| `description` | "Owner Liability Accrual - {Month} {Year}" | Construct: e.g., "Owner Liability Accrual - May 2025" |
+| `transaction_type` | `adjustment` | Use adjustment to track accrual |
+| `category` | `owner_liability` | Track what's owed |
 | `property_reference` | Property name | "Unit No." column |
-| `notes` | "Net rental payment to landlord" | Standard note |
+| `notes` | "Net amount owed to landlord (not yet paid)" | Clarify this is accrual |
 | `payment_source` | OLD_ACCOUNT or PAYPROP | Based on which account column has value |
+
+### 6️⃣ **Actual Owner Payments** 💰 CASH TRANSACTION
+**When to create:** For each payment in "Payments From Propsk Old Account" or "Payments From Propsk PayProp Account" section
+**⚠️ IMPORTANT:** These are ACTUAL bank transfers made to the landlord.
+
+**Location in spreadsheet:** Bottom section with payment dates and amounts
+
+| Field | Value | Source |
+|-------|-------|--------|
+| `transaction_date` | Actual payment date | "Payment 1" date column (e.g., 27/05/2025 → 2025-05-27) |
+| `amount` | **Negative** amount (outgoing) | "Payment 1" amount (e.g., -17111.56) |
+| `description` | "Actual Owner Payment - {Date}" | Construct: e.g., "Actual Owner Payment - 27 May 2025" |
+| `transaction_type` | `payment` | Actual cash payment |
+| `category` | `owner_payment` | Cash disbursement |
+| `property_reference` | "PORTFOLIO PAYMENT" or owner name | Use a general reference since payment covers multiple properties |
+| `customer_reference` | Owner/Landlord name | Use landlord name (e.g., "Prestvale") |
+| `notes` | "Bank transfer to landlord - reconciles against accrued liabilities" | Track reconciliation |
+| `payment_source` | OLD_ACCOUNT or PAYPROP | Based on which section payment appears in |
+
+**Example for May 2025 payments:**
+```csv
+2025-05-27,-17111.56,Actual Owner Payment - 27 May 2025,payment,owner_payment,PORTFOLIO PAYMENT,Prestvale,,,Bank transfer to landlord - reconciles against accrued liabilities,OLD_ACCOUNT
+2025-05-28,-923.21,Actual Owner Payment - 28 May 2025,payment,owner_payment,PORTFOLIO PAYMENT,Prestvale,,,Bank transfer to landlord - reconciles against accrued liabilities,OLD_ACCOUNT
+```
+
+---
+
+## 💡 Understanding Accrual vs. Cash Transactions
+
+### The Two-Part System:
+
+Your spreadsheet tracks BOTH:
+
+1. **Per-Property Accruals** (What you owe per property)
+   - FLAT 1: £676 owed
+   - FLAT 2: £629 owed
+   - FLAT 3: £629 owed
+   - ... (all 30 flats)
+   - **Total Accrued:** £19,236
+
+2. **Actual Portfolio Payments** (What you actually paid)
+   - Payment 1 on 27/05/2025: £17,111.56
+   - Payment 2 on 28/05/2025: £923.21
+   - **Total Paid:** £18,034.77
+
+### Why the Difference?
+
+The difference (£19,236 - £18,034.77 = **£1,201.23**) represents:
+- Timing differences
+- Held amounts
+- Adjustments
+- Working capital
+
+### How to Import Both:
+
+✅ **Create liability accruals** for each property (transaction_type = `adjustment`, category = `owner_liability`)
+✅ **Create actual payments** from the payment section (transaction_type = `payment`, category = `owner_payment`)
+
+The CRM will then show:
+- **Liabilities owed** per property
+- **Actual cash paid** to landlord
+- **Outstanding balance** to reconcile
 
 ---
 
