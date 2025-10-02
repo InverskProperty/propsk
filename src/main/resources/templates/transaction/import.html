@@ -455,6 +455,8 @@ const csrfHeader = getCsrfHeader();
 
 console.log('CSRF Token loaded:', csrfToken ? 'Yes' : 'No');
 console.log('CSRF Header loaded:', csrfHeader ? 'Yes' : 'No');
+console.log('CSRF Token value:', csrfToken);
+console.log('CSRF Header value:', csrfHeader);
 
 $(document).ready(function() {
 
@@ -805,6 +807,12 @@ function importCsvPaste() {
     if (csrfHeader && csrfToken) {
         headers[csrfHeader] = csrfToken;
     }
+
+    console.log('CSV Import - About to send AJAX request');
+    console.log('CSRF Header key:', csrfHeader);
+    console.log('CSRF Token value:', csrfToken);
+    console.log('Headers object:', headers);
+    console.log('Request data keys:', Object.keys(requestData));
 
     // Submit via AJAX
     $.ajax({
