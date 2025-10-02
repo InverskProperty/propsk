@@ -286,9 +286,15 @@ public class HistoricalTransactionImportService {
                     String[] values = parseCsvLine(line);
                     HistoricalTransaction transaction = parseCsvTransaction(values, columnMap, batchId, currentUser);
                     historicalTransactionRepository.save(transaction);
+                    historicalTransactionRepository.flush(); // Force immediate persistence to catch errors
                     result.incrementSuccessful();
                 } catch (Exception e) {
-                    result.addError("Line " + lineNumber + ": " + e.getMessage());
+                    String errorMsg = e.getMessage();
+                    if (e.getCause() != null) {
+                        errorMsg += " (Cause: " + e.getCause().getMessage() + ")";
+                    }
+                    log.warn("Failed to import line {}: {}", lineNumber, errorMsg);
+                    result.addError("Line " + lineNumber + ": " + errorMsg);
                     result.incrementFailed();
                 }
                 result.incrementTotal();
@@ -300,6 +306,9 @@ public class HistoricalTransactionImportService {
         } catch (IOException e) {
             log.error("Failed to read CSV string: {}", e.getMessage());
             return ImportResult.failure("Failed to read CSV data: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Unexpected error during CSV import: {}", e.getMessage(), e);
+            return ImportResult.failure("Import failed: " + e.getMessage());
         }
 
         return result;
