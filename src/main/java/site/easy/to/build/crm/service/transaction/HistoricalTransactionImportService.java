@@ -3,6 +3,7 @@ package site.easy.to.build.crm.service.transaction;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.web.multipart.MultipartFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -256,7 +257,9 @@ public class HistoricalTransactionImportService {
 
     /**
      * Import transactions from CSV string with optional batch ID (for batching multiple pastes)
+     * This method is NOT transactional - each row is saved in its own transaction
      */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public ImportResult importFromCsvString(String csvData, String batchDescription, String existingBatchId) {
         String batchId = (existingBatchId != null && !existingBatchId.isEmpty())
                          ? existingBatchId
@@ -285,8 +288,8 @@ public class HistoricalTransactionImportService {
                 try {
                     String[] values = parseCsvLine(line);
                     HistoricalTransaction transaction = parseCsvTransaction(values, columnMap, batchId, currentUser);
-                    historicalTransactionRepository.save(transaction);
-                    historicalTransactionRepository.flush(); // Force immediate persistence to catch errors
+                    // Save in separate transaction to avoid rollback-only errors
+                    saveTransactionInNewTransaction(transaction);
                     result.incrementSuccessful();
                 } catch (Exception e) {
                     String errorMsg = e.getMessage();
@@ -312,6 +315,161 @@ public class HistoricalTransactionImportService {
         }
 
         return result;
+    }
+
+    /**
+     * Save a transaction in a new transaction (REQUIRES_NEW)
+     * This prevents rollback-only errors when one transaction fails
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void saveTransactionInNewTransaction(HistoricalTransaction transaction) {
+        historicalTransactionRepository.save(transaction);
+        historicalTransactionRepository.flush(); // Force immediate persistence to catch errors
+    }
+
+    /**
+     * Validate CSV string without database operations
+     * This method performs all validation checks WITHOUT starting a transaction or saving to database
+     */
+    public ImportResult validateCsvString(String csvData) {
+        ImportResult result = new ImportResult("VALIDATION", "csv_validation");
+
+        try (BufferedReader reader = new BufferedReader(new java.io.StringReader(csvData))) {
+            String headerLine = reader.readLine();
+
+            if (headerLine == null) {
+                result.addError("CSV data is empty");
+                result.incrementFailed();
+                return result;
+            }
+
+            String[] headers = headerLine.split(",");
+            Map<String, Integer> columnMap = buildColumnMap(headers);
+
+            // Validate required columns exist
+            List<String> requiredColumns = List.of("transaction_date", "amount", "description", "transaction_type");
+            List<String> missingColumns = new ArrayList<>();
+
+            for (String required : requiredColumns) {
+                if (!columnMap.containsKey(required)) {
+                    missingColumns.add(required);
+                }
+            }
+
+            if (!missingColumns.isEmpty()) {
+                result.addError("Missing required columns: " + String.join(", ", missingColumns));
+                result.incrementFailed();
+                return result;
+            }
+
+            String line;
+            int lineNumber = 1;
+
+            while ((line = reader.readLine()) != null) {
+                lineNumber++;
+                if (line.trim().isEmpty()) {
+                    continue; // Skip empty lines
+                }
+
+                try {
+                    // Parse and validate the line WITHOUT database operations
+                    String[] values = parseCsvLine(line);
+
+                    // Validate required fields are present and parseable
+                    validateCsvRow(values, columnMap, lineNumber);
+
+                    result.incrementSuccessful();
+                } catch (Exception e) {
+                    String errorMsg = e.getMessage();
+                    if (e.getCause() != null) {
+                        errorMsg += " (Cause: " + e.getCause().getMessage() + ")";
+                    }
+                    log.debug("Validation error on line {}: {}", lineNumber, errorMsg);
+                    result.addError("Line " + lineNumber + ": " + errorMsg);
+                    result.incrementFailed();
+                }
+                result.incrementTotal();
+            }
+
+            log.info("CSV validation completed: {} total, {} valid, {} invalid",
+                    result.getTotalProcessed(), result.getSuccessfulImports(), result.getFailedImports());
+
+        } catch (IOException e) {
+            log.error("Failed to read CSV string during validation: {}", e.getMessage());
+            result.addError("Failed to read CSV data: " + e.getMessage());
+            result.incrementFailed();
+        } catch (Exception e) {
+            log.error("Unexpected error during CSV validation: {}", e.getMessage(), e);
+            result.addError("Validation failed: " + e.getMessage());
+            result.incrementFailed();
+        }
+
+        return result;
+    }
+
+    /**
+     * Validate a single CSV row without database operations
+     * Checks all required fields are present and parseable
+     */
+    private void validateCsvRow(String[] values, Map<String, Integer> columnMap, int lineNumber) {
+        // Validate transaction_date
+        String dateStr = getValue(values, columnMap, "transaction_date");
+        if (dateStr == null || dateStr.isEmpty()) {
+            throw new IllegalArgumentException("transaction_date is required");
+        }
+        try {
+            parseDate(dateStr);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid transaction_date format: " + dateStr + " (expected yyyy-MM-dd)");
+        }
+
+        // Validate amount
+        String amountStr = getValue(values, columnMap, "amount");
+        if (amountStr == null || amountStr.isEmpty()) {
+            throw new IllegalArgumentException("amount is required");
+        }
+        try {
+            new BigDecimal(amountStr);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid amount format: " + amountStr);
+        }
+
+        // Validate description
+        String description = getValue(values, columnMap, "description");
+        if (description == null || description.isEmpty()) {
+            throw new IllegalArgumentException("description is required");
+        }
+
+        // Validate transaction_type
+        String typeStr = getValue(values, columnMap, "transaction_type");
+        if (typeStr == null || typeStr.isEmpty()) {
+            throw new IllegalArgumentException("transaction_type is required");
+        }
+        try {
+            parseTransactionType(typeStr);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid transaction_type: " + typeStr + " (expected: payment, invoice, fee, transfer, or adjustment)");
+        }
+
+        // Validate payment_source if present
+        String paymentSource = getValue(values, columnMap, "payment_source");
+        if (paymentSource != null && !paymentSource.isEmpty()) {
+            try {
+                validatePaymentSource(paymentSource);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid payment_source: " + paymentSource + " - " + e.getMessage());
+            }
+        }
+
+        // Validate source if present
+        String sourceStr = getValue(values, columnMap, "source");
+        if (sourceStr != null && !sourceStr.isEmpty()) {
+            try {
+                parseTransactionSource(sourceStr);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid source: " + sourceStr);
+            }
+        }
     }
 
     /**

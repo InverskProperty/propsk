@@ -317,6 +317,53 @@ public class HistoricalTransactionImportController {
     }
     
     /**
+     * Validate CSV data before import (no database operations)
+     * Returns validation errors without attempting to save
+     */
+    @PostMapping("/import/validate-csv")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> validateCsvString(
+            @RequestParam("csvData") String csvData,
+            Authentication authentication) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("🔍 Validating CSV data: {} characters", csvData.length());
+
+            // Validate input
+            if (csvData == null || csvData.trim().isEmpty()) {
+                response.put("valid", false);
+                response.put("errors", List.of("CSV data is required"));
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // Perform validation without database operations
+            ImportResult validationResult = importService.validateCsvString(csvData);
+
+            response.put("valid", validationResult.isSuccess());
+            response.put("totalRows", validationResult.getTotalProcessed());
+            response.put("validRows", validationResult.getSuccessfulImports());
+            response.put("invalidRows", validationResult.getFailedImports());
+            response.put("errors", validationResult.getErrors());
+
+            if (validationResult.isSuccess()) {
+                log.info("✅ CSV validation passed: {} rows valid", validationResult.getSuccessfulImports());
+            } else {
+                log.warn("⚠️ CSV validation failed: {} errors found", validationResult.getFailedImports());
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ CSV validation failed: {}", e.getMessage());
+            response.put("valid", false);
+            response.put("errors", List.of("Validation failed: " + e.getMessage()));
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
      * Get import format examples
      */
     @GetMapping("/import/examples")
