@@ -251,7 +251,16 @@ public class HistoricalTransactionImportService {
      * Import transactions from CSV string (for paste functionality)
      */
     public ImportResult importFromCsvString(String csvData, String batchDescription) {
-        String batchId = generateBatchId("CSV");
+        return importFromCsvString(csvData, batchDescription, null);
+    }
+
+    /**
+     * Import transactions from CSV string with optional batch ID (for batching multiple pastes)
+     */
+    public ImportResult importFromCsvString(String csvData, String batchDescription, String existingBatchId) {
+        String batchId = (existingBatchId != null && !existingBatchId.isEmpty())
+                         ? existingBatchId
+                         : generateBatchId("CSV");
         ImportResult result = new ImportResult(batchId, "csv_paste_import");
 
         try (BufferedReader reader = new BufferedReader(new java.io.StringReader(csvData))) {
@@ -285,8 +294,8 @@ public class HistoricalTransactionImportService {
                 result.incrementTotal();
             }
 
-            log.info("CSV string import completed: {} total, {} successful, {} failed",
-                    result.getTotalProcessed(), result.getSuccessfulImports(), result.getFailedImports());
+            log.info("CSV string import completed: {} total, {} successful, {} failed (batch: {})",
+                    result.getTotalProcessed(), result.getSuccessfulImports(), result.getFailedImports(), batchId);
 
         } catch (IOException e) {
             log.error("Failed to read CSV string: {}", e.getMessage());

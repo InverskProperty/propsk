@@ -266,18 +266,21 @@ public class HistoricalTransactionImportController {
 
     /**
      * Handle CSV string import (for paste functionality)
+     * Supports optional batchId parameter to group multiple paste operations into one batch
      */
     @PostMapping("/import/csv-string")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> importCsvString(
             @RequestParam("csvData") String csvData,
             @RequestParam(value = "batchDescription", defaultValue = "") String batchDescription,
+            @RequestParam(value = "batchId", required = false) String batchId,
             Authentication authentication) {
 
         Map<String, Object> response = new HashMap<>();
 
         try {
-            log.info("📋 CSV String Import: {} characters", csvData.length());
+            log.info("📋 CSV String Import: {} characters, batch: {}", csvData.length(),
+                    batchId != null ? batchId : "new batch");
 
             // Validate input
             if (csvData == null || csvData.trim().isEmpty()) {
@@ -286,8 +289,8 @@ public class HistoricalTransactionImportController {
                 return ResponseEntity.badRequest().body(response);
             }
 
-            // Import data
-            ImportResult result = importService.importFromCsvString(csvData, batchDescription);
+            // Import data with optional batch ID
+            ImportResult result = importService.importFromCsvString(csvData, batchDescription, batchId);
 
             response.put("success", result.isSuccess());
             response.put("batchId", result.getBatchId());
@@ -298,9 +301,9 @@ public class HistoricalTransactionImportController {
             response.put("errors", result.getErrors());
 
             if (result.isSuccess()) {
-                log.info("✅ CSV String Import completed: {}", result.getSummary());
+                log.info("✅ CSV String Import completed: {} (batch: {})", result.getSummary(), result.getBatchId());
             } else {
-                log.warn("⚠️ CSV String Import completed with errors: {}", result.getSummary());
+                log.warn("⚠️ CSV String Import completed with errors: {} (batch: {})", result.getSummary(), result.getBatchId());
             }
 
             return ResponseEntity.ok(response);
