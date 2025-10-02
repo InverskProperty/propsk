@@ -224,22 +224,22 @@ public class HistoricalTransactionImportController {
             @RequestParam("jsonData") String jsonData,
             @RequestParam(value = "batchDescription", defaultValue = "") String batchDescription,
             Authentication authentication) {
-        
+
         Map<String, Object> response = new HashMap<>();
-        
+
         try {
             log.info("📋 JSON String Import: {} characters", jsonData.length());
-            
+
             // Validate input
             if (jsonData == null || jsonData.trim().isEmpty()) {
                 response.put("success", false);
                 response.put("error", "JSON data is required");
                 return ResponseEntity.badRequest().body(response);
             }
-            
+
             // Import data
             ImportResult result = importService.importFromJsonString(jsonData, batchDescription);
-            
+
             response.put("success", result.isSuccess());
             response.put("batchId", result.getBatchId());
             response.put("summary", result.getSummary());
@@ -247,17 +247,66 @@ public class HistoricalTransactionImportController {
             response.put("successfulImports", result.getSuccessfulImports());
             response.put("failedImports", result.getFailedImports());
             response.put("errors", result.getErrors());
-            
+
             if (result.isSuccess()) {
                 log.info("✅ JSON String Import completed: {}", result.getSummary());
             } else {
                 log.warn("⚠️ JSON String Import completed with errors: {}", result.getSummary());
             }
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             log.error("❌ JSON string import failed: {}", e.getMessage());
+            response.put("success", false);
+            response.put("error", "Import failed: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * Handle CSV string import (for paste functionality)
+     */
+    @PostMapping("/import/csv-string")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> importCsvString(
+            @RequestParam("csvData") String csvData,
+            @RequestParam(value = "batchDescription", defaultValue = "") String batchDescription,
+            Authentication authentication) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("📋 CSV String Import: {} characters", csvData.length());
+
+            // Validate input
+            if (csvData == null || csvData.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("error", "CSV data is required");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // Import data
+            ImportResult result = importService.importFromCsvString(csvData, batchDescription);
+
+            response.put("success", result.isSuccess());
+            response.put("batchId", result.getBatchId());
+            response.put("summary", result.getSummary());
+            response.put("totalProcessed", result.getTotalProcessed());
+            response.put("successfulImports", result.getSuccessfulImports());
+            response.put("failedImports", result.getFailedImports());
+            response.put("errors", result.getErrors());
+
+            if (result.isSuccess()) {
+                log.info("✅ CSV String Import completed: {}", result.getSummary());
+            } else {
+                log.warn("⚠️ CSV String Import completed with errors: {}", result.getSummary());
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ CSV string import failed: {}", e.getMessage());
             response.put("success", false);
             response.put("error", "Import failed: " + e.getMessage());
             return ResponseEntity.status(500).body(response);
@@ -271,53 +320,63 @@ public class HistoricalTransactionImportController {
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getImportExamples() {
         Map<String, Object> examples = new HashMap<>();
-        
+
         // CSV Example
-        String csvExample = "transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference\n" +
-                           "2023-01-15,-1200.00,\"Rent payment - Main St\",payment,rent,\"123 Main St\",\"john@email.com\",TXN123456\n" +
-                           "2023-02-01,50.00,\"Interest payment\",deposit,interest,,,INT789\n" +
-                           "2023-02-15,-150.00,\"Maintenance repair\",payment,maintenance,\"123 Main St\",,REP456";
-        
+        String csvExample = "transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source\n" +
+                           "2025-01-22,1125.00,\"Rent Due - January 2025\",invoice,rent,\"Apartment F - Knighton Hayes\",Riaz,,,\"Rent due on 22nd\",OLD_ACCOUNT\n" +
+                           "2025-01-22,1125.00,\"Rent Received - January 2025\",payment,rent,\"Apartment F - Knighton Hayes\",Riaz,,,\"Rent received\",OLD_ACCOUNT\n" +
+                           "2025-01-22,-112.50,\"Management Fee - 10%\",fee,commission,\"Apartment F - Knighton Hayes\",,,,\"10% of rent\",OLD_ACCOUNT";
+
         // JSON Example
         String jsonExample = "{\n" +
-                            "  \"source_description\": \"Historical bank data 2023\",\n" +
+                            "  \"source_description\": \"Historical bank data 2025\",\n" +
                             "  \"transactions\": [\n" +
                             "    {\n" +
-                            "      \"transaction_date\": \"2023-01-15\",\n" +
-                            "      \"amount\": -1200.00,\n" +
-                            "      \"description\": \"Rent payment - Main St\",\n" +
-                            "      \"transaction_type\": \"payment\",\n" +
+                            "      \"transaction_date\": \"2025-01-22\",\n" +
+                            "      \"amount\": 1125.00,\n" +
+                            "      \"description\": \"Rent Due - January 2025\",\n" +
+                            "      \"transaction_type\": \"invoice\",\n" +
                             "      \"category\": \"rent\",\n" +
-                            "      \"property_reference\": \"123 Main St\",\n" +
-                            "      \"customer_reference\": \"john@email.com\",\n" +
-                            "      \"bank_reference\": \"TXN123456\"\n" +
+                            "      \"property_reference\": \"Apartment F - Knighton Hayes\",\n" +
+                            "      \"customer_reference\": \"Riaz\",\n" +
+                            "      \"payment_source\": \"OLD_ACCOUNT\"\n" +
                             "    },\n" +
                             "    {\n" +
-                            "      \"transaction_date\": \"2023-02-01\",\n" +
-                            "      \"amount\": 50.00,\n" +
-                            "      \"description\": \"Interest payment\",\n" +
-                            "      \"transaction_type\": \"deposit\",\n" +
-                            "      \"category\": \"interest\",\n" +
-                            "      \"bank_reference\": \"INT789\"\n" +
+                            "      \"transaction_date\": \"2025-01-22\",\n" +
+                            "      \"amount\": 1125.00,\n" +
+                            "      \"description\": \"Rent Received - January 2025\",\n" +
+                            "      \"transaction_type\": \"payment\",\n" +
+                            "      \"category\": \"rent\",\n" +
+                            "      \"property_reference\": \"Apartment F - Knighton Hayes\",\n" +
+                            "      \"customer_reference\": \"Riaz\",\n" +
+                            "      \"payment_source\": \"OLD_ACCOUNT\"\n" +
                             "    }\n" +
                             "  ]\n" +
                             "}";
-        
+
         examples.put("csv_example", csvExample);
         examples.put("json_example", jsonExample);
         examples.put("csv_headers", List.of(
-            "transaction_date (required)", "amount (required)", "description (required)", 
-            "transaction_type (required)", "category", "subcategory", "property_reference", 
-            "customer_reference", "bank_reference", "payment_method", "counterparty_name", 
-            "source_reference", "notes"
+            "transaction_date (required)", "amount (required)", "description (required)",
+            "transaction_type (required)", "category", "property_reference",
+            "customer_reference", "bank_reference", "payment_method", "notes", "payment_source"
         ));
         examples.put("transaction_types", List.of(
-            "payment", "deposit", "fee", "commission", "maintenance", "utility", "insurance", "tax"
+            "invoice", "payment", "fee", "expense", "maintenance", "adjustment", "deposit", "withdrawal"
+        ));
+        examples.put("payment_sources", List.of(
+            "OLD_ACCOUNT", "PAYPROP", "BOTH"
         ));
         examples.put("date_formats", List.of(
             "yyyy-MM-dd", "dd/MM/yyyy", "MM/dd/yyyy", "dd-MM-yyyy", "yyyy/MM/dd"
         ));
-        
+        examples.put("endpoints", Map.of(
+            "csv_file_upload", "/employee/transaction/import/csv",
+            "csv_paste", "/employee/transaction/import/csv-string",
+            "json_file_upload", "/employee/transaction/import/json",
+            "json_paste", "/employee/transaction/import/json-string"
+        ));
+
         return ResponseEntity.ok(examples);
     }
 }

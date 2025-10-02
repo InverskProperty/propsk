@@ -246,7 +246,56 @@ public class HistoricalTransactionImportService {
         
         return result;
     }
-    
+
+    /**
+     * Import transactions from CSV string (for paste functionality)
+     */
+    public ImportResult importFromCsvString(String csvData, String batchDescription) {
+        String batchId = generateBatchId("CSV");
+        ImportResult result = new ImportResult(batchId, "csv_paste_import");
+
+        try (BufferedReader reader = new BufferedReader(new java.io.StringReader(csvData))) {
+            User currentUser = getCurrentUser();
+            String headerLine = reader.readLine();
+
+            if (headerLine == null) {
+                return ImportResult.failure("CSV data is empty");
+            }
+
+            String[] headers = headerLine.split(",");
+            Map<String, Integer> columnMap = buildColumnMap(headers);
+
+            String line;
+            int lineNumber = 1; // Start from 1 (header is line 0)
+
+            while ((line = reader.readLine()) != null) {
+                lineNumber++;
+                if (line.trim().isEmpty()) {
+                    continue; // Skip empty lines
+                }
+                try {
+                    String[] values = parseCsvLine(line);
+                    HistoricalTransaction transaction = parseCsvTransaction(values, columnMap, batchId, currentUser);
+                    historicalTransactionRepository.save(transaction);
+                    result.incrementSuccessful();
+                } catch (Exception e) {
+                    result.addError("Line " + lineNumber + ": " + e.getMessage());
+                    result.incrementFailed();
+                }
+                result.incrementTotal();
+            }
+
+            log.info("CSV string import completed: {} total, {} successful, {} failed",
+                    result.getTotalProcessed(), result.getSuccessfulImports(), result.getFailedImports());
+
+        } catch (IOException e) {
+            log.error("Failed to read CSV string: {}", e.getMessage());
+            return ImportResult.failure("Failed to read CSV data: " + e.getMessage());
+        }
+
+        return result;
+    }
+
     /**
      * Build column mapping from CSV headers
      */
