@@ -394,10 +394,13 @@ public interface HistoricalTransactionRepository extends JpaRepository<Historica
 
     /**
      * Find transactions for property statement generation (by PayProp ID and date range)
+     * UPDATED: Now uses JOIN to match both payprop_property_id AND property table link
      */
-    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.paypropPropertyId = :paypropPropertyId " +
+    @Query("SELECT ht FROM HistoricalTransaction ht " +
+           "LEFT JOIN Property p ON ht.property = p " +
+           "WHERE (ht.paypropPropertyId = :paypropPropertyId OR p.payPropId = :paypropPropertyId) " +
            "AND ht.transactionDate BETWEEN :fromDate AND :toDate " +
-           "AND ht.status = 'active' ORDER BY ht.transactionDate DESC")
+           "ORDER BY ht.transactionDate DESC")
     List<HistoricalTransaction> findPropertyTransactionsForStatement(@Param("paypropPropertyId") String paypropPropertyId,
                                                                      @Param("fromDate") LocalDate fromDate,
                                                                      @Param("toDate") LocalDate toDate);

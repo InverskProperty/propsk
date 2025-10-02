@@ -6,12 +6,12 @@ package site.easy.to.build.crm.enums;
  */
 public enum StatementDataSource {
 
-    PROPSK_OLD_ACCOUNT("Propsk Old Account", "PROPSK_OLD_ACCOUNT", "Historical Propsk bank account (pre-PayProp)", "2"),
-    PROPSK_PAYPROP_ACCOUNT("Propsk PayProp Account", "PROPSK_PAYPROP_ACCOUNT", "Current PayProp managed account", "3"),
-    PAYPROP_API_SYNC("PayProp API Live Data", "PAYPROP_API_SYNC", "Live PayProp API synced transactions", "PAYPROP_API"),
-    LOCAL_CRM_MANUAL("Local CRM Manual Entry", "LOCAL_CRM_MANUAL", "Manually entered in CRM system", "LOCAL_CRM"),
-    CSV_IMPORT("CSV Import", "CSV_IMPORT", "Imported from CSV file", "CSV_IMPORT"),
-    ROBERT_ELLIS("Robert Ellis Historical", "ROBERT_ELLIS", "Robert Ellis management period data", "ROBERT_ELLIS");
+    PROPSK_OLD_ACCOUNT("Propsk Old Account", "PROPSK_OLD_ACCOUNT", "Historical Propsk bank account (pre-PayProp)", "propsk_old"),
+    PROPSK_PAYPROP_ACCOUNT("Propsk PayProp Account", "PROPSK_PAYPROP_ACCOUNT", "Current PayProp managed account", "propsk_payprop"),
+    PAYPROP_API_SYNC("PayProp API Live Data", "PAYPROP_API_SYNC", "Live PayProp API synced transactions", "api_sync"),
+    LOCAL_CRM_MANUAL("Local CRM Manual Entry", "LOCAL_CRM_MANUAL", "Manually entered in CRM system", "manual"),
+    CSV_IMPORT("CSV Import", "CSV_IMPORT", "Imported from CSV file", "csv_import"),
+    ROBERT_ELLIS("Robert Ellis Historical", "ROBERT_ELLIS", "Robert Ellis management period data", "robert_ellis");
 
     private final String displayName;
     private final String dataSourceKey;

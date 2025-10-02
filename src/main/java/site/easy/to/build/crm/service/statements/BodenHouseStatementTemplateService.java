@@ -210,7 +210,7 @@ public class BodenHouseStatementTemplateService {
         enhanceWithTenantBalanceData(unit, property);
 
         // Get financial transactions for this property
-        List<FinancialTransaction> transactions = getTransactionsForProperty(property, fromDate, toDate);
+        List<HistoricalTransaction> transactions = getTransactionsForProperty(property, fromDate, toDate);
 
         // Determine payment routing (following your spreadsheet logic)
         setPaymentRouting(unit, transactions);
@@ -258,8 +258,8 @@ public class BodenHouseStatementTemplateService {
         enhanceWithTenantBalanceData(unit, property);
 
         // Get financial transactions for this property with data source filtering
-        List<FinancialTransaction> allTransactions = getTransactionsForProperty(property, fromDate, toDate);
-        List<FinancialTransaction> filteredTransactions = filterTransactionsByDataSource(allTransactions, includedDataSources);
+        List<HistoricalTransaction> allTransactions = getTransactionsForProperty(property, fromDate, toDate);
+        List<HistoricalTransaction> filteredTransactions = filterHistoricalTransactionsByAccountSource(allTransactions, includedDataSources);
 
         // Determine payment routing (following your spreadsheet logic)
         setPaymentRouting(unit, filteredTransactions);
@@ -281,13 +281,13 @@ public class BodenHouseStatementTemplateService {
     /**
      * Set payment routing flags (Robert Ellis, Propsk Old Account, PayProp)
      */
-    private void setPaymentRouting(PropertyUnit unit, List<FinancialTransaction> transactions) {
+    private void setPaymentRouting(PropertyUnit unit, List<HistoricalTransaction> transactions) {
         // Analyze transactions to determine payment routing
         unit.paidToRobertEllis = false;
         unit.paidToPropskOldAccount = false;
         unit.paidToPropskPayProp = false;
 
-        for (FinancialTransaction transaction : transactions) {
+        for (HistoricalTransaction transaction : transactions) {
             if (isRentPayment(transaction)) {
                 if (isRobertEllisPayment(transaction)) {
                     unit.paidToRobertEllis = true;
@@ -303,7 +303,7 @@ public class BodenHouseStatementTemplateService {
     /**
      * Calculate all unit amounts following your spreadsheet formulas
      */
-    private void calculateUnitAmounts(PropertyUnit unit, Property property, List<FinancialTransaction> transactions) {
+    private void calculateUnitAmounts(PropertyUnit unit, Property property, List<HistoricalTransaction> transactions) {
         // Calculate rent received
         unit.rentReceivedAmount = calculateTotalRentReceived(transactions);
         unit.amountReceivedPayProp = calculatePayPropAmount(transactions);
@@ -740,10 +740,10 @@ public class BodenHouseStatementTemplateService {
         return null; // Placeholder
     }
 
-    private List<FinancialTransaction> getTransactionsForProperty(Property property, LocalDate fromDate, LocalDate toDate) {
+    private List<HistoricalTransaction> getTransactionsForProperty(Property property, LocalDate fromDate, LocalDate toDate) {
         try {
             if (property.getPayPropId() != null) {
-                return financialTransactionRepository
+                return historicalTransactionRepository
                     .findPropertyTransactionsForStatement(property.getPayPropId(), fromDate, toDate);
             }
         } catch (Exception e) {
@@ -759,47 +759,49 @@ public class BodenHouseStatementTemplateService {
         return expenses;
     }
 
-    private boolean isRentPayment(FinancialTransaction transaction) {
-        return "invoice".equals(transaction.getTransactionType()) &&
-               (transaction.getCategoryName() == null || transaction.getCategoryName().toLowerCase().contains("rent"));
+    private boolean isRentPayment(HistoricalTransaction transaction) {
+        HistoricalTransaction.TransactionType type = transaction.getTransactionType();
+        if (type == null) return false;
+        return type == HistoricalTransaction.TransactionType.invoice ||
+               type == HistoricalTransaction.TransactionType.payment;
     }
 
-    private boolean isRobertEllisPayment(FinancialTransaction transaction) {
+    private boolean isRobertEllisPayment(HistoricalTransaction transaction) {
         return (transaction.getDescription() != null && transaction.getDescription().contains("Robert Ellis")) ||
-               (transaction.getDataSource() != null && transaction.getDataSource().contains("ROBERT_ELLIS"));
+               (transaction.getAccountSource() != null && transaction.getAccountSource().contains("robert_ellis"));
     }
 
-    private boolean isOldAccountPayment(FinancialTransaction transaction) {
+    private boolean isOldAccountPayment(HistoricalTransaction transaction) {
         return (transaction.getDescription() != null && transaction.getDescription().contains("Old Account")) ||
-               (transaction.getDataSource() != null && transaction.getDataSource().contains("PROPSK_OLD"));
+               (transaction.getAccountSource() != null && transaction.getAccountSource().contains("propsk_old"));
     }
 
-    private boolean isPayPropPayment(FinancialTransaction transaction) {
+    private boolean isPayPropPayment(HistoricalTransaction transaction) {
         return (transaction.getDescription() != null && transaction.getDescription().contains("PayProp")) ||
-               (transaction.getDataSource() != null && transaction.getDataSource().contains("PAYPROP")) ||
-               transaction.getPayPropBatchId() != null;
+               (transaction.getAccountSource() != null && transaction.getAccountSource().contains("propsk_payprop")) ||
+               transaction.getPaypropBatchId() != null;
     }
 
-    private BigDecimal calculateTotalRentReceived(List<FinancialTransaction> transactions) {
+    private BigDecimal calculateTotalRentReceived(List<HistoricalTransaction> transactions) {
         return transactions.stream()
             .filter(this::isRentPayment)
-            .map(FinancialTransaction::getAmount)
+            .map(HistoricalTransaction::getAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private BigDecimal calculatePayPropAmount(List<FinancialTransaction> transactions) {
+    private BigDecimal calculatePayPropAmount(List<HistoricalTransaction> transactions) {
         return transactions.stream()
             .filter(this::isRentPayment)
             .filter(this::isPayPropPayment)
-            .map(FinancialTransaction::getAmount)
+            .map(HistoricalTransaction::getAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private BigDecimal calculateOldAccountAmount(List<FinancialTransaction> transactions) {
+    private BigDecimal calculateOldAccountAmount(List<HistoricalTransaction> transactions) {
         return transactions.stream()
             .filter(this::isRentPayment)
             .filter(this::isOldAccountPayment)
-            .map(FinancialTransaction::getAmount)
+            .map(HistoricalTransaction::getAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
@@ -962,9 +964,9 @@ public class BodenHouseStatementTemplateService {
      * Get filtered expenses for property
      */
     private List<ExpenseItem> getFilteredExpensesForProperty(Property property, LocalDate fromDate, LocalDate toDate, Set<StatementDataSource> includedDataSources) {
-        // Get all expense transactions directly from financial transactions
-        List<FinancialTransaction> allExpenseTransactions = getExpenseTransactionsForProperty(property, fromDate, toDate);
-        List<FinancialTransaction> filteredExpenses = filterTransactionsByDataSource(allExpenseTransactions, includedDataSources);
+        // Get all expense transactions directly from historical transactions
+        List<HistoricalTransaction> allExpenseTransactions = getExpenseTransactionsForProperty(property, fromDate, toDate);
+        List<HistoricalTransaction> filteredExpenses = filterHistoricalTransactionsByAccountSource(allExpenseTransactions, includedDataSources);
 
         return filteredExpenses.stream()
             .map(this::convertToExpenseItem)
@@ -974,37 +976,37 @@ public class BodenHouseStatementTemplateService {
     /**
      * Check if transaction is an expense
      */
-    private boolean isExpenseTransaction(FinancialTransaction transaction) {
-        String type = transaction.getTransactionType();
-        return type != null && (
-            type.contains("payment") ||
-            type.contains("expense") ||
-            type.contains("debit") ||
-            type.equals("payment_to_contractor") ||
-            type.equals("payment_to_beneficiary")
-        );
+    private boolean isExpenseTransaction(HistoricalTransaction transaction) {
+        HistoricalTransaction.TransactionType type = transaction.getTransactionType();
+        if (type == null) return false;
+
+        // Check if it's an expense-related transaction type
+        return type == HistoricalTransaction.TransactionType.expense ||
+               type == HistoricalTransaction.TransactionType.maintenance ||
+               type == HistoricalTransaction.TransactionType.fee ||
+               (transaction.getAmount() != null && transaction.getAmount().compareTo(BigDecimal.ZERO) < 0);
     }
 
     /**
-     * Get expense transactions for property (returns FinancialTransaction list)
+     * Get expense transactions for property (returns HistoricalTransaction list)
      */
-    private List<FinancialTransaction> getExpenseTransactionsForProperty(Property property, LocalDate fromDate, LocalDate toDate) {
+    private List<HistoricalTransaction> getExpenseTransactionsForProperty(Property property, LocalDate fromDate, LocalDate toDate) {
         if (property.getPayPropId() == null) {
             return new ArrayList<>();
         }
 
-        return financialTransactionRepository.findByPropertyAndDateRange(property.getPayPropId(), fromDate, toDate)
+        return historicalTransactionRepository.findPropertyTransactionsForStatement(property.getPayPropId(), fromDate, toDate)
             .stream()
             .filter(this::isExpenseTransaction)
             .collect(Collectors.toList());
     }
 
     /**
-     * Convert FinancialTransaction to ExpenseItem
+     * Convert HistoricalTransaction to ExpenseItem
      */
-    private ExpenseItem convertToExpenseItem(FinancialTransaction transaction) {
+    private ExpenseItem convertToExpenseItem(HistoricalTransaction transaction) {
         ExpenseItem expense = new ExpenseItem();
-        expense.label = transaction.getCategoryName() != null ? transaction.getCategoryName() : transaction.getDescription();
+        expense.label = transaction.getCategory() != null ? transaction.getCategory() : transaction.getDescription();
         expense.amount = transaction.getAmount();
         expense.comment = transaction.getDescription();
         return expense;
