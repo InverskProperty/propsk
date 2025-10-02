@@ -2,8 +2,8 @@
 <html xmlns:th="http://www.thymeleaf.org">
 
 <div th:insert="~{general/head.html}"></div>
-<meta name="_csrf" content="${_csrf.token}"/>
-<meta name="_csrf_header" content="${_csrf.headerName}"/>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
 
 <!-- Form CSS -->
 <link th:href="@{/css/bootstrap-datepicker.min.css}" rel="stylesheet">
