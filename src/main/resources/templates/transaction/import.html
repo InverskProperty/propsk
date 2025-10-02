@@ -697,19 +697,47 @@ function importJsonPaste() {
                 `);
             }
         },
-        error: function(xhr) {
+        error: function(xhr, status, error) {
             let errorMsg = 'Import failed';
+            let debugInfo = '';
+
+            console.error('JSON Import Error:', {
+                status: xhr.status,
+                statusText: xhr.statusText,
+                responseText: xhr.responseText,
+                error: error
+            });
+
             try {
                 const response = JSON.parse(xhr.responseText);
-                errorMsg = response.error || errorMsg;
+                errorMsg = response.error || response.message || errorMsg;
             } catch (e) {
-                // Use default error message
+                // Not JSON response
+                if (xhr.responseText) {
+                    errorMsg = xhr.responseText.substring(0, 200);
+                }
             }
+
+            debugInfo = `
+                <details class="mt-2">
+                    <summary>Debug Information</summary>
+                    <pre class="small mt-2 bg-light p-2">
+Status: ${xhr.status} ${xhr.statusText}
+URL: /employee/transaction/import/json-string
+Method: POST
+Error: ${error}
+
+Response Preview:
+${xhr.responseText ? xhr.responseText.substring(0, 500) : 'No response'}
+                    </pre>
+                </details>
+            `;
 
             $('#jsonPasteContent').html(`
                 <div class="alert alert-danger">
                     <h6><i class="fas fa-times-circle"></i> Import Error</h6>
                     <p>${errorMsg}</p>
+                    ${debugInfo}
                 </div>
             `);
         }
@@ -808,19 +836,47 @@ function importCsvPaste() {
                 `);
             }
         },
-        error: function(xhr) {
+        error: function(xhr, status, error) {
             let errorMsg = 'Import failed';
+            let debugInfo = '';
+
+            console.error('CSV Import Error:', {
+                status: xhr.status,
+                statusText: xhr.statusText,
+                responseText: xhr.responseText,
+                error: error
+            });
+
             try {
                 const response = JSON.parse(xhr.responseText);
-                errorMsg = response.error || errorMsg;
+                errorMsg = response.error || response.message || errorMsg;
             } catch (e) {
-                // Use default error message
+                // Not JSON response
+                if (xhr.responseText) {
+                    errorMsg = xhr.responseText.substring(0, 200);
+                }
             }
+
+            debugInfo = `
+                <details class="mt-2">
+                    <summary>Debug Information</summary>
+                    <pre class="small mt-2 bg-light p-2">
+Status: ${xhr.status} ${xhr.statusText}
+URL: /employee/transaction/import/csv-string
+Method: POST
+Error: ${error}
+
+Response Preview:
+${xhr.responseText ? xhr.responseText.substring(0, 500) : 'No response'}
+                    </pre>
+                </details>
+            `;
 
             $('#csvPasteContent').html(`
                 <div class="alert alert-danger">
                     <h6><i class="fas fa-times-circle"></i> Import Error</h6>
                     <p>${errorMsg}</p>
+                    ${debugInfo}
                 </div>
             `);
         }
