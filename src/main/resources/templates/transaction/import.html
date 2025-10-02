@@ -440,8 +440,21 @@
 
 <script>
 let currentExampleContent = '';
-const csrfToken = $('meta[name="_csrf"]').attr('content');
-const csrfHeader = $('meta[name="_csrf_header"]').attr('content');
+
+// Read CSRF tokens from meta tags
+function getCsrfToken() {
+    return $('meta[name="_csrf"]').attr('content');
+}
+
+function getCsrfHeader() {
+    return $('meta[name="_csrf_header"]').attr('content');
+}
+
+const csrfToken = getCsrfToken();
+const csrfHeader = getCsrfHeader();
+
+console.log('CSRF Token loaded:', csrfToken ? 'Yes' : 'No');
+console.log('CSRF Header loaded:', csrfHeader ? 'Yes' : 'No');
 
 $(document).ready(function() {
 
@@ -516,11 +529,14 @@ $(document).ready(function() {
 
 // Show CSV example
 function showCsvExample() {
+    const headers = {};
+    if (csrfHeader && csrfToken) {
+        headers[csrfHeader] = csrfToken;
+    }
+
     fetch('/employee/transaction/import/examples', {
         method: 'GET',
-        headers: {
-            [csrfHeader]: csrfToken
-        }
+        headers: headers
     })
     .then(response => response.json())
     .then(data => {
@@ -552,11 +568,14 @@ function showCsvExample() {
 
 // Show JSON example
 function showJsonExample() {
+    const headers = {};
+    if (csrfHeader && csrfToken) {
+        headers[csrfHeader] = csrfToken;
+    }
+
     fetch('/employee/transaction/import/examples', {
         method: 'GET',
-        headers: {
-            [csrfHeader]: csrfToken
-        }
+        headers: headers
     })
     .then(response => response.json())
     .then(data => {
@@ -643,6 +662,12 @@ function importJsonPaste() {
     $('#jsonPasteResults').show();
     $('#jsonPasteContent').html('<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Importing...</div>');
 
+    // Build headers object dynamically
+    const headers = {};
+    if (csrfHeader && csrfToken) {
+        headers[csrfHeader] = csrfToken;
+    }
+
     // Submit via AJAX
     $.ajax({
         url: '/employee/transaction/import/json-string',
@@ -651,9 +676,7 @@ function importJsonPaste() {
             jsonData: jsonData,
             batchDescription: batchDescription
         },
-        headers: {
-            [csrfHeader]: csrfToken
-        },
+        headers: headers,
         success: function(response) {
             if (response.success) {
                 $('#jsonPasteContent').html(`
@@ -777,14 +800,18 @@ function importCsvPaste() {
         requestData.batchId = batchId;
     }
 
+    // Build headers object dynamically
+    const headers = {};
+    if (csrfHeader && csrfToken) {
+        headers[csrfHeader] = csrfToken;
+    }
+
     // Submit via AJAX
     $.ajax({
         url: '/employee/transaction/import/csv-string',
         method: 'POST',
         data: requestData,
-        headers: {
-            [csrfHeader]: csrfToken
-        },
+        headers: headers,
         success: function(response) {
             if (response.success) {
                 // Store batch ID for next paste
