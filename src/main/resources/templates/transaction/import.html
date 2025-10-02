@@ -192,7 +192,10 @@
                                         </div>
 
                                         <div class="form-group">
-                                            <button type="button" class="btn btn-warning btn-lg" onclick="importCsvPaste()">
+                                            <button type="button" class="btn btn-primary btn-lg" onclick="validateCsvPaste()">
+                                                <i class="fas fa-check-circle"></i> Validate CSV Data
+                                            </button>
+                                            <button type="button" class="btn btn-success btn-lg ml-2" id="csvPasteImportBtn" onclick="importCsvPaste()" disabled>
                                                 <i class="fas fa-paste"></i> Import CSV Data
                                             </button>
                                             <button type="button" class="btn btn-info btn-lg ml-2" onclick="showCsvExample()">
@@ -769,6 +772,129 @@ ${xhr.responseText ? xhr.responseText.substring(0, 500) : 'No response'}
     });
 }
 
+// Validate CSV paste before import
+function validateCsvPaste() {
+    const csvData = $('#csvData').val().trim();
+
+    if (!csvData) {
+        alert('Please enter CSV data to validate');
+        return;
+    }
+
+    // Basic CSV validation - check for header row
+    const lines = csvData.split('\n').filter(line => line.trim());
+    if (lines.length < 2) {
+        alert('CSV must have at least a header row and one data row');
+        return;
+    }
+
+    // Show loading
+    $('#csvPasteResults').show();
+    $('#csvPasteContent').html('<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Validating CSV data...</div>');
+
+    // Disable import button during validation
+    $('#csvPasteImportBtn').prop('disabled', true);
+
+    // Build headers object dynamically
+    const headers = {};
+    if (csrfHeader && csrfToken) {
+        headers[csrfHeader] = csrfToken;
+    }
+
+    // Validate via AJAX
+    $.ajax({
+        url: '/employee/transaction/import/validate-csv',
+        method: 'POST',
+        data: { csvData: csvData },
+        headers: headers,
+        success: function(response) {
+            if (response.valid) {
+                // Validation passed
+                $('#csvPasteContent').html(`
+                    <div class="alert alert-success">
+                        <h6><i class="fas fa-check-circle"></i> Validation Successful!</h6>
+                        <p>All CSV rows are valid and ready to import.</p>
+                        <div class="row text-center mt-3">
+                            <div class="col-4">
+                                <h5 class="text-primary">${response.totalRows}</h5>
+                                <small>Total Rows</small>
+                            </div>
+                            <div class="col-4">
+                                <h5 class="text-success">${response.validRows}</h5>
+                                <small>Valid</small>
+                            </div>
+                            <div class="col-4">
+                                <h5 class="text-danger">${response.invalidRows || 0}</h5>
+                                <small>Invalid</small>
+                            </div>
+                        </div>
+                        <div class="mt-3 text-center">
+                            <p class="mb-0"><i class="fas fa-arrow-down"></i> <strong>Click "Import CSV Data" to proceed with import</strong></p>
+                        </div>
+                    </div>
+                `);
+
+                // Enable import button
+                $('#csvPasteImportBtn').prop('disabled', false);
+            } else {
+                // Validation failed
+                const errorList = response.errors && response.errors.length > 0
+                    ? response.errors.map(error => `<li class="text-danger">${error}</li>`).join('')
+                    : '<li>Unknown validation error</li>';
+
+                $('#csvPasteContent').html(`
+                    <div class="alert alert-danger">
+                        <h6><i class="fas fa-times-circle"></i> Validation Failed</h6>
+                        <p>Please fix the following errors before importing:</p>
+                        <ul class="mb-0">${errorList}</ul>
+                        <div class="mt-3">
+                            <p class="mb-0"><i class="fas fa-edit"></i> <strong>Fix the errors in the CSV data above and click "Validate CSV Data" again</strong></p>
+                        </div>
+                    </div>
+                `);
+
+                // Keep import button disabled
+                $('#csvPasteImportBtn').prop('disabled', true);
+            }
+        },
+        error: function(xhr, status, error) {
+            let errorMsg = 'Validation failed';
+
+            try {
+                const response = JSON.parse(xhr.responseText);
+                errorMsg = response.error || response.message || errorMsg;
+
+                // Show errors if available
+                if (response.errors && response.errors.length > 0) {
+                    const errorList = response.errors.map(error => `<li class="text-danger">${error}</li>`).join('');
+                    $('#csvPasteContent').html(`
+                        <div class="alert alert-danger">
+                            <h6><i class="fas fa-times-circle"></i> Validation Error</h6>
+                            <p>${errorMsg}</p>
+                            <ul>${errorList}</ul>
+                        </div>
+                    `);
+                    return;
+                }
+            } catch (e) {
+                if (xhr.responseText) {
+                    errorMsg = xhr.responseText.substring(0, 200);
+                }
+            }
+
+            $('#csvPasteContent').html(`
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-times-circle"></i> Validation Error</h6>
+                    <p>${errorMsg}</p>
+                </div>
+            `);
+
+            // Keep import button disabled
+            $('#csvPasteImportBtn').prop('disabled', true);
+        }
+    });
+}
+
 // Import CSV paste (with batch ID support)
 function importCsvPaste() {
     const csvData = $('#csvData').val().trim();
@@ -862,6 +988,9 @@ function importCsvPaste() {
                 // Clear textarea for next paste
                 $('#csvData').val('');
                 $('#csvData').attr('placeholder', 'Paste next batch of CSV data to add to batch ' + response.batchId);
+
+                // Disable import button until next validation
+                $('#csvPasteImportBtn').prop('disabled', true);
             } else {
                 $('#csvPasteContent').html(`
                     <div class="alert alert-danger">
@@ -924,6 +1053,17 @@ function clearBatchId() {
     $('#csvData').attr('placeholder', 'Paste your CSV transaction data here (include header row)...');
     alert('Batch ID cleared. Your next paste will create a new batch.');
 }
+
+// Add event listener to re-disable import button when CSV content changes
+$(document).ready(function() {
+    $('#csvData').on('input', function() {
+        // Disable import button when CSV content changes
+        $('#csvPasteImportBtn').prop('disabled', true);
+
+        // Hide validation results
+        $('#csvPasteResults').hide();
+    });
+});
 </script>
 
 </body>
