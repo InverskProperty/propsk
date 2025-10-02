@@ -86,9 +86,11 @@ transaction_date,amount,description,transaction_type,category,property_reference
 
 **PLUS - Actual Payment Transactions (from bottom of spreadsheet):**
 ```csv
-2025-05-27,-17111.56,Actual Owner Payment - 27 May 2025,payment,owner_payment,PORTFOLIO PAYMENT,Prestvale,,,Bank transfer to landlord - Payment 1,OLD_ACCOUNT
-2025-05-28,-923.21,Actual Owner Payment - 28 May 2025,payment,owner_payment,PORTFOLIO PAYMENT,Prestvale,,,Bank transfer to landlord - Payment 2,OLD_ACCOUNT
+2025-05-27,-17111.56,Actual Owner Payment - 27 May 2025,payment,owner_payment,,Prestvale,,,Bank transfer to landlord - Payment 1,OLD_ACCOUNT
+2025-05-28,-923.21,Actual Owner Payment - 28 May 2025,payment,owner_payment,,Prestvale,,,Bank transfer to landlord - Payment 2,OLD_ACCOUNT
 ```
+
+**Note:** The empty property_reference (,,) is intentional - these payments cover the entire portfolio.
 
 **Total for May 2025:** £18,034.77 actual payments reconcile against total accrued liabilities across all properties.
 
@@ -187,16 +189,18 @@ For **each property row** in your spreadsheet, you create **multiple CSV transac
 | `description` | "Actual Owner Payment - {Date}" | Construct: e.g., "Actual Owner Payment - 27 May 2025" |
 | `transaction_type` | `payment` | Actual cash payment |
 | `category` | `owner_payment` | Cash disbursement |
-| `property_reference` | "PORTFOLIO PAYMENT" or owner name | Use a general reference since payment covers multiple properties |
+| `property_reference` | **Leave EMPTY** | These are portfolio-level payments, not property-specific |
 | `customer_reference` | Owner/Landlord name | Use landlord name (e.g., "Prestvale") |
 | `notes` | "Bank transfer to landlord - reconciles against accrued liabilities" | Track reconciliation |
 | `payment_source` | OLD_ACCOUNT or PAYPROP | Based on which section payment appears in |
 
 **Example for May 2025 payments:**
 ```csv
-2025-05-27,-17111.56,Actual Owner Payment - 27 May 2025,payment,owner_payment,PORTFOLIO PAYMENT,Prestvale,,,Bank transfer to landlord - reconciles against accrued liabilities,OLD_ACCOUNT
-2025-05-28,-923.21,Actual Owner Payment - 28 May 2025,payment,owner_payment,PORTFOLIO PAYMENT,Prestvale,,,Bank transfer to landlord - reconciles against accrued liabilities,OLD_ACCOUNT
+2025-05-27,-17111.56,Actual Owner Payment - 27 May 2025,payment,owner_payment,,Prestvale,,,Bank transfer to landlord - Payment 1 reconciling May liabilities,OLD_ACCOUNT
+2025-05-28,-923.21,Actual Owner Payment - 28 May 2025,payment,owner_payment,,Prestvale,,,Bank transfer to landlord - Payment 2 reconciling May liabilities,OLD_ACCOUNT
 ```
+
+**Note:** Empty property_reference is CORRECT for these - they're portfolio-level payments covering multiple properties.
 
 ---
 
@@ -391,24 +395,71 @@ transaction_date,amount,description,transaction_type,category,property_reference
 
 ---
 
-## 🚗 Handling Parking Spaces & Additional Income
+## 🚗 Handling Parking Spaces, Office, & Building Items
 
-### Your Spreadsheet Format:
+### Properties Already in Your Database:
+```sql
+✅ Parking Space 1 - 3 West Gate
+✅ Parking Space 2 - 3 West Gate
+... (up to Parking Space 10)
+✅ Office - 3 West Gate
 ```
-PARKING SPACE 1: No rent shown in main columns
-BUILDING ADDITIONAL INCOME: No rent shown in main columns
-OFFICE: No rent shown in main columns
+
+### Your Spreadsheet Rows (Currently Empty):
+```
+PARKING SPACE 1: No rent/data shown
+BUILDING ADDITIONAL INCOME: No rent/data shown
+OFFICE: No rent/data shown
 ```
 
 ### How to Handle:
 
+#### **Parking Income:**
 **If parking is included with a flat:**
 - Include in the main flat's rent amount
 - Add note: "Includes parking space 1 - £60"
 
 **If parking is separate income:**
-- Create a separate property in your system: "PARKING SPACE 1 - 3 WEST GATE"
-- Create separate transactions for parking income
+You already have properties! Use them:
+```csv
+2025-05-06,60.00,Parking income - May 2025,payment,parking,Parking Space 1 - 3 West Gate,Tenant Name,,,Monthly parking fee,OLD_ACCOUNT
+```
+
+#### **Office Income:**
+If office generates income:
+```csv
+2025-05-06,250.00,Office rental - May 2025,payment,rent,Office - 3 West Gate,Business Tenant,,,Monthly office rent,OLD_ACCOUNT
+```
+
+#### **Building Additional Income:**
+Examples: Laundry income, antenna rental, communal space fees
+
+**Option 1 - Create a building property:**
+```sql
+INSERT INTO properties (property_name, property_type)
+VALUES ('BODEN HOUSE - Building Common Income', 'Building');
+```
+Then:
+```csv
+2025-05-15,45.00,Laundry machine income,payment,building_income,BODEN HOUSE - Building Common Income,,,,Communal laundry,OLD_ACCOUNT
+```
+
+**Option 2 - Skip if no data:**
+If these rows are always empty in your spreadsheet, **don't create transactions for them**.
+
+#### **Building Expenses:**
+Examples: Building insurance, communal repairs, fire safety equipment
+
+**Create a building expense property:**
+```sql
+INSERT INTO properties (property_name, property_type)
+VALUES ('BODEN HOUSE - Building Common Expenses', 'Building');
+```
+Then:
+```csv
+2025-05-20,-500.00,Building insurance premium,expense,insurance,BODEN HOUSE - Building Common Expenses,,,,Annual building insurance,OLD_ACCOUNT
+2025-05-22,-150.00,Fire extinguisher service,maintenance,fire_safety,BODEN HOUSE - Building Common Expenses,,,,Annual fire safety check,OLD_ACCOUNT
+```
 
 ---
 
