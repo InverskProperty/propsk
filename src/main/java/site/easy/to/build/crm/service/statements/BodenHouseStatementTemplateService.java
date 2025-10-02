@@ -513,9 +513,9 @@ public class BodenHouseStatementTemplateService {
         row[4] = unit.rentDueDate;
         row[5] = unit.rentDueAmount;
         row[6] = unit.rentReceivedDate;
-        row[7] = unit.paidToRobertEllis ? "TRUE" : "FALSE";
-        row[8] = unit.paidToPropskOldAccount ? "TRUE" : "FALSE";
-        row[9] = unit.paidToPropskPayProp ? "TRUE" : "FALSE";
+        row[7] = unit.paidToRobertEllis ? 1 : 0; // Boolean as number (1 or 0)
+        row[8] = unit.paidToPropskOldAccount ? 1 : 0; // Boolean as number (1 or 0)
+        row[9] = unit.paidToPropskPayProp ? 1 : 0; // Boolean as number (1 or 0)
         row[10] = unit.rentReceivedAmount;
 
         // Excel formulas matching your spreadsheet exactly
