@@ -808,23 +808,29 @@ function validateCsvPaste() {
         data: { csvData: csvData },
         headers: headers,
         success: function(response) {
+            console.log('Validation response:', response);
+
             if (response.valid) {
                 // Validation passed
+                const totalRows = response.totalRows || 0;
+                const validRows = response.validRows || 0;
+                const invalidRows = response.invalidRows || 0;
+
                 $('#csvPasteContent').html(`
                     <div class="alert alert-success">
                         <h6><i class="fas fa-check-circle"></i> Validation Successful!</h6>
                         <p>All CSV rows are valid and ready to import.</p>
                         <div class="row text-center mt-3">
                             <div class="col-4">
-                                <h5 class="text-primary">${response.totalRows}</h5>
+                                <h5 class="text-primary">${totalRows}</h5>
                                 <small>Total Rows</small>
                             </div>
                             <div class="col-4">
-                                <h5 class="text-success">${response.validRows}</h5>
+                                <h5 class="text-success">${validRows}</h5>
                                 <small>Valid</small>
                             </div>
                             <div class="col-4">
-                                <h5 class="text-danger">${response.invalidRows || 0}</h5>
+                                <h5 class="text-danger">${invalidRows}</h5>
                                 <small>Invalid</small>
                             </div>
                         </div>
@@ -838,15 +844,20 @@ function validateCsvPaste() {
                 $('#csvPasteImportBtn').prop('disabled', false);
             } else {
                 // Validation failed
-                const errorList = response.errors && response.errors.length > 0
-                    ? response.errors.map(error => `<li class="text-danger">${error}</li>`).join('')
+                const errors = response.errors || [];
+                const errorList = errors.length > 0
+                    ? errors.map(error => `<li class="text-danger">${error || 'Unknown error'}</li>`).join('')
                     : '<li>Unknown validation error</li>';
+
+                const totalRows = response.totalRows || 0;
+                const validRows = response.validRows || 0;
+                const invalidRows = response.invalidRows || 0;
 
                 $('#csvPasteContent').html(`
                     <div class="alert alert-danger">
                         <h6><i class="fas fa-times-circle"></i> Validation Failed</h6>
-                        <p>Please fix the following errors before importing:</p>
-                        <ul class="mb-0">${errorList}</ul>
+                        <p>Found ${invalidRows} error(s) in ${totalRows} rows. Please fix the following errors before importing:</p>
+                        <ul class="mb-0" style="max-height: 300px; overflow-y: auto;">${errorList}</ul>
                         <div class="mt-3">
                             <p class="mb-0"><i class="fas fa-edit"></i> <strong>Fix the errors in the CSV data above and click "Validate CSV Data" again</strong></p>
                         </div>
