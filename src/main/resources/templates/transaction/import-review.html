@@ -292,21 +292,34 @@ $(document).ready(function() {
     }
 
     function renderReviewQueue() {
+        console.log('📝 renderReviewQueue() called');
         const container = $('#reviewQueueContainer');
         container.empty();
+        console.log('🗑️ Container cleared');
 
         if (!reviewQueue || !reviewQueue.reviews || reviewQueue.reviews.length === 0) {
+            console.warn('⚠️ No reviews to render');
             container.html('<p class="text-center text-muted">No transactions to review.</p>');
             return;
         }
 
+        console.log('🔄 Creating', reviewQueue.reviews.length, 'review cards...');
         reviewQueue.reviews.forEach((review, index) => {
-            const card = createReviewCard(review, index);
-            container.append(card);
+            console.log('📋 Creating card', index, 'for review:', review);
+            try {
+                const card = createReviewCard(review, index);
+                container.append(card);
+                console.log('✅ Card', index, 'appended');
+            } catch (e) {
+                console.error('❌ Failed to create card', index, ':', e);
+            }
         });
 
+        console.log('📊 Updating counts...');
         updateCounts();
+        console.log('🎯 Applying filter...');
         applyFilter();
+        console.log('✅ renderReviewQueue() complete');
     }
 
     function createReviewCard(review, index) {
