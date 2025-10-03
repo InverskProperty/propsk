@@ -973,6 +973,10 @@ function reviewCsvPaste() {
     }
 
     // Send to review validation endpoint
+    console.log('🚀 Sending CSV data to review-validate endpoint...');
+    console.log('📊 CSV data length:', csvData.length, 'characters');
+    console.log('🆔 Batch ID:', batchId || '(none)');
+
     $.ajax({
         url: '/employee/transaction/import/review-validate',
         method: 'POST',
@@ -982,11 +986,13 @@ function reviewCsvPaste() {
         },
         headers: headers,
         success: function(response) {
-            console.log('Review validation response:', response);
+            console.log('✅ Review validation response received:', response);
 
             if (response.success) {
+                console.log('📝 Storing review data in localStorage...');
                 // Store review data in localStorage
                 localStorage.setItem('reviewData', JSON.stringify(response));
+                console.log('✅ Review data stored successfully');
 
                 // Show summary and redirect
                 $('#csvPasteContent').html(`
@@ -1018,6 +1024,12 @@ function reviewCsvPaste() {
             }
         },
         error: function(xhr, status, error) {
+            console.error('❌ Review validation AJAX error');
+            console.error('Status:', status);
+            console.error('Error:', error);
+            console.error('XHR:', xhr);
+            console.error('Response Text:', xhr.responseText);
+
             let errorMsg = 'Review validation failed';
 
             try {
@@ -1031,7 +1043,7 @@ function reviewCsvPaste() {
                 }
             }
 
-            console.error('Review validation error:', errorMsg, xhr);
+            console.error('Final error message:', errorMsg);
 
             $('#csvPasteResults').show();
             $('#csvPasteContent').html(`
