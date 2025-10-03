@@ -22,6 +22,7 @@ import site.easy.to.build.crm.util.AuthenticationUtils;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.ArrayList;
 
 /**
  * Controller for Historical Transaction Import
@@ -298,7 +299,12 @@ public class HistoricalTransactionImportController {
             response.put("totalProcessed", result.getTotalProcessed());
             response.put("successfulImports", result.getSuccessfulImports());
             response.put("failedImports", result.getFailedImports());
+            response.put("skippedDuplicates", result.getSkippedDuplicates());
+            response.put("skippedDuplicatesInPaste", result.getSkippedDuplicatesInPaste());
+            response.put("skippedDuplicatesInBatch", result.getSkippedDuplicatesInBatch());
+            response.put("skippedDuplicatesInDatabase", result.getSkippedDuplicatesInDatabase());
             response.put("errors", result.getErrors());
+            response.put("skippedTransactions", result.getSkippedTransactions());
 
             if (result.isSuccess()) {
                 log.info("✅ CSV String Import completed: {} (batch: {})", result.getSummary(), result.getBatchId());
@@ -359,6 +365,82 @@ public class HistoricalTransactionImportController {
             log.error("❌ CSV validation failed: {}", e.getMessage());
             response.put("valid", false);
             response.put("errors", List.of("Validation failed: " + e.getMessage()));
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * Get recent import batches
+     */
+    @GetMapping("/import/batches")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, Object>>> getRecentBatches() {
+        try {
+            log.info("📋 Fetching recent import batches");
+
+            // Get batch summaries from repository
+            org.springframework.data.domain.Pageable pageable =
+                org.springframework.data.domain.PageRequest.of(0, 10);
+
+            List<Object[]> batchSummaries = importService.getRecentBatchSummaries(pageable);
+
+            List<Map<String, Object>> batches = new ArrayList<>();
+            for (Object[] summary : batchSummaries) {
+                Map<String, Object> batch = new HashMap<>();
+                batch.put("batchId", summary[0]);
+                batch.put("count", summary[1]);
+                batch.put("earliestDate", summary[2]);
+                batch.put("latestDate", summary[3]);
+                batch.put("importedAt", summary[4]);
+                batches.add(batch);
+            }
+
+            log.info("✅ Retrieved {} batches", batches.size());
+            return ResponseEntity.ok(batches);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to get recent batches: {}", e.getMessage());
+            return ResponseEntity.status(500).body(new ArrayList<>());
+        }
+    }
+
+    /**
+     * Delete import batch
+     */
+    @PostMapping("/import/delete-batch")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteBatch(
+            @RequestParam("batchId") String batchId,
+            Authentication authentication) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("🗑️ Delete batch request: {}", batchId);
+
+            // Get count before deletion
+            long count = importService.countTransactionsInBatch(batchId);
+
+            if (count == 0) {
+                response.put("success", false);
+                response.put("error", "Batch not found or already empty");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // Delete the batch
+            importService.deleteBatch(batchId);
+
+            response.put("success", true);
+            response.put("message", String.format("Successfully deleted %d transactions from batch %s", count, batchId));
+            response.put("deletedCount", count);
+
+            log.info("✅ Deleted batch {}: {} transactions", batchId, count);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to delete batch {}: {}", batchId, e.getMessage());
+            response.put("success", false);
+            response.put("error", "Failed to delete batch: " + e.getMessage());
             return ResponseEntity.status(500).body(response);
         }
     }

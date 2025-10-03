@@ -304,6 +304,48 @@ public interface HistoricalTransactionRepository extends JpaRepository<Historica
     boolean existsDuplicateTransaction(@Param("transactionDate") LocalDate transactionDate,
                                      @Param("amount") BigDecimal amount,
                                      @Param("bankReference") String bankReference);
+
+    /**
+     * Find duplicate transaction by comprehensive matching
+     * Matches: date, amount, description, type, property (if set), customer (if set)
+     * Used for import deduplication
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE " +
+           "ht.transactionDate = :transactionDate " +
+           "AND ht.amount = :amount " +
+           "AND ht.description = :description " +
+           "AND ht.transactionType = :transactionType " +
+           "AND (:propertyId IS NULL OR ht.property.id = :propertyId) " +
+           "AND (:customerId IS NULL OR ht.customer.id = :customerId) " +
+           "ORDER BY ht.createdAt ASC")
+    List<HistoricalTransaction> findDuplicateTransaction(
+            @Param("transactionDate") LocalDate transactionDate,
+            @Param("amount") BigDecimal amount,
+            @Param("description") String description,
+            @Param("transactionType") TransactionType transactionType,
+            @Param("propertyId") Long propertyId,
+            @Param("customerId") Long customerId);
+
+    /**
+     * Find duplicate transactions within a specific batch
+     * Used for multi-paste deduplication within same batch session
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE " +
+           "ht.importBatchId = :batchId " +
+           "AND ht.transactionDate = :transactionDate " +
+           "AND ht.amount = :amount " +
+           "AND ht.description = :description " +
+           "AND ht.transactionType = :transactionType " +
+           "AND (:propertyId IS NULL OR ht.property.id = :propertyId) " +
+           "AND (:customerId IS NULL OR ht.customer.id = :customerId)")
+    List<HistoricalTransaction> findDuplicateInBatch(
+            @Param("batchId") String batchId,
+            @Param("transactionDate") LocalDate transactionDate,
+            @Param("amount") BigDecimal amount,
+            @Param("description") String description,
+            @Param("transactionType") TransactionType transactionType,
+            @Param("propertyId") Long propertyId,
+            @Param("customerId") Long customerId);
     
     // ===== BATCH OPERATIONS =====
     
@@ -325,6 +367,27 @@ public interface HistoricalTransactionRepository extends JpaRepository<Historica
     @Query("SELECT DISTINCT ht.importBatchId FROM HistoricalTransaction ht " +
            "WHERE ht.importBatchId IS NOT NULL ORDER BY ht.importBatchId DESC")
     List<String> findDistinctBatchIds();
+
+    /**
+     * Get recent batch IDs with summary info
+     * Returns: batchId, count, earliest date, latest date, created timestamp
+     */
+    @Query("SELECT ht.importBatchId, " +
+           "COUNT(ht), " +
+           "MIN(ht.transactionDate), " +
+           "MAX(ht.transactionDate), " +
+           "MIN(ht.createdAt) " +
+           "FROM HistoricalTransaction ht " +
+           "WHERE ht.importBatchId IS NOT NULL " +
+           "GROUP BY ht.importBatchId " +
+           "ORDER BY MIN(ht.createdAt) DESC")
+    List<Object[]> findRecentBatchSummaries(Pageable pageable);
+
+    /**
+     * Delete all transactions in a batch
+     * Used for "Delete & Replace" functionality
+     */
+    void deleteByImportBatchId(String batchId);
     
     // ===== REPORTING QUERIES =====
     

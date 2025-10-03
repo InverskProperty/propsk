@@ -191,6 +191,38 @@
                                             </div>
                                         </div>
 
+                                        <!-- Batch Management Section -->
+                                        <div class="row">
+                                            <div class="col-md-12">
+                                                <div class="card bg-light mb-3">
+                                                    <div class="card-body">
+                                                        <h6 class="card-title">
+                                                            <i class="fas fa-layer-group"></i> Batch Management
+                                                            <button type="button" class="btn btn-sm btn-info float-right" onclick="loadRecentBatches()">
+                                                                <i class="fas fa-sync"></i> Refresh
+                                                            </button>
+                                                        </h6>
+
+                                                        <div class="form-group">
+                                                            <label for="batchToDelete">Delete & Replace Existing Batch:</label>
+                                                            <select class="form-control" id="batchToDelete">
+                                                                <option value="">-- No batch selected --</option>
+                                                            </select>
+                                                            <small class="form-text text-muted">
+                                                                Select a batch to delete before importing new data (useful for correcting errors)
+                                                            </small>
+                                                        </div>
+
+                                                        <div id="batchDeleteInfo" style="display: none;" class="alert alert-warning">
+                                                            <i class="fas fa-exclamation-triangle"></i>
+                                                            <strong>Warning:</strong> This will delete <span id="batchDeleteCount">0</span> transactions
+                                                            from batch <code id="batchDeleteId"></code> before importing.
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <div class="form-group">
                                             <button type="button" class="btn btn-primary btn-lg" onclick="validateCsvPaste()">
                                                 <i class="fas fa-check-circle"></i> Validate CSV Data
@@ -788,12 +820,12 @@ function validateCsvPaste() {
         return;
     }
 
-    // Show loading
+    // Show loading - clear any previous error state
     $('#csvPasteResults').show();
     $('#csvPasteContent').html('<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Validating CSV data...</div>');
 
     // Disable import button during validation
-    $('#csvPasteImportBtn').prop('disabled', true);
+    $('#csvPasteImportBtn').prop('disabled', true).removeClass('btn-danger').addClass('btn-success');
 
     // Build headers object dynamically
     const headers = {};
@@ -924,9 +956,27 @@ function importCsvPaste() {
         return;
     }
 
-    // Show loading
+    // Check if we need to delete a batch first
+    const batchToDelete = $('#batchToDelete').val();
+    if (batchToDelete) {
+        deleteBatchBeforeImport(function() {
+            // After deletion, proceed with import
+            performCsvImport(csvData, batchDescription, batchId);
+        });
+    } else {
+        // No batch to delete, import directly
+        performCsvImport(csvData, batchDescription, batchId);
+    }
+}
+
+// Perform the actual CSV import
+function performCsvImport(csvData, batchDescription, batchId) {
+    // Show loading - clear any previous state
     $('#csvPasteResults').show();
     $('#csvPasteContent').html('<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Importing...</div>');
+
+    // Disable import button during import
+    $('#csvPasteImportBtn').prop('disabled', true);
 
     // Build request data
     const requestData = {
@@ -962,24 +1012,33 @@ function importCsvPaste() {
                 // Store batch ID for next paste
                 $('#csvBatchId').val(response.batchId);
 
+                const skippedDuplicates = response.skippedDuplicates || 0;
+                const skippedBreakdown = skippedDuplicates > 0 ? `
+                    <div class="col-3">
+                        <h5 class="text-warning">${skippedDuplicates}</h5>
+                        <small>Skipped (Duplicates)</small>
+                    </div>
+                ` : '';
+
                 $('#csvPasteContent').html(`
                     <div class="alert alert-success">
-                        <h6><i class="fas fa-check-circle"></i> Import Successful!</h6>
+                        <h6><i class="fas fa-check-circle"></i> Import ${skippedDuplicates > 0 ? 'Completed' : 'Successful'}!</h6>
                         <p><strong>Batch ID:</strong> <code>${response.batchId}</code></p>
                         <p><strong>Summary:</strong> ${response.summary}</p>
                         <div class="row text-center mt-3">
-                            <div class="col-4">
+                            <div class="${skippedDuplicates > 0 ? 'col-3' : 'col-4'}">
                                 <h5 class="text-primary">${response.totalProcessed}</h5>
                                 <small>Total</small>
                             </div>
-                            <div class="col-4">
+                            <div class="${skippedDuplicates > 0 ? 'col-3' : 'col-4'}">
                                 <h5 class="text-success">${response.successfulImports}</h5>
                                 <small>Success</small>
                             </div>
-                            <div class="col-4">
+                            <div class="${skippedDuplicates > 0 ? 'col-3' : 'col-4'}">
                                 <h5 class="text-danger">${response.failedImports}</h5>
                                 <small>Failed</small>
                             </div>
+                            ${skippedBreakdown}
                         </div>
                         ${batchId ? '<p class="mt-2 mb-0"><i class="fas fa-layer-group"></i> <strong>Added to existing batch.</strong> Clear the Batch ID field to start a new batch.</p>' : '<p class="mt-2 mb-0"><i class="fas fa-info-circle"></i> <strong>Batch created.</strong> Paste more CSV data to add to this batch.</p>'}
                     </div>
@@ -987,32 +1046,82 @@ function importCsvPaste() {
 
                 // Show errors if any
                 if (response.errors && response.errors.length > 0) {
-                    const errorList = response.errors.slice(0, 5).map(error => `<li>${error}</li>`).join('');
+                    const totalErrors = response.errors.length;
+                    const errorList = response.errors.map(error => `<li class="text-danger">${error || 'Unknown error'}</li>`).join('');
                     $('#csvPasteContent').append(`
                         <div class="alert alert-warning">
-                            <h6>Import Errors (first 5):</h6>
-                            <ul>${errorList}</ul>
+                            <h6><i class="fas fa-exclamation-triangle"></i> Import Completed with ${totalErrors} Error(s):</h6>
+                            <p class="mb-2"><strong>Please review and fix the following errors in your CSV data above, then re-validate and import.</strong></p>
+                            <div style="max-height: 300px; overflow-y: auto; background: #fff; padding: 10px; border-radius: 4px;">
+                                <ul class="mb-0">${errorList}</ul>
+                            </div>
+                            <div class="mt-3">
+                                <i class="fas fa-info-circle"></i> <strong>Tip:</strong> Successfully imported rows (${response.successfulImports}) have been saved.
+                                Only fix and re-import the rows with errors shown above.
+                            </div>
+                        </div>
+                    `);
+
+                    // DON'T clear textarea when there are errors - let user fix them
+                } else {
+                    // Only clear textarea on complete success
+                    $('#csvData').val('');
+                    $('#csvData').attr('placeholder', 'Paste next batch of CSV data to add to batch ' + response.batchId);
+                }
+
+                // Show duplicate skip details if any
+                if (response.skippedDuplicates && response.skippedDuplicates > 0) {
+                    const skippedList = response.skippedTransactions && response.skippedTransactions.length > 0
+                        ? response.skippedTransactions.map(skip => `<li class="text-muted">${skip || 'Unknown'}</li>`).join('')
+                        : '<li>No details available</li>';
+
+                    const breakdown = `
+                        <div class="mt-2">
+                            <strong>Duplicate Breakdown:</strong>
+                            <ul class="mb-1">
+                                <li>Within this upload: ${response.skippedDuplicatesInPaste || 0}</li>
+                                <li>In current batch session: ${response.skippedDuplicatesInBatch || 0}</li>
+                                <li>Already in database: ${response.skippedDuplicatesInDatabase || 0}</li>
+                            </ul>
+                        </div>
+                    `;
+
+                    $('#csvPasteContent').append(`
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-info-circle"></i> ${response.skippedDuplicates} Duplicate(s) Skipped</h6>
+                            <p class="mb-2">The following transactions were skipped because they already exist:</p>
+                            ${breakdown}
+                            <details class="mt-2">
+                                <summary style="cursor: pointer;"><strong>View Skipped Transactions</strong></summary>
+                                <div style="max-height: 200px; overflow-y: auto; background: #fff; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                                    <ul class="mb-0">${skippedList}</ul>
+                                </div>
+                            </details>
                         </div>
                     `);
                 }
 
-                // Clear textarea for next paste
-                $('#csvData').val('');
-                $('#csvData').attr('placeholder', 'Paste next batch of CSV data to add to batch ' + response.batchId);
-
                 // Disable import button until next validation
                 $('#csvPasteImportBtn').prop('disabled', true);
             } else {
+                // Handle failure case with proper null checking
+                const errorMessage = response.error || response.message || 'Import failed - unknown error';
+                const errorDetails = response.errors && response.errors.length > 0
+                    ? '<ul class="mt-2">' + response.errors.slice(0, 5).map(e => `<li>${e || 'Unknown error'}</li>`).join('') + '</ul>'
+                    : '';
+
                 $('#csvPasteContent').html(`
                     <div class="alert alert-danger">
                         <h6><i class="fas fa-times-circle"></i> Import Failed</h6>
-                        <p>${response.error}</p>
+                        <p>${errorMessage}</p>
+                        ${errorDetails}
                     </div>
                 `);
             }
         },
         error: function(xhr, status, error) {
             let errorMsg = 'Import failed';
+            let errorDetails = '';
             let debugInfo = '';
 
             console.error('CSV Import Error:', {
@@ -1024,17 +1133,37 @@ function importCsvPaste() {
 
             try {
                 const response = JSON.parse(xhr.responseText);
-                errorMsg = response.error || response.message || errorMsg;
+                errorMsg = response.error || response.message || 'Server returned an error';
+
+                // Show detailed errors if available
+                if (response.errors && Array.isArray(response.errors) && response.errors.length > 0) {
+                    const errorList = response.errors.slice(0, 10).map(e => `<li>${e || 'Unknown error'}</li>`).join('');
+                    errorDetails = `<div class="mt-2"><strong>Error Details:</strong><ul class="mb-0">${errorList}</ul></div>`;
+                }
             } catch (e) {
-                // Not JSON response
-                if (xhr.responseText) {
-                    errorMsg = xhr.responseText.substring(0, 200);
+                // Not JSON response - try to extract meaningful error
+                if (xhr.status === 403) {
+                    errorMsg = 'Access denied - Please refresh the page and try again';
+                } else if (xhr.status === 500) {
+                    errorMsg = 'Server error occurred during import';
+                } else if (xhr.status === 400) {
+                    errorMsg = 'Invalid request - Please check your CSV format';
+                } else if (xhr.responseText) {
+                    // Try to extract error from HTML response
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = xhr.responseText;
+                    const errorElement = tempDiv.querySelector('.error-message, .exception-message, h1');
+                    if (errorElement) {
+                        errorMsg = errorElement.textContent.substring(0, 300);
+                    } else {
+                        errorMsg = xhr.responseText.substring(0, 300);
+                    }
                 }
             }
 
             debugInfo = `
                 <details class="mt-2">
-                    <summary>Debug Information</summary>
+                    <summary>Technical Details (Click to expand)</summary>
                     <pre class="small mt-2 bg-light p-2">
 Status: ${xhr.status} ${xhr.statusText}
 URL: /employee/transaction/import/csv-string
@@ -1051,6 +1180,7 @@ ${xhr.responseText ? xhr.responseText.substring(0, 500) : 'No response'}
                 <div class="alert alert-danger">
                     <h6><i class="fas fa-times-circle"></i> Import Error</h6>
                     <p>${errorMsg}</p>
+                    ${errorDetails}
                     ${debugInfo}
                 </div>
             `);
@@ -1062,7 +1192,103 @@ ${xhr.responseText ? xhr.responseText.substring(0, 500) : 'No response'}
 function clearBatchId() {
     $('#csvBatchId').val('');
     $('#csvData').attr('placeholder', 'Paste your CSV transaction data here (include header row)...');
+    // Clear validation state
+    $('#csvPasteResults').hide();
+    $('#csvPasteContent').html('');
+    $('#csvPasteImportBtn').prop('disabled', true);
     alert('Batch ID cleared. Your next paste will create a new batch.');
+}
+
+// Reset CSV import form state
+function resetCsvImportState() {
+    $('#csvPasteResults').hide();
+    $('#csvPasteContent').html('');
+    $('#csvPasteImportBtn').prop('disabled', true).removeClass('btn-danger').addClass('btn-success');
+}
+
+// Load recent batches for deletion dropdown
+function loadRecentBatches() {
+    const headers = {};
+    if (csrfHeader && csrfToken) {
+        headers[csrfHeader] = csrfToken;
+    }
+
+    fetch('/employee/transaction/import/batches', {
+        method: 'GET',
+        headers: headers
+    })
+    .then(response => response.json())
+    .then(batches => {
+        const select = $('#batchToDelete');
+        select.empty();
+        select.append('<option value="">-- No batch selected --</option>');
+
+        batches.forEach(batch => {
+            const dateRange = `${batch.earliestDate} to ${batch.latestDate}`;
+            const option = `<option value="${batch.batchId}" data-count="${batch.count}">${batch.batchId} (${batch.count} transactions, ${dateRange})</option>`;
+            select.append(option);
+        });
+
+        console.log('Loaded', batches.length, 'batches');
+    })
+    .catch(error => {
+        console.error('Error loading batches:', error);
+    });
+}
+
+// Show batch delete warning when batch selected
+$('#batchToDelete').on('change', function() {
+    const batchId = $(this).val();
+    if (batchId) {
+        const count = $(this).find(':selected').data('count');
+        $('#batchDeleteId').text(batchId);
+        $('#batchDeleteCount').text(count);
+        $('#batchDeleteInfo').show();
+    } else {
+        $('#batchDeleteInfo').hide();
+    }
+});
+
+// Delete batch before import
+function deleteBatchBeforeImport(callback) {
+    const batchId = $('#batchToDelete').val();
+
+    if (!batchId) {
+        // No batch to delete, proceed with import
+        callback();
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to delete batch ${batchId}? This will permanently delete ${$('#batchDeleteCount').text()} transactions.`)) {
+        return;
+    }
+
+    const headers = {};
+    if (csrfHeader && csrfToken) {
+        headers[csrfHeader] = csrfToken;
+    }
+
+    $.ajax({
+        url: '/employee/transaction/import/delete-batch',
+        method: 'POST',
+        data: { batchId: batchId },
+        headers: headers,
+        success: function(response) {
+            if (response.success) {
+                alert(`✅ ${response.message}`);
+                $('#batchToDelete').val('');
+                $('#batchDeleteInfo').hide();
+                loadRecentBatches();
+                // Proceed with import
+                callback();
+            } else {
+                alert(`❌ Failed to delete batch: ${response.error}`);
+            }
+        },
+        error: function(xhr) {
+            alert(`❌ Error deleting batch: ${xhr.responseText || 'Unknown error'}`);
+        }
+    });
 }
 
 // Add event listener to re-disable import button when CSV content changes
@@ -1074,6 +1300,9 @@ $(document).ready(function() {
         // Hide validation results
         $('#csvPasteResults').hide();
     });
+
+    // Load batches on page load
+    loadRecentBatches();
 });
 </script>
 

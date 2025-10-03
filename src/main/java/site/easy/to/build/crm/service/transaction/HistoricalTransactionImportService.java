@@ -266,6 +266,9 @@ public class HistoricalTransactionImportService {
                          : generateBatchId("CSV");
         ImportResult result = new ImportResult(batchId, "csv_paste_import");
 
+        // Track fingerprints of transactions in THIS paste for Level 1 duplicate detection
+        Set<String> currentPasteFingerprints = new HashSet<>();
+
         try (BufferedReader reader = new BufferedReader(new java.io.StringReader(csvData))) {
             User currentUser = getCurrentUser();
             String headerLine = reader.readLine();
@@ -288,23 +291,47 @@ public class HistoricalTransactionImportService {
                 try {
                     String[] values = parseCsvLine(line);
                     HistoricalTransaction transaction = parseCsvTransaction(values, columnMap, batchId, currentUser);
-                    // Save in separate transaction to avoid rollback-only errors
-                    saveTransactionInNewTransaction(transaction);
-                    result.incrementSuccessful();
-                } catch (Exception e) {
-                    String errorMsg = e.getMessage();
-                    if (e.getCause() != null) {
-                        errorMsg += " (Cause: " + e.getCause().getMessage() + ")";
+
+                    // ===== 3-LEVEL DUPLICATE DETECTION =====
+                    String duplicateLevel = checkForDuplicate(transaction, existingBatchId, currentPasteFingerprints);
+
+                    if (duplicateLevel != null) {
+                        // This is a duplicate - skip it
+                        result.incrementSkipped(duplicateLevel);
+                        String skipMsg = String.format("Line %d: Duplicate %s (Date: %s, Amount: %s, Desc: %s)",
+                            lineNumber,
+                            duplicateLevel.equals("paste") ? "within this upload" :
+                            duplicateLevel.equals("batch") ? "in current batch session" :
+                            "of existing transaction",
+                            transaction.getTransactionDate(),
+                            transaction.getAmount(),
+                            transaction.getDescription().length() > 50 ?
+                                transaction.getDescription().substring(0, 50) + "..." :
+                                transaction.getDescription()
+                        );
+                        result.addSkipped(skipMsg);
+                        log.debug("Skipped duplicate at line {}: {}", lineNumber, skipMsg);
+                    } else {
+                        // Not a duplicate - save it
+                        saveTransactionInNewTransaction(transaction);
+                        result.incrementSuccessful();
+
+                        // Add to current paste fingerprints for Level 1 detection
+                        currentPasteFingerprints.add(generateTransactionFingerprint(transaction));
                     }
-                    log.warn("Failed to import line {}: {}", lineNumber, errorMsg);
+                } catch (Exception e) {
+                    // Build clear, user-friendly error message
+                    String errorMsg = buildUserFriendlyErrorMessage(e, lineNumber);
+                    log.warn("Failed to import line {}: {}", lineNumber, errorMsg, e);
                     result.addError("Line " + lineNumber + ": " + errorMsg);
                     result.incrementFailed();
                 }
                 result.incrementTotal();
             }
 
-            log.info("CSV string import completed: {} total, {} successful, {} failed (batch: {})",
-                    result.getTotalProcessed(), result.getSuccessfulImports(), result.getFailedImports(), batchId);
+            log.info("CSV string import completed: {} total, {} successful, {} failed, {} skipped (batch: {})",
+                    result.getTotalProcessed(), result.getSuccessfulImports(),
+                    result.getFailedImports(), result.getSkippedDuplicates(), batchId);
 
         } catch (IOException e) {
             log.error("Failed to read CSV string: {}", e.getMessage());
@@ -761,8 +788,30 @@ public class HistoricalTransactionImportService {
      * Generate unique batch ID
      */
     private String generateBatchId(String source) {
-        return "HIST_" + source + "_" + 
+        return "HIST_" + source + "_" +
                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+    }
+
+    /**
+     * Get recent batch summaries
+     */
+    public List<Object[]> getRecentBatchSummaries(org.springframework.data.domain.Pageable pageable) {
+        return historicalTransactionRepository.findRecentBatchSummaries(pageable);
+    }
+
+    /**
+     * Count transactions in a batch
+     */
+    public long countTransactionsInBatch(String batchId) {
+        return historicalTransactionRepository.countByImportBatchId(batchId);
+    }
+
+    /**
+     * Delete all transactions in a batch
+     */
+    @Transactional
+    public void deleteBatch(String batchId) {
+        historicalTransactionRepository.deleteByImportBatchId(batchId);
     }
     
     /**
@@ -771,6 +820,121 @@ public class HistoricalTransactionImportService {
     private User getCurrentUser() {
         // TODO: Fix auth handling - using default user for now
         return null; // TODO: Fix auth - temporarily disabled
+    }
+
+    /**
+     * Check if transaction is duplicate
+     * Returns: null if not duplicate, otherwise returns description of where duplicate was found
+     */
+    private String checkForDuplicate(HistoricalTransaction transaction, String currentBatchId,
+                                    Set<String> currentPasteFingerprints) {
+        // Generate fingerprint for this transaction
+        String fingerprint = generateTransactionFingerprint(transaction);
+
+        // LEVEL 1: Check within current paste
+        if (currentPasteFingerprints.contains(fingerprint)) {
+            return "paste";
+        }
+
+        // LEVEL 2: Check within current batch session (if continuing a batch)
+        if (currentBatchId != null && !currentBatchId.isEmpty()) {
+            List<HistoricalTransaction> duplicatesInBatch = historicalTransactionRepository.findDuplicateInBatch(
+                currentBatchId,
+                transaction.getTransactionDate(),
+                transaction.getAmount(),
+                transaction.getDescription(),
+                transaction.getTransactionType(),
+                transaction.getProperty() != null ? transaction.getProperty().getId() : null,
+                transaction.getCustomer() != null ? transaction.getCustomer().getCustomerId() : null
+            );
+
+            if (!duplicatesInBatch.isEmpty()) {
+                return "batch";
+            }
+        }
+
+        // LEVEL 3: Check across all historical transactions
+        List<HistoricalTransaction> duplicatesInDatabase = historicalTransactionRepository.findDuplicateTransaction(
+            transaction.getTransactionDate(),
+            transaction.getAmount(),
+            transaction.getDescription(),
+            transaction.getTransactionType(),
+            transaction.getProperty() != null ? transaction.getProperty().getId() : null,
+            transaction.getCustomer() != null ? transaction.getCustomer().getCustomerId() : null
+        );
+
+        if (!duplicatesInDatabase.isEmpty()) {
+            return "database";
+        }
+
+        return null; // Not a duplicate
+    }
+
+    /**
+     * Generate unique fingerprint for transaction
+     * Used for in-memory duplicate detection within same paste
+     */
+    private String generateTransactionFingerprint(HistoricalTransaction transaction) {
+        return String.format("%s|%s|%s|%s|%s|%s",
+            transaction.getTransactionDate(),
+            transaction.getAmount(),
+            transaction.getDescription(),
+            transaction.getTransactionType(),
+            transaction.getProperty() != null ? transaction.getProperty().getId() : "null",
+            transaction.getCustomer() != null ? transaction.getCustomer().getCustomerId() : "null"
+        );
+    }
+
+    /**
+     * Build user-friendly error message from exception
+     */
+    private String buildUserFriendlyErrorMessage(Exception e, int lineNumber) {
+        String message = e.getMessage();
+
+        // Handle common exception types with clearer messages
+        if (e instanceof IllegalArgumentException) {
+            // These are usually validation errors - return as is
+            return message != null ? message : "Invalid data format";
+        } else if (e instanceof NullPointerException) {
+            return "Required field is missing";
+        } else if (e instanceof NumberFormatException) {
+            return "Invalid number format in amount field";
+        } else if (e instanceof DateTimeParseException) {
+            return "Invalid date format - use yyyy-MM-dd, dd/MM/yyyy, or MM/dd/yyyy";
+        } else if (e.getClass().getName().contains("DataIntegrityViolation")) {
+            return "Database constraint violation - possibly duplicate transaction or invalid reference";
+        } else if (e.getClass().getName().contains("ConstraintViolation")) {
+            return "Data validation failed - " + (message != null ? message : "constraint violation");
+        }
+
+        // For database exceptions, extract the meaningful part
+        if (message != null && message.contains("could not execute statement")) {
+            if (message.contains("Duplicate entry")) {
+                return "Duplicate transaction detected";
+            } else if (message.contains("foreign key constraint")) {
+                return "Invalid property or customer reference";
+            } else if (message.contains("Data too long")) {
+                return "Field value too long - please shorten the data";
+            }
+        }
+
+        // Build error message with cause chain if available
+        if (e.getCause() != null) {
+            String causeMsg = e.getCause().getMessage();
+            if (causeMsg != null && !causeMsg.equals(message)) {
+                // Extract meaningful error from cause
+                if (causeMsg.contains("Duplicate entry")) {
+                    return "Duplicate transaction detected";
+                } else if (causeMsg.contains("foreign key constraint")) {
+                    return "Invalid property or customer reference";
+                } else {
+                    return message + " (Caused by: " + causeMsg.substring(0, Math.min(100, causeMsg.length())) + ")";
+                }
+            }
+        }
+
+        // Return the original message if we can't simplify it
+        return message != null ? message : "Unknown error - check logs for details";
     }
     
     // ===== RESULT CLASSES =====
@@ -784,39 +948,62 @@ public class HistoricalTransactionImportService {
         private int totalProcessed = 0;
         private int successfulImports = 0;
         private int failedImports = 0;
+        private int skippedDuplicates = 0;
+        private int skippedDuplicatesInPaste = 0;
+        private int skippedDuplicatesInBatch = 0;
+        private int skippedDuplicatesInDatabase = 0;
         private final List<String> errors = new ArrayList<>();
+        private final List<String> skippedTransactions = new ArrayList<>();
         private final LocalDateTime importTime = LocalDateTime.now();
         private boolean success = true;
-        
+
         public ImportResult(String batchId, String sourceFilename) {
             this.batchId = batchId;
             this.sourceFilename = sourceFilename;
         }
-        
+
         public static ImportResult failure(String errorMessage) {
             ImportResult result = new ImportResult("FAILED", "");
             result.success = false;
             result.addError(errorMessage);
             return result;
         }
-        
+
         public void incrementTotal() { totalProcessed++; }
         public void incrementSuccessful() { successfulImports++; }
         public void incrementFailed() { failedImports++; }
+        public void incrementSkipped(String level) {
+            skippedDuplicates++;
+            switch (level) {
+                case "paste": skippedDuplicatesInPaste++; break;
+                case "batch": skippedDuplicatesInBatch++; break;
+                case "database": skippedDuplicatesInDatabase++; break;
+            }
+        }
         public void addError(String error) { errors.add(error); }
-        
+        public void addSkipped(String skipped) { skippedTransactions.add(skipped); }
+
         // Getters
         public String getBatchId() { return batchId; }
         public String getSourceFilename() { return sourceFilename; }
         public int getTotalProcessed() { return totalProcessed; }
         public int getSuccessfulImports() { return successfulImports; }
         public int getFailedImports() { return failedImports; }
+        public int getSkippedDuplicates() { return skippedDuplicates; }
+        public int getSkippedDuplicatesInPaste() { return skippedDuplicatesInPaste; }
+        public int getSkippedDuplicatesInBatch() { return skippedDuplicatesInBatch; }
+        public int getSkippedDuplicatesInDatabase() { return skippedDuplicatesInDatabase; }
         public List<String> getErrors() { return errors; }
+        public List<String> getSkippedTransactions() { return skippedTransactions; }
         public LocalDateTime getImportTime() { return importTime; }
         public boolean isSuccess() { return success && failedImports == 0; }
-        
+
         public String getSummary() {
-            return String.format("Batch %s: %d total, %d successful, %d failed", 
+            if (skippedDuplicates > 0) {
+                return String.format("Batch %s: %d total, %d successful, %d failed, %d skipped (duplicates)",
+                                   batchId, totalProcessed, successfulImports, failedImports, skippedDuplicates);
+            }
+            return String.format("Batch %s: %d total, %d successful, %d failed",
                                batchId, totalProcessed, successfulImports, failedImports);
         }
     }
