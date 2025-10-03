@@ -320,10 +320,12 @@ public class HistoricalTransactionImportService {
                         currentPasteFingerprints.add(generateTransactionFingerprint(transaction));
                     }
                 } catch (Exception e) {
-                    // Build clear, user-friendly error message
+                    // Build clear, user-friendly error message with CSV line preview
                     String errorMsg = buildUserFriendlyErrorMessage(e, lineNumber);
+                    String linePreview = line.length() > 100 ? line.substring(0, 100) + "..." : line;
+                    String fullError = String.format("Line %d: %s | CSV: %s", lineNumber, errorMsg, linePreview);
                     log.warn("Failed to import line {}: {}", lineNumber, errorMsg, e);
-                    result.addError("Line " + lineNumber + ": " + errorMsg);
+                    result.addError(fullError);
                     result.incrementFailed();
                 }
                 result.incrementTotal();
@@ -657,10 +659,12 @@ public class HistoricalTransactionImportService {
         // Normalize the type string
         String normalizedType = typeStr.toLowerCase().trim();
 
-        // Smart mapping for maintenance-related transaction types
+        // Smart mapping for maintenance/expense-related transaction types
+        // Map maintenance to expense to match database enum
         if (normalizedType.contains("maintenance") || normalizedType.contains("repair") ||
-            normalizedType.contains("contractor") || normalizedType.contains("upkeep")) {
-            return TransactionType.maintenance;
+            normalizedType.contains("contractor") || normalizedType.contains("upkeep") ||
+            normalizedType.contains("expense")) {
+            return TransactionType.expense;
         }
 
         // Smart mapping for other common variations
@@ -668,7 +672,9 @@ public class HistoricalTransactionImportService {
             case "payment_to_contractor":
             case "contractor_payment":
             case "service_payment":
-                return TransactionType.maintenance;
+            case "cost":
+            case "expenditure":
+                return TransactionType.expense;
             case "rent":
             case "rental":
             case "rental_payment":
