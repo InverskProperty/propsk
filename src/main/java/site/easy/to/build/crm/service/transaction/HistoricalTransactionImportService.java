@@ -1196,9 +1196,38 @@ public class HistoricalTransactionImportService {
         String[] lines = csvData.split("\\r?\\n");
         log.info("📊 [REVIEW-VALIDATE] Processing {} lines", lines.length);
 
+        if (lines.length == 0) {
+            log.warn("⚠️ [REVIEW-VALIDATE] No lines to process");
+            return queue;
+        }
+
+        // Build column map from header row (same approach as Quick Import)
+        String headerLine = lines[0].trim();
+        String[] headers = headerLine.split(",");
+        Map<String, Integer> columnMap = buildColumnMap(headers);
+        log.info("📋 [REVIEW-VALIDATE] Built column map with {} columns: {}", columnMap.size(), String.join(", ", headers));
+
+        // Validate required columns
+        List<String> requiredColumns = List.of("transaction_date", "amount", "description", "transaction_type");
+        List<String> missingColumns = new ArrayList<>();
+        for (String required : requiredColumns) {
+            if (!columnMap.containsKey(required)) {
+                missingColumns.add(required);
+            }
+        }
+        if (!missingColumns.isEmpty()) {
+            log.error("❌ [REVIEW-VALIDATE] Missing required columns: {}", String.join(", ", missingColumns));
+            TransactionReview errorReview = new TransactionReview(0, "Header validation");
+            errorReview.setStatus(ReviewStatus.VALIDATION_ERROR);
+            errorReview.setErrorMessage("Missing required columns: " + String.join(", ", missingColumns));
+            queue.addReview(errorReview);
+            return queue;
+        }
+
         Set<String> currentPasteFingerprints = new HashSet<>();
 
-        for (int i = 0; i < lines.length; i++) {
+        // Process data rows (skip header at index 0)
+        for (int i = 1; i < lines.length; i++) {
             String line = lines[i].trim();
             int lineNumber = i + 1;
 
@@ -1212,24 +1241,17 @@ public class HistoricalTransactionImportService {
             TransactionReview review = new TransactionReview(lineNumber, line);
 
             try {
-                // Parse the CSV line
-                String[] parts = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
-                log.debug("📋 [REVIEW-VALIDATE] Line {}: Split into {} parts", lineNumber, parts.length);
+                // Parse the CSV line using same method as Quick Import
+                String[] values = parseCsvLine(line);
+                log.debug("📋 [REVIEW-VALIDATE] Line {}: Split into {} values", lineNumber, values.length);
 
-                if (parts.length < 6) {
-                    review.setStatus(ReviewStatus.VALIDATION_ERROR);
-                    review.setErrorMessage("Insufficient columns - expected at least 6 columns (date, amount, description, type, property, customer)");
-                    queue.addReview(review);
-                    continue;
-                }
-
-                // Extract and validate fields
-                String dateStr = cleanCsvValue(parts[0]);
-                String amountStr = cleanCsvValue(parts[1]);
-                String description = cleanCsvValue(parts[2]);
-                String typeStr = cleanCsvValue(parts[3]);
-                String propertyRef = cleanCsvValue(parts[4]);
-                String customerRef = cleanCsvValue(parts[5]);
+                // Extract fields using column map (same as Quick Import)
+                String dateStr = getValue(values, columnMap, "transaction_date");
+                String amountStr = getValue(values, columnMap, "amount");
+                String description = getValue(values, columnMap, "description");
+                String typeStr = getValue(values, columnMap, "transaction_type");
+                String propertyRef = getValue(values, columnMap, "property_reference");
+                String customerRef = getValue(values, columnMap, "customer_reference");
 
                 // Store parsed data
                 review.getParsedData().put("date", dateStr);
