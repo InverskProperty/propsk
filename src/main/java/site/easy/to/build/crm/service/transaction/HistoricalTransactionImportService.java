@@ -1269,13 +1269,13 @@ public class HistoricalTransactionImportService {
                     queue.addReview(review);
                     continue;
                 }
-                review.getParsedData().put("parsedDate", transactionDate);
+                review.getParsedData().put("parsedDate", transactionDate.toString()); // Convert to string for JSON
 
                 // Validate amount
                 BigDecimal amount;
                 try {
                     amount = new BigDecimal(amountStr.replace(",", "").replace("$", "").replace("£", ""));
-                    review.getParsedData().put("parsedAmount", amount);
+                    review.getParsedData().put("parsedAmount", amount.toString()); // Convert to string for JSON
                 } catch (NumberFormatException e) {
                     review.setStatus(ReviewStatus.VALIDATION_ERROR);
                     review.setErrorMessage("Invalid amount: " + amountStr);
@@ -1287,7 +1287,7 @@ public class HistoricalTransactionImportService {
                 TransactionType transactionType;
                 try {
                     transactionType = parseTransactionType(typeStr);
-                    review.getParsedData().put("parsedType", transactionType);
+                    review.getParsedData().put("parsedType", transactionType.name()); // Convert enum to string for JSON
                 } catch (IllegalArgumentException e) {
                     review.setStatus(ReviewStatus.VALIDATION_ERROR);
                     review.setErrorMessage(e.getMessage());
