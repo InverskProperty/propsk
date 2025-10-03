@@ -304,22 +304,25 @@ $(document).ready(function() {
         }
 
         console.log('🔄 Creating', reviewQueue.reviews.length, 'review cards...');
-        reviewQueue.reviews.forEach((review, index) => {
-            console.log('📋 Creating card', index, 'for review:', review);
-            try {
+
+        try {
+            reviewQueue.reviews.forEach((review, index) => {
+                console.log('📋 Creating card', index, 'for review:', review);
                 const card = createReviewCard(review, index);
                 container.append(card);
                 console.log('✅ Card', index, 'appended');
-            } catch (e) {
-                console.error('❌ Failed to create card', index, ':', e);
-            }
-        });
+            });
 
-        console.log('📊 Updating counts...');
-        updateCounts();
-        console.log('🎯 Applying filter...');
-        applyFilter();
-        console.log('✅ renderReviewQueue() complete');
+            console.log('📊 Updating counts...');
+            updateCounts();
+            console.log('🎯 Applying filter...');
+            applyFilter();
+            console.log('✅ renderReviewQueue() complete');
+        } catch (e) {
+            console.error('💥 FATAL ERROR in renderReviewQueue:', e);
+            console.error('Stack trace:', e.stack);
+            showError('Failed to render review cards: ' + e.message);
+        }
     }
 
     function createReviewCard(review, index) {
@@ -650,29 +653,46 @@ $(document).ready(function() {
     });
 
     function applyFilter() {
-        $('.review-card').each(function() {
-            const statusClass = $(this).data('status-class');
-            if (currentFilter === 'all' || statusClass === currentFilter) {
-                $(this).show();
-            } else {
-                $(this).hide();
-            }
-        });
+        console.log('🎯 applyFilter() called, currentFilter:', currentFilter);
+        try {
+            const cards = $('.review-card');
+            console.log('🃏 Found', cards.length, 'review cards');
+
+            cards.each(function() {
+                const statusClass = $(this).data('status-class');
+                if (currentFilter === 'all' || statusClass === currentFilter) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+            console.log('✅ applyFilter() complete');
+        } catch (e) {
+            console.error('❌ applyFilter() failed:', e);
+        }
     }
 
     function updateCounts() {
-        const perfect = reviewQueue.reviews.filter(r => r.status === 'PERFECT').length;
-        const needsReview = reviewQueue.reviews.filter(r =>
-            ['AMBIGUOUS_PROPERTY', 'AMBIGUOUS_CUSTOMER', 'POTENTIAL_DUPLICATE'].includes(r.status)
-        ).length;
-        const issues = reviewQueue.reviews.filter(r =>
-            ['MISSING_PROPERTY', 'MISSING_CUSTOMER', 'VALIDATION_ERROR'].includes(r.status)
-        ).length;
+        console.log('📊 updateCounts() called');
+        try {
+            const perfect = reviewQueue.reviews.filter(r => r.status === 'PERFECT').length;
+            const needsReview = reviewQueue.reviews.filter(r =>
+                ['AMBIGUOUS_PROPERTY', 'AMBIGUOUS_CUSTOMER', 'POTENTIAL_DUPLICATE'].includes(r.status)
+            ).length;
+            const issues = reviewQueue.reviews.filter(r =>
+                ['MISSING_PROPERTY', 'MISSING_CUSTOMER', 'VALIDATION_ERROR'].includes(r.status)
+            ).length;
 
-        $('#countAll').text(reviewQueue.reviews.length);
-        $('#countPerfect').text(perfect);
-        $('#countNeedsReview').text(needsReview);
-        $('#countIssues').text(issues);
+            console.log('📈 Counts:', {perfect, needsReview, issues, total: reviewQueue.reviews.length});
+
+            $('#countAll').text(reviewQueue.reviews.length);
+            $('#countPerfect').text(perfect);
+            $('#countNeedsReview').text(needsReview);
+            $('#countIssues').text(issues);
+            console.log('✅ updateCounts() complete');
+        } catch (e) {
+            console.error('❌ updateCounts() failed:', e);
+        }
     }
 
     function updateSummary() {
