@@ -893,6 +893,10 @@ public class HistoricalTransactionImportService {
 
         // Handle common exception types with clearer messages
         if (e instanceof IllegalArgumentException) {
+            // Check if it's a transaction_type validation error
+            if (message != null && message.contains("Invalid transaction type")) {
+                return message; // Already has detailed info about valid types
+            }
             // These are usually validation errors - return as is
             return message != null ? message : "Invalid data format";
         } else if (e instanceof NullPointerException) {
@@ -913,8 +917,17 @@ public class HistoricalTransactionImportService {
                 return "Duplicate transaction detected";
             } else if (message.contains("foreign key constraint")) {
                 return "Invalid property or customer reference";
-            } else if (message.contains("Data too long")) {
-                return "Field value too long - please shorten the data";
+            } else if (message.contains("Data too long") || message.contains("Data truncated")) {
+                // Extract which column had the issue
+                if (message.contains("transaction_type")) {
+                    return "Invalid transaction_type - must be one of: payment, invoice, fee, transfer, adjustment, maintenance";
+                } else if (message.contains("description")) {
+                    return "Description too long - maximum 500 characters";
+                } else if (message.contains("category")) {
+                    return "Category value too long - maximum 100 characters";
+                } else {
+                    return "Field value too long - please shorten the data";
+                }
             }
         }
 
