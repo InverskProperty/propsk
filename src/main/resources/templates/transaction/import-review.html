@@ -309,10 +309,14 @@ $(document).ready(function() {
             reviewQueue.reviews.forEach((review, index) => {
                 console.log('📋 Creating card', index, 'for review:', review);
                 const card = createReviewCard(review, index);
+                console.log('🎴 Card created, type:', typeof card, 'length:', card ? card.length : 'N/A');
+                console.log('➕ Appending card to container...');
                 container.append(card);
-                console.log('✅ Card', index, 'appended');
+                console.log('✅ Card', index, 'appended successfully');
+                console.log('📦 Container now has', container.children().length, 'children');
             });
 
+            console.log('🏁 forEach loop complete - moving to updateCounts');
             console.log('📊 Updating counts...');
             updateCounts();
             console.log('🎯 Applying filter...');
