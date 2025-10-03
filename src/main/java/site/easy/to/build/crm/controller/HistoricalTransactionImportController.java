@@ -17,6 +17,7 @@ import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.HistoricalTransaction;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.util.List;
@@ -510,5 +511,356 @@ public class HistoricalTransactionImportController {
         ));
 
         return ResponseEntity.ok(examples);
+    }
+
+    // ===== HUMAN VERIFICATION WORKFLOW =====
+
+    /**
+     * Stage 1: Validate CSV and create review queue
+     * Returns detailed analysis without importing
+     */
+    @PostMapping("/import/review-validate")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> validateForReview(
+            @RequestParam("csvData") String csvData,
+            @RequestParam(value = "batchId", required = false) String batchId,
+            Authentication authentication) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("🔍 Validating CSV for review: {} characters, batchId: {}", csvData.length(), batchId);
+
+            // Validate input
+            if (csvData == null || csvData.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("error", "CSV data is required");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // Generate batch ID if not provided
+            if (batchId == null || batchId.trim().isEmpty()) {
+                batchId = "HIST_CSV_" + java.time.LocalDateTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+            }
+
+            // Validate and create review queue
+            HistoricalTransactionImportService.ReviewQueue queue = importService.validateForReview(csvData, batchId);
+
+            // Build response
+            response.put("success", true);
+            response.put("batchId", queue.getBatchId());
+            response.put("totalRows", queue.getTotalRows());
+            response.put("perfectMatches", queue.getPerfectMatches());
+            response.put("needsReview", queue.getNeedsReview());
+            response.put("hasIssues", queue.getHasIssues());
+            response.put("reviews", queue.getReviews());
+
+            log.info("✅ Review validation complete: {} total, {} perfect, {} needs review, {} issues",
+                queue.getTotalRows(), queue.getPerfectMatches(), queue.getNeedsReview(), queue.getHasIssues());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Review validation failed: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("error", "Validation failed: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * Stage 2: Show review interface
+     * Displays the review page with validated data
+     */
+    @GetMapping("/import/review")
+    public String showReviewPage(
+            @RequestParam(value = "batchId", required = false) String batchId,
+            Model model,
+            Authentication authentication) {
+
+        try {
+            log.info("🔍 Loading review page for batchId: {}", batchId);
+
+            model.addAttribute("batchId", batchId);
+            model.addAttribute("pageTitle", "Review Import Data");
+
+            return "transaction/import-review";
+
+        } catch (Exception e) {
+            log.error("❌ Error loading review page: {}", e.getMessage(), e);
+            model.addAttribute("error", "Error loading review page: " + e.getMessage());
+            return "error/500";
+        }
+    }
+
+    /**
+     * Stage 3: Process confirmed import with user selections
+     * Imports only after human verification
+     */
+    @PostMapping("/import/review-confirm")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> confirmReviewedImport(
+            @RequestBody Map<String, Object> reviewData,
+            Authentication authentication) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("🔍 Processing confirmed import with review data");
+
+            // Extract review data
+            String batchId = (String) reviewData.get("batchId");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> reviews = (List<Map<String, Object>>) reviewData.get("reviews");
+
+            if (batchId == null || reviews == null || reviews.isEmpty()) {
+                response.put("success", false);
+                response.put("error", "Invalid review data");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            log.info("📋 Confirmed import for batch {}: {} transactions", batchId, reviews.size());
+
+            // Convert Map list to TransactionReview list
+            List<HistoricalTransactionImportService.TransactionReview> reviewList = convertToReviewList(reviews);
+
+            // Process confirmed import
+            HistoricalTransactionImportService.ImportResult result = importService.processConfirmedImport(batchId, reviewList);
+
+            if (result.isSuccess()) {
+                response.put("success", true);
+                response.put("message", String.format("Successfully imported %d transactions", result.getSuccessfulImports()));
+                response.put("batchId", batchId);
+                response.put("imported", result.getSuccessfulImports());
+                response.put("skipped", result.getSkippedDuplicates());
+                response.put("errors", result.getErrors());
+
+                log.info("✅ Confirmed import successful: {} imported, {} skipped",
+                    result.getSuccessfulImports(), result.getSkippedDuplicates());
+            } else {
+                response.put("success", false);
+                response.put("error", "Import completed with errors");
+                response.put("imported", result.getSuccessfulImports());
+                response.put("errors", result.getErrors());
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Confirmed import failed: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("error", "Import failed: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * Create new property from review interface
+     */
+    @PostMapping("/import/create-property")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> createProperty(
+            @RequestBody Map<String, Object> propertyData,
+            Authentication authentication) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("🏠 Creating new property from review interface");
+
+            String propertyName = (String) propertyData.get("propertyName");
+            if (propertyName == null || propertyName.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("error", "Property name is required");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // Create new property
+            Property property = new Property();
+            property.setPropertyName(propertyName);
+            property.setAddressLine1((String) propertyData.get("addressLine1"));
+            property.setPostcode((String) propertyData.get("postcode"));
+            property.setIsArchived("N");
+            property.setCreatedAt(java.time.LocalDateTime.now());
+
+            Property saved = propertyService.save(property);
+
+            response.put("success", true);
+            response.put("propertyId", saved.getId());
+            response.put("propertyName", saved.getPropertyName());
+
+            log.info("✅ Created property: {} (ID: {})", saved.getPropertyName(), saved.getId());
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to create property: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("error", "Failed to create property: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * Create new customer from review interface
+     */
+    @PostMapping("/import/create-customer")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> createCustomer(
+            @RequestBody Map<String, Object> customerData,
+            Authentication authentication) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            log.info("👤 Creating new customer from review interface");
+
+            String firstName = (String) customerData.get("firstName");
+            String lastName = (String) customerData.get("lastName");
+
+            if (firstName == null || firstName.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("error", "First name is required");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // Create new customer
+            Customer customer = new Customer();
+            customer.setFirstName(firstName);
+            customer.setLastName(lastName != null ? lastName : "");
+            customer.setEmail((String) customerData.get("email"));
+            customer.setPhone((String) customerData.get("phone"));
+            customer.setCreatedAt(java.time.LocalDateTime.now());
+
+            Customer saved = customerService.save(customer);
+
+            response.put("success", true);
+            response.put("customerId", saved.getCustomerId());
+            response.put("fullName", saved.getFirstName() + " " + saved.getLastName());
+
+            log.info("✅ Created customer: {} {} (ID: {})", saved.getFirstName(), saved.getLastName(), saved.getCustomerId());
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to create customer: {}", e.getMessage(), e);
+            response.put("success", false);
+            response.put("error", "Failed to create customer: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * Convert Map list from JSON to TransactionReview list
+     */
+    private List<HistoricalTransactionImportService.TransactionReview> convertToReviewList(List<Map<String, Object>> maps) {
+        List<HistoricalTransactionImportService.TransactionReview> reviews = new ArrayList<>();
+
+        for (Map<String, Object> map : maps) {
+            int lineNumber = ((Number) map.get("lineNumber")).intValue();
+            String csvLine = (String) map.get("csvLine");
+
+            HistoricalTransactionImportService.TransactionReview review =
+                new HistoricalTransactionImportService.TransactionReview(lineNumber, csvLine);
+
+            // Set status
+            String statusStr = (String) map.get("status");
+            if (statusStr != null) {
+                review.setStatus(HistoricalTransactionImportService.ReviewStatus.valueOf(statusStr));
+            }
+
+            // Set user selections
+            if (map.get("selectedPropertyId") != null) {
+                review.setSelectedPropertyId(((Number) map.get("selectedPropertyId")).longValue());
+            }
+
+            if (map.get("selectedCustomerId") != null) {
+                review.setSelectedCustomerId(((Number) map.get("selectedCustomerId")).longValue());
+            }
+
+            if (map.get("skipDuplicate") != null) {
+                review.setSkipDuplicate((Boolean) map.get("skipDuplicate"));
+            }
+
+            if (map.get("userNote") != null) {
+                review.setUserNote((String) map.get("userNote"));
+            }
+
+            // Set error message
+            if (map.get("errorMessage") != null) {
+                review.setErrorMessage((String) map.get("errorMessage"));
+            }
+
+            // Set parsed data
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsedData = (Map<String, Object>) map.get("parsedData");
+            if (parsedData != null) {
+                // Convert parsed data types
+                if (parsedData.get("parsedDate") != null) {
+                    Object dateObj = parsedData.get("parsedDate");
+                    if (dateObj instanceof String) {
+                        parsedData.put("parsedDate", java.time.LocalDate.parse((String) dateObj));
+                    } else if (dateObj instanceof List) {
+                        // Handle array format [year, month, day]
+                        @SuppressWarnings("unchecked")
+                        List<Integer> dateArr = (List<Integer>) dateObj;
+                        parsedData.put("parsedDate", java.time.LocalDate.of(dateArr.get(0), dateArr.get(1), dateArr.get(2)));
+                    }
+                }
+
+                if (parsedData.get("parsedAmount") != null) {
+                    Object amountObj = parsedData.get("parsedAmount");
+                    if (amountObj instanceof String) {
+                        parsedData.put("parsedAmount", new java.math.BigDecimal((String) amountObj));
+                    } else if (amountObj instanceof Number) {
+                        parsedData.put("parsedAmount", new java.math.BigDecimal(amountObj.toString()));
+                    }
+                }
+
+                if (parsedData.get("parsedType") != null) {
+                    Object typeObj = parsedData.get("parsedType");
+                    if (typeObj instanceof String) {
+                        parsedData.put("parsedType", HistoricalTransaction.TransactionType.valueOf((String) typeObj));
+                    }
+                }
+
+                review.getParsedData().putAll(parsedData);
+            }
+
+            // Set duplicate info if present
+            @SuppressWarnings("unchecked")
+            Map<String, Object> duplicateInfo = (Map<String, Object>) map.get("duplicateInfo");
+            if (duplicateInfo != null) {
+                // Create a dummy transaction for DuplicateInfo
+                HistoricalTransaction dummyTxn = new HistoricalTransaction();
+                if (duplicateInfo.get("transactionDate") != null) {
+                    Object dateObj = duplicateInfo.get("transactionDate");
+                    if (dateObj instanceof String) {
+                        dummyTxn.setTransactionDate(java.time.LocalDate.parse((String) dateObj));
+                    } else if (dateObj instanceof List) {
+                        @SuppressWarnings("unchecked")
+                        List<Integer> dateArr = (List<Integer>) dateObj;
+                        dummyTxn.setTransactionDate(java.time.LocalDate.of(dateArr.get(0), dateArr.get(1), dateArr.get(2)));
+                    }
+                }
+                if (duplicateInfo.get("amount") != null) {
+                    Object amountObj = duplicateInfo.get("amount");
+                    if (amountObj instanceof Number) {
+                        dummyTxn.setAmount(new java.math.BigDecimal(amountObj.toString()));
+                    }
+                }
+                if (duplicateInfo.get("description") != null) {
+                    dummyTxn.setDescription((String) duplicateInfo.get("description"));
+                }
+                if (duplicateInfo.get("batchId") != null) {
+                    dummyTxn.setImportBatchId((String) duplicateInfo.get("batchId"));
+                }
+
+                review.setDuplicateInfo(new HistoricalTransactionImportService.DuplicateInfo(dummyTxn));
+            }
+
+            reviews.add(review);
+        }
+
+        return reviews;
     }
 }

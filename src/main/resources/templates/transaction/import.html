@@ -227,12 +227,19 @@
                                             <button type="button" class="btn btn-primary btn-lg" onclick="validateCsvPaste()">
                                                 <i class="fas fa-check-circle"></i> Validate CSV Data
                                             </button>
+                                            <button type="button" class="btn btn-warning btn-lg ml-2" onclick="reviewCsvPaste()">
+                                                <i class="fas fa-user-check"></i> Review & Verify
+                                            </button>
                                             <button type="button" class="btn btn-success btn-lg ml-2" id="csvPasteImportBtn" onclick="importCsvPaste()" disabled>
-                                                <i class="fas fa-paste"></i> Import CSV Data
+                                                <i class="fas fa-paste"></i> Quick Import
                                             </button>
                                             <button type="button" class="btn btn-info btn-lg ml-2" onclick="showCsvExample()">
                                                 <i class="fas fa-eye"></i> View CSV Example
                                             </button>
+                                        </div>
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle"></i> <strong>Recommended:</strong>
+                                            Use <strong>Review & Verify</strong> for absolute precision - allows you to confirm matches, resolve duplicates, and create missing entities.
                                         </div>
 
                                         <!-- Batching Info Alert -->
@@ -934,6 +941,105 @@ function validateCsvPaste() {
 
             // Keep import button disabled
             $('#csvPasteImportBtn').prop('disabled', true);
+        }
+    });
+}
+
+// Review CSV paste with human verification workflow
+function reviewCsvPaste() {
+    const csvData = $('#csvData').val().trim();
+    const batchId = $('#csvBatchId').val().trim();
+
+    if (!csvData) {
+        alert('Please enter CSV data to review');
+        return;
+    }
+
+    // Basic CSV validation - check for header row
+    const lines = csvData.split('\n').filter(line => line.trim());
+    if (lines.length < 2) {
+        alert('CSV must have at least a header row and one data row');
+        return;
+    }
+
+    // Show loading
+    $('#csvPasteResults').show();
+    $('#csvPasteContent').html('<div class="text-center"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Analyzing CSV data for review...</div>');
+
+    // Build headers object
+    const headers = {};
+    if (csrfHeader && csrfToken) {
+        headers[csrfHeader] = csrfToken;
+    }
+
+    // Send to review validation endpoint
+    $.ajax({
+        url: '/employee/transaction/import/review-validate',
+        method: 'POST',
+        data: {
+            csvData: csvData,
+            batchId: batchId || ''
+        },
+        headers: headers,
+        success: function(response) {
+            console.log('Review validation response:', response);
+
+            if (response.success) {
+                // Store review data in localStorage
+                localStorage.setItem('reviewData', JSON.stringify(response));
+
+                // Show summary and redirect
+                $('#csvPasteContent').html(`
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-clipboard-check"></i> Review Queue Created</h6>
+                        <p>Analyzed ${response.totalRows} transactions:</p>
+                        <ul>
+                            <li><strong class="text-success">${response.perfectMatches}</strong> perfect matches (auto-import ready)</li>
+                            <li><strong class="text-warning">${response.needsReview}</strong> need your review (ambiguous matches or duplicates)</li>
+                            <li><strong class="text-danger">${response.hasIssues}</strong> have issues (missing entities or errors)</li>
+                        </ul>
+                        <div class="text-center mt-3">
+                            <p><i class="fas fa-arrow-right"></i> Redirecting to review interface...</p>
+                        </div>
+                    </div>
+                `);
+
+                // Redirect to review page after 2 seconds
+                setTimeout(() => {
+                    window.location.href = '/employee/transaction/import/review?batchId=' + encodeURIComponent(response.batchId);
+                }, 2000);
+            } else {
+                $('#csvPasteContent').html(`
+                    <div class="alert alert-danger">
+                        <h6><i class="fas fa-times-circle"></i> Review Validation Failed</h6>
+                        <p>${response.error || 'Unknown error occurred'}</p>
+                    </div>
+                `);
+            }
+        },
+        error: function(xhr, status, error) {
+            let errorMsg = 'Review validation failed';
+
+            try {
+                const response = JSON.parse(xhr.responseText);
+                errorMsg = response.error || response.message || errorMsg;
+            } catch (e) {
+                if (xhr.responseText) {
+                    errorMsg += ': ' + xhr.responseText.substring(0, 200);
+                } else {
+                    errorMsg += ' - HTTP ' + xhr.status + ': ' + (xhr.statusText || error || 'Unknown error');
+                }
+            }
+
+            console.error('Review validation error:', errorMsg, xhr);
+
+            $('#csvPasteResults').show();
+            $('#csvPasteContent').html(`
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-times-circle"></i> Review Validation Error</h6>
+                    <p>${errorMsg}</p>
+                </div>
+            `);
         }
     });
 }

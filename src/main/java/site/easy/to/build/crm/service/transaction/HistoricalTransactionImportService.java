@@ -20,6 +20,7 @@ import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionType;
 import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionSource;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.UserRepository;
+import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
@@ -53,16 +54,19 @@ public class HistoricalTransactionImportService {
     
     @Autowired
     private HistoricalTransactionRepository historicalTransactionRepository;
-    
+
+    @Autowired
+    private PropertyRepository propertyRepository;
+
     @Autowired
     private PropertyService propertyService;
-    
+
     @Autowired
     private CustomerService customerService;
-    
+
     @Autowired
     private UserRepository userRepository;
-    
+
     @Autowired
     private AuthenticationUtils authenticationUtils;
     
@@ -649,6 +653,21 @@ public class HistoricalTransactionImportService {
     }
     
     /**
+     * Clean CSV value by removing quotes and trimming whitespace
+     */
+    private String cleanCsvValue(String value) {
+        if (value == null) {
+            return null;
+        }
+        // Remove surrounding quotes and trim
+        value = value.trim();
+        if (value.startsWith("\"") && value.endsWith("\"")) {
+            value = value.substring(1, value.length() - 1);
+        }
+        return value.trim();
+    }
+
+    /**
      * Parse transaction type from string with smart mapping for maintenance-related types
      */
     private TransactionType parseTransactionType(String typeStr) {
@@ -743,26 +762,29 @@ public class HistoricalTransactionImportService {
         if (reference == null || reference.isEmpty()) {
             return null;
         }
-        
-        // Try exact property name match
+
+        // Try exact property name match (case-insensitive) using repository method
+        Property property = propertyRepository.findByPropertyNameIgnoreCase(reference.trim());
+        if (property != null) {
+            return property;
+        }
+
+        // Fallback: Try address or postcode match (for more flexible matching)
         List<Property> properties = propertyService.findAll();
-        for (Property property : properties) {
-            if (reference.equalsIgnoreCase(property.getPropertyName())) {
-                return property;
-            }
+        for (Property prop : properties) {
             // Try address match
-            if (property.getAddressLine1() != null && 
-                reference.toLowerCase().contains(property.getAddressLine1().toLowerCase())) {
-                return property;
+            if (prop.getAddressLine1() != null &&
+                reference.toLowerCase().contains(prop.getAddressLine1().toLowerCase())) {
+                return prop;
             }
             // Try postcode match
-            if (property.getPostcode() != null && 
-                reference.toLowerCase().contains(property.getPostcode().toLowerCase())) {
-                return property;
+            if (prop.getPostcode() != null &&
+                reference.toLowerCase().contains(prop.getPostcode().toLowerCase())) {
+                return prop;
             }
         }
-        
-        log.warn("Could not find property for reference: {}", reference);
+
+        log.warn("⚠️ Property lookup failed for reference: '{}' - Transaction will be imported without property link", reference);
         return null;
     }
     
@@ -831,6 +853,9 @@ public class HistoricalTransactionImportService {
     /**
      * Check if transaction is duplicate
      * Returns: null if not duplicate, otherwise returns description of where duplicate was found
+     *
+     * IMPORTANT: If property lookup failed (property = null), we SKIP duplicate detection
+     * to avoid false positives when multiple transactions have no property link.
      */
     private String checkForDuplicate(HistoricalTransaction transaction, String currentBatchId,
                                     Set<String> currentPasteFingerprints) {
@@ -842,6 +867,15 @@ public class HistoricalTransactionImportService {
             return "paste";
         }
 
+        // CRITICAL: If property is NULL (property lookup failed), skip Level 2 & 3 duplicate detection
+        // Reason: Multiple transactions without property links should NOT be treated as duplicates
+        // They are likely different transactions for different properties that couldn't be matched
+        if (transaction.getProperty() == null) {
+            log.debug("Skipping Level 2 & 3 duplicate detection for transaction without property link: {}",
+                     transaction.getDescription());
+            return null; // Not a duplicate (or we can't reliably tell)
+        }
+
         // LEVEL 2: Check within current batch session (if continuing a batch)
         if (currentBatchId != null && !currentBatchId.isEmpty()) {
             List<HistoricalTransaction> duplicatesInBatch = historicalTransactionRepository.findDuplicateInBatch(
@@ -850,7 +884,7 @@ public class HistoricalTransactionImportService {
                 transaction.getAmount(),
                 transaction.getDescription(),
                 transaction.getTransactionType(),
-                transaction.getProperty() != null ? transaction.getProperty().getId() : null,
+                transaction.getProperty().getId(), // Now guaranteed to be non-null
                 transaction.getCustomer() != null ? transaction.getCustomer().getCustomerId() : null
             );
 
@@ -865,7 +899,7 @@ public class HistoricalTransactionImportService {
             transaction.getAmount(),
             transaction.getDescription(),
             transaction.getTransactionType(),
-            transaction.getProperty() != null ? transaction.getProperty().getId() : null,
+            transaction.getProperty().getId(), // Now guaranteed to be non-null
             transaction.getCustomer() != null ? transaction.getCustomer().getCustomerId() : null
         );
 
@@ -956,8 +990,637 @@ public class HistoricalTransactionImportService {
         return message != null ? message : "Unknown error - check logs for details";
     }
     
+    // ===== REVIEW CLASSES =====
+
+    /**
+     * Review queue for human verification workflow
+     */
+    public static class ReviewQueue {
+        private final List<TransactionReview> reviews;
+        private int totalRows = 0;
+        private int perfectMatches = 0;
+        private int needsReview = 0;
+        private int hasIssues = 0;
+        private String batchId;
+
+        public ReviewQueue(String batchId) {
+            this.batchId = batchId;
+            this.reviews = new ArrayList<>();
+        }
+
+        public void addReview(TransactionReview review) {
+            reviews.add(review);
+            totalRows++;
+            switch (review.getStatus()) {
+                case PERFECT: perfectMatches++; break;
+                case AMBIGUOUS_PROPERTY:
+                case AMBIGUOUS_CUSTOMER:
+                case POTENTIAL_DUPLICATE:
+                    needsReview++; break;
+                case MISSING_PROPERTY:
+                case MISSING_CUSTOMER:
+                case VALIDATION_ERROR:
+                    hasIssues++; break;
+            }
+        }
+
+        // Getters
+        public List<TransactionReview> getReviews() { return reviews; }
+        public int getTotalRows() { return totalRows; }
+        public int getPerfectMatches() { return perfectMatches; }
+        public int getNeedsReview() { return needsReview; }
+        public int getHasIssues() { return hasIssues; }
+        public String getBatchId() { return batchId; }
+    }
+
+    /**
+     * Individual transaction review item
+     */
+    public static class TransactionReview {
+        private int lineNumber;
+        private String csvLine;
+        private ReviewStatus status;
+        private List<PropertyOption> propertyOptions;
+        private List<CustomerOption> customerOptions;
+        private DuplicateInfo duplicateInfo;
+        private Map<String, Object> parsedData;
+        private String errorMessage;
+
+        // User selections (filled during review)
+        private Long selectedPropertyId;
+        private Long selectedCustomerId;
+        private boolean skipDuplicate;
+        private String userNote;
+
+        public TransactionReview(int lineNumber, String csvLine) {
+            this.lineNumber = lineNumber;
+            this.csvLine = csvLine;
+            this.propertyOptions = new ArrayList<>();
+            this.customerOptions = new ArrayList<>();
+            this.parsedData = new HashMap<>();
+        }
+
+        // Getters and Setters
+        public int getLineNumber() { return lineNumber; }
+        public String getCsvLine() { return csvLine; }
+        public ReviewStatus getStatus() { return status; }
+        public void setStatus(ReviewStatus status) { this.status = status; }
+        public List<PropertyOption> getPropertyOptions() { return propertyOptions; }
+        public List<CustomerOption> getCustomerOptions() { return customerOptions; }
+        public DuplicateInfo getDuplicateInfo() { return duplicateInfo; }
+        public void setDuplicateInfo(DuplicateInfo duplicateInfo) { this.duplicateInfo = duplicateInfo; }
+        public Map<String, Object> getParsedData() { return parsedData; }
+        public String getErrorMessage() { return errorMessage; }
+        public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
+        public Long getSelectedPropertyId() { return selectedPropertyId; }
+        public void setSelectedPropertyId(Long selectedPropertyId) { this.selectedPropertyId = selectedPropertyId; }
+        public Long getSelectedCustomerId() { return selectedCustomerId; }
+        public void setSelectedCustomerId(Long selectedCustomerId) { this.selectedCustomerId = selectedCustomerId; }
+        public boolean isSkipDuplicate() { return skipDuplicate; }
+        public void setSkipDuplicate(boolean skipDuplicate) { this.skipDuplicate = skipDuplicate; }
+        public String getUserNote() { return userNote; }
+        public void setUserNote(String userNote) { this.userNote = userNote; }
+    }
+
+    /**
+     * Property matching option
+     */
+    public static class PropertyOption {
+        private Long propertyId;
+        private String propertyName;
+        private String addressLine1;
+        private String postcode;
+        private int matchScore; // 100 = perfect, lower = fuzzy
+
+        public PropertyOption(Property property, int matchScore) {
+            this.propertyId = property.getId();
+            this.propertyName = property.getPropertyName();
+            this.addressLine1 = property.getAddressLine1();
+            this.postcode = property.getPostcode();
+            this.matchScore = matchScore;
+        }
+
+        // Getters
+        public Long getPropertyId() { return propertyId; }
+        public String getPropertyName() { return propertyName; }
+        public String getAddressLine1() { return addressLine1; }
+        public String getPostcode() { return postcode; }
+        public int getMatchScore() { return matchScore; }
+    }
+
+    /**
+     * Customer matching option
+     */
+    public static class CustomerOption {
+        private Long customerId;
+        private String fullName;
+        private String email;
+        private String phone;
+        private int matchScore;
+
+        public CustomerOption(Customer customer, int matchScore) {
+            this.customerId = customer.getCustomerId();
+            this.fullName = customer.getFirstName() + " " + customer.getLastName();
+            this.email = customer.getEmail();
+            this.phone = customer.getPhone();
+            this.matchScore = matchScore;
+        }
+
+        // Getters
+        public Long getCustomerId() { return customerId; }
+        public String getFullName() { return fullName; }
+        public String getEmail() { return email; }
+        public String getPhone() { return phone; }
+        public int getMatchScore() { return matchScore; }
+    }
+
+    /**
+     * Duplicate transaction information
+     */
+    public static class DuplicateInfo {
+        private Long existingTransactionId;
+        private LocalDate transactionDate;
+        private BigDecimal amount;
+        private String description;
+        private String propertyName;
+        private String batchId;
+
+        public DuplicateInfo(HistoricalTransaction existing) {
+            this.existingTransactionId = existing.getId();
+            this.transactionDate = existing.getTransactionDate();
+            this.amount = existing.getAmount();
+            this.description = existing.getDescription();
+            this.propertyName = existing.getProperty() != null ? existing.getProperty().getPropertyName() : "Unknown";
+            this.batchId = existing.getImportBatchId();
+        }
+
+        // Getters
+        public Long getExistingTransactionId() { return existingTransactionId; }
+        public LocalDate getTransactionDate() { return transactionDate; }
+        public BigDecimal getAmount() { return amount; }
+        public String getDescription() { return description; }
+        public String getPropertyName() { return propertyName; }
+        public String getBatchId() { return batchId; }
+    }
+
+    /**
+     * Review status enum
+     */
+    public enum ReviewStatus {
+        PERFECT,                 // Everything matched perfectly
+        AMBIGUOUS_PROPERTY,      // Multiple property matches
+        AMBIGUOUS_CUSTOMER,      // Multiple customer matches
+        MISSING_PROPERTY,        // No property found
+        MISSING_CUSTOMER,        // No customer found
+        POTENTIAL_DUPLICATE,     // Matches existing transaction
+        VALIDATION_ERROR         // Parse/validation error
+    }
+
+    // ===== VALIDATION & REVIEW METHODS =====
+
+    /**
+     * Validate CSV data and create review queue for human verification
+     * This is Stage 1: Parse and analyze without importing
+     */
+    public ReviewQueue validateForReview(String csvData, String batchId) {
+        ReviewQueue queue = new ReviewQueue(batchId);
+
+        if (csvData == null || csvData.trim().isEmpty()) {
+            return queue;
+        }
+
+        String[] lines = csvData.split("\\r?\\n");
+        Set<String> currentPasteFingerprints = new HashSet<>();
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            int lineNumber = i + 1;
+
+            // Skip empty lines
+            if (line.isEmpty()) {
+                continue;
+            }
+
+            TransactionReview review = new TransactionReview(lineNumber, line);
+
+            try {
+                // Parse the CSV line
+                String[] parts = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
+
+                if (parts.length < 6) {
+                    review.setStatus(ReviewStatus.VALIDATION_ERROR);
+                    review.setErrorMessage("Insufficient columns - expected at least 6 columns (date, amount, description, type, property, customer)");
+                    queue.addReview(review);
+                    continue;
+                }
+
+                // Extract and validate fields
+                String dateStr = cleanCsvValue(parts[0]);
+                String amountStr = cleanCsvValue(parts[1]);
+                String description = cleanCsvValue(parts[2]);
+                String typeStr = cleanCsvValue(parts[3]);
+                String propertyRef = cleanCsvValue(parts[4]);
+                String customerRef = cleanCsvValue(parts[5]);
+
+                // Store parsed data
+                review.getParsedData().put("date", dateStr);
+                review.getParsedData().put("amount", amountStr);
+                review.getParsedData().put("description", description);
+                review.getParsedData().put("type", typeStr);
+                review.getParsedData().put("propertyRef", propertyRef);
+                review.getParsedData().put("customerRef", customerRef);
+
+                // Validate date
+                LocalDate transactionDate = parseDate(dateStr);
+                if (transactionDate == null) {
+                    review.setStatus(ReviewStatus.VALIDATION_ERROR);
+                    review.setErrorMessage("Invalid date format: " + dateStr);
+                    queue.addReview(review);
+                    continue;
+                }
+                review.getParsedData().put("parsedDate", transactionDate);
+
+                // Validate amount
+                BigDecimal amount;
+                try {
+                    amount = new BigDecimal(amountStr.replace(",", "").replace("$", "").replace("£", ""));
+                    review.getParsedData().put("parsedAmount", amount);
+                } catch (NumberFormatException e) {
+                    review.setStatus(ReviewStatus.VALIDATION_ERROR);
+                    review.setErrorMessage("Invalid amount: " + amountStr);
+                    queue.addReview(review);
+                    continue;
+                }
+
+                // Validate transaction type
+                TransactionType transactionType;
+                try {
+                    transactionType = parseTransactionType(typeStr);
+                    review.getParsedData().put("parsedType", transactionType);
+                } catch (IllegalArgumentException e) {
+                    review.setStatus(ReviewStatus.VALIDATION_ERROR);
+                    review.setErrorMessage(e.getMessage());
+                    queue.addReview(review);
+                    continue;
+                }
+
+                // Find property matches
+                List<PropertyOption> propertyMatches = findPropertyMatches(propertyRef);
+                if (!propertyMatches.isEmpty()) {
+                    review.getPropertyOptions().addAll(propertyMatches);
+                    if (propertyMatches.size() > 1) {
+                        review.setStatus(ReviewStatus.AMBIGUOUS_PROPERTY);
+                    }
+                } else if (propertyRef != null && !propertyRef.isEmpty()) {
+                    review.setStatus(ReviewStatus.MISSING_PROPERTY);
+                }
+
+                // Find customer matches
+                List<CustomerOption> customerMatches = findCustomerMatches(customerRef);
+                if (!customerMatches.isEmpty()) {
+                    review.getCustomerOptions().addAll(customerMatches);
+                    if (customerMatches.size() > 1 && review.getStatus() != ReviewStatus.AMBIGUOUS_PROPERTY) {
+                        review.setStatus(ReviewStatus.AMBIGUOUS_CUSTOMER);
+                    }
+                } else if (customerRef != null && !customerRef.isEmpty()) {
+                    if (review.getStatus() == null) {
+                        review.setStatus(ReviewStatus.MISSING_CUSTOMER);
+                    }
+                }
+
+                // Check for duplicates (only if we have property match)
+                if (!propertyMatches.isEmpty() && propertyMatches.get(0).getMatchScore() == 100) {
+                    Property matchedProperty = propertyRepository.findById(propertyMatches.get(0).getPropertyId()).orElse(null);
+                    if (matchedProperty != null) {
+                        DuplicateInfo duplicateInfo = checkForDuplicateInReview(
+                            transactionDate, amount, description, transactionType,
+                            matchedProperty.getId(),
+                            !customerMatches.isEmpty() ? customerMatches.get(0).getCustomerId() : null,
+                            batchId,
+                            currentPasteFingerprints
+                        );
+
+                        if (duplicateInfo != null) {
+                            review.setDuplicateInfo(duplicateInfo);
+                            if (review.getStatus() == null) {
+                                review.setStatus(ReviewStatus.POTENTIAL_DUPLICATE);
+                            }
+                        }
+                    }
+                }
+
+                // If no issues found, mark as PERFECT
+                if (review.getStatus() == null) {
+                    if (!propertyMatches.isEmpty() && propertyMatches.size() == 1 && propertyMatches.get(0).getMatchScore() == 100 &&
+                        !customerMatches.isEmpty() && customerMatches.size() == 1 && customerMatches.get(0).getMatchScore() == 100) {
+                        review.setStatus(ReviewStatus.PERFECT);
+                        // Auto-select the perfect matches
+                        review.setSelectedPropertyId(propertyMatches.get(0).getPropertyId());
+                        review.setSelectedCustomerId(customerMatches.get(0).getCustomerId());
+                    } else {
+                        // Some fields matched but not perfect
+                        review.setStatus(ReviewStatus.PERFECT);
+                    }
+                }
+
+            } catch (Exception e) {
+                review.setStatus(ReviewStatus.VALIDATION_ERROR);
+                review.setErrorMessage("Parse error: " + e.getMessage());
+                log.error("Error parsing line {}: {}", lineNumber, e.getMessage());
+            }
+
+            queue.addReview(review);
+        }
+
+        return queue;
+    }
+
+    /**
+     * Find property matches with fuzzy matching
+     */
+    private List<PropertyOption> findPropertyMatches(String propertyRef) {
+        List<PropertyOption> matches = new ArrayList<>();
+
+        if (propertyRef == null || propertyRef.trim().isEmpty()) {
+            return matches;
+        }
+
+        String cleanRef = propertyRef.trim();
+
+        // Try exact match (case-insensitive)
+        Property exactMatch = propertyRepository.findByPropertyNameIgnoreCase(cleanRef);
+        if (exactMatch != null) {
+            matches.add(new PropertyOption(exactMatch, 100)); // Perfect match
+            return matches;
+        }
+
+        // Try fuzzy matching on property name
+        List<Property> allProperties = propertyService.findAll();
+        for (Property prop : allProperties) {
+            if (prop.getPropertyName() != null) {
+                String propName = prop.getPropertyName().toLowerCase();
+                String searchRef = cleanRef.toLowerCase();
+
+                // Partial match in property name
+                if (propName.contains(searchRef) || searchRef.contains(propName)) {
+                    int score = calculateMatchScore(propName, searchRef);
+                    if (score > 50) { // Only include reasonable matches
+                        matches.add(new PropertyOption(prop, score));
+                    }
+                }
+            }
+
+            // Try address matching
+            if (prop.getAddressLine1() != null && cleanRef.toLowerCase().contains(prop.getAddressLine1().toLowerCase())) {
+                matches.add(new PropertyOption(prop, 80));
+            }
+
+            // Try postcode matching
+            if (prop.getPostcode() != null && cleanRef.toLowerCase().contains(prop.getPostcode().toLowerCase())) {
+                matches.add(new PropertyOption(prop, 70));
+            }
+        }
+
+        // Sort by match score (highest first) and remove duplicates
+        matches.sort((a, b) -> Integer.compare(b.getMatchScore(), a.getMatchScore()));
+
+        // Remove duplicates (same property ID)
+        Set<Long> seenIds = new HashSet<>();
+        matches.removeIf(opt -> !seenIds.add(opt.getPropertyId()));
+
+        // Limit to top 5 matches
+        if (matches.size() > 5) {
+            matches = matches.subList(0, 5);
+        }
+
+        return matches;
+    }
+
+    /**
+     * Find customer matches with fuzzy matching
+     */
+    private List<CustomerOption> findCustomerMatches(String customerRef) {
+        List<CustomerOption> matches = new ArrayList<>();
+
+        if (customerRef == null || customerRef.trim().isEmpty()) {
+            return matches;
+        }
+
+        String cleanRef = customerRef.trim();
+
+        // Try exact match on customer ID
+        try {
+            Long customerId = Long.parseLong(cleanRef);
+            Customer customer = customerService.findByCustomerId(customerId);
+            if (customer != null) {
+                matches.add(new CustomerOption(customer, 100));
+                return matches;
+            }
+        } catch (NumberFormatException e) {
+            // Not a numeric ID, continue with name matching
+        }
+
+        // Try fuzzy matching on customer name
+        List<Customer> allCustomers = customerService.findAll();
+        for (Customer cust : allCustomers) {
+            String fullName = (cust.getFirstName() + " " + cust.getLastName()).toLowerCase();
+            String searchRef = cleanRef.toLowerCase();
+
+            // Exact name match
+            if (fullName.equals(searchRef)) {
+                matches.add(new CustomerOption(cust, 100));
+                continue;
+            }
+
+            // Partial name match
+            if (fullName.contains(searchRef) || searchRef.contains(fullName)) {
+                int score = calculateMatchScore(fullName, searchRef);
+                if (score > 50) {
+                    matches.add(new CustomerOption(cust, score));
+                }
+            }
+
+            // Email match
+            if (cust.getEmail() != null && cust.getEmail().equalsIgnoreCase(cleanRef)) {
+                matches.add(new CustomerOption(cust, 95));
+            }
+        }
+
+        // Sort by match score and remove duplicates
+        matches.sort((a, b) -> Integer.compare(b.getMatchScore(), a.getMatchScore()));
+
+        Set<Long> seenIds = new HashSet<>();
+        matches.removeIf(opt -> !seenIds.add(opt.getCustomerId()));
+
+        // Limit to top 5 matches
+        if (matches.size() > 5) {
+            matches = matches.subList(0, 5);
+        }
+
+        return matches;
+    }
+
+    /**
+     * Calculate match score between two strings (0-100)
+     */
+    private int calculateMatchScore(String s1, String s2) {
+        s1 = s1.toLowerCase();
+        s2 = s2.toLowerCase();
+
+        if (s1.equals(s2)) {
+            return 100;
+        }
+
+        // Simple similarity based on common characters and length
+        int commonChars = 0;
+        for (char c : s1.toCharArray()) {
+            if (s2.indexOf(c) >= 0) {
+                commonChars++;
+            }
+        }
+
+        int maxLen = Math.max(s1.length(), s2.length());
+        return (commonChars * 100) / maxLen;
+    }
+
+    /**
+     * Check for duplicates during review phase
+     */
+    private DuplicateInfo checkForDuplicateInReview(LocalDate transactionDate, BigDecimal amount,
+                                                     String description, TransactionType transactionType,
+                                                     Long propertyId, Long customerId, String batchId,
+                                                     Set<String> currentPasteFingerprints) {
+        // Generate fingerprint
+        String fingerprint = String.format("%s|%s|%s|%s|%s|%s",
+            transactionDate, amount, description, transactionType,
+            propertyId != null ? propertyId : "null",
+            customerId != null ? customerId : "null"
+        );
+
+        // Check in current paste
+        if (currentPasteFingerprints.contains(fingerprint)) {
+            // Create a synthetic duplicate info for within-paste duplicate
+            HistoricalTransaction synthetic = new HistoricalTransaction();
+            synthetic.setTransactionDate(transactionDate);
+            synthetic.setAmount(amount);
+            synthetic.setDescription(description);
+            synthetic.setImportBatchId("CURRENT_PASTE");
+            return new DuplicateInfo(synthetic);
+        }
+
+        // Add to fingerprint set
+        currentPasteFingerprints.add(fingerprint);
+
+        // Check in database (only if property is not null)
+        if (propertyId != null) {
+            List<HistoricalTransaction> duplicates = historicalTransactionRepository.findDuplicateTransaction(
+                transactionDate, amount, description, transactionType, propertyId, customerId
+            );
+
+            if (!duplicates.isEmpty()) {
+                return new DuplicateInfo(duplicates.get(0));
+            }
+
+            // Check in current batch if batchId provided
+            if (batchId != null && !batchId.isEmpty()) {
+                List<HistoricalTransaction> batchDuplicates = historicalTransactionRepository.findDuplicateInBatch(
+                    batchId, transactionDate, amount, description, transactionType, propertyId, customerId
+                );
+
+                if (!batchDuplicates.isEmpty()) {
+                    return new DuplicateInfo(batchDuplicates.get(0));
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Process confirmed import from review queue
+     * This is Stage 3: Import transactions after human verification
+     */
+    @Transactional
+    public ImportResult processConfirmedImport(String batchId, List<TransactionReview> reviews) {
+        ImportResult result = new ImportResult(batchId, "human_verified_import");
+
+        log.info("🔍 Processing confirmed import for batch {}: {} transactions", batchId, reviews.size());
+
+        for (TransactionReview review : reviews) {
+            result.incrementTotal();
+
+            try {
+                // Skip validation errors
+                if (review.getStatus() == ReviewStatus.VALIDATION_ERROR) {
+                    result.addError("Line " + review.getLineNumber() + ": " + review.getErrorMessage());
+                    result.incrementFailed();
+                    continue;
+                }
+
+                // Skip duplicates unless user confirmed to import anyway
+                if (review.getDuplicateInfo() != null && !review.isSkipDuplicate()) {
+                    log.debug("Skipping duplicate at line {}", review.getLineNumber());
+                    result.incrementSkipped("review");
+                    continue;
+                }
+
+                // Extract parsed data
+                Map<String, Object> data = review.getParsedData();
+                LocalDate transactionDate = (LocalDate) data.get("parsedDate");
+                BigDecimal amount = (BigDecimal) data.get("parsedAmount");
+                String description = (String) data.get("description");
+                TransactionType transactionType = (TransactionType) data.get("parsedType");
+
+                // Get property (user-selected or matched)
+                Property property = null;
+                if (review.getSelectedPropertyId() != null) {
+                    property = propertyRepository.findById(review.getSelectedPropertyId()).orElse(null);
+                }
+
+                // Get customer (user-selected or matched)
+                Customer customer = null;
+                if (review.getSelectedCustomerId() != null) {
+                    customer = customerService.findByCustomerId(review.getSelectedCustomerId());
+                }
+
+                // Create transaction
+                HistoricalTransaction transaction = new HistoricalTransaction();
+                transaction.setTransactionDate(transactionDate);
+                transaction.setAmount(amount);
+                transaction.setDescription(description);
+                transaction.setTransactionType(transactionType);
+                transaction.setProperty(property);
+                transaction.setCustomer(customer);
+                transaction.setImportBatchId(batchId);
+                transaction.setCreatedAt(LocalDateTime.now());
+
+                // Add user note if provided
+                if (review.getUserNote() != null && !review.getUserNote().isEmpty()) {
+                    String notes = transaction.getNotes();
+                    transaction.setNotes(notes != null ? notes + " | " + review.getUserNote() : review.getUserNote());
+                }
+
+                // Save transaction
+                historicalTransactionRepository.save(transaction);
+                result.incrementSuccessful();
+
+                log.debug("✅ Imported transaction from line {}", review.getLineNumber());
+
+            } catch (Exception e) {
+                log.error("❌ Failed to import line {}: {}", review.getLineNumber(), e.getMessage(), e);
+                result.addError("Line " + review.getLineNumber() + ": " + e.getMessage());
+                result.incrementFailed();
+            }
+        }
+
+        log.info("✅ Confirmed import complete: {} imported, {} skipped, {} errors",
+            result.getSuccessfulImports(), result.getSkippedDuplicates(), result.getFailedImports());
+
+        return result;
+    }
+
     // ===== RESULT CLASSES =====
-    
+
     /**
      * Import result tracking
      */

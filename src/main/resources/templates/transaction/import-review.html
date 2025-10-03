@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<!-- Form CSS -->
+<link th:href="@{/css/bootstrap-datepicker.min.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+<style>
+    .review-card {
+        margin-bottom: 15px;
+        border-left: 4px solid #ddd;
+    }
+    .review-card.perfect {
+        border-left-color: #28a745;
+    }
+    .review-card.needs-review {
+        border-left-color: #ffc107;
+    }
+    .review-card.has-issues {
+        border-left-color: #dc3545;
+    }
+    .status-badge {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 3px;
+    }
+    .match-option {
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .match-option:hover {
+        background-color: #f8f9fa;
+        border-color: #007bff;
+    }
+    .match-option.selected {
+        background-color: #e7f3ff;
+        border-color: #007bff;
+        border-width: 2px;
+    }
+    .match-score {
+        float: right;
+        font-size: 12px;
+        color: #666;
+    }
+    .duplicate-warning {
+        background-color: #fff3cd;
+        border: 1px solid #ffc107;
+        padding: 10px;
+        border-radius: 4px;
+        margin-top: 10px;
+    }
+    .csv-line {
+        font-family: monospace;
+        font-size: 12px;
+        background-color: #f8f9fa;
+        padding: 8px;
+        border-radius: 4px;
+        margin-top: 8px;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    .create-entity-btn {
+        font-size: 12px;
+        padding: 4px 10px;
+    }
+    .summary-stats {
+        position: sticky;
+        top: 20px;
+    }
+</style>
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">Review Import Data</h4>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0)">Financial</a></li>
+                            <li class="breadcrumb-item"><a th:href="@{/employee/transaction/import}">Import</a></li>
+                            <li class="breadcrumb-item active">Review</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Summary Panel -->
+                <div class="col-lg-3">
+                    <div class="card summary-stats">
+                        <div class="card-header bg-info">
+                            <h4 class="mb-0 text-white">
+                                <i class="fas fa-chart-pie"></i> Summary
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div id="summaryContent">
+                                <p class="text-center text-muted">Loading...</p>
+                            </div>
+
+                            <hr>
+
+                            <button class="btn btn-success btn-block" id="confirmAllBtn" disabled>
+                                <i class="fas fa-check"></i> Confirm & Import
+                            </button>
+                            <button class="btn btn-secondary btn-block" onclick="window.location.href='/employee/transaction/import'">
+                                <i class="fas fa-arrow-left"></i> Back to Import
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Review Queue -->
+                <div class="col-lg-9">
+                    <div class="card">
+                        <div class="card-header bg-primary">
+                            <h4 class="mb-0 text-white">
+                                <i class="fas fa-tasks"></i> Transaction Review Queue
+                            </h4>
+                        </div>
+                        <div class="card-body">
+
+                            <!-- Filter Buttons -->
+                            <div class="btn-group mb-3" role="group">
+                                <button type="button" class="btn btn-outline-secondary active" data-filter="all">
+                                    All (<span id="countAll">0</span>)
+                                </button>
+                                <button type="button" class="btn btn-outline-success" data-filter="perfect">
+                                    Perfect (<span id="countPerfect">0</span>)
+                                </button>
+                                <button type="button" class="btn btn-outline-warning" data-filter="needs-review">
+                                    Needs Review (<span id="countNeedsReview">0</span>)
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" data-filter="has-issues">
+                                    Issues (<span id="countIssues">0</span>)
+                                </button>
+                            </div>
+
+                            <!-- Review Items Container -->
+                            <div id="reviewQueueContainer">
+                                <div class="text-center text-muted py-5">
+                                    <i class="fas fa-spinner fa-spin fa-3x mb-3"></i>
+                                    <p>Loading review data...</p>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Create Property Modal -->
+<div class="modal fade" id="createPropertyModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Property</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="createPropertyForm">
+                    <div class="form-group">
+                        <label>Property Name *</label>
+                        <input type="text" class="form-control" id="newPropertyName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Address Line 1</label>
+                        <input type="text" class="form-control" id="newPropertyAddress">
+                    </div>
+                    <div class="form-group">
+                        <label>Postcode</label>
+                        <input type="text" class="form-control" id="newPropertyPostcode">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="savePropertyBtn">Create Property</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Customer Modal -->
+<div class="modal fade" id="createCustomerModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Customer</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="createCustomerForm">
+                    <div class="form-group">
+                        <label>First Name *</label>
+                        <input type="text" class="form-control" id="newCustomerFirstName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name</label>
+                        <input type="text" class="form-control" id="newCustomerLastName">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" class="form-control" id="newCustomerEmail">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="text" class="form-control" id="newCustomerPhone">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveCustomerBtn">Create Customer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:insert="~{general/scripts.html}"></div>
+
+<script th:inline="javascript">
+/*<![CDATA[*/
+$(document).ready(function() {
+    const batchId = /*[[${batchId}]]*/ null;
+    const csrfToken = $('meta[name="_csrf"]').attr('content');
+    const csrfHeader = $('meta[name="_csrf_header"]').attr('content');
+
+    let reviewQueue = null;
+    let currentFilter = 'all';
+    let currentCreateContext = null; // For entity creation callbacks
+
+    // Load review data from localStorage (passed from import page)
+    loadReviewData();
+
+    function loadReviewData() {
+        const reviewData = localStorage.getItem('reviewData');
+
+        if (!reviewData) {
+            showError('No review data found. Please return to import page.');
+            return;
+        }
+
+        try {
+            reviewQueue = JSON.parse(reviewData);
+            renderReviewQueue();
+            updateSummary();
+        } catch (e) {
+            console.error('Failed to parse review data:', e);
+            showError('Invalid review data format.');
+        }
+    }
+
+    function renderReviewQueue() {
+        const container = $('#reviewQueueContainer');
+        container.empty();
+
+        if (!reviewQueue || !reviewQueue.reviews || reviewQueue.reviews.length === 0) {
+            container.html('<p class="text-center text-muted">No transactions to review.</p>');
+            return;
+        }
+
+        reviewQueue.reviews.forEach((review, index) => {
+            const card = createReviewCard(review, index);
+            container.append(card);
+        });
+
+        updateCounts();
+        applyFilter();
+    }
+
+    function createReviewCard(review, index) {
+        const statusClass = getStatusClass(review.status);
+        const statusLabel = getStatusLabel(review.status);
+        const statusBadge = getStatusBadge(review.status);
+
+        let card = $(`
+            <div class="review-card card ${statusClass}" data-index="${index}" data-status-class="${statusClass}">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6>
+                                Line ${review.lineNumber}
+                                ${statusBadge}
+                            </h6>
+                            <div class="csv-line">${escapeHtml(review.csvLine)}</div>
+
+                            ${renderParsedData(review)}
+                            ${renderPropertyOptions(review, index)}
+                            ${renderCustomerOptions(review, index)}
+                            ${renderDuplicateInfo(review, index)}
+                            ${renderErrorMessage(review)}
+                        </div>
+                        <div class="col-md-4">
+                            ${renderUserActions(review, index)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        return card;
+    }
+
+    function getStatusClass(status) {
+        if (status === 'PERFECT') return 'perfect';
+        if (status === 'VALIDATION_ERROR') return 'has-issues';
+        return 'needs-review';
+    }
+
+    function getStatusLabel(status) {
+        const labels = {
+            'PERFECT': 'Perfect Match',
+            'AMBIGUOUS_PROPERTY': 'Multiple Property Matches',
+            'AMBIGUOUS_CUSTOMER': 'Multiple Customer Matches',
+            'MISSING_PROPERTY': 'Property Not Found',
+            'MISSING_CUSTOMER': 'Customer Not Found',
+            'POTENTIAL_DUPLICATE': 'Potential Duplicate',
+            'VALIDATION_ERROR': 'Validation Error'
+        };
+        return labels[status] || status;
+    }
+
+    function getStatusBadge(status) {
+        const badges = {
+            'PERFECT': '<span class="badge badge-success status-badge">✓ Perfect</span>',
+            'AMBIGUOUS_PROPERTY': '<span class="badge badge-warning status-badge">⚠ Choose Property</span>',
+            'AMBIGUOUS_CUSTOMER': '<span class="badge badge-warning status-badge">⚠ Choose Customer</span>',
+            'MISSING_PROPERTY': '<span class="badge badge-danger status-badge">✗ Property Missing</span>',
+            'MISSING_CUSTOMER': '<span class="badge badge-info status-badge">? Customer Missing</span>',
+            'POTENTIAL_DUPLICATE': '<span class="badge badge-warning status-badge">⚠ Duplicate?</span>',
+            'VALIDATION_ERROR': '<span class="badge badge-danger status-badge">✗ Error</span>'
+        };
+        return badges[status] || '';
+    }
+
+    function renderParsedData(review) {
+        if (!review.parsedData) return '';
+
+        const data = review.parsedData;
+        return `
+            <div class="mt-2">
+                <small class="text-muted">
+                    <strong>Date:</strong> ${data.date || 'N/A'} |
+                    <strong>Amount:</strong> ${data.amount || 'N/A'} |
+                    <strong>Type:</strong> ${data.type || 'N/A'}
+                </small>
+                <br>
+                <small class="text-muted">
+                    <strong>Description:</strong> ${escapeHtml(data.description || 'N/A')}
+                </small>
+            </div>
+        `;
+    }
+
+    function renderPropertyOptions(review, index) {
+        if (!review.propertyOptions || review.propertyOptions.length === 0) {
+            if (review.status === 'MISSING_PROPERTY') {
+                return `
+                    <div class="mt-3">
+                        <strong class="text-danger">Property: "${escapeHtml(review.parsedData.propertyRef || 'Unknown')}" not found</strong>
+                        <br>
+                        <button class="btn btn-sm btn-primary create-entity-btn mt-2" onclick="createProperty(${index}, '${escapeHtml(review.parsedData.propertyRef || '')}')">
+                            <i class="fas fa-plus"></i> Create Property
+                        </button>
+                    </div>
+                `;
+            }
+            return '';
+        }
+
+        let html = '<div class="mt-3"><strong>Select Property:</strong>';
+        review.propertyOptions.forEach((option, optIndex) => {
+            const selected = review.selectedPropertyId === option.propertyId ? 'selected' : '';
+            html += `
+                <div class="match-option ${selected}" data-index="${index}" data-option-id="${option.propertyId}" onclick="selectProperty(${index}, ${option.propertyId})">
+                    <strong>${escapeHtml(option.propertyName)}</strong>
+                    <span class="match-score">${option.matchScore}% match</span>
+                    <br>
+                    <small class="text-muted">${escapeHtml(option.addressLine1 || '')} ${escapeHtml(option.postcode || '')}</small>
+                </div>
+            `;
+        });
+        html += '</div>';
+        return html;
+    }
+
+    function renderCustomerOptions(review, index) {
+        if (!review.customerOptions || review.customerOptions.length === 0) {
+            if (review.status === 'MISSING_CUSTOMER') {
+                return `
+                    <div class="mt-3">
+                        <strong class="text-info">Customer: "${escapeHtml(review.parsedData.customerRef || 'Unknown')}" not found</strong>
+                        <br>
+                        <button class="btn btn-sm btn-primary create-entity-btn mt-2" onclick="createCustomer(${index}, '${escapeHtml(review.parsedData.customerRef || '')}')">
+                            <i class="fas fa-plus"></i> Create Customer
+                        </button>
+                    </div>
+                `;
+            }
+            return '';
+        }
+
+        let html = '<div class="mt-3"><strong>Select Customer:</strong>';
+        review.customerOptions.forEach((option, optIndex) => {
+            const selected = review.selectedCustomerId === option.customerId ? 'selected' : '';
+            html += `
+                <div class="match-option ${selected}" data-index="${index}" data-option-id="${option.customerId}" onclick="selectCustomer(${index}, ${option.customerId})">
+                    <strong>${escapeHtml(option.fullName)}</strong>
+                    <span class="match-score">${option.matchScore}% match</span>
+                    <br>
+                    <small class="text-muted">${escapeHtml(option.email || '')} ${escapeHtml(option.phone || '')}</small>
+                </div>
+            `;
+        });
+        html += '</div>';
+        return html;
+    }
+
+    function renderDuplicateInfo(review, index) {
+        if (!review.duplicateInfo) return '';
+
+        return `
+            <div class="duplicate-warning mt-3">
+                <strong><i class="fas fa-exclamation-triangle"></i> Potential Duplicate Detected</strong>
+                <p class="mb-2">Existing: ${escapeHtml(review.duplicateInfo.description)} |
+                   ${review.duplicateInfo.amount} | ${review.duplicateInfo.transactionDate}</p>
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="skipDup${index}" onchange="toggleSkipDuplicate(${index})">
+                    <label class="form-check-label" for="skipDup${index}">
+                        Import anyway (not a duplicate)
+                    </label>
+                </div>
+                <input type="text" class="form-control form-control-sm mt-2" id="dupNote${index}"
+                       placeholder="Add note (e.g., 'Expense 1 vs Expense 2')"
+                       onchange="updateDuplicateNote(${index})">
+            </div>
+        `;
+    }
+
+    function renderErrorMessage(review) {
+        if (!review.errorMessage) return '';
+        return `
+            <div class="alert alert-danger mt-3 mb-0">
+                <strong>Error:</strong> ${escapeHtml(review.errorMessage)}
+            </div>
+        `;
+    }
+
+    function renderUserActions(review, index) {
+        return `
+            <div class="text-right">
+                <textarea class="form-control form-control-sm" rows="2"
+                          placeholder="Add note..."
+                          id="userNote${index}"
+                          onchange="updateUserNote(${index})"></textarea>
+            </div>
+        `;
+    }
+
+    // Global functions for onclick handlers
+    window.selectProperty = function(index, propertyId) {
+        reviewQueue.reviews[index].selectedPropertyId = propertyId;
+        $(`.match-option[data-index="${index}"]`).removeClass('selected');
+        $(`.match-option[data-index="${index}"][data-option-id="${propertyId}"]`).addClass('selected');
+        updateReadiness();
+    };
+
+    window.selectCustomer = function(index, customerId) {
+        reviewQueue.reviews[index].selectedCustomerId = customerId;
+        $(`.match-option[data-index="${index}"]`).removeClass('selected');
+        $(`.match-option[data-index="${index}"][data-option-id="${customerId}"]`).addClass('selected');
+        updateReadiness();
+    };
+
+    window.toggleSkipDuplicate = function(index) {
+        reviewQueue.reviews[index].skipDuplicate = $(`#skipDup${index}`).is(':checked');
+        updateReadiness();
+    };
+
+    window.updateDuplicateNote = function(index) {
+        reviewQueue.reviews[index].userNote = $(`#dupNote${index}`).val();
+    };
+
+    window.updateUserNote = function(index) {
+        reviewQueue.reviews[index].userNote = $(`#userNote${index}`).val();
+    };
+
+    window.createProperty = function(index, suggestedName) {
+        currentCreateContext = {type: 'property', index: index};
+        $('#newPropertyName').val(suggestedName);
+        $('#createPropertyModal').modal('show');
+    };
+
+    window.createCustomer = function(index, suggestedName) {
+        currentCreateContext = {type: 'customer', index: index};
+        const nameParts = suggestedName.split(' ');
+        $('#newCustomerFirstName').val(nameParts[0] || '');
+        $('#newCustomerLastName').val(nameParts.slice(1).join(' ') || '');
+        $('#createCustomerModal').modal('show');
+    };
+
+    // Save new property
+    $('#savePropertyBtn').click(function() {
+        const propertyData = {
+            propertyName: $('#newPropertyName').val(),
+            addressLine1: $('#newPropertyAddress').val(),
+            postcode: $('#newPropertyPostcode').val()
+        };
+
+        $.ajax({
+            url: '/employee/transaction/import/create-property',
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { [csrfHeader]: csrfToken },
+            data: JSON.stringify(propertyData),
+            success: function(response) {
+                if (response.success) {
+                    // Add new property to review options
+                    const index = currentCreateContext.index;
+                    if (!reviewQueue.reviews[index].propertyOptions) {
+                        reviewQueue.reviews[index].propertyOptions = [];
+                    }
+                    reviewQueue.reviews[index].propertyOptions.unshift({
+                        propertyId: response.propertyId,
+                        propertyName: response.propertyName,
+                        addressLine1: propertyData.addressLine1,
+                        postcode: propertyData.postcode,
+                        matchScore: 100
+                    });
+                    reviewQueue.reviews[index].selectedPropertyId = response.propertyId;
+                    reviewQueue.reviews[index].status = 'PERFECT';
+
+                    $('#createPropertyModal').modal('hide');
+                    renderReviewQueue();
+                    showSuccess('Property created successfully');
+                } else {
+                    showError(response.error || 'Failed to create property');
+                }
+            },
+            error: function(xhr) {
+                showError('Failed to create property: ' + (xhr.responseJSON?.error || xhr.statusText));
+            }
+        });
+    });
+
+    // Save new customer
+    $('#saveCustomerBtn').click(function() {
+        const customerData = {
+            firstName: $('#newCustomerFirstName').val(),
+            lastName: $('#newCustomerLastName').val(),
+            email: $('#newCustomerEmail').val(),
+            phone: $('#newCustomerPhone').val()
+        };
+
+        $.ajax({
+            url: '/employee/transaction/import/create-customer',
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { [csrfHeader]: csrfToken },
+            data: JSON.stringify(customerData),
+            success: function(response) {
+                if (response.success) {
+                    // Add new customer to review options
+                    const index = currentCreateContext.index;
+                    if (!reviewQueue.reviews[index].customerOptions) {
+                        reviewQueue.reviews[index].customerOptions = [];
+                    }
+                    reviewQueue.reviews[index].customerOptions.unshift({
+                        customerId: response.customerId,
+                        fullName: response.fullName,
+                        email: customerData.email,
+                        phone: customerData.phone,
+                        matchScore: 100
+                    });
+                    reviewQueue.reviews[index].selectedCustomerId = response.customerId;
+
+                    $('#createCustomerModal').modal('hide');
+                    renderReviewQueue();
+                    showSuccess('Customer created successfully');
+                } else {
+                    showError(response.error || 'Failed to create customer');
+                }
+            },
+            error: function(xhr) {
+                showError('Failed to create customer: ' + (xhr.responseJSON?.error || xhr.statusText));
+            }
+        });
+    });
+
+    // Filter buttons
+    $('.btn-group button[data-filter]').click(function() {
+        $('.btn-group button').removeClass('active');
+        $(this).addClass('active');
+        currentFilter = $(this).data('filter');
+        applyFilter();
+    });
+
+    function applyFilter() {
+        $('.review-card').each(function() {
+            const statusClass = $(this).data('status-class');
+            if (currentFilter === 'all' || statusClass === currentFilter) {
+                $(this).show();
+            } else {
+                $(this).hide();
+            }
+        });
+    }
+
+    function updateCounts() {
+        const perfect = reviewQueue.reviews.filter(r => r.status === 'PERFECT').length;
+        const needsReview = reviewQueue.reviews.filter(r =>
+            ['AMBIGUOUS_PROPERTY', 'AMBIGUOUS_CUSTOMER', 'POTENTIAL_DUPLICATE'].includes(r.status)
+        ).length;
+        const issues = reviewQueue.reviews.filter(r =>
+            ['MISSING_PROPERTY', 'MISSING_CUSTOMER', 'VALIDATION_ERROR'].includes(r.status)
+        ).length;
+
+        $('#countAll').text(reviewQueue.reviews.length);
+        $('#countPerfect').text(perfect);
+        $('#countNeedsReview').text(needsReview);
+        $('#countIssues').text(issues);
+    }
+
+    function updateSummary() {
+        const summary = `
+            <div class="mb-3">
+                <h5 class="text-center">${reviewQueue.totalRows}</h5>
+                <p class="text-center text-muted mb-0">Total Transactions</p>
+            </div>
+            <hr>
+            <div class="row text-center">
+                <div class="col-12 mb-2">
+                    <span class="badge badge-success" style="font-size: 14px; padding: 8px 12px;">
+                        ${reviewQueue.perfectMatches} Perfect
+                    </span>
+                </div>
+                <div class="col-12 mb-2">
+                    <span class="badge badge-warning" style="font-size: 14px; padding: 8px 12px;">
+                        ${reviewQueue.needsReview} Needs Review
+                    </span>
+                </div>
+                <div class="col-12 mb-2">
+                    <span class="badge badge-danger" style="font-size: 14px; padding: 8px 12px;">
+                        ${reviewQueue.hasIssues} Issues
+                    </span>
+                </div>
+            </div>
+        `;
+        $('#summaryContent').html(summary);
+        updateReadiness();
+    }
+
+    function updateReadiness() {
+        // Check if all transactions are ready for import
+        let allReady = true;
+        reviewQueue.reviews.forEach(review => {
+            if (review.status === 'VALIDATION_ERROR') {
+                allReady = false;
+                return;
+            }
+            if (review.status === 'AMBIGUOUS_PROPERTY' && !review.selectedPropertyId) {
+                allReady = false;
+                return;
+            }
+            if (review.status === 'AMBIGUOUS_CUSTOMER' && !review.selectedCustomerId) {
+                allReady = false;
+                return;
+            }
+            if (review.status === 'MISSING_PROPERTY' && !review.selectedPropertyId) {
+                allReady = false;
+                return;
+            }
+            if (review.duplicateInfo && !review.skipDuplicate) {
+                allReady = false;
+                return;
+            }
+        });
+
+        $('#confirmAllBtn').prop('disabled', !allReady);
+    }
+
+    // Confirm and import
+    $('#confirmAllBtn').click(function() {
+        if (!confirm('Import ' + reviewQueue.totalRows + ' transactions?')) {
+            return;
+        }
+
+        const importData = {
+            batchId: reviewQueue.batchId,
+            reviews: reviewQueue.reviews
+        };
+
+        $.ajax({
+            url: '/employee/transaction/import/review-confirm',
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { [csrfHeader]: csrfToken },
+            data: JSON.stringify(importData),
+            success: function(response) {
+                if (response.success) {
+                    localStorage.removeItem('reviewData');
+                    showSuccess('Import completed successfully: ' + response.imported + ' transactions imported');
+                    setTimeout(() => {
+                        window.location.href = '/employee/transaction/import';
+                    }, 2000);
+                } else {
+                    showError(response.error || 'Import failed');
+                }
+            },
+            error: function(xhr) {
+                showError('Import failed: ' + (xhr.responseJSON?.error || xhr.statusText));
+            }
+        });
+    });
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function showSuccess(message) {
+        toastr.success(message);
+    }
+
+    function showError(message) {
+        toastr.error(message);
+    }
+});
+/*]]>*/
+</script>
+
+</body>
+</html>

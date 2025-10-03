@@ -38,6 +38,9 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     
     // ✅ Search by property name (case insensitive)
     List<Property> findByPropertyNameContainingIgnoreCase(String propertyName);
+
+    // ✅ Find by exact property name (case insensitive) - for CSV imports
+    Property findByPropertyNameIgnoreCase(String propertyName);
     
     // ✅ Find by created by user with pagination
     List<Property> findByCreatedByOrderByCreatedAtDesc(Long userId, Pageable pageable);
