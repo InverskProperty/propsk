@@ -1183,13 +1183,19 @@ public class HistoricalTransactionImportService {
      * This is Stage 1: Parse and analyze without importing
      */
     public ReviewQueue validateForReview(String csvData, String batchId) {
+        log.info("🔍 [REVIEW-VALIDATE] Starting validation for batchId: {}", batchId);
+        log.debug("CSV data length: {} characters", csvData != null ? csvData.length() : 0);
+
         ReviewQueue queue = new ReviewQueue(batchId);
 
         if (csvData == null || csvData.trim().isEmpty()) {
+            log.warn("⚠️ [REVIEW-VALIDATE] Empty CSV data provided");
             return queue;
         }
 
         String[] lines = csvData.split("\\r?\\n");
+        log.info("📊 [REVIEW-VALIDATE] Processing {} lines", lines.length);
+
         Set<String> currentPasteFingerprints = new HashSet<>();
 
         for (int i = 0; i < lines.length; i++) {
@@ -1198,14 +1204,17 @@ public class HistoricalTransactionImportService {
 
             // Skip empty lines
             if (line.isEmpty()) {
+                log.debug("⏭️ [REVIEW-VALIDATE] Line {}: Skipping empty line", lineNumber);
                 continue;
             }
 
+            log.debug("🔍 [REVIEW-VALIDATE] Line {}: Parsing...", lineNumber);
             TransactionReview review = new TransactionReview(lineNumber, line);
 
             try {
                 // Parse the CSV line
                 String[] parts = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
+                log.debug("📋 [REVIEW-VALIDATE] Line {}: Split into {} parts", lineNumber, parts.length);
 
                 if (parts.length < 6) {
                     review.setStatus(ReviewStatus.VALIDATION_ERROR);
@@ -1265,26 +1274,42 @@ public class HistoricalTransactionImportService {
                 }
 
                 // Find property matches
+                log.debug("🏠 [REVIEW-VALIDATE] Line {}: Looking for property '{}'", lineNumber, propertyRef);
                 List<PropertyOption> propertyMatches = findPropertyMatches(propertyRef);
+                log.info("🏠 [REVIEW-VALIDATE] Line {}: Found {} property matches for '{}'", lineNumber, propertyMatches.size(), propertyRef);
+
                 if (!propertyMatches.isEmpty()) {
                     review.getPropertyOptions().addAll(propertyMatches);
                     if (propertyMatches.size() > 1) {
                         review.setStatus(ReviewStatus.AMBIGUOUS_PROPERTY);
+                        log.warn("⚠️ [REVIEW-VALIDATE] Line {}: Ambiguous property - {} matches", lineNumber, propertyMatches.size());
+                    } else {
+                        log.debug("✅ [REVIEW-VALIDATE] Line {}: Single property match found (score: {})",
+                            lineNumber, propertyMatches.get(0).getMatchScore());
                     }
                 } else if (propertyRef != null && !propertyRef.isEmpty()) {
                     review.setStatus(ReviewStatus.MISSING_PROPERTY);
+                    log.warn("❌ [REVIEW-VALIDATE] Line {}: Property '{}' not found", lineNumber, propertyRef);
                 }
 
                 // Find customer matches
+                log.debug("👤 [REVIEW-VALIDATE] Line {}: Looking for customer '{}'", lineNumber, customerRef);
                 List<CustomerOption> customerMatches = findCustomerMatches(customerRef);
+                log.info("👤 [REVIEW-VALIDATE] Line {}: Found {} customer matches for '{}'", lineNumber, customerMatches.size(), customerRef);
+
                 if (!customerMatches.isEmpty()) {
                     review.getCustomerOptions().addAll(customerMatches);
                     if (customerMatches.size() > 1 && review.getStatus() != ReviewStatus.AMBIGUOUS_PROPERTY) {
                         review.setStatus(ReviewStatus.AMBIGUOUS_CUSTOMER);
+                        log.warn("⚠️ [REVIEW-VALIDATE] Line {}: Ambiguous customer - {} matches", lineNumber, customerMatches.size());
+                    } else {
+                        log.debug("✅ [REVIEW-VALIDATE] Line {}: Single customer match found (score: {})",
+                            lineNumber, customerMatches.get(0).getMatchScore());
                     }
                 } else if (customerRef != null && !customerRef.isEmpty()) {
                     if (review.getStatus() == null) {
                         review.setStatus(ReviewStatus.MISSING_CUSTOMER);
+                        log.warn("❌ [REVIEW-VALIDATE] Line {}: Customer '{}' not found", lineNumber, customerRef);
                     }
                 }
 
@@ -1317,20 +1342,27 @@ public class HistoricalTransactionImportService {
                         // Auto-select the perfect matches
                         review.setSelectedPropertyId(propertyMatches.get(0).getPropertyId());
                         review.setSelectedCustomerId(customerMatches.get(0).getCustomerId());
+                        log.info("✅ [REVIEW-VALIDATE] Line {}: PERFECT match - property and customer both 100%", lineNumber);
                     } else {
                         // Some fields matched but not perfect
                         review.setStatus(ReviewStatus.PERFECT);
+                        log.debug("✅ [REVIEW-VALIDATE] Line {}: PERFECT (with partial matches)", lineNumber);
                     }
                 }
+
+                log.info("📝 [REVIEW-VALIDATE] Line {}: Final status = {}", lineNumber, review.getStatus());
 
             } catch (Exception e) {
                 review.setStatus(ReviewStatus.VALIDATION_ERROR);
                 review.setErrorMessage("Parse error: " + e.getMessage());
-                log.error("Error parsing line {}: {}", lineNumber, e.getMessage());
+                log.error("❌ [REVIEW-VALIDATE] Line {}: Parse error - {}", lineNumber, e.getMessage(), e);
             }
 
             queue.addReview(review);
         }
+
+        log.info("✅ [REVIEW-VALIDATE] Validation complete: {} total, {} perfect, {} needs review, {} issues",
+            queue.getTotalRows(), queue.getPerfectMatches(), queue.getNeedsReview(), queue.getHasIssues());
 
         return queue;
     }

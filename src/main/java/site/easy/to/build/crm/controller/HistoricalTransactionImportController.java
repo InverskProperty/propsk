@@ -526,10 +526,16 @@ public class HistoricalTransactionImportController {
             @RequestParam(value = "batchId", required = false) String batchId,
             Authentication authentication) {
 
+        log.info("═══════════════════════════════════════════════════════════");
+        log.info("🚀 [REVIEW-ENDPOINT] POST /import/review-validate called");
+        log.info("User: {}", authentication != null ? authentication.getName() : "anonymous");
+        log.info("CSV data length: {} characters", csvData != null ? csvData.length() : 0);
+        log.info("Batch ID: {}", batchId);
+        log.info("═══════════════════════════════════════════════════════════");
+
         Map<String, Object> response = new HashMap<>();
 
         try {
-            log.info("🔍 Validating CSV for review: {} characters, batchId: {}", csvData.length(), batchId);
 
             // Validate input
             if (csvData == null || csvData.trim().isEmpty()) {
@@ -545,7 +551,9 @@ public class HistoricalTransactionImportController {
             }
 
             // Validate and create review queue
+            log.info("📞 [REVIEW-ENDPOINT] Calling service.validateForReview()...");
             HistoricalTransactionImportService.ReviewQueue queue = importService.validateForReview(csvData, batchId);
+            log.info("📞 [REVIEW-ENDPOINT] Service returned queue with {} reviews", queue.getReviews().size());
 
             // Build response
             response.put("success", true);
@@ -556,13 +564,17 @@ public class HistoricalTransactionImportController {
             response.put("hasIssues", queue.getHasIssues());
             response.put("reviews", queue.getReviews());
 
-            log.info("✅ Review validation complete: {} total, {} perfect, {} needs review, {} issues",
+            log.info("✅ [REVIEW-ENDPOINT] Review validation complete: {} total, {} perfect, {} needs review, {} issues",
                 queue.getTotalRows(), queue.getPerfectMatches(), queue.getNeedsReview(), queue.getHasIssues());
+            log.info("📤 [REVIEW-ENDPOINT] Returning response with {} reviews", queue.getReviews().size());
+            log.info("═══════════════════════════════════════════════════════════");
 
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("❌ Review validation failed: {}", e.getMessage(), e);
+            log.error("❌ [REVIEW-ENDPOINT] Review validation failed: {}", e.getMessage(), e);
+            log.error("Stack trace:", e);
+            log.info("═══════════════════════════════════════════════════════════");
             response.put("success", false);
             response.put("error", "Validation failed: " + e.getMessage());
             return ResponseEntity.status(500).body(response);
