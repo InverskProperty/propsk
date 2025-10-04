@@ -256,6 +256,17 @@
 <script th:inline="javascript">
 /*<![CDATA[*/
 $(document).ready(function() {
+    // CRITICAL: Hide the preloader immediately to prevent blank screen
+    $(".preloader").fadeOut(100);
+
+    // Safety check - force hide preloader after 3 seconds if still visible
+    setTimeout(function() {
+        if ($(".preloader").is(":visible")) {
+            console.log("⚠️ Preloader was still visible - force hiding it");
+            $(".preloader").hide();
+        }
+    }, 3000);
+
     const batchId = /*[[${batchId}]]*/ null;
     const csrfToken = $('meta[name="_csrf"]').attr('content');
     const csrfHeader = $('meta[name="_csrf_header"]').attr('content');
