@@ -1618,12 +1618,12 @@ public class HistoricalTransactionImportService {
                     continue;
                 }
 
-                // Extract parsed data
+                // Extract parsed data (values are strings from JSON deserialization)
                 Map<String, Object> data = review.getParsedData();
-                LocalDate transactionDate = (LocalDate) data.get("parsedDate");
-                BigDecimal amount = (BigDecimal) data.get("parsedAmount");
+                LocalDate transactionDate = parseDate((String) data.get("parsedDate"));
+                BigDecimal amount = new BigDecimal((String) data.get("parsedAmount"));
                 String description = (String) data.get("description");
-                TransactionType transactionType = (TransactionType) data.get("parsedType");
+                TransactionType transactionType = TransactionType.valueOf((String) data.get("parsedType"));
 
                 // Get property (user-selected or matched)
                 Property property = null;

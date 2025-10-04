@@ -810,23 +810,50 @@ $(document).ready(function() {
     }
 
     function showSuccess(message) {
-        toastr.success(message);
+        // Display success message in fixed notification
+        const notification = $(`
+            <div class="alert alert-success" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+                <strong><i class="fas fa-check-circle"></i> Success!</strong><br>
+                ${message}
+            </div>
+        `);
+        $('body').append(notification);
+
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            notification.fadeOut(500, function() { $(this).remove(); });
+        }, 3000);
     }
 
     function showError(message) {
-        toastr.error(message);
-        // Clear loading spinner and show error in container
-        const container = $('#reviewQueueContainer');
-        container.html(`
-            <div class="alert alert-danger text-center">
-                <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
-                <h5>Error</h5>
-                <p>${message}</p>
-                <a href="/employee/transaction/import" class="btn btn-primary mt-3">
-                    <i class="fas fa-arrow-left"></i> Return to Import Page
-                </a>
+        // Display error in fixed notification
+        const notification = $(`
+            <div class="alert alert-danger" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+                <strong><i class="fas fa-exclamation-triangle"></i> Error!</strong><br>
+                ${message}
             </div>
         `);
+        $('body').append(notification);
+
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            notification.fadeOut(500, function() { $(this).remove(); });
+        }, 5000);
+
+        // Also clear loading spinner and show error in container if initial load fails
+        const container = $('#reviewQueueContainer');
+        if (container.find('.fa-spinner').length > 0) {
+            container.html(`
+                <div class="alert alert-danger text-center">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+                    <h5>Error</h5>
+                    <p>${message}</p>
+                    <a href="/employee/transaction/import" class="btn btn-primary mt-3">
+                        <i class="fas fa-arrow-left"></i> Return to Import Page
+                    </a>
+                </div>
+            `);
+        }
     }
 });
 /*]]>*/
