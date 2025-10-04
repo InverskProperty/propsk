@@ -482,4 +482,72 @@ public interface HistoricalTransactionRepository extends JpaRepository<Historica
     List<HistoricalTransaction> findByAccountSourceAndDateRange(@Param("accountSource") String accountSource,
                                                                @Param("fromDate") LocalDate fromDate,
                                                                @Param("toDate") LocalDate toDate);
+
+    // ===== PAYMENT SOURCE QUERIES (Source-Scoped Deduplication) =====
+
+    /**
+     * Find transactions by payment source
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.paymentSource.id = :paymentSourceId " +
+           "ORDER BY ht.transactionDate DESC")
+    List<HistoricalTransaction> findByPaymentSourceId(@Param("paymentSourceId") Long paymentSourceId);
+
+    /**
+     * Find transactions by payment source and date range
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.paymentSource.id = :paymentSourceId " +
+           "AND ht.transactionDate BETWEEN :fromDate AND :toDate " +
+           "ORDER BY ht.transactionDate DESC")
+    List<HistoricalTransaction> findByPaymentSourceAndDateRange(
+            @Param("paymentSourceId") Long paymentSourceId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    /**
+     * Find potential duplicates WITHIN a payment source
+     * Checks for same date, amount, description, type, property, and customer
+     * This is source-scoped deduplication - only checks within the same payment source
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE " +
+           "ht.paymentSource.id = :paymentSourceId " +
+           "AND ht.transactionDate = :transactionDate " +
+           "AND ht.amount = :amount " +
+           "AND (:propertyId IS NULL OR ht.property.id = :propertyId) " +
+           "AND ht.status = 'active' " +
+           "ORDER BY ht.createdAt ASC")
+    List<HistoricalTransaction> findPotentialDuplicatesInSource(
+            @Param("paymentSourceId") Long paymentSourceId,
+            @Param("transactionDate") LocalDate transactionDate,
+            @Param("amount") BigDecimal amount,
+            @Param("propertyId") Long propertyId);
+
+    /**
+     * Count transactions in a payment source
+     */
+    @Query("SELECT COUNT(ht) FROM HistoricalTransaction ht WHERE ht.paymentSource.id = :paymentSourceId " +
+           "AND ht.status = 'active'")
+    long countByPaymentSourceId(@Param("paymentSourceId") Long paymentSourceId);
+
+    /**
+     * Get total amount for payment source
+     */
+    @Query("SELECT SUM(ht.amount) FROM HistoricalTransaction ht WHERE ht.paymentSource.id = :paymentSourceId " +
+           "AND ht.status = 'active'")
+    BigDecimal getTotalAmountByPaymentSource(@Param("paymentSourceId") Long paymentSourceId);
+
+    /**
+     * Get payment source statistics - date range and transaction count
+     */
+    @Query("SELECT " +
+           "ps.id, " +
+           "ps.name, " +
+           "COUNT(ht), " +
+           "MIN(ht.transactionDate), " +
+           "MAX(ht.transactionDate) " +
+           "FROM HistoricalTransaction ht " +
+           "JOIN ht.paymentSource ps " +
+           "WHERE ht.status = 'active' " +
+           "GROUP BY ps.id, ps.name " +
+           "ORDER BY ps.name")
+    List<Object[]> getPaymentSourceStatistics();
 }

@@ -82,11 +82,18 @@ public class HistoricalTransaction {
     @Column(name = "account_source", length = 50)
     private String accountSource;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "payment_source_id")
+    private PaymentSource paymentSource;
+
     @Column(name = "source_reference", length = 255)
     private String sourceReference;
 
     @Column(name = "import_batch_id", length = 100)
     private String importBatchId;
+
+    @Column(name = "import_staging_id")
+    private Long importStagingId;
     
     // ===== BANK/PAYMENT DETAILS =====
     
@@ -398,11 +405,17 @@ public class HistoricalTransaction {
     public String getAccountSource() { return accountSource; }
     public void setAccountSource(String accountSource) { this.accountSource = accountSource; }
 
+    public PaymentSource getPaymentSource() { return paymentSource; }
+    public void setPaymentSource(PaymentSource paymentSource) { this.paymentSource = paymentSource; }
+
     public String getSourceReference() { return sourceReference; }
     public void setSourceReference(String sourceReference) { this.sourceReference = sourceReference; }
-    
+
     public String getImportBatchId() { return importBatchId; }
     public void setImportBatchId(String importBatchId) { this.importBatchId = importBatchId; }
+
+    public Long getImportStagingId() { return importStagingId; }
+    public void setImportStagingId(Long importStagingId) { this.importStagingId = importStagingId; }
     
     public String getBankReference() { return bankReference; }
     public void setBankReference(String bankReference) { this.bankReference = bankReference; }
