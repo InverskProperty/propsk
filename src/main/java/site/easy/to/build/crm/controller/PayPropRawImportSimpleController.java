@@ -396,8 +396,48 @@ public class PayPropRawImportSimpleController {
                             "message", assignmentsSync.getMessage()
                         ));
 
+                        // STEP 2E: Sync tenants as customers
+                        log.info("🏘️ Syncing tenants to customers table...");
+                        SyncResult tenantsSync = payPropSyncOrchestrator.syncTenantsAsCustomers(userId);
+
+                        int tenantsCreated = (int) tenantsSync.getDetails().getOrDefault("created", 0);
+                        int tenantsUpdated = (int) tenantsSync.getDetails().getOrDefault("updated", 0);
+                        log.info("✅ Tenants sync: {} created, {} updated", tenantsCreated, tenantsUpdated);
+
+                        syncResults.put("tenants_sync", Map.of(
+                            "success", tenantsSync.isSuccess(),
+                            "created", tenantsCreated,
+                            "updated", tenantsUpdated,
+                            "message", tenantsSync.getMessage()
+                        ));
+
+                        // STEP 2F: Establish tenant-property relationships
+                        log.info("🏡 Establishing tenant-property relationships...");
+                        SyncResult tenantAssignmentsSync = payPropSyncOrchestrator.establishTenantPropertyRelationships();
+
+                        int tenantAssignments = (int) tenantAssignmentsSync.getDetails().getOrDefault("tenantRelationships", 0);
+                        log.info("✅ Tenant assignments created: {}", tenantAssignments);
+
+                        syncResults.put("tenant_assignments_sync", Map.of(
+                            "success", tenantAssignmentsSync.isSuccess(),
+                            "created", tenantAssignments,
+                            "message", tenantAssignmentsSync.getMessage()
+                        ));
+
                         // Add all sync results to response
                         response.putAll(syncResults);
+
+                        // CONCISE SUMMARY - Easy to read!
+                        log.info("=".repeat(80));
+                        log.info("📊 SYNC SUMMARY");
+                        log.info("=".repeat(80));
+                        log.info("✅ Properties: {} created, {} updated", propertiesCreated, propertiesUpdated);
+                        log.info("✅ Owners: {} created, {} updated (from {} relationships)",
+                            ownersCreated, ownersUpdated, relationshipsFound);
+                        log.info("✅ Owner Assignments: {} owner→property links", assignmentsCreated);
+                        log.info("✅ Tenants: {} created, {} updated", tenantsCreated, tenantsUpdated);
+                        log.info("✅ Tenant Assignments: {} tenant→property links", tenantAssignments);
+                        log.info("=".repeat(80));
 
                     } catch (Exception e) {
                         log.warn("⚠️ Automatic sync to main tables failed (but import succeeded): {}", e.getMessage());
@@ -1397,7 +1437,7 @@ public class PayPropRawImportSimpleController {
                         importStatus = "failed";
                         importError = importResult.getErrorMessage();
                     }
-                } else if (config.path.equals("/export/properties")) {
+                } else if (config.path.equals("/export/properties") || config.path.startsWith("/export/properties")) {
                     log.info("🔄 Calling propertiesCompleteImportService for {} items", items.size());
                     var importResult = propertiesCompleteImportService.importPropertiesComplete();
                     savedCount = importResult.getTotalImported();

@@ -904,7 +904,7 @@ public class PayPropSyncOrchestrator {
     /**
      * Establish tenant-property relationships
      */
-    private SyncResult establishTenantPropertyRelationships() {
+    public SyncResult establishTenantPropertyRelationships() {
         int relationships = 0;
         int errors = 0;
         
