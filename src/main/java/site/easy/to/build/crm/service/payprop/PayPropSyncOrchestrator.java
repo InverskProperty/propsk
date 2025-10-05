@@ -667,7 +667,13 @@ public class PayPropSyncOrchestrator {
                         totalProcessed++;
                     } catch (Exception e) {
                         totalErrors++;
-                        log.error("Failed to sync property owner {}: {}", beneficiaryData.get("id"), e.getMessage());
+                        log.error("Failed to sync property owner {}: {}", beneficiaryData.get("id"), e.getMessage(), e);
+                        // Log the root cause
+                        Throwable rootCause = e;
+                        while (rootCause.getCause() != null) {
+                            rootCause = rootCause.getCause();
+                        }
+                        log.error("ROOT CAUSE: {}", rootCause.getMessage());
                     }
                 }
                 page++;
@@ -716,7 +722,13 @@ public class PayPropSyncOrchestrator {
                         totalProcessed++;
                     } catch (Exception e) {
                         totalErrors++;
-                        log.error("Failed to sync tenant {}: {}", tenantData.get("id"), e.getMessage());
+                        log.error("Failed to sync tenant {}: {}", tenantData.get("id"), e.getMessage(), e);
+                        // Log the root cause
+                        Throwable rootCause = e;
+                        while (rootCause.getCause() != null) {
+                            rootCause = rootCause.getCause();
+                        }
+                        log.error("ROOT CAUSE: {}", rootCause.getMessage());
                     }
                 }
                 page++;
