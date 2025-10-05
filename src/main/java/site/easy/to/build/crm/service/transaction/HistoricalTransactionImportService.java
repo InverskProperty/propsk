@@ -1477,26 +1477,76 @@ public class HistoricalTransactionImportService {
         // Try fuzzy matching on customer name
         List<Customer> allCustomers = customerService.findAll();
         for (Customer cust : allCustomers) {
-            String fullName = (cust.getFirstName() + " " + cust.getLastName()).toLowerCase();
+            String firstName = cust.getFirstName() != null ? cust.getFirstName().trim() : "";
+            String lastName = cust.getLastName() != null ? cust.getLastName().trim() : "";
+            String fullName = (firstName + " " + lastName).trim().toLowerCase();
+
+            // Also check the 'name' field (which might have the full name)
+            String customerName = cust.getName() != null ? cust.getName().trim().toLowerCase() : "";
+
             String searchRef = cleanRef.toLowerCase();
 
-            // Exact name match
-            if (fullName.equals(searchRef)) {
+            // Exact match on 'name' field
+            if (!customerName.isEmpty() && !customerName.startsWith("customer -") && customerName.equals(searchRef)) {
                 matches.add(new CustomerOption(cust, 100));
                 continue;
             }
 
-            // Partial name match
-            if (fullName.contains(searchRef) || searchRef.contains(fullName)) {
+            // Exact match on first_name + last_name
+            if (!fullName.isEmpty() && fullName.equals(searchRef)) {
+                matches.add(new CustomerOption(cust, 100));
+                continue;
+            }
+
+            // Partial match on 'name' field (if not auto-generated)
+            if (!customerName.isEmpty() && !customerName.startsWith("customer -") &&
+                (customerName.contains(searchRef) || searchRef.contains(customerName))) {
+                int score = calculateMatchScore(customerName, searchRef);
+                if (score > 50) {
+                    matches.add(new CustomerOption(cust, score));
+                }
+            }
+
+            // Partial match on first_name + last_name (only if we have a name)
+            if (!fullName.isEmpty() && (fullName.contains(searchRef) || searchRef.contains(fullName))) {
                 int score = calculateMatchScore(fullName, searchRef);
                 if (score > 50) {
                     matches.add(new CustomerOption(cust, score));
                 }
             }
 
-            // Email match
+            // Email exact match
             if (cust.getEmail() != null && cust.getEmail().equalsIgnoreCase(cleanRef)) {
                 matches.add(new CustomerOption(cust, 95));
+                continue;
+            }
+
+            // Email partial match (e.g., "AMOS BLYTHE" matches "amosblyth@outlook.com")
+            if (cust.getEmail() != null) {
+                String emailLocal = cust.getEmail().split("@")[0].toLowerCase(); // Part before @
+                String emailNormalized = emailLocal.replaceAll("[^a-z]", ""); // Remove non-letters
+                String searchNormalized = searchRef.replaceAll("[^a-z]", "").toLowerCase(); // Remove non-letters
+
+                // Check if search term appears in email local part
+                if (emailNormalized.contains(searchNormalized) && searchNormalized.length() > 3) {
+                    int score = 85; // High score for email match
+                    matches.add(new CustomerOption(cust, score));
+                    continue;
+                }
+
+                // Check if all search words appear in email (e.g., "amos blythe" in "amosblyth")
+                String[] searchWords = searchRef.split("\\s+");
+                boolean allWordsMatch = true;
+                for (String word : searchWords) {
+                    String wordNormalized = word.replaceAll("[^a-z]", "").toLowerCase();
+                    if (!emailNormalized.contains(wordNormalized)) {
+                        allWordsMatch = false;
+                        break;
+                    }
+                }
+                if (allWordsMatch && searchWords.length > 0) {
+                    matches.add(new CustomerOption(cust, 90));
+                }
             }
         }
 

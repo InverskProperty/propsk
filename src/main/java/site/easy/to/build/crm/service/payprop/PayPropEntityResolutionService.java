@@ -470,59 +470,137 @@ public class PayPropEntityResolutionService {
     
     /**
      * Create Customer entity from PayProp tenant data
+     * Fixed to properly extract names and avoid "Customer - email" placeholder names
      */
     private Customer createCustomerFromTenantData(Map<String, Object> data) {
         Customer customer = new Customer();
-        
+
         customer.setPayPropEntityId((String) data.get("id"));
         customer.setIsTenant(true);
-        
+
         String accountType = (String) data.get("account_type");
         if ("individual".equalsIgnoreCase(accountType)) {
-            customer.setFirstName((String) data.get("first_name"));
-            customer.setLastName((String) data.get("last_name"));
-            customer.setAccountType(AccountType.individual);  // Set account type
+            // Extract individual name fields
+            String firstName = (String) data.get("first_name");
+            String lastName = (String) data.get("last_name");
+            String displayName = (String) data.get("display_name");
+
+            customer.setFirstName(firstName);
+            customer.setLastName(lastName);
+            customer.setAccountType(AccountType.individual);
+
+            // Build name field with proper fallback hierarchy
+            String fullName = buildFullName(firstName, lastName, displayName, (String) data.get("email_address"));
+            customer.setName(fullName);
+
         } else {
-            customer.setBusinessName((String) data.get("business_name"));
-            customer.setAccountType(AccountType.business);  // Instead of setIsCompany
+            // Business account
+            String businessName = (String) data.get("business_name");
+            String displayName = (String) data.get("display_name");
+
+            customer.setBusinessName(businessName);
+            customer.setAccountType(AccountType.business);
+
+            // Use business name or display name, never email as fallback
+            if (businessName != null && !businessName.trim().isEmpty()) {
+                customer.setName(businessName);
+            } else if (displayName != null && !displayName.trim().isEmpty()) {
+                customer.setName(displayName);
+            } else {
+                customer.setName("Unnamed Business");
+                log.warn("Creating business customer without business_name or display_name: {}", data.get("id"));
+            }
         }
-        
+
         customer.setEmail((String) data.get("email_address"));
         customer.setPhone((String) data.get("phone"));
         customer.setCustomerReference((String) data.get("customer_reference"));
-        
         customer.setCreatedAt(LocalDateTime.now());
-        // Remove setUpdatedAt - Customer entity doesn't have this field
-        
+
         return customer;
     }
 
     /**
+     * Build full name from available name components with proper fallback
+     * Priority: 1) first_name + last_name, 2) display_name, 3) email, 4) "Unnamed Customer"
+     */
+    private String buildFullName(String firstName, String lastName, String displayName, String email) {
+        // Priority 1: Build from first_name + last_name
+        if ((firstName != null && !firstName.trim().isEmpty()) ||
+            (lastName != null && !lastName.trim().isEmpty())) {
+            String first = (firstName != null && !firstName.trim().isEmpty()) ? firstName.trim() : "";
+            String last = (lastName != null && !lastName.trim().isEmpty()) ? lastName.trim() : "";
+            String combined = (first + " " + last).trim();
+            if (!combined.isEmpty()) {
+                return combined;
+            }
+        }
+
+        // Priority 2: Use display_name if available
+        if (displayName != null && !displayName.trim().isEmpty()) {
+            return displayName.trim();
+        }
+
+        // Priority 3: Use email if nothing else (but log warning)
+        if (email != null && !email.trim().isEmpty()) {
+            log.warn("Creating customer with email as name - no proper name fields available: {}", email);
+            return "Customer - " + email;
+        }
+
+        // Priority 4: Absolute fallback
+        log.error("Creating customer with no name information at all");
+        return "Unnamed Customer";
+    }
+
+    /**
      * Create Customer entity from PayProp beneficiary data
+     * Fixed to properly extract names and avoid "Customer - email" placeholder names
      */
     private Customer createCustomerFromBeneficiaryData(Map<String, Object> data) {
         Customer customer = new Customer();
-        
+
         customer.setPayPropEntityId((String) data.get("id"));
         customer.setIsPropertyOwner(true);
-        
+
         String accountType = (String) data.get("account_type");
         if ("individual".equalsIgnoreCase(accountType)) {
-            customer.setFirstName((String) data.get("first_name"));
-            customer.setLastName((String) data.get("last_name"));
-            customer.setAccountType(AccountType.individual);  // Set account type
+            // Extract individual name fields
+            String firstName = (String) data.get("first_name");
+            String lastName = (String) data.get("last_name");
+            String displayName = (String) data.get("display_name");
+
+            customer.setFirstName(firstName);
+            customer.setLastName(lastName);
+            customer.setAccountType(AccountType.individual);
+
+            // Build name field with proper fallback hierarchy
+            String fullName = buildFullName(firstName, lastName, displayName, (String) data.get("email_address"));
+            customer.setName(fullName);
+
         } else {
-            customer.setBusinessName((String) data.get("business_name"));
-            customer.setAccountType(AccountType.business);  // Instead of setIsCompany
+            // Business account
+            String businessName = (String) data.get("business_name");
+            String displayName = (String) data.get("display_name");
+
+            customer.setBusinessName(businessName);
+            customer.setAccountType(AccountType.business);
+
+            // Use business name or display name, never email as fallback
+            if (businessName != null && !businessName.trim().isEmpty()) {
+                customer.setName(businessName);
+            } else if (displayName != null && !displayName.trim().isEmpty()) {
+                customer.setName(displayName);
+            } else {
+                customer.setName("Unnamed Business");
+                log.warn("Creating business beneficiary without business_name or display_name: {}", data.get("id"));
+            }
         }
-        
+
         customer.setEmail((String) data.get("email_address"));
         customer.setPhone((String) data.get("phone"));
         customer.setCustomerReference((String) data.get("customer_reference"));
-        
         customer.setCreatedAt(LocalDateTime.now());
-        // Remove setUpdatedAt - Customer entity doesn't have this field
-        
+
         return customer;
     }
 
