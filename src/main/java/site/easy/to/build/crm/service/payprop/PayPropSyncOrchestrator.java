@@ -68,6 +68,9 @@ public class PayPropSyncOrchestrator {
     @Autowired
     private site.easy.to.build.crm.service.payprop.raw.PayPropRawInvoicesImportService payPropRawInvoicesImportService;
 
+    @Autowired
+    private site.easy.to.build.crm.service.payprop.raw.PayPropRawImportOrchestrator rawImportOrchestrator;
+
     @Value("${payprop.sync.batch-size:25}")
     private int batchSize;
 
@@ -295,8 +298,27 @@ public class PayPropSyncOrchestrator {
     public UnifiedSyncResult performEnhancedUnifiedSyncWithWorkingFinancials(OAuthUser oAuthUser, Long initiatedBy) {
         UnifiedSyncResult result = new UnifiedSyncResult();
         syncLogger.logSyncStart("ENHANCED_UNIFIED_SYNC_WITH_FINANCIALS", initiatedBy);
-        
+
         try {
+            // STEP 0: Import ALL Raw Data (NEW!)
+            log.info("📥 Step 0: Importing raw data from PayProp to database tables...");
+            try {
+                site.easy.to.build.crm.service.payprop.raw.PayPropRawImportOrchestrator.PayPropRawImportOrchestrationResult rawImportResult =
+                    rawImportOrchestrator.executeCompleteImport();
+
+                log.info("✅ Raw import completed successfully");
+
+                if (!rawImportResult.getImportResults().isEmpty()) {
+                    log.info("📊 Raw import details:");
+                    rawImportResult.getImportResults().forEach((key, value) -> {
+                        log.info("  - {}: {} records imported", key, value.getTotalImported());
+                    });
+                }
+            } catch (Exception e) {
+                log.warn("⚠️ Raw import had issues (continuing with sync): {}", e.getMessage());
+                // Continue even if raw import has issues - the sync can still work by calling APIs
+            }
+
             // STEP 1: Sync Properties
             log.info("🏠 Step 1: Syncing properties...");
             result.setPropertiesResult(syncPropertiesFromPayPropEnhanced(initiatedBy));
@@ -510,20 +532,65 @@ public class PayPropSyncOrchestrator {
 
     /**
      * Extract property-owner relationships from payment data
+     * ENHANCED: Try database first (faster), fall back to API
      */
     private Map<String, PropertyRelationship> extractRelationshipsFromPayments() {
         Map<String, PropertyRelationship> relationships = new HashMap<>();
-        
+
         try {
-            log.info("🔗 Starting payment relationship extraction...");
+            // STRATEGY 1: Try reading from database first (faster, uses Step 0 data)
+            log.info("🔗 Attempting to extract relationships from database...");
+            try {
+                String sql = """
+                    SELECT
+                        beneficiary as beneficiary_id,
+                        property_payprop_id,
+                        gross_percentage,
+                        property_name
+                    FROM payprop_export_payments
+                    WHERE category = 'Owner'
+                    AND enabled = 1
+                    AND sync_status = 'active'
+                    """;
+
+                jdbcTemplate.query(sql, rs -> {
+                    String beneficiaryId = rs.getString("beneficiary_id");
+                    String propertyId = rs.getString("property_payprop_id");
+                    Double percentage = rs.getDouble("gross_percentage");
+
+                    if (beneficiaryId != null && propertyId != null) {
+                        String key = propertyId + "_" + beneficiaryId;
+
+                        PropertyRelationship rel = new PropertyRelationship();
+                        rel.setOwnerPayPropId(beneficiaryId);
+                        rel.setPropertyPayPropId(propertyId);
+                        rel.setOwnershipType("OWNER");
+                        rel.setOwnershipPercentage(percentage != null ? percentage : 100.0);
+
+                        relationships.put(key, rel);
+                    }
+                });
+
+                if (!relationships.isEmpty()) {
+                    log.info("✅ Extracted {} owner relationships from DATABASE (fast path)", relationships.size());
+                    return relationships;
+                }
+
+                log.info("⚠️ No relationships in database, falling back to API...");
+            } catch (Exception dbEx) {
+                log.warn("⚠️ Database extraction failed, falling back to API: {}", dbEx.getMessage());
+            }
+
+            // STRATEGY 2: Fall back to calling PayProp API (slower but always works)
+            log.info("🔗 Extracting relationships from PayProp API...");
             int page = 1;
             int totalPayments = 0;
             int ownerPayments = 0;
-            
+
             while (true) {
-                PayPropExportResult exportResult = 
+                PayPropExportResult exportResult =
                     payPropSyncService.exportPaymentsFromPayProp(page, batchSize);
-                
+
                 if (exportResult.getItems().isEmpty()) {
                     break;
                 }
