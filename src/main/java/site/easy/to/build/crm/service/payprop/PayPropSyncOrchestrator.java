@@ -1357,7 +1357,8 @@ public class PayPropSyncOrchestrator {
         customer.setIsPropertyOwner(true);
         customer.setPayPropSynced(true);
         customer.setPayPropLastSync(LocalDateTime.now());
-        
+        customer.setDataSource(DataSource.PAYPROP);
+
         // Account Type and Name
         String accountTypeStr = (String) data.get("account_type");
         if ("business".equals(accountTypeStr)) {
@@ -1423,7 +1424,8 @@ public class PayPropSyncOrchestrator {
         customer.setIsTenant(true);
         customer.setPayPropSynced(true);
         customer.setPayPropLastSync(LocalDateTime.now());
-        
+        customer.setDataSource(DataSource.PAYPROP);
+
         // Account Type and Name
         String accountTypeStr = (String) data.get("account_type");
         if ("business".equals(accountTypeStr)) {
@@ -1485,7 +1487,8 @@ public class PayPropSyncOrchestrator {
         customer.setIsContractor(true);
         customer.setPayPropSynced(true);
         customer.setPayPropLastSync(LocalDateTime.now());
-        
+        customer.setDataSource(DataSource.PAYPROP);
+
         // Account Type and Name
         String accountTypeStr = (String) data.get("account_type");
         if ("business".equals(accountTypeStr)) {
@@ -1543,7 +1546,10 @@ public class PayPropSyncOrchestrator {
     private void updateCustomerFromBeneficiaryData(Customer customer, Map<String, Object> data) {
         customer.setPayPropLastSync(LocalDateTime.now());
         customer.setPayPropSynced(true);
-        
+        if (customer.getDataSource() == null || customer.getDataSource() == DataSource.MANUAL) {
+            customer.setDataSource(DataSource.PAYPROP);
+        }
+
         customer.setEmail((String) data.get("email_address"));
         customer.setMobileNumber((String) data.get("mobile"));
         customer.setPhone((String) data.get("phone"));
@@ -1568,7 +1574,10 @@ public class PayPropSyncOrchestrator {
     private void updateCustomerFromTenantData(Customer customer, Map<String, Object> data) {
         customer.setPayPropLastSync(LocalDateTime.now());
         customer.setPayPropSynced(true);
-        
+        if (customer.getDataSource() == null || customer.getDataSource() == DataSource.MANUAL) {
+            customer.setDataSource(DataSource.PAYPROP);
+        }
+
         customer.setEmail((String) data.get("email_address"));
         customer.setMobileNumber((String) data.get("mobile_number"));
         customer.setPhone((String) data.get("phone"));
@@ -1593,7 +1602,10 @@ public class PayPropSyncOrchestrator {
     private void updateCustomerFromContractorData(Customer customer, Map<String, Object> data) {
         customer.setPayPropLastSync(LocalDateTime.now());
         customer.setPayPropSynced(true);
-        
+        if (customer.getDataSource() == null || customer.getDataSource() == DataSource.MANUAL) {
+            customer.setDataSource(DataSource.PAYPROP);
+        }
+
         customer.setEmail((String) data.get("email_address"));
         customer.setMobileNumber((String) data.get("mobile"));
         customer.setPhone((String) data.get("phone"));
@@ -1681,7 +1693,10 @@ public class PayPropSyncOrchestrator {
                 log.warn("Could not parse listed_until date: {}", listingTo);
             }
         }
-        
+
+        // CRITICAL FIX: Set PayProp sync flag
+        property.setDataSource(DataSource.PAYPROP);
+
         return property;
     }
 
@@ -1716,6 +1731,11 @@ public class PayPropSyncOrchestrator {
         Object holdOwnerFunds = data.get("hold_all_owner_funds");
         if (holdOwnerFunds instanceof Boolean) {
             property.setHoldOwnerFundsFromBoolean((Boolean) holdOwnerFunds);
+        }
+
+        // CRITICAL FIX: Update PayProp sync flag
+        if (property.getDataSource() == null || property.getDataSource() == DataSource.MANUAL) {
+            property.setDataSource(DataSource.PAYPROP);
         }
     }
 
