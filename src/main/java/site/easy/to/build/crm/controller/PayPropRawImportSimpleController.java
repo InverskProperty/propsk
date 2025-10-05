@@ -1397,6 +1397,30 @@ public class PayPropRawImportSimpleController {
                         importStatus = "failed";
                         importError = importResult.getErrorMessage();
                     }
+                } else if (config.path.equals("/export/properties")) {
+                    log.info("🔄 Calling propertiesCompleteImportService for {} items", items.size());
+                    var importResult = propertiesCompleteImportService.importPropertiesComplete();
+                    savedCount = importResult.getTotalImported();
+                    if (!importResult.isSuccess()) {
+                        importStatus = "failed";
+                        importError = importResult.getErrorMessage();
+                    }
+                } else if (config.path.equals("/export/tenants")) {
+                    log.info("🔄 Calling tenantsCompleteImportService for {} items", items.size());
+                    var importResult = tenantsCompleteImportService.importTenantsComplete();
+                    savedCount = importResult.getTotalImported();
+                    if (!importResult.isSuccess()) {
+                        importStatus = "failed";
+                        importError = importResult.getErrorMessage();
+                    }
+                } else if (config.path.equals("/export/beneficiaries")) {
+                    log.info("🔄 Calling beneficiariesCompleteImportService for {} items", items.size());
+                    var importResult = beneficiariesCompleteImportService.importBeneficiariesComplete();
+                    savedCount = importResult.getTotalImported();
+                    if (!importResult.isSuccess()) {
+                        importStatus = "failed";
+                        importError = importResult.getErrorMessage();
+                    }
                 } else {
                     // For other endpoints, we just fetched but don't have dedicated import services yet
                     log.info("ℹ️ No dedicated import service for endpoint: {} - data fetched but not saved", config.path);
