@@ -1776,7 +1776,20 @@ public class HistoricalTransactionImportService {
                 }
 
                 String description = (String) data.get("description");
-                TransactionType transactionType = TransactionType.valueOf((String) data.get("parsedType"));
+
+                // Handle parsedType - could be String or TransactionType enum
+                TransactionType transactionType;
+                Object typeObj = data.get("parsedType");
+                if (typeObj instanceof TransactionType) {
+                    transactionType = (TransactionType) typeObj;
+                    log.info("✅ Type already parsed as enum: {}", transactionType);
+                } else if (typeObj instanceof String) {
+                    transactionType = TransactionType.valueOf((String) typeObj);
+                    log.info("✅ Type parsed from string: {}", transactionType);
+                } else {
+                    throw new IllegalArgumentException("parsedType must be TransactionType or String, got: " +
+                        (typeObj != null ? typeObj.getClass().getName() : "null"));
+                }
 
                 log.info("✅ Successfully parsed core fields");
 
