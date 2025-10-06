@@ -905,12 +905,34 @@ public class HistoricalTransactionImportService {
                 return null;
             }
 
-            String email = authentication.getName();
-            log.debug("🔐 Authenticated user email: {}", email);
+            String principalName = authentication.getName();
+            log.info("🔐 Authenticated principal: {}", principalName);
 
-            User user = userService.findByEmail(email);
+            // Try to find user by email first
+            User user = userService.findByEmail(principalName);
+
             if (user == null) {
-                log.error("❌ User not found for email: {}", email);
+                // Principal might be OAuth user ID (numeric string like "114738897312032777033")
+                // Look up User through OAuthUser relationship
+                log.info("🔐 Email lookup failed, trying OAuth user ID lookup...");
+
+                try {
+                    Integer oauthUserId = Integer.parseInt(principalName);
+                    user = userRepository.findAll().stream()
+                        .filter(u -> u.getOauthUser() != null && u.getOauthUser().getId().equals(oauthUserId))
+                        .findFirst()
+                        .orElse(null);
+
+                    if (user != null) {
+                        log.info("✅ User found via OAuth ID: {} -> {}", oauthUserId, user.getEmail());
+                    } else {
+                        log.error("❌ User not found for OAuth ID: {}", oauthUserId);
+                    }
+                } catch (NumberFormatException e) {
+                    log.error("❌ Principal is neither email nor valid OAuth ID: {}", principalName);
+                }
+            } else {
+                log.info("✅ User found via email: {}", user.getEmail());
             }
 
             return user;

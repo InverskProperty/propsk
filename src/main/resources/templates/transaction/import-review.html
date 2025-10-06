@@ -650,6 +650,11 @@ $(document).ready(function() {
         const paymentSourceId = $(`#paymentSource${index}`).val();
         reviewQueue.reviews[index].selectedPaymentSourceId = paymentSourceId ? parseInt(paymentSourceId) : null;
         console.log(`Payment source ${paymentSourceId} selected for transaction ${index}`);
+
+        // Save updated review queue to localStorage
+        localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
+        console.log(`✅ Payment source saved to localStorage: ${paymentSourceId}`);
+
         updateReadiness();
     };
 
