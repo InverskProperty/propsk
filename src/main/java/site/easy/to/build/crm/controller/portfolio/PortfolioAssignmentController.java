@@ -58,7 +58,9 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
             model.addAttribute("unassignedProperties", unassignedProperties);
             model.addAttribute("allProperties", allProperties);
             model.addAttribute("pageTitle", "Assign Properties to Portfolios");
-            
+            model.addAttribute("isPortfolioSpecific", false);
+            model.addAttribute("targetPortfolio", null);
+
             return "portfolio/assign-properties";
             
         } catch (Exception e) {
