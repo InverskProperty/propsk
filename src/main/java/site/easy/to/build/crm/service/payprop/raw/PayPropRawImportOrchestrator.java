@@ -74,8 +74,10 @@ public class PayPropRawImportOrchestrator {
     /**
      * Execute complete PayProp raw import and business logic processing
      * This is the main entry point that solves the £995 vs £1,075 problem
+     *
+     * NOTE: No @Transactional here - each import service manages its own transaction
+     * to prevent connection pool exhaustion from nested long-running transactions
      */
-    @Transactional
     public PayPropRawImportOrchestrationResult executeCompleteImport() {
         log.info("🚀 Starting complete PayProp raw import orchestration");
         
