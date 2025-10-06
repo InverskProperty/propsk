@@ -83,10 +83,15 @@ public class PayPropFinancialSyncService {
      */
     public Map<String, Object> syncComprehensiveFinancialData() {
         Map<String, Object> syncResults = new HashMap<>();
-        
+
         try {
             logger.info("🚀 Starting comprehensive financial data sync...");
-            
+
+            // 0. CLEANUP: Remove financial records for properties no longer in PayProp
+            logger.info("🧹 Cleaning up financial records for non-existent properties...");
+            Map<String, Object> cleanupResult = cleanupOrphanedFinancialRecords();
+            syncResults.put("cleanup", cleanupResult);
+
             // 1. Sync Properties with Commission Data
             Map<String, Object> propertiesResult = syncPropertiesWithCommission();
             syncResults.put("properties", propertiesResult);
@@ -2483,6 +2488,101 @@ public class PayPropFinancialSyncService {
         } catch (Exception e) {
             logger.error("❌ Failed to sync owner payments", e);
             result.put("status", "FAILED");
+            result.put("error", e.getMessage());
+        }
+
+        return result;
+    }
+
+    /**
+     * Clean up financial records for properties that no longer exist in PayProp
+     * This removes orphaned data from old properties you no longer manage
+     */
+    private Map<String, Object> cleanupOrphanedFinancialRecords() {
+        Map<String, Object> result = new HashMap<>();
+        int deletedTransactions = 0;
+        int deletedPayments = 0;
+        int deletedBatchPayments = 0;
+
+        try (Connection conn = dataSource.getConnection()) {
+            // Get list of current PayProp property IDs
+            String currentPropsQuery = "SELECT payprop_id FROM properties WHERE payprop_id IS NOT NULL AND payprop_id != ''";
+            Set<String> currentPayPropIds = new HashSet<>();
+
+            try (PreparedStatement ps = conn.prepareStatement(currentPropsQuery);
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    currentPayPropIds.add(rs.getString("payprop_id"));
+                }
+            }
+
+            logger.info("📊 Found {} current PayProp properties", currentPayPropIds.size());
+
+            // Delete financial_transactions for non-existent properties
+            if (!currentPayPropIds.isEmpty()) {
+                String placeholders = String.join(",", currentPayPropIds.stream().map(id -> "?").toArray(String[]::new));
+                String deleteTransactionsQuery = String.format(
+                    "DELETE FROM financial_transactions WHERE property_id IN (" +
+                    "  SELECT id FROM properties WHERE payprop_id NOT IN (%s) AND payprop_id IS NOT NULL" +
+                    ") AND data_source IN ('BATCH_PAYMENT', 'COMMISSION_PAYMENT', 'ICDN_ACTUAL')",
+                    placeholders
+                );
+
+                try (PreparedStatement ps = conn.prepareStatement(deleteTransactionsQuery)) {
+                    int idx = 1;
+                    for (String id : currentPayPropIds) {
+                        ps.setString(idx++, id);
+                    }
+                    deletedTransactions = ps.executeUpdate();
+                }
+
+                // Delete payments for non-existent properties
+                String deletePaymentsQuery = String.format(
+                    "DELETE FROM payments WHERE property_id IN (" +
+                    "  SELECT id FROM properties WHERE payprop_id NOT IN (%s) AND payprop_id IS NOT NULL" +
+                    ")",
+                    placeholders
+                );
+
+                try (PreparedStatement ps = conn.prepareStatement(deletePaymentsQuery)) {
+                    int idx = 1;
+                    for (String id : currentPayPropIds) {
+                        ps.setString(idx++, id);
+                    }
+                    deletedPayments = ps.executeUpdate();
+                }
+
+                // Delete batch_payments for non-existent properties
+                String deleteBatchPaymentsQuery = String.format(
+                    "DELETE FROM batch_payments WHERE property_id IN (" +
+                    "  SELECT id FROM properties WHERE payprop_id NOT IN (%s) AND payprop_id IS NOT NULL" +
+                    ")",
+                    placeholders
+                );
+
+                try (PreparedStatement ps = conn.prepareStatement(deleteBatchPaymentsQuery)) {
+                    int idx = 1;
+                    for (String id : currentPayPropIds) {
+                        ps.setString(idx++, id);
+                    }
+                    deletedBatchPayments = ps.executeUpdate();
+                }
+            }
+
+            logger.info("🧹 Cleanup completed:");
+            logger.info("  - Deleted {} orphaned financial transactions", deletedTransactions);
+            logger.info("  - Deleted {} orphaned payments", deletedPayments);
+            logger.info("  - Deleted {} orphaned batch payments", deletedBatchPayments);
+
+            result.put("success", true);
+            result.put("deleted_transactions", deletedTransactions);
+            result.put("deleted_payments", deletedPayments);
+            result.put("deleted_batch_payments", deletedBatchPayments);
+            result.put("current_properties_count", currentPayPropIds.size());
+
+        } catch (Exception e) {
+            logger.error("❌ Cleanup failed: {}", e.getMessage(), e);
+            result.put("success", false);
             result.put("error", e.getMessage());
         }
 
