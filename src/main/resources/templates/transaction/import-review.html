@@ -249,6 +249,48 @@
     </div>
 </div>
 
+<!-- Create Payment Source Modal -->
+<div class="modal fade" id="createPaymentSourceModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Payment Source</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="createPaymentSourceForm">
+                    <div class="form-group">
+                        <label>Payment Source Name *</label>
+                        <input type="text" class="form-control" id="newPaymentSourceName" required
+                               placeholder="e.g., Old Account System, PayProp System">
+                        <small class="form-text text-muted">A descriptive name for this payment source</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Source Type *</label>
+                        <select class="form-control" id="newPaymentSourceType" required>
+                            <option value="">-- Select Type --</option>
+                            <option value="BANK_STATEMENT">Bank Statement</option>
+                            <option value="LEGACY_SYSTEM">Legacy System / Old Account</option>
+                            <option value="API_SYNC">API / External System</option>
+                            <option value="MANUAL_ENTRY">Manual Entry</option>
+                            <option value="SPREADSHEET">Spreadsheet Import</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea class="form-control" id="newPaymentSourceDescription" rows="2"
+                                  placeholder="Optional description of this payment source"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="savePaymentSourceBtn">Create Payment Source</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- JavaScript -->
 <script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
 <script th:src="@{/js/library/bootstrap.min.js}"></script>
@@ -274,9 +316,34 @@ $(document).ready(function() {
     let reviewQueue = null;
     let currentFilter = 'all';
     let currentCreateContext = null; // For entity creation callbacks
+    window.paymentSources = []; // Global payment sources list
 
-    // Load review data from localStorage (passed from import page)
-    loadReviewData();
+    // Load payment sources first, then review data
+    loadPaymentSources().then(() => {
+        loadReviewData();
+    });
+
+    function loadPaymentSources() {
+        console.log('📋 Loading payment sources...');
+        return $.ajax({
+            url: '/employee/payment-sources/all',
+            method: 'GET',
+            headers: {
+                [csrfHeader]: csrfToken
+            }
+        }).done(function(response) {
+            if (response.success && response.sources) {
+                window.paymentSources = response.sources;
+                console.log(`✅ Loaded ${response.sources.length} payment sources`);
+            } else {
+                console.error('❌ Failed to load payment sources:', response);
+                showError('Failed to load payment sources. Please refresh the page.');
+            }
+        }).fail(function(xhr, status, error) {
+            console.error('❌ Payment sources API error:', error);
+            showError('Failed to load payment sources: ' + error);
+        });
+    }
 
     function loadReviewData() {
         console.log('🔍 Loading review data from localStorage...');
@@ -357,6 +424,7 @@ $(document).ready(function() {
                             <div class="csv-line">${escapeHtml(review.csvLine)}</div>
 
                             ${renderParsedData(review)}
+                            ${renderPaymentSourceSelector(review, index)}
                             ${renderPropertyOptions(review, index)}
                             ${renderCustomerOptions(review, index)}
                             ${renderDuplicateInfo(review, index)}
@@ -488,6 +556,40 @@ $(document).ready(function() {
         return html;
     }
 
+    function renderPaymentSourceSelector(review, index) {
+        // Always show payment source selector for every transaction
+        let html = `<div class="mt-3">
+            <strong>Payment Source: <span class="text-danger">*</span></strong>
+            <div class="input-group mt-1">
+                <select class="form-control form-control-sm" id="paymentSource${index}" onchange="selectPaymentSource(${index})">
+                    <option value="">-- Select Payment Source --</option>
+        `;
+
+        // Payment source options will be loaded from server
+        if (window.paymentSources && window.paymentSources.length > 0) {
+            window.paymentSources.forEach(source => {
+                const selected = review.selectedPaymentSourceId === source.id ? 'selected' : '';
+                html += `<option value="${source.id}" ${selected}>${escapeHtml(source.name)}</option>`;
+            });
+        }
+
+        html += `</select>
+                <div class="input-group-append">
+                    <button class="btn btn-sm btn-primary" type="button" onclick="createPaymentSource(${index}, '${escapeHtml(review.parsedData?.paymentSource || '')}')">
+                        <i class="fas fa-plus"></i> New
+                    </button>
+                </div>
+            </div>`;
+
+        // Show payment source hint from CSV if available
+        if (review.parsedData && review.parsedData.paymentSource) {
+            html += `<small class="text-muted">CSV suggests: ${escapeHtml(review.parsedData.paymentSource)}</small>`;
+        }
+
+        html += `</div>`;
+        return html;
+    }
+
     function renderDuplicateInfo(review, index) {
         if (!review.duplicateInfo) return '';
 
@@ -544,6 +646,13 @@ $(document).ready(function() {
         updateReadiness();
     };
 
+    window.selectPaymentSource = function(index) {
+        const paymentSourceId = $(`#paymentSource${index}`).val();
+        reviewQueue.reviews[index].selectedPaymentSourceId = paymentSourceId ? parseInt(paymentSourceId) : null;
+        console.log(`Payment source ${paymentSourceId} selected for transaction ${index}`);
+        updateReadiness();
+    };
+
     window.toggleSkipDuplicate = function(index) {
         reviewQueue.reviews[index].skipDuplicate = $(`#skipDup${index}`).is(':checked');
         updateReadiness();
@@ -569,6 +678,25 @@ $(document).ready(function() {
         $('#newCustomerFirstName').val(nameParts[0] || '');
         $('#newCustomerLastName').val(nameParts.slice(1).join(' ') || '');
         $('#createCustomerModal').modal('show');
+    };
+
+    window.createPaymentSource = function(index, suggestedName) {
+        currentCreateContext = {type: 'paymentSource', index: index};
+        $('#newPaymentSourceName').val(suggestedName || '');
+
+        // Auto-select type based on suggested name
+        if (suggestedName) {
+            const normalized = suggestedName.toUpperCase();
+            if (normalized.includes('OLD') || normalized.includes('LEGACY')) {
+                $('#newPaymentSourceType').val('LEGACY_SYSTEM');
+            } else if (normalized.includes('PAYPROP') || normalized.includes('API')) {
+                $('#newPaymentSourceType').val('API_SYNC');
+            } else if (normalized.includes('BANK')) {
+                $('#newPaymentSourceType').val('BANK_STATEMENT');
+            }
+        }
+
+        $('#createPaymentSourceModal').modal('show');
     };
 
     // Save new property
@@ -659,6 +787,47 @@ $(document).ready(function() {
         });
     });
 
+    // Save new payment source
+    $('#savePaymentSourceBtn').click(function() {
+        const paymentSourceData = {
+            name: $('#newPaymentSourceName').val(),
+            sourceType: $('#newPaymentSourceType').val(),
+            description: $('#newPaymentSourceDescription').val()
+        };
+
+        // Validation
+        if (!paymentSourceData.name || !paymentSourceData.sourceType) {
+            showError('Please fill in all required fields');
+            return;
+        }
+
+        $.ajax({
+            url: '/employee/payment-sources/create',
+            method: 'POST',
+            headers: { [csrfHeader]: csrfToken },
+            data: paymentSourceData,
+            success: function(response) {
+                if (response.success && response.source) {
+                    // Add new payment source to global list
+                    window.paymentSources.push(response.source);
+
+                    // Select it for the current transaction
+                    const index = currentCreateContext.index;
+                    reviewQueue.reviews[index].selectedPaymentSourceId = response.source.id;
+
+                    $('#createPaymentSourceModal').modal('hide');
+                    renderReviewQueue();
+                    showSuccess('Payment source "' + response.source.name + '" created successfully');
+                } else {
+                    showError(response.error || 'Failed to create payment source');
+                }
+            },
+            error: function(xhr) {
+                showError('Failed to create payment source: ' + (xhr.responseJSON?.error || xhr.statusText));
+            }
+        });
+    });
+
     // Filter buttons
     $('.btn-group button[data-filter]').click(function() {
         $('.btn-group button').removeClass('active');
@@ -744,6 +913,11 @@ $(document).ready(function() {
         let allReady = true;
         reviewQueue.reviews.forEach(review => {
             if (review.status === 'VALIDATION_ERROR') {
+                allReady = false;
+                return;
+            }
+            // Payment source is REQUIRED for all transactions
+            if (!review.selectedPaymentSourceId) {
                 allReady = false;
                 return;
             }
