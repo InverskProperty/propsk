@@ -74,6 +74,9 @@ public class HistoricalTransactionImportService {
 
     @Autowired
     private AuthenticationUtils authenticationUtils;
+
+    @Autowired
+    private site.easy.to.build.crm.service.user.UserService userService;
     
     private final ObjectMapper objectMapper;
     
@@ -893,8 +896,28 @@ public class HistoricalTransactionImportService {
      * Get current authenticated user
      */
     private User getCurrentUser() {
-        // TODO: Fix auth handling - using default user for now
-        return null; // TODO: Fix auth - temporarily disabled
+        try {
+            org.springframework.security.core.Authentication authentication =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+
+            if (authentication == null || !authentication.isAuthenticated()) {
+                log.error("❌ No authentication found in SecurityContext");
+                return null;
+            }
+
+            String email = authentication.getName();
+            log.debug("🔐 Authenticated user email: {}", email);
+
+            User user = userService.findByEmail(email);
+            if (user == null) {
+                log.error("❌ User not found for email: {}", email);
+            }
+
+            return user;
+        } catch (Exception e) {
+            log.error("❌ Error getting current user", e);
+            return null;
+        }
     }
 
     /**
