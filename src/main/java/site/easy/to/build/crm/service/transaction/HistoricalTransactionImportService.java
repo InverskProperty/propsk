@@ -939,6 +939,19 @@ public class HistoricalTransactionImportService {
                 } else {
                     log.error("❌ User not found for principal: {}", principalName);
                     log.error("❌ Tried: direct email lookup, OAuth email lookup, username lookup");
+
+                    // FALLBACK: Use the first active user with OAuth (likely the admin)
+                    log.warn("⚠️ Using fallback: first OAuth user as created_by");
+                    user = userRepository.findAll().stream()
+                        .filter(u -> u.getOauthUser() != null)
+                        .findFirst()
+                        .orElse(null);
+
+                    if (user != null) {
+                        log.warn("⚠️ FALLBACK USER: {}", user.getEmail());
+                    } else {
+                        log.error("❌ No OAuth users found in database!");
+                    }
                 }
             } else {
                 log.info("✅ User found via direct email: {}", user.getEmail());
