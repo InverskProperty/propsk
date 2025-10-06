@@ -1698,14 +1698,30 @@ public class HistoricalTransactionImportService {
     public ImportResult processConfirmedImport(String batchId, List<TransactionReview> reviews) {
         ImportResult result = new ImportResult(batchId, "human_verified_import");
 
-        log.info("🔍 Processing confirmed import for batch {}: {} transactions", batchId, reviews.size());
+        log.info("🔍 ============================================");
+        log.info("🔍 PROCESS CONFIRMED IMPORT STARTED");
+        log.info("🔍 Batch ID: {}", batchId);
+        log.info("🔍 Total reviews received: {}", reviews.size());
+        log.info("🔍 ============================================");
 
-        for (TransactionReview review : reviews) {
+        for (int i = 0; i < reviews.size(); i++) {
+            TransactionReview review = reviews.get(i);
             result.incrementTotal();
+
+            log.info("📋 ========== PROCESSING REVIEW {} of {} ==========", (i+1), reviews.size());
+            log.info("📋 Line number: {}", review.getLineNumber());
+            log.info("📋 Status: {}", review.getStatus());
+            log.info("📋 Has duplicate info: {}", review.getDuplicateInfo() != null);
+            log.info("📋 Skip duplicate flag: {}", review.isSkipDuplicate());
+            log.info("📋 Selected Property ID: {}", review.getSelectedPropertyId());
+            log.info("📋 Selected Customer ID: {}", review.getSelectedCustomerId());
+            log.info("📋 Selected Payment Source ID: {}", review.getSelectedPaymentSourceId());
+            log.info("📋 User note: {}", review.getUserNote());
 
             try {
                 // Skip validation errors
                 if (review.getStatus() == ReviewStatus.VALIDATION_ERROR) {
+                    log.warn("⚠️ SKIPPING - Validation error: {}", review.getErrorMessage());
                     result.addError("Line " + review.getLineNumber() + ": " + review.getErrorMessage());
                     result.incrementFailed();
                     continue;
@@ -1713,40 +1729,69 @@ public class HistoricalTransactionImportService {
 
                 // Skip duplicates unless user confirmed to import anyway
                 if (review.getDuplicateInfo() != null && !review.isSkipDuplicate()) {
-                    log.debug("Skipping duplicate at line {}", review.getLineNumber());
+                    log.warn("⚠️ SKIPPING - Duplicate (user did not confirm import)");
                     result.incrementSkipped("review");
                     continue;
                 }
 
                 // Extract parsed data (values are strings from JSON deserialization)
                 Map<String, Object> data = review.getParsedData();
+                log.info("📊 Parsed data keys: {}", data.keySet());
+                log.info("📊 Parsed date: {}", data.get("parsedDate"));
+                log.info("📊 Parsed amount: {}", data.get("parsedAmount"));
+                log.info("📊 Description: {}", data.get("description"));
+                log.info("📊 Parsed type: {}", data.get("parsedType"));
+
                 LocalDate transactionDate = parseDate((String) data.get("parsedDate"));
                 BigDecimal amount = new BigDecimal((String) data.get("parsedAmount"));
                 String description = (String) data.get("description");
                 TransactionType transactionType = TransactionType.valueOf((String) data.get("parsedType"));
 
+                log.info("✅ Successfully parsed core fields");
+
                 // Get property (user-selected or matched)
                 Property property = null;
                 if (review.getSelectedPropertyId() != null) {
                     property = propertyRepository.findById(review.getSelectedPropertyId()).orElse(null);
+                    log.info("🏠 Property lookup: ID={} -> {}", review.getSelectedPropertyId(),
+                            property != null ? property.getPropertyName() : "NOT FOUND");
+                } else {
+                    log.info("🏠 No property selected");
                 }
 
                 // Get customer (user-selected or matched)
                 Customer customer = null;
                 if (review.getSelectedCustomerId() != null) {
                     customer = customerService.findByCustomerId(review.getSelectedCustomerId());
+                    log.info("👤 Customer lookup: ID={} -> {}", review.getSelectedCustomerId(),
+                            customer != null ? customer.getFullName() : "NOT FOUND");
+                } else {
+                    log.info("👤 No customer selected");
                 }
 
                 // Get payment source (user-selected)
                 PaymentSource paymentSource = null;
                 if (review.getSelectedPaymentSourceId() != null) {
                     paymentSource = paymentSourceRepository.findById(review.getSelectedPaymentSourceId()).orElse(null);
+                    log.info("💳 Payment source lookup: ID={} -> {}", review.getSelectedPaymentSourceId(),
+                            paymentSource != null ? paymentSource.getName() : "NOT FOUND");
+                    if (paymentSource == null) {
+                        log.error("❌ CRITICAL: Payment source ID {} not found in database!", review.getSelectedPaymentSourceId());
+                    }
+                } else {
+                    log.warn("⚠️ WARNING: No payment source ID provided in review!");
                 }
 
                 // Get current user for createdBy field (required)
                 User currentUser = getCurrentUser();
+                log.info("👨‍💼 Current user: {}", currentUser != null ? currentUser.getEmail() : "NULL!");
+
+                if (currentUser == null) {
+                    throw new IllegalStateException("Cannot import transaction: current user not found");
+                }
 
                 // Create transaction
+                log.info("🔨 Creating HistoricalTransaction entity...");
                 HistoricalTransaction transaction = new HistoricalTransaction();
                 transaction.setTransactionDate(transactionDate);
                 transaction.setAmount(amount);
@@ -1759,27 +1804,54 @@ public class HistoricalTransactionImportService {
                 transaction.setImportBatchId(batchId);
                 transaction.setCreatedAt(LocalDateTime.now());
 
+                log.info("✅ Transaction entity created successfully");
+                log.info("📝 Transaction details:");
+                log.info("   - Date: {}", transaction.getTransactionDate());
+                log.info("   - Amount: {}", transaction.getAmount());
+                log.info("   - Type: {}", transaction.getTransactionType());
+                log.info("   - Description: {}", transaction.getDescription());
+                log.info("   - Property: {}", property != null ? property.getPropertyName() : "NONE");
+                log.info("   - Customer: {}", customer != null ? customer.getFullName() : "NONE");
+                log.info("   - Payment Source: {}", paymentSource != null ? paymentSource.getName() : "NONE");
+                log.info("   - Created By: {}", currentUser.getEmail());
+                log.info("   - Batch ID: {}", batchId);
+
                 // Add user note if provided
                 if (review.getUserNote() != null && !review.getUserNote().isEmpty()) {
                     String notes = transaction.getNotes();
                     transaction.setNotes(notes != null ? notes + " | " + review.getUserNote() : review.getUserNote());
+                    log.info("📝 User note added: {}", review.getUserNote());
                 }
 
                 // Save transaction
-                historicalTransactionRepository.save(transaction);
+                log.info("💾 Attempting to save transaction to database...");
+                HistoricalTransaction savedTransaction = historicalTransactionRepository.save(transaction);
+                log.info("✅ ✅ ✅ TRANSACTION SAVED SUCCESSFULLY! Database ID: {}", savedTransaction.getId());
+
                 result.incrementSuccessful();
 
-                log.debug("✅ Imported transaction from line {}", review.getLineNumber());
+                log.info("✅ Successfully imported transaction from line {}", review.getLineNumber());
 
             } catch (Exception e) {
-                log.error("❌ Failed to import line {}: {}", review.getLineNumber(), e.getMessage(), e);
+                log.error("❌ ❌ ❌ EXCEPTION OCCURRED WHILE PROCESSING LINE {}", review.getLineNumber());
+                log.error("❌ Exception type: {}", e.getClass().getName());
+                log.error("❌ Exception message: {}", e.getMessage());
+                log.error("❌ Full stack trace:", e);
                 result.addError("Line " + review.getLineNumber() + ": " + e.getMessage());
                 result.incrementFailed();
             }
+
+            log.info("========== END REVIEW {} ==========", (i+1));
         }
 
-        log.info("✅ Confirmed import complete: {} imported, {} skipped, {} errors",
-            result.getSuccessfulImports(), result.getSkippedDuplicates(), result.getFailedImports());
+        log.info("🏁 ============================================");
+        log.info("🏁 IMPORT COMPLETE");
+        log.info("🏁 Total processed: {}", result.getTotalProcessed());
+        log.info("🏁 Successful imports: {}", result.getSuccessfulImports());
+        log.info("🏁 Skipped duplicates: {}", result.getSkippedDuplicates());
+        log.info("🏁 Failed imports: {}", result.getFailedImports());
+        log.info("🏁 Errors: {}", result.getErrors());
+        log.info("🏁 ============================================");
 
         return result;
     }
