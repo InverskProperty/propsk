@@ -1096,6 +1096,7 @@ public class HistoricalTransactionImportService {
         // User selections (filled during review)
         private Long selectedPropertyId;
         private Long selectedCustomerId;
+        private Long selectedPaymentSourceId;
         private boolean skipDuplicate;
         private String userNote;
 
@@ -1123,6 +1124,8 @@ public class HistoricalTransactionImportService {
         public void setSelectedPropertyId(Long selectedPropertyId) { this.selectedPropertyId = selectedPropertyId; }
         public Long getSelectedCustomerId() { return selectedCustomerId; }
         public void setSelectedCustomerId(Long selectedCustomerId) { this.selectedCustomerId = selectedCustomerId; }
+        public Long getSelectedPaymentSourceId() { return selectedPaymentSourceId; }
+        public void setSelectedPaymentSourceId(Long selectedPaymentSourceId) { this.selectedPaymentSourceId = selectedPaymentSourceId; }
         public boolean isSkipDuplicate() { return skipDuplicate; }
         public void setSkipDuplicate(boolean skipDuplicate) { this.skipDuplicate = skipDuplicate; }
         public String getUserNote() { return userNote; }
@@ -1734,6 +1737,12 @@ public class HistoricalTransactionImportService {
                     customer = customerService.findByCustomerId(review.getSelectedCustomerId());
                 }
 
+                // Get payment source (user-selected)
+                PaymentSource paymentSource = null;
+                if (review.getSelectedPaymentSourceId() != null) {
+                    paymentSource = paymentSourceRepository.findById(review.getSelectedPaymentSourceId()).orElse(null);
+                }
+
                 // Create transaction
                 HistoricalTransaction transaction = new HistoricalTransaction();
                 transaction.setTransactionDate(transactionDate);
@@ -1742,6 +1751,7 @@ public class HistoricalTransactionImportService {
                 transaction.setTransactionType(transactionType);
                 transaction.setProperty(property);
                 transaction.setCustomer(customer);
+                transaction.setPaymentSource(paymentSource);
                 transaction.setImportBatchId(batchId);
                 transaction.setCreatedAt(LocalDateTime.now());
 
