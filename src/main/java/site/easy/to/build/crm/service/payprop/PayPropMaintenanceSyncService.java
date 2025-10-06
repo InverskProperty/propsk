@@ -79,53 +79,69 @@ public class PayPropMaintenanceSyncService {
      */
     public SyncResult syncMaintenanceCategories() {
         log.info("🏷️ Syncing maintenance categories from PayProp...");
-        
+
         try {
             // Use the correct endpoint: /maintenance/categories (not /payments/categories)
-            List<Map<String, Object>> categories = apiClient.fetchAllPages("/maintenance/categories", 
+            List<Map<String, Object>> categories = apiClient.fetchAllPages("/maintenance/categories",
                 item -> {
-                    log.debug("Maintenance Category - ID: {} Name: {} Description: {}", 
+                    log.debug("Maintenance Category - ID: {} Name: {} Description: {}",
                         item.get("id"), item.get("name"), item.get("description"));
                     return item;
                 });
-            
+
             log.info("📦 PayProp API returned: {} maintenance categories", categories.size());
-            
+
+            // If no categories were returned, check if it's a permissions issue
+            if (categories.isEmpty()) {
+                log.warn("⚠️ No maintenance categories fetched - may indicate insufficient permissions or no data");
+                return SyncResult.partial("No maintenance categories available",
+                    Map.of("total_fetched", 0, "imported", 0, "warning", "No categories available or insufficient permissions"));
+            }
+
             // Clear existing data for fresh import
             int deletedCount = jdbcTemplate.update("DELETE FROM payprop_maintenance_categories");
             log.info("Cleared {} existing maintenance categories for fresh import", deletedCount);
-            
+
             int created = 0;
             String insertSql = """
                 INSERT IGNORE INTO payprop_maintenance_categories (
                     payprop_external_id, name, description, category_type, is_active
                 ) VALUES (?, ?, ?, ?, ?)
             """;
-            
+
             for (Map<String, Object> categoryData : categories) {
                 String externalId = getStringValue(categoryData, "id");
                 String name = getStringValue(categoryData, "name");
                 String description = getStringValue(categoryData, "description");
-                
+
                 // PayProp puts category names in description field when name is null
                 String categoryName = (name != null && !name.trim().isEmpty()) ? name : description;
-                
+
                 if (externalId != null && categoryName != null && !categoryName.trim().isEmpty()) {
-                    int result = jdbcTemplate.update(insertSql, 
+                    int result = jdbcTemplate.update(insertSql,
                         externalId, categoryName, description, "maintenance", true);
-                    
+
                     if (result > 0) {
                         created++;
                     }
                 }
             }
-            
+
             log.info("✅ Maintenance categories sync completed: {} imported", created);
-            
-            return SyncResult.success("Maintenance categories synced", 
+
+            return SyncResult.success("Maintenance categories synced",
                 Map.of("total_fetched", categories.size(), "imported", created, "deleted", deletedCount));
-                
+
         } catch (Exception e) {
+            // Check if this is a permissions error
+            if (e.getMessage() != null &&
+                (e.getMessage().contains("403 FORBIDDEN") ||
+                 e.getMessage().contains("You do not have the necessary permission"))) {
+                log.warn("⚠️ Insufficient permissions to sync maintenance categories - skipping");
+                return SyncResult.partial("Insufficient permissions for maintenance categories",
+                    Map.of("total_fetched", 0, "imported", 0, "error", "403 Forbidden"));
+            }
+
             log.error("❌ Failed to sync maintenance categories: {}", e.getMessage(), e);
             return SyncResult.failure("Failed to sync maintenance categories: " + e.getMessage());
         }

@@ -114,32 +114,52 @@ public class PayPropApiClient {
                 break;
             } catch (Exception e) {
                 log.error("Failed to fetch page {} from {}: {}", page, endpoint, e.getMessage());
-                
+
                 // Check for 404 errors (can be wrapped in RuntimeException)
                 boolean is404 = false;
+                boolean isAuthError = false;
+
+                // Check if this is an HttpClientErrorException or if it's wrapped
                 if (e instanceof HttpClientErrorException) {
                     HttpClientErrorException httpError = (HttpClientErrorException) e;
-                    if (httpError.getStatusCode() == HttpStatus.UNAUTHORIZED || 
+                    if (httpError.getStatusCode() == HttpStatus.UNAUTHORIZED ||
                         httpError.getStatusCode() == HttpStatus.FORBIDDEN) {
-                        log.error("Authentication/Authorization error, stopping pagination");
-                        break;
+                        log.error("Authentication/Authorization error ({}), stopping pagination", httpError.getStatusCode());
+                        isAuthError = true;
                     } else if (httpError.getStatusCode() == HttpStatus.NOT_FOUND) {
                         is404 = true;
                     }
                 } else if (e.getCause() instanceof HttpClientErrorException) {
                     HttpClientErrorException httpError = (HttpClientErrorException) e.getCause();
-                    if (httpError.getStatusCode() == HttpStatus.NOT_FOUND) {
+                    if (httpError.getStatusCode() == HttpStatus.UNAUTHORIZED ||
+                        httpError.getStatusCode() == HttpStatus.FORBIDDEN) {
+                        log.error("Authentication/Authorization error ({}), stopping pagination", httpError.getStatusCode());
+                        isAuthError = true;
+                    } else if (httpError.getStatusCode() == HttpStatus.NOT_FOUND) {
                         is404 = true;
                     }
-                } else if (e.getMessage() != null && e.getMessage().contains("404 NOT_FOUND")) {
-                    is404 = true;
+                } else if (e.getMessage() != null) {
+                    // Check error message for auth errors
+                    if (e.getMessage().contains("403 FORBIDDEN") ||
+                        e.getMessage().contains("401 UNAUTHORIZED") ||
+                        e.getMessage().contains("You do not have the necessary permission")) {
+                        log.error("Authentication/Authorization error in message, stopping pagination");
+                        isAuthError = true;
+                    } else if (e.getMessage().contains("404 NOT_FOUND")) {
+                        is404 = true;
+                    }
                 }
-                
+
+                // Stop pagination on auth errors
+                if (isAuthError) {
+                    break;
+                }
+
                 if (is404) {
                     log.debug("404 error on page {}, likely no more pages available, stopping pagination", page);
                     break;
                 }
-                
+
                 // For other errors, log and continue to next page
                 page++;
             }
