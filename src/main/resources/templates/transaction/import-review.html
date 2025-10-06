@@ -627,6 +627,9 @@ $(document).ready(function() {
     function renderUserActions(review, index) {
         return `
             <div class="text-right">
+                <button class="btn btn-sm btn-danger mb-2" onclick="deleteTransaction(${index})" title="Delete this transaction">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
                 <textarea class="form-control form-control-sm" rows="2"
                           placeholder="Add note..."
                           id="userNote${index}"
@@ -689,6 +692,31 @@ $(document).ready(function() {
 
     window.updateUserNote = function(index) {
         reviewQueue.reviews[index].userNote = $(`#userNote${index}`).val();
+    };
+
+    window.deleteTransaction = function(index) {
+        const review = reviewQueue.reviews[index];
+        const description = review.parsedData?.description || 'this transaction';
+
+        if (!confirm(`Delete transaction?\n\nLine ${review.lineNumber}: ${description}\n\nThis cannot be undone.`)) {
+            return;
+        }
+
+        console.log(`🗑️ Deleting transaction at index ${index}`);
+
+        // Remove from reviews array
+        reviewQueue.reviews.splice(index, 1);
+        reviewQueue.totalRows = reviewQueue.reviews.length;
+
+        // Update localStorage
+        localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
+        console.log(`✅ Transaction deleted, ${reviewQueue.reviews.length} remaining`);
+
+        // Re-render the entire review queue
+        renderReviewQueue();
+        updateSummary();
+
+        showSuccess('Transaction deleted successfully');
     };
 
     window.createProperty = function(index, suggestedName) {
