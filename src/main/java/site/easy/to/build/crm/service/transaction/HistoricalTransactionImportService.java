@@ -912,27 +912,36 @@ public class HistoricalTransactionImportService {
             User user = userService.findByEmail(principalName);
 
             if (user == null) {
-                // Principal might be OAuth user ID (numeric string like "114738897312032777033")
-                // Look up User through OAuthUser relationship
-                log.info("🔐 Email lookup failed, trying OAuth user ID lookup...");
+                // Principal might be OAuth sub claim (Google ID like "114738897312032777033")
+                // Look up User through OAuthUser relationship using email
+                log.info("🔐 Email lookup failed, trying OAuth user lookup...");
 
-                try {
-                    Integer oauthUserId = Integer.parseInt(principalName);
-                    user = userRepository.findAll().stream()
-                        .filter(u -> u.getOauthUser() != null && u.getOauthUser().getId().equals(oauthUserId))
-                        .findFirst()
-                        .orElse(null);
+                // Find all users with OAuth and check their OAuth email or ID
+                user = userRepository.findAll().stream()
+                    .filter(u -> u.getOauthUser() != null)
+                    .filter(u -> {
+                        // Check if OAuth email matches the principal
+                        if (u.getOauthUser().getEmail() != null &&
+                            u.getOauthUser().getEmail().equals(principalName)) {
+                            return true;
+                        }
+                        // Also check username in case it's stored there
+                        if (u.getUsername() != null && u.getUsername().equals(principalName)) {
+                            return true;
+                        }
+                        return false;
+                    })
+                    .findFirst()
+                    .orElse(null);
 
-                    if (user != null) {
-                        log.info("✅ User found via OAuth ID: {} -> {}", oauthUserId, user.getEmail());
-                    } else {
-                        log.error("❌ User not found for OAuth ID: {}", oauthUserId);
-                    }
-                } catch (NumberFormatException e) {
-                    log.error("❌ Principal is neither email nor valid OAuth ID: {}", principalName);
+                if (user != null) {
+                    log.info("✅ User found via OAuth lookup: {}", user.getEmail());
+                } else {
+                    log.error("❌ User not found for principal: {}", principalName);
+                    log.error("❌ Tried: direct email lookup, OAuth email lookup, username lookup");
                 }
             } else {
-                log.info("✅ User found via email: {}", user.getEmail());
+                log.info("✅ User found via direct email: {}", user.getEmail());
             }
 
             return user;
