@@ -16,11 +16,13 @@ import site.easy.to.build.crm.entity.HistoricalTransaction;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.entity.PaymentSource;
 import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionType;
 import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionSource;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.UserRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
+import site.easy.to.build.crm.repository.PaymentSourceRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
@@ -66,6 +68,9 @@ public class HistoricalTransactionImportService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PaymentSourceRepository paymentSourceRepository;
 
     @Autowired
     private AuthenticationUtils authenticationUtils;
@@ -554,11 +559,15 @@ public class HistoricalTransactionImportService {
         transaction.setDescription(getValue(values, columnMap, "description"));
         transaction.setTransactionType(parseTransactionType(getValue(values, columnMap, "transaction_type")));
 
-        // Enhanced dual-source support
-        String paymentSource = getValue(values, columnMap, "payment_source");
-        if (paymentSource != null && !paymentSource.isEmpty()) {
-            validatePaymentSource(paymentSource); // Validate payment source
-            transaction.setPaymentMethod(paymentSource); // Store payment source in payment_method for now
+        // Enhanced dual-source support - Map payment_source column to payment_sources table
+        String paymentSourceCode = getValue(values, columnMap, "payment_source");
+        if (paymentSourceCode != null && !paymentSourceCode.isEmpty()) {
+            PaymentSource paymentSource = mapPaymentSource(paymentSourceCode);
+            if (paymentSource != null) {
+                transaction.setPaymentSource(paymentSource);
+                // Also store code in account_source for reference
+                transaction.setAccountSource(paymentSourceCode);
+            }
         }
 
         // Note: Parking spaces are now handled as separate properties
@@ -720,8 +729,45 @@ public class HistoricalTransactionImportService {
     }
 
     /**
-     * Validate payment source value
+     * Validate and map payment source to PaymentSource entity
+     * Maps CSV column values to actual payment_sources table records
      */
+    private PaymentSource mapPaymentSource(String paymentSourceCode) {
+        if (paymentSourceCode == null || paymentSourceCode.isEmpty()) {
+            return null; // Optional field
+        }
+
+        String normalizedCode = paymentSourceCode.toUpperCase().trim();
+        String paymentSourceName;
+
+        // Map CSV codes to payment source names
+        switch (normalizedCode) {
+            case "OLD_ACCOUNT":
+                paymentSourceName = "Old Account System";
+                break;
+            case "PAYPROP":
+                paymentSourceName = "PayProp System";
+                break;
+            case "CALMONY":
+            case "BANK":
+                paymentSourceName = "Calmony Bank Account";
+                break;
+            default:
+                throw new IllegalArgumentException("Invalid payment source: " + paymentSourceCode +
+                                                 ". Valid sources: OLD_ACCOUNT, PAYPROP, CALMONY");
+        }
+
+        // Look up the payment source by name
+        return paymentSourceRepository.findByName(paymentSourceName)
+            .orElseThrow(() -> new IllegalArgumentException(
+                "Payment source '" + paymentSourceName + "' not found in database. " +
+                "Please create it first via the Payment Sources page."));
+    }
+
+    /**
+     * Validate payment source value (deprecated - use mapPaymentSource instead)
+     */
+    @Deprecated
     private void validatePaymentSource(String paymentSource) {
         if (paymentSource == null || paymentSource.isEmpty()) {
             return; // Optional field
@@ -731,11 +777,12 @@ public class HistoricalTransactionImportService {
         switch (normalizedSource) {
             case "OLD_ACCOUNT":
             case "PAYPROP":
-            case "BOTH":
+            case "CALMONY":
+            case "BANK":
                 break; // Valid values
             default:
                 throw new IllegalArgumentException("Invalid payment source: " + paymentSource +
-                                                 ". Valid sources: OLD_ACCOUNT, PAYPROP, BOTH");
+                                                 ". Valid sources: OLD_ACCOUNT, PAYPROP, CALMONY");
         }
     }
     
