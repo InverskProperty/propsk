@@ -508,7 +508,8 @@ public class PayPropOAuth2Service {
                 
                 if (metaInfo.containsKey("scopes")) {
                     List<String> scopes = (List<String>) metaInfo.get("scopes");
-                    System.out.println("   Available scopes: " + String.join(", ", scopes));
+                    // Commented out - too verbose in logs
+                    // System.out.println("   Available scopes: " + String.join(", ", scopes));
                 }
             }
             

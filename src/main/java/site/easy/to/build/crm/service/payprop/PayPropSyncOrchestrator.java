@@ -1471,8 +1471,14 @@ public class PayPropSyncOrchestrator {
             customer.setState((String) address.get("state"));
             customer.setPostcode((String) address.get("postal_code"));
             customer.setCountryCode((String) address.get("country_code"));
+
+            // Extract country from PayProp address if available
+            String country = (String) address.get("country");
+            if (country != null && !country.trim().isEmpty()) {
+                customer.setCountry(country);
+            }
         }
-        
+
         // Bank Details
         Map<String, Object> bankAccount = (Map<String, Object>) data.get("bank_account");
         if (bankAccount != null) {
@@ -1533,6 +1539,15 @@ public class PayPropSyncOrchestrator {
             customer.setCity((String) address.get("city"));
             customer.setPostcode((String) address.get("postal_code"));
             customer.setCountryCode((String) address.get("country_code"));
+
+            // Extract country from address if available, otherwise use UK as default
+            String country = (String) address.get("country");
+            if (country != null && !country.trim().isEmpty()) {
+                customer.setCountry(country);
+            } else {
+                // Fallback to UK if country not provided
+                customer.setCountry("UK");
+            }
         }
         
         // Bank Details (if tenant has bank account)
@@ -1601,8 +1616,14 @@ public class PayPropSyncOrchestrator {
             customer.setState((String) address.get("state"));
             customer.setPostcode((String) address.get("postal_code"));
             customer.setCountryCode((String) address.get("country_code"));
+
+            // Extract country from PayProp address if available
+            String country = (String) address.get("country");
+            if (country != null && !country.trim().isEmpty()) {
+                customer.setCountry(country);
+            }
         }
-        
+
         // Bank Details
         Map<String, Object> bankAccount = (Map<String, Object>) data.get("bank_account");
         if (bankAccount != null) {

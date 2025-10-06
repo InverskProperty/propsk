@@ -2521,10 +2521,14 @@ public class PayPropFinancialSyncService {
             // Delete financial_transactions for non-existent properties
             if (!currentPayPropIds.isEmpty()) {
                 String placeholders = String.join(",", currentPayPropIds.stream().map(id -> "?").toArray(String[]::new));
+
+                // financial_transactions.property_id is a VARCHAR containing PayProp ID directly
                 String deleteTransactionsQuery = String.format(
-                    "DELETE FROM financial_transactions WHERE property_id IN (" +
-                    "  SELECT id FROM properties WHERE payprop_id NOT IN (%s) AND payprop_id IS NOT NULL" +
-                    ") AND data_source IN ('BATCH_PAYMENT', 'COMMISSION_PAYMENT', 'ICDN_ACTUAL')",
+                    "DELETE FROM financial_transactions " +
+                    "WHERE property_id IS NOT NULL " +
+                    "AND property_id != '' " +
+                    "AND property_id NOT IN (%s) " +
+                    "AND data_source IN ('BATCH_PAYMENT', 'COMMISSION_PAYMENT', 'ICDN_ACTUAL')",
                     placeholders
                 );
 
@@ -2536,10 +2540,10 @@ public class PayPropFinancialSyncService {
                     deletedTransactions = ps.executeUpdate();
                 }
 
-                // Delete payments for non-existent properties
+                // payments.property_id is a BIGINT foreign key, so use subquery
                 String deletePaymentsQuery = String.format(
                     "DELETE FROM payments WHERE property_id IN (" +
-                    "  SELECT id FROM properties WHERE payprop_id NOT IN (%s) AND payprop_id IS NOT NULL" +
+                    "  SELECT id FROM properties WHERE payprop_id IS NOT NULL AND payprop_id NOT IN (%s)" +
                     ")",
                     placeholders
                 );
@@ -2552,10 +2556,10 @@ public class PayPropFinancialSyncService {
                     deletedPayments = ps.executeUpdate();
                 }
 
-                // Delete batch_payments for non-existent properties
+                // batch_payments.property_id is a BIGINT foreign key, so use subquery
                 String deleteBatchPaymentsQuery = String.format(
                     "DELETE FROM batch_payments WHERE property_id IN (" +
-                    "  SELECT id FROM properties WHERE payprop_id NOT IN (%s) AND payprop_id IS NOT NULL" +
+                    "  SELECT id FROM properties WHERE payprop_id IS NOT NULL AND payprop_id NOT IN (%s)" +
                     ")",
                     placeholders
                 );
