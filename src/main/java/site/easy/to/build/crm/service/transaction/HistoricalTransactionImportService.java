@@ -1734,16 +1734,47 @@ public class HistoricalTransactionImportService {
                     continue;
                 }
 
-                // Extract parsed data (values are strings from JSON deserialization)
+                // Extract parsed data (may be strings or already parsed objects from JSON deserialization)
                 Map<String, Object> data = review.getParsedData();
                 log.info("📊 Parsed data keys: {}", data.keySet());
-                log.info("📊 Parsed date: {}", data.get("parsedDate"));
-                log.info("📊 Parsed amount: {}", data.get("parsedAmount"));
+                log.info("📊 Parsed date value: {} (type: {})", data.get("parsedDate"),
+                    data.get("parsedDate") != null ? data.get("parsedDate").getClass().getSimpleName() : "null");
+                log.info("📊 Parsed amount value: {} (type: {})", data.get("parsedAmount"),
+                    data.get("parsedAmount") != null ? data.get("parsedAmount").getClass().getSimpleName() : "null");
                 log.info("📊 Description: {}", data.get("description"));
                 log.info("📊 Parsed type: {}", data.get("parsedType"));
 
-                LocalDate transactionDate = parseDate((String) data.get("parsedDate"));
-                BigDecimal amount = new BigDecimal((String) data.get("parsedAmount"));
+                // Handle parsedDate - could be String or LocalDate
+                LocalDate transactionDate;
+                Object dateObj = data.get("parsedDate");
+                if (dateObj instanceof LocalDate) {
+                    transactionDate = (LocalDate) dateObj;
+                    log.info("✅ Date already parsed as LocalDate: {}", transactionDate);
+                } else if (dateObj instanceof String) {
+                    transactionDate = parseDate((String) dateObj);
+                    log.info("✅ Date parsed from string: {}", transactionDate);
+                } else {
+                    throw new IllegalArgumentException("parsedDate must be LocalDate or String, got: " +
+                        (dateObj != null ? dateObj.getClass().getName() : "null"));
+                }
+
+                // Handle parsedAmount - could be String or BigDecimal
+                BigDecimal amount;
+                Object amountObj = data.get("parsedAmount");
+                if (amountObj instanceof BigDecimal) {
+                    amount = (BigDecimal) amountObj;
+                    log.info("✅ Amount already parsed as BigDecimal: {}", amount);
+                } else if (amountObj instanceof String) {
+                    amount = new BigDecimal((String) amountObj);
+                    log.info("✅ Amount parsed from string: {}", amount);
+                } else if (amountObj instanceof Number) {
+                    amount = new BigDecimal(amountObj.toString());
+                    log.info("✅ Amount converted from number: {}", amount);
+                } else {
+                    throw new IllegalArgumentException("parsedAmount must be BigDecimal, Number, or String, got: " +
+                        (amountObj != null ? amountObj.getClass().getName() : "null"));
+                }
+
                 String description = (String) data.get("description");
                 TransactionType transactionType = TransactionType.valueOf((String) data.get("parsedType"));
 
