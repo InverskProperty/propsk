@@ -424,6 +424,28 @@ public class PayPropRawImportSimpleController {
                             "message", tenantAssignmentsSync.getMessage()
                         ));
 
+                        // STEP 2G: Sync Financial Data
+                        log.info("💰 Syncing comprehensive financial data...");
+                        try {
+                            Map<String, Object> financialResults = financialSyncService.syncComprehensiveFinancialData();
+
+                            boolean financialSuccess = "SUCCESS".equals(financialResults.get("status"));
+                            log.info("✅ Financial sync: {}", financialSuccess ? "completed" : "had errors");
+
+                            syncResults.put("financial_sync", Map.of(
+                                "success", financialSuccess,
+                                "details", financialResults,
+                                "message", financialSuccess ? "Financial data synced successfully" : "Financial sync completed with errors"
+                            ));
+                        } catch (Exception e) {
+                            log.error("❌ Financial sync failed: {}", e.getMessage(), e);
+                            syncResults.put("financial_sync", Map.of(
+                                "success", false,
+                                "error", e.getMessage(),
+                                "message", "Financial sync failed"
+                            ));
+                        }
+
                         // Add all sync results to response
                         response.putAll(syncResults);
 
@@ -437,6 +459,15 @@ public class PayPropRawImportSimpleController {
                         log.info("✅ Owner Assignments: {} owner→property links", assignmentsCreated);
                         log.info("✅ Tenants: {} created, {} updated", tenantsCreated, tenantsUpdated);
                         log.info("✅ Tenant Assignments: {} tenant→property links", tenantAssignments);
+
+                        // Financial sync summary
+                        Map<String, Object> financialSyncResult = (Map<String, Object>) syncResults.get("financial_sync");
+                        if (financialSyncResult != null && Boolean.TRUE.equals(financialSyncResult.get("success"))) {
+                            log.info("✅ Financial Data: synced successfully");
+                        } else if (financialSyncResult != null) {
+                            log.warn("⚠️  Financial Data: sync had errors");
+                        }
+
                         log.info("=".repeat(80));
 
                     } catch (Exception e) {
