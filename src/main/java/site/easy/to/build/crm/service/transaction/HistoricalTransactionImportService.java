@@ -1743,6 +1743,9 @@ public class HistoricalTransactionImportService {
                     paymentSource = paymentSourceRepository.findById(review.getSelectedPaymentSourceId()).orElse(null);
                 }
 
+                // Get current user for createdBy field (required)
+                User currentUser = getCurrentUser();
+
                 // Create transaction
                 HistoricalTransaction transaction = new HistoricalTransaction();
                 transaction.setTransactionDate(transactionDate);
@@ -1752,6 +1755,7 @@ public class HistoricalTransactionImportService {
                 transaction.setProperty(property);
                 transaction.setCustomer(customer);
                 transaction.setPaymentSource(paymentSource);
+                transaction.setCreatedByUser(currentUser);
                 transaction.setImportBatchId(batchId);
                 transaction.setCreatedAt(LocalDateTime.now());
 
