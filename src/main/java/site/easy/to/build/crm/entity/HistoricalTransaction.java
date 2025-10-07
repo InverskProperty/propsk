@@ -86,6 +86,12 @@ public class HistoricalTransaction {
     @JoinColumn(name = "payment_source_id")
     private PaymentSource paymentSource;
 
+    // NEW: Block-level transaction tracking
+    // Enables block financial statements (service charges, block expenses, etc.)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "block_id")
+    private Block block;
+
     @Column(name = "source_reference", length = 255)
     private String sourceReference;
 
@@ -407,6 +413,9 @@ public class HistoricalTransaction {
 
     public PaymentSource getPaymentSource() { return paymentSource; }
     public void setPaymentSource(PaymentSource paymentSource) { this.paymentSource = paymentSource; }
+
+    public Block getBlock() { return block; }
+    public void setBlock(Block block) { this.block = block; }
 
     public String getSourceReference() { return sourceReference; }
     public void setSourceReference(String sourceReference) { this.sourceReference = sourceReference; }

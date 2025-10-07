@@ -112,7 +112,13 @@ public class Property {
 
     @Column(name = "account_balance", precision = 10, scale = 2)
     private BigDecimal accountBalance;
-    
+
+    // NEW: Block Property Flag
+    // When true, this property represents a block itself (for financial tracking)
+    // Block properties receive service charges and pay block-level expenses
+    @Column(name = "is_block_property")
+    private Boolean isBlockProperty = false;
+
     // Property Valuation and Purchase Information
     @Column(name = "purchase_price", precision = 12, scale = 2)
     @Digits(integer = 10, fraction = 2)
@@ -399,6 +405,9 @@ public class Property {
 
     public BigDecimal getAccountBalance() { return accountBalance; }
     public void setAccountBalance(BigDecimal accountBalance) { this.accountBalance = accountBalance; }
+
+    public Boolean getIsBlockProperty() { return isBlockProperty; }
+    public void setIsBlockProperty(Boolean isBlockProperty) { this.isBlockProperty = isBlockProperty; }
     
     // Property Valuation and Purchase Information Getters/Setters
     public BigDecimal getPurchasePrice() { return purchasePrice; }

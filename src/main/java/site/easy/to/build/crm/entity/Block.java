@@ -2,6 +2,7 @@ package site.easy.to.build.crm.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -70,17 +71,41 @@ public class Block {
     @Column(name = "facilities", columnDefinition = "TEXT")
     private String facilities; // JSON or comma-separated
     
+    // Financial Configuration (NEW)
+    @Column(name = "annual_service_charge")
+    private BigDecimal annualServiceCharge; // Total annual service charge for the block
+
+    @Column(name = "service_charge_frequency")
+    @Enumerated(EnumType.STRING)
+    private ServiceChargeFrequency serviceChargeFrequency; // MONTHLY, QUARTERLY, ANNUAL
+
+    @Column(name = "ground_rent_annual")
+    private BigDecimal groundRentAnnual; // If block has ground rent
+
+    @Column(name = "insurance_annual")
+    private BigDecimal insuranceAnnual; // Block-level building insurance
+
+    @Column(name = "reserve_fund_contribution")
+    private BigDecimal reserveFundContribution; // Sinking fund/reserve
+
+    @Column(name = "allocation_method")
+    @Enumerated(EnumType.STRING)
+    private AllocationMethod allocationMethod; // EQUAL, BY_SQFT, BY_BEDROOMS, CUSTOM
+
+    @Column(name = "service_charge_account")
+    private String serviceChargeAccount; // Dedicated service charge bank account
+
     // Ownership and Access
     @Column(name = "property_owner_id")
     private Integer propertyOwnerId;
-    
+
     @Column(name = "is_active")
     private String isActive = "Y";
-    
+
     // Display Settings
     @Column(name = "color_code", length = 7)
     private String colorCode;
-    
+
     @Column(name = "display_order")
     private Integer displayOrder = 0;
     
@@ -98,12 +123,33 @@ public class Block {
     private Long updatedBy;
     
     // Relationships
+
+    // DEPRECATED: Direct portfolio relationship (kept for backward compatibility)
+    // Use BlockPortfolioAssignment junction table instead for many-to-many
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "portfolio_id")
+    @Deprecated
     private Portfolio portfolio;
-    
+
+    // NEW: Many-to-many portfolios via junction table
     @OneToMany(mappedBy = "block", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<BlockPortfolioAssignment> portfolioAssignments;
+
+    // DEPRECATED: Direct property relationship (kept for backward compatibility)
+    // Use PropertyBlockAssignment junction table instead
+    @OneToMany(mappedBy = "block", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @Deprecated
     private List<Property> properties;
+
+    // NEW: Many-to-many properties via junction table
+    @OneToMany(mappedBy = "block", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<PropertyBlockAssignment> propertyAssignments;
+
+    // NEW: Block Property - The property representing this block itself as a financial entity
+    // This enables block-level financial tracking (service charges, expenses, reserve fund)
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "block_property_id")
+    private Property blockProperty;
     
     // Constructors
     public Block() {}
@@ -186,11 +232,24 @@ public class Block {
     public Long getUpdatedBy() { return updatedBy; }
     public void setUpdatedBy(Long updatedBy) { this.updatedBy = updatedBy; }
     
+    @Deprecated
     public Portfolio getPortfolio() { return portfolio; }
+    @Deprecated
     public void setPortfolio(Portfolio portfolio) { this.portfolio = portfolio; }
-    
+
+    public List<BlockPortfolioAssignment> getPortfolioAssignments() { return portfolioAssignments; }
+    public void setPortfolioAssignments(List<BlockPortfolioAssignment> portfolioAssignments) { this.portfolioAssignments = portfolioAssignments; }
+
+    @Deprecated
     public List<Property> getProperties() { return properties; }
+    @Deprecated
     public void setProperties(List<Property> properties) { this.properties = properties; }
+
+    public List<PropertyBlockAssignment> getPropertyAssignments() { return propertyAssignments; }
+    public void setPropertyAssignments(List<PropertyBlockAssignment> propertyAssignments) { this.propertyAssignments = propertyAssignments; }
+
+    public Property getBlockProperty() { return blockProperty; }
+    public void setBlockProperty(Property blockProperty) { this.blockProperty = blockProperty; }
     
     // Business Logic Methods
     public boolean isActive() {
@@ -242,7 +301,41 @@ public class Block {
     // PayProp Integration Getters/Setters
     public String getPayPropTagNames() { return payPropTagNames; }
     public void setPayPropTagNames(String payPropTagNames) { this.payPropTagNames = payPropTagNames; }
-    
+
     public LocalDateTime getLastSyncAt() { return lastSyncAt; }
     public void setLastSyncAt(LocalDateTime lastSyncAt) { this.lastSyncAt = lastSyncAt; }
+
+    // Financial Configuration Getters/Setters
+    public BigDecimal getAnnualServiceCharge() { return annualServiceCharge; }
+    public void setAnnualServiceCharge(BigDecimal annualServiceCharge) { this.annualServiceCharge = annualServiceCharge; }
+
+    public ServiceChargeFrequency getServiceChargeFrequency() { return serviceChargeFrequency; }
+    public void setServiceChargeFrequency(ServiceChargeFrequency serviceChargeFrequency) { this.serviceChargeFrequency = serviceChargeFrequency; }
+
+    public BigDecimal getGroundRentAnnual() { return groundRentAnnual; }
+    public void setGroundRentAnnual(BigDecimal groundRentAnnual) { this.groundRentAnnual = groundRentAnnual; }
+
+    public BigDecimal getInsuranceAnnual() { return insuranceAnnual; }
+    public void setInsuranceAnnual(BigDecimal insuranceAnnual) { this.insuranceAnnual = insuranceAnnual; }
+
+    public BigDecimal getReserveFundContribution() { return reserveFundContribution; }
+    public void setReserveFundContribution(BigDecimal reserveFundContribution) { this.reserveFundContribution = reserveFundContribution; }
+
+    public AllocationMethod getAllocationMethod() { return allocationMethod; }
+    public void setAllocationMethod(AllocationMethod allocationMethod) { this.allocationMethod = allocationMethod; }
+
+    public String getServiceChargeAccount() { return serviceChargeAccount; }
+    public void setServiceChargeAccount(String serviceChargeAccount) { this.serviceChargeAccount = serviceChargeAccount; }
+
+    // Enums
+    public enum ServiceChargeFrequency {
+        MONTHLY, QUARTERLY, ANNUAL
+    }
+
+    public enum AllocationMethod {
+        EQUAL,      // Split equally among all properties
+        BY_SQFT,    // Proportional to square footage
+        BY_BEDROOMS, // Proportional to number of bedrooms
+        CUSTOM      // Manually set per property
+    }
 }
