@@ -385,7 +385,7 @@ $(document).ready(function() {
     function loadAllCustomers() {
         console.log('👥 Loading all customers...');
         return $.ajax({
-            url: '/employee/customer/manager/all-customers',
+            url: '/employee/customer/api/all',
             method: 'GET',
             headers: {
                 [csrfHeader]: csrfToken
@@ -394,6 +394,7 @@ $(document).ready(function() {
             if (response && Array.isArray(response)) {
                 window.allCustomers = response;
                 console.log(`✅ Loaded ${response.length} customers`);
+                console.log('📊 Sample customer:', response[0]); // Debug: see customer structure
             } else {
                 console.error('❌ Failed to load customers:', response);
             }

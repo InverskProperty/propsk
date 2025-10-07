@@ -1,6 +1,8 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Controller;
@@ -1667,6 +1669,27 @@ public class CustomerController {
 
     // ===== MANAGER CUSTOMER VIEWS =====
 
+    /**
+     * Get all customers as JSON (API endpoint for AJAX)
+     * GET /employee/customer/api/all
+     */
+    @GetMapping("/api/all")
+    @ResponseBody
+    public ResponseEntity<List<Customer>> getAllCustomersApi(Authentication authentication) {
+        try {
+            // Check if user has manager or employee role
+            if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+
+            List<Customer> customers = customerService.findAll();
+            return ResponseEntity.ok(customers);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     @GetMapping("/manager/all-customers")
     public String showAllCustomersManager(@RequestParam(value = "search", required = false) String search,
                                         @RequestParam(value = "type", required = false) String typeFilter,
@@ -1674,14 +1697,14 @@ public class CustomerController {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
             User user = userService.findById(userId);
-            
+
             // Check if user is manager
             if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 return "error/access-denied";
             }
-            
+
             List<Customer> customers = customerService.findAll();
-            
+
             // Apply type filter if provided
             if (typeFilter != null && !typeFilter.trim().isEmpty()) {
                 switch (typeFilter.toLowerCase()) {
@@ -1702,7 +1725,7 @@ public class CustomerController {
                         break;
                 }
             }
-            
+
             // Apply search filter if provided
             if (search != null && !search.trim().isEmpty()) {
                 customers = customers.stream()
@@ -1711,7 +1734,7 @@ public class CustomerController {
                                 (c.getCity() != null && c.getCity().toLowerCase().contains(search.toLowerCase())))
                     .collect(Collectors.toList());
             }
-            
+
             model.addAttribute("customers", customers);
             model.addAttribute("customerType", "All Customers");
             model.addAttribute("pageTitle", "All Customers - Manager View");
@@ -1719,9 +1742,9 @@ public class CustomerController {
             model.addAttribute("typeFilter", typeFilter);
             model.addAttribute("user", user);
             model.addAttribute("isManagerView", true);
-            
+
             return "customer/manager-all-customers";
-            
+
         } catch (Exception e) {
             model.addAttribute("error", "Error loading customers: " + e.getMessage());
             return "error/500";
