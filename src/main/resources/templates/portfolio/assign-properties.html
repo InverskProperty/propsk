@@ -100,6 +100,10 @@
                     <p class="text-muted" th:unless="${isPortfolioSpecific}">
                         Assign properties to portfolios with drag & drop
                     </p>
+                    <!-- Block assignment indicator (shown via JavaScript when blockId is present) -->
+                    <div id="blockAssignmentIndicator" style="display: none;" class="alert alert-info mt-2 mb-0 py-2">
+                        <i class="fas fa-building"></i> <strong>Assigning to Block:</strong> <span id="blockAssignmentName">Loading...</span>
+                    </div>
                 </div>
                 <div class="col-md-4 align-self-center text-right">
                     <div class="btn-group">
@@ -424,6 +428,10 @@ let currentMode = 'dragdrop';
 const isPortfolioSpecific = /*[[${isPortfolioSpecific ?: false}]]*/ false;
 const targetPortfolioId = /*[[${targetPortfolio?.id ?: null}]]*/ null;
 
+// Check if we're assigning to a specific block
+const urlParams = new URLSearchParams(window.location.search);
+const targetBlockId = urlParams.get('blockId') ? parseInt(urlParams.get('blockId')) : null;
+
 // Enhanced toast notification system
 function createToast(type, title, message) {
     const toastContainer = document.getElementById('toastContainer');
@@ -543,8 +551,25 @@ function drop(event) {
 function assignPropertiesToPortfolio(portfolioId, propertyIds) {
     // Get CSRF token
     const csrfToken = document.querySelector('meta[name="_csrf"]')?.getAttribute('content');
-    
-    return fetch(`/portfolio/${portfolioId}/assign-properties-v2?propertyIds=${propertyIds.join(',')}`, {
+
+    // Determine which endpoint to use based on whether we're assigning to a block
+    let endpoint, successMessage;
+
+    if (targetBlockId) {
+        // Assigning to a specific block
+        endpoint = `/portfolio/internal/assignment/blocks/${targetBlockId}/assign-properties`;
+        const params = propertyIds.map(id => `propertyIds=${id}`).join('&');
+        endpoint = `${endpoint}?${params}`;
+        successMessage = 'block';
+        console.log('🏗️ Assigning to block:', targetBlockId);
+    } else {
+        // Assigning to portfolio only
+        endpoint = `/portfolio/${portfolioId}/assign-properties-v2?propertyIds=${propertyIds.join(',')}`;
+        successMessage = 'portfolio';
+        console.log('📁 Assigning to portfolio:', portfolioId);
+    }
+
+    return fetch(endpoint, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -559,10 +584,20 @@ function assignPropertiesToPortfolio(portfolioId, propertyIds) {
     })
     .then(data => {
         if (data.success) {
-            alert(`Successfully assigned ${data.assignedCount} properties. PayProp synced: ${data.syncedCount}`);
-            location.reload(); // Refresh to show updated assignments
+            if (targetBlockId) {
+                alert(`✅ Successfully assigned ${data.assignedCount} properties to block!`);
+            } else {
+                alert(`✅ Successfully assigned ${data.assignedCount} properties. PayProp synced: ${data.syncedCount || 0}`);
+            }
+
+            // Redirect back to portfolio details page
+            if (isPortfolioSpecific && targetPortfolioId) {
+                window.location.href = `/portfolio/${targetPortfolioId}`;
+            } else {
+                location.reload();
+            }
         } else {
-            alert('Assignment failed: ' + (data.error || 'Unknown error'));
+            alert('Assignment failed: ' + (data.message || data.error || 'Unknown error'));
         }
         return data;
     });
@@ -735,9 +770,36 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Page loaded. Initializing...');
     console.log('Is portfolio specific:', isPortfolioSpecific);
     console.log('Target portfolio ID:', targetPortfolioId);
-    
+    console.log('Target block ID:', targetBlockId);
+
+    // If assigning to a specific block, fetch block info and show indicator
+    if (targetBlockId) {
+        console.log('🏗️ Block assignment mode detected');
+        const indicator = document.getElementById('blockAssignmentIndicator');
+        const blockNameSpan = document.getElementById('blockAssignmentName');
+
+        // Fetch block information
+        fetch(`/portfolio/internal/blocks/${targetBlockId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.block) {
+                    blockNameSpan.textContent = data.block.name;
+                    indicator.style.display = 'block';
+                    console.log('✅ Loaded block info:', data.block.name);
+                } else {
+                    blockNameSpan.textContent = `Block #${targetBlockId}`;
+                    indicator.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading block info:', error);
+                blockNameSpan.textContent = `Block #${targetBlockId}`;
+                indicator.style.display = 'block';
+            });
+    }
+
     setMode('dragdrop');
-    
+
     // If portfolio-specific, pre-select the target portfolio in bulk mode
     if (isPortfolioSpecific && targetPortfolioId) {
         setTimeout(() => {
@@ -748,7 +810,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }, 100);
     }
-    
+
     console.log('Page initialization complete');
 });
 </script>
