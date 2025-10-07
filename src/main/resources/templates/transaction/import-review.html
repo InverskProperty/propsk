@@ -365,7 +365,7 @@ $(document).ready(function() {
     function loadAllProperties() {
         console.log('🏠 Loading all properties...');
         return $.ajax({
-            url: '/employee/property/all',
+            url: '/employee/property/all-properties',
             method: 'GET',
             headers: {
                 [csrfHeader]: csrfToken
@@ -385,7 +385,7 @@ $(document).ready(function() {
     function loadAllCustomers() {
         console.log('👥 Loading all customers...');
         return $.ajax({
-            url: '/employee/customer/all',
+            url: '/employee/customer/manager/all-customers',
             method: 'GET',
             headers: {
                 [csrfHeader]: csrfToken
