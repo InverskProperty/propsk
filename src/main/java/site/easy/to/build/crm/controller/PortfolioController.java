@@ -1490,8 +1490,11 @@ public class PortfolioController {
             System.out.println("🔍 Loading properties for portfolio " + id);
             List<Property> properties = portfolioService.getPropertiesForPortfolio(id);
             System.out.println("✅ Found " + properties.size() + " properties using junction table method");
-            
-            // Create simple portfolio statistics
+
+            // Calculate analytics
+            PortfolioAnalytics analytics = portfolioService.calculatePortfolioAnalytics(id, LocalDate.now());
+
+            // Create simple portfolio statistics (for backwards compatibility)
             Map<String, Object> stats = new HashMap<>();
             stats.put("totalProperties", properties.size());
             stats.put("occupiedProperties", properties.stream()
@@ -1534,13 +1537,21 @@ public class PortfolioController {
                 })
                 .collect(Collectors.toList());
             
+            // Check permissions
+            boolean canEdit = canUserEditPortfolio(id, authentication);
+            boolean canManageProperties = canEdit || AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER");
+
             // Add all attributes
             model.addAttribute("portfolio", portfolio);
             model.addAttribute("properties", properties); // ← FIXED: Template expects "properties"
             model.addAttribute("propertiesWithTenants", propertiesWithTenants);
             model.addAttribute("stats", stats);
+            model.addAttribute("analytics", analytics);
             model.addAttribute("pageTitle", "Portfolio: " + portfolio.getName());
-            
+            model.addAttribute("canEdit", canEdit);
+            model.addAttribute("canManageProperties", canManageProperties);
+            model.addAttribute("payPropEnabled", payPropEnabled);
+
             return "portfolio/portfolio-details";
             
         } catch (Exception e) {
