@@ -54,17 +54,17 @@
                     <ul class="collapse">
                         <!-- Portfolio Dashboard - main entry point -->
                         <li><a th:href="${home + 'portfolio/dashboard'}"><i class="fas fa-tachometer-alt"></i> Portfolio Dashboard</a></li>
-                        
+
                         <!-- Portfolio Management -->
                         <li><a th:href="${home + 'portfolio/create'}"><i class="fas fa-plus"></i> Create Portfolio</a></li>
                         <li><a th:href="${home + 'portfolio/all'}"><i class="fas fa-list"></i> All Portfolios</a></li>
-                        
+
                         <!-- Property Assignment -->
                         <li><a th:href="${home + 'portfolio/assign-properties'}"><i class="fas fa-home"></i> Assign Properties</a></li>
-                        
+
                         <!-- NEW: Portfolio Maintenance Dashboard -->
                         <li><a th:href="${home + 'portfolio/maintenance-dashboard'}"><i class="fas fa-wrench text-primary"></i> Portfolio Maintenance</a></li>
-                        
+
                         <!-- PayProp Integration (Manager only) -->
                         <li th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">
                             <a href="javascript:void(0)" class="has-arrow">PayProp Sync</a>
@@ -74,6 +74,29 @@
                                 <li><a href="javascript:void(0)" onclick="pullPayPropTags()"><i class="fas fa-cloud-download-alt"></i> Import PayProp Tags</a></li>
                             </ul>
                         </li>
+                    </ul>
+                </li>
+
+                <!-- BLOCK MANAGEMENT - NEW standalone blocks section -->
+                <li>
+                    <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
+                        <i class="fas fa-building"></i>
+                        <span class="hide-menu">Blocks</span>
+                    </a>
+                    <ul class="collapse">
+                        <!-- Block Dashboard -->
+                        <li><a th:href="${home + 'blocks'}"><i class="fas fa-th"></i> All Blocks</a></li>
+
+                        <!-- Block Management -->
+                        <li><a href="javascript:void(0)" onclick="$('#createBlockModal').modal('show')"><i class="fas fa-plus"></i> Create Block</a></li>
+
+                        <!-- Service Charge Management -->
+                        <li><a href="javascript:void(0)"><i class="fas fa-pound-sign text-success"></i> Service Charges</a></li>
+                        <li><a href="javascript:void(0)"><i class="fas fa-calculator"></i> Cost Allocation</a></li>
+
+                        <!-- Block Operations -->
+                        <li><a href="javascript:void(0)"><i class="fas fa-file-invoice-dollar"></i> Block Expenses</a></li>
+                        <li><a href="javascript:void(0)"><i class="fas fa-piggy-bank"></i> Reserve Funds</a></li>
                     </ul>
                 </li>
 

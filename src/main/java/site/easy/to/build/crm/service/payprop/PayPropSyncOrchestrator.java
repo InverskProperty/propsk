@@ -1681,7 +1681,18 @@ public class PayPropSyncOrchestrator {
         customer.setEmail((String) data.get("email_address"));
         customer.setMobileNumber((String) data.get("mobile_number"));
         customer.setPhone((String) data.get("phone"));
-        
+
+        // Ensure country is set - required field for validation
+        if (customer.getCountry() == null || customer.getCountry().trim().isEmpty()) {
+            Map<String, Object> address = (Map<String, Object>) data.get("address");
+            if (address != null) {
+                String country = (String) address.get("country");
+                customer.setCountry(country != null && !country.trim().isEmpty() ? country : "UK");
+            } else {
+                customer.setCountry("UK");
+            }
+        }
+
         if (customer.getAccountType() == AccountType.business) {
             String businessName = (String) data.get("business_name");
             if (businessName != null) {
