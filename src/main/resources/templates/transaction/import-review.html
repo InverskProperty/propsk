@@ -516,15 +516,43 @@ $(document).ready(function() {
     function renderPropertyOptions(review, index) {
         if (!review.propertyOptions || review.propertyOptions.length === 0) {
             if (review.status === 'MISSING_PROPERTY') {
-                return `
+                // Show search + all properties dropdown when no matches found
+                let html = `
                     <div class="mt-3">
                         <strong class="text-danger">Property: "${escapeHtml(review.parsedData.propertyRef || 'Unknown')}" not found</strong>
-                        <br>
-                        <button class="btn btn-sm btn-primary create-entity-btn mt-2" onclick="createProperty(${index}, '${escapeHtml(review.parsedData.propertyRef || '')}')">
-                            <i class="fas fa-plus"></i> Create Property
-                        </button>
+
+                        <div class="mt-2">
+                            <label class="font-weight-bold">Search & Select Property:</label>
+                            <input type="text" class="form-control form-control-sm mb-2"
+                                   id="propertySearch${index}"
+                                   placeholder="Type to search properties..."
+                                   onkeyup="filterPropertyDropdown(${index})">
+                            <select class="form-control form-control-sm"
+                                    id="propertyDropdown${index}"
+                                    onchange="selectPropertyFromDropdown(${index})"
+                                    size="5">
+                                <option value="">-- Select Any Property --</option>`;
+
+                // Add ALL properties
+                if (window.allProperties && window.allProperties.length > 0) {
+                    window.allProperties.forEach(prop => {
+                        const selected = review.selectedPropertyId === prop.id ? 'selected' : '';
+                        const propName = escapeHtml(prop.property_name || prop.propertyName);
+                        const address = escapeHtml((prop.address_line_1 || prop.addressLine1 || '') + ' ' + (prop.postcode || ''));
+                        html += `<option value="${prop.id}" ${selected} data-search="${propName.toLowerCase()} ${address.toLowerCase()}">${propName}${address ? ' - ' + address : ''}</option>`;
+                    });
+                }
+
+                html += `</select>
+                        </div>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-primary create-entity-btn" onclick="createProperty(${index}, '${escapeHtml(review.parsedData.propertyRef || '')}')">
+                                <i class="fas fa-plus"></i> Create New Property
+                            </button>
+                        </div>
                     </div>
                 `;
+                return html;
             }
             return '';
         }
@@ -539,9 +567,32 @@ $(document).ready(function() {
         html += '</div>';
         html += '</div>';
 
-        // Add a dropdown to select from ALL properties
-        html += '<div class="mt-2">';
-        html += `<select class="form-control form-control-sm" id="propertyDropdown${index}" onchange="selectPropertyFromDropdown(${index})">`;
+        // Show suggested matches as clickable boxes
+        if (review.propertyOptions && review.propertyOptions.length > 0) {
+            html += '<div class="mt-2">';
+            html += '<small class="text-muted font-weight-bold">SUGGESTED MATCHES:</small>';
+            review.propertyOptions.forEach((option, optIndex) => {
+                const selected = review.selectedPropertyId === option.propertyId ? 'selected' : '';
+                html += `
+                    <div class="match-option ${selected}" data-index="${index}" data-option-id="${option.propertyId}" onclick="selectProperty(${index}, ${option.propertyId})">
+                        <strong>${escapeHtml(option.propertyName)}</strong>
+                        <span class="match-score">${option.matchScore}% match</span>
+                        <br>
+                        <small class="text-muted">${escapeHtml(option.addressLine1 || '')} ${escapeHtml(option.postcode || '')}</small>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
+
+        // Add searchable dropdown for ALL properties
+        html += '<div class="mt-3">';
+        html += '<small class="text-muted font-weight-bold">OR SEARCH ALL PROPERTIES:</small>';
+        html += '<input type="text" class="form-control form-control-sm mb-2 mt-1" ';
+        html += `id="propertySearch${index}" `;
+        html += 'placeholder="Type to search all properties..."';
+        html += `onkeyup="filterPropertyDropdown(${index})">`;
+        html += `<select class="form-control form-control-sm" id="propertyDropdown${index}" onchange="selectPropertyFromDropdown(${index})" size="5">`;
         html += '<option value="">-- Select Any Property --</option>';
 
         // Add suggested matches first (with match score)
@@ -549,7 +600,9 @@ $(document).ready(function() {
             html += '<optgroup label="Suggested Matches">';
             review.propertyOptions.forEach(option => {
                 const selected = review.selectedPropertyId === option.propertyId ? 'selected' : '';
-                html += `<option value="${option.propertyId}" ${selected}>${escapeHtml(option.propertyName)} (${option.matchScore}% match)</option>`;
+                const propName = escapeHtml(option.propertyName);
+                const address = escapeHtml((option.addressLine1 || '') + ' ' + (option.postcode || ''));
+                html += `<option value="${option.propertyId}" ${selected} data-search="${propName.toLowerCase()} ${address.toLowerCase()}">${propName} (${option.matchScore}% match)${address ? ' - ' + address : ''}</option>`;
             });
             html += '</optgroup>';
         }
@@ -559,30 +612,17 @@ $(document).ready(function() {
         if (window.allProperties && window.allProperties.length > 0) {
             window.allProperties.forEach(prop => {
                 // Skip if already in suggested matches
-                const alreadySuggested = review.propertyOptions.some(opt => opt.propertyId === prop.id);
+                const alreadySuggested = review.propertyOptions && review.propertyOptions.some(opt => opt.propertyId === prop.id);
                 if (!alreadySuggested) {
                     const selected = review.selectedPropertyId === prop.id ? 'selected' : '';
-                    html += `<option value="${prop.id}" ${selected}>${escapeHtml(prop.property_name || prop.propertyName)}</option>`;
+                    const propName = escapeHtml(prop.property_name || prop.propertyName);
+                    const address = escapeHtml((prop.address_line_1 || prop.addressLine1 || '') + ' ' + (prop.postcode || ''));
+                    html += `<option value="${prop.id}" ${selected} data-search="${propName.toLowerCase()} ${address.toLowerCase()}">${propName}${address ? ' - ' + address : ''}</option>`;
                 }
             });
         }
         html += '</optgroup>';
         html += '</select>';
-        html += '</div>';
-
-        // Also show clickable match boxes for convenience
-        html += '<div class="mt-2">';
-        review.propertyOptions.forEach((option, optIndex) => {
-            const selected = review.selectedPropertyId === option.propertyId ? 'selected' : '';
-            html += `
-                <div class="match-option ${selected}" data-index="${index}" data-option-id="${option.propertyId}" onclick="selectProperty(${index}, ${option.propertyId})">
-                    <strong>${escapeHtml(option.propertyName)}</strong>
-                    <span class="match-score">${option.matchScore}% match</span>
-                    <br>
-                    <small class="text-muted">${escapeHtml(option.addressLine1 || '')} ${escapeHtml(option.postcode || '')}</small>
-                </div>
-            `;
-        });
         html += '</div>';
 
         html += '</div>';
@@ -719,6 +759,27 @@ $(document).ready(function() {
             reviewQueue.reviews[index].selectedPropertyId = null;
         }
         updateReadiness();
+    };
+
+    window.filterPropertyDropdown = function(index) {
+        const searchText = $(`#propertySearch${index}`).val().toLowerCase();
+        const dropdown = $(`#propertyDropdown${index}`);
+
+        dropdown.find('option').each(function() {
+            const option = $(this);
+            if (option.val() === '') {
+                // Keep the placeholder option
+                option.show();
+                return;
+            }
+
+            const searchData = option.attr('data-search') || option.text().toLowerCase();
+            if (searchData.includes(searchText)) {
+                option.show();
+            } else {
+                option.hide();
+            }
+        });
     };
 
     window.selectCustomer = function(index, customerId) {
