@@ -903,24 +903,25 @@ public class PortfolioController {
      * ADDITIONAL FIX: Update portfolio-specific assignment page logic
      */
     @GetMapping("/{id}/assign")
-    public String showPortfolioSpecificAssignmentPage(@PathVariable("id") Long portfolioId, 
-                                                    Model model, 
+    public String showPortfolioSpecificAssignmentPage(@PathVariable("id") Long portfolioId,
+                                                    @RequestParam(value = "blockId", required = false) Long blockId,
+                                                    Model model,
                                                     Authentication authentication) {
         try {
             // Check access permissions
             if (!portfolioService.canUserAccessPortfolio(portfolioId, authentication)) {
                 return "redirect:/access-denied";
             }
-            
+
             // Get the specific portfolio
             Portfolio targetPortfolio = portfolioService.findById(portfolioId);
             if (targetPortfolio == null) {
                 return "error/not-found";
             }
-            
+
             // Get all portfolios for the general assignment interface
             List<Portfolio> allPortfolios = portfolioService.findPortfoliosForUser(authentication);
-            
+
             // ✅ FIXED: Filter properties based on portfolio ownership using junction table logic
             List<Property> allProperties;
             List<Property> unassignedProperties;
@@ -953,16 +954,43 @@ public class PortfolioController {
                 .map(Property::getId)
                 .collect(Collectors.toSet());
 
-            // Filter to get properties NOT in this specific portfolio (available for assignment)
-            unassignedProperties = allProperties.stream()
-                .filter(property -> !assignedPropertyIds.contains(property.getId()))
-                .filter(property -> !"Y".equals(property.getIsArchived()))
-                .collect(Collectors.toList());
+            // ✅ NEW: Handle block assignment mode
+            if (blockId != null) {
+                // Block assignment mode - show properties IN portfolio but NOT in this specific block
+                System.out.println("🏗️ Block assignment mode: blockId=" + blockId);
 
-            System.out.println("Portfolio " + portfolioId + " assignment: " + allProperties.size() +
-                             " total properties, " + propertiesInPortfolio.size() +
-                             " already assigned, " + unassignedProperties.size() + " available for assignment");
-            
+                // Get properties already assigned to this block
+                List<PropertyPortfolioAssignment> blockAssignments = propertyPortfolioAssignmentRepository
+                    .findByPortfolioIdAndIsActive(portfolioId, true)
+                    .stream()
+                    .filter(a -> a.getBlock() != null && a.getBlock().getId().equals(blockId))
+                    .collect(Collectors.toList());
+
+                Set<Long> propertiesInBlock = blockAssignments.stream()
+                    .map(a -> a.getProperty().getId())
+                    .collect(Collectors.toSet());
+
+                // Show properties that are IN the portfolio but NOT in this block
+                unassignedProperties = propertiesInPortfolio.stream()
+                    .filter(property -> !propertiesInBlock.contains(property.getId()))
+                    .filter(property -> !"Y".equals(property.getIsArchived()))
+                    .collect(Collectors.toList());
+
+                System.out.println("Block " + blockId + " assignment: " + propertiesInPortfolio.size() +
+                                 " total in portfolio, " + propertiesInBlock.size() +
+                                 " already in block, " + unassignedProperties.size() + " available for block assignment");
+            } else {
+                // Portfolio assignment mode - show properties NOT in portfolio
+                unassignedProperties = allProperties.stream()
+                    .filter(property -> !assignedPropertyIds.contains(property.getId()))
+                    .filter(property -> !"Y".equals(property.getIsArchived()))
+                    .collect(Collectors.toList());
+
+                System.out.println("Portfolio " + portfolioId + " assignment: " + allProperties.size() +
+                                 " total properties, " + propertiesInPortfolio.size() +
+                                 " already assigned, " + unassignedProperties.size() + " available for assignment");
+            }
+
             // Add the attributes
             model.addAttribute("targetPortfolio", targetPortfolio);
             model.addAttribute("portfolios", allPortfolios);
@@ -970,9 +998,9 @@ public class PortfolioController {
             model.addAttribute("allProperties", allProperties);
             model.addAttribute("pageTitle", "Assign Properties to " + targetPortfolio.getName());
             model.addAttribute("isPortfolioSpecific", true);
-            
+
             return "portfolio/assign-properties";
-            
+
         } catch (Exception e) {
             model.addAttribute("error", "Error loading assignment page: " + e.getMessage());
             return "error/500";
