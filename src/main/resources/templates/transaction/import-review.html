@@ -75,6 +75,23 @@
         position: sticky;
         top: 20px;
     }
+    .property-search-dropdown {
+        min-height: 200px !important;
+        height: auto !important;
+        font-size: 13px;
+        border: 2px solid #007bff;
+    }
+    .property-search-dropdown option {
+        padding: 8px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .property-search-dropdown option:hover {
+        background-color: #e7f3ff;
+    }
+    .suggested-match {
+        background-color: #fffbea !important;
+        font-weight: 600;
+    }
 </style>
 
 </head>
@@ -318,9 +335,8 @@ $(document).ready(function() {
     let currentCreateContext = null; // For entity creation callbacks
     window.paymentSources = []; // Global payment sources list
 
-    // Load payment sources first, then review data
-    // Load both payment sources and properties before loading review data
-    Promise.all([loadPaymentSources(), loadAllProperties()]).then(() => {
+    // Load payment sources, properties, and customers first, then review data
+    Promise.all([loadPaymentSources(), loadAllProperties(), loadAllCustomers()]).then(() => {
         loadReviewData();
     });
 
@@ -363,6 +379,26 @@ $(document).ready(function() {
             }
         }).fail(function(xhr, status, error) {
             console.error('❌ Properties API error:', error);
+        });
+    }
+
+    function loadAllCustomers() {
+        console.log('👥 Loading all customers...');
+        return $.ajax({
+            url: '/employee/customer/all',
+            method: 'GET',
+            headers: {
+                [csrfHeader]: csrfToken
+            }
+        }).done(function(response) {
+            if (response && Array.isArray(response)) {
+                window.allCustomers = response;
+                console.log(`✅ Loaded ${response.length} customers`);
+            } else {
+                console.error('❌ Failed to load customers:', response);
+            }
+        }).fail(function(xhr, status, error) {
+            console.error('❌ Customers API error:', error);
         });
     }
 
@@ -526,11 +562,12 @@ $(document).ready(function() {
                             <input type="text" class="form-control form-control-sm mb-2"
                                    id="propertySearch${index}"
                                    placeholder="Type to search properties..."
-                                   onkeyup="filterPropertyDropdown(${index})">
-                            <select class="form-control form-control-sm"
+                                   onkeyup="filterPropertyDropdown(${index})"
+                                   onfocus="this.select()">
+                            <select class="form-control form-control-sm property-search-dropdown"
                                     id="propertyDropdown${index}"
                                     onchange="selectPropertyFromDropdown(${index})"
-                                    size="5">
+                                    size="8">
                                 <option value="">-- Select Any Property --</option>`;
 
                 // Add ALL properties
@@ -544,6 +581,7 @@ $(document).ready(function() {
                 }
 
                 html += `</select>
+                            <small class="text-muted d-block mt-1" id="searchResultCount${index}"></small>
                         </div>
                         <div class="mt-2">
                             <button class="btn btn-sm btn-primary create-entity-btn" onclick="createProperty(${index}, '${escapeHtml(review.parsedData.propertyRef || '')}')">
@@ -591,24 +629,26 @@ $(document).ready(function() {
         html += '<input type="text" class="form-control form-control-sm mb-2 mt-1" ';
         html += `id="propertySearch${index}" `;
         html += 'placeholder="Type to search all properties..."';
-        html += `onkeyup="filterPropertyDropdown(${index})">`;
-        html += `<select class="form-control form-control-sm" id="propertyDropdown${index}" onchange="selectPropertyFromDropdown(${index})" size="5">`;
+        html += `onkeyup="filterPropertyDropdown(${index})" onfocus="this.select()">`;
+        html += `<select class="form-control form-control-sm property-search-dropdown" id="propertyDropdown${index}" onchange="selectPropertyFromDropdown(${index})" size="8">`;
         html += '<option value="">-- Select Any Property --</option>';
 
         // Add suggested matches first (with match score)
         if (review.propertyOptions && review.propertyOptions.length > 0) {
-            html += '<optgroup label="Suggested Matches">';
             review.propertyOptions.forEach(option => {
                 const selected = review.selectedPropertyId === option.propertyId ? 'selected' : '';
                 const propName = escapeHtml(option.propertyName);
                 const address = escapeHtml((option.addressLine1 || '') + ' ' + (option.postcode || ''));
-                html += `<option value="${option.propertyId}" ${selected} data-search="${propName.toLowerCase()} ${address.toLowerCase()}">${propName} (${option.matchScore}% match)${address ? ' - ' + address : ''}</option>`;
+                html += `<option value="${option.propertyId}" ${selected} data-search="${propName.toLowerCase()} ${address.toLowerCase()}" class="suggested-match">📌 ${propName} (${option.matchScore}% match)${address ? ' - ' + address : ''}</option>`;
             });
-            html += '</optgroup>';
+        }
+
+        // Add separator
+        if (review.propertyOptions && review.propertyOptions.length > 0) {
+            html += '<option disabled>──────────────────────────</option>';
         }
 
         // Add ALL properties
-        html += '<optgroup label="All Properties">';
         if (window.allProperties && window.allProperties.length > 0) {
             window.allProperties.forEach(prop => {
                 // Skip if already in suggested matches
@@ -621,8 +661,8 @@ $(document).ready(function() {
                 }
             });
         }
-        html += '</optgroup>';
         html += '</select>';
+        html += '<small class="text-muted d-block mt-1" id="searchResultCount${index}"></small>';
         html += '</div>';
 
         html += '</div>';
@@ -632,31 +672,162 @@ $(document).ready(function() {
     function renderCustomerOptions(review, index) {
         if (!review.customerOptions || review.customerOptions.length === 0) {
             if (review.status === 'MISSING_CUSTOMER') {
-                return `
+                // Get property-related customers if property is selected
+                const propertyId = review.selectedPropertyId;
+                let propertyCustomers = [];
+                let otherCustomers = [];
+
+                if (propertyId && window.allCustomers) {
+                    window.allCustomers.forEach(customer => {
+                        // Check if customer is related to this property (owner, tenant, or beneficiary)
+                        const isPropertyRelated = customer.propertyOwnerId === propertyId ||
+                            (customer.properties && customer.properties.includes(propertyId)) ||
+                            (customer.assignedProperties && customer.assignedProperties.includes(propertyId));
+
+                        if (isPropertyRelated) {
+                            propertyCustomers.push(customer);
+                        } else {
+                            otherCustomers.push(customer);
+                        }
+                    });
+                }
+
+                // Show search + customers dropdown prioritizing property-related customers
+                let html = `
                     <div class="mt-3">
-                        <strong class="text-info">Customer: "${escapeHtml(review.parsedData.customerRef || 'Unknown')}" not found</strong>
-                        <br>
-                        <button class="btn btn-sm btn-primary create-entity-btn mt-2" onclick="createCustomer(${index}, '${escapeHtml(review.parsedData.customerRef || '')}')">
-                            <i class="fas fa-plus"></i> Create Customer
-                        </button>
+                        <strong class="text-info">Customer: "${escapeHtml(review.parsedData.customerRef || 'Unknown')}" not found</strong>`;
+
+                if (propertyCustomers.length > 0) {
+                    html += `<div class="alert alert-info mt-2 py-2 px-3" style="font-size: 12px;">
+                        <i class="fas fa-lightbulb"></i> <strong>${propertyCustomers.length} customer(s)</strong> associated with selected property
+                    </div>`;
+                }
+
+                html += `<div class="mt-2">
+                            <label class="font-weight-bold">Search & Select Customer:</label>
+                            <input type="text" class="form-control form-control-sm mb-2"
+                                   id="customerSearch${index}"
+                                   placeholder="Type to search customers..."
+                                   onkeyup="filterCustomerDropdown(${index})"
+                                   onfocus="this.select()">
+                            <select class="form-control form-control-sm property-search-dropdown"
+                                    id="customerDropdown${index}"
+                                    onchange="selectCustomerFromDropdown(${index})"
+                                    size="8">
+                                <option value="">-- Select Any Customer --</option>`;
+
+                // Add property-related customers FIRST
+                if (propertyCustomers.length > 0) {
+                    propertyCustomers.forEach(customer => {
+                        const selected = review.selectedCustomerId === customer.id ? 'selected' : '';
+                        const custName = escapeHtml(customer.name || customer.fullName || (customer.firstName + ' ' + customer.lastName));
+                        const contact = escapeHtml((customer.email || '') + ' ' + (customer.phone || customer.mobileNumber || ''));
+                        const type = customer.accountType === 'property_owner' ? '🏠 Owner' : (customer.accountType === 'beneficiary' ? '💰 Beneficiary' : '👤 Tenant');
+                        html += `<option value="${customer.id}" ${selected} data-search="${custName.toLowerCase()} ${contact.toLowerCase()}" class="suggested-match">⭐ ${type} - ${custName}${contact ? ' - ' + contact : ''}</option>`;
+                    });
+
+                    // Add separator if there are other customers
+                    if (otherCustomers.length > 0) {
+                        html += '<option disabled>──────────────────────────</option>';
+                    }
+                }
+
+                // Add other customers
+                if (window.allCustomers && window.allCustomers.length > 0) {
+                    const customersToShow = propertyCustomers.length > 0 ? otherCustomers : window.allCustomers;
+                    customersToShow.forEach(customer => {
+                        const selected = review.selectedCustomerId === customer.id ? 'selected' : '';
+                        const custName = escapeHtml(customer.name || customer.fullName || (customer.firstName + ' ' + customer.lastName));
+                        const contact = escapeHtml((customer.email || '') + ' ' + (customer.phone || customer.mobileNumber || ''));
+                        html += `<option value="${customer.id}" ${selected} data-search="${custName.toLowerCase()} ${contact.toLowerCase()}">${custName}${contact ? ' - ' + contact : ''}</option>`;
+                    });
+                }
+
+                html += `</select>
+                            <small class="text-muted d-block mt-1" id="customerSearchResultCount${index}"></small>
+                        </div>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-primary create-entity-btn" onclick="createCustomer(${index}, '${escapeHtml(review.parsedData.customerRef || '')}')">
+                                <i class="fas fa-plus"></i> Create New Customer
+                            </button>
+                        </div>
                     </div>
                 `;
+                return html;
             }
             return '';
         }
 
-        let html = '<div class="mt-3"><strong>Select Customer:</strong>';
-        review.customerOptions.forEach((option, optIndex) => {
-            const selected = review.selectedCustomerId === option.customerId ? 'selected' : '';
-            html += `
-                <div class="match-option ${selected}" data-index="${index}" data-option-id="${option.customerId}" onclick="selectCustomer(${index}, ${option.customerId})">
-                    <strong>${escapeHtml(option.fullName)}</strong>
-                    <span class="match-score">${option.matchScore}% match</span>
-                    <br>
-                    <small class="text-muted">${escapeHtml(option.email || '')} ${escapeHtml(option.phone || '')}</small>
-                </div>
-            `;
-        });
+        let html = '<div class="mt-3">';
+        html += '<div class="row">';
+        html += '<div class="col-md-8"><strong>Select Customer:</strong></div>';
+        html += '<div class="col-md-4 text-right">';
+        html += `<button class="btn btn-xs btn-outline-primary" onclick="createCustomer(${index}, '${escapeHtml(review.parsedData.customerRef || '')}')">
+                    <i class="fas fa-plus"></i> Create New
+                 </button>`;
+        html += '</div>';
+        html += '</div>';
+
+        // Show suggested matches as clickable boxes
+        if (review.customerOptions && review.customerOptions.length > 0) {
+            html += '<div class="mt-2">';
+            html += '<small class="text-muted font-weight-bold">SUGGESTED MATCHES:</small>';
+            review.customerOptions.forEach((option, optIndex) => {
+                const selected = review.selectedCustomerId === option.customerId ? 'selected' : '';
+                html += `
+                    <div class="match-option ${selected}" data-index="${index}" data-option-id="${option.customerId}" onclick="selectCustomer(${index}, ${option.customerId})">
+                        <strong>${escapeHtml(option.fullName)}</strong>
+                        <span class="match-score">${option.matchScore}% match</span>
+                        <br>
+                        <small class="text-muted">${escapeHtml(option.email || '')} ${escapeHtml(option.phone || '')}</small>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
+
+        // Add searchable dropdown for ALL customers
+        html += '<div class="mt-3">';
+        html += '<small class="text-muted font-weight-bold">OR SEARCH ALL CUSTOMERS:</small>';
+        html += '<input type="text" class="form-control form-control-sm mb-2 mt-1" ';
+        html += `id="customerSearch${index}" `;
+        html += 'placeholder="Type to search all customers..."';
+        html += `onkeyup="filterCustomerDropdown(${index})" onfocus="this.select()">`;
+        html += `<select class="form-control form-control-sm property-search-dropdown" id="customerDropdown${index}" onchange="selectCustomerFromDropdown(${index})" size="8">`;
+        html += '<option value="">-- Select Any Customer --</option>';
+
+        // Add suggested matches first
+        if (review.customerOptions && review.customerOptions.length > 0) {
+            review.customerOptions.forEach(option => {
+                const selected = review.selectedCustomerId === option.customerId ? 'selected' : '';
+                const custName = escapeHtml(option.fullName);
+                const contact = escapeHtml((option.email || '') + ' ' + (option.phone || ''));
+                html += `<option value="${option.customerId}" ${selected} data-search="${custName.toLowerCase()} ${contact.toLowerCase()}" class="suggested-match">📌 ${custName} (${option.matchScore}% match)${contact ? ' - ' + contact : ''}</option>`;
+            });
+        }
+
+        // Add separator
+        if (review.customerOptions && review.customerOptions.length > 0) {
+            html += '<option disabled>──────────────────────────</option>';
+        }
+
+        // Add ALL customers
+        if (window.allCustomers && window.allCustomers.length > 0) {
+            window.allCustomers.forEach(customer => {
+                // Skip if already in suggested matches
+                const alreadySuggested = review.customerOptions && review.customerOptions.some(opt => opt.customerId === customer.id);
+                if (!alreadySuggested) {
+                    const selected = review.selectedCustomerId === customer.id ? 'selected' : '';
+                    const custName = escapeHtml(customer.name || customer.fullName || (customer.firstName + ' ' + customer.lastName));
+                    const contact = escapeHtml((customer.email || '') + ' ' + (customer.phone || customer.mobileNumber || ''));
+                    html += `<option value="${customer.id}" ${selected} data-search="${custName.toLowerCase()} ${contact.toLowerCase()}">${custName}${contact ? ' - ' + contact : ''}</option>`;
+                }
+            });
+        }
+        html += '</select>';
+        html += '<small class="text-muted d-block mt-1" id="customerSearchResultCount${index}"></small>';
+        html += '</div>';
+
         html += '</div>';
         return html;
     }
@@ -745,6 +916,13 @@ $(document).ready(function() {
         $(`.match-option[data-index="${index}"]`).removeClass('selected');
         $(`.match-option[data-index="${index}"][data-option-id="${propertyId}"]`).addClass('selected');
         $(`#propertyDropdown${index}`).val(propertyId); // Sync dropdown
+
+        // If this transaction needs a customer, refresh the customer dropdown with property-related customers
+        if (reviewQueue.reviews[index].status === 'MISSING_CUSTOMER' ||
+            reviewQueue.reviews[index].customerOptions) {
+            refreshCustomerDropdownForProperty(index, propertyId);
+        }
+
         updateReadiness();
     };
 
@@ -755,38 +933,175 @@ $(document).ready(function() {
             $(`.match-option[data-index="${index}"]`).removeClass('selected');
             $(`.match-option[data-index="${index}"][data-option-id="${propertyId}"]`).addClass('selected');
             console.log(`Property ${propertyId} selected from dropdown for transaction ${index}`);
+
+            // If this transaction needs a customer, refresh the customer dropdown
+            if (reviewQueue.reviews[index].status === 'MISSING_CUSTOMER' ||
+                reviewQueue.reviews[index].customerOptions) {
+                refreshCustomerDropdownForProperty(index, parseInt(propertyId));
+            }
         } else {
             reviewQueue.reviews[index].selectedPropertyId = null;
         }
         updateReadiness();
     };
 
+    function refreshCustomerDropdownForProperty(index, propertyId) {
+        const customerDropdown = $(`#customerDropdown${index}`);
+        if (customerDropdown.length === 0) return;
+
+        console.log(`🔄 Refreshing customer dropdown for transaction ${index} with property ${propertyId}`);
+
+        // Clear current options except placeholder
+        customerDropdown.find('option:not(:first)').remove();
+
+        let propertyCustomers = [];
+        let otherCustomers = [];
+
+        if (propertyId && window.allCustomers) {
+            window.allCustomers.forEach(customer => {
+                const isPropertyRelated = customer.propertyOwnerId === propertyId ||
+                    (customer.properties && customer.properties.includes(propertyId)) ||
+                    (customer.assignedProperties && customer.assignedProperties.includes(propertyId));
+
+                if (isPropertyRelated) {
+                    propertyCustomers.push(customer);
+                } else {
+                    otherCustomers.push(customer);
+                }
+            });
+        }
+
+        // Add property-related customers first
+        if (propertyCustomers.length > 0) {
+            propertyCustomers.forEach(customer => {
+                const custName = customer.name || customer.fullName || (customer.firstName + ' ' + customer.lastName);
+                const contact = (customer.email || '') + ' ' + (customer.phone || customer.mobileNumber || '');
+                const type = customer.accountType === 'property_owner' ? '🏠 Owner' : (customer.accountType === 'beneficiary' ? '💰 Beneficiary' : '👤 Tenant');
+                const option = $('<option>')
+                    .val(customer.id)
+                    .text(`⭐ ${type} - ${custName}${contact ? ' - ' + contact : ''}`)
+                    .attr('data-search', `${custName.toLowerCase()} ${contact.toLowerCase()}`)
+                    .addClass('suggested-match');
+                customerDropdown.append(option);
+            });
+
+            // Add separator
+            if (otherCustomers.length > 0) {
+                customerDropdown.append($('<option>').prop('disabled', true).text('──────────────────────────'));
+            }
+        }
+
+        // Add other customers
+        const customersToShow = propertyCustomers.length > 0 ? otherCustomers : window.allCustomers || [];
+        customersToShow.forEach(customer => {
+            const custName = customer.name || customer.fullName || (customer.firstName + ' ' + customer.lastName);
+            const contact = (customer.email || '') + ' ' + (customer.phone || customer.mobileNumber || '');
+            const option = $('<option>')
+                .val(customer.id)
+                .text(`${custName}${contact ? ' - ' + contact : ''}`)
+                .attr('data-search', `${custName.toLowerCase()} ${contact.toLowerCase()}`);
+            customerDropdown.append(option);
+        });
+
+        // Update info message if it exists
+        const infoAlert = customerDropdown.closest('.mt-3').prev('.alert-info');
+        if (infoAlert.length > 0 && propertyCustomers.length > 0) {
+            infoAlert.html(`<i class="fas fa-lightbulb"></i> <strong>${propertyCustomers.length} customer(s)</strong> associated with selected property`);
+            infoAlert.show();
+        }
+
+        console.log(`✅ Refreshed customer dropdown: ${propertyCustomers.length} property customers, ${otherCustomers.length} other customers`);
+    }
+
     window.filterPropertyDropdown = function(index) {
         const searchText = $(`#propertySearch${index}`).val().toLowerCase();
         const dropdown = $(`#propertyDropdown${index}`);
+        let visibleCount = 0;
 
         dropdown.find('option').each(function() {
             const option = $(this);
-            if (option.val() === '') {
-                // Keep the placeholder option
+
+            // Always show placeholder and separator
+            if (option.val() === '' || option.prop('disabled')) {
                 option.show();
                 return;
             }
 
             const searchData = option.attr('data-search') || option.text().toLowerCase();
-            if (searchData.includes(searchText)) {
+            if (!searchText || searchData.includes(searchText)) {
                 option.show();
+                visibleCount++;
             } else {
                 option.hide();
             }
         });
+
+        // Show result count
+        const countElement = $(`#searchResultCount${index}`);
+        if (searchText) {
+            countElement.text(`${visibleCount} properties found`);
+            if (visibleCount === 0) {
+                countElement.html('<span class="text-danger">No properties found matching "' + escapeHtml(searchText) + '"</span>');
+            }
+        } else {
+            countElement.text('');
+        }
     };
 
     window.selectCustomer = function(index, customerId) {
         reviewQueue.reviews[index].selectedCustomerId = customerId;
         $(`.match-option[data-index="${index}"]`).removeClass('selected');
         $(`.match-option[data-index="${index}"][data-option-id="${customerId}"]`).addClass('selected');
+        $(`#customerDropdown${index}`).val(customerId); // Sync dropdown
         updateReadiness();
+    };
+
+    window.selectCustomerFromDropdown = function(index) {
+        const customerId = $(`#customerDropdown${index}`).val();
+        if (customerId) {
+            reviewQueue.reviews[index].selectedCustomerId = parseInt(customerId);
+            $(`.match-option[data-index="${index}"]`).removeClass('selected');
+            $(`.match-option[data-index="${index}"][data-option-id="${customerId}"]`).addClass('selected');
+            console.log(`Customer ${customerId} selected from dropdown for transaction ${index}`);
+        } else {
+            reviewQueue.reviews[index].selectedCustomerId = null;
+        }
+        updateReadiness();
+    };
+
+    window.filterCustomerDropdown = function(index) {
+        const searchText = $(`#customerSearch${index}`).val().toLowerCase();
+        const dropdown = $(`#customerDropdown${index}`);
+        let visibleCount = 0;
+
+        dropdown.find('option').each(function() {
+            const option = $(this);
+
+            // Always show placeholder and separator
+            if (option.val() === '' || option.prop('disabled')) {
+                option.show();
+                return;
+            }
+
+            const searchData = option.attr('data-search') || option.text().toLowerCase();
+            if (!searchText || searchData.includes(searchText)) {
+                option.show();
+                visibleCount++;
+            } else {
+                option.hide();
+            }
+        });
+
+        // Show result count
+        const countElement = $(`#customerSearchResultCount${index}`);
+        if (searchText) {
+            countElement.text(`${visibleCount} customers found`);
+            if (visibleCount === 0) {
+                countElement.html('<span class="text-danger">No customers found matching "' + escapeHtml(searchText) + '"</span>');
+            }
+        } else {
+            countElement.text('');
+        }
     };
 
     window.selectPaymentSource = function(index) {
