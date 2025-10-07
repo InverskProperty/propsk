@@ -583,21 +583,34 @@ function assignPropertiesToPortfolio(portfolioId, propertyIds) {
         return response.json();
     })
     .then(data => {
+        console.log('✅ Assignment response:', data);
+
         if (data.success) {
             if (targetBlockId) {
-                alert(`✅ Successfully assigned ${data.assignedCount} properties to block!`);
+                const msg = `✅ Successfully assigned ${data.assignedCount} properties to block!\n\n` +
+                           `Details:\n` +
+                           `- Assigned: ${data.assignedCount}\n` +
+                           `- Skipped: ${data.skippedCount || 0}\n` +
+                           `- Synced to PayProp: ${data.syncedCount || 0}\n` +
+                           `${data.errors && data.errors.length > 0 ? '\n⚠️ Errors:\n' + data.errors.join('\n') : ''}`;
+                alert(msg);
+                console.log('🏗️ Block assignment details:', data);
             } else {
                 alert(`✅ Successfully assigned ${data.assignedCount} properties. PayProp synced: ${data.syncedCount || 0}`);
             }
 
             // Redirect back to portfolio details page
             if (isPortfolioSpecific && targetPortfolioId) {
+                console.log(`📍 Redirecting to /portfolio/${targetPortfolioId}`);
                 window.location.href = `/portfolio/${targetPortfolioId}`;
             } else {
+                console.log('🔄 Reloading page');
                 location.reload();
             }
         } else {
-            alert('Assignment failed: ' + (data.message || data.error || 'Unknown error'));
+            const errorMsg = 'Assignment failed: ' + (data.message || data.error || 'Unknown error');
+            console.error('❌ Assignment failed:', data);
+            alert(errorMsg);
         }
         return data;
     });
