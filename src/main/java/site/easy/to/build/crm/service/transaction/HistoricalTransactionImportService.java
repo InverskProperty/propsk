@@ -578,6 +578,8 @@ public class HistoricalTransactionImportService {
 
         // Optional fields
         setOptionalField(transaction::setCategory, values, columnMap, "category");
+        log.debug("Category value: '{}' from column index: {}",
+                 getValue(values, columnMap, "category"), columnMap.get("category"));
         setOptionalField(transaction::setSubcategory, values, columnMap, "subcategory");
         setOptionalField(transaction::setBankReference, values, columnMap, "bank_reference");
         setOptionalField(transaction::setPaymentMethod, values, columnMap, "payment_method");
@@ -1986,6 +1988,10 @@ public class HistoricalTransactionImportService {
                         (typeObj != null ? typeObj.getClass().getName() : "null"));
                 }
 
+                // Get category (optional field)
+                String category = (String) data.get("category");
+                log.info("📁 Category: {}", category);
+
                 log.info("✅ Successfully parsed core fields");
 
                 // Get property (user-selected or matched)
@@ -2036,6 +2042,7 @@ public class HistoricalTransactionImportService {
                 transaction.setAmount(amount);
                 transaction.setDescription(description);
                 transaction.setTransactionType(transactionType);
+                transaction.setCategory(category);  // Set category field
                 transaction.setProperty(property);
                 transaction.setCustomer(customer);
                 transaction.setPaymentSource(paymentSource);
@@ -2048,6 +2055,7 @@ public class HistoricalTransactionImportService {
                 log.info("   - Date: {}", transaction.getTransactionDate());
                 log.info("   - Amount: {}", transaction.getAmount());
                 log.info("   - Type: {}", transaction.getTransactionType());
+                log.info("   - Category: {}", transaction.getCategory());
                 log.info("   - Description: {}", transaction.getDescription());
                 log.info("   - Property: {}", property != null ? property.getPropertyName() : "NONE");
                 log.info("   - Customer: {}", customer != null ? customer.getFullName() : "NONE");
