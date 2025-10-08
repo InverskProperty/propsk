@@ -1511,19 +1511,39 @@ public class PayPropSyncOrchestrator {
         customer.setPayPropLastSync(LocalDateTime.now());
         customer.setDataSource(DataSource.PAYPROP);
 
-        // Account Type and Name
+        // Account Type and Name - with smart fallback for PayProp data
         String accountTypeStr = (String) data.get("account_type");
-        if ("business".equals(accountTypeStr)) {
+        String firstName = (String) data.get("first_name");
+        String lastName = (String) data.get("last_name");
+        String businessName = (String) data.get("business_name");
+        String displayName = (String) data.get("display_name");
+
+        // Determine account type based on available data
+        boolean hasIndividualName = (firstName != null && !firstName.trim().isEmpty()) ||
+                                    (lastName != null && !lastName.trim().isEmpty());
+        boolean hasBusinessName = (businessName != null && !businessName.trim().isEmpty());
+
+        if ("business".equals(accountTypeStr) || (hasBusinessName && !hasIndividualName)) {
+            // Business account OR PayProp only provided business_name
             customer.setAccountType(AccountType.business);
-            customer.setBusinessName((String) data.get("business_name"));
-            customer.setName(customer.getBusinessName());
+            customer.setBusinessName(businessName);
+            // Use display_name as fallback if business_name is null
+            String name = businessName != null ? businessName : displayName;
+            customer.setName(name);
         } else {
+            // Individual account
             customer.setAccountType(AccountType.individual);
-            customer.setFirstName((String) data.get("first_name"));
-            customer.setLastName((String) data.get("last_name"));
-            customer.setName(customer.getFirstName() + " " + customer.getLastName());
+            customer.setFirstName(firstName);
+            customer.setLastName(lastName);
+            // Build name, use display_name as fallback
+            if (hasIndividualName) {
+                String fullName = (firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "");
+                customer.setName(fullName.trim());
+            } else if (displayName != null && !displayName.trim().isEmpty()) {
+                customer.setName(displayName);
+            }
         }
-        
+
         // Contact Details - with email fallback for validation
         String emailAddress = (String) data.get("email_address");
         if (emailAddress == null || emailAddress.trim().isEmpty()) {
@@ -1712,19 +1732,35 @@ public class PayPropSyncOrchestrator {
             }
         }
 
+        // Update name based on account type, with smart fallbacks
+        String firstName = (String) data.get("first_name");
+        String lastName = (String) data.get("last_name");
+        String businessName = (String) data.get("business_name");
+        String displayName = (String) data.get("display_name");
+
         if (customer.getAccountType() == AccountType.business) {
-            String businessName = (String) data.get("business_name");
-            if (businessName != null) {
+            // Business account - update business name if provided
+            if (businessName != null && !businessName.trim().isEmpty()) {
                 customer.setBusinessName(businessName);
                 customer.setName(businessName);
+            } else if (displayName != null && !displayName.trim().isEmpty()) {
+                // Fallback to display_name if business_name is empty
+                customer.setBusinessName(displayName);
+                customer.setName(displayName);
             }
         } else {
-            String firstName = (String) data.get("first_name");
-            String lastName = (String) data.get("last_name");
-            if (firstName != null && lastName != null) {
+            // Individual account - update names if provided
+            boolean hasIndividualName = (firstName != null && !firstName.trim().isEmpty()) ||
+                                        (lastName != null && !lastName.trim().isEmpty());
+
+            if (hasIndividualName) {
                 customer.setFirstName(firstName);
                 customer.setLastName(lastName);
-                customer.setName(firstName + " " + lastName);
+                String fullName = (firstName != null ? firstName : "") + " " + (lastName != null ? lastName : "");
+                customer.setName(fullName.trim());
+            } else if (displayName != null && !displayName.trim().isEmpty()) {
+                // Fallback to display_name if first/last names are empty
+                customer.setName(displayName);
             }
         }
     }
