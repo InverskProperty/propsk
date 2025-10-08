@@ -1157,6 +1157,8 @@ $(document).ready(function() {
         const dropdown = $(`#customerDropdown${index}`);
         let visibleCount = 0;
 
+        console.log(`🔍 Filtering dropdown ${index} for: "${searchText}"`);
+
         dropdown.find('option').each(function() {
             const option = $(this);
 
@@ -1167,13 +1169,22 @@ $(document).ready(function() {
             }
 
             const searchData = option.attr('data-search') || option.text().toLowerCase();
-            if (!searchText || searchData.includes(searchText)) {
+            const matches = !searchText || searchData.includes(searchText);
+
+            // Debug first 3 options
+            if (visibleCount < 3) {
+                console.log(`  Option: "${option.text().substring(0, 50)}", data-search: "${searchData ? searchData.substring(0, 50) : 'null'}", matches: ${matches}`);
+            }
+
+            if (matches) {
                 option.show();
                 visibleCount++;
             } else {
                 option.hide();
             }
         });
+
+        console.log(`✅ Found ${visibleCount} matching customers`);
 
         // Show result count
         const countElement = $(`#customerSearchResultCount${index}`);
