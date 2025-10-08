@@ -1524,8 +1524,15 @@ public class PayPropSyncOrchestrator {
             customer.setName(customer.getFirstName() + " " + customer.getLastName());
         }
         
-        // Contact Details
-        customer.setEmail((String) data.get("email_address"));
+        // Contact Details - with email fallback for validation
+        String emailAddress = (String) data.get("email_address");
+        if (emailAddress == null || emailAddress.trim().isEmpty()) {
+            log.warn("⚠️ Tenant {} has no email address. Generating placeholder email.", data.get("id"));
+            String entityId = (String) data.get("id");
+            emailAddress = "payprop-tenant-" + entityId + "@placeholder.propsk.com";
+            log.info("📧 Generated placeholder email: {} for tenant {}", emailAddress, entityId);
+        }
+        customer.setEmail(emailAddress);
         customer.setMobileNumber((String) data.get("mobile_number"));
         customer.setPhone((String) data.get("phone"));
         customer.setCountry("UK");
@@ -1678,9 +1685,21 @@ public class PayPropSyncOrchestrator {
             customer.setDataSource(DataSource.PAYPROP);
         }
 
-        customer.setEmail((String) data.get("email_address"));
-        customer.setMobileNumber((String) data.get("mobile_number"));
-        customer.setPhone((String) data.get("phone"));
+        // Only update email if PayProp provides one (don't overwrite with null)
+        String emailAddress = (String) data.get("email_address");
+        if (emailAddress != null && !emailAddress.trim().isEmpty()) {
+            customer.setEmail(emailAddress);
+        }
+
+        String mobileNumber = (String) data.get("mobile_number");
+        if (mobileNumber != null && !mobileNumber.trim().isEmpty()) {
+            customer.setMobileNumber(mobileNumber);
+        }
+
+        String phone = (String) data.get("phone");
+        if (phone != null && !phone.trim().isEmpty()) {
+            customer.setPhone(phone);
+        }
 
         // Ensure country is set - required field for validation
         if (customer.getCountry() == null || customer.getCountry().trim().isEmpty()) {
