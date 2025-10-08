@@ -1603,30 +1603,42 @@ public class HistoricalTransactionImportService {
 
             String searchRef = cleanRef.toLowerCase();
 
+            // Strip common titles from both search and customer names for better matching
+            String normalizedCustomerName = stripTitles(customerName);
+            String normalizedFullName = stripTitles(fullName);
+            String normalizedSearchRef = stripTitles(searchRef);
+
             // Exact match on 'name' field
-            if (!customerName.isEmpty() && !customerName.startsWith("customer -") && customerName.equals(searchRef)) {
+            if (!customerName.isEmpty() && !customerName.startsWith("customer -") && normalizedCustomerName.equals(normalizedSearchRef)) {
                 matches.add(new CustomerOption(cust, 100));
                 continue;
             }
 
             // Exact match on first_name + last_name
-            if (!fullName.isEmpty() && fullName.equals(searchRef)) {
+            if (!fullName.isEmpty() && normalizedFullName.equals(normalizedSearchRef)) {
                 matches.add(new CustomerOption(cust, 100));
+                continue;
+            }
+
+            // Token-based matching: check if any significant name tokens match (partial matches allowed)
+            int tokenMatchScore = calculateTokenMatchScore(normalizedCustomerName, normalizedSearchRef);
+            if (tokenMatchScore >= 55) {  // Lower threshold to include partial matches (1+ word match)
+                matches.add(new CustomerOption(cust, tokenMatchScore));
                 continue;
             }
 
             // Partial match on 'name' field (if not auto-generated)
             if (!customerName.isEmpty() && !customerName.startsWith("customer -") &&
-                (customerName.contains(searchRef) || searchRef.contains(customerName))) {
-                int score = calculateMatchScore(customerName, searchRef);
+                (normalizedCustomerName.contains(normalizedSearchRef) || normalizedSearchRef.contains(normalizedCustomerName))) {
+                int score = calculateMatchScore(normalizedCustomerName, normalizedSearchRef);
                 if (score > 50) {
                     matches.add(new CustomerOption(cust, score));
                 }
             }
 
             // Partial match on first_name + last_name (only if we have a name)
-            if (!fullName.isEmpty() && (fullName.contains(searchRef) || searchRef.contains(fullName))) {
-                int score = calculateMatchScore(fullName, searchRef);
+            if (!fullName.isEmpty() && (normalizedFullName.contains(normalizedSearchRef) || normalizedSearchRef.contains(normalizedFullName))) {
+                int score = calculateMatchScore(normalizedFullName, normalizedSearchRef);
                 if (score > 50) {
                     matches.add(new CustomerOption(cust, score));
                 }
@@ -1679,6 +1691,120 @@ public class HistoricalTransactionImportService {
         }
 
         return matches;
+    }
+
+    /**
+     * Strip common titles from names (Mr, Mrs, Ms, Miss, Dr, etc.)
+     */
+    private String stripTitles(String name) {
+        if (name == null || name.isEmpty()) {
+            return name;
+        }
+        // Remove common titles at the start of names
+        String result = name.replaceAll("^(mr|mrs|ms|miss|dr|prof|sir|madam)\\.?\\s+", "").trim();
+        // Also remove trailing/leading spaces and normalize whitespace
+        return result.replaceAll("\\s+", " ");
+    }
+
+    /**
+     * Calculate token-based match score: checks how many significant tokens match between names
+     * This handles cases like "AMOS BLYTHE" matching "Mr Amos Blyth" even with spelling variations
+     * Also returns partial matches where only some words match (e.g., "AMOS BLYTHE" vs "AMOS SMITH")
+     */
+    private int calculateTokenMatchScore(String name1, String name2) {
+        if (name1 == null || name2 == null || name1.isEmpty() || name2.isEmpty()) {
+            return 0;
+        }
+
+        // Split into tokens (words)
+        String[] tokens1 = name1.toLowerCase().split("\\s+");
+        String[] tokens2 = name2.toLowerCase().split("\\s+");
+
+        // Skip very short tokens (1-2 chars) as they're often initials or noise
+        java.util.List<String> significantTokens1 = new java.util.ArrayList<>();
+        java.util.List<String> significantTokens2 = new java.util.ArrayList<>();
+
+        for (String token : tokens1) {
+            if (token.length() > 2) {
+                significantTokens1.add(token);
+            }
+        }
+        for (String token : tokens2) {
+            if (token.length() > 2) {
+                significantTokens2.add(token);
+            }
+        }
+
+        if (significantTokens1.isEmpty() || significantTokens2.isEmpty()) {
+            return 0;
+        }
+
+        // Check how many tokens match (exactly or with 1-char difference)
+        int matchedTokens = 0;
+        for (String token1 : significantTokens1) {
+            for (String token2 : significantTokens2) {
+                if (token1.equals(token2)) {
+                    matchedTokens++;
+                    break;
+                } else if (Math.abs(token1.length() - token2.length()) <= 1) {
+                    // Allow 1-character difference (handles "blyth" vs "blythe")
+                    int editDistance = levenshteinDistance(token1, token2);
+                    if (editDistance <= 1) {
+                        matchedTokens++;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (matchedTokens == 0) {
+            return 0;
+        }
+
+        // Calculate score based on percentage of tokens matched
+        int maxTokens = Math.max(significantTokens1.size(), significantTokens2.size());
+        int minTokens = Math.min(significantTokens1.size(), significantTokens2.size());
+
+        // All tokens matched - highest score
+        if (matchedTokens >= minTokens) {
+            return 95;
+        }
+
+        // Partial match - scale score based on how many tokens matched
+        // 1 word match = 60-70, 2 words = 75-85, etc.
+        double matchRatio = (double) matchedTokens / maxTokens;
+        int baseScore = 55 + (int)(matchRatio * 40);  // Scale from 55 to 95
+
+        return baseScore;
+    }
+
+    /**
+     * Calculate Levenshtein distance between two strings
+     */
+    private int levenshteinDistance(String s1, String s2) {
+        int len1 = s1.length();
+        int len2 = s2.length();
+
+        int[][] dp = new int[len1 + 1][len2 + 1];
+
+        for (int i = 0; i <= len1; i++) {
+            dp[i][0] = i;
+        }
+        for (int j = 0; j <= len2; j++) {
+            dp[0][j] = j;
+        }
+
+        for (int i = 1; i <= len1; i++) {
+            for (int j = 1; j <= len2; j++) {
+                int cost = (s1.charAt(i - 1) == s2.charAt(j - 1)) ? 0 : 1;
+                dp[i][j] = Math.min(
+                    Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1),
+                    dp[i - 1][j - 1] + cost
+                );
+            }
+        }
+
+        return dp[len1][len2];
     }
 
     /**
