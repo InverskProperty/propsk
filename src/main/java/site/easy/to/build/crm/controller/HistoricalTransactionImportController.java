@@ -17,6 +17,7 @@ import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.AccountType;
 import site.easy.to.build.crm.entity.HistoricalTransaction;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
@@ -727,30 +728,96 @@ public class HistoricalTransactionImportController {
         try {
             log.info("👤 Creating new customer from review interface");
 
+            String accountType = (String) customerData.get("accountType");
+            String customerType = (String) customerData.get("customerType");
             String firstName = (String) customerData.get("firstName");
             String lastName = (String) customerData.get("lastName");
+            String businessName = (String) customerData.get("businessName");
+            String email = (String) customerData.get("email");
+            String phone = (String) customerData.get("phone");
+            String country = (String) customerData.get("country");
 
-            if (firstName == null || firstName.trim().isEmpty()) {
+            // Validation based on account type
+            if ("business".equals(accountType)) {
+                if (businessName == null || businessName.trim().isEmpty()) {
+                    response.put("success", false);
+                    response.put("error", "Business name is required for business accounts");
+                    return ResponseEntity.badRequest().body(response);
+                }
+            } else {
+                // Individual account
+                if (firstName == null || firstName.trim().isEmpty()) {
+                    response.put("success", false);
+                    response.put("error", "First name is required for individual accounts");
+                    return ResponseEntity.badRequest().body(response);
+                }
+            }
+
+            // Validate required fields
+            if (email == null || email.trim().isEmpty()) {
                 response.put("success", false);
-                response.put("error", "First name is required");
+                response.put("error", "Email is required");
+                return ResponseEntity.badRequest().body(response);
+            }
+            if (phone == null || phone.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("error", "Phone is required");
+                return ResponseEntity.badRequest().body(response);
+            }
+            if (country == null || country.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("error", "Country is required");
                 return ResponseEntity.badRequest().body(response);
             }
 
             // Create new customer
             Customer customer = new Customer();
-            customer.setFirstName(firstName);
-            customer.setLastName(lastName != null ? lastName : "");
-            customer.setEmail((String) customerData.get("email"));
-            customer.setPhone((String) customerData.get("phone"));
+
+            // Set account type
+            if ("business".equals(accountType)) {
+                customer.setAccountType(AccountType.business);
+                customer.setBusinessName(businessName);
+                customer.setName(businessName); // Use business name as the display name
+            } else {
+                customer.setAccountType(AccountType.individual);
+                customer.setFirstName(firstName);
+                customer.setLastName(lastName != null ? lastName : "");
+                customer.setName(firstName + " " + (lastName != null ? lastName : ""));
+            }
+
+            // Set customer type flags
+            if ("property_owner".equals(customerType)) {
+                customer.setIsPropertyOwner(true);
+            } else if ("tenant".equals(customerType)) {
+                customer.setIsTenant(true);
+            } else if ("contractor".equals(customerType)) {
+                customer.setIsContractor(true);
+            }
+
+            // Set contact information
+            customer.setEmail(email);
+            customer.setPhone(phone);
+            customer.setMobileNumber(phone);
+            customer.setCountry(country);
+
+            // Set optional address fields
+            customer.setAddressLine1((String) customerData.get("address"));
+            customer.setCity((String) customerData.get("city"));
+            customer.setPostcode((String) customerData.get("postcode"));
+
             customer.setCreatedAt(java.time.LocalDateTime.now());
 
             Customer saved = customerService.save(customer);
 
+            String fullName = "business".equals(accountType) ?
+                saved.getBusinessName() :
+                (saved.getFirstName() + " " + saved.getLastName());
+
             response.put("success", true);
             response.put("customerId", saved.getCustomerId());
-            response.put("fullName", saved.getFirstName() + " " + saved.getLastName());
+            response.put("fullName", fullName);
 
-            log.info("✅ Created customer: {} {} (ID: {})", saved.getFirstName(), saved.getLastName(), saved.getCustomerId());
+            log.info("✅ Created {} customer: {} (ID: {})", accountType, fullName, saved.getCustomerId());
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
