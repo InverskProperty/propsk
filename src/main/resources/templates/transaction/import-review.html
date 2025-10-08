@@ -690,7 +690,7 @@ $(document).ready(function() {
 
         // Show suggested matches as clickable boxes
         if (review.propertyOptions && review.propertyOptions.length > 0) {
-            html += '<div class="mt-2">';
+            html += `<div class="mt-2" id="propertyMatches${index}">`;
             html += '<small class="text-muted font-weight-bold">SUGGESTED MATCHES:</small>';
             review.propertyOptions.forEach((option, optIndex) => {
                 const selected = review.selectedPropertyId === option.propertyId ? 'selected' : '';
@@ -799,9 +799,25 @@ $(document).ready(function() {
                                     size="8">
                                 <option value="">-- Select Any Customer --</option>`;
 
-                // Add property-related customers FIRST
+                // Add fuzzy match suggestions FIRST (if any)
+                if (review.customerOptions && review.customerOptions.length > 0) {
+                    review.customerOptions.forEach(option => {
+                        const selected = review.selectedCustomerId === option.customerId ? 'selected' : '';
+                        const searchText = (option.fullName + ' ' + (option.email || '') + ' ' + (option.phone || '')).toLowerCase().replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                        const custName = escapeHtml(option.fullName);
+                        const contact = escapeHtml((option.email || '') + ' ' + (option.phone || ''));
+                        html += `<option value="${option.customerId}" ${selected} data-search="${searchText}" class="suggested-match">📌 ${custName} (${option.matchScore}% match)${contact ? ' - ' + contact : ''}</option>`;
+                    });
+                    html += '<option disabled>──────────────────────────</option>';
+                }
+
+                // Add property-related customers NEXT
                 if (propertyCustomers.length > 0) {
                     propertyCustomers.forEach(customer => {
+                        // Skip if already in fuzzy match suggestions
+                        const alreadySuggested = review.customerOptions && review.customerOptions.some(opt => opt.customerId === customer.id);
+                        if (alreadySuggested) return;
+
                         const selected = review.selectedCustomerId === customer.id ? 'selected' : '';
                         // Get raw names for searching
                         const rawName = customer.name || customer.fullName || (customer.firstName + ' ' + customer.lastName);
@@ -863,7 +879,7 @@ $(document).ready(function() {
 
         // Show suggested matches as clickable boxes
         if (review.customerOptions && review.customerOptions.length > 0) {
-            html += '<div class="mt-2">';
+            html += `<div class="mt-2" id="customerMatches${index}">`;
             html += '<small class="text-muted font-weight-bold">SUGGESTED MATCHES:</small>';
             review.customerOptions.forEach((option, optIndex) => {
                 const selected = review.selectedCustomerId === option.customerId ? 'selected' : '';
@@ -1017,8 +1033,9 @@ $(document).ready(function() {
     // Global functions for onclick handlers
     window.selectProperty = function(index, propertyId) {
         reviewQueue.reviews[index].selectedPropertyId = propertyId;
-        $(`.match-option[data-index="${index}"]`).removeClass('selected');
-        $(`.match-option[data-index="${index}"][data-option-id="${propertyId}"]`).addClass('selected');
+        // Only deselect property match options (use parent container to distinguish)
+        $(`#propertyMatches${index} .match-option`).removeClass('selected');
+        $(`#propertyMatches${index} .match-option[data-option-id="${propertyId}"]`).addClass('selected');
         $(`#propertyDropdown${index}`).val(propertyId); // Sync dropdown
 
         // If this transaction needs a customer, refresh the customer dropdown with property-related customers
@@ -1034,8 +1051,9 @@ $(document).ready(function() {
         const propertyId = $(`#propertyDropdown${index}`).val();
         if (propertyId) {
             reviewQueue.reviews[index].selectedPropertyId = parseInt(propertyId);
-            $(`.match-option[data-index="${index}"]`).removeClass('selected');
-            $(`.match-option[data-index="${index}"][data-option-id="${propertyId}"]`).addClass('selected');
+            // Only deselect property match options
+            $(`#propertyMatches${index} .match-option`).removeClass('selected');
+            $(`#propertyMatches${index} .match-option[data-option-id="${propertyId}"]`).addClass('selected');
             console.log(`Property ${propertyId} selected from dropdown for transaction ${index}`);
 
             // If this transaction needs a customer, refresh the customer dropdown
@@ -1154,8 +1172,9 @@ $(document).ready(function() {
 
     window.selectCustomer = function(index, customerId) {
         reviewQueue.reviews[index].selectedCustomerId = customerId;
-        $(`.match-option[data-index="${index}"]`).removeClass('selected');
-        $(`.match-option[data-index="${index}"][data-option-id="${customerId}"]`).addClass('selected');
+        // Only deselect customer match options
+        $(`#customerMatches${index} .match-option`).removeClass('selected');
+        $(`#customerMatches${index} .match-option[data-option-id="${customerId}"]`).addClass('selected');
         $(`#customerDropdown${index}`).val(customerId); // Sync dropdown
         updateReadiness();
     };
@@ -1164,8 +1183,9 @@ $(document).ready(function() {
         const customerId = $(`#customerDropdown${index}`).val();
         if (customerId) {
             reviewQueue.reviews[index].selectedCustomerId = parseInt(customerId);
-            $(`.match-option[data-index="${index}"]`).removeClass('selected');
-            $(`.match-option[data-index="${index}"][data-option-id="${customerId}"]`).addClass('selected');
+            // Only deselect customer match options
+            $(`#customerMatches${index} .match-option`).removeClass('selected');
+            $(`#customerMatches${index} .match-option[data-option-id="${customerId}"]`).addClass('selected');
             console.log(`Customer ${customerId} selected from dropdown for transaction ${index}`);
         } else {
             reviewQueue.reviews[index].selectedCustomerId = null;
