@@ -15,8 +15,10 @@ import site.easy.to.build.crm.service.transaction.HistoricalTransactionImportSer
 import site.easy.to.build.crm.service.transaction.HistoricalTransactionImportService.ImportResult;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
+import site.easy.to.build.crm.service.user.UserService;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.entity.AccountType;
 import site.easy.to.build.crm.entity.HistoricalTransaction;
 import site.easy.to.build.crm.util.AuthenticationUtils;
@@ -44,7 +46,10 @@ public class HistoricalTransactionImportController {
     
     @Autowired
     private CustomerService customerService;
-    
+
+    @Autowired
+    private UserService userService;
+
     @Autowired
     private AuthenticationUtils authenticationUtils;
 
@@ -770,8 +775,21 @@ public class HistoricalTransactionImportController {
                 return ResponseEntity.badRequest().body(response);
             }
 
+            // Get current user - required for customer creation
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId);
+
+            if (user == null) {
+                response.put("success", false);
+                response.put("error", "Unable to identify current user");
+                return ResponseEntity.status(401).body(response);
+            }
+
             // Create new customer
             Customer customer = new Customer();
+
+            // Set user relationship - REQUIRED
+            customer.setUser(user);
 
             // Set account type
             if ("business".equals(accountType)) {
