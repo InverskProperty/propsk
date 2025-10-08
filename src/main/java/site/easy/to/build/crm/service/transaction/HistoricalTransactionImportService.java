@@ -1373,6 +1373,7 @@ public class HistoricalTransactionImportService {
                 String typeStr = getValue(values, columnMap, "transaction_type");
                 String propertyRef = getValue(values, columnMap, "property_reference");
                 String customerRef = getValue(values, columnMap, "customer_reference");
+                String category = getValue(values, columnMap, "category");
 
                 // Store parsed data
                 review.getParsedData().put("date", dateStr);
@@ -1381,6 +1382,7 @@ public class HistoricalTransactionImportService {
                 review.getParsedData().put("type", typeStr);
                 review.getParsedData().put("propertyRef", propertyRef);
                 review.getParsedData().put("customerRef", customerRef);
+                review.getParsedData().put("category", category);
 
                 // Validate date
                 LocalDate transactionDate = parseDate(dateStr);
