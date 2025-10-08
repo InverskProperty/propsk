@@ -232,35 +232,116 @@
 
 <!-- Create Customer Modal -->
 <div class="modal fade" id="createCustomerModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
+    <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Create New Customer</h5>
-                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-user-plus"></i> Create New Customer</h5>
+                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="createCustomerForm">
+                    <!-- Customer Type Selection -->
                     <div class="form-group">
-                        <label>First Name *</label>
-                        <input type="text" class="form-control" id="newCustomerFirstName" required>
+                        <label class="font-weight-bold">Customer Type *</label>
+                        <select class="form-control" id="newCustomerType" required onchange="updateCustomerTypeFields()">
+                            <option value="">-- Select Type --</option>
+                            <option value="property_owner">Property Owner</option>
+                            <option value="tenant">Tenant</option>
+                            <option value="beneficiary">Beneficiary</option>
+                            <option value="contractor">Contractor</option>
+                        </select>
+                    </div>
+
+                    <!-- Account Type -->
+                    <div class="form-group">
+                        <label class="font-weight-bold">Account Type *</label>
+                        <select class="form-control" id="newCustomerAccountType" required>
+                            <option value="individual">Individual</option>
+                            <option value="business">Business/Company</option>
+                        </select>
+                    </div>
+
+                    <!-- Name Fields (for Individual) -->
+                    <div id="individualNameFields">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>First Name *</label>
+                                    <input type="text" class="form-control" id="newCustomerFirstName">
+                                    <small class="form-text text-muted">Required for individuals</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Last Name *</label>
+                                    <input type="text" class="form-control" id="newCustomerLastName">
+                                    <small class="form-text text-muted">Required for individuals</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Business Name (for Business) -->
+                    <div id="businessNameField" style="display: none;">
+                        <div class="form-group">
+                            <label>Business/Company Name *</label>
+                            <input type="text" class="form-control" id="newCustomerBusinessName">
+                            <small class="form-text text-muted">Required for business accounts</small>
+                        </div>
+                    </div>
+
+                    <!-- Contact Information -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Email *</label>
+                                <input type="email" class="form-control" id="newCustomerEmail" required>
+                                <small class="form-text text-muted">Required</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Phone *</label>
+                                <input type="text" class="form-control" id="newCustomerPhone" required>
+                                <small class="form-text text-muted">Required</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Address -->
+                    <div class="form-group">
+                        <label>Address</label>
+                        <input type="text" class="form-control" id="newCustomerAddress" placeholder="Street address">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>City</label>
+                                <input type="text" class="form-control" id="newCustomerCity">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Postcode</label>
+                                <input type="text" class="form-control" id="newCustomerPostcode">
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label>Last Name</label>
-                        <input type="text" class="form-control" id="newCustomerLastName">
+                        <label>Country *</label>
+                        <input type="text" class="form-control" id="newCustomerCountry" value="UK" required>
+                        <small class="form-text text-muted">Default: UK</small>
                     </div>
-                    <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" class="form-control" id="newCustomerEmail">
-                    </div>
-                    <div class="form-group">
-                        <label>Phone</label>
-                        <input type="text" class="form-control" id="newCustomerPhone">
-                    </div>
+
+                    <!-- Validation Messages -->
+                    <div id="customerValidationErrors" class="alert alert-danger" style="display: none;"></div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="saveCustomerBtn">Create Customer</button>
+                <button type="button" class="btn btn-success" id="saveCustomerBtn">
+                    <i class="fas fa-save"></i> Create Customer
+                </button>
             </div>
         </div>
     </div>
@@ -365,7 +446,7 @@ $(document).ready(function() {
     function loadAllProperties() {
         console.log('🏠 Loading all properties...');
         return $.ajax({
-            url: '/employee/property/all-properties',
+            url: '/employee/property/api/all',
             method: 'GET',
             headers: {
                 [csrfHeader]: csrfToken
@@ -374,6 +455,7 @@ $(document).ready(function() {
             if (response && Array.isArray(response)) {
                 window.allProperties = response;
                 console.log(`✅ Loaded ${response.length} properties`);
+                console.log('📊 Sample property:', response[0]); // Debug: see property structure
             } else {
                 console.error('❌ Failed to load properties:', response);
             }
@@ -1177,11 +1259,48 @@ $(document).ready(function() {
         $('#createPropertyModal').modal('show');
     };
 
+    window.updateCustomerTypeFields = function() {
+        const accountType = $('#newCustomerAccountType').val();
+        if (accountType === 'business') {
+            $('#individualNameFields').hide();
+            $('#businessNameField').show();
+        } else {
+            $('#individualNameFields').show();
+            $('#businessNameField').hide();
+        }
+    };
+
+    // Handle account type change
+    $('#newCustomerAccountType').change(function() {
+        updateCustomerTypeFields();
+    });
+
     window.createCustomer = function(index, suggestedName) {
         currentCreateContext = {type: 'customer', index: index};
-        const nameParts = suggestedName.split(' ');
-        $('#newCustomerFirstName').val(nameParts[0] || '');
-        $('#newCustomerLastName').val(nameParts.slice(1).join(' ') || '');
+
+        // Reset form
+        $('#createCustomerForm')[0].reset();
+        $('#customerValidationErrors').hide();
+        $('#newCustomerCountry').val('UK');
+
+        // Pre-fill name if suggested
+        if (suggestedName) {
+            const nameParts = suggestedName.trim().split(/\s+/);
+            if (nameParts.length === 1) {
+                $('#newCustomerFirstName').val(nameParts[0]);
+            } else if (nameParts.length === 2) {
+                $('#newCustomerFirstName').val(nameParts[0]);
+                $('#newCustomerLastName').val(nameParts[1]);
+            } else if (nameParts.length > 2) {
+                // Assume first word is first name, rest is last name
+                $('#newCustomerFirstName').val(nameParts[0]);
+                $('#newCustomerLastName').val(nameParts.slice(1).join(' '));
+            }
+        }
+
+        // Show individual fields by default
+        updateCustomerTypeFields();
+
         $('#createCustomerModal').modal('show');
     };
 
@@ -1250,11 +1369,50 @@ $(document).ready(function() {
 
     // Save new customer
     $('#saveCustomerBtn').click(function() {
+        // Validation
+        const errors = [];
+        const customerType = $('#newCustomerType').val();
+        const accountType = $('#newCustomerAccountType').val();
+        const email = $('#newCustomerEmail').val();
+        const phone = $('#newCustomerPhone').val();
+        const country = $('#newCustomerCountry').val();
+
+        if (!customerType) errors.push('Customer Type is required');
+        if (!accountType) errors.push('Account Type is required');
+        if (!email) errors.push('Email is required');
+        if (!phone) errors.push('Phone is required');
+        if (!country) errors.push('Country is required');
+
+        let firstName, lastName, businessName;
+        if (accountType === 'business') {
+            businessName = $('#newCustomerBusinessName').val();
+            if (!businessName) errors.push('Business Name is required');
+        } else {
+            firstName = $('#newCustomerFirstName').val();
+            lastName = $('#newCustomerLastName').val();
+            if (!firstName) errors.push('First Name is required');
+            if (!lastName) errors.push('Last Name is required');
+        }
+
+        if (errors.length > 0) {
+            $('#customerValidationErrors').html('<strong>Please fix these errors:</strong><ul><li>' + errors.join('</li><li>') + '</li></ul>').show();
+            return;
+        }
+
+        $('#customerValidationErrors').hide();
+
         const customerData = {
-            firstName: $('#newCustomerFirstName').val(),
-            lastName: $('#newCustomerLastName').val(),
-            email: $('#newCustomerEmail').val(),
-            phone: $('#newCustomerPhone').val()
+            firstName: firstName,
+            lastName: lastName,
+            businessName: businessName,
+            email: email,
+            phone: phone,
+            address: $('#newCustomerAddress').val(),
+            city: $('#newCustomerCity').val(),
+            postcode: $('#newCustomerPostcode').val(),
+            country: country,
+            accountType: accountType,
+            customerType: customerType
         };
 
         $.ajax({
@@ -1283,11 +1441,15 @@ $(document).ready(function() {
                     renderReviewQueue();
                     showSuccess('Customer created successfully');
                 } else {
-                    showError(response.error || 'Failed to create customer');
+                    $('#customerValidationErrors').html('<strong>Error:</strong> ' + (response.error || 'Failed to create customer')).show();
                 }
             },
             error: function(xhr) {
-                showError('Failed to create customer: ' + (xhr.responseJSON?.error || xhr.statusText));
+                let errorMsg = 'Failed to create customer';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg += ': ' + xhr.responseJSON.error;
+                }
+                $('#customerValidationErrors').html('<strong>Error:</strong> ' + errorMsg).show();
             }
         });
     });
