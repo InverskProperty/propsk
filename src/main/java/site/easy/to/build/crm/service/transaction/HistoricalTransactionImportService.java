@@ -1237,9 +1237,11 @@ public class HistoricalTransactionImportService {
 
         public CustomerOption(Customer customer, int matchScore) {
             this.customerId = customer.getCustomerId();
-            this.fullName = customer.getFirstName() + " " + customer.getLastName();
+            // Use the 'name' field which handles both individual and business customers
+            this.fullName = customer.getName() != null ? customer.getName() :
+                            (customer.getFirstName() + " " + customer.getLastName());
             this.email = customer.getEmail();
-            this.phone = customer.getPhone();
+            this.phone = customer.getPhone() != null ? customer.getPhone() : customer.getMobileNumber();
             this.matchScore = matchScore;
         }
 
