@@ -1073,11 +1073,20 @@ $(document).ready(function() {
     window.selectPropertyFromDropdown = function(index) {
         const propertyId = $(`#propertyDropdown${index}`).val();
         if (propertyId) {
-            reviewQueue.reviews[index].selectedPropertyId = parseInt(propertyId);
+            // ENSURE IT'S A NUMBER, not a string
+            const propertyIdNum = parseInt(propertyId, 10);
+            if (isNaN(propertyIdNum)) {
+                console.error(`❌ Invalid property ID: "${propertyId}" - cannot parse to number`);
+                return;
+            }
+
+            reviewQueue.reviews[index].selectedPropertyId = propertyIdNum;
+            console.log(`✅ Set selectedPropertyId = ${propertyIdNum} (type: ${typeof propertyIdNum}) for index ${index}`);
+
             // Only deselect property match options
             $(`#propertyMatches${index} .match-option`).removeClass('selected');
             $(`#propertyMatches${index} .match-option[data-option-id="${propertyId}"]`).addClass('selected');
-            console.log(`Property ${propertyId} selected from dropdown for transaction ${index}`);
+            console.log(`🏠 Property ${propertyIdNum} selected from dropdown for transaction ${index}`);
 
             // AUTO-MAP: Find all other transactions with the same CSV property_reference value
             const currentCsvPropertyRef = reviewQueue.reviews[index].parsedData?.propertyRef;
@@ -1085,12 +1094,13 @@ $(document).ready(function() {
                 let autoMappedCount = 0;
                 reviewQueue.reviews.forEach((review, i) => {
                     if (i !== index && review.parsedData?.propertyRef === currentCsvPropertyRef) {
-                        review.selectedPropertyId = parseInt(propertyId);
+                        review.selectedPropertyId = propertyIdNum;  // Use the number, not the string
                         $(`#propertyDropdown${i}`).val(propertyId);
                         // Update match options visual state
                         $(`#propertyMatches${i} .match-option`).removeClass('selected');
                         $(`#propertyMatches${i} .match-option[data-option-id="${propertyId}"]`).addClass('selected');
                         autoMappedCount++;
+                        console.log(`🔄 Auto-mapped property ${propertyIdNum} to transaction ${i}`);
                     }
                 });
                 if (autoMappedCount > 0) {
@@ -1101,14 +1111,16 @@ $(document).ready(function() {
 
             // Save updated review queue to localStorage
             localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
+            console.log(`💾 Saved to localStorage - property ID ${propertyIdNum} for transaction ${index}`);
 
             // If this transaction needs a customer, refresh the customer dropdown
             if (reviewQueue.reviews[index].status === 'MISSING_CUSTOMER' ||
                 reviewQueue.reviews[index].customerOptions) {
-                refreshCustomerDropdownForProperty(index, parseInt(propertyId));
+                refreshCustomerDropdownForProperty(index, propertyIdNum);
             }
         } else {
             reviewQueue.reviews[index].selectedPropertyId = null;
+            console.log(`⚠️ Cleared selectedPropertyId for index ${index}`);
         }
         updateReadiness();
     };
@@ -1252,11 +1264,20 @@ $(document).ready(function() {
     window.selectCustomerFromDropdown = function(index) {
         const customerId = $(`#customerDropdown${index}`).val();
         if (customerId) {
-            reviewQueue.reviews[index].selectedCustomerId = parseInt(customerId);
+            // ENSURE IT'S A NUMBER, not a string
+            const customerIdNum = parseInt(customerId, 10);
+            if (isNaN(customerIdNum)) {
+                console.error(`❌ Invalid customer ID: "${customerId}" - cannot parse to number`);
+                return;
+            }
+
+            reviewQueue.reviews[index].selectedCustomerId = customerIdNum;
+            console.log(`✅ Set selectedCustomerId = ${customerIdNum} (type: ${typeof customerIdNum}) for index ${index}`);
+
             // Only deselect customer match options
             $(`#customerMatches${index} .match-option`).removeClass('selected');
             $(`#customerMatches${index} .match-option[data-option-id="${customerId}"]`).addClass('selected');
-            console.log(`Customer ${customerId} selected from dropdown for transaction ${index}`);
+            console.log(`👤 Customer ${customerIdNum} selected from dropdown for transaction ${index}`);
 
             // AUTO-MAP: Find all other transactions with the same CSV customer_reference value
             const currentCsvCustomerRef = reviewQueue.reviews[index].parsedData?.customerRef;
@@ -1264,12 +1285,13 @@ $(document).ready(function() {
                 let autoMappedCount = 0;
                 reviewQueue.reviews.forEach((review, i) => {
                     if (i !== index && review.parsedData?.customerRef === currentCsvCustomerRef) {
-                        review.selectedCustomerId = parseInt(customerId);
+                        review.selectedCustomerId = customerIdNum;  // Use the number, not the string
                         $(`#customerDropdown${i}`).val(customerId);
                         // Update match options visual state
                         $(`#customerMatches${i} .match-option`).removeClass('selected');
                         $(`#customerMatches${i} .match-option[data-option-id="${customerId}"]`).addClass('selected');
                         autoMappedCount++;
+                        console.log(`🔄 Auto-mapped customer ${customerIdNum} to transaction ${i}`);
                     }
                 });
                 if (autoMappedCount > 0) {
@@ -1280,8 +1302,10 @@ $(document).ready(function() {
 
             // Save updated review queue to localStorage
             localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
+            console.log(`💾 Saved to localStorage - customer ID ${customerIdNum} for transaction ${index}`);
         } else {
             reviewQueue.reviews[index].selectedCustomerId = null;
+            console.log(`⚠️ Cleared selectedCustomerId for index ${index}`);
         }
         updateReadiness();
     };
@@ -1753,33 +1777,52 @@ $(document).ready(function() {
     function updateReadiness() {
         // Check if all transactions are ready for import
         let allReady = true;
-        reviewQueue.reviews.forEach(review => {
+        let missingSelections = [];
+
+        reviewQueue.reviews.forEach((review, index) => {
             if (review.status === 'VALIDATION_ERROR') {
+                missingSelections.push(`Line ${review.lineNumber}: Validation error`);
                 allReady = false;
                 return;
             }
             // Payment source is REQUIRED for all transactions
             if (!review.selectedPaymentSourceId) {
+                missingSelections.push(`Line ${review.lineNumber}: Missing payment source`);
                 allReady = false;
                 return;
             }
             if (review.status === 'AMBIGUOUS_PROPERTY' && !review.selectedPropertyId) {
+                missingSelections.push(`Line ${review.lineNumber}: Ambiguous property - selection required`);
                 allReady = false;
                 return;
             }
             if (review.status === 'AMBIGUOUS_CUSTOMER' && !review.selectedCustomerId) {
+                missingSelections.push(`Line ${review.lineNumber}: Ambiguous customer - selection required`);
                 allReady = false;
                 return;
             }
             if (review.status === 'MISSING_PROPERTY' && !review.selectedPropertyId) {
+                missingSelections.push(`Line ${review.lineNumber}: Missing property selection`);
+                allReady = false;
+                return;
+            }
+            if (review.status === 'MISSING_CUSTOMER' && !review.selectedCustomerId) {
+                missingSelections.push(`Line ${review.lineNumber}: Missing customer selection`);
                 allReady = false;
                 return;
             }
             if (review.duplicateInfo && !review.skipDuplicate) {
+                missingSelections.push(`Line ${review.lineNumber}: Potential duplicate - confirm to proceed`);
                 allReady = false;
                 return;
             }
         });
+
+        if (missingSelections.length > 0) {
+            console.warn('⚠️ Missing selections preventing import:', missingSelections);
+        } else {
+            console.log('✅ All transactions ready for import');
+        }
 
         $('#confirmAllBtn').prop('disabled', !allReady);
     }
@@ -1790,10 +1833,38 @@ $(document).ready(function() {
             return;
         }
 
+        // DIAGNOSTIC LOGGING - Track data being sent to backend
+        console.log('🚀 IMPORT CONFIRMATION - Full Review Queue:', reviewQueue);
+        console.log('📊 Review count:', reviewQueue.reviews.length);
+        reviewQueue.reviews.forEach((review, idx) => {
+            console.log(`Review ${idx}:`, {
+                lineNumber: review.lineNumber,
+                status: review.status,
+                selectedPropertyId: review.selectedPropertyId,
+                selectedCustomerId: review.selectedCustomerId,
+                selectedPaymentSourceId: review.selectedPaymentSourceId,
+                propertyIdType: typeof review.selectedPropertyId,
+                customerIdType: typeof review.selectedCustomerId,
+                paymentSourceIdType: typeof review.selectedPaymentSourceId
+            });
+        });
+
+        // FORCE RELOAD from localStorage to ensure we have latest selections
+        const latestReviewData = localStorage.getItem('reviewData');
+        if (latestReviewData) {
+            reviewQueue = JSON.parse(latestReviewData);
+            console.log('✅ Reloaded review queue from localStorage before import');
+            console.log('📊 After reload - Review count:', reviewQueue.reviews.length);
+        } else {
+            console.warn('⚠️ No reviewData found in localStorage!');
+        }
+
         const importData = {
             batchId: reviewQueue.batchId,
             reviews: reviewQueue.reviews
         };
+
+        console.log('📤 Sending to backend (first 3 reviews):', JSON.stringify(importData.reviews.slice(0, 3), null, 2));
 
         $.ajax({
             url: '/employee/transaction/import/review-confirm',
