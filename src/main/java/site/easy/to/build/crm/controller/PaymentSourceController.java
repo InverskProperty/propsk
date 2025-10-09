@@ -151,11 +151,41 @@ public class PaymentSourceController {
             Authentication authentication) {
 
         log.info("✨ [PAYMENT-SOURCES] POST /create called - name: {}", name);
+        log.info("🔐 Authentication principal: {}", authentication != null ? authentication.getName() : "null");
 
         try {
+            // Try to find user by email first
             User currentUser = userService.findByEmail(authentication.getName());
+
+            // If not found, try OAuth email lookup (for Google OAuth users)
             if (currentUser == null) {
-                throw new IllegalStateException("Current user not found");
+                log.info("🔐 Email lookup failed, trying OAuth user lookup...");
+                // Authentication.getName() might be OAuth sub claim, need to find user via oauth_users table
+                currentUser = userService.findAll().stream()
+                    .filter(u -> u.getOauthUser() != null)
+                    .filter(u -> {
+                        if (u.getOauthUser().getEmail() != null &&
+                            u.getOauthUser().getEmail().equals(authentication.getName())) {
+                            return true;
+                        }
+                        if (u.getUsername() != null && u.getUsername().equals(authentication.getName())) {
+                            return true;
+                        }
+                        return false;
+                    })
+                    .findFirst()
+                    .orElse(null);
+
+                if (currentUser != null) {
+                    log.info("✅ User found via OAuth lookup: {}", currentUser.getEmail());
+                }
+            } else {
+                log.info("✅ User found via direct email: {}", currentUser.getEmail());
+            }
+
+            if (currentUser == null) {
+                log.error("❌ Current user not found for principal: {}", authentication.getName());
+                throw new IllegalStateException("Current user not found. Principal: " + authentication.getName());
             }
 
             PaymentSource source = paymentSourceService.createPaymentSource(
