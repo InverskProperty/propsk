@@ -583,7 +583,7 @@ $(document).ready(function() {
 
     function getStatusClass(status) {
         if (status === 'PERFECT') return 'perfect';
-        if (status === 'VALIDATION_ERROR') return 'has-issues';
+        if (status === 'VALIDATION_ERROR' || status === 'MISSING_PROPERTY' || status === 'MISSING_CUSTOMER') return 'has-issues';
         return 'needs-review';
     }
 
@@ -1391,7 +1391,20 @@ $(document).ready(function() {
             data: JSON.stringify(propertyData),
             success: function(response) {
                 if (response.success) {
-                    // Add new property to review options
+                    // Add new property to GLOBAL list so it's available for ALL transactions
+                    const newProperty = {
+                        id: response.propertyId,
+                        propertyId: response.propertyId,
+                        property_name: response.propertyName,
+                        propertyName: response.propertyName,
+                        address_line_1: propertyData.addressLine1,
+                        addressLine1: propertyData.addressLine1,
+                        postcode: propertyData.postcode
+                    };
+                    window.allProperties.push(newProperty);
+                    console.log('✅ Added new property to global list:', newProperty);
+
+                    // Add new property to review options for current transaction
                     const index = currentCreateContext.index;
                     if (!reviewQueue.reviews[index].propertyOptions) {
                         reviewQueue.reviews[index].propertyOptions = [];
@@ -1408,7 +1421,7 @@ $(document).ready(function() {
 
                     $('#createPropertyModal').modal('hide');
                     renderReviewQueue();
-                    showSuccess('Property created successfully');
+                    showSuccess('Property created successfully and is now available for all transactions');
                 } else {
                     showError(response.error || 'Failed to create property');
                 }
@@ -1475,7 +1488,24 @@ $(document).ready(function() {
             data: JSON.stringify(customerData),
             success: function(response) {
                 if (response.success) {
-                    // Add new customer to review options
+                    // Add new customer to GLOBAL list so it's available for ALL transactions
+                    const newCustomer = {
+                        id: response.customerId,
+                        customerId: response.customerId,
+                        name: response.fullName,
+                        fullName: response.fullName,
+                        firstName: customerData.firstName,
+                        lastName: customerData.lastName,
+                        businessName: customerData.businessName,
+                        email: customerData.email,
+                        phone: customerData.phone,
+                        mobileNumber: customerData.phone,
+                        accountType: customerData.accountType
+                    };
+                    window.allCustomers.push(newCustomer);
+                    console.log('✅ Added new customer to global list:', newCustomer);
+
+                    // Add new customer to review options for current transaction
                     const index = currentCreateContext.index;
                     if (!reviewQueue.reviews[index].customerOptions) {
                         reviewQueue.reviews[index].customerOptions = [];
@@ -1491,7 +1521,7 @@ $(document).ready(function() {
 
                     $('#createCustomerModal').modal('hide');
                     renderReviewQueue();
-                    showSuccess('Customer created successfully');
+                    showSuccess('Customer created successfully and is now available for all transactions');
                 } else {
                     $('#customerValidationErrors').html('<strong>Error:</strong> ' + (response.error || 'Failed to create customer')).show();
                 }
