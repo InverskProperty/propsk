@@ -1038,6 +1038,29 @@ $(document).ready(function() {
         $(`#propertyMatches${index} .match-option[data-option-id="${propertyId}"]`).addClass('selected');
         $(`#propertyDropdown${index}`).val(propertyId); // Sync dropdown
 
+        // AUTO-MAP: Find all other transactions with the same CSV property_reference value
+        const currentCsvPropertyRef = reviewQueue.reviews[index].parsedData?.propertyRef;
+        if (currentCsvPropertyRef && propertyId) {
+            let autoMappedCount = 0;
+            reviewQueue.reviews.forEach((review, i) => {
+                if (i !== index && review.parsedData?.propertyRef === currentCsvPropertyRef) {
+                    review.selectedPropertyId = parseInt(propertyId);
+                    $(`#propertyDropdown${i}`).val(propertyId);
+                    // Update match options visual state
+                    $(`#propertyMatches${i} .match-option`).removeClass('selected');
+                    $(`#propertyMatches${i} .match-option[data-option-id="${propertyId}"]`).addClass('selected');
+                    autoMappedCount++;
+                }
+            });
+            if (autoMappedCount > 0) {
+                console.log(`🔄 Auto-mapped ${autoMappedCount} other transactions with property_reference="${currentCsvPropertyRef}"`);
+                showSuccess(`Auto-mapped ${autoMappedCount} other transaction(s) with property "${currentCsvPropertyRef}"`);
+            }
+        }
+
+        // Save updated review queue to localStorage
+        localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
+
         // If this transaction needs a customer, refresh the customer dropdown with property-related customers
         if (reviewQueue.reviews[index].status === 'MISSING_CUSTOMER' ||
             reviewQueue.reviews[index].customerOptions) {
@@ -1055,6 +1078,29 @@ $(document).ready(function() {
             $(`#propertyMatches${index} .match-option`).removeClass('selected');
             $(`#propertyMatches${index} .match-option[data-option-id="${propertyId}"]`).addClass('selected');
             console.log(`Property ${propertyId} selected from dropdown for transaction ${index}`);
+
+            // AUTO-MAP: Find all other transactions with the same CSV property_reference value
+            const currentCsvPropertyRef = reviewQueue.reviews[index].parsedData?.propertyRef;
+            if (currentCsvPropertyRef && propertyId) {
+                let autoMappedCount = 0;
+                reviewQueue.reviews.forEach((review, i) => {
+                    if (i !== index && review.parsedData?.propertyRef === currentCsvPropertyRef) {
+                        review.selectedPropertyId = parseInt(propertyId);
+                        $(`#propertyDropdown${i}`).val(propertyId);
+                        // Update match options visual state
+                        $(`#propertyMatches${i} .match-option`).removeClass('selected');
+                        $(`#propertyMatches${i} .match-option[data-option-id="${propertyId}"]`).addClass('selected');
+                        autoMappedCount++;
+                    }
+                });
+                if (autoMappedCount > 0) {
+                    console.log(`🔄 Auto-mapped ${autoMappedCount} other transactions with property_reference="${currentCsvPropertyRef}"`);
+                    showSuccess(`Auto-mapped ${autoMappedCount} other transaction(s) with property "${currentCsvPropertyRef}"`);
+                }
+            }
+
+            // Save updated review queue to localStorage
+            localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
 
             // If this transaction needs a customer, refresh the customer dropdown
             if (reviewQueue.reviews[index].status === 'MISSING_CUSTOMER' ||
@@ -1176,6 +1222,30 @@ $(document).ready(function() {
         $(`#customerMatches${index} .match-option`).removeClass('selected');
         $(`#customerMatches${index} .match-option[data-option-id="${customerId}"]`).addClass('selected');
         $(`#customerDropdown${index}`).val(customerId); // Sync dropdown
+
+        // AUTO-MAP: Find all other transactions with the same CSV customer_reference value
+        const currentCsvCustomerRef = reviewQueue.reviews[index].parsedData?.customerRef;
+        if (currentCsvCustomerRef && customerId) {
+            let autoMappedCount = 0;
+            reviewQueue.reviews.forEach((review, i) => {
+                if (i !== index && review.parsedData?.customerRef === currentCsvCustomerRef) {
+                    review.selectedCustomerId = parseInt(customerId);
+                    $(`#customerDropdown${i}`).val(customerId);
+                    // Update match options visual state
+                    $(`#customerMatches${i} .match-option`).removeClass('selected');
+                    $(`#customerMatches${i} .match-option[data-option-id="${customerId}"]`).addClass('selected');
+                    autoMappedCount++;
+                }
+            });
+            if (autoMappedCount > 0) {
+                console.log(`🔄 Auto-mapped ${autoMappedCount} other transactions with customer_reference="${currentCsvCustomerRef}"`);
+                showSuccess(`Auto-mapped ${autoMappedCount} other transaction(s) with customer "${currentCsvCustomerRef}"`);
+            }
+        }
+
+        // Save updated review queue to localStorage
+        localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
+
         updateReadiness();
     };
 
@@ -1187,6 +1257,29 @@ $(document).ready(function() {
             $(`#customerMatches${index} .match-option`).removeClass('selected');
             $(`#customerMatches${index} .match-option[data-option-id="${customerId}"]`).addClass('selected');
             console.log(`Customer ${customerId} selected from dropdown for transaction ${index}`);
+
+            // AUTO-MAP: Find all other transactions with the same CSV customer_reference value
+            const currentCsvCustomerRef = reviewQueue.reviews[index].parsedData?.customerRef;
+            if (currentCsvCustomerRef && customerId) {
+                let autoMappedCount = 0;
+                reviewQueue.reviews.forEach((review, i) => {
+                    if (i !== index && review.parsedData?.customerRef === currentCsvCustomerRef) {
+                        review.selectedCustomerId = parseInt(customerId);
+                        $(`#customerDropdown${i}`).val(customerId);
+                        // Update match options visual state
+                        $(`#customerMatches${i} .match-option`).removeClass('selected');
+                        $(`#customerMatches${i} .match-option[data-option-id="${customerId}"]`).addClass('selected');
+                        autoMappedCount++;
+                    }
+                });
+                if (autoMappedCount > 0) {
+                    console.log(`🔄 Auto-mapped ${autoMappedCount} other transactions with customer_reference="${currentCsvCustomerRef}"`);
+                    showSuccess(`Auto-mapped ${autoMappedCount} other transaction(s) with customer "${currentCsvCustomerRef}"`);
+                }
+            }
+
+            // Save updated review queue to localStorage
+            localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
         } else {
             reviewQueue.reviews[index].selectedCustomerId = null;
         }

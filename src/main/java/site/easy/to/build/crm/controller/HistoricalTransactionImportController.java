@@ -530,6 +530,7 @@ public class HistoricalTransactionImportController {
     public ResponseEntity<Map<String, Object>> validateForReview(
             @RequestParam("csvData") String csvData,
             @RequestParam(value = "batchId", required = false) String batchId,
+            @RequestParam(value = "paymentSourceId", required = false) Long paymentSourceId,
             Authentication authentication) {
 
         log.info("═══════════════════════════════════════════════════════════");
@@ -537,6 +538,7 @@ public class HistoricalTransactionImportController {
         log.info("User: {}", authentication != null ? authentication.getName() : "anonymous");
         log.info("CSV data length: {} characters", csvData != null ? csvData.length() : 0);
         log.info("Batch ID: {}", batchId);
+        log.info("Payment Source ID: {}", paymentSourceId);
         log.info("═══════════════════════════════════════════════════════════");
 
         Map<String, Object> response = new HashMap<>();
@@ -558,7 +560,7 @@ public class HistoricalTransactionImportController {
 
             // Validate and create review queue
             log.info("📞 [REVIEW-ENDPOINT] Calling service.validateForReview()...");
-            HistoricalTransactionImportService.ReviewQueue queue = importService.validateForReview(csvData, batchId);
+            HistoricalTransactionImportService.ReviewQueue queue = importService.validateForReview(csvData, batchId, paymentSourceId);
             log.info("📞 [REVIEW-ENDPOINT] Service returned queue with {} reviews", queue.getReviews().size());
 
             // Build response
@@ -872,6 +874,10 @@ public class HistoricalTransactionImportController {
 
             if (map.get("selectedCustomerId") != null) {
                 review.setSelectedCustomerId(((Number) map.get("selectedCustomerId")).longValue());
+            }
+
+            if (map.get("selectedPaymentSourceId") != null) {
+                review.setSelectedPaymentSourceId(((Number) map.get("selectedPaymentSourceId")).longValue());
             }
 
             if (map.get("skipDuplicate") != null) {

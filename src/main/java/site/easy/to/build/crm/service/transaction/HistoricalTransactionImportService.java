@@ -1303,8 +1303,9 @@ public class HistoricalTransactionImportService {
      * Validate CSV data and create review queue for human verification
      * This is Stage 1: Parse and analyze without importing
      */
-    public ReviewQueue validateForReview(String csvData, String batchId) {
+    public ReviewQueue validateForReview(String csvData, String batchId, Long paymentSourceId) {
         log.info("🔍 [REVIEW-VALIDATE] Starting validation for batchId: {}", batchId);
+        log.info("💳 [REVIEW-VALIDATE] Payment Source ID: {}", paymentSourceId);
         log.debug("CSV data length: {} characters", csvData != null ? csvData.length() : 0);
 
         ReviewQueue queue = new ReviewQueue(batchId);
@@ -1374,6 +1375,7 @@ public class HistoricalTransactionImportService {
                 String propertyRef = getValue(values, columnMap, "property_reference");
                 String customerRef = getValue(values, columnMap, "customer_reference");
                 String category = getValue(values, columnMap, "category");
+                String paymentSourceCode = getValue(values, columnMap, "payment_source");
 
                 // Store parsed data
                 review.getParsedData().put("date", dateStr);
@@ -1383,6 +1385,8 @@ public class HistoricalTransactionImportService {
                 review.getParsedData().put("propertyRef", propertyRef);
                 review.getParsedData().put("customerRef", customerRef);
                 review.getParsedData().put("category", category);
+                review.getParsedData().put("paymentSource", paymentSourceCode);
+                log.debug("💳 [REVIEW-VALIDATE] Line {}: CSV payment_source = '{}'", lineNumber, paymentSourceCode);
 
                 // Validate date
                 LocalDate transactionDate = parseDate(dateStr);
@@ -1501,6 +1505,12 @@ public class HistoricalTransactionImportService {
                 review.setStatus(ReviewStatus.VALIDATION_ERROR);
                 review.setErrorMessage("Parse error: " + e.getMessage());
                 log.error("❌ [REVIEW-VALIDATE] Line {}: Parse error - {}", lineNumber, e.getMessage(), e);
+            }
+
+            // Pre-populate payment source ID from main import page selection
+            if (paymentSourceId != null) {
+                review.setSelectedPaymentSourceId(paymentSourceId);
+                log.debug("💳 [REVIEW-VALIDATE] Line {}: Pre-populated payment source ID: {}", lineNumber, paymentSourceId);
             }
 
             queue.addReview(review);

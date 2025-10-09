@@ -1098,9 +1098,17 @@ function validateCsvPaste() {
 function reviewCsvPaste() {
     const csvData = $('#csvData').val().trim();
     const batchId = $('#csvBatchId').val().trim();
+    const paymentSourceId = $('#paymentSourceSelect').val();
 
     if (!csvData) {
         alert('Please enter CSV data to review');
+        return;
+    }
+
+    // Validate payment source selection
+    if (!paymentSourceId) {
+        alert('Please select a payment source before reviewing transactions');
+        $('#paymentSourceSelect').focus();
         return;
     }
 
@@ -1125,13 +1133,15 @@ function reviewCsvPaste() {
     console.log('🚀 Sending CSV data to review-validate endpoint...');
     console.log('📊 CSV data length:', csvData.length, 'characters');
     console.log('🆔 Batch ID:', batchId || '(none)');
+    console.log('💳 Payment Source ID:', paymentSourceId);
 
     $.ajax({
         url: '/employee/transaction/import/review-validate',
         method: 'POST',
         data: {
             csvData: csvData,
-            batchId: batchId || ''
+            batchId: batchId || '',
+            paymentSourceId: paymentSourceId
         },
         headers: headers,
         success: function(response) {
