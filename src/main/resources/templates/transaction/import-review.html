@@ -1072,11 +1072,15 @@ $(document).ready(function() {
 
     window.selectPropertyFromDropdown = function(index) {
         const propertyId = $(`#propertyDropdown${index}`).val();
-        if (propertyId) {
+        // Handle edge cases: empty string, null, undefined, or the string "undefined"
+        if (propertyId && propertyId !== '' && propertyId !== 'undefined' && propertyId !== 'null') {
             // ENSURE IT'S A NUMBER, not a string
             const propertyIdNum = parseInt(propertyId, 10);
             if (isNaN(propertyIdNum)) {
                 console.error(`❌ Invalid property ID: "${propertyId}" - cannot parse to number`);
+                console.warn(`⚠️ Clearing selection for index ${index} due to invalid value`);
+                reviewQueue.reviews[index].selectedPropertyId = null;
+                updateReadiness();
                 return;
             }
 
@@ -1263,11 +1267,15 @@ $(document).ready(function() {
 
     window.selectCustomerFromDropdown = function(index) {
         const customerId = $(`#customerDropdown${index}`).val();
-        if (customerId) {
+        // Handle edge cases: empty string, null, undefined, or the string "undefined"
+        if (customerId && customerId !== '' && customerId !== 'undefined' && customerId !== 'null') {
             // ENSURE IT'S A NUMBER, not a string
             const customerIdNum = parseInt(customerId, 10);
             if (isNaN(customerIdNum)) {
                 console.error(`❌ Invalid customer ID: "${customerId}" - cannot parse to number`);
+                console.warn(`⚠️ Clearing selection for index ${index} due to invalid value`);
+                reviewQueue.reviews[index].selectedCustomerId = null;
+                updateReadiness();
                 return;
             }
 
