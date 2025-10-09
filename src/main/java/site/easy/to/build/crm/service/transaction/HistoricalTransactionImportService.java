@@ -2058,6 +2058,7 @@ public class HistoricalTransactionImportService {
                 transaction.setProperty(property);
                 transaction.setCustomer(customer);
                 transaction.setPaymentSource(paymentSource);
+                transaction.setSource(TransactionSource.historical_import); // Set source field
                 transaction.setCreatedByUser(currentUser);
                 transaction.setImportBatchId(batchId);
                 transaction.setCreatedAt(LocalDateTime.now());
@@ -2069,9 +2070,10 @@ public class HistoricalTransactionImportService {
                 log.info("   - Type: {}", transaction.getTransactionType());
                 log.info("   - Category: {}", transaction.getCategory());
                 log.info("   - Description: {}", transaction.getDescription());
-                log.info("   - Property: {}", property != null ? property.getPropertyName() : "NONE");
-                log.info("   - Customer: {}", customer != null ? customer.getFullName() : "NONE");
-                log.info("   - Payment Source: {}", paymentSource != null ? paymentSource.getName() : "NONE");
+                log.info("   - Property: {} (ID: {})", property != null ? property.getPropertyName() : "NONE", property != null ? property.getId() : "NULL");
+                log.info("   - Customer: {} (ID: {})", customer != null ? customer.getFullName() : "NONE", customer != null ? customer.getCustomerId() : "NULL");
+                log.info("   - Payment Source: {} (ID: {})", paymentSource != null ? paymentSource.getName() : "NONE", paymentSource != null ? paymentSource.getId() : "NULL");
+                log.info("   - Source: {}", transaction.getSource());
                 log.info("   - Created By: {}", currentUser.getEmail());
                 log.info("   - Batch ID: {}", batchId);
 
