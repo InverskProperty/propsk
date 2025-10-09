@@ -152,41 +152,44 @@ public class PaymentSourceController {
 
         log.info("✨ [PAYMENT-SOURCES] POST /create called - name: {}", name);
         log.info("🔐 Authentication principal: {}", authentication != null ? authentication.getName() : "null");
+        log.info("🔐 Authentication type: {}", authentication != null ? authentication.getClass().getSimpleName() : "null");
 
         try {
-            // Try to find user by email first
-            User currentUser = userService.findByEmail(authentication.getName());
+            // Extract email from OAuth2 authentication
+            String userEmail = null;
 
-            // If not found, try OAuth email lookup (for Google OAuth users)
-            if (currentUser == null) {
-                log.info("🔐 Email lookup failed, trying OAuth user lookup...");
-                // Authentication.getName() might be OAuth sub claim, need to find user via oauth_users table
-                currentUser = userService.findAll().stream()
-                    .filter(u -> u.getOauthUser() != null)
-                    .filter(u -> {
-                        if (u.getOauthUser().getEmail() != null &&
-                            u.getOauthUser().getEmail().equals(authentication.getName())) {
-                            return true;
-                        }
-                        if (u.getUsername() != null && u.getUsername().equals(authentication.getName())) {
-                            return true;
-                        }
-                        return false;
-                    })
-                    .findFirst()
-                    .orElse(null);
+            // Check if this is OAuth2 authentication
+            if (authentication instanceof org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken) {
+                org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken oauth2Token =
+                    (org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken) authentication;
 
-                if (currentUser != null) {
-                    log.info("✅ User found via OAuth lookup: {}", currentUser.getEmail());
+                // Extract email from OAuth2 user attributes
+                if (oauth2Token.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User) {
+                    org.springframework.security.oauth2.core.user.OAuth2User oauth2User =
+                        (org.springframework.security.oauth2.core.user.OAuth2User) oauth2Token.getPrincipal();
+                    userEmail = oauth2User.getAttribute("email");
+                    log.info("🔐 Extracted email from OAuth2 attributes: {}", userEmail);
                 }
             } else {
-                log.info("✅ User found via direct email: {}", currentUser.getEmail());
+                // For non-OAuth2 authentication, use principal name directly
+                userEmail = authentication.getName();
+                log.info("🔐 Using principal name as email: {}", userEmail);
             }
 
-            if (currentUser == null) {
-                log.error("❌ Current user not found for principal: {}", authentication.getName());
-                throw new IllegalStateException("Current user not found. Principal: " + authentication.getName());
+            if (userEmail == null || userEmail.isEmpty()) {
+                log.error("❌ Could not extract email from authentication");
+                throw new IllegalStateException("Could not extract email from authentication. Principal: " + authentication.getName());
             }
+
+            // Find user by email
+            User currentUser = userService.findByEmail(userEmail);
+
+            if (currentUser == null) {
+                log.error("❌ User not found for email: {}", userEmail);
+                throw new IllegalStateException("User not found for email: " + userEmail);
+            }
+
+            log.info("✅ User found: {} (ID: {})", currentUser.getEmail(), currentUser.getId());
 
             PaymentSource source = paymentSourceService.createPaymentSource(
                     name, description, sourceType, currentUser);
