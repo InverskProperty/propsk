@@ -1224,7 +1224,9 @@ function removePropertyFromBlock(propertyId, blockId) {
 function assignPropertyToBlock(propertyId, blockId) {
     const token = $("meta[name='_csrf']").attr("content");
     const header = $("meta[name='_csrf_header']").attr("content");
-    
+
+    console.log(`Attempting to assign property ${propertyId} to block ${blockId}`);
+
     // Call the REST endpoint to assign property to block
     fetch(`/employee/property/${propertyId}/assign-to-block`, {
         method: 'POST',
@@ -1234,21 +1236,26 @@ function assignPropertyToBlock(propertyId, blockId) {
         },
         body: `blockId=${blockId}`
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Assignment response status:', response.status);
+        return response.json();
+    })
     .then(data => {
+        console.log('Assignment response data:', data);
+
         if (data.success) {
             // Reload the hierarchical view to show updated organization
-            loadPortfolioOrganization();
-            
-            // Show success message
             showToast('success', 'Property assigned to block successfully');
+            setTimeout(() => loadPortfolioOrganization(), 500);
         } else {
-            showToast('error', 'Failed to assign property: ' + (data.error || 'Unknown error'));
+            const errorMsg = data.error || data.message || 'Unknown error';
+            console.error('Assignment failed:', errorMsg);
+            showToast('error', 'Failed: ' + errorMsg);
         }
     })
     .catch(error => {
         console.error('Error assigning property to block:', error);
-        showToast('error', 'Error assigning property to block');
+        showToast('error', 'Network error: ' + error.message);
     });
 }
 

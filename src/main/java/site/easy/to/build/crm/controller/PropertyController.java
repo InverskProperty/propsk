@@ -1391,7 +1391,7 @@ public class PropertyController {
             String summarySql = """
                 SELECT
                     COALESCE(SUM(CASE WHEN beneficiary_type = 'beneficiary' THEN amount ELSE 0 END), 0) as total_income,
-                    COALESCE(SUM(CASE WHEN beneficiary_type = 'agent' THEN ABS(amount) ELSE 0 END), 0) as total_commissions,
+                    COALESCE(SUM(CASE WHEN beneficiary_type = 'agency' THEN ABS(amount) ELSE 0 END), 0) as total_commissions,
                     COALESCE(SUM(CASE WHEN beneficiary_type = 'contractor' THEN ABS(amount) ELSE 0 END), 0) as total_expenses,
                     COUNT(*) as transaction_count
                 FROM payprop_report_all_payments
