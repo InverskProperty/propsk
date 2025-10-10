@@ -1073,14 +1073,22 @@ public class CustomerController {
                 // Add property information for tenants using junction table
                 if (Boolean.TRUE.equals(customer.getIsTenant())) {
                     try {
-                        List<CustomerPropertyAssignment> assignments = 
+                        List<CustomerPropertyAssignment> assignments =
                             customerPropertyAssignmentRepository.findByCustomerCustomerId(customer.getCustomerId());
-                        
-                        List<Property> assignedProperties = assignments.stream()
+
+                        // Filter for tenant assignments
+                        List<CustomerPropertyAssignment> tenantAssignments = assignments.stream()
                             .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
+                            .collect(Collectors.toList());
+
+                        // Add tenant assignments with dates to model
+                        model.addAttribute("tenantAssignments", tenantAssignments);
+
+                        // Also add just the properties for backward compatibility
+                        List<Property> assignedProperties = tenantAssignments.stream()
                             .map(assignment -> assignment.getProperty())
                             .collect(Collectors.toList());
-                            
+
                         if (!assignedProperties.isEmpty()) {
                             model.addAttribute("assignedProperty", assignedProperties.get(0)); // Primary property
                             model.addAttribute("allAssignedProperties", assignedProperties); // All properties if multiple

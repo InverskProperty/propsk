@@ -281,7 +281,7 @@
                                             <h5><i class="fa fa-home"></i> Assigned Properties</h5>
                                         </div>
                                         <div class="card-body">
-                                            <div th:if="${allAssignedProperties != null and !#lists.isEmpty(allAssignedProperties)}">
+                                            <div th:if="${tenantAssignments != null and !#lists.isEmpty(tenantAssignments)}">
                                                 <div class="table-responsive">
                                                     <table class="table table-striped">
                                                         <thead>
@@ -289,16 +289,39 @@
                                                                 <th>Property Name</th>
                                                                 <th>Address</th>
                                                                 <th>Monthly Rent</th>
+                                                                <th>Start Date</th>
+                                                                <th>End Date</th>
+                                                                <th>Status</th>
                                                                 <th>Actions</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            <tr th:each="property : ${allAssignedProperties}">
-                                                                <td th:text="${property.propertyName}">Property Name</td>
-                                                                <td th:text="${property.fullAddress ?: property.addressLine1}">Property Address</td>
-                                                                <td th:text="'£' + ${#numbers.formatDecimal(property.monthlyPayment ?: 0, 0, 'COMMA', 0, 'POINT')}">£1200</td>
+                                                            <tr th:each="assignment : ${tenantAssignments}">
+                                                                <td th:text="${assignment.property.propertyName}">Property Name</td>
+                                                                <td th:text="${assignment.property.fullAddress ?: assignment.property.addressLine1}">Property Address</td>
+                                                                <td th:text="'£' + ${#numbers.formatDecimal(assignment.property.monthlyPayment ?: 0, 0, 'COMMA', 0, 'POINT')}">£1200</td>
                                                                 <td>
-                                                                    <a th:href="@{'/employee/property/' + ${property.id}}" class="btn btn-sm btn-info">
+                                                                    <span th:if="${assignment.startDate != null}"
+                                                                          th:text="${#temporals.format(assignment.startDate, 'dd/MM/yyyy')}">01/01/2024</span>
+                                                                    <span th:if="${assignment.startDate == null}" class="text-muted">-</span>
+                                                                </td>
+                                                                <td>
+                                                                    <span th:if="${assignment.endDate != null}"
+                                                                          th:text="${#temporals.format(assignment.endDate, 'dd/MM/yyyy')}">31/12/2024</span>
+                                                                    <span th:if="${assignment.endDate == null}" class="label label-success">Current</span>
+                                                                </td>
+                                                                <td>
+                                                                    <span th:if="${assignment.endDate == null || assignment.endDate.isAfter(T(java.time.LocalDate).now())}"
+                                                                          class="label label-success">
+                                                                        <i class="fa fa-check"></i> Active
+                                                                    </span>
+                                                                    <span th:if="${assignment.endDate != null && assignment.endDate.isBefore(T(java.time.LocalDate).now())}"
+                                                                          class="label label-default">
+                                                                        <i class="fa fa-history"></i> Past
+                                                                    </span>
+                                                                </td>
+                                                                <td>
+                                                                    <a th:href="@{'/employee/property/' + ${assignment.property.id}}" class="btn btn-sm btn-info">
                                                                         <i class="fa fa-eye"></i> View Property
                                                                     </a>
                                                                 </td>
@@ -307,7 +330,7 @@
                                                     </table>
                                                 </div>
                                             </div>
-                                            <div th:if="${allAssignedProperties == null or #lists.isEmpty(allAssignedProperties)}" class="text-center">
+                                            <div th:if="${tenantAssignments == null or #lists.isEmpty(tenantAssignments)}" class="text-center">
                                                 <i class="fa fa-home" style="font-size: 3em; color: #ccc;"></i>
                                                 <h6 class="text-muted m-t-20">No properties assigned</h6>
                                                 <p class="text-muted">This tenant doesn't have any properties assigned yet.</p>
