@@ -755,6 +755,18 @@ $(document).ready(function() {
     function renderCustomerOptions(review, index) {
         if (!review.customerOptions || review.customerOptions.length === 0) {
             if (review.status === 'MISSING_CUSTOMER') {
+                // DIAGNOSTIC: Log for owner payments (no property)
+                console.log(`🔍 [Customer Dropdown ${index}] Status: MISSING_CUSTOMER`);
+                console.log(`  propertyId: ${review.selectedPropertyId || 'NULL (owner payment?)'}`);
+                console.log(`  window.allCustomers count: ${window.allCustomers ? window.allCustomers.length : 'NULL'}`);
+                if (window.allCustomers && window.allCustomers.length > 0) {
+                    console.log(`  First customer sample:`, {
+                        id: window.allCustomers[0].id,
+                        customerId: window.allCustomers[0].customerId,
+                        name: window.allCustomers[0].name
+                    });
+                }
+
                 // Get property-related customers if property is selected
                 const propertyId = review.selectedPropertyId;
                 let propertyCustomers = [];
@@ -815,10 +827,10 @@ $(document).ready(function() {
                 if (propertyCustomers.length > 0) {
                     propertyCustomers.forEach(customer => {
                         // Skip if already in fuzzy match suggestions
-                        const alreadySuggested = review.customerOptions && review.customerOptions.some(opt => opt.customerId === customer.id);
+                        const alreadySuggested = review.customerOptions && review.customerOptions.some(opt => opt.customerId === customer.customerId);
                         if (alreadySuggested) return;
 
-                        const selected = review.selectedCustomerId === customer.id ? 'selected' : '';
+                        const selected = review.selectedCustomerId === customer.customerId ? 'selected' : '';
                         // Get raw names for searching
                         const rawName = customer.name || customer.fullName || (customer.firstName + ' ' + customer.lastName);
                         const rawContact = (customer.email || '') + ' ' + (customer.phone || customer.mobileNumber || '');
@@ -827,7 +839,7 @@ $(document).ready(function() {
                         const custName = escapeHtml(rawName);
                         const contact = escapeHtml(rawContact);
                         const type = customer.accountType === 'property_owner' ? '🏠 Owner' : (customer.accountType === 'beneficiary' ? '💰 Beneficiary' : '👤 Tenant');
-                        html += `<option value="${customer.id}" ${selected} data-search="${searchText}" class="suggested-match">⭐ ${type} - ${custName}${contact ? ' - ' + contact : ''}</option>`;
+                        html += `<option value="${customer.customerId}" ${selected} data-search="${searchText}" class="suggested-match">⭐ ${type} - ${custName}${contact ? ' - ' + contact : ''}</option>`;
                     });
 
                     // Add separator if there are other customers
@@ -839,8 +851,9 @@ $(document).ready(function() {
                 // Add other customers
                 if (window.allCustomers && window.allCustomers.length > 0) {
                     const customersToShow = propertyCustomers.length > 0 ? otherCustomers : window.allCustomers;
+                    console.log(`  📊 Rendering ${customersToShow.length} customers (propertyCustomers: ${propertyCustomers.length}, using: ${propertyCustomers.length > 0 ? 'otherCustomers' : 'allCustomers'})`);
                     customersToShow.forEach(customer => {
-                        const selected = review.selectedCustomerId === customer.id ? 'selected' : '';
+                        const selected = review.selectedCustomerId === customer.customerId ? 'selected' : '';
                         // Get raw names for searching
                         const rawName = customer.name || customer.fullName || (customer.firstName + ' ' + customer.lastName);
                         const rawContact = (customer.email || '') + ' ' + (customer.phone || customer.mobileNumber || '');
@@ -848,7 +861,7 @@ $(document).ready(function() {
                         // Escape for display
                         const custName = escapeHtml(rawName);
                         const contact = escapeHtml(rawContact);
-                        html += `<option value="${customer.id}" ${selected} data-search="${searchText}">${custName}${contact ? ' - ' + contact : ''}</option>`;
+                        html += `<option value="${customer.customerId}" ${selected} data-search="${searchText}">${custName}${contact ? ' - ' + contact : ''}</option>`;
                     });
                 }
 
@@ -927,9 +940,9 @@ $(document).ready(function() {
         if (window.allCustomers && window.allCustomers.length > 0) {
             window.allCustomers.forEach(customer => {
                 // Skip if already in suggested matches
-                const alreadySuggested = review.customerOptions && review.customerOptions.some(opt => opt.customerId === customer.id);
+                const alreadySuggested = review.customerOptions && review.customerOptions.some(opt => opt.customerId === customer.customerId);
                 if (!alreadySuggested) {
-                    const selected = review.selectedCustomerId === customer.id ? 'selected' : '';
+                    const selected = review.selectedCustomerId === customer.customerId ? 'selected' : '';
                     // Get raw names for searching (before escaping)
                     const rawName = customer.name || customer.fullName || (customer.firstName + ' ' + customer.lastName);
                     const rawContact = (customer.email || '') + ' ' + (customer.phone || customer.mobileNumber || '');
@@ -940,7 +953,7 @@ $(document).ready(function() {
                     const contact = escapeHtml(rawContact);
                     // Escape search text for HTML attribute (replace quotes)
                     const safeSearchText = searchText.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                    html += `<option value="${customer.id}" ${selected} data-search="${safeSearchText}">${custName}${contact ? ' - ' + contact : ''}</option>`;
+                    html += `<option value="${customer.customerId}" ${selected} data-search="${safeSearchText}">${custName}${contact ? ' - ' + contact : ''}</option>`;
                 }
             });
         }
@@ -1162,7 +1175,7 @@ $(document).ready(function() {
                 const contact = (customer.email || '') + ' ' + (customer.phone || customer.mobileNumber || '');
                 const type = customer.accountType === 'property_owner' ? '🏠 Owner' : (customer.accountType === 'beneficiary' ? '💰 Beneficiary' : '👤 Tenant');
                 const option = $('<option>')
-                    .val(customer.id)
+                    .val(customer.customerId)
                     .text(`⭐ ${type} - ${custName}${contact ? ' - ' + contact : ''}`)
                     .attr('data-search', `${custName.toLowerCase()} ${contact.toLowerCase()}`)
                     .addClass('suggested-match');
@@ -1181,7 +1194,7 @@ $(document).ready(function() {
             const custName = customer.name || customer.fullName || (customer.firstName + ' ' + customer.lastName);
             const contact = (customer.email || '') + ' ' + (customer.phone || customer.mobileNumber || '');
             const option = $('<option>')
-                .val(customer.id)
+                .val(customer.customerId)
                 .text(`${custName}${contact ? ' - ' + contact : ''}`)
                 .attr('data-search', `${custName.toLowerCase()} ${contact.toLowerCase()}`);
             customerDropdown.append(option);
