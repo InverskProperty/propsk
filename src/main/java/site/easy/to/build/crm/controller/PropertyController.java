@@ -37,10 +37,14 @@ import site.easy.to.build.crm.entity.Role;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 import site.easy.to.build.crm.service.payprop.LocalToPayPropSyncService;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
+import site.easy.to.build.crm.entity.AssignmentType;
 
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -60,7 +64,8 @@ public class PropertyController {
     private final AuthenticationUtils authenticationUtils;
     private final CustomerService customerService;
     private final JdbcTemplate jdbcTemplate;
-    
+    private final CustomerPropertyAssignmentRepository assignmentRepository;
+
     // Optional PayProp services (only available when PayProp is enabled)
     @Autowired(required = false)
     private PayPropSyncService payPropSyncService;
@@ -80,11 +85,12 @@ public class PropertyController {
     @Autowired
     public PropertyController(PropertyService propertyService,
                             TenantService tenantService,
-                            UserService userService, 
+                            UserService userService,
                             TicketService ticketService,
                             AuthenticationUtils authenticationUtils,
                             CustomerService customerService,
-                            JdbcTemplate jdbcTemplate) {
+                            JdbcTemplate jdbcTemplate,
+                            CustomerPropertyAssignmentRepository assignmentRepository) {
         this.propertyService = propertyService;
         this.tenantService = tenantService;
         this.userService = userService;
@@ -92,6 +98,7 @@ public class PropertyController {
         this.authenticationUtils = authenticationUtils;
         this.customerService = customerService;
         this.jdbcTemplate = jdbcTemplate;
+        this.assignmentRepository = assignmentRepository;
     }
 
     // ================================
@@ -625,6 +632,41 @@ public class PropertyController {
             model.addAttribute("activeMaintenanceCount", 0);
             model.addAttribute("completedMaintenanceCount", 0);
             model.addAttribute("maintenanceTickets", new ArrayList<>());
+        }
+
+        // Get tenant assignment history for this property
+        try {
+            List<CustomerPropertyAssignment> tenantAssignments = assignmentRepository
+                .findByPropertyIdAndAssignmentType(property.getId(), AssignmentType.TENANT);
+
+            // Sort by start date descending (most recent first)
+            tenantAssignments.sort((a, b) -> {
+                LocalDate dateA = a.getStartDate() != null ? a.getStartDate() : LocalDate.MIN;
+                LocalDate dateB = b.getStartDate() != null ? b.getStartDate() : LocalDate.MIN;
+                return dateB.compareTo(dateA);
+            });
+
+            // Separate current and past tenants
+            List<CustomerPropertyAssignment> currentTenants = tenantAssignments.stream()
+                .filter(a -> a.getEndDate() == null || a.getEndDate().isAfter(LocalDate.now()))
+                .collect(Collectors.toList());
+
+            List<CustomerPropertyAssignment> pastTenants = tenantAssignments.stream()
+                .filter(a -> a.getEndDate() != null && !a.getEndDate().isAfter(LocalDate.now()))
+                .collect(Collectors.toList());
+
+            model.addAttribute("currentTenants", currentTenants);
+            model.addAttribute("pastTenants", pastTenants);
+            model.addAttribute("tenantAssignments", tenantAssignments);
+
+            System.out.println("✅ Loaded " + tenantAssignments.size() + " tenant assignments (" +
+                             currentTenants.size() + " current, " + pastTenants.size() + " past)");
+
+        } catch (Exception e) {
+            System.err.println("Error loading tenant assignments for property " + id + ": " + e.getMessage());
+            model.addAttribute("currentTenants", new ArrayList<>());
+            model.addAttribute("pastTenants", new ArrayList<>());
+            model.addAttribute("tenantAssignments", new ArrayList<>());
         }
 
         model.addAttribute("property", property);

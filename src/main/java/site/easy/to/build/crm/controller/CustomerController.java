@@ -614,14 +614,18 @@ public class CustomerController {
             // Filter by property ID if provided
             if (propertyId != null) {
                 // Get customer IDs assigned as TENANT to this property from junction table
-                List<CustomerPropertyAssignment> propertyAssignments = 
+                // ONLY show active tenants (end_date is NULL or in the future)
+                List<CustomerPropertyAssignment> propertyAssignments =
                     customerPropertyAssignmentRepository.findByPropertyId(propertyId);
-                
+
+                java.time.LocalDate today = java.time.LocalDate.now();
+
                 List<Long> tenantCustomerIds = propertyAssignments.stream()
                     .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
+                    .filter(assignment -> assignment.getEndDate() == null || assignment.getEndDate().isAfter(today))
                     .map(assignment -> assignment.getCustomer().getCustomerId())
                     .collect(Collectors.toList());
-                
+
                 // Filter tenants based on junction table assignments
                 tenants = tenants.stream()
                     .filter(tenant -> tenantCustomerIds.contains(tenant.getCustomerId()))
@@ -765,28 +769,36 @@ public class CustomerController {
                 // Get tenants based on filters
                 if (propertyId != null) {
                     // Email tenants for specific property using junction table
-                    List<CustomerPropertyAssignment> propertyAssignments = 
+                    // ONLY include active tenants (end_date is NULL or in the future)
+                    List<CustomerPropertyAssignment> propertyAssignments =
                         customerPropertyAssignmentRepository.findByPropertyId(propertyId);
-                    
+
+                    java.time.LocalDate today = java.time.LocalDate.now();
+
                     List<Long> tenantCustomerIds = propertyAssignments.stream()
                         .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
+                        .filter(assignment -> assignment.getEndDate() == null || assignment.getEndDate().isAfter(today))
                         .map(assignment -> assignment.getCustomer().getCustomerId())
                         .collect(Collectors.toList());
-                    
+
                     tenants = customerService.findTenants().stream()
                         .filter(tenant -> tenantCustomerIds.contains(tenant.getCustomerId()))
                         .collect(Collectors.toList());
                         
                 } else if (activeOnly) {
-                    // Email only active tenants (those with property assignments)
+                    // Email only active tenants (those with active property assignments)
+                    // ONLY include tenants where end_date is NULL or in the future
                     List<CustomerPropertyAssignment> activeAssignments = customerPropertyAssignmentRepository
                         .findByAssignmentType(AssignmentType.TENANT);
-                    
+
+                    java.time.LocalDate today = java.time.LocalDate.now();
+
                     List<Long> activeTenantIds = activeAssignments.stream()
+                        .filter(assignment -> assignment.getEndDate() == null || assignment.getEndDate().isAfter(today))
                         .map(assignment -> assignment.getCustomer().getCustomerId())
                         .distinct()
                         .collect(Collectors.toList());
-                        
+
                     tenants = customerService.findTenants().stream()
                         .filter(tenant -> activeTenantIds.contains(tenant.getCustomerId()))
                         .collect(Collectors.toList());

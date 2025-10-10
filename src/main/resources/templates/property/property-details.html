@@ -725,6 +725,111 @@
                         </div>
                     </div>
 
+                    <!-- Tenant Occupancy Timeline -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h4 class="card-title">
+                                    <i class="fas fa-users text-primary"></i> Tenant Occupancy Timeline
+                                </h4>
+                                <a th:href="@{'/employee/assignment?propertyId=' + ${property.id}}"
+                                   class="btn btn-sm btn-success">
+                                    <i class="fas fa-user-plus"></i> Manage Assignments
+                                </a>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- Current Tenants -->
+                            <div th:if="${!#lists.isEmpty(currentTenants)}" class="mb-4">
+                                <h6 class="text-success"><i class="fas fa-check-circle"></i> Current Tenants</h6>
+                                <div th:each="assignment : ${currentTenants}" class="card mb-2 border-success">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    <span th:text="${assignment.customer.name}">Tenant Name</span>
+                                                    <span class="badge badge-success ml-2">Active</span>
+                                                </h6>
+                                                <p class="text-muted mb-2" th:if="${assignment.customer.email}">
+                                                    <i class="fas fa-envelope"></i>
+                                                    <span th:text="${assignment.customer.email}">email@example.com</span>
+                                                </p>
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <small class="text-muted">
+                                                            <i class="fas fa-sign-in-alt text-success"></i>
+                                                            Moved In:
+                                                            <strong th:text="${assignment.startDate != null ? #temporals.format(assignment.startDate, 'dd/MM/yyyy') : 'Not specified'}">
+                                                                01/01/2025
+                                                            </strong>
+                                                        </small>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <small class="text-success">
+                                                            <i class="fas fa-calendar-check"></i>
+                                                            Currently Occupied
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Past Tenants -->
+                            <div th:if="${!#lists.isEmpty(pastTenants)}">
+                                <h6 class="text-muted"><i class="fas fa-history"></i> Previous Tenants</h6>
+                                <div th:each="assignment : ${pastTenants}" class="card mb-2 border-light">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1">
+                                                    <span th:text="${assignment.customer.name}">Tenant Name</span>
+                                                    <span class="badge badge-secondary ml-2">Past</span>
+                                                </h6>
+                                                <p class="text-muted mb-2" th:if="${assignment.customer.email}">
+                                                    <i class="fas fa-envelope"></i>
+                                                    <span th:text="${assignment.customer.email}">email@example.com</span>
+                                                </p>
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <small class="text-muted">
+                                                            <i class="fas fa-sign-in-alt"></i>
+                                                            Moved In:
+                                                            <strong th:text="${assignment.startDate != null ? #temporals.format(assignment.startDate, 'dd/MM/yyyy') : 'Not specified'}">
+                                                                01/01/2024
+                                                            </strong>
+                                                        </small>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <small class="text-muted">
+                                                            <i class="fas fa-sign-out-alt"></i>
+                                                            Moved Out:
+                                                            <strong th:text="${assignment.endDate != null ? #temporals.format(assignment.endDate, 'dd/MM/yyyy') : 'Unknown'}">
+                                                                31/12/2024
+                                                            </strong>
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- No Tenants -->
+                            <div th:if="${#lists.isEmpty(tenantAssignments)}" class="text-center py-4">
+                                <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                                <h6 class="text-muted">No Tenant History</h6>
+                                <p class="text-muted mb-3">This property has no tenant assignment records yet.</p>
+                                <a th:href="@{'/employee/assignment'}" class="btn btn-primary">
+                                    <i class="fas fa-user-plus"></i> Add First Tenant
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- PayProp Integration -->
                     <div class="card">
                         <div class="card-header">

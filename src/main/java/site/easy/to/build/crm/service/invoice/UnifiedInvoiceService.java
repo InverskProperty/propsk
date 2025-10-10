@@ -8,7 +8,10 @@ import org.slf4j.LoggerFactory;
 
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
+import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.repository.InvoiceRepository;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
 
 import javax.sql.DataSource;
@@ -36,10 +39,13 @@ public class UnifiedInvoiceService {
     
     @Autowired
     private InvoiceRepository localInvoiceRepository;
-    
+
     @Autowired
     private PropertyService propertyService;
-    
+
+    @Autowired
+    private CustomerPropertyAssignmentRepository assignmentRepository;
+
     @Autowired
     private DataSource dataSource;
     
@@ -68,16 +74,84 @@ public class UnifiedInvoiceService {
      */
     public List<UnifiedInvoiceView> getInvoicesForCustomer(Customer customer) {
         List<UnifiedInvoiceView> allInvoices = new ArrayList<>();
-        
+
         // Get all properties for this customer (via assignments)
         // This would need to integrate with your assignment system
         List<Property> customerProperties = getPropertiesForCustomer(customer);
-        
+
         for (Property property : customerProperties) {
             allInvoices.addAll(getInvoicesForProperty(property.getId()));
         }
-        
+
         return allInvoices;
+    }
+
+    /**
+     * Get invoices for a customer filtered by their tenancy period at a specific property
+     * Only returns invoices that fall within the tenant's occupancy dates
+     */
+    public List<UnifiedInvoiceView> getInvoicesForCustomerAndProperty(Customer customer, Property property) {
+        // Get the customer's assignment to this property
+        List<CustomerPropertyAssignment> assignments = assignmentRepository
+            .findByPropertyIdAndAssignmentType(property.getId(), AssignmentType.TENANT);
+
+        // Find this customer's assignment
+        CustomerPropertyAssignment customerAssignment = assignments.stream()
+            .filter(a -> a.getCustomer().getCustomerId().equals(customer.getCustomerId()))
+            .findFirst()
+            .orElse(null);
+
+        if (customerAssignment == null) {
+            log.warn("No assignment found for customer {} at property {}",
+                    customer.getCustomerId(), property.getId());
+            return Collections.emptyList();
+        }
+
+        // Get all invoices for the property
+        List<UnifiedInvoiceView> allInvoices = getInvoicesForProperty(property.getId());
+
+        // Filter by tenancy period
+        LocalDate tenancyStart = customerAssignment.getStartDate();
+        LocalDate tenancyEnd = customerAssignment.getEndDate();
+
+        return filterInvoicesByPeriod(allInvoices, tenancyStart, tenancyEnd);
+    }
+
+    /**
+     * Filter invoices to only include those within a date range
+     * @param invoices List of invoices to filter
+     * @param periodStart Start of the period (inclusive), null means no start limit
+     * @param periodEnd End of the period (inclusive), null means no end limit
+     * @return Filtered list of invoices
+     */
+    public List<UnifiedInvoiceView> filterInvoicesByPeriod(List<UnifiedInvoiceView> invoices,
+                                                            LocalDate periodStart,
+                                                            LocalDate periodEnd) {
+        return invoices.stream()
+            .filter(invoice -> isInvoiceInPeriod(invoice, periodStart, periodEnd))
+            .toList();
+    }
+
+    /**
+     * Check if an invoice falls within a given period
+     */
+    private boolean isInvoiceInPeriod(UnifiedInvoiceView invoice, LocalDate periodStart, LocalDate periodEnd) {
+        LocalDate invoiceStart = invoice.getStartDate();
+        LocalDate invoiceEnd = invoice.getEndDate();
+
+        // If invoice has no start date, we can't determine if it's in period
+        if (invoiceStart == null) {
+            return false;
+        }
+
+        // Check if invoice started before or during the period
+        boolean startsInPeriod = periodEnd == null || !invoiceStart.isAfter(periodEnd);
+
+        // Check if invoice ends after or during the period start
+        boolean endsInPeriod = periodStart == null ||
+                              (invoiceEnd == null || !invoiceEnd.isBefore(periodStart));
+
+        return startsInPeriod && endsInPeriod;
     }
     
     /**

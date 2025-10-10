@@ -13,12 +13,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerType;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
+import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.FinancialTransaction;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.service.statements.BodenHouseStatementTemplateService;
 import site.easy.to.build.crm.util.RentCyclePeriodCalculator;
 import site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod;
@@ -40,6 +43,7 @@ public class GoogleSheetsStatementService {
     private final CustomerService customerService;
     private final PropertyService propertyService;
     private final FinancialTransactionRepository financialTransactionRepository;
+    private final CustomerPropertyAssignmentRepository assignmentRepository;
     private final BodenHouseStatementTemplateService bodenHouseTemplateService;
 
     @Value("${GOOGLE_SERVICE_ACCOUNT_KEY:}")
@@ -52,10 +56,12 @@ public class GoogleSheetsStatementService {
     public GoogleSheetsStatementService(CustomerService customerService,
                                       PropertyService propertyService,
                                       FinancialTransactionRepository financialTransactionRepository,
+                                      CustomerPropertyAssignmentRepository assignmentRepository,
                                       BodenHouseStatementTemplateService bodenHouseTemplateService) {
         this.customerService = customerService;
         this.propertyService = propertyService;
         this.financialTransactionRepository = financialTransactionRepository;
+        this.assignmentRepository = assignmentRepository;
         this.bodenHouseTemplateService = bodenHouseTemplateService;
     }
 
@@ -330,30 +336,41 @@ public class GoogleSheetsStatementService {
 
     private PropertyRentalData buildPropertyRentalData(Property property, LocalDate fromDate, LocalDate toDate) {
         PropertyRentalData rentalData = new PropertyRentalData();
-        
+
         // Set property details including unit number
         rentalData.setPropertyAddress(buildPropertyAddress(property));
         rentalData.setUnitNumber(extractUnitNumber(property)); // Extract unit/flat number
         rentalData.setProperty(property); // Add property reference for later use
-        
-        // Get tenant info from PayProp data or customer table
-        Customer tenant = getTenantForProperty(property.getId());
-        rentalData.setTenantName(tenant != null ? tenant.getName() : "Vacant");
-        rentalData.setStartDate(tenant != null ? tenant.getMoveInDate() : null);
-        
+
+        // Get active tenant assignment for this property
+        List<CustomerPropertyAssignment> activeTenants = assignmentRepository
+            .findActiveAssignmentsByPropertyAndType(property.getId(), AssignmentType.TENANT, LocalDate.now());
+
+        if (!activeTenants.isEmpty()) {
+            CustomerPropertyAssignment assignment = activeTenants.get(0); // Most recent
+            Customer tenant = assignment.getCustomer();
+
+            rentalData.setTenantName(tenant != null ? tenant.getName() : "Vacant");
+            // Use assignment start_date instead of deprecated customer.moveInDate
+            rentalData.setStartDate(assignment.getStartDate());
+        } else {
+            rentalData.setTenantName("Vacant");
+            rentalData.setStartDate(null);
+        }
+
         // Set rent amounts - use actual PayProp data
         BigDecimal monthlyRent = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
         rentalData.setRentAmount(monthlyRent);
         rentalData.setRentDue(monthlyRent);
-        
+
         // Set fee percentages (default to 10% management, 5% service)
-        BigDecimal managementPercentage = property.getCommissionPercentage() != null ? 
+        BigDecimal managementPercentage = property.getCommissionPercentage() != null ?
             property.getCommissionPercentage() : new BigDecimal("10.0");
         BigDecimal servicePercentage = new BigDecimal("5.0"); // Standard service fee
-        
+
         rentalData.setManagementFeePercentage(managementPercentage);
         rentalData.setServiceFeePercentage(servicePercentage);
-        
+
         return rentalData;
     }
     
@@ -892,25 +909,18 @@ public class GoogleSheetsStatementService {
     }
 
     private Customer getTenantForProperty(Long propertyId) {
-        // Find tenant assigned to this property via assigned_property_id
+        // Find active tenant using CustomerPropertyAssignment (NEW APPROACH)
         try {
-            List<Customer> tenants = customerService.findByAssignedPropertyId(propertyId);
-            if (!tenants.isEmpty()) {
-                // Return the first active tenant
-                return tenants.stream()
-                    .filter(customer -> customer.getIsTenant() != null && customer.getIsTenant())
-                    .filter(customer -> customer.getMoveOutDate() == null || customer.getMoveOutDate().isAfter(LocalDate.now()))
-                    .findFirst()
-                    .orElse(tenants.get(0));
+            List<CustomerPropertyAssignment> activeTenants = assignmentRepository
+                .findActiveAssignmentsByPropertyAndType(propertyId, AssignmentType.TENANT, LocalDate.now());
+
+            if (!activeTenants.isEmpty()) {
+                // Return the most recent active tenant
+                return activeTenants.get(0).getCustomer();
             }
-            
-            // Alternative: Check by entity_type and entity_id
-            List<Customer> entityTenants = customerService.findByEntityTypeAndEntityId("Property", propertyId);
-            return entityTenants.stream()
-                .filter(customer -> customer.getIsTenant() != null && customer.getIsTenant())
-                .findFirst()
-                .orElse(null);
-                
+
+            return null;
+
         } catch (Exception e) {
             System.err.println("Error finding tenant for property " + propertyId + ": " + e.getMessage());
             return null;

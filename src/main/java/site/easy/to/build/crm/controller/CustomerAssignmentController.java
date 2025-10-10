@@ -19,6 +19,7 @@ import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -101,6 +102,8 @@ public class CustomerAssignmentController {
             @RequestParam("propertyId") Long propertyId,
             @RequestParam("assignmentType") String assignmentTypeStr,
             @RequestParam(value = "ownershipPercentage", required = false) BigDecimal ownershipPercentage,
+            @RequestParam(value = "startDate", required = false) String startDateStr,
+            @RequestParam(value = "endDate", required = false) String endDateStr,
             @RequestParam(value = "syncToPayProp", defaultValue = "false") Boolean syncToPayProp,
             RedirectAttributes redirectAttributes,
             Authentication authentication) {
@@ -134,12 +137,24 @@ public class CustomerAssignmentController {
             assignment.setProperty(property);
             assignment.setAssignmentType(assignmentType);
             assignment.setCreatedAt(LocalDateTime.now());
-            
+
             // Set ownership percentage for owners
             if (assignmentType == AssignmentType.OWNER && ownershipPercentage != null) {
                 assignment.setOwnershipPercentage(ownershipPercentage);
             }
-            
+
+            // Set tenancy dates for tenants
+            if (assignmentType == AssignmentType.TENANT) {
+                if (startDateStr != null && !startDateStr.trim().isEmpty()) {
+                    assignment.setStartDate(LocalDate.parse(startDateStr));
+                    System.out.println("✅ Set tenant start date: " + startDateStr);
+                }
+                if (endDateStr != null && !endDateStr.trim().isEmpty()) {
+                    assignment.setEndDate(LocalDate.parse(endDateStr));
+                    System.out.println("✅ Set tenant end date: " + endDateStr);
+                }
+            }
+
             // Save assignment
             assignmentRepository.save(assignment);
             
