@@ -357,10 +357,14 @@ public class PropertyController {
             .map(Property::getMonthlyPayment)
             .filter(rent -> rent != null)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
+
+        // Get last tenant left dates for vacant properties
+        Map<Long, LocalDate> lastTenantLeftDates = getLastTenantLeftDates(properties);
+
         addComprehensivePortfolioStatistics(model, properties);
         model.addAttribute("properties", properties);
         model.addAttribute("lostRentPotential", lostRentPotential);
+        model.addAttribute("lastTenantLeftDates", lastTenantLeftDates);
         model.addAttribute("pageTitle", "Vacant Properties");
         return "property/vacant-properties";
     }
@@ -1331,7 +1335,7 @@ public class PropertyController {
                 BigDecimal netOwnerIncome = totalIncome
                     .subtract(totalCommissions)
                     .subtract(totalExpenses)
-                    .add(ownerLiability); // owner_liability is already negative in DB
+                    .subtract(ownerLiability); // owner_liability represents amounts owed by owner (expenses)
 
                 data.put("totalIncome", totalIncome);
                 data.put("totalCommissions", totalCommissions);
@@ -2027,13 +2031,13 @@ public class PropertyController {
             // If property has PayProp ID, use PayProp invoice data
             if (property.getPayPropId() != null && !"LEGACY".equals(dataSource)) {
                 String sql = """
-                    SELECT COUNT(DISTINCT tenant_payprop_id) 
-                    FROM payprop_export_invoices 
-                    WHERE property_payprop_id = ? 
-                    AND invoice_type = 'Rent' 
+                    SELECT COUNT(DISTINCT tenant_payprop_id)
+                    FROM payprop_export_invoices
+                    WHERE property_payprop_id = ?
+                    AND invoice_type = 'Rent'
                     AND sync_status = 'active'
                     """;
-                
+
                 return jdbcTemplate.queryForObject(sql, Long.class, property.getPayPropId());
             } else {
                 // Fallback to legacy tenant service for non-PayProp properties
@@ -2049,6 +2053,53 @@ public class PropertyController {
                 return 0;
             }
         }
+    }
+
+    /**
+     * Get the last tenant left date for each vacant property
+     * Returns a map of property ID to the most recent tenant end date
+     */
+    private Map<Long, LocalDate> getLastTenantLeftDates(List<Property> properties) {
+        Map<Long, LocalDate> lastTenantDates = new HashMap<>();
+
+        if (properties == null || properties.isEmpty()) {
+            return lastTenantDates;
+        }
+
+        try {
+            // Get all property IDs
+            List<Long> propertyIds = properties.stream()
+                .map(Property::getId)
+                .collect(Collectors.toList());
+
+            // Query for the most recent ended tenancy for each property
+            List<CustomerPropertyAssignment> endedTenancies = assignmentRepository
+                .findByPropertyIdInAndAssignmentType(propertyIds, AssignmentType.TENANT);
+
+            // Filter for ended tenancies and group by property
+            Map<Long, List<CustomerPropertyAssignment>> tenanciesByProperty = endedTenancies.stream()
+                .filter(a -> a.getEndDate() != null && !a.getEndDate().isAfter(LocalDate.now()))
+                .collect(Collectors.groupingBy(a -> a.getProperty().getId()));
+
+            // For each property, find the most recent end date
+            for (Map.Entry<Long, List<CustomerPropertyAssignment>> entry : tenanciesByProperty.entrySet()) {
+                LocalDate latestEndDate = entry.getValue().stream()
+                    .map(CustomerPropertyAssignment::getEndDate)
+                    .filter(date -> date != null)
+                    .max(LocalDate::compareTo)
+                    .orElse(null);
+
+                if (latestEndDate != null) {
+                    lastTenantDates.put(entry.getKey(), latestEndDate);
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error getting last tenant left dates: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return lastTenantDates;
     }
     
     // Calculate statistics based on a filtered property list (for archived, search, etc.)

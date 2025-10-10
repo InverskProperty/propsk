@@ -205,6 +205,74 @@ public class CustomerAssignmentController {
     }
 
     /**
+     * Get assignment by ID for editing
+     */
+    @GetMapping("/get/{id}")
+    @ResponseBody
+    public CustomerPropertyAssignment getAssignment(@PathVariable Long id) {
+        return assignmentRepository.findById(id).orElse(null);
+    }
+
+    /**
+     * Update existing assignment
+     */
+    @PostMapping("/update/{id}")
+    public String updateAssignment(
+            @PathVariable Long id,
+            @RequestParam(value = "ownershipPercentage", required = false) BigDecimal ownershipPercentage,
+            @RequestParam(value = "startDate", required = false) String startDateStr,
+            @RequestParam(value = "endDate", required = false) String endDateStr,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            CustomerPropertyAssignment assignment = assignmentRepository.findById(id).orElse(null);
+
+            if (assignment == null) {
+                redirectAttributes.addFlashAttribute("error", "Assignment not found");
+                return "redirect:/employee/assignment";
+            }
+
+            System.out.println("📝 Updating assignment ID: " + id);
+
+            // Update ownership percentage for owners
+            if (assignment.getAssignmentType() == AssignmentType.OWNER) {
+                assignment.setOwnershipPercentage(ownershipPercentage);
+                System.out.println("✅ Updated ownership percentage: " + ownershipPercentage);
+            }
+
+            // Update tenancy dates for tenants
+            if (assignment.getAssignmentType() == AssignmentType.TENANT) {
+                if (startDateStr != null && !startDateStr.trim().isEmpty()) {
+                    assignment.setStartDate(LocalDate.parse(startDateStr));
+                    System.out.println("✅ Updated tenant start date: " + startDateStr);
+                } else {
+                    assignment.setStartDate(null);
+                }
+
+                if (endDateStr != null && !endDateStr.trim().isEmpty()) {
+                    assignment.setEndDate(LocalDate.parse(endDateStr));
+                    System.out.println("✅ Updated tenant end date: " + endDateStr);
+                } else {
+                    assignment.setEndDate(null);
+                }
+            }
+
+            // Save updated assignment
+            assignmentRepository.save(assignment);
+
+            redirectAttributes.addFlashAttribute("success",
+                "Successfully updated assignment for " + assignment.getCustomer().getName() +
+                " at " + assignment.getProperty().getPropertyName());
+
+        } catch (Exception e) {
+            System.out.println("❌ Assignment update failed: " + e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error updating assignment: " + e.getMessage());
+        }
+
+        return "redirect:/employee/assignment";
+    }
+
+    /**
      * Delete assignment
      */
     @PostMapping("/delete/{id}")
@@ -212,9 +280,9 @@ public class CustomerAssignmentController {
         try {
             CustomerPropertyAssignment assignment = assignmentRepository.findById(id).orElse(null);
             if (assignment != null) {
-                String description = assignment.getCustomer().getName() + " → " + 
+                String description = assignment.getCustomer().getName() + " → " +
                                    assignment.getProperty().getPropertyName() + " (" + assignment.getAssignmentType() + ")";
-                
+
                 assignmentRepository.deleteById(id);
                 redirectAttributes.addFlashAttribute("success", "Deleted assignment: " + description);
             } else {
@@ -223,7 +291,7 @@ public class CustomerAssignmentController {
         } catch (Exception e) {
             redirectAttributes.addFlashAttribute("error", "Error deleting assignment: " + e.getMessage());
         }
-        
+
         return "redirect:/employee/assignment";
     }
 

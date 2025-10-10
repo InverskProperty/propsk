@@ -48,4 +48,9 @@ public interface CustomerPropertyAssignmentRepository extends JpaRepository<Cust
     List<CustomerPropertyAssignment> findActiveAssignmentsByPropertyAndType(@Param("propertyId") Long propertyId,
                                                                            @Param("assignmentType") AssignmentType assignmentType,
                                                                            @Param("currentDate") java.time.LocalDate currentDate);
+
+    // Find assignments for multiple properties by assignment type
+    @Query("SELECT cpa FROM CustomerPropertyAssignment cpa WHERE cpa.property.id IN :propertyIds AND cpa.assignmentType = :assignmentType")
+    List<CustomerPropertyAssignment> findByPropertyIdInAndAssignmentType(@Param("propertyIds") List<Long> propertyIds,
+                                                                         @Param("assignmentType") AssignmentType assignmentType);
 }

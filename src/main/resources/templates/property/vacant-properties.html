@@ -159,6 +159,7 @@
                                             <th>Type</th>
                                             <th>Bedrooms</th>
                                             <th>Monthly Rent</th>
+                                            <th>Last Tenant Left</th>
                                             <th>Available From</th>
                                             <th>PayProp Status</th>
                                             <th>Actions</th>
@@ -179,13 +180,24 @@
                                                 <span th:unless="${property.bedrooms}" class="text-muted">-</span>
                                             </td>
                                             <td>
-                                                <strong th:if="${property.monthlyPayment}" 
-                                                        th:text="'£' + ${#numbers.formatDecimal(property.monthlyPayment, 0, 'COMMA', 0, 'POINT')}" 
+                                                <strong th:if="${property.monthlyPayment}"
+                                                        th:text="'£' + ${#numbers.formatDecimal(property.monthlyPayment, 0, 'COMMA', 0, 'POINT')}"
                                                         class="text-success">£1200</strong>
                                                 <span th:unless="${property.monthlyPayment}" class="text-muted">Not set</span>
                                             </td>
                                             <td>
-                                                <span th:if="${property.listedFrom}" 
+                                                <span th:if="${lastTenantLeftDates != null and lastTenantLeftDates.containsKey(property.id)}"
+                                                      th:text="${#temporals.format(lastTenantLeftDates.get(property.id), 'dd/MM/yyyy')}"
+                                                      class="text-muted">
+                                                    01/01/2024
+                                                </span>
+                                                <span th:unless="${lastTenantLeftDates != null and lastTenantLeftDates.containsKey(property.id)}"
+                                                      class="text-muted">
+                                                    Never occupied
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span th:if="${property.listedFrom}"
                                                       th:text="${#temporals.format(property.listedFrom, 'dd/MM/yyyy')}">01/01/2025</span>
                                                 <span th:unless="${property.listedFrom}" class="text-muted">Available now</span>
                                             </td>
@@ -298,7 +310,7 @@ $(document).ready(function() {
         "pageLength": 25,
         "order": [[ 4, "desc" ]], // Order by rent amount descending
         "columnDefs": [
-            { "orderable": false, "targets": 7 }
+            { "orderable": false, "targets": 8 } // Actions column
         ]
     });
 });
