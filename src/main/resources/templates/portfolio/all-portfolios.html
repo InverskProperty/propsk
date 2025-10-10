@@ -289,21 +289,25 @@
                                         </div>
                                         <div class="card-footer">
                                             <div class="btn-group btn-group-sm w-100">
-                                                <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id}}" 
+                                                <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id}}"
                                                    class="btn btn-info">
                                                     <i class="fas fa-eye"></i> View
                                                 </a>
-                                                <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id} + '/edit'}" 
+                                                <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id} + '/edit'}"
                                                    class="btn btn-warning">
                                                     <i class="fas fa-edit"></i> Edit
                                                 </a>
-                                                <button class="btn btn-success" 
+                                                <button class="btn btn-success"
                                                         th:onclick="'assignProperties(' + ${portfolioData.portfolio.id} + ')'">
                                                     <i class="fas fa-plus"></i> Assign
                                                 </button>
-                                                <button class="btn btn-primary" 
+                                                <button class="btn btn-primary"
                                                         th:onclick="'syncPortfolio(' + ${portfolioData.portfolio.id} + ')'">
                                                     <i class="fas fa-sync"></i>
+                                                </button>
+                                                <button class="btn btn-danger"
+                                                        th:onclick="'deletePortfolio(' + ${portfolioData.portfolio.id} + ', \'' + ${portfolioData.portfolio.name} + '\')'">
+                                                    <i class="fas fa-trash"></i>
                                                 </button>
                                             </div>
                                         </div>
@@ -369,23 +373,28 @@
                                                 </td>
                                                 <td>
                                                     <div class="btn-group btn-group-sm">
-                                                        <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id}}" 
+                                                        <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id}}"
                                                            class="btn btn-info" title="View">
                                                             <i class="fas fa-eye"></i>
                                                         </a>
-                                                        <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id} + '/edit'}" 
+                                                        <a th:href="@{'/portfolio/' + ${portfolioData.portfolio.id} + '/edit'}"
                                                            class="btn btn-warning" title="Edit">
                                                             <i class="fas fa-edit"></i>
                                                         </a>
-                                                        <button class="btn btn-success" 
-                                                                th:onclick="'assignProperties(' + ${portfolioData.portfolio.id} + ')'" 
+                                                        <button class="btn btn-success"
+                                                                th:onclick="'assignProperties(' + ${portfolioData.portfolio.id} + ')'"
                                                                 title="Assign Properties">
                                                             <i class="fas fa-plus"></i>
                                                         </button>
-                                                        <button class="btn btn-primary" 
-                                                                th:onclick="'syncPortfolio(' + ${portfolioData.portfolio.id} + ')'" 
+                                                        <button class="btn btn-primary"
+                                                                th:onclick="'syncPortfolio(' + ${portfolioData.portfolio.id} + ')'"
                                                                 title="Sync with PayProp">
                                                             <i class="fas fa-sync"></i>
+                                                        </button>
+                                                        <button class="btn btn-danger"
+                                                                th:onclick="'deletePortfolio(' + ${portfolioData.portfolio.id} + ', \'' + ${portfolioData.portfolio.name} + '\')'"
+                                                                title="Delete Portfolio">
+                                                            <i class="fas fa-trash"></i>
                                                         </button>
                                                     </div>
                                                 </td>
@@ -510,6 +519,33 @@ function recalculateAllAnalytics() {
 
 function showBulkAssignModal() {
     alert('Bulk assignment modal coming soon!');
+}
+
+function deletePortfolio(portfolioId, portfolioName) {
+    if (confirm('Are you sure you want to permanently delete the portfolio "' + portfolioName + '"?\n\nThis will:\n- Remove all PayProp tags associated with this portfolio\n- Remove all blocks in this portfolio\n- Unassign all properties from this portfolio\n\nThis action cannot be undone!')) {
+        fetch('/portfolio/' + portfolioId, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="_csrf"]').content
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Portfolio "' + data.deletedPortfolioName + '" deleted successfully!\n\n' +
+                      'PayProp tags removed: ' + data.payPropTagsDeleted + '\n' +
+                      'Properties unassigned: ' + data.propertiesUnassigned);
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Failed to delete portfolio'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to delete portfolio: ' + error.message);
+        });
+    }
 }
 </script>
 

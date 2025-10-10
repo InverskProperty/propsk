@@ -762,7 +762,69 @@ public class PortfolioServiceImpl implements PortfolioService {
             delete(portfolio);
         }
     }
-    
+
+    /**
+     * Hard delete - permanently removes portfolio from database
+     * This will cascade delete:
+     * - PayPropTagLinks (due to cascade = CascadeType.ALL)
+     * - Blocks (due to cascade = CascadeType.ALL)
+     * - PropertyPortfolioAssignments will be set to isActive=false
+     * - PortfolioAnalytics will be deleted
+     */
+    @Override
+    @Transactional
+    public void hardDeletePortfolio(Long id) {
+        Portfolio portfolio = findById(id);
+        if (portfolio == null) {
+            throw new IllegalArgumentException("Portfolio not found with ID: " + id);
+        }
+
+        System.out.println("🗑️ Hard deleting portfolio: " + portfolio.getName() + " (ID: " + id + ")");
+
+        // Step 1: Deactivate all property assignments (don't delete to preserve history)
+        List<PropertyPortfolioAssignment> assignments = propertyPortfolioAssignmentRepository
+            .findByPortfolioIdAndIsActive(id, true);
+
+        for (PropertyPortfolioAssignment assignment : assignments) {
+            assignment.setIsActive(false);
+            assignment.setUpdatedAt(LocalDateTime.now());
+            propertyPortfolioAssignmentRepository.save(assignment);
+
+            // Clear direct FK if this was a PRIMARY assignment
+            if (assignment.getAssignmentType() == PortfolioAssignmentType.PRIMARY) {
+                Property property = assignment.getProperty();
+                if (property != null && property.getPortfolio() != null &&
+                    property.getPortfolio().getId().equals(id)) {
+                    property.setPortfolio(null);
+                    property.setPortfolioAssignmentDate(null);
+                    propertyService.save(property);
+                }
+            }
+        }
+        System.out.println("✅ Deactivated " + assignments.size() + " property assignments");
+
+        // Step 2: Delete analytics records
+        List<PortfolioAnalytics> analytics = analyticsRepository.findByPortfolioIdOrderByCalculationDateDesc(id);
+        analyticsRepository.deleteAll(analytics);
+        System.out.println("✅ Deleted " + analytics.size() + " analytics records");
+
+        // Step 3: Count PayPropTagLinks before deletion (for logging)
+        int tagLinksCount = portfolio.getPayPropTagLinks() != null ? portfolio.getPayPropTagLinks().size() : 0;
+
+        // Step 4: Delete blocks (will cascade due to CascadeType.ALL)
+        int blocksCount = portfolio.getBlocks() != null ? portfolio.getBlocks().size() : 0;
+
+        // Step 5: Delete the portfolio itself
+        // This will cascade delete PayPropTagLinks and Blocks due to CascadeType.ALL on the relationships
+        portfolioRepository.delete(portfolio);
+
+        System.out.println("✅ Portfolio hard deleted:");
+        System.out.println("   - PayProp tags removed: " + tagLinksCount);
+        System.out.println("   - Blocks removed: " + blocksCount);
+        System.out.println("   - Property assignments deactivated: " + assignments.size());
+        System.out.println("   - Analytics records deleted: " + analytics.size());
+    }
+
     @Override
     public List<Portfolio> findPortfoliosForUser(Authentication authentication) {
         int userId = authenticationUtils.getLoggedInUserId(authentication);

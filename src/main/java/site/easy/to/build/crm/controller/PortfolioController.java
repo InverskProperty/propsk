@@ -3452,9 +3452,66 @@ public class PortfolioController {
         }
     }
 
+    /**
+     * Delete Portfolio (Hard Delete)
+     * WARNING: This will permanently delete the portfolio, its PayProp tag links, and all assignments
+     */
+    @DeleteMapping("/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deletePortfolio(
+            @PathVariable("id") Long portfolioId,
+            Authentication authentication) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // Check if user can delete this portfolio
+            if (!canUserEditPortfolio(portfolioId, authentication)) {
+                response.put("success", false);
+                response.put("error", "You don't have permission to delete this portfolio");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            if (portfolio == null) {
+                response.put("success", false);
+                response.put("error", "Portfolio not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            }
+
+            String portfolioName = portfolio.getName();
+
+            // Get counts before deletion for response
+            int tagCount = portfolio.getPayPropTagLinks() != null ? portfolio.getPayPropTagLinks().size() : 0;
+            List<Property> properties = portfolioService.getPropertiesForPortfolio(portfolioId);
+            int propertyCount = properties != null ? properties.size() : 0;
+
+            // Perform hard delete (will cascade to PayPropTagLinks and other related entities)
+            portfolioService.hardDeletePortfolio(portfolioId);
+
+            log.info("Portfolio deleted: {} (ID: {}) - Removed {} PayProp tags, {} properties unassigned",
+                    portfolioName, portfolioId, tagCount, propertyCount);
+
+            response.put("success", true);
+            response.put("message", "Portfolio '" + portfolioName + "' deleted successfully");
+            response.put("deletedPortfolioId", portfolioId);
+            response.put("deletedPortfolioName", portfolioName);
+            response.put("payPropTagsDeleted", tagCount);
+            response.put("propertiesUnassigned", propertyCount);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Failed to delete portfolio {}: {}", portfolioId, e.getMessage(), e);
+            response.put("success", false);
+            response.put("error", "Failed to delete portfolio: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
     // ===== CONTROLLER SEPARATION COMPLETED =====
     // PayProp functionality: /portfolio/internal/payprop/*
-    // Assignment functionality: /portfolio/internal/assignment/*  
+    // Assignment functionality: /portfolio/internal/assignment/*
     // Admin functionality: /portfolio/internal/admin/*
     // Hierarchical UI: /{portfolioId}/properties-hierarchical
 }

@@ -15,8 +15,9 @@ public interface PortfolioService {
     Portfolio findById(Long id);
     List<Portfolio> findAll();
     Portfolio save(Portfolio portfolio);
-    void delete(Portfolio portfolio);
-    void deleteById(Long id);
+    void delete(Portfolio portfolio); // Soft delete (sets isActive to 'N')
+    void deleteById(Long id); // Soft delete by ID
+    void hardDeletePortfolio(Long id); // Hard delete - permanently removes portfolio and PayProp tags
     
     // User-based portfolio access
     List<Portfolio> findPortfoliosForUser(Authentication authentication);
