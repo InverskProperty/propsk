@@ -567,6 +567,33 @@
                                     </h4>
                                 </div>
                                 <div class="card-body">
+                                    <!-- Data Source Toggle -->
+                                    <div class="row mb-3">
+                                        <div class="col-12">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <h6 class="mb-0">Data Source:</h6>
+                                                </div>
+                                                <div class="btn-group" role="group" id="dataSourceToggle">
+                                                    <button type="button" class="btn btn-outline-primary active" onclick="switchDataSource('auto')" id="sourceAuto">
+                                                        <i class="fas fa-magic"></i> Auto
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-success" onclick="switchDataSource('historical')" id="sourceHistorical">
+                                                        <i class="fas fa-history"></i> Historical
+                                                        <span class="badge badge-light ml-1" id="historicalCount">0</span>
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-info" onclick="switchDataSource('payprop')" id="sourcePayProp">
+                                                        <i class="fas fa-cloud"></i> PayProp
+                                                        <span class="badge badge-light ml-1" id="paypropCount">0</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div id="dataSourceMessage" class="alert alert-info alert-sm mt-2" style="display: none;">
+                                                <small id="dataSourceMessageText"></small>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div class="row" id="financialMetrics">
                                         <div class="col-md-3">
                                             <div class="card">
@@ -622,22 +649,19 @@
                                                 </small>
                                             </div>
                                             <div class="table-responsive">
-                                                <table class="table table-sm" id="recentTransactionsTable">
+                                                <table class="table table-sm table-striped" id="recentTransactionsTable">
                                                     <thead>
                                                         <tr>
-                                                            <th>Date</th>
-                                                            <th>Type</th>
-                                                            <th>Amount</th>
-                                                            <th>Commission</th>
-                                                            <th>To Owner</th>
-                                                            <th>Reference</th>
-                                                            <th>Source</th>
-                                                            <th>Status</th>
+                                                            <th style="width: 100px;">Date</th>
+                                                            <th>Description</th>
+                                                            <th style="width: 120px;">Type</th>
+                                                            <th style="width: 120px;" class="text-end">Amount</th>
+                                                            <th style="width: 100px;" class="text-center">Source</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody id="recentTransactionsBody">
                                                         <tr>
-                                                            <td colspan="8" class="text-center text-muted">Loading financial data...</td>
+                                                            <td colspan="5" class="text-center text-muted">Loading financial data...</td>
                                                         </tr>
                                                     </tbody>
                                                 </table>
@@ -940,38 +964,50 @@ $(document).ready(function() {
     loadMaintenanceData();
 });
 
-function loadFinancialData() {
+function loadFinancialData(source) {
     // Check if jQuery is available
     if (typeof $ === 'undefined') {
         console.error('jQuery is not loaded yet, retrying in 500ms...');
-        setTimeout(loadFinancialData, 500);
+        setTimeout(() => loadFinancialData(source), 500);
         return;
     }
-    
+
+    // Default to current source if not specified
+    if (!source) {
+        source = currentDataSource || 'auto';
+    }
+
     const propertyId = $('body').data('property-id');
-    console.log('Property ID:', propertyId);
-    
+    console.log('Property ID:', propertyId, 'Source:', source);
+
     // Validate property ID
     if (!propertyId || propertyId === 'null' || propertyId < 0) {
         console.error('Invalid property ID:', propertyId);
         $('#recentTransactionsBody').html('<tr><td colspan="8" class="text-center text-danger">Invalid property ID</td></tr>');
         return;
     }
-    
-    console.log('URL:', `/employee/property/${propertyId}/financial-summary`);
-    
+
+    const url = `/employee/property/${propertyId}/financial-summary?source=${source}`;
+    console.log('URL:', url);
+
+    // Show loading indicator
+    $('#recentTransactionsBody').html('<tr><td colspan="8" class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Loading financial data...</td></tr>');
+
     $.ajax({
-        url: `/employee/property/${propertyId}/financial-summary`,
+        url: url,
         method: 'GET',
         success: function(data) {
+            console.log('Financial data loaded:', data);
             updateFinancialDisplay(data);
             $('#financialSection').show();
         },
         error: function(xhr, status, error) {
             console.error('Error loading financial data:', error);
             $('#financialSection').show();
+            $('#dataSourceMessage').show().addClass('alert-danger');
+            $('#dataSourceMessageText').html('<i class="fas fa-exclamation-triangle"></i> Error loading financial data: ' + (xhr.responseJSON?.message || error));
             $('#recentTransactionsBody').html(
-                '<tr><td colspan="6" class="text-center text-danger">Error loading financial data</td></tr>'
+                '<tr><td colspan="8" class="text-center text-danger">Error loading financial data</td></tr>'
             );
         }
     });
@@ -992,32 +1028,97 @@ function loadMaintenanceData() {
     });
 }
 
-// Global variable to store all transaction data
+// Global variables to store transaction data and current source
 let allTransactionsData = [];
+let currentDataSource = 'auto';
 
 function updateFinancialDisplay(data) {
-    // Update metrics with PayProp enhanced data structure
-    $('#totalIncome').text('£' + formatNumber(data.totalIncoming || data.totalIncome || 0));
+    // Update data availability indicators
+    if (data.dataAvailability) {
+        updateDataAvailability(data.dataAvailability);
+    }
+
+    // Show message about which data source is being displayed
+    if (data.message) {
+        $('#dataSourceMessage').show();
+        $('#dataSourceMessageText').html('<i class="fas fa-info-circle"></i> ' + data.message);
+
+        // Update alert class based on selected source
+        $('#dataSourceMessage').removeClass('alert-info alert-success alert-warning');
+        if (data.selectedSource === 'historical') {
+            $('#dataSourceMessage').addClass('alert-success');
+        } else if (data.selectedSource === 'payprop') {
+            $('#dataSourceMessage').addClass('alert-info');
+        } else {
+            $('#dataSourceMessage').addClass('alert-warning');
+        }
+    }
+
+    // Update metrics with data from selected source
+    $('#totalIncome').text('£' + formatNumber(data.totalIncome || 0));
     $('#totalCommissions').text('£' + formatNumber(data.totalCommissions || 0));
-    $('#netOwnerIncome').text('£' + formatNumber(data.netIncome || data.netOwnerIncome || 0));
+    $('#netOwnerIncome').text('£' + formatNumber(data.netOwnerIncome || 0));
     $('#transactionCount').text(data.transactionCount || 0);
-    
-    // Add additional metrics if available (PayProp data)
-    if (data.currentBalance !== undefined) {
-        updateCurrentBalance(data.currentBalance);
+
+    // Add expenses card if data is available
+    if (data.totalExpenses !== undefined && data.totalExpenses > 0) {
+        if ($('#totalExpenses').length === 0) {
+            const expensesCard = `
+                <div class="col-md-3" id="expensesCardContainer">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h4 class="text-danger" id="totalExpenses">£${formatNumber(data.totalExpenses)}</h4>
+                            <p class="text-muted">Total Expenses</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            $('#transactionCount').closest('.col-md-3').after(expensesCard);
+        } else {
+            $('#totalExpenses').text('£' + formatNumber(data.totalExpenses));
+        }
     }
-    if (data.monthlyIncoming !== undefined) {
-        updateMonthlyMetrics(data);
-    }
-    if (data.incomeByCategory) {
-        updateCategoryBreakdown(data);
-    }
-    
+
     // Store transaction data globally for filtering
     allTransactionsData = data.recentTransactions || [];
-    
+
     // Display transactions with enhanced formatting
     displayTransactions(allTransactionsData, 'all');
+}
+
+function updateDataAvailability(availability) {
+    // Update badge counts
+    $('#historicalCount').text(availability.historicalCount || 0);
+    $('#paypropCount').text(availability.payPropCount || 0);
+
+    // Enable/disable buttons based on data availability
+    if (!availability.hasHistoricalData) {
+        $('#sourceHistorical').prop('disabled', true).addClass('disabled');
+        $('#sourceHistorical').attr('title', 'No historical data available');
+    } else {
+        $('#sourceHistorical').prop('disabled', false).removeClass('disabled');
+        $('#sourceHistorical').attr('title', availability.historicalCount + ' historical transactions');
+    }
+
+    if (!availability.hasPayPropData) {
+        $('#sourcePayProp').prop('disabled', true).addClass('disabled');
+        $('#sourcePayProp').attr('title', 'No PayProp data available');
+    } else {
+        $('#sourcePayProp').prop('disabled', false).removeClass('disabled');
+        $('#sourcePayProp').attr('title', availability.payPropCount + ' PayProp transactions');
+    }
+}
+
+function switchDataSource(source) {
+    // Update current source
+    currentDataSource = source;
+
+    // Update active button
+    $('#dataSourceToggle .btn').removeClass('active');
+    $('#source' + source.charAt(0).toUpperCase() + source.slice(1)).addClass('active');
+
+    // Reload data with new source
+    loadFinancialData(source);
 }
 
 function updateCurrentBalance(balance) {
@@ -1151,92 +1252,51 @@ function updateCategoryBreakdown(data) {
 function displayTransactions(transactions, filterType) {
     const tbody = $('#recentTransactionsBody');
     tbody.empty();
-    
+
     if (!transactions || transactions.length === 0) {
-        tbody.html('<tr><td colspan="8" class="text-center text-muted">No recent transactions</td></tr>');
+        tbody.html('<tr><td colspan="5" class="text-center text-muted">No recent transactions</td></tr>');
         return;
     }
-    
-    // Filter and group transactions based on type
-    let filteredTransactions = transactions;
-    
-    switch(filterType) {
-        case 'actual':
-            filteredTransactions = transactions.filter(t => 
-                t.dataSource === 'ICDN_ACTUAL' || t.dataSource === 'BATCH_PAYMENT'
-            );
-            break;
-        case 'calculated':
-            filteredTransactions = transactions.filter(t => 
-                t.dataSource === 'COMMISSION_PAYMENT'
-            );
-            break;
-        case 'grouped':
-            displayGroupedTransactions(transactions);
-            return;
-    }
-    
-    filteredTransactions.forEach(function(transaction) {
-        // Handle both PayProp and legacy transaction formats
-        const isPayPropTransaction = transaction.payprop_id !== undefined;
-        
-        let sourceInfo, statusInfo, reconciliationStatus;
-        
-        if (isPayPropTransaction) {
-            // PayProp transaction format
-            sourceInfo = getPayPropDataSourceInfo(transaction);
-            statusInfo = getPayPropTransactionStatus(transaction);
-            reconciliationStatus = { icon: '' }; // Simplified for PayProp
-        } else {
-            // Legacy transaction format
-            sourceInfo = getDataSourceInfo(transaction);
-            statusInfo = getTransactionStatus(transaction);
-            reconciliationStatus = getReconciliationStatus(transaction);
-        }
-        
-        // Extract values from chronological data structure
+
+    // Display all transactions (simple display for both historical and PayProp)
+    transactions.forEach(function(transaction) {
+        // Common transaction structure from both sources
         const transactionDate = transaction.date;
-        const transactionType = transaction.type;  // 'Invoice' or 'Payment'
-        const amount = transaction.amount;
-        const commissionAmount = transaction.commission_amount || 0;
-        const ownerAmount = transaction.owner_amount || 0;
-        const tenantName = transaction.tenant_name || '';
         const description = transaction.description || '';
-        const reference = transaction.reference || '';
-        
-        // Determine styling based on transaction type
-        const isInvoice = transactionType === 'Invoice';
-        const isPayment = transactionType === 'Payment';
-        const amountClass = isInvoice ? 'text-danger' : 'text-success';  // Invoices = red, Payments = green
-        const amountPrefix = isInvoice ? '-' : '+';
-        
+        const category = transaction.category || '';
+        const type = transaction.type || '';
+        const amount = transaction.amount || 0;
+
+        // Determine styling based on amount (positive = income, negative = expense)
+        const isExpense = amount < 0;
+        const amountClass = isExpense ? 'text-danger' : 'text-success';
+        const amountPrefix = isExpense ? '' : '+';
+
+        // Determine category badge color
+        let categoryClass = 'badge-secondary';
+        if (category === 'rent' || category.toLowerCase().includes('income')) {
+            categoryClass = 'badge-success';
+        } else if (category === 'commission' || category.toLowerCase().includes('commission')) {
+            categoryClass = 'badge-warning';
+        } else if (category.toLowerCase().includes('expense') || isExpense) {
+            categoryClass = 'badge-danger';
+        }
+
         const row = `
-            <tr class="transaction-row ${isInvoice ? 'table-light' : ''}" data-type="${transactionType}">
+            <tr class="transaction-row">
                 <td>${formatDate(transactionDate)}</td>
                 <td>
-                    <div class="d-flex align-items-center">
-                        <span class="badge ${isInvoice ? 'bg-warning' : 'bg-success'} me-2">
-                            ${transactionType}
-                        </span>
-                        <div>
-                            ${tenantName ? `<div class="fw-bold">${tenantName}</div>` : ''}
-                            ${description ? `<small class="text-muted">${description}</small>` : ''}
-                        </div>
+                    <div>
+                        ${description}
+                        ${category ? `<br><span class="badge ${categoryClass} badge-sm">${category}</span>` : ''}
                     </div>
                 </td>
-                <td class="${amountClass} fw-bold">${amountPrefix}£${formatNumber(amount || 0)}</td>
-                <td class="text-end">${isPayment ? '£' + formatNumber(commissionAmount) : '-'}</td>
-                <td class="text-end">${isPayment ? '£' + formatNumber(ownerAmount) : '-'}</td>
-                <td style="max-width: 120px;"><small class="text-truncate d-block">${reference || '-'}</small></td>
-                <td class="text-center">
-                    <span class="badge bg-info">
-                        PayProp
-                    </span>
+                <td>
+                    <small class="text-muted">${type || '-'}</small>
                 </td>
+                <td class="${amountClass} fw-bold text-end">${amountPrefix}£${formatNumber(Math.abs(amount))}</td>
                 <td class="text-center">
-                    <span class="badge ${isInvoice ? 'bg-secondary' : 'bg-success'}">
-                        ${isInvoice ? 'Invoiced' : 'Received'}
-                    </span>
+                    <span class="badge badge-info badge-sm">${currentDataSource === 'historical' ? 'Historical' : (currentDataSource === 'payprop' ? 'PayProp' : 'Auto')}</span>
                 </td>
             </tr>
         `;
@@ -1525,8 +1585,7 @@ function getPayPropTransactionStatus(transaction) {
 }
 
 function refreshFinancialData() {
-    $('#financialSection').hide();
-    loadFinancialData();
+    loadFinancialData(currentDataSource);
 }
 
 function refreshMaintenanceData() {

@@ -1144,7 +1144,10 @@ public class PropertyController {
 
     @GetMapping("/{id}/financial-summary")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> getPropertyFinancialSummary(@PathVariable("id") String id, Authentication authentication) {
+    public ResponseEntity<Map<String, Object>> getPropertyFinancialSummary(
+            @PathVariable("id") String id,
+            @RequestParam(value = "source", required = false, defaultValue = "auto") String source,
+            Authentication authentication) {
         try {
             Property property = resolvePropertyById(id);
             if (property == null) {
@@ -1158,57 +1161,248 @@ public class PropertyController {
                 AuthorizationUtil.hasRole(authentication, "ROLE_OIDC_USER")) {
                 hasAccess = true;
             } else if ((AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") ||
-                       AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) && 
+                       AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) &&
                        property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(Long.valueOf(userId))) {
                 hasAccess = true;
             } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
                 hasAccess = true;
             }
-            
+
             if (!hasAccess) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
 
-            // Check if property has PayProp integration
-            if (property.getPayPropId() == null || property.getPayPropId().trim().isEmpty()) {
-                // Return empty financial data with message
-                Map<String, Object> emptyData = new HashMap<>();
-                emptyData.put("totalIncome", 0);
-                emptyData.put("totalCommissions", 0);
-                emptyData.put("netOwnerIncome", 0);
-                emptyData.put("transactionCount", 0);
-                emptyData.put("recentTransactions", new ArrayList<>());
-                emptyData.put("message", "Property has no PayProp integration");
-                emptyData.put("propertyName", property.getPropertyName());
-                return ResponseEntity.ok(emptyData);
+            // Check data availability for both sources
+            Map<String, Object> availability = checkFinancialDataAvailability(property);
+            boolean hasHistorical = (boolean) availability.get("hasHistoricalData");
+            boolean hasPayProp = (boolean) availability.get("hasPayPropData");
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("propertyName", property.getPropertyName());
+            response.put("propertyId", property.getId());
+            response.put("payPropId", property.getPayPropId());
+            response.put("dataAvailability", availability);
+
+            // Determine which source to use
+            String actualSource = source;
+            if ("auto".equals(source)) {
+                // Auto-select: prefer PayProp if available, otherwise historical
+                actualSource = hasPayProp ? "payprop" : (hasHistorical ? "historical" : "none");
             }
 
-            // For properties with PayProp integration, delegate to FinancialController
-            // This ensures consistent financial data handling
-            Map<String, Object> financialData = new HashMap<>();
-            try {
-                // Call the existing financial service or create basic financial summary
-                financialData.put("totalIncome", 0);
-                financialData.put("totalCommissions", 0);  
-                financialData.put("netOwnerIncome", 0);
-                financialData.put("transactionCount", 0);
-                financialData.put("recentTransactions", new ArrayList<>());
-                financialData.put("message", "Financial data integration coming soon");
-                financialData.put("propertyName", property.getPropertyName());
-            } catch (Exception e) {
-                System.err.println("Error loading financial data: " + e.getMessage());
-                financialData.put("error", "Unable to load financial data");
-                financialData.put("message", e.getMessage());
+            response.put("selectedSource", actualSource);
+
+            // Fetch data based on source
+            if ("historical".equals(actualSource) && hasHistorical) {
+                Map<String, Object> historicalData = getHistoricalFinancialData(property.getId());
+                response.putAll(historicalData);
+                response.put("message", "Showing historical transactions");
+            } else if ("payprop".equals(actualSource) && hasPayProp) {
+                Map<String, Object> payPropData = getPayPropFinancialData(property.getPayPropId());
+                response.putAll(payPropData);
+                response.put("message", "Showing PayProp data");
+            } else {
+                // No data available
+                response.put("totalIncome", 0);
+                response.put("totalExpenses", 0);
+                response.put("totalCommissions", 0);
+                response.put("netOwnerIncome", 0);
+                response.put("transactionCount", 0);
+                response.put("recentTransactions", new ArrayList<>());
+                response.put("message", "No financial data available");
             }
 
-            return ResponseEntity.ok(financialData);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             System.err.println("Error in getPropertyFinancialSummary: " + e.getMessage());
+            e.printStackTrace();
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("error", "Error loading financial data");
             errorResponse.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
+    }
+
+    /**
+     * Check data availability for both historical and PayProp sources
+     */
+    private Map<String, Object> checkFinancialDataAvailability(Property property) {
+        Map<String, Object> availability = new HashMap<>();
+
+        // Check historical transactions
+        try {
+            String historicalSql = "SELECT COUNT(*) FROM historical_transactions WHERE property_id = ?";
+            Integer historicalCount = jdbcTemplate.queryForObject(historicalSql, Integer.class, property.getId());
+            availability.put("hasHistoricalData", historicalCount != null && historicalCount > 0);
+            availability.put("historicalCount", historicalCount != null ? historicalCount : 0);
+        } catch (Exception e) {
+            availability.put("hasHistoricalData", false);
+            availability.put("historicalCount", 0);
+        }
+
+        // Check PayProp data
+        try {
+            if (property.getPayPropId() != null && !property.getPayPropId().trim().isEmpty()) {
+                String payPropSql = "SELECT COUNT(*) FROM payprop_report_all_payments WHERE incoming_property_payprop_id = ?";
+                Integer payPropCount = jdbcTemplate.queryForObject(payPropSql, Integer.class, property.getPayPropId());
+                availability.put("hasPayPropData", payPropCount != null && payPropCount > 0);
+                availability.put("payPropCount", payPropCount != null ? payPropCount : 0);
+            } else {
+                availability.put("hasPayPropData", false);
+                availability.put("payPropCount", 0);
+            }
+        } catch (Exception e) {
+            availability.put("hasPayPropData", false);
+            availability.put("payPropCount", 0);
+        }
+
+        return availability;
+    }
+
+    /**
+     * Get financial data from historical_transactions table
+     */
+    private Map<String, Object> getHistoricalFinancialData(Long propertyId) {
+        Map<String, Object> data = new HashMap<>();
+
+        try {
+            // Query for financial summary
+            String summarySql = """
+                SELECT
+                    COALESCE(SUM(CASE WHEN category = 'rent' AND transaction_type = 'invoice' THEN amount ELSE 0 END), 0) as total_income,
+                    COALESCE(SUM(CASE WHEN category = 'commission' THEN ABS(amount) ELSE 0 END), 0) as total_commissions,
+                    COALESCE(SUM(CASE WHEN category IN ('furnishing', 'general', 'safety', 'white_goods', 'clearance') THEN ABS(amount) ELSE 0 END), 0) as total_expenses,
+                    COALESCE(SUM(CASE WHEN category = 'owner_liability' THEN amount ELSE 0 END), 0) as owner_liability,
+                    COUNT(*) as transaction_count
+                FROM historical_transactions
+                WHERE property_id = ?
+                """;
+
+            jdbcTemplate.query(summarySql, rs -> {
+                BigDecimal totalIncome = rs.getBigDecimal("total_income");
+                BigDecimal totalCommissions = rs.getBigDecimal("total_commissions");
+                BigDecimal totalExpenses = rs.getBigDecimal("total_expenses");
+                BigDecimal ownerLiability = rs.getBigDecimal("owner_liability");
+                int transactionCount = rs.getInt("transaction_count");
+
+                // Calculate net owner income
+                BigDecimal netOwnerIncome = totalIncome
+                    .subtract(totalCommissions)
+                    .subtract(totalExpenses)
+                    .add(ownerLiability); // owner_liability is already negative in DB
+
+                data.put("totalIncome", totalIncome);
+                data.put("totalCommissions", totalCommissions);
+                data.put("totalExpenses", totalExpenses);
+                data.put("ownerLiability", ownerLiability);
+                data.put("netOwnerIncome", netOwnerIncome);
+                data.put("transactionCount", transactionCount);
+            }, propertyId);
+
+            // Get recent transactions
+            String recentSql = """
+                SELECT transaction_date, description, category, transaction_type, amount
+                FROM historical_transactions
+                WHERE property_id = ?
+                ORDER BY transaction_date DESC, id DESC
+                LIMIT 10
+                """;
+
+            List<Map<String, Object>> recentTransactions = jdbcTemplate.query(recentSql, (rs, rowNum) -> {
+                Map<String, Object> transaction = new HashMap<>();
+                transaction.put("date", rs.getDate("transaction_date"));
+                transaction.put("description", rs.getString("description"));
+                transaction.put("category", rs.getString("category"));
+                transaction.put("type", rs.getString("transaction_type"));
+                transaction.put("amount", rs.getBigDecimal("amount"));
+                return transaction;
+            }, propertyId);
+
+            data.put("recentTransactions", recentTransactions);
+
+        } catch (Exception e) {
+            System.err.println("Error fetching historical financial data: " + e.getMessage());
+            e.printStackTrace();
+            data.put("totalIncome", 0);
+            data.put("totalCommissions", 0);
+            data.put("totalExpenses", 0);
+            data.put("netOwnerIncome", 0);
+            data.put("transactionCount", 0);
+            data.put("recentTransactions", new ArrayList<>());
+        }
+
+        return data;
+    }
+
+    /**
+     * Get financial data from payprop_report_all_payments table
+     */
+    private Map<String, Object> getPayPropFinancialData(String payPropId) {
+        Map<String, Object> data = new HashMap<>();
+
+        try {
+            // Query for financial summary from PayProp
+            String summarySql = """
+                SELECT
+                    COALESCE(SUM(CASE WHEN beneficiary_type = 'beneficiary' THEN amount ELSE 0 END), 0) as total_income,
+                    COALESCE(SUM(CASE WHEN beneficiary_type = 'agent' THEN ABS(amount) ELSE 0 END), 0) as total_commissions,
+                    COALESCE(SUM(CASE WHEN beneficiary_type = 'contractor' THEN ABS(amount) ELSE 0 END), 0) as total_expenses,
+                    COUNT(*) as transaction_count
+                FROM payprop_report_all_payments
+                WHERE incoming_property_payprop_id = ?
+                """;
+
+            jdbcTemplate.query(summarySql, rs -> {
+                BigDecimal totalIncome = rs.getBigDecimal("total_income");
+                BigDecimal totalCommissions = rs.getBigDecimal("total_commissions");
+                BigDecimal totalExpenses = rs.getBigDecimal("total_expenses");
+                int transactionCount = rs.getInt("transaction_count");
+
+                // Calculate net owner income
+                BigDecimal netOwnerIncome = totalIncome
+                    .subtract(totalCommissions)
+                    .subtract(totalExpenses);
+
+                data.put("totalIncome", totalIncome);
+                data.put("totalCommissions", totalCommissions);
+                data.put("totalExpenses", totalExpenses);
+                data.put("netOwnerIncome", netOwnerIncome);
+                data.put("transactionCount", transactionCount);
+            }, payPropId);
+
+            // Get recent transactions
+            String recentSql = """
+                SELECT due_date, incoming_tenant_name, beneficiary_type, category_name, amount
+                FROM payprop_report_all_payments
+                WHERE incoming_property_payprop_id = ?
+                ORDER BY due_date DESC
+                LIMIT 10
+                """;
+
+            List<Map<String, Object>> recentTransactions = jdbcTemplate.query(recentSql, (rs, rowNum) -> {
+                Map<String, Object> transaction = new HashMap<>();
+                transaction.put("date", rs.getDate("due_date"));
+                transaction.put("description", rs.getString("incoming_tenant_name"));
+                transaction.put("category", rs.getString("category_name"));
+                transaction.put("type", rs.getString("beneficiary_type"));
+                transaction.put("amount", rs.getBigDecimal("amount"));
+                return transaction;
+            }, payPropId);
+
+            data.put("recentTransactions", recentTransactions);
+
+        } catch (Exception e) {
+            System.err.println("Error fetching PayProp financial data: " + e.getMessage());
+            e.printStackTrace();
+            data.put("totalIncome", 0);
+            data.put("totalCommissions", 0);
+            data.put("totalExpenses", 0);
+            data.put("netOwnerIncome", 0);
+            data.put("transactionCount", 0);
+            data.put("recentTransactions", new ArrayList<>());
+        }
+
+        return data;
     }
 
     @GetMapping("/{id}/maintenance-summary")
