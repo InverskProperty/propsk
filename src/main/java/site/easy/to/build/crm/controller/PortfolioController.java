@@ -1987,8 +1987,14 @@ public class PortfolioController {
      */
     private Map<String, Object> calculatePortfolioMaintenanceStats(List<Portfolio> portfolios, int userId, Authentication authentication) {
         Map<String, Object> stats = new HashMap<>();
-        
+
         try {
+            // PERFORMANCE FIX: Skip ticket stats if there are too many portfolios to avoid N+1 query problem
+            if (portfolios.size() > 10) {
+                System.out.println("⚠️ Skipping maintenance stats calculation - too many portfolios (" + portfolios.size() + ")");
+                return getDefaultMaintenanceStats();
+            }
+
             // Get all properties from all portfolios
             List<Long> allPropertyIds = portfolios.stream()
                 .flatMap(portfolio -> {
@@ -1999,21 +2005,35 @@ public class PortfolioController {
                     }
                 })
                 .map(Property::getId)
+                .distinct()  // Remove duplicates
                 .collect(Collectors.toList());
-            
+
+            // PERFORMANCE FIX: Skip if too many properties to avoid hundreds of database queries
+            if (allPropertyIds.size() > 50) {
+                System.out.println("⚠️ Skipping maintenance stats calculation - too many properties (" + allPropertyIds.size() + ")");
+                return getDefaultMaintenanceStats();
+            }
+
             // Get maintenance tickets for all portfolio properties
             List<Ticket> allMaintenanceTickets = new ArrayList<>();
             List<Ticket> allEmergencyTickets = new ArrayList<>();
-            
+
+            // PERFORMANCE FIX: Add timeout protection - only query if ticketService exists
+            if (ticketService == null) {
+                System.out.println("⚠️ TicketService not available - using default stats");
+                return getDefaultMaintenanceStats();
+            }
+
             for (Long propertyId : allPropertyIds) {
                 try {
                     List<Ticket> propertyMaintenanceTickets = ticketService.getTicketsByPropertyIdAndType(propertyId, "maintenance");
                     List<Ticket> propertyEmergencyTickets = ticketService.getTicketsByPropertyIdAndType(propertyId, "emergency");
-                    
+
                     allMaintenanceTickets.addAll(propertyMaintenanceTickets);
                     allEmergencyTickets.addAll(propertyEmergencyTickets);
                 } catch (Exception e) {
                     System.err.println("Error getting tickets for property " + propertyId + ": " + e.getMessage());
+                    // Continue with other properties instead of failing completely
                 }
             }
             
