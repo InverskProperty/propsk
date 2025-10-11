@@ -334,7 +334,7 @@
 <script th:src="@{/js/jquery.dataTables.min.js}"></script>
 <script th:src="@{/js/dataTables.bootstrap4.min.js}"></script>
 
-<script>
+<script th:inline="none">
 let allBlocks = [];
 let currentView = 'grid';
 let currentFilter = 'all';
