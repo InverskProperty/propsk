@@ -509,15 +509,19 @@ public class PortfolioController {
         }
         
         try {
+            System.out.println("🔍 Loading /portfolio/all page...");
+            long startTime = System.currentTimeMillis();
+
             List<Portfolio> allPortfolios = portfolioService.findAll();
-            
+            System.out.println("✅ Found " + allPortfolios.size() + " portfolios in " + (System.currentTimeMillis() - startTime) + "ms");
+
             // Apply filtering
             if (ownerId != null) {
                 allPortfolios = allPortfolios.stream()
                     .filter(p -> p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(ownerId))
                     .collect(Collectors.toList());
             }
-            
+
             if (type != null && !type.isEmpty()) {
                 try {
                     PortfolioType portfolioType = PortfolioType.valueOf(type.toUpperCase());
@@ -528,7 +532,7 @@ public class PortfolioController {
                     // Invalid type, ignore filter
                 }
             }
-            
+
             if (search != null && !search.trim().isEmpty()) {
                 String searchLower = search.toLowerCase().trim();
                 allPortfolios = allPortfolios.stream()
@@ -536,25 +540,32 @@ public class PortfolioController {
                                (p.getDescription() != null && p.getDescription().toLowerCase().contains(searchLower)))
                     .collect(Collectors.toList());
             }
-            
+
+            System.out.println("🔍 Creating portfolio analytics for " + allPortfolios.size() + " portfolios...");
+
+            // PERFORMANCE FIX: Skip analytics loading for now to diagnose the hang
             List<PortfolioWithAnalytics> portfoliosWithAnalytics = allPortfolios.stream()
                 .map(portfolio -> {
-                    PortfolioAnalytics analytics = portfolioService.getLatestPortfolioAnalytics(portfolio.getId());
-                    return new PortfolioWithAnalytics(portfolio, analytics);
+                    // SKIP ANALYTICS TEMPORARILY - this might be causing the hang
+                    System.out.println("  Processing portfolio: " + portfolio.getName());
+                    return new PortfolioWithAnalytics(portfolio, null);
                 })
                 .collect(Collectors.toList());
-            
-            PortfolioAggregateStats aggregateStats = calculateAggregateStats(allPortfolios);
-            
-            // ✅ NEW: Add maintenance statistics for all portfolios view
-            try {
-                int userId = authenticationUtils.getLoggedInUserId(authentication);
-                Map<String, Object> maintenanceStats = calculatePortfolioMaintenanceStats(allPortfolios, userId, authentication);
-                model.addAttribute("maintenanceStats", maintenanceStats);
-            } catch (Exception e) {
-                System.err.println("Error calculating maintenance stats for all portfolios: " + e.getMessage());
-                model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
-            }
+
+            System.out.println("✅ Analytics created in " + (System.currentTimeMillis() - startTime) + "ms");
+
+            // PERFORMANCE FIX: Use simple aggregate stats without property queries
+            PortfolioAggregateStats aggregateStats = new PortfolioAggregateStats();
+            aggregateStats.totalProperties = 0; // Skip for now to avoid slow queries
+            aggregateStats.totalVacant = 0; // Skip for now
+            aggregateStats.totalSynced = (int) allPortfolios.stream()
+                .filter(p -> p.getPayPropTags() != null && !p.getPayPropTags().isEmpty())
+                .count();
+
+            System.out.println("✅ Aggregate stats calculated");
+
+            // PERFORMANCE FIX: Skip maintenance stats entirely for /all page
+            model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
             
             List<Customer> propertyOwners = new ArrayList<>();
             if (customerService != null) {
