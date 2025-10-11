@@ -134,6 +134,40 @@
                 </div>
             </div>
 
+            <!-- Block Property Information -->
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-header bg-success">
+                            <h4 class="card-title text-white">
+                                <i class="fas fa-file-invoice-dollar"></i> Block Property (For Block Expenses)
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${block.blockProperty != null}">
+                                <p>
+                                    <strong>Property Name:</strong>
+                                    <a th:href="@{/property/{id}(id=${block.blockProperty.id})}" th:text="${block.blockProperty.propertyName}">Block Property Name</a>
+                                </p>
+                                <p>
+                                    <strong>Status:</strong>
+                                    <span class="badge badge-success" th:text="${block.blockProperty.status}">ACTIVE</span>
+                                </p>
+                                <p class="text-muted mb-0">
+                                    <i class="fas fa-info-circle"></i>
+                                    This property is used for tracking block-level expenses like service charges, maintenance, and communal costs.
+                                </p>
+                            </div>
+                            <div th:if="${block.blockProperty == null}" class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <strong>No block property assigned.</strong><br>
+                                Block properties are automatically created for new blocks. This block may have been created before this feature was added.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Address Information -->
             <div class="row" th:if="${block.addressLine1 != null or block.city != null or block.postcode != null}">
                 <div class="col-lg-12">

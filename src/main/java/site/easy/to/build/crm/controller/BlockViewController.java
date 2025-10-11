@@ -43,6 +43,9 @@ public class BlockViewController {
     @Autowired
     private site.easy.to.build.crm.repository.PropertyBlockAssignmentRepository propertyBlockAssignmentRepository;
 
+    @Autowired
+    private site.easy.to.build.crm.repository.PropertyRepository propertyRepository;
+
     // ===== UTILITY METHODS =====
 
     /**
@@ -116,6 +119,21 @@ public class BlockViewController {
 
         model.addAttribute("block", blockOpt.get());
         return "blocks/edit-block";
+    }
+
+    /**
+     * Display Assignment Centre page
+     * GET /blocks/assignment-centre
+     */
+    @GetMapping("/assignment-centre")
+    public String assignmentCentre(Model model, Authentication auth) {
+        log.info("📊 Displaying Assignment Centre");
+
+        // Get user info
+        Integer userId = getLoggedInUserId(auth);
+        model.addAttribute("userId", userId);
+
+        return "blocks/assignment-centre";
     }
 
     // ===== API ENDPOINTS =====
@@ -219,11 +237,34 @@ public class BlockViewController {
 
             block = blockRepository.save(block);
 
-            log.info("✅ Created standalone block {} successfully", block.getId());
+            // Auto-create block property for tracking block-level expenses
+            Property blockProperty = new Property();
+            blockProperty.setPropertyName(request.getName() + " - Block Property");
+            blockProperty.setPropertyType("BLOCK");  // Special type for block expenses
+            blockProperty.setAddressLine1(request.getAddressLine1());
+            blockProperty.setAddressLine2(request.getAddressLine2());
+            blockProperty.setCity(request.getCity());
+            blockProperty.setCounty(request.getCounty());
+            blockProperty.setPostcode(request.getPostcode());
+            blockProperty.setCountryCode("UK");
+            blockProperty.setStatus("ACTIVE");
+            blockProperty.setIsArchived("N");
+            blockProperty.setCreatedBy(userId.longValue());
+
+            blockProperty = propertyRepository.save(blockProperty);
+
+            // Link block property to block
+            block.setBlockProperty(blockProperty);
+            block = blockRepository.save(block);
+
+            log.info("✅ Created standalone block {} with block property {} successfully",
+                block.getId(), blockProperty.getId());
+
             return ResponseEntity.ok(Map.of(
                 "success", true,
-                "message", "Block created successfully",
-                "block", convertBlockToDTO(block)
+                "message", "Block and block property created successfully",
+                "block", convertBlockToDTO(block),
+                "blockPropertyId", blockProperty.getId()
             ));
 
         } catch (Exception e) {
@@ -530,6 +571,59 @@ public class BlockViewController {
         }
     }
 
+    /**
+     * Get assignment overview for Assignment Centre
+     * GET /blocks/api/assignment-overview
+     */
+    @GetMapping("/api/assignment-overview")
+    @ResponseBody
+    public ResponseEntity<?> getAssignmentOverview(Authentication auth) {
+        log.info("📊 Fetching assignment overview");
+
+        try {
+            // Get all active blocks
+            List<Block> blocks = blockRepository.findByIsActive("Y");
+            List<Map<String, Object>> blockDTOs = new ArrayList<>();
+
+            for (Block block : blocks) {
+                Map<String, Object> blockDTO = new HashMap<>();
+                blockDTO.put("id", block.getId());
+                blockDTO.put("name", block.getName());
+                blockDTO.put("blockType", block.getBlockType());
+                blockDTO.put("maxProperties", block.getMaxProperties());
+
+                // Get property count
+                long propertyCount = blockService.getPropertyCount(block.getId());
+                blockDTO.put("propertyCount", propertyCount);
+
+                // Get available capacity
+                Integer availableCapacity = blockService.getAvailableCapacity(block.getId());
+                blockDTO.put("availableCapacity", availableCapacity);
+
+                blockDTOs.add(blockDTO);
+            }
+
+            // Get all unassigned properties
+            List<Property> unassignedProperties = propertyBlockAssignmentRepository.findUnassignedProperties();
+            List<Map<String, Object>> unassignedPropertyDTOs = unassignedProperties.stream()
+                .map(this::convertPropertyToDTO)
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "blocks", blockDTOs,
+                "unassignedProperties", unassignedPropertyDTOs,
+                "totalBlocks", blockDTOs.size(),
+                "totalUnassigned", unassignedPropertyDTOs.size()
+            ));
+
+        } catch (Exception e) {
+            log.error("❌ Failed to fetch assignment overview: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to fetch assignment overview: " + e.getMessage()));
+        }
+    }
+
     // ===== UTILITY METHODS =====
 
     private Map<String, Object> convertBlockToDTO(Block block) {
@@ -554,6 +648,18 @@ public class BlockViewController {
         dto.put("isActive", block.getIsActive());
         dto.put("createdAt", block.getCreatedAt());
         dto.put("updatedAt", block.getUpdatedAt());
+
+        // Add block property info
+        if (block.getBlockProperty() != null) {
+            Property blockProp = block.getBlockProperty();
+            Map<String, Object> blockPropertyInfo = new HashMap<>();
+            blockPropertyInfo.put("id", blockProp.getId());
+            blockPropertyInfo.put("name", blockProp.getPropertyName());
+            blockPropertyInfo.put("status", blockProp.getStatus());
+            dto.put("blockProperty", blockPropertyInfo);
+        } else {
+            dto.put("blockProperty", null);
+        }
 
         // Add property count
         try {

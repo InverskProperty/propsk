@@ -49,8 +49,12 @@ public interface PropertyBlockAssignmentRepository extends JpaRepository<Propert
 
     /**
      * Find unassigned properties (not in any block)
+     * Excludes archived properties and test/block properties
      */
-    @Query("SELECT p FROM Property p WHERE p.id NOT IN (SELECT pba.property.id FROM PropertyBlockAssignment pba WHERE pba.isActive = true) AND p.isArchived = 'N'")
+    @Query("SELECT p FROM Property p WHERE p.id NOT IN (SELECT pba.property.id FROM PropertyBlockAssignment pba WHERE pba.isActive = true) " +
+           "AND p.isArchived = 'N' " +
+           "AND (p.propertyName NOT LIKE '%Block Property%' OR p.propertyName IS NULL) " +
+           "AND (p.propertyName NOT LIKE '%Test%' OR p.propertyName IS NULL)")
     List<Property> findUnassignedProperties();
 
     /**
