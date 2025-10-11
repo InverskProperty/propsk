@@ -135,7 +135,7 @@
             </div>
 
             <!-- Address Information -->
-            <div class="row" th:if="${block.addressLine1 or block.city or block.postcode}">
+            <div class="row" th:if="${block.addressLine1 != null or block.city != null or block.postcode != null}">
                 <div class="col-lg-12">
                     <div class="card">
                         <div class="card-header bg-primary">
@@ -146,23 +146,23 @@
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-md-6">
-                                    <p th:if="${block.addressLine1}">
+                                    <p th:if="${block.addressLine1 != null and !block.addressLine1.isEmpty()}">
                                         <strong>Address Line 1:</strong><br/>
                                         <span th:text="${block.addressLine1}">Address</span>
                                     </p>
-                                    <p th:if="${block.addressLine2}">
+                                    <p th:if="${block.addressLine2 != null and !block.addressLine2.isEmpty()}">
                                         <strong>Address Line 2:</strong><br/>
                                         <span th:text="${block.addressLine2}">Address</span>
                                     </p>
                                 </div>
                                 <div class="col-md-6">
-                                    <p th:if="${block.city}">
+                                    <p th:if="${block.city != null and !block.city.isEmpty()}">
                                         <strong>City:</strong> <span th:text="${block.city}">City</span>
                                     </p>
-                                    <p th:if="${block.county}">
+                                    <p th:if="${block.county != null and !block.county.isEmpty()}">
                                         <strong>County:</strong> <span th:text="${block.county}">County</span>
                                     </p>
-                                    <p th:if="${block.postcode}">
+                                    <p th:if="${block.postcode != null and !block.postcode.isEmpty()}">
                                         <strong>Postcode:</strong> <span th:text="${block.postcode}">Postcode</span>
                                     </p>
                                 </div>
@@ -173,7 +173,7 @@
             </div>
 
             <!-- PayProp Information -->
-            <div class="row" th:if="${block.payPropTags or block.payPropTagNames}">
+            <div class="row" th:if="${block.payPropTags != null or block.payPropTagNames != null}">
                 <div class="col-lg-12">
                     <div class="card">
                         <div class="card-header bg-success">
@@ -184,17 +184,17 @@
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-md-6">
-                                    <p th:if="${block.payPropTags}">
+                                    <p th:if="${block.payPropTags != null and !block.payPropTags.isEmpty()}">
                                         <strong>PayProp Tag ID:</strong><br/>
                                         <code th:text="${block.payPropTags}">tag-id</code>
                                     </p>
-                                    <p th:if="${block.payPropTagNames}">
+                                    <p th:if="${block.payPropTagNames != null and !block.payPropTagNames.isEmpty()}">
                                         <strong>PayProp Tag Name:</strong><br/>
                                         <span th:text="${block.payPropTagNames}">Tag Name</span>
                                     </p>
                                 </div>
                                 <div class="col-md-6">
-                                    <p th:if="${block.lastSyncAt}">
+                                    <p th:if="${block.lastSyncAt != null}">
                                         <strong>Last Synced:</strong><br/>
                                         <span th:text="${#temporals.format(block.lastSyncAt, 'dd/MM/yyyy HH:mm')}">01/01/2024 12:00</span>
                                     </p>
