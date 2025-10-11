@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">
+                        <i class="fas fa-edit text-warning"></i>
+                        Edit Block: <span th:text="${block.name}">Block Name</span>
+                    </h3>
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="javascript:void(0)">Home</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/blocks}">Blocks</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/blocks/{id}(id=${block.id})}" th:text="${block.name}">Block</a></li>
+                        <li class="breadcrumb-item active">Edit</li>
+                    </ol>
+                </div>
+                <div class="col-md-4 text-right">
+                    <a th:href="@{/blocks/{id}(id=${block.id})}" class="btn btn-secondary">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </div>
+
+            <!-- Edit Form -->
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-header bg-warning">
+                            <h4 class="card-title text-white">
+                                <i class="fas fa-edit"></i> Edit Block Information
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <form id="editBlockForm">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="blockName">Block Name *</label>
+                                            <input type="text" class="form-control" id="blockName"
+                                                   th:value="${block.name}" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="blockType">Block Type</label>
+                                            <select class="form-control" id="blockType">
+                                                <option value="BUILDING" th:selected="${block.blockType?.name() == 'BUILDING'}">Building</option>
+                                                <option value="ESTATE" th:selected="${block.blockType?.name() == 'ESTATE'}">Estate</option>
+                                                <option value="STREET" th:selected="${block.blockType?.name() == 'STREET'}">Street</option>
+                                                <option value="AREA" th:selected="${block.blockType?.name() == 'AREA'}">Area</option>
+                                                <option value="COMPLEX" th:selected="${block.blockType?.name() == 'COMPLEX'}">Complex</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="blockDescription">Description</label>
+                                    <textarea class="form-control" id="blockDescription" rows="3"
+                                              th:text="${block.description}"></textarea>
+                                </div>
+
+                                <h5 class="mt-4 mb-3">
+                                    <i class="fas fa-map-marker-alt"></i> Address Information
+                                </h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="addressLine1">Address Line 1</label>
+                                            <input type="text" class="form-control" id="addressLine1"
+                                                   th:value="${block.addressLine1}">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="addressLine2">Address Line 2</label>
+                                            <input type="text" class="form-control" id="addressLine2"
+                                                   th:value="${block.addressLine2}">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="city">City</label>
+                                            <input type="text" class="form-control" id="city"
+                                                   th:value="${block.city}">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="county">County</label>
+                                            <input type="text" class="form-control" id="county"
+                                                   th:value="${block.county}">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="postcode">Postcode</label>
+                                            <input type="text" class="form-control" id="postcode"
+                                                   th:value="${block.postcode}">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <h5 class="mt-4 mb-3">
+                                    <i class="fas fa-cog"></i> Configuration
+                                </h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="maxProperties">Maximum Properties</label>
+                                            <input type="number" class="form-control" id="maxProperties"
+                                                   min="1" th:value="${block.maxProperties}">
+                                            <small class="form-text text-muted">Leave empty for unlimited capacity</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="colorCode">Color Code</label>
+                                            <input type="color" class="form-control" id="colorCode"
+                                                   th:value="${block.colorCode} ?: '#007bff'">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <div class="custom-control custom-switch">
+                                        <input type="checkbox" class="custom-control-input" id="isActive"
+                                               th:checked="${block.isActive == 'Y'}">
+                                        <label class="custom-control-label" for="isActive">Block is Active</label>
+                                    </div>
+                                </div>
+
+                                <hr class="my-4">
+
+                                <div class="text-right">
+                                    <a th:href="@{/blocks/{id}(id=${block.id})}" class="btn btn-secondary">
+                                        <i class="fas fa-times"></i> Cancel
+                                    </a>
+                                    <button type="button" class="btn btn-success" onclick="saveBlock()">
+                                        <i class="fas fa-save"></i> Save Changes
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script th:inline="javascript">
+/*<![CDATA[*/
+const blockId = /*[[${block.id}]]*/ 0;
+const csrfToken = /*[[${_csrf.token}]]*/ '';
+const csrfHeader = /*[[${_csrf.headerName}]]*/ '';
+
+function saveBlock() {
+    const blockData = {
+        name: document.getElementById('blockName').value,
+        description: document.getElementById('blockDescription').value,
+        blockType: document.getElementById('blockType').value,
+        addressLine1: document.getElementById('addressLine1').value,
+        addressLine2: document.getElementById('addressLine2').value,
+        city: document.getElementById('city').value,
+        county: document.getElementById('county').value,
+        postcode: document.getElementById('postcode').value,
+        maxProperties: document.getElementById('maxProperties').value || null,
+        colorCode: document.getElementById('colorCode').value
+    };
+
+    if (!blockData.name || blockData.name.trim() === '') {
+        alert('Block name is required');
+        return;
+    }
+
+    // Show loading state
+    $('button[onclick="saveBlock()"]').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+
+    fetch(`/blocks/api/${blockId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            [csrfHeader]: csrfToken
+        },
+        body: JSON.stringify(blockData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Block updated successfully!');
+            window.location.href = `/blocks/${blockId}`;
+        } else {
+            alert('Failed to update block: ' + (data.error || 'Unknown error'));
+            $('button[onclick="saveBlock()"]').prop('disabled', false).html('<i class="fas fa-save"></i> Save Changes');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating block:', error);
+        alert('Error updating block');
+        $('button[onclick="saveBlock()"]').prop('disabled', false).html('<i class="fas fa-save"></i> Save Changes');
+    });
+}
+
+// Form validation
+$(document).ready(function() {
+    $('#editBlockForm').on('submit', function(e) {
+        e.preventDefault();
+        saveBlock();
+    });
+});
+/*]]>*/
+</script>
+
+</body>
+</html>
