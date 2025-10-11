@@ -37,6 +37,12 @@ public class BlockViewController {
     @Autowired
     private AuthenticationUtils authenticationUtils;
 
+    @Autowired
+    private site.easy.to.build.crm.service.property.PropertyService propertyService;
+
+    @Autowired
+    private site.easy.to.build.crm.repository.PropertyBlockAssignmentRepository propertyBlockAssignmentRepository;
+
     // ===== UTILITY METHODS =====
 
     /**
@@ -325,6 +331,205 @@ public class BlockViewController {
         }
     }
 
+    /**
+     * Get all properties in a block
+     * GET /blocks/api/{id}/properties
+     */
+    @GetMapping("/api/{id}/properties")
+    @ResponseBody
+    public ResponseEntity<?> getBlockProperties(@PathVariable Long id, Authentication auth) {
+        log.info("📋 Fetching properties for block {}", id);
+
+        try {
+            // Check if block exists
+            Optional<Block> blockOpt = blockRepository.findById(id);
+            if (!blockOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Block block = blockOpt.get();
+            List<Property> properties = propertyBlockAssignmentRepository.findPropertiesByBlockId(id);
+
+            // Convert to DTOs
+            List<Map<String, Object>> propertyDTOs = properties.stream()
+                .map(this::convertPropertyToDTO)
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "blockId", id,
+                "blockName", block.getName(),
+                "properties", propertyDTOs,
+                "count", propertyDTOs.size()
+            ));
+
+        } catch (Exception e) {
+            log.error("❌ Failed to fetch properties for block {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to fetch properties: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get available properties that can be assigned to a block
+     * GET /blocks/api/{id}/available-properties
+     */
+    @GetMapping("/api/{id}/available-properties")
+    @ResponseBody
+    public ResponseEntity<?> getAvailableProperties(@PathVariable Long id, Authentication auth) {
+        log.info("📋 Fetching available properties for block {}", id);
+
+        try {
+            // Check if block exists
+            Optional<Block> blockOpt = blockRepository.findById(id);
+            if (!blockOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Get unassigned properties
+            List<Property> unassignedProperties = propertyBlockAssignmentRepository.findUnassignedProperties();
+
+            // Convert to DTOs
+            List<Map<String, Object>> propertyDTOs = unassignedProperties.stream()
+                .map(this::convertPropertyToDTO)
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "blockId", id,
+                "availableProperties", propertyDTOs,
+                "count", propertyDTOs.size()
+            ));
+
+        } catch (Exception e) {
+            log.error("❌ Failed to fetch available properties for block {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to fetch available properties: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Assign properties to a block
+     * POST /blocks/api/{id}/assign-properties
+     */
+    @PostMapping("/api/{id}/assign-properties")
+    @ResponseBody
+    public ResponseEntity<?> assignPropertiesToBlock(
+            @PathVariable Long id,
+            @RequestBody AssignPropertiesRequest request,
+            Authentication auth) {
+        log.info("🏗️ Assigning {} properties to block {}", request.getPropertyIds().size(), id);
+
+        try {
+            // Get current user
+            Integer userId = getLoggedInUserId(auth);
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+
+            // Check if block exists
+            Optional<Block> blockOpt = blockRepository.findById(id);
+            if (!blockOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Block block = blockOpt.get();
+            List<String> results = new ArrayList<>();
+            int successCount = 0;
+            int skippedCount = 0;
+
+            for (Long propertyId : request.getPropertyIds()) {
+                try {
+                    // Check if already assigned
+                    if (propertyBlockAssignmentRepository.isPropertyAssignedToBlock(propertyId, id)) {
+                        results.add("Property " + propertyId + " already assigned to block");
+                        skippedCount++;
+                        continue;
+                    }
+
+                    // Assign property to block
+                    propertyService.assignPropertyToBlock(propertyId, id, userId.longValue());
+                    results.add("Property " + propertyId + " assigned successfully");
+                    successCount++;
+
+                } catch (Exception e) {
+                    results.add("Failed to assign property " + propertyId + ": " + e.getMessage());
+                    log.error("Failed to assign property {} to block {}: {}", propertyId, id, e.getMessage());
+                }
+            }
+
+            log.info("✅ Assigned {} properties to block {} ({} successful, {} skipped)",
+                request.getPropertyIds().size(), id, successCount, skippedCount);
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Assignment completed",
+                "blockId", id,
+                "blockName", block.getName(),
+                "totalRequested", request.getPropertyIds().size(),
+                "successCount", successCount,
+                "skippedCount", skippedCount,
+                "results", results
+            ));
+
+        } catch (Exception e) {
+            log.error("❌ Failed to assign properties to block {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to assign properties: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Remove a property from a block
+     * DELETE /blocks/api/{id}/properties/{propertyId}
+     */
+    @DeleteMapping("/api/{id}/properties/{propertyId}")
+    @ResponseBody
+    public ResponseEntity<?> removePropertyFromBlock(
+            @PathVariable Long id,
+            @PathVariable Long propertyId,
+            Authentication auth) {
+        log.info("🗑️ Removing property {} from block {}", propertyId, id);
+
+        try {
+            // Get current user
+            Integer userId = getLoggedInUserId(auth);
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+
+            // Check if block exists
+            Optional<Block> blockOpt = blockRepository.findById(id);
+            if (!blockOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Check if property is assigned to this block
+            if (!propertyBlockAssignmentRepository.isPropertyAssignedToBlock(propertyId, id)) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Property is not assigned to this block"));
+            }
+
+            // Remove property from block
+            propertyService.removePropertyFromBlock(propertyId, userId.longValue());
+
+            log.info("✅ Removed property {} from block {}", propertyId, id);
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Property removed from block successfully",
+                "blockId", id,
+                "propertyId", propertyId
+            ));
+
+        } catch (Exception e) {
+            log.error("❌ Failed to remove property {} from block {}: {}", propertyId, id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to remove property: " + e.getMessage()));
+        }
+    }
+
     // ===== UTILITY METHODS =====
 
     private Map<String, Object> convertBlockToDTO(Block block) {
@@ -364,6 +569,34 @@ public class BlockViewController {
             dto.put("availableCapacity", availableCapacity);
         } catch (Exception e) {
             dto.put("availableCapacity", null);
+        }
+
+        return dto;
+    }
+
+    private Map<String, Object> convertPropertyToDTO(Property property) {
+        Map<String, Object> dto = new HashMap<>();
+        dto.put("id", property.getId());
+        dto.put("propertyName", property.getPropertyName());
+        dto.put("propertyType", property.getPropertyType());
+        dto.put("addressLine1", property.getAddressLine1());
+        dto.put("addressLine2", property.getAddressLine2());
+        dto.put("city", property.getCity());
+        dto.put("county", property.getCounty());
+        dto.put("postcode", property.getPostcode());
+        dto.put("countryCode", property.getCountryCode());
+        dto.put("status", property.getStatus());
+        dto.put("isArchived", property.getIsArchived());
+
+        // Add block info if assigned
+        try {
+            Optional<Block> block = propertyBlockAssignmentRepository.findBlockByPropertyId(property.getId());
+            if (block.isPresent()) {
+                dto.put("blockId", block.get().getId());
+                dto.put("blockName", block.get().getName());
+            }
+        } catch (Exception e) {
+            // Ignore - block info is optional
         }
 
         return dto;
@@ -439,5 +672,13 @@ public class BlockViewController {
         public void setMaxProperties(Integer maxProperties) { this.maxProperties = maxProperties; }
         public String getColorCode() { return colorCode; }
         public void setColorCode(String colorCode) { this.colorCode = colorCode; }
+    }
+
+    public static class AssignPropertiesRequest {
+        private List<Long> propertyIds;
+
+        // Getters and setters
+        public List<Long> getPropertyIds() { return propertyIds; }
+        public void setPropertyIds(List<Long> propertyIds) { this.propertyIds = propertyIds; }
     }
 }

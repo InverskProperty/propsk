@@ -233,6 +233,35 @@
     </div>
 </div>
 
+<!-- Assign Properties Modal -->
+<div class="modal fade" id="assignPropertiesModal" tabindex="-1" role="dialog" aria-labelledby="assignPropertiesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="assignPropertiesModalLabel">
+                    <i class="fas fa-plus"></i> Assign Properties to Block
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="availablePropertiesContainer">
+                    <p class="text-center text-muted">
+                        <i class="fas fa-spinner fa-spin"></i> Loading available properties...
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="assignSelectedProperties()" id="assignPropertiesBtn">
+                    <i class="fas fa-check"></i> Assign Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Scripts -->
 <script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
 <script th:src="@{/js/library/popper.min.js}"></script>
@@ -279,15 +308,291 @@ $(document).ready(function() {
 });
 
 function loadBlockProperties() {
-    // This would call an API to get properties in the block
-    // For now, showing a placeholder
-    $('#propertiesContainer').html(`
-        <div class="alert alert-info">
-            <i class="fas fa-info-circle"></i>
-            Properties list will be displayed here.
-            This feature requires additional backend endpoint implementation.
+    $('#propertiesContainer').html('<p class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Loading properties...</p>');
+
+    fetch(`/blocks/api/${blockId}/properties`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.properties) {
+                if (data.properties.length === 0) {
+                    $('#propertiesContainer').html(`
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            No properties assigned to this block yet.
+                            <button class="btn btn-sm btn-primary ml-2" onclick="showAssignPropertiesModal()">
+                                <i class="fas fa-plus"></i> Assign Properties
+                            </button>
+                        </div>
+                    `);
+                } else {
+                    renderPropertiesTable(data.properties);
+                }
+            } else {
+                $('#propertiesContainer').html(`
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Failed to load properties: ${data.error || 'Unknown error'}
+                    </div>
+                `);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading properties:', error);
+            $('#propertiesContainer').html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i>
+                    Error loading properties: ${error.message}
+                </div>
+            `);
+        });
+}
+
+function renderPropertiesTable(properties) {
+    let html = `
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <strong>${properties.length}</strong> ${properties.length === 1 ? 'property' : 'properties'} in this block
+            </div>
+            <button class="btn btn-primary" onclick="showAssignPropertiesModal()">
+                <i class="fas fa-plus"></i> Assign Properties
+            </button>
         </div>
-    `);
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Property Name</th>
+                        <th>Type</th>
+                        <th>Address</th>
+                        <th>Postcode</th>
+                        <th>Status</th>
+                        <th width="100">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    properties.forEach(property => {
+        const address = [property.addressLine1, property.city].filter(x => x).join(', ');
+        const statusBadge = property.status === 'ACTIVE' ? 'badge-success' : 'badge-secondary';
+
+        html += `
+            <tr>
+                <td>
+                    <a href="/property/${property.id}" class="font-weight-bold">
+                        ${property.propertyName || 'Unnamed Property'}
+                    </a>
+                </td>
+                <td>${property.propertyType || '-'}</td>
+                <td>${address || '-'}</td>
+                <td>${property.postcode || '-'}</td>
+                <td><span class="badge ${statusBadge}">${property.status || 'UNKNOWN'}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-danger"
+                            onclick="removePropertyFromBlock(${property.id}, '${property.propertyName || 'property'}')"
+                            title="Remove from block">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    $('#propertiesContainer').html(html);
+}
+
+function removePropertyFromBlock(propertyId, propertyName) {
+    if (!confirm(`Remove "${propertyName}" from this block?`)) return;
+
+    fetch(`/blocks/api/${blockId}/properties/${propertyId}`, {
+        method: 'DELETE',
+        headers: {
+            [csrfHeader]: csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Property removed from block successfully!');
+            loadBlockProperties(); // Reload the list
+        } else {
+            alert('Failed to remove property: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error removing property:', error);
+        alert('Error removing property from block');
+    });
+}
+
+function showAssignPropertiesModal() {
+    $('#assignPropertiesModal').modal('show');
+    loadAvailableProperties();
+}
+
+function loadAvailableProperties() {
+    $('#availablePropertiesContainer').html('<p class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Loading available properties...</p>');
+
+    fetch(`/blocks/api/${blockId}/available-properties`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.availableProperties) {
+                if (data.availableProperties.length === 0) {
+                    $('#availablePropertiesContainer').html(`
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            No unassigned properties available. All properties are already assigned to blocks.
+                        </div>
+                    `);
+                    $('#assignPropertiesBtn').prop('disabled', true);
+                } else {
+                    renderAvailablePropertiesTable(data.availableProperties);
+                    $('#assignPropertiesBtn').prop('disabled', false);
+                }
+            } else {
+                $('#availablePropertiesContainer').html(`
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Failed to load available properties: ${data.error || 'Unknown error'}
+                    </div>
+                `);
+                $('#assignPropertiesBtn').prop('disabled', true);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading available properties:', error);
+            $('#availablePropertiesContainer').html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i>
+                    Error loading available properties: ${error.message}
+                </div>
+            `);
+            $('#assignPropertiesBtn').prop('disabled', true);
+        });
+}
+
+function renderAvailablePropertiesTable(properties) {
+    let html = `
+        <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    <strong>${properties.length}</strong> available ${properties.length === 1 ? 'property' : 'properties'}
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-secondary" onclick="toggleSelectAll()">
+                        <i class="fas fa-check-square"></i> Select All
+                    </button>
+                </div>
+            </div>
+            <input type="text" class="form-control mb-2" id="propertySearchInput" placeholder="Search properties..." onkeyup="filterProperties()">
+        </div>
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-sm table-hover" id="availablePropertiesTable">
+                <thead class="thead-light" style="position: sticky; top: 0; background: white; z-index: 1;">
+                    <tr>
+                        <th width="50">
+                            <input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll()">
+                        </th>
+                        <th>Property Name</th>
+                        <th>Type</th>
+                        <th>Address</th>
+                        <th>Postcode</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    properties.forEach(property => {
+        const address = [property.addressLine1, property.city].filter(x => x).join(', ');
+        const displayName = property.propertyName || 'Unnamed Property';
+
+        html += `
+            <tr class="property-row" data-property-id="${property.id}">
+                <td>
+                    <input type="checkbox" class="property-checkbox" value="${property.id}">
+                </td>
+                <td class="property-name">${displayName}</td>
+                <td>${property.propertyType || '-'}</td>
+                <td>${address || '-'}</td>
+                <td>${property.postcode || '-'}</td>
+            </tr>
+        `;
+    });
+
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    $('#availablePropertiesContainer').html(html);
+}
+
+function toggleSelectAll() {
+    const selectAllCheckbox = $('#selectAllCheckbox');
+    const isChecked = selectAllCheckbox.prop('checked');
+    $('.property-checkbox:visible').prop('checked', !isChecked);
+    selectAllCheckbox.prop('checked', !isChecked);
+}
+
+function filterProperties() {
+    const searchTerm = $('#propertySearchInput').val().toLowerCase();
+    $('.property-row').each(function() {
+        const propertyName = $(this).find('.property-name').text().toLowerCase();
+        if (propertyName.includes(searchTerm)) {
+            $(this).show();
+        } else {
+            $(this).hide();
+        }
+    });
+}
+
+function assignSelectedProperties() {
+    const selectedPropertyIds = [];
+    $('.property-checkbox:checked').each(function() {
+        selectedPropertyIds.push(parseInt($(this).val()));
+    });
+
+    if (selectedPropertyIds.length === 0) {
+        alert('Please select at least one property to assign');
+        return;
+    }
+
+    // Disable button and show loading
+    $('#assignPropertiesBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Assigning...');
+
+    fetch(`/blocks/api/${blockId}/assign-properties`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            [csrfHeader]: csrfToken
+        },
+        body: JSON.stringify({
+            propertyIds: selectedPropertyIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Successfully assigned ${data.successCount} ${data.successCount === 1 ? 'property' : 'properties'} to block!${data.skippedCount > 0 ? '\n' + data.skippedCount + ' already assigned.' : ''}`);
+            $('#assignPropertiesModal').modal('hide');
+            loadBlockProperties(); // Reload the main list
+        } else {
+            alert('Failed to assign properties: ' + (data.error || 'Unknown error'));
+        }
+        $('#assignPropertiesBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Assign Selected');
+    })
+    .catch(error => {
+        console.error('Error assigning properties:', error);
+        alert('Error assigning properties to block');
+        $('#assignPropertiesBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Assign Selected');
+    });
 }
 /*]]>*/
 </script>
