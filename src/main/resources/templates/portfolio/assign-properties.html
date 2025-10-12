@@ -832,8 +832,8 @@ function loadAvailableBlocks() {
         .then(data => {
             console.log('✅ Loaded available blocks:', data);
 
-            if (data.success && data.blocks && data.blocks.length > 0) {
-                renderAvailableBlocks(data.blocks);
+            if (data.success && data.availableBlocks && data.availableBlocks.length > 0) {
+                renderAvailableBlocks(data.availableBlocks);
             } else {
                 // No blocks available
                 blocksList.innerHTML = `
