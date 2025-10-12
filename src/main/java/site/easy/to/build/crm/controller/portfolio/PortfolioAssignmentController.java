@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
+import site.easy.to.build.crm.repository.PropertyBlockAssignmentRepository;
 import site.easy.to.build.crm.service.portfolio.PortfolioAssignmentService;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 
@@ -31,6 +32,9 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
     
     @Autowired
     private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
+
+    @Autowired
+    private PropertyBlockAssignmentRepository propertyBlockAssignmentRepository;
     
     /**
      * Show properties assignment page
@@ -45,14 +49,29 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
         try {
             List<Portfolio> portfolios = portfolioService.findPortfoliosForUser(authentication);
             List<Property> allProperties = propertyService.findAll();
-            
-            // Filter properties not assigned to any portfolio (truly unassigned)
+
+            // Get IDs of properties that are component properties of blocks
+            // These should not be shown as individual properties since they're managed via blocks
+            List<PropertyBlockAssignment> blockAssignments =
+                propertyBlockAssignmentRepository.findAll().stream()
+                    .filter(pba -> pba.getIsActive() != null && pba.getIsActive())
+                    .collect(Collectors.toList());
+
+            Set<Long> componentPropertyIds = blockAssignments.stream()
+                .map(pba -> pba.getProperty().getId())
+                .collect(Collectors.toSet());
+
+            log.info("Found {} component properties that are part of blocks", componentPropertyIds.size());
+
+            // Filter properties not assigned to any portfolio (truly unassigned) AND not component properties
             List<Property> unassignedProperties = allProperties.stream()
                 .filter(property -> !hasAnyPortfolioAssignment(property.getId()))
+                .filter(property -> !componentPropertyIds.contains(property.getId())) // Exclude component properties
                 .filter(property -> !"Y".equals(property.getIsArchived()))
                 .collect(Collectors.toList());
-            
-            log.info("Found {} truly unassigned properties (not in any portfolio)", unassignedProperties.size());
+
+            log.info("Found {} truly unassigned standalone properties (not in any portfolio, excluding {} component properties)",
+                unassignedProperties.size(), componentPropertyIds.size());
             
             model.addAttribute("portfolios", portfolios);
             model.addAttribute("unassignedProperties", unassignedProperties);
@@ -121,14 +140,28 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
                 .map(Property::getId)
                 .collect(Collectors.toSet());
 
-            // Filter to get properties NOT in this specific portfolio (available for assignment)
+            // Get IDs of properties that are component properties of blocks
+            // These should not be shown as individual properties since they're managed via blocks
+            List<PropertyBlockAssignment> blockAssignments =
+                propertyBlockAssignmentRepository.findAll().stream()
+                    .filter(pba -> pba.getIsActive() != null && pba.getIsActive())
+                    .collect(Collectors.toList());
+
+            Set<Long> componentPropertyIds = blockAssignments.stream()
+                .map(pba -> pba.getProperty().getId())
+                .collect(Collectors.toSet());
+
+            log.info("Found {} component properties that are part of blocks", componentPropertyIds.size());
+
+            // Filter to get properties NOT in this specific portfolio AND NOT component properties of blocks
             unassignedProperties = allProperties.stream()
                 .filter(property -> !assignedPropertyIds.contains(property.getId()))
+                .filter(property -> !componentPropertyIds.contains(property.getId())) // Exclude component properties
                 .filter(property -> !"Y".equals(property.getIsArchived()))
                 .collect(Collectors.toList());
 
-            log.info("Portfolio {} assignment: {} total properties, {} already assigned, {} available for assignment",
-                portfolioId, allProperties.size(), propertiesInPortfolio.size(), unassignedProperties.size());
+            log.info("Portfolio {} assignment: {} total properties, {} already assigned, {} component properties excluded, {} available for assignment",
+                portfolioId, allProperties.size(), propertiesInPortfolio.size(), componentPropertyIds.size(), unassignedProperties.size());
             
             model.addAttribute("targetPortfolio", targetPortfolio);
             model.addAttribute("portfolios", allPortfolios);
@@ -200,14 +233,28 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
                 .map(Property::getId)
                 .collect(Collectors.toSet());
 
-            // Filter to get properties NOT already in this portfolio
+            // Get IDs of properties that are component properties of blocks
+            // These should not be shown as individual properties since they're managed via blocks
+            List<PropertyBlockAssignment> blockAssignments =
+                propertyBlockAssignmentRepository.findAll().stream()
+                    .filter(pba -> pba.getIsActive() != null && pba.getIsActive())
+                    .collect(Collectors.toList());
+
+            Set<Long> componentPropertyIds = blockAssignments.stream()
+                .map(pba -> pba.getProperty().getId())
+                .collect(Collectors.toSet());
+
+            log.info("Found {} component properties that are part of blocks", componentPropertyIds.size());
+
+            // Filter to get properties NOT already in this portfolio AND NOT component properties of blocks
             availableProperties = allSystemProperties.stream()
                 .filter(property -> !assignedPropertyIds.contains(property.getId()))
+                .filter(property -> !componentPropertyIds.contains(property.getId())) // Exclude component properties
                 .filter(property -> !"Y".equals(property.getIsArchived()))
                 .collect(Collectors.toList());
 
-            log.info("Portfolio {} assignment API: {} total properties, {} already assigned, {} available for assignment",
-                portfolioId, allSystemProperties.size(), propertiesInPortfolio.size(), availableProperties.size());
+            log.info("Portfolio {} assignment API: {} total properties, {} already assigned, {} component properties excluded, {} available for assignment",
+                portfolioId, allSystemProperties.size(), propertiesInPortfolio.size(), componentPropertyIds.size(), availableProperties.size());
             
             // Convert to simple format for frontend
             List<Map<String, Object>> propertyData = availableProperties.stream()
