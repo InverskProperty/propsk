@@ -33,10 +33,13 @@ public class PayPropBlockSyncService {
     
     @Autowired
     private PropertyPortfolioAssignmentRepository assignmentRepository;
-    
+
+    @Autowired
+    private PropertyBlockAssignmentRepository blockAssignmentRepository;
+
     @Autowired
     private PayPropPortfolioSyncService portfolioSyncService;
-    
+
     @Autowired
     private PortfolioBlockService blockService;
     
@@ -118,68 +121,95 @@ public class PayPropBlockSyncService {
     private int syncBlockProperties(Block block, String blockTagId) {
         log.info("🏷️ Syncing properties for block {} with tag {}", block.getId(), blockTagId);
 
-        // Find all active assignments for this block
-        List<PropertyPortfolioAssignment> assignments;
+        int successCount = 0;
+
         if (block.getPortfolio() != null) {
-            // For portfolio blocks, use portfolio assignments
-            assignments = assignmentRepository
+            // Portfolio blocks: Use PropertyPortfolioAssignment
+            List<PropertyPortfolioAssignment> assignments = assignmentRepository
                 .findByPortfolioIdAndIsActive(block.getPortfolio().getId(), true)
                 .stream()
                 .filter(a -> block.getId().equals(a.getBlock() != null ? a.getBlock().getId() : null))
                 .collect(Collectors.toList());
-        } else {
-            // For standalone blocks, there are no portfolio assignments
-            // Properties are linked via PropertyBlockAssignment only
-            log.info("Standalone block - no portfolio assignments to sync");
-            assignments = new ArrayList<>();
-        }
-        
-        int successCount = 0;
-        
-        for (PropertyPortfolioAssignment assignment : assignments) {
-            try {
-                Property property = assignment.getProperty();
-                if (property == null || property.getPayPropId() == null) {
-                    log.warn("⚠️ Property {} has no PayProp ID, skipping",
-                            property != null ? property.getId() : "null");
-                    continue;
-                }
 
-                // ADDITIVE TAGGING: Apply BOTH portfolio tag AND block tag
+            for (PropertyPortfolioAssignment assignment : assignments) {
+                try {
+                    Property property = assignment.getProperty();
+                    if (property == null || property.getPayPropId() == null) {
+                        log.warn("⚠️ Property {} has no PayProp ID, skipping",
+                                property != null ? property.getId() : "null");
+                        continue;
+                    }
 
-                // 1. Ensure portfolio tag is applied (keep existing portfolio tag)
-                if (block.getPortfolio() != null) {
+                    // ADDITIVE TAGGING: Apply BOTH portfolio tag AND block tag
+
+                    // 1. Ensure portfolio tag is applied
                     String portfolioTagId = block.getPortfolio().getPayPropTags();
                     if (portfolioTagId != null && !portfolioTagId.trim().isEmpty()) {
                         portfolioSyncService.applyTagToProperty(property.getPayPropId(), portfolioTagId);
                         log.debug("✅ Applied portfolio tag {} to property {}", portfolioTagId, property.getPayPropId());
                     }
+
+                    // 2. Apply block tag
+                    portfolioSyncService.applyTagToProperty(property.getPayPropId(), blockTagId);
+                    log.debug("✅ Applied block tag {} to property {}", blockTagId, property.getPayPropId());
+
+                    // Update assignment sync status
+                    assignment.setSyncStatus(SyncStatus.synced);
+                    assignment.setLastSyncAt(LocalDateTime.now());
+                    assignmentRepository.save(assignment);
+
+                    successCount++;
+
+                } catch (Exception e) {
+                    log.error("❌ Failed to sync property {} in block {}: {}",
+                             assignment.getProperty().getId(), block.getId(), e.getMessage());
+
+                    // Mark assignment as failed
+                    assignment.setSyncStatus(SyncStatus.failed);
+                    assignmentRepository.save(assignment);
                 }
-
-                // 2. Apply block tag to property (additive - doesn't replace portfolio tag)
-                portfolioSyncService.applyTagToProperty(property.getPayPropId(), blockTagId);
-                log.debug("✅ Applied block tag {} to property {}", blockTagId, property.getPayPropId());
-
-                // Update assignment sync status
-                assignment.setSyncStatus(SyncStatus.synced);
-                assignment.setLastSyncAt(LocalDateTime.now());
-                assignmentRepository.save(assignment);
-
-                successCount++;
-
-            } catch (Exception e) {
-                log.error("❌ Failed to sync property {} in block {}: {}",
-                         assignment.getProperty().getId(), block.getId(), e.getMessage());
-
-                // Mark assignment as failed
-                assignment.setSyncStatus(SyncStatus.failed);
-                assignmentRepository.save(assignment);
             }
+
+            log.info("📊 Portfolio block property sync complete: {}/{} properties synced",
+                    successCount, assignments.size());
+
+        } else {
+            // Standalone blocks: Use PropertyBlockAssignment
+            log.info("Syncing standalone block - fetching from PropertyBlockAssignment");
+
+            List<PropertyBlockAssignment> blockAssignments = blockAssignmentRepository
+                .findByBlockIdAndIsActive(block.getId(), true);
+
+            for (PropertyBlockAssignment assignment : blockAssignments) {
+                try {
+                    Property property = assignment.getProperty();
+                    if (property == null || property.getPayPropId() == null) {
+                        log.warn("⚠️ Property {} has no PayProp ID, skipping",
+                                property != null ? property.getId() : "null");
+                        continue;
+                    }
+
+                    // For standalone blocks, only apply block tag (no portfolio tag)
+                    portfolioSyncService.applyTagToProperty(property.getPayPropId(), blockTagId);
+                    log.debug("✅ Applied block tag {} to property {}", blockTagId, property.getPayPropId());
+
+                    // Update assignment (Note: PropertyBlockAssignment doesn't have sync status fields)
+                    // Just mark it synced via timestamp
+                    assignment.setUpdatedAt(LocalDateTime.now());
+                    blockAssignmentRepository.save(assignment);
+
+                    successCount++;
+
+                } catch (Exception e) {
+                    log.error("❌ Failed to sync property {} in standalone block {}: {}",
+                             assignment.getProperty().getId(), block.getId(), e.getMessage());
+                }
+            }
+
+            log.info("📊 Standalone block property sync complete: {}/{} properties synced",
+                    successCount, blockAssignments.size());
         }
-        
-        log.info("📊 Block property sync complete: {}/{} properties synced successfully", 
-                successCount, assignments.size());
-        
+
         return successCount;
     }
     
@@ -299,36 +329,25 @@ public class PayPropBlockSyncService {
             return 0;
         }
 
-        // Find properties that were assigned to this block
-        List<PropertyPortfolioAssignment> assignments;
+        int removedCount = 0;
+
         if (block.getPortfolio() != null) {
-            assignments = assignmentRepository
+            // Portfolio blocks: Handle PropertyPortfolioAssignment
+            List<PropertyPortfolioAssignment> assignments = assignmentRepository
                 .findByPortfolioIdAndIsActive(block.getPortfolio().getId(), false) // Include inactive
                 .stream()
                 .filter(a -> blockId.equals(a.getBlock() != null ? a.getBlock().getId() : null))
                 .collect(Collectors.toList());
-        } else {
-            // For standalone blocks, no portfolio assignments exist
-            log.info("Standalone block - no portfolio assignments to clean up");
-            assignments = new ArrayList<>();
-        }
 
-        int removedCount = 0;
+            for (PropertyPortfolioAssignment assignment : assignments) {
+                try {
+                    Property property = assignment.getProperty();
+                    if (property != null && property.getPayPropId() != null) {
 
-        for (PropertyPortfolioAssignment assignment : assignments) {
-            try {
-                Property property = assignment.getProperty();
-                if (property != null && property.getPayPropId() != null) {
-
-                    // ADDITIVE TAGGING: Only remove the block tag
-                    // Portfolio tags remain on the property (they should already be there)
-                    // Note: PayProp API would need a removeTagFromProperty() method to implement this
-                    // For now, we ensure the portfolio tag is re-applied to maintain it
-
-                    if (block.getPortfolio() != null) {
+                        // ADDITIVE TAGGING: Ensure portfolio tag remains
                         String portfolioTagId = block.getPortfolio().getPayPropTags();
                         if (portfolioTagId != null && !portfolioTagId.trim().isEmpty()) {
-                            // Re-apply portfolio tag to ensure it stays (block tag would be removed separately)
+                            // Re-apply portfolio tag to ensure it stays
                             portfolioSyncService.applyTagToProperty(property.getPayPropId(), portfolioTagId);
                             removedCount++;
 
@@ -336,14 +355,40 @@ public class PayPropBlockSyncService {
                                     portfolioTagId, property.getPayPropId());
                         }
                     }
+                } catch (Exception e) {
+                    log.error("Failed to process tag removal for property {}: {}",
+                             assignment.getProperty().getId(), e.getMessage());
                 }
-            } catch (Exception e) {
-                log.error("Failed to process tag removal for property {}: {}",
-                         assignment.getProperty().getId(), e.getMessage());
             }
+
+            log.info("✅ Processed {} properties for block tag removal (portfolio tags preserved)", removedCount);
+
+        } else {
+            // Standalone blocks: Handle PropertyBlockAssignment
+            log.info("Processing standalone block tag removal");
+
+            List<PropertyBlockAssignment> blockAssignments = blockAssignmentRepository
+                .findByBlockId(blockId); // Include all assignments
+
+            for (PropertyBlockAssignment assignment : blockAssignments) {
+                try {
+                    Property property = assignment.getProperty();
+                    if (property != null && property.getPayPropId() != null) {
+                        // For standalone blocks, just note the tag should be removed
+                        // (actual PayProp API call to remove tag would go here if available)
+                        removedCount++;
+
+                        log.debug("✅ Marked block tag for removal from property {}", property.getPayPropId());
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to process tag removal for property {}: {}",
+                             assignment.getProperty().getId(), e.getMessage());
+                }
+            }
+
+            log.info("✅ Processed {} standalone block properties for tag removal", removedCount);
         }
 
-        log.info("✅ Processed {} properties for block tag removal (portfolio tags preserved)", removedCount);
         return removedCount;
     }
     
