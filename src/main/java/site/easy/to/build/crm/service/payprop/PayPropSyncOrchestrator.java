@@ -12,6 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.UserRepository;
+import site.easy.to.build.crm.repository.PayPropTenantCompleteRepository;
+import site.easy.to.build.crm.repository.TenantRepository;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.payprop.PayPropSyncService.PayPropExportResult;
 import site.easy.to.build.crm.service.property.PropertyService;
@@ -51,6 +53,13 @@ public class PayPropSyncOrchestrator {
     private final GoogleDriveFileService googleDriveFileService;
     private final UserRepository userRepository;
     private final JdbcTemplate jdbcTemplate;
+
+    // Tenant sync repositories
+    @Autowired
+    private PayPropTenantCompleteRepository payPropTenantCompleteRepository;
+
+    @Autowired
+    private TenantRepository tenantRepository;
 
     // Delegated services
     @Autowired
@@ -1375,17 +1384,23 @@ public class PayPropSyncOrchestrator {
     private boolean createOrUpdateTenantCustomer(Map<String, Object> tenantData, Long initiatedBy) {
         String payPropId = (String) tenantData.get("id");
         Customer existing = customerService.findByPayPropEntityId(payPropId);
-        
+
+        boolean isNew;
         if (existing != null) {
             updateCustomerFromTenantData(existing, tenantData);
             customerService.save(existing);
-            return false;
+            isNew = false;
         } else {
             Customer customer = createCustomerFromTenantData(tenantData, initiatedBy);
             customer.setCreatedAt(LocalDateTime.now());
             customerService.save(customer);
-            return true;
+            isNew = true;
         }
+
+        // Sync tenant dates from payprop_export_tenants_complete to Tenant entity
+        syncTenantDatesFromCompleteTable(payPropId);
+
+        return isNew;
     }
 
     private boolean createOrUpdateContractorCustomer(Map<String, Object> beneficiaryData, Long initiatedBy) {
@@ -1408,8 +1423,73 @@ public class PayPropSyncOrchestrator {
         }
     }
 
+    /**
+     * Sync tenant dates from payprop_export_tenants_complete to Tenant entity
+     * Updates moveInDate and moveOutDate based on tenancy_start_date and tenancy_end_date
+     */
+    private void syncTenantDatesFromCompleteTable(String payPropId) {
+        try {
+            // Look up tenant data in payprop_export_tenants_complete table
+            Optional<PayPropTenantComplete> tenantCompleteOpt =
+                    payPropTenantCompleteRepository.findById(payPropId);
+
+            if (tenantCompleteOpt.isEmpty()) {
+                log.debug("No tenant data found in payprop_export_tenants_complete for PayProp ID: {}", payPropId);
+                return;
+            }
+
+            PayPropTenantComplete tenantComplete = tenantCompleteOpt.get();
+
+            // Find existing Tenant entity by PayProp ID
+            Optional<Tenant> tenantOpt = tenantRepository.findByPayPropId(payPropId);
+
+            Tenant tenant;
+            if (tenantOpt.isPresent()) {
+                tenant = tenantOpt.get();
+                log.debug("Updating existing Tenant entity for PayProp ID: {}", payPropId);
+            } else {
+                // Create new Tenant entity if it doesn't exist
+                tenant = new Tenant();
+                tenant.setPayPropId(payPropId);
+                tenant.setPayPropCustomerId(tenantComplete.getPayPropId()); // Use PayProp ID as customer ID
+                tenant.setAccountType(AccountType.individual); // Default, can be updated later
+                tenant.setCreatedAt(LocalDateTime.now());
+                log.debug("Creating new Tenant entity for PayProp ID: {}", payPropId);
+            }
+
+            // Update tenant dates from payprop_export_tenants_complete
+            tenant.setMoveInDate(tenantComplete.getTenancyStartDate());
+            tenant.setMoveOutDate(tenantComplete.getTenancyEndDate());
+            tenant.setUpdatedAt(LocalDateTime.now());
+
+            // Update other basic fields if available
+            if (tenantComplete.getFirstName() != null) {
+                tenant.setFirstName(tenantComplete.getFirstName());
+            }
+            if (tenantComplete.getLastName() != null) {
+                tenant.setLastName(tenantComplete.getLastName());
+            }
+            if (tenantComplete.getEmail() != null) {
+                tenant.setEmailAddress(tenantComplete.getEmail());
+            }
+            if (tenantComplete.getMobile() != null) {
+                tenant.setMobileNumber(tenantComplete.getMobile());
+            }
+
+            // Save the tenant
+            tenantRepository.save(tenant);
+
+            log.info("✅ Synced tenant dates for PayProp ID {}: moveInDate={}, moveOutDate={}",
+                    payPropId, tenant.getMoveInDate(), tenant.getMoveOutDate());
+
+        } catch (Exception e) {
+            log.error("❌ Failed to sync tenant dates for PayProp ID {}: {}", payPropId, e.getMessage(), e);
+            // Don't throw - continue with sync even if individual tenant date sync fails
+        }
+    }
+
     // ===== CUSTOMER MAPPING METHODS =====
-    
+
     /**
      * Safely handle email addresses from PayProp data, generating placeholder emails for empty values
      */

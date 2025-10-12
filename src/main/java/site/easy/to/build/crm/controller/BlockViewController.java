@@ -624,6 +624,50 @@ public class BlockViewController {
         }
     }
 
+    /**
+     * DEBUG: Get all properties to see what's in the system
+     * GET /blocks/api/debug/all-properties
+     */
+    @GetMapping("/api/debug/all-properties")
+    @ResponseBody
+    public ResponseEntity<?> debugAllProperties(Authentication auth) {
+        log.info("🐛 DEBUG: Fetching all properties");
+
+        try {
+            List<Property> allProperties = propertyRepository.findAll();
+            List<Map<String, Object>> propertyDTOs = new ArrayList<>();
+
+            for (Property p : allProperties) {
+                Map<String, Object> dto = new HashMap<>();
+                dto.put("id", p.getId());
+                dto.put("name", p.getPropertyName());
+                dto.put("type", p.getPropertyType());
+                dto.put("isArchived", p.getIsArchived());
+
+                // Check if assigned to block
+                boolean isAssigned = propertyBlockAssignmentRepository.isPropertyAssignedToBlock(p.getId(), null);
+                Optional<Block> block = propertyBlockAssignmentRepository.findBlockByPropertyId(p.getId());
+                dto.put("isAssignedToBlock", block.isPresent());
+                if (block.isPresent()) {
+                    dto.put("blockName", block.get().getName());
+                }
+
+                propertyDTOs.add(dto);
+            }
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "totalProperties", allProperties.size(),
+                "properties", propertyDTOs
+            ));
+
+        } catch (Exception e) {
+            log.error("❌ Failed to fetch all properties: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to fetch properties: " + e.getMessage()));
+        }
+    }
+
     // ===== UTILITY METHODS =====
 
     private Map<String, Object> convertBlockToDTO(Block block) {
