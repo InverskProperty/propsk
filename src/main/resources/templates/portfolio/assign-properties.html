@@ -185,6 +185,29 @@
                 </div>
             </div>
 
+            <!-- Available Blocks Section (only shown when portfolio-specific) -->
+            <div th:if="${isPortfolioSpecific}" class="row" id="availableBlocksSection" style="display: none;">
+                <div class="col-12">
+                    <div class="card border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="text-white mb-0">
+                                <i class="fas fa-building"></i> Available Blocks for Assignment
+                            </h4>
+                            <p class="mb-0 small">Click a block to assign it (with all its properties) to this portfolio</p>
+                        </div>
+                        <div class="card-body">
+                            <div id="availableBlocksList" class="row">
+                                <!-- Blocks loaded via JavaScript -->
+                                <div class="col-12 text-center py-4">
+                                    <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+                                    <p class="mt-2 text-muted">Loading available blocks...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Drag & Drop Mode -->
             <div id="dragDropInterface">
                 <div class="row">
@@ -778,6 +801,175 @@ function showError(title, message) {
     createToast('error', title, message);
 }
 
+// ========== BLOCK ASSIGNMENT FUNCTIONS ==========
+
+/**
+ * Load available blocks from API and display them
+ */
+function loadAvailableBlocks() {
+    if (!isPortfolioSpecific || !targetPortfolioId) {
+        console.log('Not in portfolio-specific mode, skipping block loading');
+        return;
+    }
+
+    console.log('🏗️ Loading available blocks for portfolio:', targetPortfolioId);
+
+    const blocksSection = document.getElementById('availableBlocksSection');
+    const blocksList = document.getElementById('availableBlocksList');
+
+    // Show the section
+    if (blocksSection) {
+        blocksSection.style.display = 'block';
+    }
+
+    fetch(`/portfolio/internal/assignment/${targetPortfolioId}/available-blocks`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('✅ Loaded available blocks:', data);
+
+            if (data.success && data.blocks && data.blocks.length > 0) {
+                renderAvailableBlocks(data.blocks);
+            } else {
+                // No blocks available
+                blocksList.innerHTML = `
+                    <div class="col-12 text-center py-4">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No Available Blocks</h5>
+                        <p class="text-muted">All blocks are already assigned to this portfolio, or no blocks exist yet.</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('❌ Failed to load available blocks:', error);
+            blocksList.innerHTML = `
+                <div class="col-12 text-center py-4">
+                    <i class="fas fa-exclamation-triangle fa-2x text-danger mb-3"></i>
+                    <p class="text-danger">Failed to load available blocks: ${error.message}</p>
+                    <button class="btn btn-sm btn-primary" onclick="loadAvailableBlocks()">
+                        <i class="fas fa-redo"></i> Retry
+                    </button>
+                </div>
+            `;
+        });
+}
+
+/**
+ * Render blocks as clickable cards
+ */
+function renderAvailableBlocks(blocks) {
+    const blocksList = document.getElementById('availableBlocksList');
+
+    if (!blocks || blocks.length === 0) {
+        blocksList.innerHTML = `
+            <div class="col-12 text-center py-4">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No Available Blocks</h5>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    blocks.forEach(block => {
+        const propertyCount = block.propertyCount || 0;
+        const blockName = block.name || 'Unnamed Block';
+        const blockId = block.id;
+
+        html += `
+            <div class="col-md-4 mb-3">
+                <div class="card border-primary" style="cursor: pointer; transition: all 0.3s ease;"
+                     onclick="assignBlockToPortfolio(${blockId}, '${blockName}', ${propertyCount})"
+                     onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 8px rgba(0,123,255,0.3)';"
+                     onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none';">
+                    <div class="card-body text-center">
+                        <i class="fas fa-building fa-3x text-primary mb-3"></i>
+                        <h5 class="card-title mb-2">${blockName}</h5>
+                        <p class="text-muted mb-2">
+                            <i class="fas fa-home"></i> ${propertyCount} ${propertyCount === 1 ? 'Property' : 'Properties'}
+                        </p>
+                        <button class="btn btn-sm btn-primary" type="button">
+                            <i class="fas fa-plus-circle"></i> Assign Block
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    blocksList.innerHTML = html;
+    console.log(`✅ Rendered ${blocks.length} available blocks`);
+}
+
+/**
+ * Assign a block (with all its properties) to the portfolio
+ */
+function assignBlockToPortfolio(blockId, blockName, propertyCount) {
+    console.log('🏗️ Assigning block to portfolio:', { blockId, blockName, propertyCount, targetPortfolioId });
+
+    if (!confirm(`Assign "${blockName}" (${propertyCount} properties) to this portfolio?\n\nThis will assign all ${propertyCount} properties in the block to the portfolio.`)) {
+        return;
+    }
+
+    // Get CSRF token
+    const csrfToken = document.querySelector('meta[name="_csrf"]')?.getAttribute('content');
+
+    if (!csrfToken) {
+        showError('Configuration Error', 'CSRF token not found');
+        return;
+    }
+
+    // Show loading toast
+    createToast('info', 'Processing', `Assigning block "${blockName}" with ${propertyCount} properties...`);
+
+    const endpoint = `/portfolio/internal/assignment/${targetPortfolioId}/assign-block/${blockId}`;
+
+    fetch(endpoint, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('✅ Block assignment response:', data);
+
+        if (data.success) {
+            const message = `Successfully assigned "${blockName}" to portfolio!\n\n` +
+                          `Properties assigned: ${data.assignedCount || propertyCount}\n` +
+                          (data.skippedCount ? `Already assigned: ${data.skippedCount}\n` : '') +
+                          (data.syncedCount ? `Synced to PayProp: ${data.syncedCount}` : '');
+
+            showSuccess('Block Assigned!', message);
+
+            // Redirect to portfolio details page after short delay
+            setTimeout(() => {
+                console.log(`📍 Redirecting to /portfolio/${targetPortfolioId}`);
+                window.location.href = `/portfolio/${targetPortfolioId}`;
+            }, 2000);
+        } else {
+            showError('Assignment Failed', data.message || data.error || 'Unknown error occurred');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Block assignment error:', error);
+        showError('Network Error', 'Failed to assign block: ' + error.message);
+    });
+}
+
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Page loaded. Initializing...');
@@ -822,6 +1014,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('Pre-selected target portfolio:', targetPortfolioId);
             }
         }, 100);
+    }
+
+    // Load available blocks for portfolio-specific assignment
+    if (isPortfolioSpecific && targetPortfolioId) {
+        console.log('🏗️ Loading available blocks for block assignment feature...');
+        loadAvailableBlocks();
     }
 
     console.log('Page initialization complete');
