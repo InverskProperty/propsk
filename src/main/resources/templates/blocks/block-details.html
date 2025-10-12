@@ -518,11 +518,6 @@ function renderAvailablePropertiesTable(properties) {
                 <div>
                     <strong>${properties.length}</strong> available ${properties.length === 1 ? 'property' : 'properties'}
                 </div>
-                <div>
-                    <button class="btn btn-sm btn-secondary" onclick="toggleSelectAll()">
-                        <i class="fas fa-check-square"></i> Select All
-                    </button>
-                </div>
             </div>
             <input type="text" class="form-control mb-2" id="propertySearchInput" placeholder="Search properties..." onkeyup="filterProperties()">
         </div>
@@ -571,8 +566,7 @@ function renderAvailablePropertiesTable(properties) {
 function toggleSelectAll() {
     const selectAllCheckbox = $('#selectAllCheckbox');
     const isChecked = selectAllCheckbox.prop('checked');
-    $('.property-checkbox:visible').prop('checked', !isChecked);
-    selectAllCheckbox.prop('checked', !isChecked);
+    $('.property-checkbox:visible').prop('checked', isChecked);
 }
 
 function filterProperties() {
