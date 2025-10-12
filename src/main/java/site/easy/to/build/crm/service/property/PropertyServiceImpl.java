@@ -11,9 +11,13 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.DataSource;
 import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
+import site.easy.to.build.crm.repository.PropertyBlockAssignmentRepository;
+import site.easy.to.build.crm.repository.BlockRepository;
 import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.PropertyBlockAssignment;
+import site.easy.to.build.crm.entity.Block;
 
 import java.math.BigDecimal;
 import java.sql.ResultSet;
@@ -30,17 +34,23 @@ public class PropertyServiceImpl implements PropertyService {
 
     private final PropertyRepository propertyRepository;
     private final CustomerPropertyAssignmentRepository assignmentRepository;
+    private final PropertyBlockAssignmentRepository propertyBlockAssignmentRepository;
+    private final BlockRepository blockRepository;
     private final JdbcTemplate jdbcTemplate;
-    
+
     @Value("${crm.data.source:LEGACY}")
     private String dataSource;
 
     @Autowired
     public PropertyServiceImpl(PropertyRepository propertyRepository,
                             CustomerPropertyAssignmentRepository assignmentRepository,
+                            PropertyBlockAssignmentRepository propertyBlockAssignmentRepository,
+                            BlockRepository blockRepository,
                             JdbcTemplate jdbcTemplate) {
         this.propertyRepository = propertyRepository;
         this.assignmentRepository = assignmentRepository;
+        this.propertyBlockAssignmentRepository = propertyBlockAssignmentRepository;
+        this.blockRepository = blockRepository;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -440,20 +450,57 @@ public class PropertyServiceImpl implements PropertyService {
     @Override
     public void assignPropertyToBlock(Long propertyId, Long blockId, Long assignedBy) {
         Property property = findById(propertyId);
-        if (property != null) {
-            property.setBlockAssignmentDate(LocalDateTime.now());
-            save(property);
+        Block block = blockRepository.findById(blockId).orElse(null);
+
+        if (property == null || block == null) {
+            throw new IllegalArgumentException("Property or Block not found");
         }
+
+        // Check if already assigned
+        if (propertyBlockAssignmentRepository.isPropertyAssignedToBlock(propertyId, blockId)) {
+            return; // Already assigned, skip
+        }
+
+        // Create the PropertyBlockAssignment record
+        PropertyBlockAssignment assignment = new PropertyBlockAssignment();
+        assignment.setProperty(property);
+        assignment.setBlock(block);
+        assignment.setAssignedAt(LocalDateTime.now());
+        assignment.setAssignedBy(assignedBy);
+        assignment.setIsActive(true);
+        assignment.setCreatedAt(LocalDateTime.now());
+        assignment.setUpdatedAt(LocalDateTime.now());
+
+        propertyBlockAssignmentRepository.save(assignment);
+
+        // Also update the property timestamp for legacy compatibility
+        property.setBlockAssignmentDate(LocalDateTime.now());
+        save(property);
     }
 
     @Override
     public void removePropertyFromBlock(Long propertyId, Long removedBy) {
         Property property = findById(propertyId);
-        if (property != null) {
-            property.setBlock(null);
-            property.setBlockAssignmentDate(null);
-            save(property);
+        if (property == null) {
+            throw new IllegalArgumentException("Property not found");
         }
+
+        // Deactivate all active PropertyBlockAssignment records for this property
+        List<PropertyBlockAssignment> activeAssignments =
+                propertyBlockAssignmentRepository.findByPropertyId(propertyId);
+
+        for (PropertyBlockAssignment assignment : activeAssignments) {
+            if (assignment.getIsActive()) {
+                assignment.setIsActive(false);
+                assignment.setUpdatedAt(LocalDateTime.now());
+                propertyBlockAssignmentRepository.save(assignment);
+            }
+        }
+
+        // Clear legacy fields on property for compatibility
+        property.setBlock(null);
+        property.setBlockAssignmentDate(null);
+        save(property);
     }
 
 
