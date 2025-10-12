@@ -1166,4 +1166,141 @@ public class PortfolioAssignmentService {
     
     @Autowired
     private BlockRepository blockRepository;
+
+    @Autowired
+    private BlockPortfolioAssignmentRepository blockPortfolioAssignmentRepository;
+
+    @Autowired
+    private PropertyBlockAssignmentRepository propertyBlockAssignmentRepository;
+
+    @Autowired(required = false)
+    @Lazy
+    private PayPropPortfolioSyncService payPropPortfolioSyncService;
+
+    // ==================== BLOCK TO PORTFOLIO ASSIGNMENT ====================
+
+    /**
+     * Assign an entire block (with all its properties) to a portfolio
+     * This creates a BlockPortfolioAssignment and applies PayProp tags to all properties
+     */
+    @Transactional
+    public AssignmentResult assignBlockToPortfolio(Long portfolioId, Long blockId, Long userId) {
+        log.info("🏗️ Assigning block {} to portfolio {}", blockId, portfolioId);
+
+        // Validate inputs
+        Portfolio portfolio = portfolioRepository.findById(portfolioId)
+            .orElseThrow(() -> new IllegalArgumentException("Portfolio not found: " + portfolioId));
+
+        Block block = blockRepository.findById(blockId)
+            .orElseThrow(() -> new IllegalArgumentException("Block not found: " + blockId));
+
+        if (!"Y".equals(block.getIsActive())) {
+            throw new IllegalArgumentException("Block " + blockId + " is not active");
+        }
+
+        AssignmentResult result = new AssignmentResult();
+
+        // Check if block is already assigned to this portfolio
+        boolean alreadyAssigned = blockPortfolioAssignmentRepository
+            .isBlockAssignedToPortfolio(blockId, portfolioId);
+
+        if (alreadyAssigned) {
+            result.addError("Block " + blockId + " is already assigned to portfolio " + portfolioId);
+            return result;
+        }
+
+        try {
+            // Step 1: Create BlockPortfolioAssignment
+            BlockPortfolioAssignment blockAssignment = new BlockPortfolioAssignment();
+            blockAssignment.setBlock(block);
+            blockAssignment.setPortfolio(portfolio);
+
+            // Determine assignment type - PRIMARY if first portfolio, SECONDARY if additional
+            long existingAssignments = blockPortfolioAssignmentRepository
+                .countActiveAssignmentsByBlockId(blockId);
+
+            blockAssignment.setAssignmentType(existingAssignments == 0 ?
+                PortfolioAssignmentType.PRIMARY : PortfolioAssignmentType.SECONDARY);
+
+            blockAssignment.setAssignedBy(userId);
+            blockAssignment.setAssignedAt(LocalDateTime.now());
+            blockAssignment.setIsActive(true);
+            blockAssignment.setCreatedAt(LocalDateTime.now());
+            blockAssignment.setUpdatedAt(LocalDateTime.now());
+            blockAssignment.setNotes("Block assigned to portfolio via assignment page");
+
+            blockPortfolioAssignmentRepository.save(blockAssignment);
+            log.info("✅ Created BlockPortfolioAssignment for block {} → portfolio {}", blockId, portfolioId);
+
+            // Step 2: Get all properties in the block
+            List<PropertyBlockAssignment> propertyAssignments =
+                propertyBlockAssignmentRepository.findByBlockIdAndIsActive(blockId, true);
+
+            log.info("📋 Found {} properties in block {}", propertyAssignments.size(), blockId);
+
+            // Step 3: Apply PayProp tags to all properties (additive: portfolio tag + block tag)
+            for (PropertyBlockAssignment propAssignment : propertyAssignments) {
+                try {
+                    Property property = propAssignment.getProperty();
+
+                    if (property == null || property.getPayPropId() == null || property.getPayPropId().trim().isEmpty()) {
+                        log.warn("⚠️ Property {} has no PayProp ID, skipping",
+                            property != null ? property.getId() : "null");
+                        result.incrementSkipped();
+                        continue;
+                    }
+
+                    // Apply BOTH portfolio tag and block tag (additive tagging)
+                    if (payPropSyncService != null) {
+                        // 1. Apply portfolio tag
+                        String portfolioTagId = portfolio.getPayPropTags();
+                        if (portfolioTagId != null && !portfolioTagId.trim().isEmpty()) {
+                            payPropSyncService.applyTagToProperty(property.getPayPropId(), portfolioTagId);
+                            log.debug("✅ Applied portfolio tag {} to property {}", portfolioTagId, property.getPayPropId());
+                        }
+
+                        // 2. Apply block tag
+                        String blockTagId = block.getPayPropTags();
+                        if (blockTagId != null && !blockTagId.trim().isEmpty()) {
+                            payPropSyncService.applyTagToProperty(property.getPayPropId(), blockTagId);
+                            log.debug("✅ Applied block tag {} to property {}", blockTagId, property.getPayPropId());
+                            result.incrementSynced();
+                        }
+                    }
+
+                    result.incrementAssigned();
+
+                } catch (Exception e) {
+                    log.error("❌ Failed to apply tags to property {}: {}",
+                        propAssignment.getProperty().getId(), e.getMessage());
+                    result.addError("Property " + propAssignment.getProperty().getId() + ": " + e.getMessage());
+                }
+            }
+
+            log.info("✅ Block assignment complete: {} properties, {} synced, {} skipped",
+                result.getAssignedCount(), result.getSyncedCount(), result.getSkippedCount());
+
+        } catch (Exception e) {
+            log.error("❌ Failed to assign block {} to portfolio {}: {}", blockId, portfolioId, e.getMessage());
+            result.addError("Failed to assign block: " + e.getMessage());
+        }
+
+        return result;
+    }
+
+    /**
+     * Get all blocks available for assignment to a portfolio (not already assigned)
+     */
+    @Transactional(readOnly = true)
+    public List<Block> getAvailableBlocksForPortfolio(Long portfolioId) {
+        return blockPortfolioAssignmentRepository.findAvailableBlocksForPortfolio(portfolioId);
+    }
+
+    /**
+     * Get all blocks assigned to a portfolio
+     */
+    @Transactional(readOnly = true)
+    public List<Block> getBlocksInPortfolio(Long portfolioId) {
+        return blockPortfolioAssignmentRepository.findBlocksByPortfolioId(portfolioId);
+    }
 }

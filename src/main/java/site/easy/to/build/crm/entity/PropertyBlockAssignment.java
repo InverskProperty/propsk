@@ -48,6 +48,9 @@ public class PropertyBlockAssignment {
     @Column(name = "notes", length = 500)
     private String notes;
 
+    @Column(name = "display_order")
+    private Integer displayOrder = 0;
+
     // Audit fields
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -86,6 +89,9 @@ public class PropertyBlockAssignment {
         if (this.isActive == null) {
             this.isActive = true;
         }
+        if (this.displayOrder == null) {
+            this.displayOrder = 0;
+        }
     }
 
     @PreUpdate
@@ -114,6 +120,9 @@ public class PropertyBlockAssignment {
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+
+    public Integer getDisplayOrder() { return displayOrder; }
+    public void setDisplayOrder(Integer displayOrder) { this.displayOrder = displayOrder; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

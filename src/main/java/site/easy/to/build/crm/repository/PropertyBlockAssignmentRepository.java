@@ -30,6 +30,11 @@ public interface PropertyBlockAssignmentRepository extends JpaRepository<Propert
     List<PropertyBlockAssignment> findByBlockIdAndIsActive(Long blockId, Boolean isActive);
 
     /**
+     * Find all active assignments for a specific block, ordered by display_order
+     */
+    List<PropertyBlockAssignment> findByBlockIdAndIsActiveOrderByDisplayOrder(Long blockId, Boolean isActive);
+
+    /**
      * Find a specific property-block assignment
      */
     Optional<PropertyBlockAssignment> findByPropertyIdAndBlockIdAndIsActive(
@@ -40,6 +45,12 @@ public interface PropertyBlockAssignmentRepository extends JpaRepository<Propert
      */
     @Query("SELECT pba.property FROM PropertyBlockAssignment pba WHERE pba.block.id = :blockId AND pba.isActive = true")
     List<Property> findPropertiesByBlockId(@Param("blockId") Long blockId);
+
+    /**
+     * Find all properties in a block ordered by display_order
+     */
+    @Query("SELECT pba.property FROM PropertyBlockAssignment pba WHERE pba.block.id = :blockId AND pba.isActive = true ORDER BY pba.displayOrder, pba.property.propertyName")
+    List<Property> findPropertiesByBlockIdOrdered(@Param("blockId") Long blockId);
 
     /**
      * Find block for a property (typically only one active block per property)
@@ -55,6 +66,13 @@ public interface PropertyBlockAssignmentRepository extends JpaRepository<Propert
            "AND (p.propertyType IS NULL OR p.propertyType <> 'BLOCK') " +
            "AND (p.propertyName IS NULL OR (p.propertyName NOT LIKE '%Block Property%' AND p.propertyName NOT LIKE '%Test%'))")
     List<Property> findUnassignedProperties();
+
+    /**
+     * Find standalone properties (not in any block) - Simple version
+     */
+    @Query("SELECT p FROM Property p WHERE p.id NOT IN (SELECT pba.property.id FROM PropertyBlockAssignment pba WHERE pba.isActive = true) " +
+           "AND p.isArchived = 'N'")
+    List<Property> findStandaloneProperties();
 
     /**
      * Find properties in a block that are also in a specific portfolio
@@ -96,4 +114,10 @@ public interface PropertyBlockAssignmentRepository extends JpaRepository<Propert
            "WHERE pba.block.id = :blockId AND pba.property.propertyType = :propertyType AND pba.isActive = true")
     List<Property> findPropertiesByBlockIdAndType(
             @Param("blockId") Long blockId, @Param("propertyType") String propertyType);
+
+    /**
+     * Get the maximum display_order for a block (for adding new properties)
+     */
+    @Query("SELECT COALESCE(MAX(pba.displayOrder), 0) FROM PropertyBlockAssignment pba WHERE pba.block.id = :blockId AND pba.isActive = true")
+    Integer getMaxDisplayOrderForBlock(@Param("blockId") Long blockId);
 }

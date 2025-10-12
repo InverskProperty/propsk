@@ -33,7 +33,10 @@ public class PortfolioBlockServiceImpl implements PortfolioBlockService {
     
     @Autowired
     private PortfolioAssignmentService assignmentService;
-    
+
+    @Autowired
+    private PropertyBlockAssignmentRepository propertyBlockAssignmentRepository;
+
     // AuthorizationUtil is a static utility class, no injection needed
     
     // ===== BLOCK CREATION & MANAGEMENT =====
@@ -573,8 +576,110 @@ public class PortfolioBlockServiceImpl implements PortfolioBlockService {
         if (block == null || block.getMaxProperties() == null) {
             return null; // Unlimited capacity
         }
-        
+
         long currentCount = getPropertyCount(blockId);
         return Math.max(0, block.getMaxProperties() - (int) currentCount);
+    }
+
+    // ===== PROPERTY ORDERING WITHIN BLOCKS =====
+
+    @Override
+    public void reorderPropertiesInBlock(Long blockId, Map<Long, Integer> propertyOrderMap, Long updatedBy) {
+        log.info("🔄 Reordering {} properties in block {} by user {}",
+                propertyOrderMap.size(), blockId, updatedBy);
+
+        // Validate block exists
+        findById(blockId).orElseThrow(() -> new IllegalStateException("Block not found: " + blockId));
+
+        // Get all active assignments for this block
+        List<PropertyBlockAssignment> assignments = propertyBlockAssignmentRepository
+            .findByBlockIdAndIsActive(blockId, true);
+
+        // Update display order for each assignment
+        for (PropertyBlockAssignment assignment : assignments) {
+            Integer newOrder = propertyOrderMap.get(assignment.getProperty().getId());
+            if (newOrder != null && !newOrder.equals(assignment.getDisplayOrder())) {
+                assignment.setDisplayOrder(newOrder);
+                assignment.setUpdatedBy(updatedBy);
+                assignment.setUpdatedAt(LocalDateTime.now());
+                propertyBlockAssignmentRepository.save(assignment);
+            }
+        }
+
+        log.info("✅ Reordered properties in block {}", blockId);
+    }
+
+    @Override
+    public void movePropertyUp(Long blockId, Long propertyId, Long updatedBy) {
+        log.info("⬆️ Moving property {} up in block {}", propertyId, blockId);
+
+        // Get all assignments ordered by display_order
+        List<PropertyBlockAssignment> assignments = propertyBlockAssignmentRepository
+            .findByBlockIdAndIsActiveOrderByDisplayOrder(blockId, true);
+
+        // Find current property and swap with previous
+        for (int i = 1; i < assignments.size(); i++) {
+            PropertyBlockAssignment current = assignments.get(i);
+            if (current.getProperty().getId().equals(propertyId)) {
+                PropertyBlockAssignment previous = assignments.get(i - 1);
+
+                // Swap display orders
+                Integer temp = current.getDisplayOrder();
+                current.setDisplayOrder(previous.getDisplayOrder());
+                previous.setDisplayOrder(temp);
+
+                // Update metadata
+                current.setUpdatedBy(updatedBy);
+                current.setUpdatedAt(LocalDateTime.now());
+                previous.setUpdatedBy(updatedBy);
+                previous.setUpdatedAt(LocalDateTime.now());
+
+                // Save both
+                propertyBlockAssignmentRepository.save(current);
+                propertyBlockAssignmentRepository.save(previous);
+
+                log.info("✅ Moved property {} up in block {}", propertyId, blockId);
+                return;
+            }
+        }
+
+        log.warn("⚠️ Property {} is already at the top of block {}", propertyId, blockId);
+    }
+
+    @Override
+    public void movePropertyDown(Long blockId, Long propertyId, Long updatedBy) {
+        log.info("⬇️ Moving property {} down in block {}", propertyId, blockId);
+
+        // Get all assignments ordered by display_order
+        List<PropertyBlockAssignment> assignments = propertyBlockAssignmentRepository
+            .findByBlockIdAndIsActiveOrderByDisplayOrder(blockId, true);
+
+        // Find current property and swap with next
+        for (int i = 0; i < assignments.size() - 1; i++) {
+            PropertyBlockAssignment current = assignments.get(i);
+            if (current.getProperty().getId().equals(propertyId)) {
+                PropertyBlockAssignment next = assignments.get(i + 1);
+
+                // Swap display orders
+                Integer temp = current.getDisplayOrder();
+                current.setDisplayOrder(next.getDisplayOrder());
+                next.setDisplayOrder(temp);
+
+                // Update metadata
+                current.setUpdatedBy(updatedBy);
+                current.setUpdatedAt(LocalDateTime.now());
+                next.setUpdatedBy(updatedBy);
+                next.setUpdatedAt(LocalDateTime.now());
+
+                // Save both
+                propertyBlockAssignmentRepository.save(current);
+                propertyBlockAssignmentRepository.save(next);
+
+                log.info("✅ Moved property {} down in block {}", propertyId, blockId);
+                return;
+            }
+        }
+
+        log.warn("⚠️ Property {} is already at the bottom of block {}", propertyId, blockId);
     }
 }

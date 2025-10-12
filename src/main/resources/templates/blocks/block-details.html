@@ -395,23 +395,42 @@ function renderPropertiesTable(properties) {
             <table class="table table-hover">
                 <thead>
                     <tr>
+                        <th width="80">Order</th>
                         <th>Property Name</th>
                         <th>Type</th>
                         <th>Address</th>
                         <th>Postcode</th>
                         <th>Status</th>
-                        <th width="100">Actions</th>
+                        <th width="150">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
-    properties.forEach(property => {
+    properties.forEach((property, index) => {
         const address = [property.addressLine1, property.city].filter(x => x).join(', ');
         const statusBadge = property.status === 'ACTIVE' ? 'badge-success' : 'badge-secondary';
+        const isFirst = index === 0;
+        const isLast = index === properties.length - 1;
 
         html += `
             <tr>
+                <td>
+                    <div class="btn-group-vertical btn-group-sm">
+                        <button class="btn btn-outline-secondary btn-sm"
+                                onclick="movePropertyUp(${property.id})"
+                                ${isFirst ? 'disabled' : ''}
+                                title="Move up">
+                            <i class="fas fa-chevron-up"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm"
+                                onclick="movePropertyDown(${property.id})"
+                                ${isLast ? 'disabled' : ''}
+                                title="Move down">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </td>
                 <td>
                     <a href="/property/${property.id}" class="font-weight-bold">
                         ${property.propertyName || 'Unnamed Property'}
@@ -462,6 +481,48 @@ function removePropertyFromBlock(propertyId, propertyName) {
     .catch(error => {
         console.error('Error removing property:', error);
         alert('Error removing property from block');
+    });
+}
+
+function movePropertyUp(propertyId) {
+    fetch(`/portfolio/internal/blocks/${blockId}/properties/${propertyId}/move-up`, {
+        method: 'POST',
+        headers: {
+            [csrfHeader]: csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadBlockProperties(); // Reload to show new order
+        } else {
+            alert('Failed to move property: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error moving property:', error);
+        alert('Error moving property up');
+    });
+}
+
+function movePropertyDown(propertyId) {
+    fetch(`/portfolio/internal/blocks/${blockId}/properties/${propertyId}/move-down`, {
+        method: 'POST',
+        headers: {
+            [csrfHeader]: csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            loadBlockProperties(); // Reload to show new order
+        } else {
+            alert('Failed to move property: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error moving property:', error);
+        alert('Error moving property down');
     });
 }
 

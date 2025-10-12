@@ -788,14 +788,120 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
         }
     }
     
+    // ===== BLOCK TO PORTFOLIO ASSIGNMENT =====
+
+    /**
+     * Assign an entire block to a portfolio
+     * POST /portfolio/internal/assignment/{portfolioId}/assign-block/{blockId}
+     */
+    @PostMapping("/{portfolioId}/assign-block/{blockId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> assignBlockToPortfolio(
+            @PathVariable("portfolioId") Long portfolioId,
+            @PathVariable("blockId") Long blockId,
+            Authentication authentication) {
+
+        Map<String, Object> response = new HashMap<>();
+        log.info("🏗️ Assigning block {} to portfolio {}", blockId, portfolioId);
+
+        try {
+            if (!canUserEditPortfolio(portfolioId, authentication)) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+
+            Integer userId = getLoggedInUserId(authentication);
+            if (userId == null) {
+                response.put("success", false);
+                response.put("message", "User authentication failed");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            }
+
+            // Use the assignment service to assign block to portfolio
+            PortfolioAssignmentService.AssignmentResult result =
+                portfolioAssignmentService.assignBlockToPortfolio(portfolioId, blockId, userId.longValue());
+
+            response.put("success", result.isSuccess());
+            response.put("message", result.isSuccess() ?
+                String.format("Block assigned successfully: %d properties processed", result.getAssignedCount()) :
+                "Some errors occurred during assignment");
+            response.put("assignedCount", result.getAssignedCount());
+            response.put("syncedCount", result.getSyncedCount());
+            response.put("skippedCount", result.getSkippedCount());
+            response.put("errors", result.getErrors());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Failed to assign block {} to portfolio {}: {}",
+                blockId, portfolioId, e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Assignment failed: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    /**
+     * Get available blocks for assignment to a portfolio
+     * GET /portfolio/internal/assignment/{portfolioId}/available-blocks
+     */
+    @GetMapping("/{portfolioId}/available-blocks")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getAvailableBlocks(
+            @PathVariable("portfolioId") Long portfolioId,
+            Authentication authentication) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            if (!canUserEditPortfolio(portfolioId, authentication)) {
+                response.put("success", false);
+                response.put("message", "Access denied");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+            }
+
+            List<Block> availableBlocks = portfolioAssignmentService.getAvailableBlocksForPortfolio(portfolioId);
+
+            // Convert to response format
+            List<Map<String, Object>> blockData = availableBlocks.stream()
+                .map(block -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", block.getId());
+                    map.put("name", block.getName());
+                    map.put("blockType", block.getBlockType());
+                    map.put("description", block.getDescription());
+
+                    // Get property count via repository
+                    long propertyCount = blockRepository.countPropertiesInBlockViaAssignment(block.getId());
+                    map.put("propertyCount", propertyCount);
+
+                    return map;
+                })
+                .collect(Collectors.toList());
+
+            response.put("success", true);
+            response.put("availableBlocks", blockData);
+            response.put("totalCount", blockData.size());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Error getting available blocks for portfolio {}: {}", portfolioId, e.getMessage(), e);
+            response.put("success", false);
+            response.put("message", "Failed to get available blocks: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
     // ===== UTILITY METHODS =====
-    
+
     /**
      * Check if property has any portfolio assignments
      */
     private boolean hasAnyPortfolioAssignment(Long propertyId) {
         try {
-            List<PropertyPortfolioAssignment> assignments = 
+            List<PropertyPortfolioAssignment> assignments =
                 propertyPortfolioAssignmentRepository.findByPropertyIdAndIsActive(propertyId, true);
             return !assignments.isEmpty();
         } catch (Exception e) {

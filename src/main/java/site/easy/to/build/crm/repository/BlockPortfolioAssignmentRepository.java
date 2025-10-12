@@ -60,6 +60,13 @@ public interface BlockPortfolioAssignmentRepository extends JpaRepository<BlockP
     List<Block> findUnassignedBlocks();
 
     /**
+     * Find blocks available for assignment to a specific portfolio (not already assigned to it)
+     */
+    @Query("SELECT b FROM Block b WHERE b.isActive = 'Y' AND b.id NOT IN " +
+           "(SELECT bpa.block.id FROM BlockPortfolioAssignment bpa WHERE bpa.portfolio.id = :portfolioId AND bpa.isActive = true)")
+    List<Block> findAvailableBlocksForPortfolio(@Param("portfolioId") Long portfolioId);
+
+    /**
      * Count active assignments for a block
      */
     @Query("SELECT COUNT(bpa) FROM BlockPortfolioAssignment bpa WHERE bpa.block.id = :blockId AND bpa.isActive = true")

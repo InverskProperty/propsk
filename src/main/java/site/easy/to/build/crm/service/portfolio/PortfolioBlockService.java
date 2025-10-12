@@ -204,8 +204,34 @@ public interface PortfolioBlockService {
      */
     List<Block> getBlocksNearingCapacity(double thresholdPercentage);
     
+    // ===== PROPERTY ORDERING WITHIN BLOCKS =====
+
+    /**
+     * Reorder properties within a block
+     * @param blockId Block ID
+     * @param propertyOrderMap Map of property ID to new display order
+     * @param updatedBy User ID making the change
+     */
+    void reorderPropertiesInBlock(Long blockId, java.util.Map<Long, Integer> propertyOrderMap, Long updatedBy);
+
+    /**
+     * Move property up in block display order
+     * @param blockId Block ID
+     * @param propertyId Property to move up
+     * @param updatedBy User ID making the change
+     */
+    void movePropertyUp(Long blockId, Long propertyId, Long updatedBy);
+
+    /**
+     * Move property down in block display order
+     * @param blockId Block ID
+     * @param propertyId Property to move down
+     * @param updatedBy User ID making the change
+     */
+    void movePropertyDown(Long blockId, Long propertyId, Long updatedBy);
+
     // ===== BLOCK CAPACITY MANAGEMENT =====
-    
+
     /**
      * Set maximum properties for a block
      * @param blockId Block ID

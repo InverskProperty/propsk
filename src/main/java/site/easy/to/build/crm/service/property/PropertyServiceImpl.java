@@ -325,17 +325,13 @@ public class PropertyServiceImpl implements PropertyService {
     }
 
     // ✅ Junction table-based property-owner relationships
+    // Properties are ordered by display_order within blocks, then alphabetically for standalone properties
     @Override
     public List<Property> getPropertiesByOwner(Long ownerId) {
         try {
-            var assignments = assignmentRepository.findByCustomerCustomerIdAndAssignmentType(
+            // Use new ordered query that respects block display_order
+            return assignmentRepository.findPropertiesByCustomerIdAndAssignmentTypeOrdered(
                 ownerId, AssignmentType.OWNER);
-            
-            return assignments.stream()
-                .map(assignment -> assignment.getProperty())
-                .filter(property -> property != null)
-                .distinct()
-                .toList();
         } catch (Exception e) {
             System.err.println("❌ Failed to get properties for owner " + ownerId + ": " + e.getMessage());
             return new ArrayList<>();

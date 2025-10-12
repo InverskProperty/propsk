@@ -49,7 +49,10 @@ public class PortfolioControllerBase {
     
     @Autowired
     protected PropertyPortfolioAssignmentRepository propertyPortfolioAssignmentRepository;
-    
+
+    @Autowired
+    protected BlockRepository blockRepository;
+
     @Autowired
     protected AuthenticationUtils authenticationUtils;
     

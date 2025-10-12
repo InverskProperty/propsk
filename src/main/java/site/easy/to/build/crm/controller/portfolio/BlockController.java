@@ -403,16 +403,133 @@ public class BlockController extends PortfolioControllerBase {
         }
     }
     
+    // ===== PROPERTY ORDERING WITHIN BLOCKS =====
+
+    /**
+     * Reorder properties within a block
+     * POST /portfolio/blocks/{id}/reorder-properties
+     */
+    @PostMapping("/{id}/reorder-properties")
+    @ResponseBody
+    public ResponseEntity<?> reorderPropertiesInBlock(@PathVariable Long id,
+                                                     @RequestBody Map<String, Integer> propertyOrder,
+                                                     Authentication auth) {
+        log.info("🔄 Reordering properties in block {}", id);
+
+        try {
+            // Get current user
+            Integer userId = getLoggedInUserId(auth);
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+
+            // Convert string keys to Long keys
+            Map<Long, Integer> propertyOrderMap = new HashMap<>();
+            for (Map.Entry<String, Integer> entry : propertyOrder.entrySet()) {
+                try {
+                    Long propertyId = Long.parseLong(entry.getKey());
+                    propertyOrderMap.put(propertyId, entry.getValue());
+                } catch (NumberFormatException e) {
+                    return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Invalid property ID: " + entry.getKey()));
+                }
+            }
+
+            // Reorder properties
+            portfolioBlockService.reorderPropertiesInBlock(id, propertyOrderMap, userId.longValue());
+
+            log.info("✅ Reordered properties in block {} successfully", id);
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Properties reordered successfully"
+            ));
+
+        } catch (Exception e) {
+            log.error("❌ Failed to reorder properties in block {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to reorder properties: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Move property up in block order
+     * POST /portfolio/blocks/{id}/properties/{propertyId}/move-up
+     */
+    @PostMapping("/{id}/properties/{propertyId}/move-up")
+    @ResponseBody
+    public ResponseEntity<?> movePropertyUp(@PathVariable Long id,
+                                          @PathVariable Long propertyId,
+                                          Authentication auth) {
+        log.info("⬆️ Moving property {} up in block {}", propertyId, id);
+
+        try {
+            // Get current user
+            Integer userId = getLoggedInUserId(auth);
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+
+            portfolioBlockService.movePropertyUp(id, propertyId, userId.longValue());
+
+            log.info("✅ Moved property {} up successfully", propertyId);
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Property moved up successfully"
+            ));
+
+        } catch (Exception e) {
+            log.error("❌ Failed to move property {} up: {}", propertyId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to move property up: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Move property down in block order
+     * POST /portfolio/blocks/{id}/properties/{propertyId}/move-down
+     */
+    @PostMapping("/{id}/properties/{propertyId}/move-down")
+    @ResponseBody
+    public ResponseEntity<?> movePropertyDown(@PathVariable Long id,
+                                            @PathVariable Long propertyId,
+                                            Authentication auth) {
+        log.info("⬇️ Moving property {} down in block {}", propertyId, id);
+
+        try {
+            // Get current user
+            Integer userId = getLoggedInUserId(auth);
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+
+            portfolioBlockService.movePropertyDown(id, propertyId, userId.longValue());
+
+            log.info("✅ Moved property {} down successfully", propertyId);
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Property moved down successfully"
+            ));
+
+        } catch (Exception e) {
+            log.error("❌ Failed to move property {} down: {}", propertyId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to move property down: " + e.getMessage()));
+        }
+    }
+
     // ===== BLOCK CAPACITY MANAGEMENT =====
-    
+
     /**
      * Set block capacity
      * POST /portfolio/blocks/{id}/capacity
      */
     @PostMapping("/{id}/capacity")
     @ResponseBody
-    public ResponseEntity<?> setBlockCapacity(@PathVariable Long id, 
-                                            @RequestParam Integer maxProperties, 
+    public ResponseEntity<?> setBlockCapacity(@PathVariable Long id,
+                                            @RequestParam Integer maxProperties,
                                             Authentication auth) {
         log.info("🏗️ Setting capacity for block {} to {}", id, maxProperties);
         
