@@ -57,14 +57,23 @@ public class BlockPayPropController extends PortfolioControllerBase {
             }
             
             Block block = blockOpt.get();
-            Long portfolioId = block.getPortfolio().getId();
-            
-            // Check permissions
-            if (!canUserEditPortfolio(portfolioId, auth)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Access denied"));
+
+            // Check permissions - standalone blocks (no portfolio) can be synced by any authenticated user
+            if (block.getPortfolio() != null) {
+                Long portfolioId = block.getPortfolio().getId();
+                if (!canUserEditPortfolio(portfolioId, auth)) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Access denied"));
+                }
+            } else {
+                // For standalone blocks, just verify user is authenticated
+                Integer userId = getLoggedInUserId(auth);
+                if (userId == null) {
+                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Authentication required"));
+                }
             }
-            
+
             // Sync the block
             PayPropBlockSyncService.BlockSyncResult result = blockSyncService.syncBlockToPayProp(blockId);
             
@@ -343,9 +352,10 @@ public class BlockPayPropController extends PortfolioControllerBase {
             Map<String, List<Map<String, Object>>> blocksByPortfolio = new HashMap<>();
             
             for (Block block : blocksNeedingSync) {
-                String portfolioKey = String.format("%s (ID: %d)", 
-                    block.getPortfolio().getName(), block.getPortfolio().getId());
-                
+                String portfolioKey = block.getPortfolio() != null ?
+                    String.format("%s (ID: %d)", block.getPortfolio().getName(), block.getPortfolio().getId()) :
+                    "Standalone Blocks (No Portfolio)";
+
                 Map<String, Object> blockData = new HashMap<>();
                 blockData.put("id", block.getId());
                 blockData.put("name", block.getName());
@@ -354,7 +364,8 @@ public class BlockPayPropController extends PortfolioControllerBase {
                 blockData.put("payPropTags", block.getPayPropTags());
                 blockData.put("lastSyncAt", block.getLastSyncAt());
                 blockData.put("propertyCount", portfolioBlockService.getPropertyCount(block.getId()));
-                
+                blockData.put("portfolioId", block.getPortfolio() != null ? block.getPortfolio().getId() : null);
+
                 blocksByPortfolio.computeIfAbsent(portfolioKey, k -> new ArrayList<>()).add(blockData);
             }
             
@@ -388,26 +399,35 @@ public class BlockPayPropController extends PortfolioControllerBase {
             }
             
             Block block = blockOpt.get();
-            Long portfolioId = block.getPortfolio().getId();
-            
-            // Check permissions
-            if (!canUserEditPortfolio(portfolioId, auth)) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Access denied"));
+
+            // Check permissions - standalone blocks (no portfolio) can be accessed by any authenticated user
+            if (block.getPortfolio() != null) {
+                Long portfolioId = block.getPortfolio().getId();
+                if (!canUserEditPortfolio(portfolioId, auth)) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Access denied"));
+                }
+            } else {
+                // For standalone blocks, just verify user is authenticated
+                Integer userId = getLoggedInUserId(auth);
+                if (userId == null) {
+                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Authentication required"));
+                }
             }
-            
+
             long propertyCount = portfolioBlockService.getPropertyCount(blockId);
-            boolean needsSync = block.getSyncStatus() == SyncStatus.pending || 
+            boolean needsSync = block.getSyncStatus() == SyncStatus.pending ||
                               block.getSyncStatus() == SyncStatus.failed ||
                               (block.getPayPropTagNames() != null && !block.getPayPropTagNames().trim().isEmpty() &&
                                (block.getPayPropTags() == null || block.getPayPropTags().trim().isEmpty()));
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("blockId", blockId);
             response.put("blockName", block.getName());
-            response.put("portfolioId", portfolioId);
-            response.put("portfolioName", block.getPortfolio().getName());
+            response.put("portfolioId", block.getPortfolio() != null ? block.getPortfolio().getId() : null);
+            response.put("portfolioName", block.getPortfolio() != null ? block.getPortfolio().getName() : "Standalone Block");
             response.put("syncStatus", block.getSyncStatus());
             response.put("payPropTagNames", block.getPayPropTagNames());
             response.put("payPropTags", block.getPayPropTags());

@@ -120,8 +120,8 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
     List<Block> findBlocksWithMissingPayPropTags();
     
     // Count properties in block via assignment table (more accurate)
-    @Query("SELECT COUNT(ppa) FROM PropertyPortfolioAssignment ppa " +
-           "WHERE ppa.block.id = :blockId AND ppa.isActive = true")
+    @Query("SELECT COUNT(pba) FROM PropertyBlockAssignment pba " +
+           "WHERE pba.block.id = :blockId AND pba.isActive = true")
     long countPropertiesInBlockViaAssignment(@Param("blockId") Long blockId);
     
     // Check if block name is unique within portfolio
