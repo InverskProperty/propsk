@@ -389,7 +389,8 @@ public class BlockViewController {
             }
 
             Block block = blockOpt.get();
-            List<Property> properties = propertyBlockAssignmentRepository.findPropertiesByBlockId(id);
+            // Use ordered query to respect display_order
+            List<Property> properties = propertyBlockAssignmentRepository.findPropertiesByBlockIdOrdered(id);
 
             // Convert to DTOs
             List<Map<String, Object>> propertyDTOs = properties.stream()
