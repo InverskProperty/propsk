@@ -81,11 +81,12 @@ public interface BlockRepository extends JpaRepository<Block, Long> {
     @Query("SELECT b FROM Block b JOIN FETCH b.properties WHERE b.id = :blockId")
     Optional<Block> findByIdWithProperties(@Param("blockId") Long blockId);
     
-    @Query("SELECT b, COUNT(p) as propertyCount FROM Block b " +
-           "LEFT JOIN b.properties p " +
-           "WHERE b.portfolio.id = :portfolioId AND b.isActive = 'Y' " +
+    @Query("SELECT b, COUNT(DISTINCT ppa.property.id) as propertyCount FROM Block b " +
+           "JOIN BlockPortfolioAssignment bpa ON bpa.block.id = b.id " +
+           "LEFT JOIN PropertyPortfolioAssignment ppa ON ppa.block.id = b.id AND ppa.portfolio.id = :portfolioId AND ppa.isActive = true " +
+           "WHERE bpa.portfolio.id = :portfolioId AND bpa.isActive = true AND b.isActive = 'Y' " +
            "GROUP BY b.id " +
-           "ORDER BY propertyCount DESC")
+           "ORDER BY b.displayOrder, b.name")
     List<Object[]> findBlocksWithPropertyCountsByPortfolio(@Param("portfolioId") Long portfolioId);
     
     // Geographic clustering
