@@ -769,65 +769,63 @@ public class PropertyOwnerController {
             }
 
             List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
-            List<Customer> tenants; // FIXED: Use Customer instead of Tenant
+
+            // ===== NEW: Get tenant assignments with property and date information =====
+            List<CustomerPropertyAssignment> tenantAssignments;
 
             if (propertyId != null) {
                 // Verify property ownership
                 boolean ownsProperty = properties.stream()
                     .anyMatch(p -> p.getId().equals(propertyId));
-                
+
                 if (!ownsProperty) {
                     return "redirect:/access-denied";
                 }
-                
-                // FIXED: Use CustomerService instead of empty TenantService
-                tenants = customerService.findTenantsByProperty(propertyId);
+
+                // Get tenant assignments for specific property
+                tenantAssignments = customerPropertyAssignmentRepository.findByPropertyId(propertyId).stream()
+                    .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
+                    .collect(Collectors.toList());
                 model.addAttribute("selectedPropertyId", propertyId);
             } else {
-                // Get all tenants for all properties - FIXED: Use CustomerService
-                tenants = properties.stream()
-                    .flatMap(property -> customerService.findTenantsByProperty(property.getId()).stream())
+                // Get all tenant assignments across all properties
+                tenantAssignments = properties.stream()
+                    .flatMap(property -> customerPropertyAssignmentRepository.findByPropertyId(property.getId()).stream())
+                    .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
                     .collect(Collectors.toList());
             }
+
+            // Get unique tenant customers from assignments for backward compatibility
+            List<Customer> tenants = tenantAssignments.stream()
+                .map(CustomerPropertyAssignment::getCustomer)
+                .distinct()
+                .collect(Collectors.toList());
 
             // ===== DEBUGGING: Check data relationships =====
             System.out.println("🔍 DEBUGGING TENANT LOOKUP:");
             System.out.println("   Customer ID: " + customer.getCustomerId());
             System.out.println("   Number of properties: " + properties.size());
-            
-            for (int i = 0; i < Math.min(3, properties.size()); i++) { // Check first 3 properties
-                Property property = properties.get(i);
-                System.out.println("   Property ID " + property.getId() + ":");
-                List<Customer> propertyTenants = customerService.findTenantsByProperty(property.getId());
-                System.out.println("     - Tenants found: " + propertyTenants.size());
-                
-                // Check tenant-specific details
-                for (Customer tenant : propertyTenants) {
-                    System.out.println("       * Tenant " + tenant.getCustomerId() + " - " + tenant.getEmail() + 
-                                     " (Type: " + tenant.getCustomerType() + ", EntityId: " + tenant.getEntityId() + ")");
-                }
-            }
-            
+            System.out.println("   Number of tenant assignments: " + tenantAssignments.size());
+
             // ===== CALCULATE STATISTICS =====
-            
-            // 1. Total Tenants (already calculated)
-            int totalTenants = tenants.size();
-            
-            // 2. Active Leases (tenants without move-out date or future move-out date)
+
+            // 1. Total Tenants
+            int totalTenants = tenantAssignments.size();
+
+            // 2. Active Leases (assignments without end_date or future end_date)
             LocalDate today = LocalDate.now();
-            int activeLeases = (int) tenants.stream()
-                .filter(tenant -> tenant.getMoveOutDate() == null || tenant.getMoveOutDate().isAfter(today))
+            int activeLeases = (int) tenantAssignments.stream()
+                .filter(assignment -> assignment.getEndDate() == null || assignment.getEndDate().isAfter(today))
                 .count();
-            
-            // 3. Pending Reviews (tenants with move-in date within last 30 days)
+
+            // 3. Pending Reviews (tenants with start_date within last 30 days)
             LocalDate thirtyDaysAgo = today.minusDays(30);
-            int pendingReviews = (int) tenants.stream()
-                .filter(tenant -> tenant.getMoveInDate() != null && 
-                                tenant.getMoveInDate().isAfter(thirtyDaysAgo))
+            int pendingReviews = (int) tenantAssignments.stream()
+                .filter(assignment -> assignment.getStartDate() != null &&
+                                assignment.getStartDate().isAfter(thirtyDaysAgo))
                 .count();
-            
+
             // 4. Total Monthly Income (sum of monthly payments from occupied properties)
-            // FIXED: Since we're already getting tenants for ALL properties, check active tenants per property
             BigDecimal totalRentalIncome = properties.stream()
                 .filter(property -> {
                     // Check if property has active tenants using assignment service
@@ -847,8 +845,9 @@ public class PropertyOwnerController {
                 model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
             }
 
-            // Add all statistics to model
-            model.addAttribute("tenants", tenants);
+            // Add all data to model - NEW: include tenantAssignments for enhanced display
+            model.addAttribute("tenants", tenants); // For backward compatibility
+            model.addAttribute("tenantAssignments", tenantAssignments); // NEW: Full assignment data
             model.addAttribute("properties", properties);
             model.addAttribute("activeTenantsCount", activeLeases);
             model.addAttribute("pendingTenantsCount", pendingReviews);

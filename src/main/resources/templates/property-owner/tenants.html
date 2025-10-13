@@ -206,7 +206,7 @@
             <div class="row">
                 <div class="col-12">
                     <!-- Show message when no tenants -->
-                    <div th:if="${tenants == null or #lists.isEmpty(tenants)}" class="card">
+                    <div th:if="${tenantAssignments == null or #lists.isEmpty(tenantAssignments)}" class="card">
                         <div class="card-body text-center py-5">
                             <i class="fas fa-users fa-4x text-muted mb-3"></i>
                             <h4 class="text-muted">No Tenants Found</h4>
@@ -224,25 +224,32 @@
                         </div>
                     </div>
                     
-                    <!-- Tenant Cards -->
-                    <div th:if="${tenants != null and !#lists.isEmpty(tenants)}" class="row">
-                        <div th:each="tenant : ${tenants}" class="col-lg-6 col-xl-4 mb-4">
+                    <!-- Tenant Cards - NEW: Using tenantAssignments for enhanced display -->
+                    <div th:if="${tenantAssignments != null and !#lists.isEmpty(tenantAssignments)}" class="row">
+                        <div th:each="assignment : ${tenantAssignments}" class="col-lg-6 col-xl-4 mb-4">
                             <div class="card tenant-card">
                                 <div class="card-body">
                                     <!-- Tenant Header -->
                                     <div class="d-flex align-items-center mb-3">
-                                        <div class="tenant-avatar" th:text="${#strings.substring((tenant.firstName ?: tenant.businessName ?: 'T'), 0, 1)}">T</div>
+                                        <div class="tenant-avatar" th:text="${#strings.substring((assignment.customer.firstName ?: assignment.customer.businessName ?: 'T'), 0, 1)}">T</div>
                                         <div class="ml-3 flex-grow-1">
                                             <h5 class="mb-0">
-                                                <span th:if="${tenant.firstName != null and tenant.lastName != null}" th:text="${tenant.firstName + ' ' + tenant.lastName}"></span>
-                                                <span th:if="${tenant.firstName != null and tenant.lastName == null}" th:text="${tenant.firstName}"></span>
-                                                <span th:if="${tenant.firstName == null and tenant.businessName != null}" th:text="${tenant.businessName}"></span>
-                                                <span th:if="${tenant.firstName == null and tenant.businessName == null}">Tenant Name</span>
+                                                <span th:if="${assignment.customer.firstName != null and assignment.customer.lastName != null}"
+                                                      th:text="${assignment.customer.firstName + ' ' + assignment.customer.lastName}"></span>
+                                                <span th:if="${assignment.customer.firstName != null and assignment.customer.lastName == null}"
+                                                      th:text="${assignment.customer.firstName}"></span>
+                                                <span th:if="${assignment.customer.firstName == null and assignment.customer.businessName != null}"
+                                                      th:text="${assignment.customer.businessName}"></span>
+                                                <span th:if="${assignment.customer.firstName == null and assignment.customer.businessName == null}">Tenant Name</span>
                                             </h5>
-                                            <p class="text-muted mb-0 small" th:text="${tenant.email ?: 'No email provided'}">Email</p>
-                                            <small class="status-active">
-                                                <i class="fas fa-circle"></i> 
-                                                <span th:text="${tenant.description ?: 'Active'}">Active</span> Lease
+                                            <p class="text-muted mb-0 small" th:text="${assignment.customer.email ?: 'No email provided'}">Email</p>
+                                            <!-- NEW: Dynamic tenancy status based on dates -->
+                                            <small th:with="today=${T(java.time.LocalDate).now()},
+                                                           isActive=${assignment.endDate == null or assignment.endDate.isAfter(today)},
+                                                           isPending=${assignment.startDate != null and assignment.startDate.isAfter(today)}"
+                                                   th:class="${isActive and !isPending} ? 'status-active' : 'status-inactive'">
+                                                <i class="fas fa-circle"></i>
+                                                <span th:text="${isPending} ? 'Pending' : (${isActive} ? 'Active' : 'Inactive')">Active</span> Lease
                                             </small>
                                         </div>
                                         <div class="dropdown">
@@ -250,8 +257,12 @@
                                                 <i class="fas fa-ellipsis-v"></i>
                                             </button>
                                             <div class="dropdown-menu dropdown-menu-right">
-                                                <a class="dropdown-item" href="#" onclick="showTenantDetails(this)" 
-                                                   th:attr="data-tenant-name=${tenant.firstName != null ? (tenant.firstName + ' ' + (tenant.lastName ?: '')) : (tenant.businessName ?: 'Tenant')}, data-tenant-email=${tenant.email ?: 'No email'}">
+                                                <a class="dropdown-item" href="#" onclick="showTenantDetails(this)"
+                                                   th:attr="data-tenant-name=${assignment.customer.firstName != null ? (assignment.customer.firstName + ' ' + (assignment.customer.lastName ?: '')) : (assignment.customer.businessName ?: 'Tenant')},
+                                                           data-tenant-email=${assignment.customer.email ?: 'No email'},
+                                                           data-property=${assignment.property != null ? assignment.property.propertyName : 'Unknown'},
+                                                           data-start-date=${assignment.startDate != null ? #temporals.format(assignment.startDate, 'dd/MM/yyyy') : 'Not set'},
+                                                           data-end-date=${assignment.endDate != null ? #temporals.format(assignment.endDate, 'dd/MM/yyyy') : 'Ongoing'}">
                                                     <i class="fas fa-eye"></i> View Details
                                                 </a>
                                                 <a class="dropdown-item" href="#" onclick="showComingSoon('Edit Tenant')">
@@ -263,46 +274,80 @@
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    <!-- Property Information -->
+
+                                    <!-- Property Information - NEW: Display actual property from assignment -->
                                     <div class="mb-3">
                                         <h6><i class="fas fa-home text-primary"></i> Property</h6>
-                                        <p class="mb-0">Property details will be available soon</p>
-                                        <small class="text-muted">Feature coming soon</small>
+                                        <p class="mb-0" th:text="${assignment.property?.propertyName ?: (assignment.property?.addressLine1 ?: 'Property details unavailable')}">Property Name</p>
+                                        <small class="text-muted" th:text="${assignment.property?.city ? (assignment.property.city + ', ' + (assignment.property.postcode ?: '')) : 'Location not set'}">Location</small>
                                     </div>
-                                    
-                                    <!-- Rental Information -->
+
+                                    <!-- Tenancy Dates - NEW: Show start/end dates and duration -->
                                     <div class="rental-info">
                                         <div class="row">
                                             <div class="col-6">
-                                                <small class="text-muted d-block">Contact</small>
-                                                <strong th:text="${tenant.email ?: 'No email'}">No email</strong>
+                                                <small class="text-muted d-block">Move-In Date</small>
+                                                <strong th:text="${assignment.startDate != null ? #temporals.format(assignment.startDate, 'dd/MM/yyyy') : 'Not set'}">Not set</strong>
                                             </div>
                                             <div class="col-6">
-                                                <small class="text-muted d-block">Phone</small>
-                                                <strong th:text="${tenant.phone ?: (tenant.mobileNumber ?: 'Not provided')}">Not provided</strong>
+                                                <small class="text-muted d-block">Move-Out Date</small>
+                                                <strong th:text="${assignment.endDate != null ? #temporals.format(assignment.endDate, 'dd/MM/yyyy') : 'Ongoing'}">Ongoing</strong>
                                             </div>
                                         </div>
                                         <div class="row mt-2">
-                                            <div class="col-12">
-                                                <small class="text-muted d-block">Tenant Type</small>
+                                            <div class="col-6">
+                                                <small class="text-muted d-block">Contact</small>
+                                                <strong th:text="${assignment.customer.phone ?: (assignment.customer.mobileNumber ?: 'Not provided')}">Not provided</strong>
+                                            </div>
+                                            <div class="col-6" th:with="today=${T(java.time.LocalDate).now()},
+                                                                         daysSinceStart=${assignment.startDate != null and !assignment.startDate.isAfter(today) ? T(java.time.temporal.ChronoUnit).DAYS.between(assignment.startDate, today) : 0},
+                                                                         daysUntilEnd=${assignment.endDate != null and assignment.endDate.isAfter(today) ? T(java.time.temporal.ChronoUnit).DAYS.between(today, assignment.endDate) : -1}">
+                                                <small class="text-muted d-block">
+                                                    <span th:if="${assignment.startDate != null and assignment.startDate.isAfter(today)}">Starts In</span>
+                                                    <span th:if="${assignment.startDate != null and !assignment.startDate.isAfter(today) and (assignment.endDate == null or assignment.endDate.isAfter(today))}">Tenancy Length</span>
+                                                    <span th:if="${assignment.endDate != null and !assignment.endDate.isAfter(today)}">Ended</span>
+                                                </small>
                                                 <strong>
-                                                    <span class="badge badge-info" th:text="${tenant.customerType ?: 'TENANT'}">TENANT</span>
+                                                    <span th:if="${assignment.startDate != null and assignment.startDate.isAfter(today)}"
+                                                          th:text="${T(java.time.temporal.ChronoUnit).DAYS.between(today, assignment.startDate)} + ' days'">Days</span>
+                                                    <span th:if="${assignment.startDate != null and !assignment.startDate.isAfter(today) and (assignment.endDate == null or assignment.endDate.isAfter(today))}"
+                                                          th:text="${daysSinceStart >= 365 ? (daysSinceStart / 365 + ' years') : (daysSinceStart >= 30 ? (daysSinceStart / 30 + ' months') : (daysSinceStart + ' days'))}">Duration</span>
+                                                    <span th:if="${assignment.endDate != null and !assignment.endDate.isAfter(today)}"
+                                                          th:text="${T(java.time.temporal.ChronoUnit).DAYS.between(assignment.endDate, today)} + ' days ago'">Days ago</span>
                                                 </strong>
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <!-- Action Buttons -->
                                     <div class="mt-3">
                                         <button class="btn btn-primary btn-sm" onclick="showTenantDetails(this)"
-                                                th:attr="data-tenant-name=${tenant.firstName != null ? (tenant.firstName + ' ' + (tenant.lastName ?: '')) : (tenant.businessName ?: 'Tenant')}, data-tenant-email=${tenant.email ?: 'No email'}">
+                                                th:attr="data-tenant-name=${assignment.customer.firstName != null ? (assignment.customer.firstName + ' ' + (assignment.customer.lastName ?: '')) : (assignment.customer.businessName ?: 'Tenant')},
+                                                        data-tenant-email=${assignment.customer.email ?: 'No email'},
+                                                        data-property=${assignment.property != null ? assignment.property.propertyName : 'Unknown'},
+                                                        data-start-date=${assignment.startDate != null ? #temporals.format(assignment.startDate, 'dd/MM/yyyy') : 'Not set'},
+                                                        data-end-date=${assignment.endDate != null ? #temporals.format(assignment.endDate, 'dd/MM/yyyy') : 'Ongoing'}">
                                             <i class="fas fa-eye"></i> View Details
                                         </button>
                                         <button class="btn btn-outline-secondary btn-sm ml-2" onclick="showComingSoon('Rent History')">
                                             <i class="fas fa-history"></i> Rent History
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Fallback for legacy tenants display (if tenantAssignments not available) -->
+                    <div th:if="${(tenantAssignments == null or #lists.isEmpty(tenantAssignments)) and tenants != null and !#lists.isEmpty(tenants)}" class="row">
+                        <div th:each="tenant : ${tenants}" class="col-lg-6 col-xl-4 mb-4">
+                            <div class="card tenant-card">
+                                <div class="card-body">
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <strong>Legacy View:</strong> Enhanced tenant information is not available. Please contact support.
+                                    </div>
+                                    <p th:text="${tenant.email}">Tenant Email</p>
                                 </div>
                             </div>
                         </div>
@@ -361,7 +406,10 @@ function filterByProperty() {
 function showTenantDetails(button) {
     const tenantName = button.getAttribute('data-tenant-name');
     const tenantEmail = button.getAttribute('data-tenant-email');
-    
+    const property = button.getAttribute('data-property');
+    const startDate = button.getAttribute('data-start-date');
+    const endDate = button.getAttribute('data-end-date');
+
     document.getElementById('tenantDetails').innerHTML = `
         <div class="row">
             <div class="col-12">
@@ -372,15 +420,45 @@ function showTenantDetails(button) {
                     <h4>${tenantName || 'Tenant Name'}</h4>
                     <p class="text-muted">${tenantEmail || 'No email provided'}</p>
                 </div>
-                
+
+                <!-- NEW: Enhanced Tenancy Information -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-3"><i class="fas fa-home text-primary"></i> Tenancy Details</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <small class="text-muted d-block">Property</small>
+                                    <strong>${property || 'Not assigned'}</strong>
+                                </div>
+                                <div class="mb-3">
+                                    <small class="text-muted d-block">Move-In Date</small>
+                                    <strong>${startDate || 'Not set'}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <small class="text-muted d-block">Email</small>
+                                    <strong>${tenantEmail || 'No email provided'}</strong>
+                                </div>
+                                <div class="mb-3">
+                                    <small class="text-muted d-block">Move-Out Date</small>
+                                    <strong>${endDate || 'Ongoing'}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="row">
                     <div class="col-md-6">
-                        <h6><i class="fas fa-info-circle text-primary"></i> Current Features</h6>
+                        <h6><i class="fas fa-check-circle text-success"></i> Available Now</h6>
                         <ul class="list-unstyled">
-                            <li><i class="fas fa-check text-success"></i> Basic tenant information</li>
-                            <li><i class="fas fa-check text-success"></i> Property assignment</li>
-                            <li><i class="fas fa-check text-success"></i> Contact details</li>
-                            <li><i class="fas fa-check text-success"></i> Lease dates</li>
+                            <li><i class="fas fa-check text-success"></i> Tenant contact information</li>
+                            <li><i class="fas fa-check text-success"></i> Property assignment details</li>
+                            <li><i class="fas fa-check text-success"></i> Move-in and move-out dates</li>
+                            <li><i class="fas fa-check text-success"></i> Tenancy status tracking</li>
+                            <li><i class="fas fa-check text-success"></i> Tenancy length calculation</li>
                         </ul>
                     </div>
                     <div class="col-md-6">
@@ -395,16 +473,16 @@ function showTenantDetails(button) {
                         </ul>
                     </div>
                 </div>
-                
+
                 <div class="alert alert-info mt-3">
                     <i class="fas fa-lightbulb"></i>
-                    <strong>Stay tuned!</strong> We're working hard to bring you comprehensive tenant management tools. 
-                    These features will help you streamline your property management workflow.
+                    <strong>Enhanced Tenant View!</strong> You can now see move-in dates, move-out dates, and tenancy status for all your tenants.
+                    More features are coming soon to help you streamline your property management workflow.
                 </div>
             </div>
         </div>
     `;
-    
+
     // Ensure jQuery and Bootstrap are loaded
     if (typeof $ !== 'undefined') {
         $('#tenantModal').modal('show');
