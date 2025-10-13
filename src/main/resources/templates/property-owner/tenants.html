@@ -275,21 +275,20 @@
                                     <div class="rental-info">
                                         <div class="row">
                                             <div class="col-6">
-                                                <small class="text-muted d-block">Monthly Rent</small>
-                                                <strong th:text="'£' + ${tenant.property?.monthlyPayment ?: (tenant.monthlyRent ?: 0)}">£0</strong>
+                                                <small class="text-muted d-block">Contact</small>
+                                                <strong th:text="${tenant.email ?: 'No email'}">No email</strong>
                                             </div>
                                             <div class="col-6">
-                                                <small class="text-muted d-block">Move-in Date</small>
-                                                <strong>
-                                                    <span th:if="${tenant.moveInDate != null}" th:text="${#temporals.format(tenant.moveInDate, 'MMM yyyy')}"></span>
-                                                    <span th:if="${tenant.moveInDate == null}">Not Set</span>
-                                                </strong>
+                                                <small class="text-muted d-block">Phone</small>
+                                                <strong th:text="${tenant.phone ?: (tenant.mobileNumber ?: 'Not provided')}">Not provided</strong>
                                             </div>
                                         </div>
-                                        <div class="row mt-2" th:if="${tenant.moveOutDate != null}">
+                                        <div class="row mt-2">
                                             <div class="col-12">
-                                                <small class="text-muted d-block">Move-out Date</small>
-                                                <strong th:text="${#temporals.format(tenant.moveOutDate, 'dd MMM yyyy')}">Date</strong>
+                                                <small class="text-muted d-block">Tenant Type</small>
+                                                <strong>
+                                                    <span class="badge badge-info" th:text="${tenant.customerType ?: 'TENANT'}">TENANT</span>
+                                                </strong>
                                             </div>
                                         </div>
                                     </div>
@@ -297,7 +296,7 @@
                                     <!-- Action Buttons -->
                                     <div class="mt-3">
                                         <button class="btn btn-primary btn-sm" onclick="showTenantDetails(this)"
-                                                th:attr="data-tenant-name=${tenant.firstName != null ? (tenant.firstName + ' ' + (tenant.lastName ?: '')) : (tenant.businessName ?: 'Tenant')}, data-tenant-email=${tenant.emailAddress ?: 'No email'}">
+                                                th:attr="data-tenant-name=${tenant.firstName != null ? (tenant.firstName + ' ' + (tenant.lastName ?: '')) : (tenant.businessName ?: 'Tenant')}, data-tenant-email=${tenant.email ?: 'No email'}">
                                             <i class="fas fa-eye"></i> View Details
                                         </button>
                                         <button class="btn btn-outline-secondary btn-sm ml-2" onclick="showComingSoon('Rent History')">
