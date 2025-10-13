@@ -226,9 +226,17 @@ The CRM uses a sophisticated entity relationship model designed to support prope
 - **Note**: Legacy entity - all tenant functionality handled through Customer entity with assignment tables
 
 #### Block Entity
-- **Purpose**: Groups properties (e.g., apartment buildings, developments)
-- **Features**: Service charge distribution, shared expenses
-- **PayProp Integration**: `payprop_tags` field
+- **Purpose**: Groups related properties (e.g., apartment buildings, housing developments, commercial complexes)
+- **Block Types**: Residential, Commercial, Mixed-Use, Student Housing, Retirement, Social Housing, Industrial, Retail, Office
+- **Key Features**:
+  - Many-to-many relationships with portfolios via `block_portfolio_assignments`
+  - Service charge distribution and expense tracking
+  - Virtual block properties for block-level financial management
+  - PayProp tag synchronization
+  - Hierarchical property organization within portfolios
+- **Financial Tracking**: Annual service charges, ground rent, insurance, reserve funds
+- **Capacity Management**: Optional maximum property limits per block
+- 📖 **See detailed documentation**: [Block-Based Portfolio Management System](#block-based-portfolio-management-system) section below
 
 #### Portfolio Entity
 - **Purpose**: Logical grouping of properties for management/reporting
@@ -309,6 +317,533 @@ Table: block_portfolio_assignments
 **Features**:
 - Blocks can be in multiple portfolios
 - Supports shared block management
+
+## Block-Based Portfolio Management System
+
+The CRM includes a sophisticated block-based portfolio management system that enables hierarchical organization of properties within portfolios. This system supports multi-building property management, service charge distribution, and detailed financial tracking at the block level.
+
+### Block Entity Structure
+
+**Purpose**: Groups related properties (e.g., apartment buildings, housing developments, commercial complexes)
+
+```sql
+Table: blocks
+Core Fields:
+- id (PK)
+- name (e.g., "Boden House NG10", "Riverside Apartments")
+- description
+- block_type (ENUM: RESIDENTIAL, COMMERCIAL, MIXED_USE, STUDENT_HOUSING, RETIREMENT, SOCIAL_HOUSING, INDUSTRIAL, RETAIL, OFFICE)
+- portfolio_id (Legacy FK - deprecated, use block_portfolio_assignments)
+- property_owner_id (FK to customers.customer_id)
+
+Location:
+- address_line1, address_line2
+- city, county, postcode, country, country_code
+
+Capacity & Organization:
+- max_properties (capacity limit)
+- display_order (for UI organization)
+- is_active (Y/N)
+
+Financial Fields:
+- annual_service_charge (Total annual service charge)
+- service_charge_frequency (MONTHLY, QUARTERLY, ANNUAL)
+- ground_rent_annual
+- insurance_annual
+- reserve_fund_contribution
+- allocation_method (EQUAL, BY_SQFT, BY_BEDROOMS, CUSTOM)
+- service_charge_account (Dedicated bank account)
+
+Block Property:
+- block_property_id (FK to properties - block as financial entity)
+
+PayProp Integration:
+- payprop_tags (CSV of PayProp tag IDs)
+- payprop_tag_names (Human-readable tag names)
+- last_sync_at
+- sync_status (PENDING, SYNCED, FAILED)
+```
+
+### Hierarchical Organization Model
+
+The system supports a three-tier organizational hierarchy:
+
+```
+Portfolio (e.g., "Nottingham Properties")
+├── Block 1: Boden House NG10
+│   ├── Flat 1 - Boden House
+│   ├── Flat 2 - Boden House
+│   ├── Flat 3 - Boden House
+│   └── [Block Property - Virtual Entity]
+├── Block 2: Riverside Apartments
+│   ├── Apartment 40 - Watkin Road
+│   ├── Apartment 41 - Watkin Road
+│   └── [Block Property - Virtual Entity]
+└── Unassigned Properties
+    ├── Standalone Property 1
+    └── Standalone Property 2
+```
+
+**Key Features**:
+- **Many-to-Many Relationships**: Blocks can belong to multiple portfolios
+- **Flexible Assignment**: Properties can be assigned directly to portfolios OR via blocks
+- **Virtual Block Properties**: Each block can have an associated virtual property (property_type='BLOCK') for block-level financial management
+- **Capacity Management**: Blocks can have maximum property limits
+
+### Block Types
+
+The system supports various block types to accommodate different property management scenarios:
+
+- **RESIDENTIAL**: Standard apartment buildings, housing developments
+- **COMMERCIAL**: Office buildings, shopping centers
+- **MIXED_USE**: Buildings with both residential and commercial units
+- **STUDENT_HOUSING**: Purpose-built student accommodations (PBSA)
+- **RETIREMENT**: Retirement communities, assisted living
+- **SOCIAL_HOUSING**: Council housing, housing association properties
+- **INDUSTRIAL**: Warehouses, industrial estates
+- **RETAIL**: Shopping centers, retail parks
+- **OFFICE**: Office complexes, business centers
+
+### Block Assignment Tables
+
+#### block_portfolio_assignments
+**Purpose**: Manages many-to-many relationships between blocks and portfolios
+
+```sql
+Table: block_portfolio_assignments
+- id (PK)
+- block_id (FK to blocks)
+- portfolio_id (FK to portfolios)
+- assignment_type (ENUM: PRIMARY, SHARED)
+- assigned_at, assigned_by
+- is_active (boolean)
+- display_order (for UI organization)
+- notes
+```
+
+**Assignment Types**:
+- `PRIMARY`: Block's primary portfolio affiliation
+- `SHARED`: Block is shared across multiple portfolios
+
+#### property_block_assignments
+**Purpose**: Links properties to blocks independently of portfolio assignments
+
+```sql
+Table: property_block_assignments
+- id (PK)
+- property_id (FK to properties)
+- block_id (FK to blocks)
+- assigned_at, assigned_by
+- is_active (boolean)
+- display_order (for property ordering within blocks)
+- notes
+```
+
+**Features**:
+- Independent of portfolio assignments
+- Properties can be reassigned between blocks without affecting portfolio membership
+- Display order enables custom property sorting within blocks
+- Supports block-level service charge allocation
+
+#### Enhanced property_portfolio_assignments
+The existing property-portfolio assignment table now includes optional block assignment:
+
+```sql
+Table: property_portfolio_assignments (Enhanced)
+- id (PK)
+- property_id (FK)
+- portfolio_id (FK)
+- block_id (FK, optional) ← NEW: Hierarchical assignment
+- assignment_type (ENUM: PRIMARY, SECONDARY, TAG)
+- sync_status (PayProp sync tracking)
+```
+
+**Hierarchical Assignment Pattern**:
+```java
+// Property assigned to portfolio via block
+PropertyPortfolioAssignment assignment = new PropertyPortfolioAssignment();
+assignment.setPropertyId(propertyId);
+assignment.setPortfolioId(portfolioId);
+assignment.setBlockId(blockId);  // Hierarchical link
+assignment.setAssignmentType(AssignmentType.PRIMARY);
+```
+
+### Virtual Block Properties
+
+Virtual block properties are special property entities (property_type='BLOCK') that represent the block itself for financial management purposes.
+
+**Purpose**:
+- Track block-level income (e.g., service charges collected)
+- Record block-level expenses (maintenance, insurance)
+- Manage block bank accounts
+- Generate block-level financial statements
+
+**Example**:
+```
+Block: Boden House NG10 (Block ID: 2)
+└── Virtual Property: "Boden House NG10 - Block Property" (Property ID: 69, Type: BLOCK)
+    - Used for service charge income tracking
+    - Used for block expense allocations
+    - Excluded from property counts in statistics
+```
+
+**Data Integrity**:
+- Virtual block properties are **excluded** from property counts in portfolio statistics
+- Filtering pattern: `WHERE property_type != 'BLOCK'`
+- Applied consistently across UI, API endpoints, and analytics calculations
+
+### Block Financial Management
+
+#### Service Charge Distribution
+
+**Table**: `block_service_charge_distributions`
+
+Tracks how block-level service charges are allocated across individual properties.
+
+```sql
+Table: block_service_charge_distributions
+- id (PK)
+- block_id (FK)
+- property_id (FK)
+- annual_charge (Property's annual service charge)
+- percentage (% of total block charges)
+- allocation_method (EQUAL, BY_SQFT, BY_BEDROOMS, CUSTOM)
+- effective_from, effective_to (time-based allocations)
+- created_at, created_by, notes
+```
+
+**Allocation Methods**:
+1. **EQUAL**: Service charges split equally across all properties
+   ```
+   Example: £12,000 annual charge ÷ 10 properties = £1,200 per property
+   ```
+
+2. **BY_SQFT**: Allocated proportionally by square footage
+   ```
+   Example:
+   Property A: 500 sqft / 5,000 total = 10% = £1,200
+   Property B: 750 sqft / 5,000 total = 15% = £1,800
+   ```
+
+3. **BY_BEDROOMS**: Distributed based on bedroom count
+   ```
+   Example:
+   1-bed flat: 1/30 bedrooms = 3.33% = £400
+   2-bed flat: 2/30 bedrooms = 6.67% = £800
+   3-bed flat: 3/30 bedrooms = 10% = £1,200
+   ```
+
+4. **CUSTOM**: Manually set percentages or amounts
+
+#### Block Expense Tracking
+
+**Table**: `block_expenses`
+
+Records all expenses at the block level for service charge recovery.
+
+```sql
+Table: block_expenses
+- id (PK)
+- block_id (FK)
+- description (e.g., "Annual Building Insurance")
+- amount
+- expense_category (MAINTENANCE, CLEANING, INSURANCE, MANAGEMENT, UTILITIES, REPAIRS, SECURITY, LANDSCAPING, OTHER)
+- expense_date
+- payment_source_id (FK to payment_sources)
+- is_recoverable (Can be recharged to tenants)
+- invoice_reference
+- paid, paid_date
+- created_at, created_by, notes
+```
+
+**Use Cases**:
+- Track building insurance costs
+- Record cleaning/maintenance contracts
+- Monitor utility bills for common areas
+- Calculate service charge recovery amounts
+- Generate block-level expense reports
+
+**Example**:
+```
+Block: Riverside Apartments
+├─ Expense 1: Building Insurance    → £5,000  (Annual, Recoverable)
+├─ Expense 2: Cleaning Contract      → £3,600  (Annual, Recoverable)
+├─ Expense 3: Lift Maintenance       → £1,200  (Annual, Recoverable)
+├─ Expense 4: Landscaping            → £800    (Annual, Recoverable)
+└─ Total Annual Costs: £10,600
+   ÷ 15 properties = £706.67 per property annual service charge
+```
+
+#### Block-Level Transaction Tracking
+
+The `historical_transactions` table includes block-level tracking:
+
+```sql
+ALTER TABLE historical_transactions
+ADD COLUMN block_id BIGINT (FK to blocks);
+```
+
+**Use Cases**:
+- Link service charge payments to specific blocks
+- Track block-level income/expense aggregates
+- Generate block financial statements
+- Reconcile block bank accounts
+
+### PayProp Integration for Blocks
+
+Blocks support PayProp tag-based synchronization:
+
+**Block Fields**:
+- `payprop_tags`: CSV list of PayProp tag IDs (e.g., "12345,12346")
+- `payprop_tag_names`: Human-readable names (e.g., "Owner-2-BodenHouse")
+- `sync_status`: Track synchronization state (PENDING, SYNCED, FAILED)
+- `last_sync_at`: Last successful sync timestamp
+
+**Tag Naming Convention**:
+```
+Format: Owner-{portfolio_id}-{sanitized_block_name}
+Example: "Owner-2-BodenHouseNG10"
+```
+
+**Synchronization Flow**:
+1. Create block in CRM system
+2. Assign block to portfolio
+3. Generate PayProp-compatible tag name
+4. Create tag in PayProp via API
+5. Store tag ID in block record
+6. Assign properties to block
+7. Sync property tags with PayProp
+
+**Repository Methods**:
+```java
+// Find blocks needing PayProp sync
+List<Block> blocksNeedingSync = blockRepository.findBlocksNeedingSync();
+
+// Find blocks with missing PayProp external IDs
+List<Block> blocksWithMissingTags = blockRepository.findBlocksWithMissingPayPropTags();
+
+// Validate PayProp tag names
+Optional<String> tagName = blockRepository.generateBlockTagName(portfolioId, blockName);
+```
+
+### Block Operations & Queries
+
+#### Key Repository Methods
+
+```java
+// Find active blocks for portfolio (via junction table)
+@Query("SELECT b FROM Block b " +
+       "JOIN BlockPortfolioAssignment bpa ON bpa.block.id = b.id " +
+       "WHERE bpa.portfolio.id = :portfolioId AND bpa.isActive = true " +
+       "ORDER BY b.displayOrder, b.name")
+List<Block> findByPortfolioIdOrderByDisplayOrder(@Param("portfolioId") Long portfolioId);
+
+// Get blocks with property counts
+@Query("SELECT b, COUNT(DISTINCT ppa.property.id) as propertyCount FROM Block b " +
+       "JOIN BlockPortfolioAssignment bpa ON bpa.block.id = b.id " +
+       "LEFT JOIN PropertyPortfolioAssignment ppa ON ppa.block.id = b.id " +
+       "WHERE bpa.portfolio.id = :portfolioId AND bpa.isActive = true " +
+       "GROUP BY b.id ORDER BY b.displayOrder")
+List<Object[]> findBlocksWithPropertyCountsByPortfolio(@Param("portfolioId") Long portfolioId);
+
+// Count properties via assignment table (accurate for many-to-many)
+@Query("SELECT COUNT(pba) FROM PropertyBlockAssignment pba " +
+       "WHERE pba.block.id = :blockId AND pba.isActive = true")
+long countPropertiesInBlockViaAssignment(@Param("blockId") Long blockId);
+
+// Find empty blocks (no property assignments)
+@Query("SELECT b FROM Block b " +
+       "WHERE b.isActive = 'Y' AND b.id NOT IN (" +
+       "    SELECT DISTINCT ppa.block.id FROM PropertyPortfolioAssignment ppa " +
+       "    WHERE ppa.block.id IS NOT NULL AND ppa.isActive = true" +
+       ") ORDER BY b.portfolio.displayOrder, b.displayOrder")
+List<Block> findEmptyBlocks();
+
+// Check block name uniqueness within portfolio
+@Query("SELECT COUNT(b) > 0 FROM Block b " +
+       "WHERE b.portfolio.id = :portfolioId " +
+       "AND UPPER(b.name) = UPPER(:name) " +
+       "AND b.isActive = 'Y' " +
+       "AND (:excludeId IS NULL OR b.id <> :excludeId)")
+boolean existsByPortfolioAndNameIgnoreCase(@Param("portfolioId") Long portfolioId,
+                                          @Param("name") String name,
+                                          @Param("excludeId") Long excludeId);
+
+// Get next display order for new blocks
+@Query("SELECT COALESCE(MAX(b.displayOrder), 0) + 1 FROM Block b " +
+       "WHERE b.portfolio.id = :portfolioId")
+Integer getNextDisplayOrderForPortfolio(@Param("portfolioId") Long portfolioId);
+```
+
+#### Property Count Filtering
+
+**Critical Pattern**: Always exclude virtual block properties from property counts
+
+```java
+// Controller Layer - Portfolio Details View
+List<Property> allProperties = portfolioService.getPropertiesForPortfolio(id);
+
+// Filter out block properties (virtual entities)
+List<Property> properties = allProperties.stream()
+    .filter(p -> !"BLOCK".equals(p.getPropertyType()))
+    .collect(Collectors.toList());
+
+// Calculate analytics (only for actual leasable properties)
+PortfolioAnalytics analytics = portfolioService.calculatePortfolioAnalytics(id, LocalDate.now());
+```
+
+**Applied Locations**:
+1. `PortfolioController.java:1550-1560` - Portfolio details view
+2. `PortfolioController.java:3271-3282` - Hierarchical properties API endpoint
+3. `PortfolioServiceImpl.java:596-606` - Analytics calculation method
+
+### UI Features (Employee/Manager Portal)
+
+#### Portfolio Details Page with Block Organization
+
+**Route**: `/portfolio/{id}`
+**Template**: `portfolio/portfolio-details.html`
+
+**Features**:
+- **Hierarchical Block Display**: Properties organized under their assigned blocks
+- **Statistics Dashboard**: Real-time property counts, occupancy rates, financial metrics
+- **Block Creation**: Modal interface for creating new blocks within portfolio
+- **Block Editing**: Update block details, capacity, financial settings
+- **Property Assignment**: Drag-and-drop properties between blocks
+- **Unassigned Properties Section**: Properties not yet assigned to blocks
+- **PayProp Synchronization**: Sync block assignments with PayProp tags
+
+**Key JavaScript Functions**:
+```javascript
+// Load blocks for portfolio
+fetch(`/portfolio/internal/blocks/portfolio/${portfolioId}`)
+    .then(response => response.json())
+    .then(data => displayBlocks(data.blocks));
+
+// Display blocks with property counts
+function displayBlocks(blocks) {
+    blocks.forEach(block => {
+        // Render block card
+        // Show property count
+        // Enable drag-and-drop zones
+    });
+}
+
+// Create new block
+function createBlock(portfolioId, blockData) {
+    fetch(`/portfolio/internal/blocks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(blockData)
+    });
+}
+
+// Assign property to block
+function assignPropertyToBlock(propertyId, blockId, portfolioId) {
+    fetch(`/portfolio/internal/properties/${propertyId}/assign-to-block`, {
+        method: 'POST',
+        body: JSON.stringify({ portfolioId, blockId })
+    });
+}
+```
+
+**Statistics Display** (Excludes Virtual Block Properties):
+```html
+<div class="stats-card">
+    <h3>44 Total Properties</h3> <!-- BEFORE: Included virtual block property -->
+    <h3>43 Total Properties</h3> <!-- AFTER: Excludes virtual block properties -->
+</div>
+```
+
+#### Block Creation Interface
+
+**Modal Form Fields**:
+- Block Name (required)
+- Description (optional)
+- Block Type (dropdown: Residential, Commercial, etc.)
+- Maximum Properties (capacity limit, optional)
+- Address Details (Line 1, Line 2, City, County, Postcode)
+- Financial Settings:
+  - Annual Service Charge
+  - Service Charge Frequency (Monthly, Quarterly, Annual)
+  - Ground Rent Annual
+  - Insurance Annual
+  - Reserve Fund Contribution
+  - Allocation Method (Equal, By Sq Ft, By Bedrooms, Custom)
+  - Service Charge Bank Account
+
+**Validation**:
+- Block name uniqueness within portfolio
+- Capacity validation (cannot exceed max if set)
+- Required field validation
+
+#### Property Assignment Interface
+
+**Drag-and-Drop Functionality**:
+```javascript
+// Drag start
+propertyElement.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('propertyId', property.id);
+});
+
+// Drop on block
+blockElement.addEventListener('drop', (e) => {
+    const propertyId = e.dataTransfer.getData('propertyId');
+    const blockId = blockElement.dataset.blockId;
+    assignPropertyToBlock(propertyId, blockId, portfolioId);
+});
+```
+
+**Assignment Feedback**:
+- Visual indicators during drag operations
+- Success/failure notifications
+- Real-time property count updates
+- Automatic UI refresh after assignment
+
+### Property Owner Portal - Limited Functionality
+
+**Current Status**: Property owners have a simplified, **read-only** portfolio view
+
+**Route**: `/property-owner/portfolio`
+**Template**: `property-owner/portfolio.html`
+
+**Available Features**:
+- View list of portfolios (basic info only)
+- See total property count per portfolio
+- View flat list of properties
+- See which portfolio each property belongs to
+
+**Missing Features** (Employee/Manager Only):
+- ❌ No block visibility
+- ❌ No hierarchical organization view
+- ❌ No property assignment functionality
+- ❌ No block creation/editing
+- ❌ No detailed portfolio statistics
+- ❌ No drag-and-drop interface
+
+**Future Enhancement**: Potential to add read-only block view for property owners to see how their properties are organized.
+
+### Architecture Benefits
+
+1. **Flexible Organization**: Properties can be managed individually or grouped into blocks
+2. **Multi-Portfolio Support**: Blocks can be shared across portfolios (e.g., mixed-ownership buildings)
+3. **Service Charge Management**: Block-level expense tracking and distribution
+4. **PayProp Integration**: Seamless synchronization with PayProp tag system
+5. **Financial Granularity**: Track income/expenses at property, block, or portfolio levels
+6. **Scalability**: Handles large property portfolios with hundreds of units
+7. **Data Integrity**: Junction tables prevent orphaned relationships
+8. **Accurate Statistics**: Virtual block properties excluded from tenant-facing counts
+
+### Migration Path
+
+The system supports gradual migration from old direct FK relationships:
+
+1. **Phase 1**: Legacy `blocks.portfolio_id` coexists with `block_portfolio_assignments`
+2. **Phase 2**: All code uses junction table queries (CURRENT STATE)
+3. **Phase 3**: Deprecate direct FK columns after validation period
+4. **Phase 4**: Remove legacy FK columns in future migration
+
+**Backward Compatibility**: Both old and new relationship patterns are validated during the transition period.
 
 ## Transaction Data Architecture
 
