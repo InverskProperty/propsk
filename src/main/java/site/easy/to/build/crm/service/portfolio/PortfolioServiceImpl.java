@@ -593,9 +593,14 @@ public class PortfolioServiceImpl implements PortfolioService {
             .orElse(new PortfolioAnalytics(portfolioId, calculationDate));
         
         // 🔧 CRITICAL FIX: Use junction table instead of direct FK
-        List<Property> properties = getPropertiesForPortfolio(portfolioId);  // ← This is the key change!
-        
-        System.out.println("📊 Calculating analytics for portfolio " + portfolioId + " with " + properties.size() + " properties");
+        List<Property> allProperties = getPropertiesForPortfolio(portfolioId);
+
+        // Filter out block properties (virtual properties used for block management, not leasable units)
+        List<Property> properties = allProperties.stream()
+            .filter(p -> !"BLOCK".equals(p.getPropertyType()))
+            .collect(Collectors.toList());
+
+        System.out.println("📊 Calculating analytics for portfolio " + portfolioId + " with " + properties.size() + " leasable properties (excluded " + (allProperties.size() - properties.size()) + " block properties)");
         
         // Property counts
         analytics.setTotalProperties(properties.size());

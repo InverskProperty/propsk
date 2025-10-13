@@ -1547,10 +1547,16 @@ public class PortfolioController {
             
             // Get properties with tenant information
             System.out.println("🔍 Loading properties for portfolio " + id);
-            List<Property> properties = portfolioService.getPropertiesForPortfolio(id);
-            System.out.println("✅ Found " + properties.size() + " properties using junction table method");
+            List<Property> allProperties = portfolioService.getPropertiesForPortfolio(id);
 
-            // Calculate analytics
+            // Filter out block properties (virtual properties used for block management)
+            List<Property> properties = allProperties.stream()
+                .filter(p -> !"BLOCK".equals(p.getPropertyType()))
+                .collect(Collectors.toList());
+
+            System.out.println("✅ Found " + allProperties.size() + " total properties, " + properties.size() + " actual leasable properties (excluded " + (allProperties.size() - properties.size()) + " block properties)");
+
+            // Calculate analytics (only for actual leasable properties)
             PortfolioAnalytics analytics = portfolioService.calculatePortfolioAnalytics(id, LocalDate.now());
 
             // Create simple portfolio statistics (for backwards compatibility)
@@ -3263,16 +3269,21 @@ public class PortfolioController {
             }
             
             // Get all properties in portfolio with block assignments
-            List<Property> allProperties = portfolioService.getPropertiesForPortfolio(portfolioId);
-            
+            List<Property> allPropertiesRaw = portfolioService.getPropertiesForPortfolio(portfolioId);
+
+            // Filter out block properties (virtual properties used for block management, not leasable units)
+            List<Property> allProperties = allPropertiesRaw.stream()
+                .filter(p -> !"BLOCK".equals(p.getPropertyType()))
+                .collect(Collectors.toList());
+
             // Get property assignments to determine block relationships
             List<PropertyPortfolioAssignment> assignments = propertyPortfolioAssignmentRepository
                 .findByPortfolioIdAndIsActive(portfolioId, true);
-            
+
             // Organize properties by block assignment
             List<Map<String, Object>> assignedToBlocks = new ArrayList<>();
             List<Map<String, Object>> unassigned = new ArrayList<>();
-            
+
             for (Property property : allProperties) {
                 // Find assignment for this property
                 PropertyPortfolioAssignment assignment = assignments.stream()
