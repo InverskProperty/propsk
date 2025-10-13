@@ -80,7 +80,9 @@
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
     
-    <div class="page-wrapper">
+    <div class="page-wrapper"
+         th:data-is-portfolio-specific="${isPortfolioSpecific ?: false}"
+         th:data-target-portfolio-id="${targetPortfolio?.id}">
         <div class="container-fluid">
             <!-- Breadcrumb -->
             <div class="row page-titles">
@@ -448,8 +450,12 @@
 
 <script>
 let currentMode = 'dragdrop';
-const isPortfolioSpecific = /*[[${isPortfolioSpecific ?: false}]]*/ false;
-const targetPortfolioId = /*[[${targetPortfolio?.id ?: null}]]*/ null;
+
+// Read portfolio-specific values from data attributes (more reliable than Thymeleaf injection)
+const pageWrapper = document.querySelector('.page-wrapper');
+const isPortfolioSpecific = pageWrapper?.dataset.isPortfolioSpecific === 'true';
+const targetPortfolioId = pageWrapper?.dataset.targetPortfolioId ?
+    parseInt(pageWrapper.dataset.targetPortfolioId) : null;
 
 // Check if we're assigning to a specific block
 const urlParams = new URLSearchParams(window.location.search);
