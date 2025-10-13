@@ -278,8 +278,19 @@
                                     <!-- Property Information - NEW: Display actual property from assignment -->
                                     <div class="mb-3">
                                         <h6><i class="fas fa-home text-primary"></i> Property</h6>
-                                        <p class="mb-0" th:text="${assignment.property?.propertyName ?: (assignment.property?.addressLine1 ?: 'Property details unavailable')}">Property Name</p>
-                                        <small class="text-muted" th:text="${assignment.property?.city ? (assignment.property.city + ', ' + (assignment.property.postcode ?: '')) : 'Location not set'}">Location</small>
+                                        <p class="mb-0">
+                                            <span th:if="${assignment.property != null and assignment.property.propertyName != null}"
+                                                  th:text="${assignment.property.propertyName}">Property Name</span>
+                                            <span th:if="${assignment.property != null and assignment.property.propertyName == null and assignment.property.addressLine1 != null}"
+                                                  th:text="${assignment.property.addressLine1}">Property Address</span>
+                                            <span th:if="${assignment.property == null or (assignment.property.propertyName == null and assignment.property.addressLine1 == null)}">Property details unavailable</span>
+                                        </p>
+                                        <small class="text-muted">
+                                            <span th:if="${assignment.property != null and assignment.property.city != null}">
+                                                <span th:text="${assignment.property.city}">City</span><span th:if="${assignment.property.postcode != null}">, </span><span th:if="${assignment.property.postcode != null}" th:text="${assignment.property.postcode}">Postcode</span>
+                                            </span>
+                                            <span th:if="${assignment.property == null or assignment.property.city == null}">Location not set</span>
+                                        </small>
                                     </div>
 
                                     <!-- Tenancy Dates - NEW: Show start/end dates and duration -->

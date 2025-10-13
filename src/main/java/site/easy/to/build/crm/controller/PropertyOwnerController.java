@@ -788,17 +788,22 @@ public class PropertyOwnerController {
                     return "redirect:/access-denied";
                 }
 
-                // Get tenant assignments for specific property
-                tenantAssignments = customerPropertyAssignmentRepository.findByPropertyId(propertyId).stream()
-                    .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
-                    .collect(Collectors.toList());
+                // Get tenant assignments for specific property with eagerly fetched details
+                tenantAssignments = customerPropertyAssignmentRepository
+                    .findByPropertyIdAndAssignmentTypeWithDetails(propertyId, AssignmentType.TENANT);
                 model.addAttribute("selectedPropertyId", propertyId);
             } else {
-                // Get all tenant assignments across all properties
-                tenantAssignments = properties.stream()
-                    .flatMap(property -> customerPropertyAssignmentRepository.findByPropertyId(property.getId()).stream())
-                    .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
+                // Get all tenant assignments across all properties with eagerly fetched details
+                List<Long> propertyIds = properties.stream()
+                    .map(Property::getId)
                     .collect(Collectors.toList());
+
+                if (!propertyIds.isEmpty()) {
+                    tenantAssignments = customerPropertyAssignmentRepository
+                        .findByPropertyIdsAndAssignmentTypeWithDetails(propertyIds, AssignmentType.TENANT);
+                } else {
+                    tenantAssignments = new ArrayList<>();
+                }
             }
 
             // Get unique tenant customers from assignments for backward compatibility

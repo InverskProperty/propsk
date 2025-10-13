@@ -64,4 +64,22 @@ public interface CustomerPropertyAssignmentRepository extends JpaRepository<Cust
     List<site.easy.to.build.crm.entity.Property> findPropertiesByCustomerIdAndAssignmentTypeOrdered(
             @Param("customerId") Long customerId,
             @Param("assignmentType") AssignmentType assignmentType);
+
+    // ✅ NEW: Find assignments with eagerly fetched customer and property (for Thymeleaf rendering)
+    @Query("SELECT cpa FROM CustomerPropertyAssignment cpa " +
+           "JOIN FETCH cpa.customer " +
+           "JOIN FETCH cpa.property " +
+           "WHERE cpa.property.id = :propertyId AND cpa.assignmentType = :assignmentType")
+    List<CustomerPropertyAssignment> findByPropertyIdAndAssignmentTypeWithDetails(
+            @Param("propertyId") Long propertyId,
+            @Param("assignmentType") AssignmentType assignmentType);
+
+    // ✅ NEW: Find assignments for multiple properties with eagerly fetched details
+    @Query("SELECT cpa FROM CustomerPropertyAssignment cpa " +
+           "JOIN FETCH cpa.customer " +
+           "JOIN FETCH cpa.property " +
+           "WHERE cpa.property.id IN :propertyIds AND cpa.assignmentType = :assignmentType")
+    List<CustomerPropertyAssignment> findByPropertyIdsAndAssignmentTypeWithDetails(
+            @Param("propertyIds") List<Long> propertyIds,
+            @Param("assignmentType") AssignmentType assignmentType);
 }
