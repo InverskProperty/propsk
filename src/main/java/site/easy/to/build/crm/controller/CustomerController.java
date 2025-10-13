@@ -408,29 +408,126 @@ public class CustomerController {
     }
 
     @PostMapping("/create-property-owner")
-    public String createPropertyOwner(@ModelAttribute Customer customer, 
+    public String createPropertyOwner(@ModelAttribute Customer customer,
                                     Authentication authentication,
                                     RedirectAttributes redirectAttributes) {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
             User user = userService.findById(userId);
-            
+
             customer.setUser(user);
             customer.setIsPropertyOwner(true);
             customer.setCustomerType(CustomerType.PROPERTY_OWNER);
             customer.setCreatedAt(LocalDateTime.now());
-            
+
             Customer savedCustomer = customerService.save(customer);
-            
-            redirectAttributes.addFlashAttribute("successMessage", 
+
+            redirectAttributes.addFlashAttribute("successMessage",
                 "Property owner " + savedCustomer.getName() + " created successfully!");
-            
+
             return "redirect:/employee/customer/property-owners";
-            
+
         } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("errorMessage", 
+            redirectAttributes.addFlashAttribute("errorMessage",
                 "Error creating property owner: " + e.getMessage());
             return "redirect:/employee/customer/create-property-owner";
+        }
+    }
+
+    /**
+     * Quick-create property owner (AJAX endpoint for property creation modal)
+     * POST /employee/customer/quick-create-owner
+     */
+    @PostMapping("/quick-create-owner")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> quickCreateOwner(@RequestBody Map<String, String> customerData,
+                                                                Authentication authentication) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // Validate required fields
+            String firstName = customerData.get("firstName");
+            String lastName = customerData.get("lastName");
+            String email = customerData.get("email");
+
+            if (firstName == null || firstName.trim().isEmpty() ||
+                lastName == null || lastName.trim().isEmpty() ||
+                email == null || email.trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "First name, last name, and email are required");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            // Check if customer with this email already exists
+            Customer existing = customerService.findByEmail(email.trim());
+            if (existing != null) {
+                response.put("success", false);
+                response.put("message", "A customer with this email already exists");
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+            }
+
+            // Get user ID
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId);
+
+            // Create new customer
+            Customer customer = new Customer();
+            customer.setUser(user);
+            customer.setFirstName(firstName.trim());
+            customer.setLastName(lastName.trim());
+            customer.setName((firstName.trim() + " " + lastName.trim()).trim());
+            customer.setEmail(email.trim());
+
+            // Optional fields
+            if (customerData.get("phone") != null && !customerData.get("phone").trim().isEmpty()) {
+                customer.setPhone(customerData.get("phone").trim());
+            }
+
+            // Build address from components
+            StringBuilder addressBuilder = new StringBuilder();
+            if (customerData.get("addressLine1") != null && !customerData.get("addressLine1").trim().isEmpty()) {
+                addressBuilder.append(customerData.get("addressLine1").trim());
+            }
+            if (addressBuilder.length() > 0) {
+                customer.setAddress(addressBuilder.toString());
+            }
+
+            if (customerData.get("city") != null && !customerData.get("city").trim().isEmpty()) {
+                customer.setCity(customerData.get("city").trim());
+            }
+
+            if (customerData.get("postcode") != null && !customerData.get("postcode").trim().isEmpty()) {
+                customer.setPostcode(customerData.get("postcode").trim());
+            }
+
+            // Set as property owner
+            customer.setIsPropertyOwner(true);
+            customer.setIsTenant(false);
+            customer.setIsContractor(false);
+            customer.setCustomerType(CustomerType.PROPERTY_OWNER);
+            customer.setEntityType("property_owner");
+            customer.setDescription("Active");
+            customer.setCreatedAt(LocalDateTime.now());
+
+            // Save customer
+            Customer savedCustomer = customerService.save(customer);
+
+            response.put("success", true);
+            response.put("customerId", savedCustomer.getCustomerId());
+            response.put("fullName", savedCustomer.getName());
+            response.put("email", savedCustomer.getEmail());
+
+            System.out.println("✅ Quick-created property owner: " + savedCustomer.getName() + " (ID: " + savedCustomer.getCustomerId() + ")");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error in quick-create-owner: " + e.getMessage());
+            e.printStackTrace();
+
+            response.put("success", false);
+            response.put("message", "Server error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
 

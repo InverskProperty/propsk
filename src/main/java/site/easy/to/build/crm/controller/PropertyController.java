@@ -688,6 +688,9 @@ public class PropertyController {
             return "error/account-inactive";
         }
 
+        // Load property owners for dropdown
+        List<Customer> propertyOwners = customerService.findPropertyOwners();
+        model.addAttribute("propertyOwners", propertyOwners);
         model.addAttribute("property", new Property());
         return "property/create-property";
     }
@@ -695,7 +698,10 @@ public class PropertyController {
     @PostMapping("/create-property")
     public String createProperty(@ModelAttribute("property") @Validated Property property,
                                 @RequestParam(value = "syncToPayProp", required = false) Boolean syncToPayProp,
-                                BindingResult bindingResult, Authentication authentication, 
+                                @RequestParam(value = "propertyOwnerId", required = false) Long propertyOwnerId,
+                                @RequestParam(value = "ownershipPercentage", required = false, defaultValue = "100") BigDecimal ownershipPercentage,
+                                @RequestParam(value = "isPrimaryOwner", required = false, defaultValue = "true") Boolean isPrimaryOwner,
+                                BindingResult bindingResult, Authentication authentication,
                                 Model model, RedirectAttributes redirectAttributes) {
         if (bindingResult.hasErrors()) {
             return "property/create-property";
@@ -715,6 +721,32 @@ public class PropertyController {
 
         try {
             Property savedProperty = propertyService.save(property);
+
+            // Create owner assignment if owner was selected
+            CustomerPropertyAssignment ownerAssignment = null;
+            if (propertyOwnerId != null && propertyOwnerId > 0) {
+                try {
+                    Customer owner = customerService.findByCustomerId(propertyOwnerId);
+                    if (owner != null) {
+                        CustomerPropertyAssignment assignment = new CustomerPropertyAssignment();
+                        assignment.setProperty(savedProperty);
+                        assignment.setCustomer(owner);
+                        assignment.setAssignmentType(AssignmentType.OWNER);
+                        assignment.setOwnershipPercentage(ownershipPercentage);
+                        assignment.setIsPrimary(isPrimaryOwner);
+                        assignment.setStartDate(LocalDate.now());
+                        assignment.setCreatedAt(LocalDateTime.now());
+                        assignment.setUpdatedAt(LocalDateTime.now());
+                        assignment.setSyncStatus("LOCAL_ONLY");
+                        ownerAssignment = assignmentRepository.save(assignment);
+
+                        System.out.println("✅ Created owner assignment: Property " + savedProperty.getId() + " → Customer " + propertyOwnerId);
+                    }
+                } catch (Exception assignmentError) {
+                    System.err.println("⚠️ Warning: Failed to create owner assignment: " + assignmentError.getMessage());
+                    // Don't fail the whole operation if assignment fails
+                }
+            }
             
             // Handle PayProp sync if requested
             String successMessage = "Property created successfully!";
@@ -724,11 +756,24 @@ public class PropertyController {
                 try {
                     System.out.println("🔄 Syncing property " + savedProperty.getId() + " to PayProp using LocalToPayPropSyncService...");
                     String payPropId = localToPayPropSyncService.syncPropertyToPayProp(savedProperty);
-                    
+
                     System.out.println("✅ Property synced to PayProp successfully with ID: " + payPropId);
                     successMessage = "Property created and synced to PayProp successfully! (PayProp ID: " + payPropId + ")";
                     syncSuccessful = true;
-                    
+
+                    // Sync owner assignment to PayProp if owner was assigned
+                    if (ownerAssignment != null) {
+                        try {
+                            System.out.println("🔄 Syncing owner assignment to PayProp...");
+                            String paymentInstructionId = localToPayPropSyncService.syncOwnerAssignmentToPayProp(ownerAssignment);
+                            System.out.println("✅ Owner assignment synced to PayProp with payment instruction ID: " + paymentInstructionId);
+                            successMessage += " Owner payment instruction created successfully!";
+                        } catch (Exception ownerSyncError) {
+                            System.err.println("⚠️ Owner assignment sync failed: " + ownerSyncError.getMessage());
+                            successMessage += " Note: Property synced but owner payment instruction failed.";
+                        }
+                    }
+
                 } catch (Exception syncError) {
                     System.err.println("❌ PayProp sync error: " + syncError.getMessage());
                     syncError.printStackTrace();

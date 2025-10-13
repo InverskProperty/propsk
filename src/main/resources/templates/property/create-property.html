@@ -327,6 +327,64 @@
                                     </div>
                                 </div>
 
+                                <!-- Owner Assignment -->
+                                <div class="card mt-4">
+                                    <div class="card-header bg-info">
+                                        <h5 class="text-white mb-0">
+                                            <i class="fas fa-user-tie"></i> Property Owner (Optional)
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <div class="form-group">
+                                                    <label for="propertyOwnerId">Select Property Owner</label>
+                                                    <select class="form-control" id="propertyOwnerId" name="propertyOwnerId">
+                                                        <option value="">-- No Owner (Unassigned) --</option>
+                                                        <option th:each="owner : ${propertyOwners}"
+                                                                th:value="${owner.customerId}"
+                                                                th:text="${owner.firstName + ' ' + owner.lastName + ' (' + owner.email + ')'}">
+                                                        </option>
+                                                    </select>
+                                                    <small class="form-text text-muted">
+                                                        Properties can be created without an owner and assigned later
+                                                    </small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="d-block">&nbsp;</label>
+                                                <button type="button" class="btn btn-outline-success btn-block"
+                                                        onclick="openQuickCreateOwnerModal()">
+                                                    <i class="fas fa-plus"></i> Create New Owner
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="row" id="ownershipDetails" style="display: none;">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="ownershipPercentage">Ownership Percentage</label>
+                                                    <div class="input-group">
+                                                        <input type="number" class="form-control" id="ownershipPercentage"
+                                                               name="ownershipPercentage" value="100" min="0" max="100" step="0.01">
+                                                        <div class="input-group-append">
+                                                            <span class="input-group-text">%</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-check mt-4">
+                                                    <input type="checkbox" class="form-check-input" id="isPrimaryOwner"
+                                                           name="isPrimaryOwner" checked>
+                                                    <label class="form-check-label" for="isPrimaryOwner">
+                                                        Primary Owner
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <!-- PayProp Sync Options -->
                                 <div class="card mt-4">
                                     <div class="card-header bg-primary">
@@ -383,8 +441,88 @@
             <div th:insert="~{general/right-sidebar.html}"></div>
         </div>
     </div>
-    
+
     <div th:replace="~{general/footer.html}"></div>
+</div>
+
+<!-- Quick Create Owner Modal -->
+<div class="modal fade" id="quickCreateOwnerModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-user-plus"></i> Quick Create Property Owner
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="quickCreateOwnerForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="ownerFirstName">First Name *</label>
+                                <input type="text" class="form-control" id="ownerFirstName" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="ownerLastName">Last Name *</label>
+                                <input type="text" class="form-control" id="ownerLastName" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="ownerEmail">Email *</label>
+                                <input type="email" class="form-control" id="ownerEmail" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="ownerPhone">Phone</label>
+                                <input type="tel" class="form-control" id="ownerPhone">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="form-group">
+                                <label for="ownerAddress">Address</label>
+                                <input type="text" class="form-control" id="ownerAddress" placeholder="Street address">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="ownerCity">City</label>
+                                <input type="text" class="form-control" id="ownerCity">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="ownerPostcode">Postcode</label>
+                                <input type="text" class="form-control" id="ownerPostcode">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        The owner will be created and automatically selected for this property.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="saveQuickCreateOwner()">
+                    <i class="fas fa-save"></i> Create Owner
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Scripts -->
@@ -499,11 +637,20 @@ $(document).ready(function() {
         }
     });
 
+    // Owner selection handling
+    $('#propertyOwnerId').change(function() {
+        if ($(this).val()) {
+            $('#ownershipDetails').show();
+        } else {
+            $('#ownershipDetails').hide();
+        }
+    });
+
     // Form validation
     $('form').on('submit', function(e) {
         const requiredFields = ['propertyName', 'monthlyPayment'];
         let isValid = true;
-        
+
         // Basic required fields validation
         requiredFields.forEach(function(field) {
             const $field = $(`#${field}`);
@@ -532,6 +679,97 @@ $(document).ready(function() {
         }
     });
 });
+
+// Quick Create Owner Modal Functions
+function openQuickCreateOwnerModal() {
+    $('#quickCreateOwnerForm')[0].reset();
+    $('#quickCreateOwnerModal').modal('show');
+}
+
+function saveQuickCreateOwner() {
+    const form = $('#quickCreateOwnerForm');
+
+    // Validate required fields
+    const firstName = $('#ownerFirstName').val().trim();
+    const lastName = $('#ownerLastName').val().trim();
+    const email = $('#ownerEmail').val().trim();
+
+    if (!firstName || !lastName || !email) {
+        alert('Please fill in all required fields (First Name, Last Name, Email)');
+        return;
+    }
+
+    // Email validation
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+        alert('Please enter a valid email address');
+        return;
+    }
+
+    // Prepare customer data
+    const customerData = {
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        phone: $('#ownerPhone').val().trim(),
+        addressLine1: $('#ownerAddress').val().trim(),
+        city: $('#ownerCity').val().trim(),
+        postcode: $('#ownerPostcode').val().trim(),
+        customerType: 'PROPERTY_OWNER'
+    };
+
+    // Get CSRF token
+    const csrfToken = $('meta[name="_csrf"]').attr('content');
+    const csrfHeader = $('meta[name="_csrf_header"]').attr('content');
+
+    // Show loading state
+    const $saveBtn = $('#quickCreateOwnerModal .btn-success');
+    const originalBtnText = $saveBtn.html();
+    $saveBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating...');
+
+    // Create customer via API
+    $.ajax({
+        url: '/employee/customer/quick-create-owner',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(customerData),
+        beforeSend: function(xhr) {
+            xhr.setRequestHeader(csrfHeader, csrfToken);
+        },
+        success: function(response) {
+            if (response.success) {
+                // Add new owner to dropdown
+                const newOption = $('<option></option>')
+                    .val(response.customerId)
+                    .text(response.fullName + ' (' + response.email + ')')
+                    .prop('selected', true);
+
+                $('#propertyOwnerId').append(newOption);
+                $('#ownershipDetails').show();
+
+                // Close modal
+                $('#quickCreateOwnerModal').modal('hide');
+
+                // Show success message
+                alert('Property owner created successfully!');
+            } else {
+                alert('Error: ' + (response.message || 'Failed to create property owner'));
+            }
+        },
+        error: function(xhr) {
+            let errorMsg = 'Failed to create property owner';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMsg = xhr.responseJSON.message;
+            } else if (xhr.status === 409) {
+                errorMsg = 'A customer with this email already exists';
+            }
+            alert('Error: ' + errorMsg);
+        },
+        complete: function() {
+            $saveBtn.prop('disabled', false).html(originalBtnText);
+        }
+    });
+}
 </script>
 
 </body>

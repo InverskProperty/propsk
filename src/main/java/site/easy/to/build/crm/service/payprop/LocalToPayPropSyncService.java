@@ -12,6 +12,7 @@ import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.invoice.InvoiceService;
 import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentService;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.service.payprop.PayPropApiClient;
 
 import java.math.BigDecimal;
@@ -46,6 +47,9 @@ public class LocalToPayPropSyncService {
     
     @Autowired
     private CustomerPropertyAssignmentService assignmentService;
+
+    @Autowired
+    private CustomerPropertyAssignmentRepository assignmentRepository;
     
     // PayProp Category IDs from our API testing
     public static class PayPropCategories {
@@ -426,8 +430,138 @@ public class LocalToPayPropSyncService {
         };
     }
     
+    // ===== PAYMENT INSTRUCTION SYNC (OWNER PAYMENTS) =====
+
+    /**
+     * Create PayProp payment instruction for property owner
+     * This establishes the financial relationship between property and owner
+     *
+     * @param propertyId Local property ID
+     * @param ownerId Local customer (owner) ID
+     * @param percentage Ownership percentage (e.g., 85.00 for 85%)
+     * @param startDate When the ownership payment should start
+     * @return PayProp payment instruction ID
+     */
+    public String createOwnerPaymentInstruction(Long propertyId, Long ownerId,
+                                               BigDecimal percentage, LocalDate startDate) {
+        log.info("Creating PayProp owner payment instruction: Property {} -> Owner {} ({}%)",
+                propertyId, ownerId, percentage);
+
+        try {
+            // Get property and owner entities
+            Property property = propertyService.findById(propertyId);
+            Customer owner = customerService.findByCustomerId(ownerId);
+
+            // Validate prerequisites
+            if (property.getPayPropId() == null) {
+                throw new IllegalStateException("Property must be synced to PayProp before creating payment instruction");
+            }
+
+            if (owner.getPayPropEntityId() == null) {
+                throw new IllegalStateException("Owner must be synced to PayProp (as beneficiary) before creating payment instruction");
+            }
+
+            // Build payment instruction data
+            Map<String, Object> paymentData = new HashMap<>();
+
+            // Core fields
+            paymentData.put("property_id", property.getPayPropId());
+            paymentData.put("beneficiary_type", "beneficiary");
+            paymentData.put("beneficiary_id", owner.getPayPropEntityId());
+            paymentData.put("category_id", PayPropCategories.OWNER); // "Owner" category
+
+            // Financial details
+            paymentData.put("percentage", percentage.toString());
+            paymentData.put("frequency", "M"); // Monthly
+            paymentData.put("use_money_from", "property_account");
+
+            // Dates and status
+            paymentData.put("start_date", startDate.toString());
+            paymentData.put("enabled", true);
+
+            // Description and reference
+            paymentData.put("reference", "Owner Payment - " + owner.getName());
+            paymentData.put("description", String.format("Owner payment to %s (%s%%)",
+                           owner.getName(), percentage));
+
+            // Call PayProp API
+            Object response = payPropApiClient.post("/entity/payment", paymentData);
+            String paymentInstructionId = extractIdFromResponse(response);
+
+            log.info("Successfully created PayProp owner payment instruction: {} -> Owner {} (ID: {})",
+                    property.getPropertyName(), owner.getName(), paymentInstructionId);
+
+            return paymentInstructionId;
+
+        } catch (Exception e) {
+            log.error("Failed to create PayProp owner payment instruction: {}", e.getMessage(), e);
+            throw new RuntimeException("Owner payment instruction creation failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Sync property-owner assignment with PayProp payment instruction
+     * This is the complete flow for establishing ownership in PayProp
+     *
+     * @param assignment The local customer-property assignment
+     * @return PayProp payment instruction ID
+     */
+    public String syncOwnerAssignmentToPayProp(CustomerPropertyAssignment assignment) {
+        log.info("Syncing owner assignment to PayProp: Property {} -> Owner {}",
+                assignment.getProperty().getId(), assignment.getCustomer().getCustomerId());
+
+        try {
+            Property property = assignment.getProperty();
+            Customer owner = assignment.getCustomer();
+
+            // Ensure property is synced to PayProp
+            if (property.getPayPropId() == null) {
+                log.info("Property not synced, syncing now: {}", property.getPropertyName());
+                syncPropertyToPayProp(property);
+            }
+
+            // Ensure owner is synced to PayProp as beneficiary
+            if (owner.getPayPropEntityId() == null) {
+                log.info("Owner not synced, syncing now: {}", owner.getName());
+                syncCustomerAsBeneficiaryToPayProp(owner);
+            }
+
+            // Create payment instruction
+            BigDecimal percentage = assignment.getOwnershipPercentage() != null ?
+                                   assignment.getOwnershipPercentage() : new BigDecimal("100.00");
+            LocalDate startDate = assignment.getStartDate() != null ?
+                                 assignment.getStartDate() : LocalDate.now();
+
+            String paymentInstructionId = createOwnerPaymentInstruction(
+                property.getId(),
+                owner.getCustomerId(),
+                percentage,
+                startDate
+            );
+
+            // Update assignment with PayProp reference
+            assignment.setPaypropInvoiceId(paymentInstructionId);
+            assignment.setSyncStatus("SYNCED");
+            assignmentRepository.save(assignment);
+
+            log.info("Successfully synced owner assignment to PayProp: {} -> {}",
+                    property.getPropertyName(), owner.getName());
+
+            return paymentInstructionId;
+
+        } catch (Exception e) {
+            log.error("Failed to sync owner assignment to PayProp: {}", e.getMessage(), e);
+
+            // Update assignment with error status
+            assignment.setSyncStatus("FAILED");
+            assignmentRepository.save(assignment);
+
+            throw new RuntimeException("Owner assignment sync failed: " + e.getMessage(), e);
+        }
+    }
+
     // ===== BATCH SYNC METHODS =====
-    
+
     /**
      * Sync all unsynced properties to PayProp
      */

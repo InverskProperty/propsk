@@ -42,7 +42,13 @@ public class CustomerPropertyAssignment {
     
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-    
+
+    @Column(name = "payprop_invoice_id", length = 255)
+    private String paypropInvoiceId;
+
+    @Column(name = "sync_status", length = 20)
+    private String syncStatus = "LOCAL_ONLY";
+
     public CustomerPropertyAssignment() {}
     
     public CustomerPropertyAssignment(Customer customer, Property property, AssignmentType type) {
@@ -88,4 +94,10 @@ public class CustomerPropertyAssignment {
     
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public String getPaypropInvoiceId() { return paypropInvoiceId; }
+    public void setPaypropInvoiceId(String paypropInvoiceId) { this.paypropInvoiceId = paypropInvoiceId; }
+
+    public String getSyncStatus() { return syncStatus; }
+    public void setSyncStatus(String syncStatus) { this.syncStatus = syncStatus; }
 }
