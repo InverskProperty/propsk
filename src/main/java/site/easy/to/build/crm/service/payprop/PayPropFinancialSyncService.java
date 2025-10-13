@@ -471,7 +471,10 @@ public class PayPropFinancialSyncService {
             
             // Update additional property data
             updatePropertyFromCommissionSync(property, ppProperty);
-            
+
+            // Update PayProp financial tracking status based on incoming payments
+            updatePayPropFinancialTrackingStatus(property);
+
             try {
                 propertyService.save(property);
                 logger.debug("✅ Successfully saved property: {}", property.getPropertyName());
@@ -2591,6 +2594,75 @@ public class PayPropFinancialSyncService {
         }
 
         return result;
+    }
+
+    /**
+     * Update PayProp financial tracking status based on incoming payments
+     * Only updates if manual override is not set
+     *
+     * @param property The property to update
+     */
+    private void updatePayPropFinancialTrackingStatus(Property property) {
+        try {
+            // Skip if manual override is set
+            if (property.getFinancialTrackingManualOverride() != null &&
+                property.getFinancialTrackingManualOverride()) {
+                logger.debug("⏭️  Skipping financial tracking update for property {} - manual override set",
+                    property.getPayPropId());
+                return;
+            }
+
+            String payPropId = property.getPayPropId();
+            if (payPropId == null || payPropId.trim().isEmpty()) {
+                return;
+            }
+
+            // Check for incoming payments in payprop_report_all_payments table
+            String query = "SELECT MIN(DATE(incoming_transaction_reconciliation_date)) as first_payment " +
+                          "FROM payprop_report_all_payments " +
+                          "WHERE incoming_property_payprop_id = ? " +
+                          "AND incoming_transaction_reconciliation_date IS NOT NULL";
+
+            try (Connection conn = dataSource.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(query)) {
+
+                ps.setString(1, payPropId);
+
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        java.sql.Date firstPaymentDate = rs.getDate("first_payment");
+
+                        if (firstPaymentDate != null) {
+                            // Has incoming payments - PayProp manages financials
+                            property.setPayPropManagesFinancials(true);
+                            property.setPayPropFinancialFrom(firstPaymentDate.toLocalDate());
+                            property.setPayPropFinancialTo(null); // NULL = ongoing
+
+                            logger.debug("✅ Property {} has incoming payments - PayProp manages financials from {}",
+                                payPropId, firstPaymentDate);
+                        } else {
+                            // No incoming payments - PayProp does not manage financials
+                            property.setPayPropManagesFinancials(false);
+                            property.setPayPropFinancialFrom(null);
+                            property.setPayPropFinancialTo(null);
+
+                            logger.debug("ℹ️  Property {} has no incoming payments - not managed by PayProp",
+                                payPropId);
+                        }
+                    } else {
+                        // No records found - not managed
+                        property.setPayPropManagesFinancials(false);
+                        property.setPayPropFinancialFrom(null);
+                        property.setPayPropFinancialTo(null);
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            logger.error("❌ Error updating PayProp financial tracking status for property {}: {}",
+                property.getPayPropId(), e.getMessage());
+            // Don't throw - allow sync to continue even if tracking update fails
+        }
     }
 
     /**

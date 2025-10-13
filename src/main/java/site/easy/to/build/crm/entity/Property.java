@@ -119,6 +119,23 @@ public class Property {
     @Column(name = "is_block_property")
     private Boolean isBlockProperty = false;
 
+    // NEW: PayProp Financial Tracking Date Range
+    // Tracks the period during which PayProp managed financials for this property
+    // This solves the problem of overlapping financial data from historical_transactions and PayProp
+    @Column(name = "payprop_manages_financials")
+    private Boolean payPropManagesFinancials = false;
+
+    @Column(name = "payprop_financial_from")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate payPropFinancialFrom; // Date when PayProp started managing financials (based on first incoming payment)
+
+    @Column(name = "payprop_financial_to")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate payPropFinancialTo; // Date when PayProp stopped managing financials (NULL = ongoing)
+
+    @Column(name = "financial_tracking_manual_override")
+    private Boolean financialTrackingManualOverride = false; // Prevents automatic sync from overwriting manual changes
+
     // Property Valuation and Purchase Information
     @Column(name = "purchase_price", precision = 12, scale = 2)
     @Digits(integer = 10, fraction = 2)
@@ -408,7 +425,28 @@ public class Property {
 
     public Boolean getIsBlockProperty() { return isBlockProperty; }
     public void setIsBlockProperty(Boolean isBlockProperty) { this.isBlockProperty = isBlockProperty; }
-    
+
+    // PayProp Financial Tracking Date Range Getters/Setters
+    public Boolean getPayPropManagesFinancials() { return payPropManagesFinancials; }
+    public void setPayPropManagesFinancials(Boolean payPropManagesFinancials) {
+        this.payPropManagesFinancials = payPropManagesFinancials;
+    }
+
+    public LocalDate getPayPropFinancialFrom() { return payPropFinancialFrom; }
+    public void setPayPropFinancialFrom(LocalDate payPropFinancialFrom) {
+        this.payPropFinancialFrom = payPropFinancialFrom;
+    }
+
+    public LocalDate getPayPropFinancialTo() { return payPropFinancialTo; }
+    public void setPayPropFinancialTo(LocalDate payPropFinancialTo) {
+        this.payPropFinancialTo = payPropFinancialTo;
+    }
+
+    public Boolean getFinancialTrackingManualOverride() { return financialTrackingManualOverride; }
+    public void setFinancialTrackingManualOverride(Boolean financialTrackingManualOverride) {
+        this.financialTrackingManualOverride = financialTrackingManualOverride;
+    }
+
     // Property Valuation and Purchase Information Getters/Setters
     public BigDecimal getPurchasePrice() { return purchasePrice; }
     public void setPurchasePrice(BigDecimal purchasePrice) { this.purchasePrice = purchasePrice; }
@@ -684,7 +722,82 @@ public class Property {
     public boolean hasValuationData() {
         return purchasePrice != null || estimatedCurrentValue != null;
     }
-    
+
+    // NEW: PayProp Financial Tracking Utility Methods
+    /**
+     * Check if PayProp manages financials for this property on a specific date
+     * @param date The date to check (if null, checks current date)
+     * @return true if PayProp was/is managing financials on that date
+     */
+    public boolean isPayPropManagingFinancialsOn(LocalDate date) {
+        if (payPropManagesFinancials == null || !payPropManagesFinancials) {
+            return false;
+        }
+
+        LocalDate checkDate = (date != null) ? date : LocalDate.now();
+
+        // Check if date falls within the PayProp management period
+        boolean afterStart = (payPropFinancialFrom == null) ||
+                            !checkDate.isBefore(payPropFinancialFrom);
+        boolean beforeEnd = (payPropFinancialTo == null) ||
+                           !checkDate.isAfter(payPropFinancialTo);
+
+        return afterStart && beforeEnd;
+    }
+
+    /**
+     * Check if PayProp currently manages financials for this property
+     * @return true if PayProp is actively managing financials now
+     */
+    public boolean isPayPropCurrentlyManagingFinancials() {
+        return isPayPropManagingFinancialsOn(LocalDate.now());
+    }
+
+    /**
+     * Get the financial data source to use for a specific date
+     * @param date The date to check
+     * @return "PAYPROP" if PayProp manages that period, "HISTORICAL" otherwise
+     */
+    public String getFinancialDataSourceFor(LocalDate date) {
+        return isPayPropManagingFinancialsOn(date) ? "PAYPROP" : "HISTORICAL";
+    }
+
+    /**
+     * Check if financial tracking dates are manually set
+     * @return true if user manually set the dates (prevents auto-sync overwrites)
+     */
+    public boolean hasManualFinancialTracking() {
+        return financialTrackingManualOverride != null && financialTrackingManualOverride;
+    }
+
+    /**
+     * Get a human-readable description of the PayProp financial tracking status
+     * @return Status string like "PayProp managed from 2025-06-17 onwards" or "Not managed by PayProp"
+     */
+    public String getFinancialTrackingStatusDescription() {
+        if (payPropManagesFinancials == null || !payPropManagesFinancials) {
+            return "Not managed by PayProp";
+        }
+
+        StringBuilder status = new StringBuilder("PayProp managed");
+
+        if (payPropFinancialFrom != null) {
+            status.append(" from ").append(payPropFinancialFrom);
+        }
+
+        if (payPropFinancialTo != null) {
+            status.append(" to ").append(payPropFinancialTo);
+        } else {
+            status.append(" onwards");
+        }
+
+        if (hasManualFinancialTracking()) {
+            status.append(" (manually set)");
+        }
+
+        return status.toString();
+    }
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

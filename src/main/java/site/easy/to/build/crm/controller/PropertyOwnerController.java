@@ -874,6 +874,87 @@ public class PropertyOwnerController {
             return "error/500";
         }
     }
+
+    /**
+     * Update PayProp Financial Tracking Settings for a Property
+     * Allows property owners to manually set whether PayProp manages financials and the date range
+     */
+    @PostMapping("/property-owner/update-financial-tracking")
+    @ResponseBody
+    public Map<String, Object> updateFinancialTracking(
+            @RequestParam("propertyId") Long propertyId,
+            @RequestParam("payPropManagesFinancials") Boolean payPropManagesFinancials,
+            @RequestParam(value = "payPropFinancialFrom", required = false) String payPropFinancialFrom,
+            @RequestParam(value = "payPropFinancialTo", required = false) String payPropFinancialTo,
+            Authentication authentication) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                response.put("success", false);
+                response.put("message", "Unauthorized");
+                return response;
+            }
+
+            // Verify property ownership
+            List<Property> ownedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            boolean ownsProperty = ownedProperties.stream()
+                .anyMatch(p -> p.getId().equals(propertyId));
+
+            if (!ownsProperty) {
+                response.put("success", false);
+                response.put("message", "You do not have permission to modify this property");
+                return response;
+            }
+
+            // Get the property
+            Optional<Property> propertyOpt = propertyService.findById(propertyId);
+            if (!propertyOpt.isPresent()) {
+                response.put("success", false);
+                response.put("message", "Property not found");
+                return response;
+            }
+
+            Property property = propertyOpt.get();
+
+            // Update financial tracking settings
+            property.setPayPropManagesFinancials(payPropManagesFinancials);
+
+            // Parse and set dates
+            if (payPropFinancialFrom != null && !payPropFinancialFrom.trim().isEmpty()) {
+                property.setPayPropFinancialFrom(LocalDate.parse(payPropFinancialFrom));
+            } else {
+                property.setPayPropFinancialFrom(null);
+            }
+
+            if (payPropFinancialTo != null && !payPropFinancialTo.trim().isEmpty()) {
+                property.setPayPropFinancialTo(LocalDate.parse(payPropFinancialTo));
+            } else {
+                property.setPayPropFinancialTo(null);
+            }
+
+            // Set manual override flag
+            property.setFinancialTrackingManualOverride(true);
+
+            // Save the property
+            propertyService.save(property);
+
+            response.put("success", true);
+            response.put("message", "Financial tracking settings updated successfully");
+            response.put("status", property.getFinancialTrackingStatusDescription());
+
+        } catch (Exception e) {
+            System.err.println("❌ ERROR updating financial tracking: " + e.getMessage());
+            e.printStackTrace();
+            response.put("success", false);
+            response.put("message", "Error updating settings: " + e.getMessage());
+        }
+
+        return response;
+    }
+
     /**
      * Property Owner Statements Centre - Access to generate statements
      */
