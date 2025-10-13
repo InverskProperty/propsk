@@ -13,6 +13,8 @@ import org.springframework.format.annotation.DateTimeFormat;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerLoginInfo;
 import site.easy.to.build.crm.entity.CustomerType;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
+import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.FinancialTransaction;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Property;
@@ -46,6 +48,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -84,6 +87,9 @@ public class PropertyOwnerController {
 
     @Autowired
     private InvoiceRepository invoiceRepository;
+
+    @Autowired
+    private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
 
     // NEW PORTFOLIO SERVICE - Add this one only
     @Autowired(required = false)
