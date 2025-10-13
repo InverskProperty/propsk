@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+<style>
+    .owner-mode-banner {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 10px 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    .form-section {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+</style>
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+
+    <div class="page-wrapper" style="margin-left: 0;">
+        <div class="container-fluid">
+            <!-- Owner Mode Banner -->
+            <div class="owner-mode-banner" th:if="${customer}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-user-shield"></i>
+                        <strong>Owner Portal</strong> -
+                        <span th:text="${customer.firstName + ' ' + customer.lastName}">Owner Name</span>
+                        <span class="badge badge-light ml-2">Property Owner</span>
+                    </div>
+                    <div>
+                        <a th:href="@{/customer-login/blocks/{id}(id=${block.id})}" class="btn btn-sm btn-light mr-2">
+                            <i class="fas fa-arrow-left"></i> Back to Block
+                        </a>
+                        <a href="/property-owner/dashboard" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-home"></i> Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page Header -->
+            <div class="row page-titles">
+                <div class="col-12">
+                    <h3 class="text-themecolor">
+                        <i class="fas fa-edit text-primary"></i>
+                        Edit Block: <span th:text="${block.name}">Block Name</span>
+                    </h3>
+                </div>
+            </div>
+
+            <!-- Success/Error Messages -->
+            <div id="messageArea"></div>
+
+            <!-- Edit Form -->
+            <div class="row">
+                <div class="col-lg-10">
+                    <div class="card">
+                        <div class="card-body">
+                            <form id="editBlockForm">
+                                <div class="form-section">
+                                    <h5 class="mb-3"><i class="fas fa-info-circle"></i> Basic Information</h5>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label for="blockName">Block Name *</label>
+                                                <input type="text" class="form-control" id="blockName"
+                                                       th:value="${block.name}" required>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label for="blockType">Block Type</label>
+                                                <select class="form-control" id="blockType">
+                                                    <option value="BUILDING" th:selected="${block.blockType == 'BUILDING'}">Building</option>
+                                                    <option value="ESTATE" th:selected="${block.blockType == 'ESTATE'}">Estate</option>
+                                                    <option value="STREET" th:selected="${block.blockType == 'STREET'}">Street</option>
+                                                    <option value="AREA" th:selected="${block.blockType == 'AREA'}">Area</option>
+                                                    <option value="COMPLEX" th:selected="${block.blockType == 'COMPLEX'}">Complex</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="blockDescription">Description</label>
+                                        <textarea class="form-control" id="blockDescription" rows="3"
+                                                  th:text="${block.description}"></textarea>
+                                    </div>
+                                </div>
+
+                                <div class="form-section">
+                                    <h5 class="mb-3"><i class="fas fa-map-marker-alt"></i> Address Information</h5>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label for="addressLine1">Address Line 1</label>
+                                                <input type="text" class="form-control" id="addressLine1"
+                                                       th:value="${block.addressLine1}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label for="addressLine2">Address Line 2</label>
+                                                <input type="text" class="form-control" id="addressLine2"
+                                                       th:value="${block.addressLine2}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="city">City</label>
+                                                <input type="text" class="form-control" id="city"
+                                                       th:value="${block.city}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="county">County</label>
+                                                <input type="text" class="form-control" id="county"
+                                                       th:value="${block.county}">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="postcode">Postcode</label>
+                                                <input type="text" class="form-control" id="postcode"
+                                                       th:value="${block.postcode}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group text-right">
+                                    <a th:href="@{/customer-login/blocks/{id}(id=${block.id})}" class="btn btn-secondary">
+                                        <i class="fas fa-times"></i> Cancel
+                                    </a>
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-save"></i> Save Changes
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{general/footer.html}"></div>
+
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script th:inline="javascript">
+const blockId = /*[[${block.id}]]*/ 0;
+const csrfToken = /*[[${_csrf.token}]]*/ '';
+const csrfHeader = /*[[${_csrf.headerName}]]*/ '';
+
+$(document).ready(function() {
+    $('#editBlockForm').on('submit', function(e) {
+        e.preventDefault();
+        updateBlock();
+    });
+});
+
+function updateBlock() {
+    const blockData = {
+        name: $('#blockName').val(),
+        description: $('#blockDescription').val(),
+        blockType: $('#blockType').val(),
+        addressLine1: $('#addressLine1').val(),
+        addressLine2: $('#addressLine2').val(),
+        city: $('#city').val(),
+        county: $('#county').val(),
+        postcode: $('#postcode').val()
+    };
+
+    if (!blockData.name || blockData.name.trim() === '') {
+        showMessage('error', 'Block name is required');
+        return;
+    }
+
+    // Show loading
+    $('button[type="submit"]').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+
+    fetch(`/customer-login/blocks/api/${blockId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            [csrfHeader]: csrfToken
+        },
+        body: JSON.stringify(blockData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('success', 'Block updated successfully');
+            setTimeout(() => {
+                window.location.href = `/customer-login/blocks/${blockId}`;
+            }, 1500);
+        } else {
+            showMessage('error', 'Failed to update block: ' + (data.error || 'Unknown error'));
+            $('button[type="submit"]').prop('disabled', false).html('<i class="fas fa-save"></i> Save Changes');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating block:', error);
+        showMessage('error', 'Error updating block');
+        $('button[type="submit"]').prop('disabled', false).html('<i class="fas fa-save"></i> Save Changes');
+    });
+}
+
+function showMessage(type, message) {
+    const alertClass = {
+        'success': 'alert-success',
+        'error': 'alert-danger',
+        'warning': 'alert-warning',
+        'info': 'alert-info'
+    }[type] || 'alert-info';
+
+    const icon = {
+        'success': 'fa-check',
+        'error': 'fa-exclamation-triangle',
+        'warning': 'fa-exclamation',
+        'info': 'fa-info-circle'
+    }[type] || 'fa-info-circle';
+
+    const html = `
+        <div class="alert ${alertClass} alert-dismissible fade show">
+            <button type="button" class="close" data-dismiss="alert">&times;</button>
+            <h4><i class="icon fa ${icon}"></i> ${type.charAt(0).toUpperCase() + type.slice(1)}!</h4>
+            ${message}
+        </div>
+    `;
+
+    $('#messageArea').html(html);
+
+    setTimeout(() => {
+        $('.alert').fadeOut();
+    }, 5000);
+}
+</script>
+
+</body>
+</html>
