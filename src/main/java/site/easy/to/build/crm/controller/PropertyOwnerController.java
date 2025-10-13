@@ -910,14 +910,12 @@ public class PropertyOwnerController {
             }
 
             // Get the property
-            Optional<Property> propertyOpt = propertyService.findById(propertyId);
-            if (!propertyOpt.isPresent()) {
+            Property property = propertyService.findById(propertyId);
+            if (property == null) {
                 response.put("success", false);
                 response.put("message", "Property not found");
                 return response;
             }
-
-            Property property = propertyOpt.get();
 
             // Update financial tracking settings
             property.setPayPropManagesFinancials(payPropManagesFinancials);
