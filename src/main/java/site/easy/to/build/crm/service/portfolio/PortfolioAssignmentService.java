@@ -1238,19 +1238,76 @@ public class PortfolioAssignmentService {
 
             log.info("📋 Found {} properties in block {}", propertyAssignments.size(), blockId);
 
-            // Step 3: Apply PayProp tags to all properties (additive: portfolio tag + block tag)
+            // Step 3: Create PropertyPortfolioAssignment for each property and apply PayProp tags
             for (PropertyBlockAssignment propAssignment : propertyAssignments) {
                 try {
                     Property property = propAssignment.getProperty();
 
-                    if (property == null || property.getPayPropId() == null || property.getPayPropId().trim().isEmpty()) {
-                        log.warn("⚠️ Property {} has no PayProp ID, skipping",
-                            property != null ? property.getId() : "null");
+                    if (property == null) {
+                        log.warn("⚠️ Property is null in block assignment, skipping");
                         result.incrementSkipped();
                         continue;
                     }
 
-                    // Apply BOTH portfolio tag and block tag (additive tagging)
+                    Long propertyId = property.getId();
+
+                    // Step 3a: Create or reactivate PropertyPortfolioAssignment
+                    PropertyPortfolioAssignment assignment;
+
+                    // Check if assignment already exists (active or inactive)
+                    if (isPropertyAssignedToPortfolio(propertyId, portfolioId)) {
+                        log.info("Property {} already assigned to portfolio {}, skipping", propertyId, portfolioId);
+                        result.incrementSkipped();
+                        continue;
+                    }
+
+                    // Check if INACTIVE assignment exists that we can reactivate
+                    Optional<PropertyPortfolioAssignment> inactiveAssignment =
+                        assignmentRepository.findByPropertyIdAndPortfolioIdAndAssignmentType(
+                            propertyId, portfolioId, PortfolioAssignmentType.PRIMARY);
+
+                    if (inactiveAssignment.isPresent() && !inactiveAssignment.get().getIsActive()) {
+                        // Reactivate existing assignment
+                        assignment = inactiveAssignment.get();
+                        assignment.setIsActive(true);
+                        assignment.setAssignedAt(LocalDateTime.now());
+                        assignment.setAssignedBy(userId);
+                        assignment.setUpdatedAt(LocalDateTime.now());
+                        assignment.setUpdatedBy(userId);
+                        assignment.setSyncStatus(SyncStatus.pending);
+                        assignment.setNotes("Reactivated via block assignment to portfolio " + portfolioId);
+
+                        assignmentRepository.save(assignment);
+                        log.info("✅ Reactivated existing assignment: Property {} → Portfolio {} (via block {})",
+                            propertyId, portfolioId, blockId);
+                    } else {
+                        // Create new junction table assignment
+                        assignment = new PropertyPortfolioAssignment();
+                        assignment.setProperty(property);
+                        assignment.setPortfolio(portfolio);
+                        assignment.setAssignmentType(PortfolioAssignmentType.PRIMARY);
+                        assignment.setAssignedBy(userId);
+                        assignment.setAssignedAt(LocalDateTime.now());
+                        assignment.setSyncStatus(SyncStatus.pending);
+                        assignment.setIsActive(Boolean.TRUE);
+                        assignment.setNotes("Assigned via block " + blockId + " to portfolio " + portfolioId);
+                        assignment.setCreatedAt(LocalDateTime.now());
+                        assignment.setUpdatedAt(LocalDateTime.now());
+                        assignment.setUpdatedBy(userId);
+
+                        assignmentRepository.save(assignment);
+                        log.info("✅ Created new assignment: Property {} → Portfolio {} (via block {})",
+                            propertyId, portfolioId, blockId);
+                    }
+
+                    result.incrementAssigned();
+
+                    // Step 3b: Apply BOTH portfolio tag and block tag (additive tagging) to PayProp
+                    if (property.getPayPropId() == null || property.getPayPropId().trim().isEmpty()) {
+                        log.warn("⚠️ Property {} has no PayProp ID, skipping PayProp sync", propertyId);
+                        continue;
+                    }
+
                     if (payPropSyncService != null) {
                         // 1. Apply portfolio tag
                         String portfolioTagId = portfolio.getPayPropTags();
@@ -1264,16 +1321,22 @@ public class PortfolioAssignmentService {
                         if (blockTagId != null && !blockTagId.trim().isEmpty()) {
                             payPropSyncService.applyTagToProperty(property.getPayPropId(), blockTagId);
                             log.debug("✅ Applied block tag {} to property {}", blockTagId, property.getPayPropId());
-                            result.incrementSynced();
                         }
+
+                        // Update sync status to synced
+                        assignment.setSyncStatus(SyncStatus.synced);
+                        assignment.setLastSyncAt(LocalDateTime.now());
+                        assignmentRepository.save(assignment);
+                        result.incrementSynced();
                     }
 
-                    result.incrementAssigned();
-
                 } catch (Exception e) {
-                    log.error("❌ Failed to apply tags to property {}: {}",
-                        propAssignment.getProperty().getId(), e.getMessage());
-                    result.addError("Property " + propAssignment.getProperty().getId() + ": " + e.getMessage());
+                    log.error("❌ Failed to assign property {}: {}",
+                        propAssignment.getProperty() != null ? propAssignment.getProperty().getId() : "null",
+                        e.getMessage());
+                    result.addError("Property " +
+                        (propAssignment.getProperty() != null ? propAssignment.getProperty().getId() : "null") +
+                        ": " + e.getMessage());
                 }
             }
 
