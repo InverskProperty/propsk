@@ -1270,6 +1270,7 @@ public class PortfolioAssignmentService {
                         // Reactivate existing assignment
                         assignment = inactiveAssignment.get();
                         assignment.setIsActive(true);
+                        assignment.setBlock(block);  // CRITICAL: Link to block for proper organization
                         assignment.setAssignedAt(LocalDateTime.now());
                         assignment.setAssignedBy(userId);
                         assignment.setUpdatedAt(LocalDateTime.now());
@@ -1285,6 +1286,7 @@ public class PortfolioAssignmentService {
                         assignment = new PropertyPortfolioAssignment();
                         assignment.setProperty(property);
                         assignment.setPortfolio(portfolio);
+                        assignment.setBlock(block);  // CRITICAL: Link to block for proper organization
                         assignment.setAssignmentType(PortfolioAssignmentType.PRIMARY);
                         assignment.setAssignedBy(userId);
                         assignment.setAssignedAt(LocalDateTime.now());
