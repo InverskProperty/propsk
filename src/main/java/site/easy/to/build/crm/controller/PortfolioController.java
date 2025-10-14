@@ -3248,13 +3248,23 @@ public class PortfolioController {
             }
             
             // Check if user has access to this portfolio - UPDATED FOR CUSTOMERS
-            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && 
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") &&
                 !AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
-                
+
                 // For customers, check via email lookup
-                if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") || 
+                if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") ||
                     AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
-                    String email = ((OAuth2User) authentication.getPrincipal()).getAttribute("email");
+
+                    // FIXED: Handle both OAuth2 and customer-login authentication
+                    String email = null;
+                    if (authentication.getPrincipal() instanceof OAuth2User) {
+                        // OAuth2 login (employees with Google/Microsoft)
+                        email = ((OAuth2User) authentication.getPrincipal()).getAttribute("email");
+                    } else {
+                        // Customer login (email/password)
+                        email = authentication.getName();
+                    }
+
                     if (email != null) {
                         Customer customer = customerService.findByEmail(email);
                         if (customer == null || !portfolio.getPropertyOwnerId().equals(customer.getCustomerId())) {
