@@ -65,13 +65,13 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain customerSecurityFilterChain(HttpSecurity http) throws Exception {
         System.out.println("=== FIXED: Customer security filter chain - NO /portfolio/** interference ===");
-    
+
         HttpSessionCsrfTokenRepository httpSessionCsrfTokenRepository = new HttpSessionCsrfTokenRepository();
         httpSessionCsrfTokenRepository.setParameterName("csrf");
 
         http.csrf((csrf) -> csrf
                 .csrfTokenRepository(httpSessionCsrfTokenRepository)
-                .ignoringRequestMatchers("/api/payprop/**", "/portfolio/**", "/property-owner/files/upload/**")
+                .ignoringRequestMatchers("/api/payprop/**", "/portfolio/**", "/property-owner/files/upload/**", "/customer-login/blocks/api/**")
         );
         
         // CRITICAL FIX: Only match specific customer routes - NO wildcards that could catch /portfolio/**
