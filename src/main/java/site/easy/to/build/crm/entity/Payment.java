@@ -62,15 +62,20 @@ public class Payment {
     private String categoryId;
 
     // ===== RELATIONSHIPS =====
-    
+
     @Column(name = "property_id")
     private Long propertyId;
-    
+
     @Column(name = "tenant_id")
     private Long tenantId;
-    
+
     @Column(name = "beneficiary_id")
     private Long beneficiaryId;
+
+    // NEW: Link to invoice (lease) - enables payment allocation to specific tenancy
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "invoice_id")
+    private Invoice invoice;
 
     // ===== AUDIT FIELDS =====
     
@@ -169,6 +174,9 @@ public class Payment {
 
     public String getPayPropBatchId() { return payPropBatchId; }
     public void setPayPropBatchId(String payPropBatchId) { this.payPropBatchId = payPropBatchId; }
+
+    public Invoice getInvoice() { return invoice; }
+    public void setInvoice(Invoice invoice) { this.invoice = invoice; }
 
     // ===== UTILITY METHODS =====
     

@@ -14,8 +14,16 @@ import java.util.Optional;
 public interface TenantBalanceRepository extends JpaRepository<TenantBalance, Long> {
 
     /**
-     * Find tenant balance for specific tenant and statement period
+     * Find tenant balance for specific lease (invoice) and statement period
+     * NEW: This is the lease-based approach for multi-tenancy support
      */
+    Optional<TenantBalance> findByInvoiceIdAndStatementPeriod(Long invoiceId, LocalDate statementPeriod);
+
+    /**
+     * Find tenant balance for specific tenant and statement period
+     * @deprecated Use findByInvoiceIdAndStatementPeriod for lease-based tracking
+     */
+    @Deprecated
     Optional<TenantBalance> findByTenantIdAndStatementPeriod(String tenantId, LocalDate statementPeriod);
 
     /**

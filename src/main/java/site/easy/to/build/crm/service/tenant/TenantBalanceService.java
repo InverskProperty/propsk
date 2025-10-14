@@ -27,16 +27,17 @@ public class TenantBalanceService {
     private FinancialTransactionRepository financialTransactionRepository;
 
     /**
-     * Calculate and update tenant balance for a specific period
+     * Calculate and update tenant balance for a specific lease period
+     * NEW: Now takes invoice (lease) for proper multi-tenancy support
      */
-    public TenantBalance calculateTenantBalance(String tenantId, String propertyId,
-                                              LocalDate statementPeriod,
-                                              BigDecimal rentDue) {
+    public TenantBalance calculateTenantBalanceForLease(Long invoiceId, String tenantId, String propertyId,
+                                                        LocalDate statementPeriod,
+                                                        BigDecimal rentDue) {
 
-        // Get or create tenant balance record
+        // Get or create tenant balance record for this LEASE
         TenantBalance balance = tenantBalanceRepository
-            .findByTenantIdAndStatementPeriod(tenantId, statementPeriod)
-            .orElse(new TenantBalance(tenantId, propertyId, statementPeriod));
+            .findByInvoiceIdAndStatementPeriod(invoiceId, statementPeriod)
+            .orElse(new TenantBalance(invoiceId, tenantId, propertyId, statementPeriod));
 
         // Get previous balance
         BigDecimal previousBalance = getPreviousBalance(tenantId, statementPeriod);

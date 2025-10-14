@@ -16,6 +16,10 @@ public class TenantBalance {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // NEW: Link to invoice (lease) - enables tracking balance per lease
+    @Column(name = "invoice_id", nullable = false)
+    private Long invoiceId;
+
     @Column(name = "tenant_id", length = 100)
     private String tenantId;
 
@@ -57,6 +61,16 @@ public class TenantBalance {
         this.createdDate = LocalDate.now();
     }
 
+    public TenantBalance(Long invoiceId, String tenantId, String propertyId, LocalDate statementPeriod) {
+        this();
+        this.invoiceId = invoiceId;
+        this.tenantId = tenantId;
+        this.propertyId = propertyId;
+        this.statementPeriod = statementPeriod;
+    }
+
+    // Legacy constructor for backward compatibility
+    @Deprecated
     public TenantBalance(String tenantId, String propertyId, LocalDate statementPeriod) {
         this();
         this.tenantId = tenantId;
@@ -94,6 +108,14 @@ public class TenantBalance {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Long getInvoiceId() {
+        return invoiceId;
+    }
+
+    public void setInvoiceId(Long invoiceId) {
+        this.invoiceId = invoiceId;
     }
 
     public String getTenantId() {
