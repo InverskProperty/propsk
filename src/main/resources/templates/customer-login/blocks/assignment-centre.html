@@ -67,7 +67,7 @@
                         <i class="fas fa-user-shield"></i>
                         <strong>Owner Portal</strong> -
                         <span th:text="${customer.name}">Owner Name</span>
-                        <parameter name="badge badge-light ml-2" th:text="${isOwner ? 'Property Owner' : 'Delegated User'}">Type</span>
+                        <span class="badge badge-light ml-2" th:text="${isOwner ? 'Property Owner' : 'Delegated User'}">Type</span>
                     </div>
                     <div>
                         <a href="/customer-login/blocks" class="btn btn-sm btn-light mr-2">
