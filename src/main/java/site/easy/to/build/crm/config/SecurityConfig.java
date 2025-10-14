@@ -76,18 +76,22 @@ public class SecurityConfig {
         
         // CRITICAL FIX: Only match specific customer routes - NO wildcards that could catch /portfolio/**
         http.securityMatcher(
-                "/customer-login", 
-                "/customer-login/**", 
-                "/customer-logout", 
-                "/set-password/**", 
-                "/property-owner/**", 
-                "/tenant/**", 
+                "/customer-login",
+                "/customer-login/**",
+                "/customer-logout",
+                "/set-password/**",
+                "/property-owner/**",
+                "/tenant/**",
                 "/contractor/**"
                 // REMOVED: Any patterns that might interfere with /portfolio/**
             )
             .authorizeHttpRequests((authorize) -> authorize
-                    .requestMatchers("/customer-login", "/customer-login/**").permitAll()
+                    // Login page and processing - public access
+                    .requestMatchers("/customer-login").permitAll()
                     .requestMatchers("/set-password/**").permitAll()
+
+                    // Customer portal routes - require authentication
+                    .requestMatchers("/customer-login/**").hasAnyAuthority("ROLE_PROPERTY_OWNER", "ROLE_TENANT", "ROLE_CONTRACTOR", "ROLE_DELEGATED_USER", "ROLE_MANAGER", "ROLE_ADMIN")
                     .requestMatchers("/property-owner/**").hasAnyAuthority("ROLE_PROPERTY_OWNER", "ROLE_MANAGER", "ROLE_ADMIN")
                     .requestMatchers("/tenant/**").hasAuthority("ROLE_TENANT")
                     .requestMatchers("/contractor/**").hasAuthority("ROLE_CONTRACTOR")
