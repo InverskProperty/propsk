@@ -17,7 +17,8 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     // ===== EXISTING METHODS =====
     Customer findByCustomerId(Long customerId);
-    Customer findByProfileId(Long profileId); // For delegated user lookups
+    // REMOVED: findByProfileId - Customer entity doesn't have a profileId field
+    // Authentication now uses email-based lookup instead (see PropertyOwnerBlockController)
     Customer findByEmail(String email);
     List<Customer> findByUserId(Long userId);
     List<Customer> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
