@@ -61,17 +61,49 @@ public class PropertyOwnerBlockController {
 
     /**
      * Get logged-in customer (owner or delegated user)
+     * FIXED: Use email-based authentication like PropertyOwnerController
      */
     private Customer getLoggedInCustomer(Authentication auth) {
+        log.info("🔍 getLoggedInCustomer - Starting authentication lookup");
+
         try {
-            int userId = authenticationUtils.getLoggedInUserId(auth);
-            if (userId <= 0) {
-                log.warn("No user ID found in authentication");
+            if (auth == null) {
+                log.warn("❌ Authentication is null");
                 return null;
             }
-            return customerService.findByCustomerId((long) userId);
+
+            // CRITICAL FIX: Get email directly from authentication instead of relying on user ID mapping
+            String email = auth.getName();
+            log.info("🔍 Email from authentication: {}", email);
+
+            if (email == null || email.trim().isEmpty()) {
+                log.warn("❌ No email found in authentication");
+                return null;
+            }
+
+            // Direct email lookup using CustomerService (same approach as PropertyOwnerController)
+            Customer customer = customerService.findByEmail(email);
+            if (customer != null) {
+                log.info("✅ Found customer by email: {} (customer_id: {}, type: {})",
+                    email, customer.getCustomerId(), customer.getCustomerType());
+
+                // Verify this is a property owner OR delegated user
+                boolean isPropertyOwner = customer.getCustomerType() == CustomerType.PROPERTY_OWNER;
+                boolean isDelegatedUser = customer.getCustomerType() == CustomerType.DELEGATED_USER;
+
+                if (isPropertyOwner || isDelegatedUser) {
+                    log.info("✅ Customer validation passed");
+                    return customer;
+                } else {
+                    log.warn("❌ Customer is neither PROPERTY_OWNER nor DELEGATED_USER: {}", customer.getCustomerType());
+                    return null;
+                }
+            }
+
+            log.warn("❌ Customer not found by email: {}", email);
+            return null;
         } catch (Exception e) {
-            log.error("Failed to get logged-in customer: {}", e.getMessage());
+            log.error("Failed to get logged-in customer: {}", e.getMessage(), e);
             return null;
         }
     }

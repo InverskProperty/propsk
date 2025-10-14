@@ -17,12 +17,13 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     // ===== EXISTING METHODS =====
     Customer findByCustomerId(Long customerId);
+    Customer findByProfileId(Long profileId); // For delegated user lookups
     Customer findByEmail(String email);
     List<Customer> findByUserId(Long userId);
     List<Customer> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
     long countByUserId(Long userId);
     List<Customer> findByIsPropertyOwner(Boolean isPropertyOwner);
-    List<Customer> findByIsTenant(Boolean isTenant); 
+    List<Customer> findByIsTenant(Boolean isTenant);
     List<Customer> findByIsContractor(Boolean isContractor);
 
     // ===== SEARCH METHODS =====
