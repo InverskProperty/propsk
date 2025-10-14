@@ -17,12 +17,14 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.entity.PaymentSource;
+import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionType;
 import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionSource;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.UserRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.PaymentSourceRepository;
+import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
@@ -71,6 +73,9 @@ public class HistoricalTransactionImportService {
 
     @Autowired
     private PaymentSourceRepository paymentSourceRepository;
+
+    @Autowired
+    private InvoiceRepository invoiceRepository;
 
     @Autowired
     private AuthenticationUtils authenticationUtils;
@@ -608,7 +613,23 @@ public class HistoricalTransactionImportService {
             Customer customer = findCustomerByReference(customerRef);
             transaction.setCustomer(customer);
         }
-        
+
+        // Link to lease if lease_reference is provided
+        String leaseRef = getValue(values, columnMap, "lease_reference");
+        if (leaseRef != null && !leaseRef.isEmpty()) {
+            Optional<Invoice> lease = invoiceRepository.findByLeaseReference(leaseRef.trim());
+            if (lease.isPresent()) {
+                Invoice leaseEntity = lease.get();
+                transaction.setInvoice(leaseEntity);
+                transaction.setLeaseStartDate(leaseEntity.getStartDate());
+                transaction.setLeaseEndDate(leaseEntity.getEndDate());
+                transaction.setRentAmountAtTransaction(leaseEntity.getAmount());
+                log.debug("✅ Transaction linked to lease: {}", leaseRef);
+            } else {
+                log.warn("⚠️ Lease reference '{}' not found - transaction will import without lease link", leaseRef);
+            }
+        }
+
         return transaction;
     }
     
@@ -1131,10 +1152,12 @@ public class HistoricalTransactionImportService {
                 case PERFECT: perfectMatches++; break;
                 case AMBIGUOUS_PROPERTY:
                 case AMBIGUOUS_CUSTOMER:
+                case AMBIGUOUS_LEASE:
                 case POTENTIAL_DUPLICATE:
                     needsReview++; break;
                 case MISSING_PROPERTY:
                 case MISSING_CUSTOMER:
+                case MISSING_LEASE:
                 case VALIDATION_ERROR:
                     hasIssues++; break;
             }
@@ -1158,6 +1181,7 @@ public class HistoricalTransactionImportService {
         private ReviewStatus status;
         private List<PropertyOption> propertyOptions;
         private List<CustomerOption> customerOptions;
+        private List<LeaseOption> leaseOptions;
         private DuplicateInfo duplicateInfo;
         private Map<String, Object> parsedData;
         private String errorMessage;
@@ -1165,6 +1189,7 @@ public class HistoricalTransactionImportService {
         // User selections (filled during review)
         private Long selectedPropertyId;
         private Long selectedCustomerId;
+        private Long selectedLeaseId;
         private Long selectedPaymentSourceId;
         private boolean skipDuplicate;
         private String userNote;
@@ -1174,6 +1199,7 @@ public class HistoricalTransactionImportService {
             this.csvLine = csvLine;
             this.propertyOptions = new ArrayList<>();
             this.customerOptions = new ArrayList<>();
+            this.leaseOptions = new ArrayList<>();
             this.parsedData = new HashMap<>();
         }
 
@@ -1184,6 +1210,7 @@ public class HistoricalTransactionImportService {
         public void setStatus(ReviewStatus status) { this.status = status; }
         public List<PropertyOption> getPropertyOptions() { return propertyOptions; }
         public List<CustomerOption> getCustomerOptions() { return customerOptions; }
+        public List<LeaseOption> getLeaseOptions() { return leaseOptions; }
         public DuplicateInfo getDuplicateInfo() { return duplicateInfo; }
         public void setDuplicateInfo(DuplicateInfo duplicateInfo) { this.duplicateInfo = duplicateInfo; }
         public Map<String, Object> getParsedData() { return parsedData; }
@@ -1193,6 +1220,8 @@ public class HistoricalTransactionImportService {
         public void setSelectedPropertyId(Long selectedPropertyId) { this.selectedPropertyId = selectedPropertyId; }
         public Long getSelectedCustomerId() { return selectedCustomerId; }
         public void setSelectedCustomerId(Long selectedCustomerId) { this.selectedCustomerId = selectedCustomerId; }
+        public Long getSelectedLeaseId() { return selectedLeaseId; }
+        public void setSelectedLeaseId(Long selectedLeaseId) { this.selectedLeaseId = selectedLeaseId; }
         public Long getSelectedPaymentSourceId() { return selectedPaymentSourceId; }
         public void setSelectedPaymentSourceId(Long selectedPaymentSourceId) { this.selectedPaymentSourceId = selectedPaymentSourceId; }
         public boolean isSkipDuplicate() { return skipDuplicate; }
@@ -1256,6 +1285,61 @@ public class HistoricalTransactionImportService {
     }
 
     /**
+     * Lease matching option - displays lease details for user selection
+     */
+    public static class LeaseOption {
+        private Long leaseId;
+        private String leaseReference;
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private BigDecimal rentAmount;
+        private String propertyName;
+        private String customerName;
+        private String status; // "ACTIVE", "ENDED", "FUTURE"
+        private long durationMonths;
+        private int matchScore; // 100 = perfect, lower = fuzzy
+
+        public LeaseOption(site.easy.to.build.crm.entity.Invoice lease, int matchScore) {
+            this.leaseId = lease.getId();
+            this.leaseReference = lease.getLeaseReference();
+            this.startDate = lease.getStartDate();
+            this.endDate = lease.getEndDate();
+            this.rentAmount = lease.getAmount();
+            this.propertyName = lease.getProperty() != null ? lease.getProperty().getPropertyName() : "Unknown";
+            this.customerName = lease.getCustomer() != null ? lease.getCustomer().getName() : "Unknown";
+            this.matchScore = matchScore;
+
+            // Calculate status
+            LocalDate today = LocalDate.now();
+            if (startDate != null && startDate.isAfter(today)) {
+                this.status = "FUTURE";
+            } else if (endDate != null && endDate.isBefore(today)) {
+                this.status = "ENDED";
+            } else {
+                this.status = "ACTIVE";
+            }
+
+            // Calculate duration in months
+            if (startDate != null) {
+                LocalDate effectiveEndDate = endDate != null ? endDate : LocalDate.now();
+                this.durationMonths = java.time.Period.between(startDate, effectiveEndDate).toTotalMonths();
+            }
+        }
+
+        // Getters
+        public Long getLeaseId() { return leaseId; }
+        public String getLeaseReference() { return leaseReference; }
+        public LocalDate getStartDate() { return startDate; }
+        public LocalDate getEndDate() { return endDate; }
+        public BigDecimal getRentAmount() { return rentAmount; }
+        public String getPropertyName() { return propertyName; }
+        public String getCustomerName() { return customerName; }
+        public String getStatus() { return status; }
+        public long getDurationMonths() { return durationMonths; }
+        public int getMatchScore() { return matchScore; }
+    }
+
+    /**
      * Duplicate transaction information
      */
     public static class DuplicateInfo {
@@ -1291,8 +1375,10 @@ public class HistoricalTransactionImportService {
         PERFECT,                 // Everything matched perfectly
         AMBIGUOUS_PROPERTY,      // Multiple property matches
         AMBIGUOUS_CUSTOMER,      // Multiple customer matches
+        AMBIGUOUS_LEASE,         // Multiple lease matches
         MISSING_PROPERTY,        // No property found
         MISSING_CUSTOMER,        // No customer found
+        MISSING_LEASE,           // No lease found (when lease_reference provided but not found)
         POTENTIAL_DUPLICATE,     // Matches existing transaction
         VALIDATION_ERROR         // Parse/validation error
     }
@@ -1459,6 +1545,42 @@ public class HistoricalTransactionImportService {
                     if (review.getStatus() == null) {
                         review.setStatus(ReviewStatus.MISSING_CUSTOMER);
                         log.warn("❌ [REVIEW-VALIDATE] Line {}: Customer '{}' not found", lineNumber, customerRef);
+                    }
+                }
+
+                // Find lease matches (if we have property and customer)
+                String leaseRef = getValue(values, columnMap, "lease_reference");
+                review.getParsedData().put("leaseRef", leaseRef);
+                log.debug("📋 [REVIEW-VALIDATE] Line {}: Looking for lease_reference '{}'", lineNumber, leaseRef);
+
+                if (!propertyMatches.isEmpty() && !customerMatches.isEmpty()) {
+                    Property matchedProperty = propertyRepository.findById(propertyMatches.get(0).getPropertyId()).orElse(null);
+                    Customer matchedCustomer = customerService.findByCustomerId(customerMatches.get(0).getCustomerId());
+
+                    if (matchedProperty != null && matchedCustomer != null) {
+                        List<LeaseOption> leaseMatches = findLeaseMatches(leaseRef, matchedProperty, matchedCustomer, transactionDate);
+                        log.info("📋 [REVIEW-VALIDATE] Line {}: Found {} lease matches", lineNumber, leaseMatches.size());
+
+                        if (!leaseMatches.isEmpty()) {
+                            review.getLeaseOptions().addAll(leaseMatches);
+                            if (leaseMatches.size() > 1 && review.getStatus() != ReviewStatus.AMBIGUOUS_PROPERTY && review.getStatus() != ReviewStatus.AMBIGUOUS_CUSTOMER) {
+                                review.setStatus(ReviewStatus.AMBIGUOUS_LEASE);
+                                log.warn("⚠️ [REVIEW-VALIDATE] Line {}: Ambiguous lease - {} matches", lineNumber, leaseMatches.size());
+                            } else if (leaseMatches.size() == 1 && leaseMatches.get(0).getMatchScore() == 100) {
+                                // Auto-select perfect lease match
+                                review.setSelectedLeaseId(leaseMatches.get(0).getLeaseId());
+                                log.debug("✅ [REVIEW-VALIDATE] Line {}: Perfect lease match found (score: 100)", lineNumber);
+                            } else {
+                                log.debug("✅ [REVIEW-VALIDATE] Line {}: Single lease match found (score: {})",
+                                    lineNumber, leaseMatches.get(0).getMatchScore());
+                            }
+                        } else if (leaseRef != null && !leaseRef.isEmpty()) {
+                            // Lease reference provided but not found
+                            if (review.getStatus() == null) {
+                                review.setStatus(ReviewStatus.MISSING_LEASE);
+                                log.warn("❌ [REVIEW-VALIDATE] Line {}: Lease reference '{}' not found", lineNumber, leaseRef);
+                            }
+                        }
                     }
                 }
 
@@ -1700,6 +1822,90 @@ public class HistoricalTransactionImportService {
 
         Set<Long> seenIds = new HashSet<>();
         matches.removeIf(opt -> !seenIds.add(opt.getCustomerId()));
+
+        // Limit to top 5 matches
+        if (matches.size() > 5) {
+            matches = matches.subList(0, 5);
+        }
+
+        return matches;
+    }
+
+    /**
+     * Find lease matches based on property, customer, and transaction date
+     * Scoring:
+     * - 100: Perfect match (property + customer + date within lease period)
+     * - 80-90: Good match (property + customer + date close to lease period)
+     * - 50-70: Possible match (property + customer + lease recently ended)
+     */
+    private List<LeaseOption> findLeaseMatches(String leaseRef, Property property, Customer customer, LocalDate transactionDate) {
+        List<LeaseOption> matches = new ArrayList<>();
+
+        // If lease_reference is provided, try exact lookup first
+        if (leaseRef != null && !leaseRef.trim().isEmpty()) {
+            Optional<Invoice> exactLease = invoiceRepository.findByLeaseReference(leaseRef.trim());
+            if (exactLease.isPresent()) {
+                matches.add(new LeaseOption(exactLease.get(), 100));
+                return matches;
+            }
+        }
+
+        // If no property or customer matched, we can't do lease matching
+        if (property == null || customer == null) {
+            return matches;
+        }
+
+        // Find all leases for this property + customer combination
+        List<Invoice> leases = invoiceRepository.findByPropertyAndCustomerOrderByStartDateDesc(property, customer);
+
+        for (Invoice lease : leases) {
+            // Skip leases without lease_reference (not properly set up)
+            if (lease.getLeaseReference() == null || lease.getLeaseReference().isEmpty()) {
+                continue;
+            }
+
+            LocalDate leaseStart = lease.getStartDate();
+            LocalDate leaseEnd = lease.getEndDate();
+
+            // Score 100: Transaction date within lease period
+            if (leaseStart != null && (leaseEnd == null || !transactionDate.isAfter(leaseEnd)) && !transactionDate.isBefore(leaseStart)) {
+                matches.add(new LeaseOption(lease, 100));
+                continue;
+            }
+
+            // Score 80-90: Transaction date close to lease period (within 30 days before/after)
+            if (leaseStart != null) {
+                long daysBefore = java.time.temporal.ChronoUnit.DAYS.between(transactionDate, leaseStart);
+                long daysAfter = leaseEnd != null ? java.time.temporal.ChronoUnit.DAYS.between(leaseEnd, transactionDate) : -1;
+
+                // Within 30 days before lease start
+                if (daysBefore > 0 && daysBefore <= 30) {
+                    int score = 90 - (int)(daysBefore / 3); // 90 down to 80
+                    matches.add(new LeaseOption(lease, Math.max(score, 80)));
+                    continue;
+                }
+
+                // Within 90 days after lease end (arrears payments)
+                if (leaseEnd != null && daysAfter >= 0 && daysAfter <= 90) {
+                    int score = 85 - (int)(daysAfter / 3); // 85 down to 55
+                    matches.add(new LeaseOption(lease, Math.max(score, 55)));
+                    continue;
+                }
+            }
+
+            // Score 50-70: Lease exists for property+customer but date doesn't match well
+            // (Include these as possible matches for user to review)
+            if (matches.isEmpty() || matches.size() < 3) {
+                matches.add(new LeaseOption(lease, 50));
+            }
+        }
+
+        // Sort by match score (highest first)
+        matches.sort((a, b) -> Integer.compare(b.getMatchScore(), a.getMatchScore()));
+
+        // Remove duplicates (same lease ID)
+        Set<Long> seenIds = new HashSet<>();
+        matches.removeIf(opt -> !seenIds.add(opt.getLeaseId()));
 
         // Limit to top 5 matches
         if (matches.size() > 5) {
@@ -2039,6 +2245,23 @@ public class HistoricalTransactionImportService {
                     log.warn("⚠️ WARNING: No payment source ID provided in review!");
                 }
 
+                // Get lease (user-selected or matched)
+                Invoice lease = null;
+                if (review.getSelectedLeaseId() != null) {
+                    lease = invoiceRepository.findById(review.getSelectedLeaseId()).orElse(null);
+                    log.info("📋 Lease lookup: ID={} -> {}", review.getSelectedLeaseId(),
+                            lease != null ? lease.getLeaseReference() : "NOT FOUND");
+                    if (lease != null) {
+                        log.info("📋 Lease details: {} - {} to {} (£{}/month)",
+                                lease.getLeaseReference(),
+                                lease.getStartDate(),
+                                lease.getEndDate() != null ? lease.getEndDate() : "Ongoing",
+                                lease.getAmount());
+                    }
+                } else {
+                    log.info("📋 No lease selected");
+                }
+
                 // Get current user for createdBy field (required)
                 User currentUser = getCurrentUser();
                 log.info("👨‍💼 Current user: {}", currentUser != null ? currentUser.getEmail() : "NULL!");
@@ -2063,6 +2286,15 @@ public class HistoricalTransactionImportService {
                 transaction.setImportBatchId(batchId);
                 transaction.setCreatedAt(LocalDateTime.now());
 
+                // Link to lease (if selected) and capture lease details at time of transaction
+                if (lease != null) {
+                    transaction.setInvoice(lease);
+                    transaction.setLeaseStartDate(lease.getStartDate());
+                    transaction.setLeaseEndDate(lease.getEndDate());
+                    transaction.setRentAmountAtTransaction(lease.getAmount());
+                    log.info("✅ Transaction linked to lease: {}", lease.getLeaseReference());
+                }
+
                 log.info("✅ Transaction entity created successfully");
                 log.info("📝 Transaction details:");
                 log.info("   - Date: {}", transaction.getTransactionDate());
@@ -2072,6 +2304,7 @@ public class HistoricalTransactionImportService {
                 log.info("   - Description: {}", transaction.getDescription());
                 log.info("   - Property: {} (ID: {})", property != null ? property.getPropertyName() : "NONE", property != null ? property.getId() : "NULL");
                 log.info("   - Customer: {} (ID: {})", customer != null ? customer.getFullName() : "NONE", customer != null ? customer.getCustomerId() : "NULL");
+                log.info("   - Lease: {} (ID: {})", lease != null ? lease.getLeaseReference() : "NONE", lease != null ? lease.getId() : "NULL");
                 log.info("   - Payment Source: {} (ID: {})", paymentSource != null ? paymentSource.getName() : "NONE", paymentSource != null ? paymentSource.getId() : "NULL");
                 log.info("   - Source: {}", transaction.getSource());
                 log.info("   - Created By: {}", currentUser.getEmail());

@@ -118,9 +118,17 @@ public class Invoice {
     
     @Column(name = "internal_reference", length = 100)
     private String internalReference;
-    
+
     @Column(name = "external_reference", length = 100)
     private String externalReference;
+
+    /**
+     * Lease Reference - User-assigned unique identifier for this lease
+     * Used for linking historical transactions to specific leases during import
+     * Example: "LEASE-FLAT1-2024", "LEASE-APARTMENT40-2024"
+     */
+    @Column(name = "lease_reference", length = 100, unique = true)
+    private String leaseReference;
     
     // ===== STATUS AND CONTROL FIELDS =====
     
@@ -332,7 +340,10 @@ public class Invoice {
     
     public String getExternalReference() { return externalReference; }
     public void setExternalReference(String externalReference) { this.externalReference = externalReference; }
-    
+
+    public String getLeaseReference() { return leaseReference; }
+    public void setLeaseReference(String leaseReference) { this.leaseReference = leaseReference; }
+
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
     

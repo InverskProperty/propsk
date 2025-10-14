@@ -263,7 +263,48 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
      * Find invoices by external reference (from PayProp)
      */
     Optional<Invoice> findByExternalReference(String externalReference);
-    
+
+    // ===== LEASE REFERENCE METHODS (FOR HISTORICAL TRANSACTION IMPORT) =====
+
+    /**
+     * Find invoice by lease reference
+     * Used during historical transaction import to link transactions to leases
+     */
+    Optional<Invoice> findByLeaseReference(String leaseReference);
+
+    /**
+     * Check if lease reference is already used
+     */
+    boolean existsByLeaseReference(String leaseReference);
+
+    /**
+     * Find lease for property, customer, and matching period
+     * Used to find/create leases during historical import
+     */
+    @Query("SELECT i FROM Invoice i WHERE i.property = :property AND i.customer = :customer " +
+           "AND i.startDate = :startDate " +
+           "AND (:endDate IS NULL AND i.endDate IS NULL OR i.endDate = :endDate) " +
+           "AND i.deletedAt IS NULL " +
+           "ORDER BY i.createdAt DESC")
+    List<Invoice> findByPropertyAndCustomerAndPeriod(
+        @Param("property") Property property,
+        @Param("customer") Customer customer,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Find leases for property and customer (all periods)
+     * Used to show lease options during historical transaction review
+     */
+    @Query("SELECT i FROM Invoice i WHERE i.property = :property AND i.customer = :customer " +
+           "AND i.deletedAt IS NULL " +
+           "ORDER BY i.startDate DESC")
+    List<Invoice> findByPropertyAndCustomerOrderByStartDateDesc(
+        @Param("property") Property property,
+        @Param("customer") Customer customer
+    );
+
     // ===== SOFT DELETE SUPPORT =====
     
     /**

@@ -402,3 +402,223 @@ GET /api/lease-migration/statistics
 - ✅ Arrears tracked per lease (`invoice_id` in `tenant_balances`)
 
 **The lease-based system works identically for PayProp and local data!**
+
+---
+
+## Historical Leases (Past Tenants)
+
+### How Past Leases Work
+
+The system **automatically handles historical leases** through date-based filtering:
+
+| Lease Type | Condition | Included in Active Rent? |
+|------------|-----------|-------------------------|
+| **Active** | `startDate <= today` AND (`endDate` is null OR `endDate >= today`) | ✅ YES |
+| **Past/Ended** | `endDate < today` | ❌ NO (excluded automatically) |
+| **Future** | `startDate > today` | ❌ NO (not started yet) |
+
+### Creating Historical Leases
+
+When you create a lease with **both start and end dates in the past**, the system:
+1. Creates the lease record normally
+2. Automatically excludes it from current rent calculations
+3. Preserves it for historical reporting
+
+#### Example: Record Past Tenant
+
+```bash
+POST /employee/tenant-lease/create
+
+customerId=123
+propertyId=456
+rentAmount=850.00
+startDate=2024-01-01
+endDate=2024-06-30  # Past date
+paymentDay=1
+```
+
+**Result**:
+- ✅ Lease created with historical dates
+- ❌ NOT included in current rent totals
+- ✅ Available for historical queries
+- ✅ Can link historical payments to this lease
+
+### Querying Historical Leases
+
+#### Get Complete Property History (Active + Historical)
+
+```bash
+GET /api/lease-migration/property/123/history
+```
+
+**Response:**
+```json
+{
+  "propertyId": 123,
+  "propertyName": "Apartment 40 - 31 Watkin Road",
+  "totalLeaseCount": 8,
+  "currentLeaseCount": 3,
+  "historicalLeaseCount": 5,
+  "currentLeases": [
+    {
+      "invoiceId": 789,
+      "tenantName": "Jane Doe",
+      "rentAmount": 900.00,
+      "startDate": "2024-07-01",
+      "endDate": null,
+      "status": "Active",
+      "durationMonths": 8
+    }
+  ],
+  "historicalLeases": [
+    {
+      "invoiceId": 456,
+      "tenantName": "John Smith",
+      "rentAmount": 850.00,
+      "startDate": "2023-01-01",
+      "endDate": "2024-06-30",
+      "status": "Ended",
+      "durationMonths": 18
+    }
+  ]
+}
+```
+
+#### Calculate Income for Specific Period
+
+```bash
+GET /api/lease-migration/property/123/income?start=2024-01-01&end=2024-12-31
+```
+
+**Response:**
+```json
+{
+  "propertyId": 123,
+  "propertyName": "Apartment 40",
+  "periodStart": "2024-01-01",
+  "periodEnd": "2024-12-31",
+  "totalIncome": 10800.00,
+  "leasesActiveDuringPeriod": 2,
+  "breakdown": [
+    {
+      "tenantName": "John Smith",
+      "rentAmount": 850.00,
+      "monthsActive": 6,
+      "totalContribution": 5100.00
+    },
+    {
+      "tenantName": "Jane Doe",
+      "rentAmount": 900.00,
+      "monthsActive": 6,
+      "totalContribution": 5400.00
+    }
+  ]
+}
+```
+
+#### Find Leases That Ended in Date Range
+
+```bash
+GET /api/lease-migration/property/123/leases-ended?start=2024-01-01&end=2024-12-31
+```
+
+**Response:**
+```json
+{
+  "propertyId": 123,
+  "periodStart": "2024-01-01",
+  "periodEnd": "2024-12-31",
+  "leasesEndedCount": 2,
+  "leases": [
+    {
+      "invoiceId": 456,
+      "tenantName": "John Smith",
+      "endDate": "2024-06-30",
+      "status": "Ended"
+    }
+  ]
+}
+```
+
+### Common Historical Lease Scenarios
+
+#### Scenario 1: Recording Past Tenant Who Already Moved Out
+
+**Question**: How do I add a tenant who lived at Property 40 from Jan-Jun 2024?
+
+```bash
+POST /employee/tenant-lease/create
+
+customerId=101
+propertyId=40
+rentAmount=850.00
+startDate=2024-01-01
+endDate=2024-06-30  # Already past
+paymentDay=1
+```
+
+✅ **Result**: Lease created but NOT included in current rent calculations
+
+#### Scenario 2: Mid-Month Tenant Change
+
+**Question**: Tenant A left March 15, 2025. Tenant B started March 16, 2025.
+
+```bash
+# Lease 1: Tenant A (now ended)
+POST /employee/tenant-lease/create
+customerId=101
+propertyId=40
+startDate=2024-01-01
+endDate=2025-03-15
+
+# Lease 2: Tenant B (now active)
+POST /employee/tenant-lease/create
+customerId=102
+propertyId=40
+startDate=2025-03-16
+endDate=  # Leave blank = ongoing
+```
+
+✅ **Result**:
+- Tenant A's lease automatically excluded from current rent
+- Tenant B's lease included in current rent
+- Both preserved for historical reporting
+
+#### Scenario 3: Bulk Import of Historical Data
+
+If you need to import many past leases, use the service directly:
+
+```java
+@Autowired
+private TenantAssignmentWithLeaseService tenantLeaseService;
+
+// Create historical lease
+TenantAssignmentWithLeaseService.TenantLeaseResult result =
+    tenantLeaseService.createTenantWithLease(
+        customer,
+        property,
+        new BigDecimal("850.00"),
+        LocalDate.of(2023, 1, 1),  // Start in past
+        LocalDate.of(2024, 6, 30), // End in past
+        1,
+        false // Don't sync to PayProp
+    );
+```
+
+### Best Practices for Historical Leases
+
+✅ **DO**:
+1. Always set `endDate` for past tenancies
+2. Link historical payments to historical leases via `invoice_id`
+3. Use historical query endpoints for reporting
+4. Keep historical data intact (don't delete)
+
+❌ **DON'T**:
+1. Leave `endDate` null for past tenants (system will think they're still active)
+2. Delete historical lease records
+3. Manually filter dates - use the service methods
+4. Rely on `Property.monthlyPayment` for historical income
+
+### See Also
+
+For more details on historical lease handling, see: **HISTORICAL_LEASE_GUIDE.md**

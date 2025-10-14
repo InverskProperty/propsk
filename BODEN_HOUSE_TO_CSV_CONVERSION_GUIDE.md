@@ -4,6 +4,72 @@
 
 This guide shows you **exactly how to convert** your existing Boden House property statement spreadsheet format into the CSV format required by the CRM import system.
 
+## 🆕 Two-Phase Import Workflow (NEW!)
+
+### Why Two Phases?
+
+The CRM now supports **lease-based tracking**, which allows:
+- Multiple tenants at the same property with different rent amounts
+- Tracking arrears per-lease instead of per-property
+- Historical lease analysis and reporting
+- Better handling of mid-month tenant changes
+
+### Phase 1: Import Leases (Do This FIRST!)
+
+Before importing transactions, you must import your lease agreements. This creates a reference for each tenancy.
+
+**Lease CSV Format:**
+```csv
+property_reference,customer_reference,lease_start_date,lease_end_date,rent_amount,payment_day,lease_reference
+FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO,2024-04-27,,795.00,27,LEASE-FLAT1-2024
+FLAT 18 - 3 WEST GATE,MARIE DINKO,2024-07-01,,740.00,28,LEASE-FLAT18-2024
+```
+
+**Important Notes:**
+- `lease_end_date` can be empty for ongoing leases
+- `lease_reference` must be unique (e.g., LEASE-FLAT1-2024, LEASE-FLAT18-JUL2024)
+- `payment_day` is the day of month rent is due (1-31)
+
+**Import Location:** Navigate to `/employee/lease/import` to import leases.
+
+### Phase 2: Import Transactions (With Lease References)
+
+After leases are imported, add a `lease_reference` column to your transaction CSV. The CRM will automatically link transactions to the correct lease.
+
+**Updated CSV Structure (12 columns):**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source,lease_reference
+2025-05-06,795.00,Rent Received - May 2025,payment,rent,FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO,,,,OLD_ACCOUNT,LEASE-FLAT1-2024
+```
+
+**What if lease_reference is missing?**
+- The import will still work
+- You'll be prompted to select the correct lease during the review process
+- The system will suggest matching leases based on property + customer + date
+
+**Benefits of Lease References:**
+- Automatic linking to correct tenancy
+- No manual matching required
+- Supports multiple tenancies at same property
+- Tracks payments that occur after lease ends (arrears)
+
+### Creating Lease References
+
+**Recommended Format:** `LEASE-{FLAT}-{YEAR}`
+
+Examples:
+- `LEASE-FLAT1-2024` - For Flat 1, started in 2024
+- `LEASE-FLAT18-JUL2024` - For Flat 18, started July 2024
+- `LEASE-PARKING1-2024` - For Parking Space 1, started 2024
+
+**For Mid-Month Changes:**
+```csv
+LEASE-FLAT18-APR2024,PREVIOUS TENANT,2024-01-01,2024-06-30,740.00
+LEASE-FLAT18-JUL2024,MARIE DINKO,2024-07-01,,740.00
+```
+
+Both tenants at FLAT 18, but different leases track their individual arrears and payments.
+
 ## 🎯 The Challenge
 
 Your **Boden House spreadsheet** stores data in an **aggregated format** (one row per property per month with all transactions summarized), but the CRM import system expects **individual transaction rows** (one row per transaction event).
@@ -24,10 +90,16 @@ FLAT 1 - 3 WEST GATE | Tenant: MS O SMOLIARENKO | Rent Due: £795 | Rent Receive
 
 ## 📊 Required CSV Structure
 
-Your CSV must have **exactly 11 columns** in this order:
+Your CSV must have **either 11 columns** (without lease reference) or **12 columns** (with lease reference):
 
+**Without Lease Reference (11 columns):**
 ```csv
 transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source
+```
+
+**With Lease Reference (12 columns - RECOMMENDED):**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source,lease_reference
 ```
 
 ### Column Specifications:
@@ -45,6 +117,7 @@ transaction_date,amount,description,transaction_type,category,property_reference
 | `payment_method` | ❌ Optional | Text | "Old Account" / "PayProp" |
 | `notes` | ❌ Optional | Text | "Comments" column + constructed notes |
 | `payment_source` | ✅ Yes | OLD_ACCOUNT/PAYPROP | Based on "Payment Source" column |
+| `lease_reference` | ❌ Optional | Unique ID | Lease identifier (e.g., LEASE-FLAT1-2024) |
 
 ---
 
@@ -561,21 +634,60 @@ Before importing your CSV, verify:
 
 ## 🚀 Import Process
 
-### Step 1: Prepare CSV File
-1. Convert your spreadsheet using the formulas above
-2. Export to CSV format
-3. Verify format matches requirements
+### NEW: Two-Phase Import (Recommended)
 
-### Step 2: Upload to CRM
-1. Navigate to: `/employee/transaction/import/csv`
-2. Select your CSV file
-3. Click "Import CSV File"
+#### Phase 1: Import Leases
 
-### Step 3: Review Results
-- Check import summary
-- Verify transaction counts
-- Review any error messages
-- Test with one property first before importing all
+1. **Prepare Lease CSV**
+   - Create a spreadsheet with columns: property_reference, customer_reference, lease_start_date, lease_end_date, rent_amount, payment_day, lease_reference
+   - Fill in lease details for each tenancy
+   - Export to CSV
+
+2. **Import Leases**
+   - Navigate to: `/employee/lease/import`
+   - Upload your lease CSV file
+   - Review import results
+   - Verify all leases imported successfully
+
+#### Phase 2: Import Transactions
+
+1. **Prepare Transaction CSV with Lease References**
+   - Convert your spreadsheet using the formulas above
+   - Add `lease_reference` column (column 12)
+   - Match each transaction to its lease reference
+   - Export to CSV format
+
+2. **Upload to CRM**
+   - Navigate to: `/employee/transaction/import`
+   - Select your transaction CSV file
+   - **Review Workflow**: If lease_reference is missing, you'll see suggested lease matches
+   - Click "Import" to confirm
+
+3. **Review Results**
+   - Check import summary
+   - Verify transaction counts
+   - Verify lease linkages
+   - Review any error messages
+
+### Alternative: Single-Phase Import (Without Leases)
+
+If you haven't created leases yet, you can still import transactions:
+
+1. **Prepare CSV File (11 columns)**
+   - Convert your spreadsheet using the formulas above
+   - Omit the lease_reference column
+   - Export to CSV format
+
+2. **Upload to CRM**
+   - Navigate to: `/employee/transaction/import`
+   - Select your CSV file
+   - Click "Import CSV File"
+
+3. **Review Results**
+   - Check import summary
+   - Verify transaction counts
+   - Review any error messages
+   - Test with one property first before importing all
 
 ---
 

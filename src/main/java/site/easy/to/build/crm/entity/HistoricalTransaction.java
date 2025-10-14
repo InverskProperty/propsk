@@ -30,7 +30,34 @@ public class HistoricalTransaction {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
     private Customer customer;
-    
+
+    /**
+     * Invoice (Lease) Reference - Links transaction to specific lease agreement
+     * Enables lease-level arrears tracking and historical lease analysis
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "invoice_id")
+    private Invoice invoice;
+
+    /**
+     * Lease Period Fields - Captures the lease dates at time of transaction
+     * Used for historical reporting and lease period analysis
+     */
+    @Column(name = "lease_start_date")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate leaseStartDate;
+
+    @Column(name = "lease_end_date")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate leaseEndDate;
+
+    /**
+     * Rent Amount at Transaction - Captures monthly rent at time of transaction
+     * Used for historical income analysis and lease comparison
+     */
+    @Column(name = "rent_amount_at_transaction", precision = 10, scale = 2)
+    private BigDecimal rentAmountAtTransaction;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id", nullable = false)
     private User createdByUser;
@@ -377,7 +404,21 @@ public class HistoricalTransaction {
     
     public Customer getCustomer() { return customer; }
     public void setCustomer(Customer customer) { this.customer = customer; }
-    
+
+    public Invoice getInvoice() { return invoice; }
+    public void setInvoice(Invoice invoice) { this.invoice = invoice; }
+
+    public LocalDate getLeaseStartDate() { return leaseStartDate; }
+    public void setLeaseStartDate(LocalDate leaseStartDate) { this.leaseStartDate = leaseStartDate; }
+
+    public LocalDate getLeaseEndDate() { return leaseEndDate; }
+    public void setLeaseEndDate(LocalDate leaseEndDate) { this.leaseEndDate = leaseEndDate; }
+
+    public BigDecimal getRentAmountAtTransaction() { return rentAmountAtTransaction; }
+    public void setRentAmountAtTransaction(BigDecimal rentAmountAtTransaction) {
+        this.rentAmountAtTransaction = rentAmountAtTransaction;
+    }
+
     public User getCreatedByUser() { return createdByUser; }
     public void setCreatedByUser(User createdByUser) { this.createdByUser = createdByUser; }
     
