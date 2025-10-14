@@ -325,8 +325,8 @@ public class AuthenticationUtils {
             return null;
         }
 
-        // CRITICAL FIX: Determine which service based on authorities, not by trial loading
-        // This prevents cross-contamination when same email exists in both systems
+        // CRITICAL FIX: Determine based on authorities, with priority to customer roles
+        // This handles users who exist in BOTH systems (e.g., managers who are also delegated users)
 
         boolean hasCustomerRole = authentication.getAuthorities().stream()
             .anyMatch(auth -> auth.getAuthority().equals("ROLE_PROPERTY_OWNER")
@@ -343,14 +343,15 @@ public class AuthenticationUtils {
         System.out.println("   Has customer role: " + hasCustomerRole);
         System.out.println("   Has CRM role: " + hasCrmRole);
 
-        if (hasCustomerRole && !hasCrmRole) {
-            System.out.println("✅ Identified as CUSTOMER authentication -> using customerUserDetails");
+        // If they have customer roles (even if they also have CRM roles), they logged in via customer portal
+        if (hasCustomerRole) {
+            System.out.println("✅ Has customer role -> using customerUserDetails");
             return customerUserDetails;
-        } else if (hasCrmRole && !hasCustomerRole) {
-            System.out.println("✅ Identified as CRM authentication -> using crmUserDetails");
+        } else if (hasCrmRole) {
+            System.out.println("✅ Only has CRM role -> using crmUserDetails");
             return crmUserDetails;
         } else {
-            System.out.println("⚠️ Ambiguous or no matching roles, falling back to CRM");
+            System.out.println("⚠️ No matching roles, falling back to CRM");
             return crmUserDetails;
         }
     }
