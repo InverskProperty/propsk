@@ -313,32 +313,45 @@ public class AuthenticationUtils {
     }
 
     public UserDetailsService getAuthenticatedUserDetailsService(Authentication authentication) {
-        UserDetailsService authenticatedUserDetailsService = null;
+        System.out.println("🔍 Determining which UserDetailsService authenticated the user...");
 
-        if (authentication != null && authentication.getPrincipal() instanceof org.springframework.security.core.userdetails.User authenticatedUser) {
-            String authenticatedUsername = authenticatedUser.getUsername();
-
-            if (authenticatedUsername != null) {
-                try {
-                    if (crmUserDetails != null && authenticatedUsername.equals(crmUserDetails.loadUserByUsername(authenticatedUsername).getUsername())) {
-                        authenticatedUserDetailsService = crmUserDetails;
-                    }
-                } catch (UsernameNotFoundException e) {
-                    // Swallow the exception and continue to the next condition
-                }
-
-                if (authenticatedUserDetailsService == null && customerUserDetails != null) {
-                    try {
-                        if (authenticatedUsername.equals(customerUserDetails.loadUserByUsername(authenticatedUsername).getUsername())) {
-                            authenticatedUserDetailsService = customerUserDetails;
-                        }
-                    } catch (UsernameNotFoundException e) {
-                        // Swallow the exception and continue to the next steps
-                    }
-                }
-            }
+        if (authentication == null) {
+            System.out.println("❌ Authentication is null");
+            return null;
         }
 
-        return authenticatedUserDetailsService;
+        if (!(authentication.getPrincipal() instanceof org.springframework.security.core.userdetails.User)) {
+            System.out.println("❌ Principal is not a User instance: " + authentication.getPrincipal().getClass().getName());
+            return null;
+        }
+
+        // CRITICAL FIX: Determine which service based on authorities, not by trial loading
+        // This prevents cross-contamination when same email exists in both systems
+
+        boolean hasCustomerRole = authentication.getAuthorities().stream()
+            .anyMatch(auth -> auth.getAuthority().equals("ROLE_PROPERTY_OWNER")
+                           || auth.getAuthority().equals("ROLE_TENANT")
+                           || auth.getAuthority().equals("ROLE_CONTRACTOR")
+                           || auth.getAuthority().equals("ROLE_DELEGATED_USER"));
+
+        boolean hasCrmRole = authentication.getAuthorities().stream()
+            .anyMatch(auth -> auth.getAuthority().equals("ROLE_MANAGER")
+                           || auth.getAuthority().equals("ROLE_EMPLOYEE")
+                           || auth.getAuthority().equals("ROLE_ADMIN")
+                           || auth.getAuthority().equals("ROLE_SUPER_ADMIN"));
+
+        System.out.println("   Has customer role: " + hasCustomerRole);
+        System.out.println("   Has CRM role: " + hasCrmRole);
+
+        if (hasCustomerRole && !hasCrmRole) {
+            System.out.println("✅ Identified as CUSTOMER authentication -> using customerUserDetails");
+            return customerUserDetails;
+        } else if (hasCrmRole && !hasCustomerRole) {
+            System.out.println("✅ Identified as CRM authentication -> using crmUserDetails");
+            return crmUserDetails;
+        } else {
+            System.out.println("⚠️ Ambiguous or no matching roles, falling back to CRM");
+            return crmUserDetails;
+        }
     }
 }
