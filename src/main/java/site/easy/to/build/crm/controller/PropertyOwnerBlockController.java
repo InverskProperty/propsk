@@ -846,6 +846,92 @@ public class PropertyOwnerBlockController {
         }
     }
 
+    /**
+     * DEBUG: Diagnose why blocks aren't showing
+     * GET /customer-login/blocks/api/debug
+     */
+    @GetMapping("/api/debug")
+    @ResponseBody
+    public ResponseEntity<?> debugBlockAccess(Authentication auth) {
+        Map<String, Object> debug = new HashMap<>();
+
+        try {
+            Customer customer = getLoggedInCustomer(auth);
+            if (customer == null) {
+                debug.put("error", "Authentication failed");
+                debug.put("authName", auth != null ? auth.getName() : "null");
+                return ResponseEntity.ok(debug);
+            }
+
+            debug.put("customerId", customer.getCustomerId());
+            debug.put("email", customer.getEmail());
+            debug.put("customerType", customer.getCustomerType());
+            debug.put("name", customer.getFullName());
+
+            // Get all properties for this customer
+            List<Property> userProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            debug.put("totalUserProperties", userProperties.size());
+            debug.put("userPropertyIds", userProperties.stream().map(Property::getId).limit(10).collect(Collectors.toList()));
+
+            // Check which properties are in blocks
+            List<Map<String, Object>> propertiesInBlocks = new ArrayList<>();
+            Set<Long> foundBlockIds = new HashSet<>();
+
+            for (Property property : userProperties) {
+                Optional<Block> blockOpt = propertyBlockAssignmentRepository.findBlockByPropertyId(property.getId());
+                if (blockOpt.isPresent()) {
+                    Block block = blockOpt.get();
+                    foundBlockIds.add(block.getId());
+
+                    Map<String, Object> info = new HashMap<>();
+                    info.put("propertyId", property.getId());
+                    info.put("propertyName", property.getPropertyName());
+                    info.put("blockId", block.getId());
+                    info.put("blockName", block.getName());
+                    info.put("blockActive", block.getIsActive());
+                    info.put("blockPortfolioId", block.getPortfolio() != null ? block.getPortfolio().getId() : null);
+                    propertiesInBlocks.add(info);
+                }
+            }
+
+            debug.put("propertiesInBlocks", propertiesInBlocks.stream().limit(10).collect(Collectors.toList()));
+            debug.put("uniqueBlockIds", foundBlockIds);
+            debug.put("totalPropertiesInBlocks", propertiesInBlocks.size());
+
+            // Get accessible blocks using our method
+            List<Block> accessibleBlocks = getAccessibleBlocks(customer);
+            debug.put("accessibleBlocksCount", accessibleBlocks.size());
+            debug.put("accessibleBlocksDetails", accessibleBlocks.stream()
+                .map(b -> Map.of(
+                    "id", b.getId(),
+                    "name", b.getName(),
+                    "isActive", b.getIsActive(),
+                    "portfolioId", b.getPortfolio() != null ? b.getPortfolio().getId() : "NULL"
+                ))
+                .collect(Collectors.toList()));
+
+            // Check all blocks in system
+            List<Block> allBlocks = blockRepository.findAll();
+            debug.put("totalBlocksInSystem", allBlocks.size());
+            debug.put("allBlocksSample", allBlocks.stream()
+                .limit(5)
+                .map(b -> Map.of(
+                    "id", b.getId(),
+                    "name", b.getName(),
+                    "isActive", b.getIsActive(),
+                    "portfolioId", b.getPortfolio() != null ? b.getPortfolio().getId() : "NULL"
+                ))
+                .collect(Collectors.toList()));
+
+            return ResponseEntity.ok(debug);
+
+        } catch (Exception e) {
+            debug.put("error", e.getMessage());
+            debug.put("stackTrace", e.getClass().getName());
+            return ResponseEntity.ok(debug);
+        }
+    }
+
     // ===== UTILITY METHODS =====
 
     private Map<String, Object> convertBlockToDTO(Block block) {
