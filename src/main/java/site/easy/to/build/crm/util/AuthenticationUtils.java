@@ -132,26 +132,34 @@ public class AuthenticationUtils {
                 }
             } else if (authenticatedUserDetailsService == customerUserDetails) {
                 try {
+                    System.out.println("🔍 Looking up customer login info for: " + userName);
                     customerLoginInfo = customerLoginInfoService.findByEmail(userName);
                     if (customerLoginInfo == null) {
                         System.out.println("❌ Customer login info not found by email: " + userName);
                         return -1;
                     }
 
+                    System.out.println("✅ Found CustomerLoginInfo - ID: " + customerLoginInfo.getId());
+
                     // FIXED: Return the actual customer_id, not the login_info id (which is profile_id)
                     Customer customer = customerLoginInfo.getCustomer();
                     if (customer == null) {
-                        System.out.println("❌ Customer not linked to login info for email: " + userName);
-                        return -1;
+                        System.out.println("❌ DELEGATED USER ISSUE: Customer not linked to login info for email: " + userName);
+                        System.out.println("   CustomerLoginInfo.id (profile_id): " + customerLoginInfo.getId());
+                        System.out.println("   This user might be a delegated user without a Customer record");
+                        System.out.println("   Returning profile_id as fallback: " + customerLoginInfo.getId());
+                        // For delegated users, return the login_info.id as the customer identifier
+                        return customerLoginInfo.getId();
                     }
 
                     Long customerId = customer.getCustomerId();
                     if (customerId == null) {
                         System.out.println("❌ Customer ID is null for email: " + userName);
-                        return -1;
+                        System.out.println("   Falling back to profile_id: " + customerLoginInfo.getId());
+                        return customerLoginInfo.getId();
                     }
 
-                    System.out.println("✅ Found customer ID: " + customerId + " (profile_id: " + customerLoginInfo.getId() + ")");
+                    System.out.println("✅ Found customer ID: " + customerId + " (profile_id: " + customerLoginInfo.getId() + ", customer_type: " + customer.getCustomerType() + ")");
                     return customerId.intValue(); // Return actual customer_id as int
                 } catch (Exception e) {
                     System.out.println("❌ Error finding customer login info by email " + userName + ": " + e.getMessage());
