@@ -64,12 +64,12 @@ public class PropertyOwnerBlockController {
      */
     private Customer getLoggedInCustomer(Authentication auth) {
         try {
-            Integer customerId = authenticationUtils.getLoggedInCustomerId(auth);
-            if (customerId == null) {
-                log.warn("No customer ID found in authentication");
+            int userId = authenticationUtils.getLoggedInUserId(auth);
+            if (userId <= 0) {
+                log.warn("No user ID found in authentication");
                 return null;
             }
-            return customerService.findById(customerId.longValue()).orElse(null);
+            return customerService.findByCustomerId((long) userId);
         } catch (Exception e) {
             log.error("Failed to get logged-in customer: {}", e.getMessage());
             return null;
@@ -421,7 +421,7 @@ public class PropertyOwnerBlockController {
             }
 
             // Verify owner has access to the portfolio
-            Portfolio portfolio = portfolioService.findById(request.getPortfolioId()).orElse(null);
+            Portfolio portfolio = portfolioService.findById(request.getPortfolioId());
             if (portfolio == null) {
                 return ResponseEntity.badRequest()
                     .body(Map.of("error", "Portfolio not found"));
@@ -670,7 +670,7 @@ public class PropertyOwnerBlockController {
             }
 
             // Verify customer has access to portfolio
-            Portfolio portfolio = portfolioService.findById(portfolioId).orElse(null);
+            Portfolio portfolio = portfolioService.findById(portfolioId);
             if (portfolio == null) {
                 return ResponseEntity.notFound().build();
             }
