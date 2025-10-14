@@ -7,6 +7,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Component;
+import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerLoginInfo;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.User;
@@ -136,8 +137,22 @@ public class AuthenticationUtils {
                         System.out.println("❌ Customer login info not found by email: " + userName);
                         return -1;
                     }
-                    System.out.println("✅ Found customer login info: " + customerLoginInfo.getId());
-                    return customerLoginInfo.getId(); // Return int directly
+
+                    // FIXED: Return the actual customer_id, not the login_info id (which is profile_id)
+                    Customer customer = customerLoginInfo.getCustomer();
+                    if (customer == null) {
+                        System.out.println("❌ Customer not linked to login info for email: " + userName);
+                        return -1;
+                    }
+
+                    Long customerId = customer.getCustomerId();
+                    if (customerId == null) {
+                        System.out.println("❌ Customer ID is null for email: " + userName);
+                        return -1;
+                    }
+
+                    System.out.println("✅ Found customer ID: " + customerId + " (profile_id: " + customerLoginInfo.getId() + ")");
+                    return customerId.intValue(); // Return actual customer_id as int
                 } catch (Exception e) {
                     System.out.println("❌ Error finding customer login info by email " + userName + ": " + e.getMessage());
                     e.printStackTrace();
