@@ -1,24 +1,15 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head>
-<meta charset="utf-8">
-<meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
-<title>My Blocks - CRM</title>
 
+<div th:insert="~{general/head.html}"></div>
 <meta name="_csrf" th:content="${_csrf.token}"/>
 <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+<meta name="isOwner" th:content="${isOwner}"/>
 
-<!-- Bootstrap Core CSS -->
-<link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
-<!-- Custom CSS -->
-<link th:href="@{/css/style.min.css}" rel="stylesheet">
 <!-- DataTables CSS -->
 <link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
 <link th:href="@{/css/responsive.dataTables.min.css}" rel="stylesheet">
-<!-- Font Awesome -->
-<link th:href="@{/css/all.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
 
 <style>
     .block-card {
@@ -244,13 +235,13 @@
 <script th:src="@{/js/library/jquery.dataTables.min.js}"></script>
 <script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
 
-<script th:inline="javascript">
+<script th:inline="none">
 let allBlocks = [];
 let currentView = 'grid';
 let currentFilter = 'all';
-const csrfToken = /*[[${_csrf.token}]]*/ '';
-const csrfHeader = /*[[${_csrf.headerName}]]*/ '';
-const isOwner = /*[[${isOwner}]]*/ false;
+const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+const isOwner = document.querySelector('meta[name="isOwner"]') ? document.querySelector('meta[name="isOwner"]').getAttribute('content') === 'true' : false;
 
 $(document).ready(function() {
     loadAllBlocks();
