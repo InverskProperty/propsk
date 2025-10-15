@@ -18,19 +18,97 @@ The CRM now supports **lease-based tracking**, which allows:
 
 Before importing transactions, you must import your lease agreements. This creates a reference for each tenancy.
 
-**Lease CSV Format:**
+**Lease CSV Format (Flexible Customer Identification):**
 ```csv
-property_reference,customer_reference,lease_start_date,lease_end_date,rent_amount,payment_day,lease_reference
-FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO,2024-04-27,,795.00,27,LEASE-FLAT1-2024
-FLAT 18 - 3 WEST GATE,MARIE DINKO,2024-07-01,,740.00,28,LEASE-FLAT18-2024
+property_reference,customer_name,customer_email,lease_start_date,lease_end_date,rent_amount,payment_day,lease_reference
+FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO & MR I HALII,osana.smoliarenko@email.com,2025-02-27,,795.00,27,LEASE-BH-F1-2025
+FLAT 2 - 3 WEST GATE,MR M K J AL BAYAT & MRS G B A AL ZANGANA,,2025-02-27,,740.00,27,LEASE-BH-F2-2025
+FLAT 3 - 3 WEST GATE,,tom.whyte@email.com,2025-03-11,,740.00,11,LEASE-BH-F3-2025
 ```
 
+**Customer Identification Options:**
+
+The system supports **three ways** to identify customers:
+
+1. **✅ RECOMMENDED: Both name AND email**
+   ```csv
+   FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO & MR I HALII,osana.smoliarenko@email.com,2025-02-27,,795.00,27,LEASE-BH-F1-2025
+   ```
+   - System matches by email first (most accurate)
+   - Name used as fallback if email doesn't match
+   - Best for auto-matching existing customers
+
+2. **Name only (email empty)**
+   ```csv
+   FLAT 2 - 3 WEST GATE,MR M K J AL BAYAT & MRS G B A AL ZANGANA,,2025-02-27,,740.00,27,LEASE-BH-F2-2025
+   ```
+   - System suggests similar customers during import
+   - You can select from dropdown or create new customer
+   - Good for new tenants where you'll add email later
+
+3. **Email only (name empty)**
+   ```csv
+   FLAT 3 - 3 WEST GATE,,tom.whyte@email.com,2025-03-11,,740.00,11,LEASE-BH-F3-2025
+   ```
+   - System matches by email
+   - Name pulled from existing customer record
+   - Useful when you only have email addresses
+
 **Important Notes:**
+- At least ONE of `customer_name` or `customer_email` must be provided
+- If both are present, email takes priority for matching
 - `lease_end_date` can be empty for ongoing leases
-- `lease_reference` must be unique (e.g., LEASE-FLAT1-2024, LEASE-FLAT18-JUL2024)
+- `lease_reference` must be unique (e.g., LEASE-BH-F1-2025, LEASE-BH-F18-2025B)
 - `payment_day` is the day of month rent is due (1-31)
 
 **Import Location:** Navigate to `/employee/lease/import` to import leases.
+
+---
+
+### 🤖 Quick Conversion Using Claude UI
+
+If you have a natural format CSV (like your Boden House spreadsheet), paste this prompt + your CSV into Claude UI to convert it:
+
+**Prompt for Claude UI:**
+```
+Convert this CSV to the lease import format. Use these exact column names:
+property_reference,customer_name,customer_email,lease_start_date,lease_end_date,rent_amount,payment_day,lease_reference
+
+Rules:
+1. Map "Unit Number" → property_reference
+2. Map "Tenant Name(s)" → customer_name
+3. Leave customer_email empty (I'll add it later if needed)
+4. Convert "Lease Start Date" to YYYY-MM-DD format
+5. Map "Lease End Date" to lease_end_date (empty if blank/ongoing)
+6. Map "Monthly Rent" → rent_amount
+7. Map "Payment Day" → payment_day
+8. Map "Lease Reference" → lease_reference
+9. Skip rows where Tenant Name is empty (vacant units)
+10. Remove any extra columns (Management Fee %, Payment Account, Status, Notes)
+
+Output ONLY the CSV with no explanation.
+
+[PASTE YOUR CSV HERE]
+```
+
+**Example Input (Natural Format):**
+```
+Lease Reference,Unit Number,Tenant Name(s),Lease Start Date,Lease End Date,Payment Day,Monthly Rent,Management Fee %,Payment Account,Status,Notes
+LEASE-BH-F1-2025,FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO & MR I HALII,2025-02-27,,27,795,15%,PayProp,Active,
+LEASE-BH-F2-2025,FLAT 2 - 3 WEST GATE,MR M K J AL BAYAT & MRS G B A AL ZANGANA,2025-02-27,,27,740,15%,PayProp,Active,
+LEASE-BH-PS3-2025,PARKING SPACE 3 - 3 WEST GATE,,,,,0,15%,PayProp,,
+```
+
+**Example Output (Import-Ready):**
+```csv
+property_reference,customer_name,customer_email,lease_start_date,lease_end_date,rent_amount,payment_day,lease_reference
+FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO & MR I HALII,,2025-02-27,,795.00,27,LEASE-BH-F1-2025
+FLAT 2 - 3 WEST GATE,MR M K J AL BAYAT & MRS G B A AL ZANGANA,,2025-02-27,,740.00,27,LEASE-BH-F2-2025
+```
+
+Notice: Empty parking space row was skipped automatically.
+
+---
 
 ### Phase 2: Import Transactions (With Lease References)
 
@@ -55,20 +133,29 @@ transaction_date,amount,description,transaction_type,category,property_reference
 
 ### Creating Lease References
 
-**Recommended Format:** `LEASE-{FLAT}-{YEAR}`
+**Recommended Format:** `LEASE-{BLOCK_CODE}-{UNIT}-{YEAR}[SUFFIX]`
 
-Examples:
-- `LEASE-FLAT1-2024` - For Flat 1, started in 2024
-- `LEASE-FLAT18-JUL2024` - For Flat 18, started July 2024
-- `LEASE-PARKING1-2024` - For Parking Space 1, started 2024
+**Examples from Boden House:**
+- `LEASE-BH-F1-2025` - Boden House, Flat 1, started 2025
+- `LEASE-BH-F10-2025B` - Boden House, Flat 10, second tenant in 2025 (suffix B)
+- `LEASE-BH-PS1-2025` - Boden House, Parking Space 1, started 2025
+- `LEASE-KH-F-2024` - Knighton Hayes, Apartment F, started 2024
 
-**For Mid-Month Changes:**
+**For Mid-Year Tenant Changes (Use Letter Suffix):**
 ```csv
-LEASE-FLAT18-APR2024,PREVIOUS TENANT,2024-01-01,2024-06-30,740.00
-LEASE-FLAT18-JUL2024,MARIE DINKO,2024-07-01,,740.00
+property_reference,customer_name,customer_email,lease_start_date,lease_end_date,rent_amount,payment_day,lease_reference
+FLAT 10 - 3 WEST GATE,MR F PETER,,2025-03-06,2025-09-23,735.00,6,LEASE-BH-F10-2025
+FLAT 10 - 3 WEST GATE,Anna Stoliarchuk,,2025-09-03,,795.00,9,LEASE-BH-F10-2025B
 ```
 
-Both tenants at FLAT 18, but different leases track their individual arrears and payments.
+Both tenants at FLAT 10 in same year, but different leases (A vs B) track their individual arrears and payments.
+
+**Format Components:**
+- `LEASE` - Fixed prefix for all leases
+- `BH` - Block code (BH = Boden House, KH = Knighton Hayes, etc.)
+- `F1` - Unit identifier (F = Flat, PS = Parking Space, OF = Office)
+- `2025` - Year lease started
+- `B` - Optional suffix for multiple leases in same year (A, B, C, etc.)
 
 ## 🎯 The Challenge
 
