@@ -325,6 +325,9 @@
                         <li><a th:href="${home + 'employee/invoice?status=pending'}"><i class="fas fa-clock text-warning"></i> Pending Invoices</a></li>
                         <li><a th:href="${home + 'employee/invoice?status=synced'}"><i class="fas fa-check-circle text-success"></i> PayProp Synced</a></li>
                         <li><a th:href="${home + 'employee/invoice?status=error'}"><i class="fas fa-exclamation-triangle text-danger"></i> Sync Errors</a></li>
+
+                        <!-- Lease and Transaction Import -->
+                        <li><a th:href="${home + 'employee/lease/import-wizard'}"><i class="fas fa-file-contract text-success"></i> Lease Import Wizard</a></li>
                         <li><a th:href="${home + 'employee/transaction/import'}"><i class="fas fa-file-upload text-info"></i> Import Historical Data</a></li>
 
                         <!-- NEW: Enhanced Statement Generation (with data source filtering) -->
