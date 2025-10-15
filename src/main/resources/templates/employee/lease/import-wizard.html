@@ -560,12 +560,15 @@ function buildCustomerMappingUI() {
                     </div>
                     <div class="col-md-8">
                         <label>Select Matching Customer:</label>
-                        <div id="customer-matches-${index}" class="mt-2"></div>
-                        <div class="mt-2">
+                        <div class="mb-2">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="browseAllCustomers(${index})">
+                                <i class="fas fa-list"></i> Browse All Customers
+                            </button>
                             <button class="btn btn-sm btn-success" onclick="showCreateCustomerForm(${index})">
                                 <i class="fas fa-plus"></i> Create New Customer
                             </button>
                         </div>
+                        <div id="customer-matches-${index}" class="mt-2"></div>
                         <div id="create-customer-form-${index}" style="display: none;" class="mt-3 p-3 border rounded bg-light">
                             <h6>Create New Customer</h6>
                             <div class="form-group">
@@ -588,6 +591,24 @@ function buildCustomerMappingUI() {
 
         // Auto-search for customer
         searchCustomers(lease.rawCustomerName, lease.rawCustomerEmail, index);
+    });
+}
+
+function browseAllCustomers(leaseIndex) {
+    // Fetch all customers (no search params)
+    fetch('/employee/lease/import-wizard/search-customers')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayCustomerMatches(data.matches, leaseIndex);
+            if (data.total) {
+                showMessage('info', `Showing ${data.matches.length} of ${data.total} customers`);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error browsing customers:', error);
+        showMessage('error', 'Failed to load all customers');
     });
 }
 
@@ -637,8 +658,8 @@ function displayCustomerMatches(matches, leaseIndex) {
         container.append(matchDiv);
     });
 
-    // Auto-select perfect match
-    if (matches.length > 0 && matches[0].score === 100) {
+    // Auto-select perfect match (only if we have very few results or exact match)
+    if (matches.length === 1 && matches[0].score >= 95) {
         selectCustomer(leaseIndex, matches[0].customerId, matches[0].name);
     }
 }

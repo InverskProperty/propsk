@@ -176,6 +176,21 @@ public class LeaseImportWizardController {
         try {
             List<Customer> allCustomers = customerService.findAll();
 
+            // If no search criteria, return all customers (browse mode)
+            if ((name == null || name.trim().isEmpty()) && (email == null || email.trim().isEmpty())) {
+                List<CustomerMatch> allMatches = allCustomers.stream()
+                    .map(customer -> new CustomerMatch(customer, 100))
+                    .sorted((a, b) -> a.name.compareToIgnoreCase(b.name))
+                    .limit(50) // Limit to first 50 for performance
+                    .collect(Collectors.toList());
+
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "matches", allMatches,
+                    "total", allCustomers.size()
+                ));
+            }
+
             List<CustomerMatch> matches = new ArrayList<>();
 
             for (Customer customer : allCustomers) {
@@ -206,7 +221,7 @@ public class LeaseImportWizardController {
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
-                "matches", matches.stream().limit(10).collect(Collectors.toList())
+                "matches", matches.stream().limit(20).collect(Collectors.toList())
             ));
 
         } catch (Exception e) {
