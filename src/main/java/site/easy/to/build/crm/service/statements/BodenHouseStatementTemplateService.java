@@ -1249,4 +1249,187 @@ public class BodenHouseStatementTemplateService {
         }
     }
 
+    // ===== HYBRID STATEMENT: TRANSACTION LEDGER SHEET =====
+
+    /**
+     * Generate Transaction Ledger sheet - lease-centric view of all transactions
+     *
+     * This provides a complete audit trail of all transactions, linked to leases.
+     * Use this alongside monthly property-centric sheets for full visibility.
+     */
+    public List<List<Object>> generateTransactionLedger(Customer propertyOwner, LocalDate fromDate, LocalDate toDate) {
+        return generateTransactionLedger(propertyOwner, fromDate, toDate, null);
+    }
+
+    /**
+     * Generate Transaction Ledger sheet with data source filtering
+     */
+    public List<List<Object>> generateTransactionLedger(Customer propertyOwner, LocalDate fromDate, LocalDate toDate, Set<StatementDataSource> includedDataSources) {
+        List<List<Object>> values = new ArrayList<>();
+
+        // Add header row
+        List<Object> headers = Arrays.asList(
+            "Date",
+            "Lease Reference",
+            "Property/Block",
+            "Unit Number",
+            "Tenant Name",
+            "Transaction Type",
+            "Category",
+            "Amount",
+            "Account Source",
+            "Description",
+            "Running Balance",
+            "Commission Rate",
+            "Commission Amount",
+            "Service Fee Rate",
+            "Service Fee Amount",
+            "Net to Owner",
+            "Reconciled"
+        );
+        values.add(headers);
+
+        // Get all properties for this owner
+        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+
+        // Collect all transactions for all properties
+        List<TransactionLedgerEntry> allEntries = new ArrayList<>();
+
+        for (Property property : properties) {
+            List<HistoricalTransaction> transactions = getTransactionsForProperty(property, fromDate, toDate);
+
+            // Filter by data source if specified
+            if (includedDataSources != null && !includedDataSources.isEmpty()) {
+                transactions = filterHistoricalTransactionsByAccountSource(transactions, includedDataSources);
+            }
+
+            // Convert to ledger entries
+            for (HistoricalTransaction transaction : transactions) {
+                TransactionLedgerEntry entry = new TransactionLedgerEntry();
+                entry.date = transaction.getTransactionDate();
+                entry.leaseReference = getLeaseReferenceForTransaction(transaction);
+                entry.propertyName = getPropertyNameForTransaction(transaction, property);
+                entry.unitNumber = extractUnitNumber(property);
+                entry.tenantName = getTenantNameForTransaction(transaction);
+                entry.transactionType = transaction.getTransactionType() != null ?
+                    transaction.getTransactionType().getDisplayName() : "";
+                entry.category = transaction.getCategory() != null ? transaction.getCategory() : "";
+                entry.amount = transaction.getAmount() != null ? transaction.getAmount() : BigDecimal.ZERO;
+                entry.accountSource = formatAccountSource(transaction.getAccountSource());
+                entry.description = transaction.getDescription() != null ? transaction.getDescription() : "";
+                entry.runningBalance = transaction.getRunningBalance();
+                entry.commissionRate = transaction.getCommissionRate();
+                entry.commissionAmount = transaction.getCommissionAmount();
+                entry.serviceFeeRate = transaction.getServiceFeeRate();
+                entry.serviceFeeAmount = transaction.getServiceFeeAmount();
+                entry.netToOwnerAmount = transaction.getNetToOwnerAmount();
+                entry.reconciled = transaction.getReconciled() != null && transaction.getReconciled();
+
+                allEntries.add(entry);
+            }
+        }
+
+        // Sort by date
+        allEntries.sort(Comparator.comparing(entry -> entry.date));
+
+        // Add rows
+        for (TransactionLedgerEntry entry : allEntries) {
+            List<Object> row = Arrays.asList(
+                entry.date != null ? entry.date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "",
+                entry.leaseReference,
+                entry.propertyName,
+                entry.unitNumber,
+                entry.tenantName,
+                entry.transactionType,
+                entry.category,
+                entry.amount,
+                entry.accountSource,
+                entry.description,
+                entry.runningBalance != null ? entry.runningBalance : "",
+                entry.commissionRate != null ? entry.commissionRate : "",
+                entry.commissionAmount != null ? entry.commissionAmount : "",
+                entry.serviceFeeRate != null ? entry.serviceFeeRate : "",
+                entry.serviceFeeAmount != null ? entry.serviceFeeAmount : "",
+                entry.netToOwnerAmount != null ? entry.netToOwnerAmount : "",
+                entry.reconciled ? "Yes" : "No"
+            );
+            values.add(row);
+        }
+
+        return values;
+    }
+
+    /**
+     * Get lease reference for a transaction
+     */
+    private String getLeaseReferenceForTransaction(HistoricalTransaction transaction) {
+        if (transaction.getInvoice() != null && transaction.getInvoice().getLeaseReference() != null) {
+            return transaction.getInvoice().getLeaseReference();
+        }
+        return "";
+    }
+
+    /**
+     * Get property name for transaction (with block support)
+     */
+    private String getPropertyNameForTransaction(HistoricalTransaction transaction, Property property) {
+        if (transaction.getBlock() != null) {
+            return transaction.getBlock().getName();
+        }
+        if (transaction.getProperty() != null) {
+            return transaction.getProperty().getPropertyName();
+        }
+        return property.getPropertyName();
+    }
+
+    /**
+     * Get tenant name for transaction
+     */
+    private String getTenantNameForTransaction(HistoricalTransaction transaction) {
+        if (transaction.getCustomer() != null) {
+            return transaction.getCustomer().getName();
+        }
+        if (transaction.getInvoice() != null && transaction.getInvoice().getCustomer() != null) {
+            return transaction.getInvoice().getCustomer().getName();
+        }
+        return "";
+    }
+
+    /**
+     * Format account source for display
+     */
+    private String formatAccountSource(String accountSource) {
+        if (accountSource == null) return "";
+
+        return switch (accountSource.toLowerCase()) {
+            case "propsk_old" -> "Old Account";
+            case "propsk_payprop" -> "PayProp";
+            case "robert_ellis" -> "Robert Ellis";
+            default -> accountSource;
+        };
+    }
+
+    /**
+     * Transaction Ledger Entry data class
+     */
+    public static class TransactionLedgerEntry {
+        public LocalDate date;
+        public String leaseReference;
+        public String propertyName;
+        public String unitNumber;
+        public String tenantName;
+        public String transactionType;
+        public String category;
+        public BigDecimal amount;
+        public String accountSource;
+        public String description;
+        public BigDecimal runningBalance;
+        public BigDecimal commissionRate;
+        public BigDecimal commissionAmount;
+        public BigDecimal serviceFeeRate;
+        public BigDecimal serviceFeeAmount;
+        public BigDecimal netToOwnerAmount;
+        public boolean reconciled;
+    }
+
 }

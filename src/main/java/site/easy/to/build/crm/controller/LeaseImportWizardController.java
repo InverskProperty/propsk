@@ -115,11 +115,26 @@ public class LeaseImportWizardController {
      */
     @GetMapping("/search-properties")
     @ResponseBody
-    public ResponseEntity<?> searchProperties(@RequestParam String q) {
+    public ResponseEntity<?> searchProperties(@RequestParam(required = false) String q) {
         log.info("🔍 Searching properties for: {}", q);
 
         try {
             List<Property> allProperties = propertyService.findAll();
+
+            // If no query, return all properties (for browse mode)
+            if (q == null || q.trim().isEmpty()) {
+                List<PropertyMatch> allMatches = allProperties.stream()
+                    .map(property -> new PropertyMatch(property, 100))
+                    .sorted((a, b) -> a.propertyName.compareToIgnoreCase(b.propertyName))
+                    .limit(50) // Limit to first 50 for performance
+                    .collect(Collectors.toList());
+
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "matches", allMatches,
+                    "total", allProperties.size()
+                ));
+            }
 
             // Fuzzy match properties
             List<PropertyMatch> matches = allProperties.stream()
@@ -129,7 +144,7 @@ public class LeaseImportWizardController {
                 })
                 .filter(match -> match.score > 30) // Only show matches above 30% similarity
                 .sorted((a, b) -> Integer.compare(b.score, a.score))
-                .limit(10)
+                .limit(20) // Show more results
                 .collect(Collectors.toList());
 
             return ResponseEntity.ok(Map.of(
@@ -598,29 +613,84 @@ public class LeaseImportWizardController {
     }
 
     /**
-     * Simple fuzzy matching algorithm (Levenshtein-inspired)
+     * Improved fuzzy matching algorithm with position-aware scoring
      * Returns similarity score 0-100
      */
     private int fuzzyMatchScore(String query, String target) {
+        // Exact match - highest priority
         if (query.equals(target)) return 100;
-        if (target.contains(query)) return 85;
 
-        // Tokenize and check word overlap
-        String[] queryWords = query.split("\\s+");
-        String[] targetWords = target.split("\\s+");
+        // Case-insensitive exact match
+        if (query.equalsIgnoreCase(target)) return 99;
 
-        int matches = 0;
-        for (String qWord : queryWords) {
-            for (String tWord : targetWords) {
-                if (tWord.contains(qWord) || qWord.contains(tWord)) {
-                    matches++;
-                    break;
+        // Target contains full query
+        if (target.contains(query)) return 90;
+
+        // Tokenize by spaces and special characters
+        String[] queryWords = query.split("[\\s\\-,]+");
+        String[] targetWords = target.split("[\\s\\-,]+");
+
+        if (queryWords.length == 0) return 0;
+
+        int totalScore = 0;
+        int matchedWords = 0;
+
+        // Check each query word against target words
+        for (int i = 0; i < queryWords.length; i++) {
+            String qWord = queryWords[i];
+            if (qWord.isEmpty()) continue;
+
+            boolean foundMatch = false;
+            int bestWordScore = 0;
+
+            for (int j = 0; j < targetWords.length; j++) {
+                String tWord = targetWords[j];
+                if (tWord.isEmpty()) continue;
+
+                int wordScore = 0;
+
+                // Exact word match
+                if (qWord.equalsIgnoreCase(tWord)) {
+                    wordScore = 100;
+                    // Bonus for matching at same position (important for unit numbers)
+                    if (i == j) {
+                        wordScore = 120;
+                    }
+                }
+                // Contains match (but penalize partial matches)
+                else if (tWord.toLowerCase().contains(qWord.toLowerCase())) {
+                    wordScore = 50;
+                }
+                else if (qWord.toLowerCase().contains(tWord.toLowerCase())) {
+                    wordScore = 40;
+                }
+
+                if (wordScore > bestWordScore) {
+                    bestWordScore = wordScore;
+                }
+            }
+
+            if (bestWordScore > 0) {
+                matchedWords++;
+                totalScore += bestWordScore;
+
+                // Give extra weight to first 2 words (usually the unit identifier)
+                if (i < 2) {
+                    totalScore += bestWordScore / 2;
                 }
             }
         }
 
-        if (queryWords.length == 0) return 0;
-        return (matches * 100) / queryWords.length;
+        // Calculate final score
+        if (matchedWords == 0) return 0;
+
+        // Average score with bonus for matching all words
+        int avgScore = totalScore / queryWords.length;
+        if (matchedWords == queryWords.length) {
+            avgScore = (int)(avgScore * 1.1); // 10% bonus for all words matched
+        }
+
+        return Math.min(avgScore, 100);
     }
 
     /**

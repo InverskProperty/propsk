@@ -826,4 +826,410 @@ If you encounter issues:
 
 ---
 
+---
+
+## 📊 Processing Statement Generator Output (Advanced)
+
+### Understanding the Statement Generator
+
+Your statement generator spreadsheet uses **two sheets**:
+
+1. **Sheet5 (Input Data)** - Master lease data with static information
+2. **Statement Sheet (Calculated)** - Monthly statement with formulas that calculate rent due, prorations, fees, expenses, and net amounts
+
+The statement sheet contains **Excel formulas** that reference Sheet5 and calculate everything dynamically based on the statement period (Date BOP = Beginning of Period, Date EOP = End of Period).
+
+### Statement Structure
+
+Each statement has:
+- **Header**: CLIENT, Date BOP, Date EOP
+- **Property Section**: PROPERTY: BODEN HOUSE
+- **Lease Rows**: One row per lease with calculated values
+- **Totals Row**: Aggregated totals
+- **Payments Section**: Actual bank transfers made to landlord
+
+### Key Statement Columns
+
+| Column | Description | Example Value |
+|--------|-------------|---------------|
+| Unit No. | Property reference | FLAT 1 - 3 WEST GATE |
+| Tenant | Customer name | MS O SMOLIARENKO & MR I HALII |
+| Tenancy Start Date | Lease start | 2025-02-27 |
+| Tenancy End Date | Lease end (empty if ongoing) | 2025-08-18 |
+| Rent Due Date | Day of month | 27 |
+| Rent Due Amount | Calculated rent (may be prorated) | 795.00 |
+| Payment Source | 2=Old Account, 3=PayProp | 2 or 3 |
+| Rent Received Date | Actual payment date | 04/08/2025 |
+| Rent Received Amount | Actual amount paid | 795 |
+| Management Fee (%) | Fee percentage | 15% |
+| Management Fee Amount | Calculated fee (negative) | (119) |
+| Expense 1-4 Source | Which account pays | 2 or 3 |
+| Expense 1-4 Chargeable to [Account] | TRUE/FALSE per account | TRUE or FALSE |
+| Expense 1-4 Label | Expense description | White Goods |
+| Expense 1-4 Amount | Expense cost (negative) | 250 |
+| Expense 1-4 Comment | Additional notes | John Oleyed fridge freezer |
+| Net Due to Prestvale [Account] | Amount owed to landlord per account | 676 |
+| Tenant Balance | Cumulative balance (arrears if negative) | (5) |
+
+### Transaction Types from Statement Generator
+
+#### 1️⃣ **Rent Due (Invoice)** - When Rent Due Amount > 0
+
+The statement calculates prorated rent for mid-month moves:
+
+**Formula Logic:**
+```
+IF tenancy ends before end of period:
+    Prorate = (Days in tenancy / 30) * Monthly rent
+ELSE:
+    Full monthly rent
+```
+
+**CSV Mapping:**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source,lease_reference
+{Start of period or rent due day},{Rent Due Amount},Rent Due - {Month} {Year},invoice,rent,{Unit No.},{Tenant},,,Rent due on {Rent Due Date},{Payment Source},{Lease Reference}
+```
+
+**Example - Full Month:**
+```csv
+2025-08-01,795.00,Rent Due - August 2025,invoice,rent,FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO & MR I HALII,,,Rent due on 27th,OLD_ACCOUNT,LEASE-BH-F1-2025
+```
+
+**Example - Prorated (Tenant Leaving):**
+```csv
+2025-08-01,438.00,Rent Due - August 2025 (Prorated),invoice,rent,FLAT 19 - 3 WEST GATE,MR J BANKS & MISS L MIDDLEMASS,,,Prorated rent - tenancy ends 31/07/2025,OLD_ACCOUNT,LEASE-BH-F19-2025
+```
+
+**Note:** Rent Due Amount of 0 means:
+- Tenancy hasn't started yet (future tenant)
+- Tenancy ended before this period
+- Skip creating invoice transaction
+
+#### 2️⃣ **Rent Received (Payment)** - When Rent Received Amount > 0
+
+**CSV Mapping:**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source,lease_reference
+{Rent Received Date},{Rent Received Amount},Rent Received - {Month} {Year},payment,rent,{Unit No.},{Tenant},,,Monthly rent payment,{Which account received},{Lease Reference}
+```
+
+**Determining Payment Account:**
+Look at columns:
+- "Amount Received Old Account" > 0 → OLD_ACCOUNT
+- "Amount received in Payprop" > 0 → PAYPROP
+
+**Example:**
+```csv
+2025-08-04,795.00,Rent Received - August 2025,payment,rent,FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO & MR I HALII,,,Monthly rent payment,OLD_ACCOUNT,LEASE-BH-F1-2025
+```
+
+**Special Case - Partial Payment:**
+```csv
+2025-08-12,584.00,Rent Received - August 2025 (Partial),payment,rent,FLAT 16 - 3 WEST GATE,MR R P BERESFORD & MS G L JUDGE,,,Partial payment - £8 outstanding,PAYPROP,LEASE-BH-F16-2025
+```
+
+**Special Case - Overpayment (Arrears Catch-up):**
+```csv
+2025-08-15,1400.00,Rent Received - August 2025 (Including Arrears),payment,rent,FLAT 7 - 3 WEST GATE,C TANG,,,Payment includes £700 arrears from previous months,PAYPROP,LEASE-BH-F7-2025
+```
+
+#### 3️⃣ **Management Fees** - When Management Fee Amount ≠ 0
+
+**Split by Account:**
+The statement calculates fees separately for each account:
+- "Management Fee Propsk Old Account Amount"
+- "Management Fee Propsk Payprop Account Amount"
+
+**Create separate transactions for each account with fees:**
+
+**CSV Mapping (Old Account):**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source,lease_reference
+{Rent Received Date},{Management Fee Old Account Amount},Management Fee - {%},fee,commission,{Unit No.},,,{%} management fee on £{Rent Received Old Account},OLD_ACCOUNT,{Lease Reference}
+```
+
+**CSV Mapping (PayProp Account):**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source,lease_reference
+{Rent Received Date},{Management Fee PayProp Amount},Management Fee - {%},fee,commission,{Unit No.},,,{%} management fee on £{Rent Received PayProp},PAYPROP,{Lease Reference}
+```
+
+**Example (15% fee on OLD_ACCOUNT rent):**
+```csv
+2025-08-04,-119.00,Management Fee - 15%,fee,commission,FLAT 1 - 3 WEST GATE,,,,15% management fee on £795,OLD_ACCOUNT,LEASE-BH-F1-2025
+```
+
+**Example (10% fee for different property):**
+```csv
+2025-08-20,-113.00,Management Fee - 10%,fee,commission,Apartment F - Knighton Hayes,,,,10% management fee on £1125,PAYPROP,LEASE-KH-F-2024
+```
+
+**Note:** Amount is already negative in statement. Don't make it more negative!
+
+#### 4️⃣ **Expenses** (Up to 4 per Lease)
+
+Each lease can have **4 separate expenses**, each with its own:
+- Source (2=OLD_ACCOUNT, 3=PAYPROP)
+- Chargeable Account (TRUE/FALSE for Old vs PayProp)
+- Label
+- Amount
+- Comment
+
+**CSV Mapping for Each Expense:**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source,lease_reference
+{Rent Received Date or best estimate},{-Expense Amount},{Expense Label},expense,{category},{Unit No.},,,,{Expense Comment},{Expense Source},{Lease Reference}
+```
+
+**Determining Expense Category:**
+| Expense Label Contains | transaction_type | category |
+|------------------------|------------------|----------|
+| "White Goods", "Fridge", "Freezer", "Appliance" | `expense` | `white_goods` |
+| "Bed", "Mattress" | `expense` | `furnishing` |
+| "End of Tenancy Clean", "Cleaning" | `maintenance` | `cleaning` |
+| "Clearance" | `maintenance` | `clearance` |
+| "Inventory" | `expense` | `inventory` |
+| "Ceramic Hob", "Cooker" | `maintenance` | `appliances` |
+| Anything else | `expense` | `general` |
+
+**Example - Multiple Expenses on One Lease:**
+
+Statement Row for FLAT 10:
+```
+Expense 1: White Goods, 250, John Oleyed fridge freezer
+Expense 2: End of Tenancy Clean, 200, End of Tenancy Clean
+```
+
+Converts to:
+```csv
+2025-09-11,-250.00,White Goods,expense,white_goods,FLAT 10 - 3 WEST GATE,,,,John Oleyed fridge freezer,PAYPROP,LEASE-BH-F10-2025
+2025-09-11,-200.00,End of Tenancy Clean,maintenance,cleaning,FLAT 10 - 3 WEST GATE,,,,End of Tenancy Clean,PAYPROP,LEASE-BH-F10-2025
+```
+
+**Example - Tenancy Ended, Only Expenses (No Rent):**
+
+Statement Row for FLAT 7 (Tenant left, but expenses charged):
+```
+Rent Due Amount: 0.00
+Expense 1: Ceramic Hob, 229.94
+Expense 2: End of Tenancy Clean, 200
+Expense 3: Inventory, 150
+```
+
+Converts to:
+```csv
+2025-08-01,-229.94,Ceramic Hob,maintenance,appliances,FLAT 7 - 3 WEST GATE,,,,Replacement ceramic hob,PAYPROP,LEASE-BH-F7-2025
+2025-08-01,-200.00,End of Tenancy Clean,maintenance,cleaning,FLAT 7 - 3 WEST GATE,,,,End of tenancy cleaning,PAYPROP,LEASE-BH-F7-2025
+2025-08-01,-150.00,Inventory,expense,inventory,FLAT 7 - 3 WEST GATE,,,,Inventory check,PAYPROP,LEASE-BH-F7-2025
+```
+
+**Note:** These expenses are charged to the TENANT (deducted from their deposit or owed), not the landlord.
+
+#### 5️⃣ **Net Due to Landlord (Accrual)** - Split by Account
+
+The statement calculates net amounts **separately for each account**:
+- "Net Due to Prestvale Propsk Old Account"
+- "Net Due to Prestvale Propsk PayProp Account"
+
+This represents **what you OWE the landlord** (not what you've paid yet).
+
+**Create separate accrual transactions for each account:**
+
+**CSV Mapping (Old Account):**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source,lease_reference
+{Last day of period},{-Net Due Old Account},Owner Liability Accrual - {Month} {Year},adjustment,owner_liability,{Unit No.},,,,Net amount owed to landlord - OLD ACCOUNT,OLD_ACCOUNT,{Lease Reference}
+```
+
+**CSV Mapping (PayProp Account):**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source,lease_reference
+{Last day of period},{-Net Due PayProp},Owner Liability Accrual - {Month} {Year},adjustment,owner_liability,{Unit No.},,,,Net amount owed to landlord - PAYPROP,PAYPROP,{Lease Reference}
+```
+
+**Example (Positive Net - Owed to Landlord):**
+```csv
+2025-08-31,-676.00,Owner Liability Accrual - August 2025,adjustment,owner_liability,FLAT 1 - 3 WEST GATE,,,,Net amount owed to landlord - OLD ACCOUNT (£795 rent - £119 fee),OLD_ACCOUNT,LEASE-BH-F1-2025
+```
+
+**Example (Negative Net - Landlord Owes You):**
+
+When expenses exceed rent collected:
+```csv
+2025-08-31,580.00,Owner Liability Adjustment - August 2025,adjustment,owner_liability,FLAT 7 - 3 WEST GATE,,,,Expenses exceeded rent - landlord owes balance,PAYPROP,LEASE-BH-F7-2025
+```
+
+**Note:**
+- Positive net → Negative amount (outgoing to landlord)
+- Negative net → Positive amount (landlord owes you)
+
+#### 6️⃣ **Actual Portfolio Payments to Landlord** 💰
+
+At the **bottom of the statement**, there's a "Payments" section:
+
+```
+Payments From Propsk Old Account
+Payment 1           £0.00
+Payment 2           0
+Payment 3           0.00
+Payment 4           0.00
+Total Rent Paid to Prestvale From Propsk Old Account: £0.00
+
+Payments From Propsk PayProp Account
+Payment 1    22/08/2025    £16,666.26
+Payment 2           £0.00
+Payment 3           £0.00
+Payment 4           0.00
+Total Rent Paid to Prestvale From Propsk PayProp Account: £16,666.26
+```
+
+**These are ACTUAL bank transfers made to the landlord** (not per-property, but portfolio-wide).
+
+**CSV Mapping:**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source,lease_reference
+{Payment Date},{-Payment Amount},Actual Owner Payment - {Date},payment,owner_payment,,{Landlord Name},,,Bank transfer to landlord - Payment {number} reconciling {Month} liabilities,{OLD_ACCOUNT or PAYPROP},
+```
+
+**Example:**
+```csv
+2025-08-22,-16666.26,Actual Owner Payment - 22 August 2025,payment,owner_payment,,PRESTVALE PROPERTIES LIMITED,,,Bank transfer to landlord - Payment 1 reconciling August 2025 liabilities,PAYPROP,
+```
+
+**Key Points:**
+- `property_reference` is **EMPTY** (portfolio-level payment)
+- `customer_reference` is the **landlord name**
+- `lease_reference` is **EMPTY** (not linked to specific lease)
+- Amount is **negative** (outgoing payment)
+- Create one transaction per payment line with a value > 0
+
+### Reconciliation: Accruals vs. Actual Payments
+
+The statement tracks:
+
+1. **Per-Property Accruals** (what you theoretically owe):
+   - FLAT 1: £676
+   - FLAT 2: £629
+   - ... (all properties)
+   - **Total Accrued:** £15,583
+
+2. **Actual Portfolio Payments** (what you actually paid):
+   - Payment 1 on 22/08/2025: £16,666.26
+
+**Difference:** £16,666.26 - £15,583 = **£1,083.26 overpayment**
+
+This means:
+- You paid more than this month's net
+- Likely catching up on previous months
+- Or paying in advance
+
+The CRM will track:
+- ✅ Individual property accruals
+- ✅ Actual cash payments
+- ✅ Outstanding balance per account
+
+### Special Cases from Statement Generator
+
+#### Case 1: Mid-Month Tenant Change
+
+**Statement Shows:**
+```
+LEASE-BH-F10-2025    MR F PETER    2025-03-06    2025-09-23    6    735.00
+LEASE-BH-F10-2025B   Anna Stoliarchuk    2025-09-03        735.00
+```
+
+**Processing:**
+- First tenant: Prorated rent for Mar-Aug, then partial September
+- Second tenant: Starts 09/03, gets partial September + full months going forward
+- **Each gets their own lease reference** (suffix B for second tenant)
+
+#### Case 2: No Rent, Only Expenses (Ended Tenancy)
+
+**Statement Shows:**
+```
+LEASE-BH-F7-2025    C TANG    Rent: 0.00    Expenses: (580)    Net: (580)
+```
+
+**Processing:**
+- ❌ Skip rent due/received transactions (amount = 0)
+- ✅ Create expense transactions
+- ✅ Create net liability (negative = landlord owes you)
+
+#### Case 3: Vacant Unit (Future Tenant)
+
+**Statement Shows:**
+```
+LEASE-BH-F10-2025B    Anna Stoliarchuk    2025-09-03        0.00
+```
+
+**Processing:**
+- ❌ Skip entirely for this month (tenancy starts later)
+- ✅ Import the lease itself (Phase 1)
+- ✅ Will generate transactions starting September 2025
+
+#### Case 4: Arrears Tracking
+
+**Statement Shows:**
+```
+Tenant Balance: (1,125)    ← Negative means tenant owes this amount
+```
+
+**Processing:**
+- This is **cumulative balance** from previous months
+- Don't create a separate transaction for this
+- The CRM will calculate balance automatically from transaction history
+- Use this value to **validate** your import is correct
+
+### Processing Workflow for Statement Generator
+
+**Step 1: Export Lease Data (Phase 1)**
+
+From **Sheet5** (the master data), export:
+```csv
+property_reference,customer_name,customer_email,lease_start_date,lease_end_date,rent_amount,payment_day,lease_reference
+FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO & MR I HALII,,2025-02-27,,795.00,27,LEASE-BH-F1-2025
+```
+
+**Step 2: Calculate Statement Values**
+
+The statement sheet formulas calculate:
+- Prorated rent for mid-month moves
+- Management fees split by account
+- Net amounts split by account
+
+**Step 3: Extract Calculated Values**
+
+Copy the **calculated statement output** (not the formulas) to a new sheet.
+
+**Step 4: Convert to Transaction Rows**
+
+For each lease row, create:
+1. Rent Due transaction (if Rent Due Amount > 0)
+2. Rent Received transaction (if Rent Received Amount > 0)
+3. Management Fee transaction(s) (split by account if needed)
+4. Expense transactions (up to 4)
+5. Net liability accrual transaction(s) (split by account)
+
+**Step 5: Add Portfolio Payments**
+
+From the Payments section at bottom:
+- Create portfolio-level payment transactions
+- Use empty property_reference
+- Use landlord name as customer_reference
+
+**Step 6: Validate Totals**
+
+Check the TOTALS row matches your transaction sums:
+- Total Rent Received = Sum of all rent payment transactions
+- Total Management Fees = Sum of all fee transactions
+- Total Expenses = Sum of all expense transactions
+- Total Net = Sum of all accrual transactions
+
+**Step 7: Import to CRM**
+
+Navigate to `/employee/transaction/import` and upload your CSV.
+
+---
+
 **You now have everything you need to convert your Boden House spreadsheet into the CRM import format!** 🎯

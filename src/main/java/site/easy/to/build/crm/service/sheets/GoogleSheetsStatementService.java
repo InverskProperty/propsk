@@ -224,6 +224,9 @@ public class GoogleSheetsStatementService {
             applyBodenHouseGoogleSheetsFormattingToSheet(sheetsService, spreadsheetId, sheetName);
         }
 
+        // Add Transaction Ledger sheet (lease-centric view)
+        createTransactionLedgerSheet(sheetsService, spreadsheetId, propertyOwner, fromDate, toDate, includedDataSources);
+
         // Add summary sheet
         createPeriodSummarySheet(sheetsService, spreadsheetId, propertyOwner, periods);
 
@@ -1192,6 +1195,188 @@ public class GoogleSheetsStatementService {
             System.out.println("✅ Access granted to " + customerEmail);
         } catch (Exception e) {
             System.err.println("⚠️ Could not grant access: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Create Transaction Ledger sheet - lease-centric view of all transactions
+     */
+    private void createTransactionLedgerSheet(Sheets sheetsService, String spreadsheetId, Customer propertyOwner,
+                                             LocalDate fromDate, LocalDate toDate, Set<StatementDataSource> includedDataSources)
+            throws IOException {
+
+        System.out.println("📊 Creating Transaction Ledger sheet");
+
+        // Create the sheet
+        AddSheetRequest addSheetRequest = new AddSheetRequest()
+            .setProperties(new SheetProperties()
+                .setTitle("Transaction Ledger")
+                .setIndex(0)); // Put at the beginning
+
+        Request request = new Request().setAddSheet(addSheetRequest);
+        BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
+            .setRequests(List.of(request));
+
+        sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
+
+        // Generate transaction ledger data
+        List<List<Object>> ledgerValues;
+        if (includedDataSources != null && !includedDataSources.isEmpty()) {
+            ledgerValues = bodenHouseTemplateService.generateTransactionLedger(
+                propertyOwner, fromDate, toDate, includedDataSources);
+        } else {
+            ledgerValues = bodenHouseTemplateService.generateTransactionLedger(
+                propertyOwner, fromDate, toDate);
+        }
+
+        // Write data to the sheet
+        ValueRange body = new ValueRange().setValues(ledgerValues);
+        sheetsService.spreadsheets().values()
+            .update(spreadsheetId, "Transaction Ledger!A1", body)
+            .setValueInputOption("USER_ENTERED")
+            .execute();
+
+        // Apply formatting to the Transaction Ledger sheet
+        applyTransactionLedgerFormatting(sheetsService, spreadsheetId);
+
+        System.out.println("✅ Transaction Ledger created with " + (ledgerValues.size() - 1) + " transactions");
+    }
+
+    /**
+     * Apply formatting to Transaction Ledger sheet
+     */
+    private void applyTransactionLedgerFormatting(Sheets sheetsService, String spreadsheetId) throws IOException {
+        List<Request> requests = new ArrayList<>();
+
+        // Get sheet ID for Transaction Ledger
+        Spreadsheet spreadsheet = sheetsService.spreadsheets().get(spreadsheetId).execute();
+        Integer sheetId = null;
+        for (Sheet sheet : spreadsheet.getSheets()) {
+            if ("Transaction Ledger".equals(sheet.getProperties().getTitle())) {
+                sheetId = sheet.getProperties().getSheetId();
+                break;
+            }
+        }
+
+        if (sheetId == null) return;
+
+        // Format header row
+        requests.add(new Request()
+            .setRepeatCell(new RepeatCellRequest()
+                .setRange(new GridRange()
+                    .setSheetId(sheetId)
+                    .setStartRowIndex(0)
+                    .setEndRowIndex(1)
+                    .setStartColumnIndex(0)
+                    .setEndColumnIndex(17))
+                .setCell(new CellData()
+                    .setUserEnteredFormat(new CellFormat()
+                        .setTextFormat(new TextFormat()
+                            .setBold(true)
+                            .setFontSize(10)
+                            .setFontFamily("Calibri"))
+                        .setHorizontalAlignment("CENTER")
+                        .setVerticalAlignment("MIDDLE")
+                        .setWrapStrategy("WRAP")
+                        .setBackgroundColor(new Color()
+                            .setRed(0.2f)
+                            .setGreen(0.4f)
+                            .setBlue(0.6f)
+                            .setAlpha(1.0f))
+                        .setTextFormat(new TextFormat()
+                            .setBold(true)
+                            .setForegroundColor(new Color()
+                                .setRed(1.0f)
+                                .setGreen(1.0f)
+                                .setBlue(1.0f)))))
+                .setFields("userEnteredFormat")));
+
+        // Format currency columns (Amount, Running Balance, Commission Amount, Service Fee Amount, Net to Owner)
+        int[] currencyColumns = {7, 10, 12, 14, 15};
+        for (int col : currencyColumns) {
+            requests.add(new Request()
+                .setRepeatCell(new RepeatCellRequest()
+                    .setRange(new GridRange()
+                        .setSheetId(sheetId)
+                        .setStartRowIndex(1)
+                        .setEndRowIndex(1000)
+                        .setStartColumnIndex(col)
+                        .setEndColumnIndex(col + 1))
+                    .setCell(new CellData()
+                        .setUserEnteredFormat(new CellFormat()
+                            .setNumberFormat(new com.google.api.services.sheets.v4.model.NumberFormat()
+                                .setType("CURRENCY")
+                                .setPattern("£#,##0.00;(£#,##0.00)"))
+                            .setHorizontalAlignment("RIGHT")))
+                    .setFields("userEnteredFormat(numberFormat,horizontalAlignment)")));
+        }
+
+        // Format percentage columns (Commission Rate, Service Fee Rate)
+        int[] percentageColumns = {11, 13};
+        for (int col : percentageColumns) {
+            requests.add(new Request()
+                .setRepeatCell(new RepeatCellRequest()
+                    .setRange(new GridRange()
+                        .setSheetId(sheetId)
+                        .setStartRowIndex(1)
+                        .setEndRowIndex(1000)
+                        .setStartColumnIndex(col)
+                        .setEndColumnIndex(col + 1))
+                    .setCell(new CellData()
+                        .setUserEnteredFormat(new CellFormat()
+                            .setNumberFormat(new com.google.api.services.sheets.v4.model.NumberFormat()
+                                .setType("PERCENT")
+                                .setPattern("0.00%"))
+                            .setHorizontalAlignment("CENTER")))
+                    .setFields("userEnteredFormat")));
+        }
+
+        // Freeze header row
+        requests.add(new Request()
+            .setUpdateSheetProperties(new UpdateSheetPropertiesRequest()
+                .setProperties(new SheetProperties()
+                    .setSheetId(sheetId)
+                    .setGridProperties(new GridProperties()
+                        .setFrozenRowCount(1)))
+                .setFields("gridProperties.frozenRowCount")));
+
+        // Set column widths
+        Map<Integer, Integer> columnWidths = Map.of(
+            0, 100,  // Date
+            1, 150,  // Lease Reference
+            2, 150,  // Property/Block
+            3, 120,  // Unit Number
+            4, 150,  // Tenant Name
+            5, 120,  // Transaction Type
+            6, 100,  // Category
+            7, 100,  // Amount
+            8, 120,  // Account Source
+            9, 250   // Description
+        );
+
+        for (Map.Entry<Integer, Integer> entry : columnWidths.entrySet()) {
+            requests.add(new Request()
+                .setUpdateDimensionProperties(new UpdateDimensionPropertiesRequest()
+                    .setRange(new DimensionRange()
+                        .setSheetId(sheetId)
+                        .setDimension("COLUMNS")
+                        .setStartIndex(entry.getKey())
+                        .setEndIndex(entry.getKey() + 1))
+                    .setProperties(new DimensionProperties()
+                        .setPixelSize(entry.getValue()))
+                    .setFields("pixelSize")));
+        }
+
+        // Execute all formatting requests
+        if (!requests.isEmpty()) {
+            BatchUpdateSpreadsheetRequest batchUpdateRequest = new BatchUpdateSpreadsheetRequest()
+                .setRequests(requests);
+
+            sheetsService.spreadsheets()
+                .batchUpdate(spreadsheetId, batchUpdateRequest)
+                .execute();
+
+            System.out.println("✅ Applied Transaction Ledger formatting");
         }
     }
 

@@ -421,10 +421,19 @@ function buildPropertyMappingUI() {
                     </div>
                     <div class="col-md-8">
                         <label>Select Matching Property:</label>
-                        <input type="text" class="form-control property-search"
-                               data-index="${index}"
-                               placeholder="Type to search properties..."
-                               value="${lease.rawPropertyReference}">
+                        <div class="input-group mb-2">
+                            <input type="text" class="form-control property-search"
+                                   data-index="${index}"
+                                   placeholder="Type to search properties..."
+                                   value="${lease.rawPropertyReference}">
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button"
+                                        onclick="browseAllProperties(${index})"
+                                        title="Browse all properties">
+                                    <i class="fas fa-list"></i> Browse All
+                                </button>
+                            </div>
+                        </div>
                         <div id="property-matches-${index}" class="mt-2"></div>
                     </div>
                 </div>
@@ -444,6 +453,21 @@ function buildPropertyMappingUI() {
         if (query.length >= 2) {
             searchProperties(query, index);
         }
+    });
+}
+
+function browseAllProperties(leaseIndex) {
+    // Fetch all properties
+    fetch('/employee/lease/import-wizard/search-properties')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayPropertyMatches(data.matches, leaseIndex);
+        }
+    })
+    .catch(error => {
+        console.error('Error browsing properties:', error);
+        showMessage('error', 'Failed to load all properties');
     });
 }
 
@@ -473,12 +497,17 @@ function displayPropertyMatches(matches, leaseIndex) {
         const scoreClass = match.score >= 80 ? 'score-high' :
                           match.score >= 60 ? 'score-medium' : 'score-low';
 
+        // Handle null/undefined propertyType
+        const propertyType = match.propertyType && match.propertyType !== 'null'
+            ? match.propertyType
+            : 'Property';
+
         const matchDiv = $(`
             <div class="match-suggestion" data-property-id="${match.propertyId}" data-index="${leaseIndex}">
                 <strong>${match.propertyName}</strong>
                 <span class="score-badge ${scoreClass}">${match.score}% match</span>
                 <br>
-                <small class="text-muted">${match.propertyType}</small>
+                <small class="text-muted">${propertyType}</small>
             </div>
         `);
 
@@ -489,8 +518,8 @@ function displayPropertyMatches(matches, leaseIndex) {
         container.append(matchDiv);
     });
 
-    // Auto-select perfect match
-    if (matches.length > 0 && matches[0].score === 100) {
+    // Auto-select perfect match (only if we have very few results or exact match)
+    if (matches.length === 1 && matches[0].score >= 95) {
         selectProperty(leaseIndex, matches[0].propertyId, matches[0].propertyName);
     }
 }
