@@ -104,6 +104,30 @@
         font-size: 12px;
         min-height: 300px;
     }
+
+    .duplicate-warning {
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 10px;
+        border-left: 4px solid;
+    }
+    .duplicate-exact {
+        background: #ffebee;
+        border-left-color: #f44336;
+    }
+    .duplicate-logical {
+        background: #fff3e0;
+        border-left-color: #ff9800;
+    }
+    .duplicate-overlapping {
+        background: #fff9c4;
+        border-left-color: #fdd835;
+    }
+    .duplicate-details {
+        font-size: 0.9em;
+        color: #666;
+        margin-top: 5px;
+    }
 </style>
 
 </head>
@@ -273,6 +297,38 @@ const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttrib
 let parsedLeases = [];
 let propertyMappings = {};
 let customerMappings = {};
+let leaseActions = {}; // Tracks action for each lease: 'IMPORT', 'SKIP', or 'REPLACE'
+let duplicateData = null; // Stores duplicate detection results
+
+function updateLeaseAction(index, action) {
+    leaseActions[index] = action;
+    console.log(`Lease ${index} action set to: ${action}`);
+    updateImportSummary();
+}
+
+function updateImportSummary() {
+    let importCount = 0;
+    let skipCount = 0;
+    let replaceCount = 0;
+
+    for (let index in leaseActions) {
+        const action = leaseActions[index];
+        if (action === 'IMPORT') importCount++;
+        else if (action === 'SKIP') skipCount++;
+        else if (action === 'REPLACE') replaceCount++;
+    }
+
+    // Update summary display if it exists
+    const summaryElement = $('#import-summary');
+    if (summaryElement.length > 0) {
+        summaryElement.html(`
+            <strong>Import Summary:</strong>
+            ${importCount} leases to import,
+            ${replaceCount} to replace,
+            ${skipCount} to skip
+        `);
+    }
+}
 
 function showMessage(type, message) {
     const alertClass = {
@@ -626,6 +682,205 @@ function proceedToReview() {
 
 function buildReviewUI() {
     const container = $('#reviewContainer');
+    container.html('<div class="text-center"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Checking for duplicates...</div>');
+
+    // Build the leases data for duplicate checking
+    const mappedLeases = parsedLeases.map((lease, index) => ({
+        propertyId: propertyMappings[index].propertyId,
+        customerId: customerMappings[index].customerId,
+        leaseReference: lease.leaseReference,
+        startDate: lease.leaseStartDate,
+        endDate: lease.leaseEndDate || null,
+        rentAmount: lease.rentAmount,
+        paymentDay: lease.paymentDay
+    }));
+
+    // Check for duplicates
+    fetch('/employee/lease/import-wizard/check-duplicates', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            [csrfHeader]: csrfToken
+        },
+        body: JSON.stringify({ leases: mappedLeases })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayReviewWithDuplicates(data);
+        } else {
+            showMessage('error', 'Failed to check duplicates: ' + (data.error || 'Unknown error'));
+            displayReviewTable(); // Fallback to simple display
+        }
+    })
+    .catch(error => {
+        console.error('Error checking duplicates:', error);
+        showMessage('warning', 'Could not check for duplicates, proceeding without duplicate detection');
+        displayReviewTable(); // Fallback to simple display
+    });
+}
+
+function displayReviewWithDuplicates(data) {
+    // Store duplicate data globally
+    duplicateData = data;
+
+    const container = $('#reviewContainer');
+    const duplicates = data.duplicates;
+    const duplicateCount = data.duplicateCount;
+
+    let html = '';
+
+    // Show duplicate warnings if any
+    if (duplicateCount > 0) {
+        html += `
+            <div class="alert alert-warning">
+                <h6><i class="fas fa-exclamation-triangle"></i> Duplicate Detection</h6>
+                <p><strong>${duplicateCount} potential duplicate(s) detected.</strong> Review below and decide whether to proceed.</p>
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="alert alert-success">
+                <h6><i class="fas fa-check-circle"></i> No Duplicates Found</h6>
+                <p>All leases are unique and ready to import.</p>
+            </div>
+        `;
+    }
+
+    // Build review table with duplicate warnings
+    html += `
+        <table class="table table-bordered">
+            <thead class="thead-light">
+                <tr>
+                    <th>Lease Reference</th>
+                    <th>Property</th>
+                    <th>Customer</th>
+                    <th>Start Date</th>
+                    <th>Monthly Rent</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    parsedLeases.forEach((lease, index) => {
+        const property = propertyMappings[index];
+        const customer = customerMappings[index];
+        const dupInfo = duplicates[index];
+
+        html += `<tr>`;
+        html += `<td><code>${lease.leaseReference}</code></td>`;
+        html += `<td>${property.propertyName}</td>`;
+        html += `<td>${customer.customerName}</td>`;
+        html += `<td>${lease.leaseStartDate}</td>`;
+        html += `<td>£${lease.rentAmount}</td>`;
+
+        if (dupInfo && dupInfo.isDuplicate) {
+            let badgeClass = '';
+            let badgeText = '';
+            let warningClass = '';
+            let defaultAction = 'SKIP'; // Default for duplicates
+
+            if (dupInfo.duplicateType === 'EXACT_REFERENCE') {
+                badgeClass = 'badge-danger';
+                badgeText = 'Exact Duplicate';
+                warningClass = 'duplicate-exact';
+                defaultAction = 'SKIP';
+            } else if (dupInfo.duplicateType === 'LOGICAL_DUPLICATE') {
+                badgeClass = 'badge-warning';
+                badgeText = 'Same Period';
+                warningClass = 'duplicate-logical';
+                defaultAction = 'SKIP';
+            } else if (dupInfo.duplicateType === 'OVERLAPPING') {
+                badgeClass = 'badge-warning';
+                badgeText = 'Overlapping';
+                warningClass = 'duplicate-overlapping';
+                defaultAction = 'REPLACE'; // Overlaps might want to replace old with new
+            }
+
+            // Initialize action tracking
+            leaseActions[index] = defaultAction;
+
+            html += `
+                <td>
+                    <span class="badge ${badgeClass}">${badgeText}</span>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="6">
+                    <div class="duplicate-warning ${warningClass}">
+                        <strong><i class="fas fa-exclamation-circle"></i> Duplicate Detected:</strong>
+                        <div class="duplicate-details">
+                            <strong>Existing Lease:</strong> ${dupInfo.existingLeaseDetails.leaseReference}<br>
+                            Property: ${dupInfo.existingLeaseDetails.property} |
+                            Customer: ${dupInfo.existingLeaseDetails.customer} |
+                            Period: ${dupInfo.existingLeaseDetails.startDate} to ${dupInfo.existingLeaseDetails.endDate} |
+                            Amount: £${dupInfo.existingLeaseDetails.amount} |
+                            Status: ${dupInfo.existingLeaseDetails.status}
+                        </div>
+                        <div class="mt-3">
+                            <strong>Choose Action:</strong>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="action-${index}" id="action-skip-${index}"
+                                       value="SKIP" ${defaultAction === 'SKIP' ? 'checked' : ''}
+                                       onchange="updateLeaseAction(${index}, 'SKIP')">
+                                <label class="form-check-label" for="action-skip-${index}">
+                                    <strong>Skip this lease</strong> - Don't import, keep existing lease unchanged
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="action-${index}" id="action-replace-${index}"
+                                       value="REPLACE" ${defaultAction === 'REPLACE' ? 'checked' : ''}
+                                       onchange="updateLeaseAction(${index}, 'REPLACE')">
+                                <label class="form-check-label" for="action-replace-${index}">
+                                    <strong>Replace existing lease</strong> - Delete existing lease (ID: ${dupInfo.existingLeaseId}) and import new one
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="action-${index}" id="action-import-${index}"
+                                       value="IMPORT" ${defaultAction === 'IMPORT' ? 'checked' : ''}
+                                       onchange="updateLeaseAction(${index}, 'IMPORT')">
+                                <label class="form-check-label" for="action-import-${index}">
+                                    <strong>Import anyway</strong> - Create duplicate lease (not recommended)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            `;
+        } else {
+            // New lease - default to IMPORT
+            leaseActions[index] = 'IMPORT';
+            html += `<td><span class="badge badge-success">New</span></td></tr>`;
+        }
+    });
+
+    html += `
+            </tbody>
+        </table>
+        <div class="alert alert-info" id="import-summary">
+            <strong>Total leases: ${parsedLeases.length}</strong> (${duplicateCount} duplicates, ${parsedLeases.length - duplicateCount} new)
+        </div>
+    `;
+
+    if (duplicateCount > 0) {
+        html += `
+            <div class="alert alert-warning">
+                <strong><i class="fas fa-info-circle"></i> Note:</strong> Review your action selections above. You can Skip duplicates, Replace existing leases, or Import anyway.
+            </div>
+        `;
+    }
+
+    container.html(html);
+
+    // Initial summary update
+    updateImportSummary();
+}
+
+function displayReviewTable() {
+    // Fallback function without duplicate checking
+    const container = $('#reviewContainer');
 
     let html = `
         <table class="table table-bordered">
@@ -670,18 +925,45 @@ function buildReviewUI() {
 }
 
 function executeImport() {
-    const mappedLeases = parsedLeases.map((lease, index) => ({
-        propertyId: propertyMappings[index].propertyId,
-        customerId: customerMappings[index].customerId,
-        leaseReference: lease.leaseReference,
-        startDate: lease.leaseStartDate,
-        endDate: lease.leaseEndDate || null,
-        rentAmount: lease.rentAmount,
-        paymentDay: lease.paymentDay
-    }));
+    // Build lease data with actions
+    const leasesToProcess = [];
+
+    parsedLeases.forEach((lease, index) => {
+        const action = leaseActions[index] || 'IMPORT';
+
+        // Skip leases with SKIP action
+        if (action === 'SKIP') {
+            console.log(`Skipping lease ${lease.leaseReference}`);
+            return;
+        }
+
+        const leaseData = {
+            propertyId: propertyMappings[index].propertyId,
+            customerId: customerMappings[index].customerId,
+            leaseReference: lease.leaseReference,
+            startDate: lease.leaseStartDate,
+            endDate: lease.leaseEndDate || null,
+            rentAmount: lease.rentAmount,
+            paymentDay: lease.paymentDay,
+            action: action
+        };
+
+        // For REPLACE action, include existing lease ID to delete
+        if (action === 'REPLACE' && duplicateData && duplicateData.duplicates[index]) {
+            const dupInfo = duplicateData.duplicates[index];
+            leaseData.existingLeaseId = dupInfo.existingLeaseId;
+        }
+
+        leasesToProcess.push(leaseData);
+    });
+
+    if (leasesToProcess.length === 0) {
+        showMessage('warning', 'No leases selected for import. All leases are marked as SKIP.');
+        return;
+    }
 
     $('button').prop('disabled', true);
-    showMessage('info', 'Importing leases... please wait');
+    showMessage('info', `Processing ${leasesToProcess.length} lease(s)... please wait`);
 
     fetch('/employee/lease/import-wizard/execute-import', {
         method: 'POST',
@@ -689,12 +971,19 @@ function executeImport() {
             'Content-Type': 'application/json',
             [csrfHeader]: csrfToken
         },
-        body: JSON.stringify({ leases: mappedLeases })
+        body: JSON.stringify({ leases: leasesToProcess })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showMessage('success', `Successfully imported ${data.successfulImports} leases!`);
+            let message = `Successfully imported ${data.successfulImports} lease(s)!`;
+            if (data.replacedCount > 0) {
+                message += ` Replaced ${data.replacedCount} existing lease(s).`;
+            }
+            if (data.skippedCount > 0) {
+                message += ` Skipped ${data.skippedCount} lease(s).`;
+            }
+            showMessage('success', message);
             setTimeout(() => {
                 window.location.href = '/employee/lease/list';
             }, 2000);

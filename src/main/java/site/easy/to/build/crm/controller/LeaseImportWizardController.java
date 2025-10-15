@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.*;
 
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerType;
+import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.service.lease.LeaseImportService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
@@ -23,6 +25,7 @@ import java.io.BufferedReader;
 import java.io.StringReader;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -56,6 +59,9 @@ public class LeaseImportWizardController {
 
     @Autowired
     private AuthenticationUtils authenticationUtils;
+
+    @Autowired
+    private InvoiceRepository invoiceRepository;
 
     /**
      * Show the import wizard page
@@ -256,6 +262,146 @@ public class LeaseImportWizardController {
     }
 
     /**
+     * Check for duplicate leases before import
+     * POST /employee/lease/import-wizard/check-duplicates
+     */
+    @PostMapping("/check-duplicates")
+    @ResponseBody
+    public ResponseEntity<?> checkDuplicates(@RequestBody Map<String, Object> request) {
+        log.info("🔍 Checking for duplicate leases");
+
+        try {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> mappedLeases = (List<Map<String, Object>>) request.get("leases");
+
+            if (mappedLeases == null || mappedLeases.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", "No leases to check"
+                ));
+            }
+
+            List<Map<String, Object>> duplicateReport = new ArrayList<>();
+
+            for (Map<String, Object> leaseData : mappedLeases) {
+                String leaseReference = (String) leaseData.get("leaseReference");
+                Long propertyId = ((Number) leaseData.get("propertyId")).longValue();
+                Long customerId = ((Number) leaseData.get("customerId")).longValue();
+                String startDateStr = (String) leaseData.get("startDate");
+                String endDateStr = (String) leaseData.get("endDate");
+
+                Map<String, Object> duplicateInfo = new HashMap<>();
+                duplicateInfo.put("leaseReference", leaseReference);
+                duplicateInfo.put("isDuplicate", false);
+                duplicateInfo.put("duplicateType", null);
+                duplicateInfo.put("existingLeaseId", null);
+                duplicateInfo.put("existingLeaseDetails", null);
+                duplicateInfo.put("recommendation", "CREATE");
+
+                // Check 1: Exact duplicate by lease reference
+                if (leaseReference != null && !leaseReference.isEmpty()) {
+                    Optional<Invoice> existingByReference = invoiceRepository.findByLeaseReference(leaseReference);
+                    if (existingByReference.isPresent()) {
+                        Invoice existing = existingByReference.get();
+                        duplicateInfo.put("isDuplicate", true);
+                        duplicateInfo.put("duplicateType", "EXACT_REFERENCE");
+                        duplicateInfo.put("existingLeaseId", existing.getId());
+                        duplicateInfo.put("existingLeaseDetails", formatLeaseDetails(existing));
+                        duplicateInfo.put("recommendation", "SKIP");
+                        duplicateReport.add(duplicateInfo);
+                        continue; // Skip other checks if exact match found
+                    }
+                }
+
+                // Check 2: Logical duplicate (same property, customer, and period)
+                Property property = propertyService.findById(propertyId);
+                Customer customer = customerService.findByCustomerId(customerId);
+
+                if (property != null && customer != null) {
+                    LocalDate startDate = startDateStr != null && !startDateStr.isEmpty()
+                        ? LocalDate.parse(startDateStr) : null;
+                    LocalDate endDate = endDateStr != null && !endDateStr.isEmpty()
+                        ? LocalDate.parse(endDateStr) : null;
+
+                    if (startDate != null) {
+                        List<Invoice> matchingLeases = invoiceRepository.findByPropertyAndCustomerAndPeriod(
+                            property, customer, startDate, endDate);
+
+                        if (!matchingLeases.isEmpty()) {
+                            Invoice existing = matchingLeases.get(0);
+                            duplicateInfo.put("isDuplicate", true);
+                            duplicateInfo.put("duplicateType", "LOGICAL_DUPLICATE");
+                            duplicateInfo.put("existingLeaseId", existing.getId());
+                            duplicateInfo.put("existingLeaseDetails", formatLeaseDetails(existing));
+                            duplicateInfo.put("recommendation", "SKIP");
+                            duplicateReport.add(duplicateInfo);
+                            continue;
+                        }
+
+                        // Check 3: Overlapping active leases
+                        List<Invoice> allLeasesForPair = invoiceRepository
+                            .findByPropertyAndCustomerOrderByStartDateDesc(property, customer);
+
+                        for (Invoice existingLease : allLeasesForPair) {
+                            if (existingLease.getDeletedAt() != null || !existingLease.getIsActive()) {
+                                continue; // Skip deleted or inactive leases
+                            }
+
+                            LocalDate existingStart = existingLease.getStartDate();
+                            LocalDate existingEnd = existingLease.getEndDate();
+
+                            // Check for overlap
+                            boolean hasOverlap = false;
+                            if (endDate == null && existingEnd == null) {
+                                hasOverlap = true; // Both open-ended
+                            } else if (endDate == null) {
+                                hasOverlap = startDate.isBefore(existingEnd) || startDate.isEqual(existingEnd);
+                            } else if (existingEnd == null) {
+                                hasOverlap = endDate.isAfter(existingStart) || endDate.isEqual(existingStart);
+                            } else {
+                                hasOverlap = !(endDate.isBefore(existingStart) || startDate.isAfter(existingEnd));
+                            }
+
+                            if (hasOverlap) {
+                                duplicateInfo.put("isDuplicate", true);
+                                duplicateInfo.put("duplicateType", "OVERLAPPING");
+                                duplicateInfo.put("existingLeaseId", existingLease.getId());
+                                duplicateInfo.put("existingLeaseDetails", formatLeaseDetails(existingLease));
+                                duplicateInfo.put("recommendation", "REVIEW");
+                                duplicateReport.add(duplicateInfo);
+                                break; // Found overlap, no need to check more
+                            }
+                        }
+                    }
+                }
+
+                // If no duplicates found, still add to report as CREATE
+                if (!duplicateInfo.get("isDuplicate").equals(true)) {
+                    duplicateReport.add(duplicateInfo);
+                }
+            }
+
+            long duplicateCount = duplicateReport.stream()
+                .filter(info -> (Boolean) info.get("isDuplicate"))
+                .count();
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "totalLeases", mappedLeases.size(),
+                "duplicateCount", duplicateCount,
+                "duplicates", duplicateReport
+            ));
+
+        } catch (Exception e) {
+            log.error("❌ Failed to check duplicates", e);
+            return ResponseEntity.status(500).body(Map.of(
+                "success", false,
+                "error", "Failed to check duplicates: " + e.getMessage()
+            ));
+        }
+    }
+
+    /**
      * Execute the batch import with all mappings
      * POST /employee/lease/import-wizard/execute-import
      */
@@ -297,6 +443,8 @@ public class LeaseImportWizardController {
 
             int successCount = 0;
             int failedCount = 0;
+            int replacedCount = 0;
+            int skippedCount = 0;
             List<String> errors = new ArrayList<>();
 
             for (Map<String, Object> leaseData : mappedLeases) {
@@ -310,8 +458,42 @@ public class LeaseImportWizardController {
                     BigDecimal rentAmount = new BigDecimal(leaseData.get("rentAmount").toString());
                     Integer paymentDay = ((Number) leaseData.get("paymentDay")).intValue();
 
-                    // TODO: Integrate with LeaseImportService once LeaseRow is made public
-                    // For now, create lease directly
+                    // Extract action and existingLeaseId (from frontend duplicate handling)
+                    String action = leaseData.containsKey("action")
+                        ? (String) leaseData.get("action")
+                        : "IMPORT";
+
+                    Long existingLeaseId = leaseData.containsKey("existingLeaseId")
+                        ? ((Number) leaseData.get("existingLeaseId")).longValue()
+                        : null;
+
+                    // Handle SKIP action (though frontend already filters these)
+                    if ("SKIP".equals(action)) {
+                        log.info("⏭️ Skipping lease: {}", leaseReference);
+                        skippedCount++;
+                        continue;
+                    }
+
+                    // Handle REPLACE action - delete existing lease first
+                    if ("REPLACE".equals(action) && existingLeaseId != null) {
+                        Optional<Invoice> existingLease = invoiceRepository.findById(existingLeaseId);
+                        if (existingLease.isPresent()) {
+                            // Soft delete the existing lease
+                            Invoice toDelete = existingLease.get();
+                            toDelete.setDeletedAt(LocalDateTime.now());
+                            toDelete.setIsActive(false);
+                            invoiceRepository.save(toDelete);
+
+                            log.info("🔄 Replaced existing lease ID: {} with new lease: {}",
+                                    existingLeaseId, leaseReference);
+                            replacedCount++;
+                        } else {
+                            log.warn("⚠️ Could not find existing lease ID {} to replace, creating new instead",
+                                    existingLeaseId);
+                        }
+                    }
+
+                    // Create new lease (for both IMPORT and REPLACE actions)
                     createLeaseDirectly(propertyId, customerId, leaseReference, startDateStr,
                                       endDateStr, rentAmount, paymentDay, currentUser);
 
@@ -329,12 +511,15 @@ public class LeaseImportWizardController {
             response.put("totalLeases", mappedLeases.size());
             response.put("successfulImports", successCount);
             response.put("failedImports", failedCount);
+            response.put("replacedCount", replacedCount);
+            response.put("skippedCount", skippedCount);
 
             if (!errors.isEmpty()) {
                 response.put("errors", errors);
             }
 
-            log.info("✅ Batch import complete - {} success, {} failed", successCount, failedCount);
+            log.info("✅ Batch import complete - {} success, {} replaced, {} skipped, {} failed",
+                    successCount, replacedCount, skippedCount, failedCount);
 
             return ResponseEntity.ok(response);
 
@@ -438,12 +623,97 @@ public class LeaseImportWizardController {
         return (matches * 100) / queryWords.length;
     }
 
+    /**
+     * Create lease directly as Invoice entity
+     */
     private void createLeaseDirectly(Long propertyId, Long customerId, String leaseReference,
                                     String startDateStr, String endDateStr, BigDecimal rentAmount,
                                     Integer paymentDay, User createdBy) {
-        // This will be implemented using the existing Invoice entity
-        // For now, placeholder - will integrate with LeaseImportService
-        log.info("Creating lease: {} for property {} and customer {}", leaseReference, propertyId, customerId);
+
+        // Load property and customer
+        Property property = propertyService.findById(propertyId);
+        if (property == null) {
+            throw new IllegalArgumentException("Property not found: " + propertyId);
+        }
+
+        Customer customer = customerService.findByCustomerId(customerId);
+        if (customer == null) {
+            throw new IllegalArgumentException("Customer not found: " + customerId);
+        }
+
+        // Parse dates
+        LocalDate startDate = LocalDate.parse(startDateStr);
+        LocalDate endDate = (endDateStr != null && !endDateStr.isEmpty())
+            ? LocalDate.parse(endDateStr)
+            : null;
+
+        // Create Invoice entity (representing the lease)
+        Invoice lease = new Invoice();
+
+        // Set relationships
+        lease.setProperty(property);
+        lease.setCustomer(customer);
+        lease.setCreatedByUser(createdBy);
+
+        // Set financial details
+        lease.setAmount(rentAmount);
+        lease.setCategoryId("rent"); // Standard rent category
+        lease.setCategoryName("Rent");
+
+        // Set frequency and payment details
+        lease.setFrequency(Invoice.InvoiceFrequency.M); // Monthly
+        lease.setPaymentDay(paymentDay);
+
+        // Set date range
+        lease.setStartDate(startDate);
+        lease.setEndDate(endDate);
+
+        // Set lease reference
+        if (leaseReference != null && !leaseReference.isEmpty()) {
+            lease.setLeaseReference(leaseReference);
+        }
+
+        // Set description
+        String description = String.format("Monthly rent for %s - %s",
+            property.getPropertyName(),
+            customer.getName());
+        lease.setDescription(description);
+
+        // Set status flags
+        lease.setIsActive(true);
+        lease.setIsDebitOrder(false);
+
+        // Set sync status (local only for now)
+        lease.setSyncStatus(Invoice.SyncStatus.pending);
+
+        // Set invoice type
+        lease.setInvoiceType("lease");
+
+        // Save to database
+        invoiceRepository.save(lease);
+
+        log.info("✅ Created lease: {} (ID: {}) for property {} and customer {}",
+                leaseReference != null ? leaseReference : "Generated",
+                lease.getId(),
+                property.getPropertyName(),
+                customer.getName());
+    }
+
+    /**
+     * Format existing lease details for duplicate report
+     */
+    private Map<String, String> formatLeaseDetails(Invoice lease) {
+        Map<String, String> details = new HashMap<>();
+
+        details.put("leaseReference", lease.getLeaseReference() != null ? lease.getLeaseReference() : "N/A");
+        details.put("property", lease.getProperty() != null ? lease.getProperty().getPropertyName() : "N/A");
+        details.put("customer", lease.getCustomer() != null ? lease.getCustomer().getName() : "N/A");
+        details.put("startDate", lease.getStartDate() != null ? lease.getStartDate().toString() : "N/A");
+        details.put("endDate", lease.getEndDate() != null ? lease.getEndDate().toString() : "Open-ended");
+        details.put("amount", lease.getAmount() != null ? lease.getAmount().toString() : "N/A");
+        details.put("status", lease.getIsActive() ? "Active" : "Inactive");
+
+        return details;
     }
 
     // ==================== DTOs ====================
