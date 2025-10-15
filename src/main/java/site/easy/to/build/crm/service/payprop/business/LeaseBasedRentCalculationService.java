@@ -107,7 +107,7 @@ public class LeaseBasedRentCalculationService {
             detail.invoiceId = lease.getId();
             detail.propertyId = property.getId();
             detail.propertyName = property.getPropertyName();
-            detail.tenantId = lease.getCustomer().getId();
+            detail.tenantId = lease.getCustomer().getCustomerId();
             detail.tenantName = lease.getCustomer().getName();
             detail.rentAmount = lease.getAmount();
             detail.startDate = lease.getStartDate();

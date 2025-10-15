@@ -88,7 +88,7 @@ public class LeaseHistoryService {
                 .map(lease -> {
                     LeaseHistoryDetail detail = new LeaseHistoryDetail();
                     detail.invoiceId = lease.getId();
-                    detail.tenantId = lease.getCustomer().getId();
+                    detail.tenantId = lease.getCustomer().getCustomerId();
                     detail.tenantName = lease.getCustomer().getName();
                     detail.rentAmount = lease.getAmount();
                     detail.startDate = lease.getStartDate();
@@ -278,7 +278,7 @@ public class LeaseHistoryService {
     private LeaseHistoryDetail convertToDetail(Invoice lease) {
         LeaseHistoryDetail detail = new LeaseHistoryDetail();
         detail.invoiceId = lease.getId();
-        detail.tenantId = lease.getCustomer().getId();
+        detail.tenantId = lease.getCustomer().getCustomerId();
         detail.tenantName = lease.getCustomer().getName();
         detail.rentAmount = lease.getAmount();
         detail.startDate = lease.getStartDate();

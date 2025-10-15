@@ -66,6 +66,17 @@ public class TenantBalanceService {
     }
 
     /**
+     * Legacy method: Calculate tenant balance without invoice/lease context
+     * Used for property-based calculations (backward compatibility)
+     */
+    public TenantBalance calculateTenantBalance(String tenantId, String propertyId,
+                                                LocalDate statementPeriod,
+                                                BigDecimal rentDue) {
+        // Call the new method with null invoiceId (property-based, not lease-based)
+        return calculateTenantBalanceForLease(null, tenantId, propertyId, statementPeriod, rentDue);
+    }
+
+    /**
      * Get previous balance for cross-sheet reference equivalent
      */
     public BigDecimal getPreviousBalance(String tenantId, LocalDate currentPeriod) {

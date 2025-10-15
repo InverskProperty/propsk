@@ -358,8 +358,8 @@ public class LeaseImportService {
      * Match property by reference (name or ID)
      */
     private Property matchProperty(String reference) {
-        // Try exact match by name
-        Property property = propertyService.findByPropertyName(reference);
+        // Try exact match by name (case insensitive)
+        Property property = propertyRepository.findByPropertyNameIgnoreCase(reference);
         if (property != null) return property;
 
         // Try fuzzy match
@@ -378,9 +378,16 @@ public class LeaseImportService {
      * Match customer by reference (name or ID)
      */
     private Customer matchCustomer(String reference) {
-        // Try exact match by name
-        Customer customer = customerService.findByName(reference);
-        if (customer != null) return customer;
+        // Try exact match by name (case insensitive)
+        List<Customer> exactMatches = customerRepository.findByNameContainingIgnoreCase(reference);
+        if (!exactMatches.isEmpty()) {
+            // Return exact match if found (first result)
+            for (Customer c : exactMatches) {
+                if (c.getName() != null && c.getName().equalsIgnoreCase(reference)) {
+                    return c;
+                }
+            }
+        }
 
         // Try fuzzy match
         List<Customer> customers = customerRepository.findAll();

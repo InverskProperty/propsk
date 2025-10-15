@@ -206,7 +206,7 @@ public class PayPropInvoiceToLeaseImportService {
         }
 
         // Find or resolve property
-        Property property = propertyRepository.findByPayPropId(data.propertyPayPropId);
+        Property property = propertyRepository.findByPayPropId(data.propertyPayPropId).orElse(null);
         if (property == null) {
             log.warn("Cannot import invoice {}: Property not found for {}",
                     data.paypropId, data.propertyPayPropId);
@@ -279,8 +279,8 @@ public class PayPropInvoiceToLeaseImportService {
             return null;
         }
 
-        // Try to find by payprop_id in customer table
-        return customerRepository.findByPayPropId(tenantPayPropId).orElse(null);
+        // Try to find by payprop_entity_id in customer table
+        return customerRepository.findByPayPropEntityId(tenantPayPropId);
 
         // TODO: If not found, could create placeholder customer or try to match by name
     }
