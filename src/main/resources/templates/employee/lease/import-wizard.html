@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+<style>
+    .wizard-steps {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 30px;
+        position: relative;
+    }
+    .wizard-step {
+        flex: 1;
+        text-align: center;
+        padding: 15px;
+        position: relative;
+        background: #f8f9fa;
+        border-radius: 5px;
+        margin: 0 5px;
+    }
+    .wizard-step::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: -50%;
+        width: 100%;
+        height: 2px;
+        background: #ddd;
+        z-index: -1;
+    }
+    .wizard-step:first-child::before {
+        display: none;
+    }
+    .wizard-step.active {
+        background: #007bff;
+        color: white;
+    }
+    .wizard-step.completed {
+        background: #28a745;
+        color: white;
+    }
+    .wizard-step.completed::before {
+        background: #28a745;
+    }
+
+    .step-content {
+        display: none;
+    }
+    .step-content.active {
+        display: block;
+    }
+
+    .lease-row-card {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 15px;
+        background: white;
+    }
+    .lease-row-card.mapped {
+        border-color: #28a745;
+        background: #f0fff4;
+    }
+    .lease-row-card.error {
+        border-color: #dc3545;
+        background: #fff5f5;
+    }
+
+    .match-suggestion {
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        margin-bottom: 5px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .match-suggestion:hover {
+        background: #e3f2fd;
+        border-color: #2196f3;
+    }
+    .match-suggestion.selected {
+        background: #c8e6c9;
+        border-color: #4caf50;
+    }
+
+    .score-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.85em;
+        font-weight: bold;
+    }
+    .score-high { background: #c8e6c9; color: #2e7d32; }
+    .score-medium { background: #fff9c4; color: #f57f17; }
+    .score-low { background: #ffccbc; color: #d84315; }
+
+    .csv-textarea {
+        font-family: monospace;
+        font-size: 12px;
+        min-height: 300px;
+    }
+</style>
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/aside.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Page Header -->
+            <div class="row page-titles">
+                <div class="col-md-12">
+                    <h3 class="text-themecolor">
+                        <i class="fas fa-file-import text-primary"></i>
+                        Lease Import Wizard
+                    </h3>
+                    <p class="text-muted">Import leases with guided property and customer mapping</p>
+                </div>
+            </div>
+
+            <!-- Wizard Steps -->
+            <div class="wizard-steps">
+                <div class="wizard-step active" id="wizard-step-1">
+                    <i class="fas fa-upload"></i><br>
+                    <strong>Upload CSV</strong>
+                </div>
+                <div class="wizard-step" id="wizard-step-2">
+                    <i class="fas fa-home"></i><br>
+                    <strong>Map Properties</strong>
+                </div>
+                <div class="wizard-step" id="wizard-step-3">
+                    <i class="fas fa-users"></i><br>
+                    <strong>Map Customers</strong>
+                </div>
+                <div class="wizard-step" id="wizard-step-4">
+                    <i class="fas fa-check-circle"></i><br>
+                    <strong>Review & Import</strong>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div id="messageArea"></div>
+
+            <!-- Step 1: Upload CSV -->
+            <div id="step-1" class="step-content active">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Step 1: Paste or Upload CSV</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-info-circle"></i> Expected CSV Format</h6>
+                            <pre style="font-size: 11px; background: white; padding: 10px; border-radius: 3px;">property_reference,customer_name,customer_email,lease_start_date,lease_end_date,rent_amount,payment_day,lease_reference
+FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO,,2025-02-27,,795.00,27,LEASE-BH-F1-2025</pre>
+                            <p class="mb-0 mt-2"><strong>Note:</strong> Either customer_name OR customer_email must be provided (or both)</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="csvInput">Paste CSV Content:</label>
+                            <textarea id="csvInput" class="form-control csv-textarea"
+                                      placeholder="Paste your CSV content here..."></textarea>
+                        </div>
+
+                        <div class="text-right">
+                            <button class="btn btn-primary btn-lg" onclick="parseCSV()">
+                                <i class="fas fa-arrow-right"></i> Parse & Continue
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Map Properties -->
+            <div id="step-2" class="step-content">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Step 2: Map Properties</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Match each property reference from your CSV to a property in the system</p>
+                        <div id="propertyMappingContainer"></div>
+                        <div class="text-right mt-3">
+                            <button class="btn btn-secondary" onclick="goToStep(1)">
+                                <i class="fas fa-arrow-left"></i> Back
+                            </button>
+                            <button class="btn btn-primary btn-lg" onclick="proceedToCustomerMapping()">
+                                <i class="fas fa-arrow-right"></i> Continue to Customer Mapping
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Map Customers -->
+            <div id="step-3" class="step-content">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Step 3: Map Customers</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Match each customer to an existing customer or create new</p>
+                        <div id="customerMappingContainer"></div>
+                        <div class="text-right mt-3">
+                            <button class="btn btn-secondary" onclick="goToStep(2)">
+                                <i class="fas fa-arrow-left"></i> Back
+                            </button>
+                            <button class="btn btn-primary btn-lg" onclick="proceedToReview()">
+                                <i class="fas fa-arrow-right"></i> Continue to Review
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Review & Import -->
+            <div id="step-4" class="step-content">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Step 4: Review & Import</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-success">
+                            <h6><i class="fas fa-check-circle"></i> Ready to Import</h6>
+                            <p class="mb-0">Review the mapped leases below and click "Import All Leases" to proceed</p>
+                        </div>
+                        <div id="reviewContainer"></div>
+                        <div class="text-right mt-3">
+                            <button class="btn btn-secondary" onclick="goToStep(3)">
+                                <i class="fas fa-arrow-left"></i> Back
+                            </button>
+                            <button class="btn btn-success btn-lg" onclick="executeImport()">
+                                <i class="fas fa-upload"></i> Import All Leases
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{general/footer.html}"></div>
+
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script th:inline="none">
+const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+
+let parsedLeases = [];
+let propertyMappings = {};
+let customerMappings = {};
+
+function showMessage(type, message) {
+    const alertClass = {
+        'success': 'alert-success',
+        'error': 'alert-danger',
+        'warning': 'alert-warning',
+        'info': 'alert-info'
+    }[type] || 'alert-info';
+
+    const icon = {
+        'success': 'fa-check',
+        'error': 'fa-exclamation-triangle',
+        'warning': 'fa-exclamation',
+        'info': 'fa-info-circle'
+    }[type] || 'fa-info-circle';
+
+    const html = `
+        <div class="alert ${alertClass} alert-dismissible fade show">
+            <button type="button" class="close" data-dismiss="alert">&times;</button>
+            <h5><i class="fas ${icon}"></i> ${type.charAt(0).toUpperCase() + type.slice(1)}!</h5>
+            ${message}
+        </div>
+    `;
+
+    $('#messageArea').html(html);
+    setTimeout(() => { $('.alert').fadeOut(); }, 5000);
+}
+
+function goToStep(stepNumber) {
+    // Hide all steps
+    $('.step-content').removeClass('active');
+    $('.wizard-step').removeClass('active');
+
+    // Show target step
+    $(`#step-${stepNumber}`).addClass('active');
+    $(`#wizard-step-${stepNumber}`).addClass('active');
+
+    // Mark previous steps as completed
+    for (let i = 1; i < stepNumber; i++) {
+        $(`#wizard-step-${i}`).addClass('completed');
+    }
+
+    window.scrollTo(0, 0);
+}
+
+function parseCSV() {
+    const csvContent = $('#csvInput').val().trim();
+
+    if (!csvContent) {
+        showMessage('error', 'Please paste CSV content first');
+        return;
+    }
+
+    fetch('/employee/lease/import-wizard/parse-csv', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            [csrfHeader]: csrfToken
+        },
+        body: JSON.stringify({ csvContent: csvContent })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            parsedLeases = data.leases;
+            showMessage('success', `Parsed ${data.totalRows} lease rows from CSV`);
+            buildPropertyMappingUI();
+            goToStep(2);
+        } else {
+            showMessage('error', 'Failed to parse CSV: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error parsing CSV:', error);
+        showMessage('error', 'Error parsing CSV');
+    });
+}
+
+function buildPropertyMappingUI() {
+    const container = $('#propertyMappingContainer');
+    container.html('');
+
+    parsedLeases.forEach((lease, index) => {
+        const card = $(`
+            <div class="lease-row-card" id="property-card-${index}">
+                <div class="row">
+                    <div class="col-md-4">
+                        <strong>CSV Property:</strong><br>
+                        <code>${lease.rawPropertyReference}</code>
+                    </div>
+                    <div class="col-md-8">
+                        <label>Select Matching Property:</label>
+                        <input type="text" class="form-control property-search"
+                               data-index="${index}"
+                               placeholder="Type to search properties..."
+                               value="${lease.rawPropertyReference}">
+                        <div id="property-matches-${index}" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        container.append(card);
+
+        // Auto-search on load
+        searchProperties(lease.rawPropertyReference, index);
+    });
+
+    // Attach search handlers
+    $('.property-search').on('input', function() {
+        const query = $(this).val();
+        const index = $(this).data('index');
+        if (query.length >= 2) {
+            searchProperties(query, index);
+        }
+    });
+}
+
+function searchProperties(query, leaseIndex) {
+    fetch(`/employee/lease/import-wizard/search-properties?q=${encodeURIComponent(query)}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayPropertyMatches(data.matches, leaseIndex);
+        }
+    })
+    .catch(error => {
+        console.error('Error searching properties:', error);
+    });
+}
+
+function displayPropertyMatches(matches, leaseIndex) {
+    const container = $(`#property-matches-${leaseIndex}`);
+    container.html('');
+
+    if (matches.length === 0) {
+        container.html('<p class="text-muted small">No matching properties found</p>');
+        return;
+    }
+
+    matches.forEach(match => {
+        const scoreClass = match.score >= 80 ? 'score-high' :
+                          match.score >= 60 ? 'score-medium' : 'score-low';
+
+        const matchDiv = $(`
+            <div class="match-suggestion" data-property-id="${match.propertyId}" data-index="${leaseIndex}">
+                <strong>${match.propertyName}</strong>
+                <span class="score-badge ${scoreClass}">${match.score}% match</span>
+                <br>
+                <small class="text-muted">${match.propertyType}</small>
+            </div>
+        `);
+
+        matchDiv.on('click', function() {
+            selectProperty(leaseIndex, match.propertyId, match.propertyName);
+        });
+
+        container.append(matchDiv);
+    });
+
+    // Auto-select perfect match
+    if (matches.length > 0 && matches[0].score === 100) {
+        selectProperty(leaseIndex, matches[0].propertyId, matches[0].propertyName);
+    }
+}
+
+function selectProperty(leaseIndex, propertyId, propertyName) {
+    propertyMappings[leaseIndex] = { propertyId, propertyName };
+
+    // Visual feedback
+    $(`#property-card-${leaseIndex}`).addClass('mapped');
+    $(`#property-card-${leaseIndex} .match-suggestion`).removeClass('selected');
+    $(`#property-card-${leaseIndex} .match-suggestion[data-property-id="${propertyId}"]`).addClass('selected');
+}
+
+function proceedToCustomerMapping() {
+    // Validate all properties are mapped
+    const unmapped = parsedLeases.filter((_, index) => !propertyMappings[index]);
+    if (unmapped.length > 0) {
+        showMessage('warning', `Please map all properties before continuing (${unmapped.length} unmapped)`);
+        return;
+    }
+
+    buildCustomerMappingUI();
+    goToStep(3);
+}
+
+function buildCustomerMappingUI() {
+    const container = $('#customerMappingContainer');
+    container.html('');
+
+    parsedLeases.forEach((lease, index) => {
+        const card = $(`
+            <div class="lease-row-card" id="customer-card-${index}">
+                <div class="row">
+                    <div class="col-md-4">
+                        <strong>CSV Customer:</strong><br>
+                        ${lease.rawCustomerName ? `<div>Name: <code>${lease.rawCustomerName}</code></div>` : ''}
+                        ${lease.rawCustomerEmail ? `<div>Email: <code>${lease.rawCustomerEmail}</code></div>` : ''}
+                    </div>
+                    <div class="col-md-8">
+                        <label>Select Matching Customer:</label>
+                        <div id="customer-matches-${index}" class="mt-2"></div>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-success" onclick="showCreateCustomerForm(${index})">
+                                <i class="fas fa-plus"></i> Create New Customer
+                            </button>
+                        </div>
+                        <div id="create-customer-form-${index}" style="display: none;" class="mt-3 p-3 border rounded bg-light">
+                            <h6>Create New Customer</h6>
+                            <div class="form-group">
+                                <label>Name:</label>
+                                <input type="text" class="form-control" id="new-customer-name-${index}" value="${lease.rawCustomerName}">
+                            </div>
+                            <div class="form-group">
+                                <label>Email:</label>
+                                <input type="email" class="form-control" id="new-customer-email-${index}" value="${lease.rawCustomerEmail}">
+                            </div>
+                            <button class="btn btn-primary" onclick="createCustomer(${index})">Create</button>
+                            <button class="btn btn-secondary" onclick="hideCreateCustomerForm(${index})">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+
+        container.append(card);
+
+        // Auto-search for customer
+        searchCustomers(lease.rawCustomerName, lease.rawCustomerEmail, index);
+    });
+}
+
+function searchCustomers(name, email, leaseIndex) {
+    let url = '/employee/lease/import-wizard/search-customers?';
+    if (name) url += `name=${encodeURIComponent(name)}&`;
+    if (email) url += `email=${encodeURIComponent(email)}`;
+
+    fetch(url)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayCustomerMatches(data.matches, leaseIndex);
+        }
+    })
+    .catch(error => {
+        console.error('Error searching customers:', error);
+    });
+}
+
+function displayCustomerMatches(matches, leaseIndex) {
+    const container = $(`#customer-matches-${leaseIndex}`);
+    container.html('');
+
+    if (matches.length === 0) {
+        container.html('<p class="text-muted small">No matching customers found - create new customer below</p>');
+        return;
+    }
+
+    matches.forEach(match => {
+        const scoreClass = match.score >= 80 ? 'score-high' :
+                          match.score >= 60 ? 'score-medium' : 'score-low';
+
+        const matchDiv = $(`
+            <div class="match-suggestion" data-customer-id="${match.customerId}" data-index="${leaseIndex}">
+                <strong>${match.name}</strong>
+                <span class="score-badge ${scoreClass}">${match.score}% match</span>
+                <br>
+                <small class="text-muted">${match.email || 'No email'} • ${match.customerType}</small>
+            </div>
+        `);
+
+        matchDiv.on('click', function() {
+            selectCustomer(leaseIndex, match.customerId, match.name);
+        });
+
+        container.append(matchDiv);
+    });
+
+    // Auto-select perfect match
+    if (matches.length > 0 && matches[0].score === 100) {
+        selectCustomer(leaseIndex, matches[0].customerId, matches[0].name);
+    }
+}
+
+function selectCustomer(leaseIndex, customerId, customerName) {
+    customerMappings[leaseIndex] = { customerId, customerName };
+
+    // Visual feedback
+    $(`#customer-card-${leaseIndex}`).addClass('mapped');
+    $(`#customer-card-${leaseIndex} .match-suggestion`).removeClass('selected');
+    $(`#customer-card-${leaseIndex} .match-suggestion[data-customer-id="${customerId}"]`).addClass('selected');
+}
+
+function showCreateCustomerForm(index) {
+    $(`#create-customer-form-${index}`).show();
+}
+
+function hideCreateCustomerForm(index) {
+    $(`#create-customer-form-${index}`).hide();
+}
+
+function createCustomer(leaseIndex) {
+    const name = $(`#new-customer-name-${leaseIndex}`).val().trim();
+    const email = $(`#new-customer-email-${leaseIndex}`).val().trim();
+
+    if (!name) {
+        alert('Customer name is required');
+        return;
+    }
+
+    fetch('/employee/lease/import-wizard/create-customer', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            [csrfHeader]: csrfToken
+        },
+        body: JSON.stringify({
+            name: name,
+            email: email,
+            customerType: 'TENANT'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            selectCustomer(leaseIndex, data.customer.customerId, data.customer.name);
+            hideCreateCustomerForm(leaseIndex);
+            showMessage('success', `Created new customer: ${data.customer.name}`);
+        } else {
+            showMessage('error', 'Failed to create customer: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error creating customer:', error);
+        showMessage('error', 'Error creating customer');
+    });
+}
+
+function proceedToReview() {
+    // Validate all customers are mapped
+    const unmapped = parsedLeases.filter((_, index) => !customerMappings[index]);
+    if (unmapped.length > 0) {
+        showMessage('warning', `Please map all customers before continuing (${unmapped.length} unmapped)`);
+        return;
+    }
+
+    buildReviewUI();
+    goToStep(4);
+}
+
+function buildReviewUI() {
+    const container = $('#reviewContainer');
+
+    let html = `
+        <table class="table table-bordered">
+            <thead class="thead-light">
+                <tr>
+                    <th>Lease Reference</th>
+                    <th>Property</th>
+                    <th>Customer</th>
+                    <th>Start Date</th>
+                    <th>Monthly Rent</th>
+                    <th>Payment Day</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    parsedLeases.forEach((lease, index) => {
+        const property = propertyMappings[index];
+        const customer = customerMappings[index];
+
+        html += `
+            <tr>
+                <td><code>${lease.leaseReference}</code></td>
+                <td>${property.propertyName}</td>
+                <td>${customer.customerName}</td>
+                <td>${lease.leaseStartDate}</td>
+                <td>£${lease.rentAmount}</td>
+                <td>${lease.paymentDay}</td>
+            </tr>
+        `;
+    });
+
+    html += `
+            </tbody>
+        </table>
+        <div class="alert alert-info">
+            <strong>Total leases to import: ${parsedLeases.length}</strong>
+        </div>
+    `;
+
+    container.html(html);
+}
+
+function executeImport() {
+    const mappedLeases = parsedLeases.map((lease, index) => ({
+        propertyId: propertyMappings[index].propertyId,
+        customerId: customerMappings[index].customerId,
+        leaseReference: lease.leaseReference,
+        startDate: lease.leaseStartDate,
+        endDate: lease.leaseEndDate || null,
+        rentAmount: lease.rentAmount,
+        paymentDay: lease.paymentDay
+    }));
+
+    $('button').prop('disabled', true);
+    showMessage('info', 'Importing leases... please wait');
+
+    fetch('/employee/lease/import-wizard/execute-import', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            [csrfHeader]: csrfToken
+        },
+        body: JSON.stringify({ leases: mappedLeases })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showMessage('success', `Successfully imported ${data.successfulImports} leases!`);
+            setTimeout(() => {
+                window.location.href = '/employee/lease/list';
+            }, 2000);
+        } else {
+            showMessage('error', `Import completed with errors: ${data.failedImports} failed. Check logs for details.`);
+            $('button').prop('disabled', false);
+        }
+    })
+    .catch(error => {
+        console.error('Error executing import:', error);
+        showMessage('error', 'Error executing import');
+        $('button').prop('disabled', false);
+    });
+}
+</script>
+
+</body>
+</html>
