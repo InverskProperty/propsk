@@ -28,7 +28,9 @@
       "Bash(\"C:\\Program Files\\MySQL\\MySQL Server 9.3\\bin\\mysql.exe\" -u root -p12345 -D crm -e \"SELECT beneficiary_type, COUNT(*) as count, SUM(amount) as total_amount FROM payprop_report_all_payments WHERE beneficiary_type = ''beneficiary'' GROUP BY beneficiary_type;\")",
       "Bash(\"C:\\Program Files\\MySQL\\MySQL Server 9.3\\bin\\mysql.exe\" -u root -p12345 -D crm -e \"UPDATE customers SET country = ''UK'' WHERE country IS NULL OR country = '''';\")",
       "mcp__render__list_deploys",
-      "mcp__render__get_deploy"
+      "mcp__render__get_deploy",
+      "mcp__render__list_services",
+      "mcp__render__list_logs"
     ],
     "deny": [],
     "ask": [],
