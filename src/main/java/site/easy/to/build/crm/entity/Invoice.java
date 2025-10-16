@@ -88,7 +88,7 @@ public class Invoice {
     
     @Enumerated(EnumType.STRING)
     @Column(name = "frequency", nullable = false)
-    private InvoiceFrequency frequency = InvoiceFrequency.M;
+    private InvoiceFrequency frequency = InvoiceFrequency.monthly;
     
     @Column(name = "frequency_code", length = 10)
     private String frequencyCode;
@@ -256,17 +256,18 @@ public class Invoice {
         LocalDate today = LocalDate.now();
         
         return switch (this.frequency) {
-            case O -> this.startDate; // One-time
-            case W -> today.plusWeeks(1); // Weekly
-            case M -> { // Monthly
+            case one_time -> this.startDate; // One-time
+            case daily -> today.plusDays(1); // Daily
+            case weekly -> today.plusWeeks(1); // Weekly
+            case monthly -> { // Monthly
                 LocalDate nextMonth = today.plusMonths(1);
                 yield nextMonth.withDayOfMonth(
-                    Math.min(this.paymentDay != null ? this.paymentDay : 1, 
+                    Math.min(this.paymentDay != null ? this.paymentDay : 1,
                              nextMonth.lengthOfMonth())
                 );
             }
-            case Q -> today.plusMonths(3); // Quarterly
-            case Y -> today.plusYears(1); // Yearly
+            case quarterly -> today.plusMonths(3); // Quarterly
+            case yearly -> today.plusYears(1); // Yearly
         };
     }
     
@@ -378,20 +379,21 @@ public class Invoice {
     }
     
     public enum InvoiceFrequency {
-        O("One-time", false),
-        W("Weekly", false), 
-        M("Monthly", true),
-        Q("Quarterly", true),
-        Y("Yearly", true);
-        
+        one_time("One-time", false),
+        weekly("Weekly", false),
+        monthly("Monthly", true),
+        quarterly("Quarterly", true),
+        yearly("Yearly", true),
+        daily("Daily", false);
+
         private final String displayName;
         private final boolean requiresPaymentDay;
-        
+
         InvoiceFrequency(String displayName, boolean requiresPaymentDay) {
             this.displayName = displayName;
             this.requiresPaymentDay = requiresPaymentDay;
         }
-        
+
         public String getDisplayName() { return displayName; }
         public boolean requiresPaymentDay() { return requiresPaymentDay; }
     }

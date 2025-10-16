@@ -795,7 +795,7 @@ public class LeaseImportWizardController {
         lease.setCategoryName("Rent");
 
         // Set frequency and payment details
-        lease.setFrequency(Invoice.InvoiceFrequency.M); // Monthly
+        lease.setFrequency(Invoice.InvoiceFrequency.monthly); // Monthly
         lease.setPaymentDay(paymentDay);
 
         // Set date range

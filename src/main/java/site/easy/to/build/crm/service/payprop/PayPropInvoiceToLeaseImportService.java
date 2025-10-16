@@ -290,16 +290,17 @@ public class PayPropInvoiceToLeaseImportService {
      */
     private InvoiceFrequency parseFrequency(String frequency) {
         if (frequency == null) {
-            return InvoiceFrequency.M; // Default to monthly
+            return InvoiceFrequency.monthly; // Default to monthly
         }
 
         return switch (frequency.toUpperCase()) {
-            case "M", "MONTHLY" -> InvoiceFrequency.M;
-            case "W", "WEEKLY" -> InvoiceFrequency.W;
-            case "Q", "QUARTERLY" -> InvoiceFrequency.Q;
-            case "Y", "YEARLY", "ANNUAL" -> InvoiceFrequency.Y;
-            case "O", "ONE_TIME", "ONCE" -> InvoiceFrequency.O;
-            default -> InvoiceFrequency.M;
+            case "M", "MONTHLY" -> InvoiceFrequency.monthly;
+            case "W", "WEEKLY" -> InvoiceFrequency.weekly;
+            case "D", "DAILY" -> InvoiceFrequency.daily;
+            case "Q", "QUARTERLY" -> InvoiceFrequency.quarterly;
+            case "Y", "YEARLY", "ANNUAL" -> InvoiceFrequency.yearly;
+            case "O", "ONE_TIME", "ONCE" -> InvoiceFrequency.one_time;
+            default -> InvoiceFrequency.monthly;
         };
     }
 

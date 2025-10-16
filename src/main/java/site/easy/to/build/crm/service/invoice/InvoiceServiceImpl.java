@@ -181,7 +181,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         request.setPropertyId(property.getId());
         request.setCategoryId("rent");
         request.setAmount(amount);
-        request.setFrequency(InvoiceFrequency.M);
+        request.setFrequency(InvoiceFrequency.monthly);
         request.setPaymentDay(paymentDay != null ? paymentDay : 1);
         request.setStartDate(startDate);
         request.setDescription("Monthly rent for " + property.getPropertyName());
@@ -198,7 +198,7 @@ public class InvoiceServiceImpl implements InvoiceService {
         request.setPropertyId(property.getId());
         request.setCategoryId("deposit");
         request.setAmount(amount);
-        request.setFrequency(InvoiceFrequency.O); // One-time
+        request.setFrequency(InvoiceFrequency.one_time); // One-time
         request.setStartDate(startDate);
         request.setDescription("Security deposit for " + property.getPropertyName());
         request.setSyncToPayProp(true);
@@ -553,9 +553,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
         
         // Frequency-specific validations
-        if ((request.getFrequency() == InvoiceFrequency.M || 
-             request.getFrequency() == InvoiceFrequency.Q || 
-             request.getFrequency() == InvoiceFrequency.Y) && 
+        if ((request.getFrequency() == InvoiceFrequency.monthly ||
+             request.getFrequency() == InvoiceFrequency.quarterly ||
+             request.getFrequency() == InvoiceFrequency.yearly) &&
             request.getPaymentDay() == null) {
             throw new IllegalArgumentException("Payment day is required for monthly, quarterly, and yearly invoices");
         }
@@ -663,12 +663,12 @@ public class InvoiceServiceImpl implements InvoiceService {
         stats.setActiveAmount(activeAmount);
         
         long recurringCount = allInvoices.stream()
-                .filter(i -> i.getDeletedAt() == null && i.getFrequency() != InvoiceFrequency.O)
+                .filter(i -> i.getDeletedAt() == null && i.getFrequency() != InvoiceFrequency.one_time)
                 .count();
         stats.setRecurringInvoices(recurringCount);
-        
+
         long oneTimeCount = allInvoices.stream()
-                .filter(i -> i.getDeletedAt() == null && i.getFrequency() == InvoiceFrequency.O)
+                .filter(i -> i.getDeletedAt() == null && i.getFrequency() == InvoiceFrequency.one_time)
                 .count();
         stats.setOneTimeInvoices(oneTimeCount);
         

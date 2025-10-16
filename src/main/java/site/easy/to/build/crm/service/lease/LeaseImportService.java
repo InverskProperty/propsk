@@ -419,7 +419,7 @@ public class LeaseImportService {
 
         // Financial details
         lease.setAmount(new BigDecimal(row.rentAmountStr));
-        lease.setFrequency(Invoice.InvoiceFrequency.M); // Monthly
+        lease.setFrequency(Invoice.InvoiceFrequency.monthly); // Monthly
         lease.setPaymentDay(Integer.parseInt(row.paymentDayStr));
 
         // Lease reference

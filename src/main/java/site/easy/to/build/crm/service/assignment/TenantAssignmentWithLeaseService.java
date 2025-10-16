@@ -94,7 +94,7 @@ public class TenantAssignmentWithLeaseService {
             lease.setCategoryId("rent");
             lease.setCategoryName("Rent");
             lease.setAmount(rentAmount);
-            lease.setFrequency(InvoiceFrequency.M); // Monthly by default
+            lease.setFrequency(InvoiceFrequency.monthly); // Monthly by default
             lease.setPaymentDay(paymentDay != null ? paymentDay : 1);
             lease.setStartDate(startDate);
             lease.setEndDate(endDate);
@@ -199,7 +199,7 @@ public class TenantAssignmentWithLeaseService {
             lease.setCategoryId("rent");
             lease.setCategoryName("Rent");
             lease.setAmount(rentAmount);
-            lease.setFrequency(InvoiceFrequency.M);
+            lease.setFrequency(InvoiceFrequency.monthly);
             lease.setPaymentDay(paymentDay != null ? paymentDay : 1);
             lease.setStartDate(assignment.getStartDate() != null ? assignment.getStartDate() : LocalDate.now());
             lease.setEndDate(assignment.getEndDate());
