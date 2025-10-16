@@ -493,7 +493,19 @@ public class LeaseImportWizardController {
                     if (rentAmountStr.isEmpty()) {
                         throw new IllegalArgumentException("Rent amount is required");
                     }
+
+                    // Remove currency symbols and commas from amount
+                    rentAmountStr = rentAmountStr.replaceAll("[£$€,]", "");
+
+                    if (rentAmountStr.isEmpty()) {
+                        throw new IllegalArgumentException("Rent amount is required (empty after removing currency symbols)");
+                    }
+
                     BigDecimal rentAmount = new BigDecimal(rentAmountStr);
+
+                    if (rentAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                        throw new IllegalArgumentException("Rent amount must be greater than zero, got: " + rentAmount);
+                    }
 
                     // Validate and parse payment day
                     Object paymentDayObj = leaseData.get("paymentDay");
