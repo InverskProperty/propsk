@@ -263,13 +263,29 @@ FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO,,2025-02-27,,795.00,27,LEASE-BH-F1-2025</p
                             <p class="mb-0">Review the mapped leases below and click "Import All Leases" to proceed</p>
                         </div>
                         <div id="reviewContainer"></div>
-                        <div class="text-right mt-3">
-                            <button class="btn btn-secondary" onclick="goToStep(3)">
-                                <i class="fas fa-arrow-left"></i> Back
-                            </button>
-                            <button class="btn btn-success btn-lg" onclick="executeImport()">
-                                <i class="fas fa-upload"></i> Import All Leases
-                            </button>
+                        <div class="mt-3">
+                            <div id="bulk-actions-container" style="display: none;" class="mb-3">
+                                <div class="alert alert-light border">
+                                    <h6><i class="fas fa-tasks"></i> Bulk Actions</h6>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="skipAllDuplicates()">
+                                        <i class="fas fa-times-circle"></i> Skip All Duplicates
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="importAllNew()">
+                                        <i class="fas fa-check-circle"></i> Import Only New Leases
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="replaceAllDuplicates()">
+                                        <i class="fas fa-sync"></i> Replace All Duplicates
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <button class="btn btn-secondary" onclick="goToStep(3)">
+                                    <i class="fas fa-arrow-left"></i> Back
+                                </button>
+                                <button class="btn btn-success btn-lg" onclick="executeImport()">
+                                    <i class="fas fa-upload"></i> Execute Import
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -770,6 +786,44 @@ function buildReviewUI() {
     });
 }
 
+function skipAllDuplicates() {
+    parsedLeases.forEach((lease, index) => {
+        const dupInfo = duplicateData.duplicates[index];
+        if (dupInfo && dupInfo.isDuplicate) {
+            leaseActions[index] = 'SKIP';
+            $(`#action-skip-${index}`).prop('checked', true);
+        }
+    });
+    updateImportSummary();
+    showMessage('info', 'All duplicates marked as SKIP');
+}
+
+function importAllNew() {
+    parsedLeases.forEach((lease, index) => {
+        const dupInfo = duplicateData.duplicates[index];
+        if (!dupInfo || !dupInfo.isDuplicate) {
+            leaseActions[index] = 'IMPORT';
+        } else {
+            leaseActions[index] = 'SKIP';
+            $(`#action-skip-${index}`).prop('checked', true);
+        }
+    });
+    updateImportSummary();
+    showMessage('info', 'Importing only new leases, skipping all duplicates');
+}
+
+function replaceAllDuplicates() {
+    parsedLeases.forEach((lease, index) => {
+        const dupInfo = duplicateData.duplicates[index];
+        if (dupInfo && dupInfo.isDuplicate) {
+            leaseActions[index] = 'REPLACE';
+            $(`#action-replace-${index}`).prop('checked', true);
+        }
+    });
+    updateImportSummary();
+    showMessage('warning', 'All duplicates marked as REPLACE - this will delete existing leases!');
+}
+
 function displayReviewWithDuplicates(data) {
     // Store duplicate data globally
     duplicateData = data;
@@ -779,6 +833,11 @@ function displayReviewWithDuplicates(data) {
     const duplicateCount = data.duplicateCount;
 
     let html = '';
+
+    // Show bulk actions if there are duplicates
+    if (duplicateCount > 0) {
+        $('#bulk-actions-container').show();
+    }
 
     // Show duplicate warnings if any
     if (duplicateCount > 0) {
@@ -1029,20 +1088,47 @@ function executeImport() {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            let message = `Successfully imported ${data.successfulImports} lease(s)!`;
-            if (data.replacedCount > 0) {
-                message += ` Replaced ${data.replacedCount} existing lease(s).`;
+        if (data.success || data.successfulImports > 0) {
+            let message = `
+                <div>
+                    <h5><i class="fas fa-check-circle"></i> Import Complete!</h5>
+                    <ul class="mb-0">
+                        <li><strong>${data.successfulImports}</strong> lease(s) successfully imported</li>
+                        ${data.replacedCount > 0 ? `<li><strong>${data.replacedCount}</strong> existing lease(s) replaced</li>` : ''}
+                        ${data.skippedCount > 0 ? `<li><strong>${data.skippedCount}</strong> lease(s) skipped (duplicates)</li>` : ''}
+                        ${data.failedImports > 0 ? `<li class="text-danger"><strong>${data.failedImports}</strong> lease(s) failed to import</li>` : ''}
+                    </ul>
+                    <p class="mt-2 mb-0"><small>You will be redirected to the lease list in 3 seconds...</small></p>
+                </div>
+            `;
+            showMessage(data.failedImports > 0 ? 'warning' : 'success', message);
+
+            if (data.errors && data.errors.length > 0) {
+                console.log('Import errors:', data.errors);
             }
-            if (data.skippedCount > 0) {
-                message += ` Skipped ${data.skippedCount} lease(s).`;
-            }
-            showMessage('success', message);
+
             setTimeout(() => {
                 window.location.href = '/employee/lease/list';
-            }, 2000);
+            }, 3000);
         } else {
-            showMessage('error', `Import completed with errors: ${data.failedImports} failed. Check logs for details.`);
+            let errorDetails = '';
+            if (data.errors && data.errors.length > 0) {
+                errorDetails = '<div class="mt-2"><strong>Errors:</strong><ul class="mb-0">';
+                data.errors.forEach(err => {
+                    errorDetails += `<li class="text-danger">${err}</li>`;
+                });
+                errorDetails += '</ul></div>';
+            }
+
+            let message = `
+                <div>
+                    <h5><i class="fas fa-times-circle"></i> Import Failed</h5>
+                    <p><strong>${data.failedImports || 0}</strong> lease(s) failed to import.</p>
+                    ${errorDetails}
+                    ${data.error ? `<p class="mt-2"><strong>Error:</strong> ${data.error}</p>` : ''}
+                </div>
+            `;
+            showMessage('error', message);
             $('button').prop('disabled', false);
         }
     })
