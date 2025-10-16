@@ -806,6 +806,7 @@ function displayReviewWithDuplicates(data) {
                     <th>Property</th>
                     <th>Customer</th>
                     <th>Start Date</th>
+                    <th>End Date</th>
                     <th>Monthly Rent</th>
                     <th>Status</th>
                 </tr>
@@ -823,6 +824,7 @@ function displayReviewWithDuplicates(data) {
         html += `<td>${property.propertyName}</td>`;
         html += `<td>${customer.customerName}</td>`;
         html += `<td>${lease.leaseStartDate}</td>`;
+        html += `<td>${lease.leaseEndDate || '<span class="text-muted">Open-ended</span>'}</td>`;
         html += `<td>£${lease.rentAmount}</td>`;
 
         if (dupInfo && dupInfo.isDuplicate) {
@@ -857,7 +859,7 @@ function displayReviewWithDuplicates(data) {
                 </td>
             </tr>
             <tr>
-                <td colspan="6">
+                <td colspan="7">
                     <div class="duplicate-warning ${warningClass}">
                         <strong><i class="fas fa-exclamation-circle"></i> Duplicate Detected:</strong>
                         <div class="duplicate-details">
@@ -940,6 +942,7 @@ function displayReviewTable() {
                     <th>Property</th>
                     <th>Customer</th>
                     <th>Start Date</th>
+                    <th>End Date</th>
                     <th>Monthly Rent</th>
                     <th>Payment Day</th>
                 </tr>
@@ -957,6 +960,7 @@ function displayReviewTable() {
                 <td>${property.propertyName}</td>
                 <td>${customer.customerName}</td>
                 <td>${lease.leaseStartDate}</td>
+                <td>${lease.leaseEndDate || '<span class="text-muted">Open-ended</span>'}</td>
                 <td>£${lease.rentAmount}</td>
                 <td>${lease.paymentDay}</td>
             </tr>
