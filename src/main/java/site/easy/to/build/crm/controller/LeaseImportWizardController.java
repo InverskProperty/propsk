@@ -485,8 +485,24 @@ public class LeaseImportWizardController {
                     String leaseReference = (String) leaseData.get("leaseReference");
                     String startDateStr = (String) leaseData.get("startDate");
                     String endDateStr = (String) leaseData.get("endDate");
-                    BigDecimal rentAmount = new BigDecimal(leaseData.get("rentAmount").toString());
-                    Integer paymentDay = ((Number) leaseData.get("paymentDay")).intValue();
+
+                    // Validate and parse rent amount
+                    String rentAmountStr = leaseData.get("rentAmount") != null
+                        ? leaseData.get("rentAmount").toString().trim()
+                        : "";
+                    if (rentAmountStr.isEmpty()) {
+                        throw new IllegalArgumentException("Rent amount is required");
+                    }
+                    BigDecimal rentAmount = new BigDecimal(rentAmountStr);
+
+                    // Validate and parse payment day
+                    Object paymentDayObj = leaseData.get("paymentDay");
+                    if (paymentDayObj == null) {
+                        throw new IllegalArgumentException("Payment day is required");
+                    }
+                    Integer paymentDay = (paymentDayObj instanceof Number)
+                        ? ((Number) paymentDayObj).intValue()
+                        : Integer.parseInt(paymentDayObj.toString().trim());
 
                     // Extract action and existingLeaseId (from frontend duplicate handling)
                     String action = leaseData.containsKey("action")
@@ -606,6 +622,27 @@ public class LeaseImportWizardController {
                 // Skip rows with no property
                 if (row.rawPropertyReference.isEmpty()) {
                     log.debug("Skipping row {} - no property reference", rowNumber);
+                    continue;
+                }
+
+                // Skip rows with missing required fields
+                if (row.leaseStartDate.isEmpty()) {
+                    log.warn("Skipping row {} - missing lease start date", rowNumber);
+                    continue;
+                }
+
+                if (row.rentAmount.isEmpty()) {
+                    log.warn("Skipping row {} - missing rent amount", rowNumber);
+                    continue;
+                }
+
+                if (row.paymentDay.isEmpty()) {
+                    log.warn("Skipping row {} - missing payment day", rowNumber);
+                    continue;
+                }
+
+                if (row.leaseReference.isEmpty()) {
+                    log.warn("Skipping row {} - missing lease reference", rowNumber);
                     continue;
                 }
 
