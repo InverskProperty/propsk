@@ -6,11 +6,12 @@ This guide documents all supported data import formats for the CRM system, inclu
 
 Your system has been **significantly enhanced** with simplified imports and automatic split transaction creation:
 
-### ✅ **Simplified CSV Import - Only 2 Required Fields!**
-- **Minimal Requirements**: Only `transaction_date` and `amount` are required
-- **Smart Defaults**: Description and transaction type automatically inferred from context
-- **Flexible Import**: Paste bank statements directly - system auto-generates missing data
-- **Human Review**: Interactive review interface lets you map properties/customers during import
+### ✅ **Simplified CSV Import - One Template, Any Data Richness**
+- **One Standard Template**: Always use the same comprehensive CSV header with all 15 fields
+- **Fill What You Have**: Leave fields blank where you don't have data - system handles both sparse and rich data equally
+- **Only 2 Fields Required**: `transaction_date` and `amount` are the only mandatory fields
+- **Smart Defaults**: Description, transaction_type, and other fields automatically inferred from context when blank
+- **Human Review**: Interactive review interface lets you edit any field, map properties/customers, and override inferred values
 
 ### ✅ **Automatic Split Transaction Creation**
 - **Incoming Payments**: Automatically creates owner allocations and agency fees
@@ -42,20 +43,26 @@ Your system has been **significantly enhanced** with simplified imports and auto
 
 ### CSV Format (Simple Import)
 
-**🎯 MINIMAL Required Headers (Only 2!):**
+**📋 Standard CSV Template (Always Use This Header):**
+
+Include ALL columns in your CSV header - leave fields blank where you don't have data. The system will infer or auto-generate missing values.
+
 ```csv
-transaction_date,amount
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
 ```
 
-**📋 Recommended Headers (for better matching):**
+**Example - Rich Data (All Fields Filled):**
 ```csv
-transaction_date,amount,property_reference,payment_source
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+2025-01-22,1125.00,"Rent - January 2025",payment,rent,"Apartment F - Knighton Hayes",john@email.com,"LEASE-APT-F-2025",,1125.00,REF-12345,"Bank Transfer","John Smith","Rent on time",OLD_ACCOUNT
 ```
 
-**🔧 All Supported Headers (Full Control):**
+**Example - Sparse Data (Only Essentials):**
 ```csv
-transaction_date,amount,description,transaction_type,category,subcategory,property_reference,customer_reference,beneficiary_type,incoming_transaction_amount,lease_reference,bank_reference,payment_method,counterparty_name,source_reference,notes,payment_source
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+2025-02-01,500.00,,,,,,,,500.00,,,,,OLD_ACCOUNT
 ```
+**Result:** System infers transaction_type=payment, auto-generates description, processes the payment.
 
 ### Field Specifications
 
@@ -157,31 +164,35 @@ transaction_date,amount,description,transaction_type,category,subcategory,proper
 
 ### CSV Examples
 
-#### 🎯 Example 1: Minimal Bank Statement (Just Paste!)
-**Only 2 columns required - system auto-generates everything else:**
-```csv
-transaction_date,amount
-2025-01-22,1125.00
-2025-01-25,-150.00
-2025-01-28,-956.25
-```
-**Result:** System infers types (invoice/payment), generates descriptions like "Invoice - £1125.00", "Payment - £150.00"
+**All examples use the SAME comprehensive header** - only difference is which fields are filled vs left blank:
 
-#### 📋 Example 2: Bank Statement with References
-**Better descriptions from bank data:**
 ```csv
-transaction_date,amount,bank_reference
-2025-01-22,1125.00,FPS JOHN SMITH RENT JAN
-2025-01-25,-150.00,FASTER PMT ABC PLUMBING
-2025-01-28,-956.25,BANK TRANSFER TO OWNER
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+```
+
+#### 🎯 Example 1: Absolute Minimum (Just Date + Amount)
+**Most fields blank - system auto-generates everything:**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+2025-01-22,1125.00,,,,,,,,,,,,
+2025-01-25,-150.00,,,,,,,,,,,,
+```
+**Result:** System infers types (payment), generates descriptions like "Payment - £1125.00"
+
+#### 📋 Example 2: Bank Statement Data (Some Context)
+**Using bank_reference for better descriptions:**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+2025-01-22,1125.00,,,,,,,,,"FPS JOHN SMITH RENT JAN",,,
+2025-01-25,-150.00,,,,,,,,,"FASTER PMT ABC PLUMBING",,,
 ```
 **Result:** Uses bank_reference as description, infers types automatically
 
 #### 💰 Example 3: Rent with Auto-Split (Creates 3 Transactions!)
-**One row creates owner allocation + agency fee automatically:**
+**Using incoming_transaction_amount triggers auto-split logic:**
 ```csv
-transaction_date,amount,property_reference,incoming_transaction_amount,payment_source
-2025-01-22,1125.00,Apartment F,1125.00,OLD_ACCOUNT
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+2025-01-22,1125.00,,,,"Apartment F - Knighton Hayes",,,1125.00,,,,,OLD_ACCOUNT
 ```
 **Result:** System creates:
 1. Main: £1125 rent received
@@ -189,38 +200,44 @@ transaction_date,amount,property_reference,incoming_transaction_amount,payment_s
 3. Agency fee: -£168.75 (15% commission) → category="management_fee"
 
 #### 🏠 Example 4: Payment to Owner (Decreases Balance)
+**Using beneficiary_type to track owner payments:**
 ```csv
-transaction_date,amount,customer_reference,beneficiary_type,payment_source
-2025-01-28,-956.25,John Smith,beneficiary_payment,OLD_ACCOUNT
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+2025-01-28,-956.25,,,,"John Smith",,beneficiary_payment,,,,,,OLD_ACCOUNT
 ```
 **Result:** Records payment, decreases owner balance by £956.25
 
-#### 🔧 Example 5: Contractor Payment
+#### 🔧 Example 5: Contractor Payment with Auto-Description
+**Using counterparty_name for auto-generated description:**
 ```csv
-transaction_date,amount,property_reference,counterparty_name,beneficiary_type
-2025-01-25,-150.00,Apartment F,ABC Plumbing,contractor
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+2025-01-25,-150.00,,,,"Apartment F - Knighton Hayes",,contractor,,,,"ABC Plumbing",
 ```
 **Result:** Description auto-generated: "Contractor Payment - ABC Plumbing - £150.00"
 
-#### 📊 Example 6: Full Control (All Fields)
+#### 📊 Example 6: Full Control (All Fields Filled)
+**When you have complete information from your accounting system:**
 ```csv
-transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,beneficiary_type,incoming_transaction_amount,payment_source
-2025-01-22,1125.00,Rent Received - January,payment,rent,Apartment F,John Smith,,1125.00,OLD_ACCOUNT
-2025-01-25,-150.00,Plumbing Repair,expense,maintenance,Apartment F,ABC Plumbing,contractor,,OLD_ACCOUNT
-2025-01-28,-956.25,Payment to Owner,payment,owner_payment,,John Smith,beneficiary_payment,,OLD_ACCOUNT
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+2025-01-22,1125.00,"Rent Received - January",payment,rent,"Apartment F - Knighton Hayes","john@email.com","LEASE-APT-F-2025",,1125.00,"REF-001","Bank Transfer","John Smith","Rent on time",OLD_ACCOUNT
+2025-01-25,-150.00,"Plumbing Repair",expense,maintenance,"Apartment F - Knighton Hayes","ABC Plumbing",,"contractor",,,"Bank Transfer","ABC Plumbing","Emergency repair",OLD_ACCOUNT
+2025-01-28,-956.25,"Payment to Owner",payment,owner_payment,,"John Smith",,beneficiary_payment,,,"Bank Transfer","John Smith","Monthly payment",OLD_ACCOUNT
 ```
+**Result:** System uses all provided data exactly as given, no inference needed
 
-#### 🔄 Example 7: Mixed Transactions (Real-World Scenario)
+#### 🔄 Example 7: Mixed Data Richness (Real-World Scenario)
+**Your actual CSV showing what came from your spreadsheet - sparse data mixed with rich data:**
 ```csv
-transaction_date,amount,property_reference,incoming_transaction_amount,beneficiary_type,payment_source
-2025-01-22,1125.00,Apartment F,1125.00,,OLD_ACCOUNT
-2025-01-25,-150.00,Apartment F,,,OLD_ACCOUNT
-2025-01-28,-956.25,,beneficiary_payment,OLD_ACCOUNT
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+17/02/2025,740.00,,,,FLAT 5 - 3 WEST GATE,,,,,740.00,,,,,OLD_ACCOUNT
+19/02/2025,700.00,,,,FLAT 7 - 3 WEST GATE,,,,,700.00,,,,,OLD_ACCOUNT
+06/03/2025,-3080.00,,,,"Boden House NG10 - Block Property",,,,,,,,,,OLD_ACCOUNT
+06/03/2025,-2111.00,,,,,,,,,,,,,,OLD_ACCOUNT
 ```
 **Result:**
-- Row 1: Rent with auto-split → 3 transactions created
-- Row 2: Expense → type inferred, description auto-generated
-- Row 3: Owner payment → decreases balance
+- Row 1 & 2: Rent payments with property + incoming_transaction_amount → auto-split, infers types
+- Row 3: Expense with property → infers type=payment, auto-generates description
+- Row 4: Just date+amount → infers type=payment, generates basic description
 
 ---
 

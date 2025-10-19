@@ -460,17 +460,17 @@ public class HistoricalTransactionImportController {
     public ResponseEntity<Map<String, Object>> getImportExamples() {
         Map<String, Object> examples = new HashMap<>();
 
-        // CSV Example - MINIMAL (only required fields)
-        String csvExample = "transaction_date,amount,property_reference,payment_source\n" +
-                           "2025-01-22,1125.00,\"Apartment F - Knighton Hayes\",OLD_ACCOUNT\n" +
-                           "2025-01-25,-956.25,,OLD_ACCOUNT\n" +
-                           "2025-01-20,-150.00,\"Apartment F - Knighton Hayes\",OLD_ACCOUNT";
+        // CSV Template - ALL AVAILABLE FIELDS
+        // Include ALL columns in your CSV header - leave fields blank where you don't have data
+        // System will infer missing values from context (transaction_type, description, etc.)
+        String csvExample = "transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source\n" +
+                           "2025-01-22,1125.00,\"Rent - January 2025\",payment,rent,\"Apartment F - Knighton Hayes\",Riaz,\"LEASE-APT-F-2025\",,1125.00,,\"Bank Transfer\",,\"Rent due on 22nd\",OLD_ACCOUNT\n" +
+                           "2025-01-25,-956.25,\"Payment to Owner\",payment,owner_payment,,\"John Smith\",,beneficiary_payment,,,\"Bank Transfer\",,\"Monthly payment\",OLD_ACCOUNT\n" +
+                           "2025-01-20,-150.00,\"Plumbing Repair\",expense,maintenance,\"Apartment F - Knighton Hayes\",\"ABC Plumbing\",\"LEASE-APT-F-2025\",contractor,,,\"Bank Transfer\",\"ABC Plumbing\",,OLD_ACCOUNT\n" +
+                           "2025-02-01,500.00,,,,,,,,500.00,,,,,OLD_ACCOUNT";
 
-        // CSV Example - FULL (with all optional fields)
-        String csvExampleFull = "transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,notes,payment_source\n" +
-                           "2025-01-22,1125.00,\"Rent Received - January 2025\",payment,rent,\"Apartment F - Knighton Hayes\",Riaz,,1125.00,,\"Bank Transfer\",\"Rent due on 22nd\",OLD_ACCOUNT\n" +
-                           "2025-01-25,-956.25,\"Payment to Owner\",payment,owner_payment,,\"John Smith\",beneficiary_payment,,,\"Bank Transfer\",,OLD_ACCOUNT\n" +
-                           "2025-01-20,-150.00,\"Plumbing Repair\",expense,maintenance,\"Apartment F - Knighton Hayes\",\"ABC Plumbing\",contractor,,,\"Bank Transfer\",,OLD_ACCOUNT";
+        // Same template - for backward compatibility
+        String csvExampleFull = csvExample;
 
         // JSON Example
         String jsonExample = "{\n" +
@@ -499,27 +499,29 @@ public class HistoricalTransactionImportController {
                             "  ]\n" +
                             "}";
 
-        examples.put("csv_example_minimal", csvExample);
-        examples.put("csv_example_full", csvExampleFull);
+        examples.put("csv_example", csvExample);
+        examples.put("csv_example_full", csvExampleFull); // Backward compatibility
         examples.put("json_example", jsonExample);
-        examples.put("csv_headers_required", List.of(
-            "transaction_date (REQUIRED - Date of transaction)",
-            "amount (REQUIRED - Transaction amount)"
+
+        // Field documentation - ALWAYS include ALL fields in CSV header, leave blank where no data
+        examples.put("csv_fields_required", List.of(
+            "transaction_date - Date of transaction (REQUIRED)",
+            "amount - Transaction amount in decimal format (REQUIRED)"
         ));
-        examples.put("csv_headers_optional", List.of(
-            "description (auto-generated from context if empty)",
-            "transaction_type (inferred from amount/beneficiary_type if empty)",
-            "category (optional - rent, maintenance, etc.)",
-            "property_reference (property name or identifier)",
-            "customer_reference (customer name, email, or identifier)",
-            "beneficiary_type (beneficiary, beneficiary_payment, contractor)",
-            "incoming_transaction_amount (for split transactions)",
-            "lease_reference (link to lease/invoice)",
-            "bank_reference (bank transaction reference)",
-            "payment_method (Bank Transfer, Cash, etc.)",
-            "counterparty_name (who sent/received payment)",
-            "notes (additional notes)",
-            "payment_source (OLD_ACCOUNT, PAYPROP, BOTH)"
+        examples.put("csv_fields_optional", List.of(
+            "description - Transaction description (auto-generated if blank)",
+            "transaction_type - payment/invoice/expense/fee/maintenance/adjustment/deposit/withdrawal (inferred if blank)",
+            "category - rent/maintenance/commission/owner_payment etc. (optional)",
+            "property_reference - Property name/address (fuzzy matched to existing properties)",
+            "customer_reference - Customer name/email/ID (fuzzy matched to existing customers)",
+            "lease_reference - Lease/invoice reference (auto-links to lease if found)",
+            "beneficiary_type - beneficiary/beneficiary_payment/contractor (for balance tracking)",
+            "incoming_transaction_amount - Original payment amount before splits (triggers auto-split logic)",
+            "bank_reference - Bank transaction reference (optional)",
+            "payment_method - Bank Transfer/Cash/Cheque etc. (optional)",
+            "counterparty_name - Who sent/received payment (used in auto-description)",
+            "notes - Additional notes (optional)",
+            "payment_source - OLD_ACCOUNT/PAYPROP/BOTH (optional)"
         ));
         examples.put("transaction_types", List.of(
             "invoice", "payment", "fee", "expense", "maintenance", "adjustment", "deposit", "withdrawal"
