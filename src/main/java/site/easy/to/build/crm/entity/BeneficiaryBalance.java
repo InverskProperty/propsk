@@ -45,9 +45,12 @@ public class BeneficiaryBalance {
     @JoinColumn(name = "property_id", nullable = false)
     private Property property;
 
-    // Legacy field - kept for backward compatibility
+    // Legacy fields - kept for backward compatibility and query support
     @Column(name = "beneficiary_id", insertable = false, updatable = false)
     private Long beneficiaryId;
+
+    @Column(name = "property_id", insertable = false, updatable = false)
+    private Long propertyId;
 
     // ===== BALANCE TRACKING =====
 
@@ -271,6 +274,9 @@ public class BeneficiaryBalance {
 
     public Long getBeneficiaryId() { return beneficiaryId; }
     public void setBeneficiaryId(Long beneficiaryId) { this.beneficiaryId = beneficiaryId; }
+
+    public Long getPropertyId() { return propertyId; }
+    public void setPropertyId(Long propertyId) { this.propertyId = propertyId; }
 
     public BigDecimal getBalanceAmount() { return balanceAmount; }
     public void setBalanceAmount(BigDecimal balanceAmount) { this.balanceAmount = balanceAmount; }
