@@ -505,8 +505,8 @@ public class HistoricalTransactionImportService {
             String[] headers = headerLine.split(",");
             Map<String, Integer> columnMap = buildColumnMap(headers);
 
-            // Validate required columns exist
-            List<String> requiredColumns = List.of("transaction_date", "amount", "description", "transaction_type");
+            // Validate required columns exist (only 2 required fields!)
+            List<String> requiredColumns = List.of("transaction_date", "amount");
             List<String> missingColumns = new ArrayList<>();
 
             for (String required : requiredColumns) {
@@ -1647,8 +1647,8 @@ public class HistoricalTransactionImportService {
         Map<String, Integer> columnMap = buildColumnMap(headers);
         log.info("📋 [REVIEW-VALIDATE] Built column map with {} columns: {}", columnMap.size(), String.join(", ", headers));
 
-        // Validate required columns
-        List<String> requiredColumns = List.of("transaction_date", "amount", "description", "transaction_type");
+        // Validate required columns (only 2 required fields!)
+        List<String> requiredColumns = List.of("transaction_date", "amount");
         List<String> missingColumns = new ArrayList<>();
         for (String required : requiredColumns) {
             if (!columnMap.containsKey(required)) {

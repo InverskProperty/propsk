@@ -12,6 +12,7 @@
  */
 package site.easy.to.build.crm.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,6 +37,7 @@ public class BeneficiaryBalance {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
+    @JsonIgnoreProperties({"beneficiaryBalances", "properties", "leases", "invoices", "transactions", "hibernateLazyInitializer", "handler"})
     private Customer customer;
 
     /**
@@ -43,6 +45,7 @@ public class BeneficiaryBalance {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id", nullable = false)
+    @JsonIgnoreProperties({"beneficiaryBalances", "customer", "leases", "invoices", "transactions", "hibernateLazyInitializer", "handler"})
     private Property property;
 
     // Legacy fields - kept for backward compatibility and query support
