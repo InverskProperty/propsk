@@ -38,20 +38,18 @@ public class BeneficiaryBalance {
 
     /**
      * The beneficiary (owner) for this balance
-     * Excluded from JSON to prevent infinite recursion
+     * @JsonIdentityInfo handles circular reference prevention
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
-    @JsonIgnore
     private Customer customer;
 
     /**
      * The property this balance relates to
-     * Excluded from JSON to prevent infinite recursion
+     * @JsonIdentityInfo handles circular reference prevention
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id", nullable = false)
-    @JsonIgnore
     private Property property;
 
     // Legacy fields - kept for backward compatibility and query support
