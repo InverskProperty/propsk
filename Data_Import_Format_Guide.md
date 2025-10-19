@@ -51,11 +51,15 @@ Your system has been **significantly enhanced** with simplified imports and auto
 - ✅ Fees **CHARGED** (money was deducted)
 
 **DO NOT Import:**
-- ❌ Invoices for rent that's **due but unpaid** (your lease system tracks this)
-- ❌ Future rent due dates (not actual transactions)
-- ❌ Balance calculations or arrears totals (these are calculations, not transactions)
-- ❌ "What the tenant owes" unless they actually paid it
-- ❌ Projected or expected payments
+- ❌ **Unpaid rent** - Invoices for rent that's due but unpaid (your lease system tracks this)
+- ❌ **Unpaid contractor bills** - Invoice received but not yet paid (wait until you pay it)
+- ❌ **Unpaid utility bills** - Bill arrived but payment not made yet (import when paid)
+- ❌ **Unpaid supplier invoices** - Any bill/invoice you received but haven't paid
+- ❌ **Future due dates** - Rent due next month, upcoming payments (not actual transactions)
+- ❌ **Balance calculations** - Arrears totals, what's owed, running balances (these are calculations)
+- ❌ **Projected payments** - Expected payments, scheduled transfers that haven't happened yet
+
+**Key Rule:** If money hasn't actually moved (in or out of your bank account), don't import it.
 
 ### 📊 The CSV Header is a TEMPLATE Showing ALL Possibilities
 
@@ -102,6 +106,93 @@ transaction_date,amount,description,transaction_type,category,property_reference
 15/03/2025,1125.00,,,,Apartment F - Knighton Hayes,,,,,1125.00,"FPS-REF-67890","Bank Transfer",,Late payment received,OLD_ACCOUNT
 ```
 **Now import it** - money actually moved.
+
+### 📝 Common Transaction Scenarios - What to Import & When
+
+#### 💰 **Payments to Property Owners**
+
+**Scenario 1: Owner is OWED money (from rent received)**
+```csv
+# DON'T manually import this - system auto-creates when you import rent with incoming_transaction_amount
+# The auto-split creates beneficiary_type="beneficiary" transaction automatically
+```
+
+**Scenario 2: You ACTUALLY PAID the owner (bank transfer made)**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+28/01/2025,-1500.00,"Payment to owner - January",,owner_payment,,"John Smith",,beneficiary_payment,,"TXN-123456","Bank Transfer","John Smith","Monthly distribution",OLD_ACCOUNT
+```
+**What's filled:** Date, negative amount, customer_reference (owner name), beneficiary_type=beneficiary_payment, bank_reference (if from bank statement)
+**Result:** Decreases owner balance by £1,500, records actual payment made
+
+#### 🔧 **Contractor & Supplier Payments**
+
+**Scenario 1: Contractor invoice RECEIVED (unpaid)**
+```
+❌ DON'T IMPORT - No money has moved yet
+Wait until you actually pay the invoice
+```
+
+**Scenario 2: You PAID the contractor invoice**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+15/02/2025,-150.00,"Boiler repair",expense,maintenance,"Apartment F - Knighton Hayes",,,contractor,,"BACS-ABC-PLU","Bank Transfer","ABC Plumbing","Emergency repair - invoice #1234",OLD_ACCOUNT
+```
+**What's filled:** Date, negative amount, property, beneficiary_type=contractor, counterparty_name, bank_reference
+**Result:** Records expense payment, tracks contractor
+
+**Scenario 3: Paid contractor from bank statement**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+15/02/2025,-150.00,,,,"Apartment F - Knighton Hayes",,,contractor,,"BACS PAYMENT TO ABC PLUMBING REF INV1234","BACS","ABC Plumbing",,OLD_ACCOUNT
+```
+**What's filled:** Date, amount, property, beneficiary_type=contractor, bank_reference (full bank description), payment_method, counterparty_name
+**Result:** System uses bank_reference for description, records expense
+
+#### 💡 **Utility Bills & Regular Expenses**
+
+**Scenario 1: Utility bill ARRIVED (unpaid)**
+```
+❌ DON'T IMPORT - Bill received but not paid yet
+Example: "Thames Water bill for £89 arrived today"
+Wait until the payment leaves your account
+```
+
+**Scenario 2: Utility bill PAID**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+10/02/2025,-89.00,"Thames Water - January",expense,utilities,"Boden House NG10",,,,,,"Direct Debit","Thames Water","Account #12345",OLD_ACCOUNT
+```
+**What's filled:** Date, negative amount, description, category=utilities, property, payment_method, counterparty_name
+**Result:** Records utility expense paid
+
+**Scenario 3: Multiple utility bills paid (from bank statement)**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+05/02/2025,-125.50,,,utilities,"123 Main St",,,,,,"DD BRITISH GAS 123456789","Direct Debit","British Gas",,OLD_ACCOUNT
+10/02/2025,-89.00,,,utilities,"123 Main St",,,,,,"DD THAMES WATER ACC12345","Direct Debit","Thames Water",,OLD_ACCOUNT
+15/02/2025,-45.00,,,utilities,"123 Main St",,,,,,"DD EDF ENERGY REF9876","Direct Debit","EDF Energy",,OLD_ACCOUNT
+```
+**What's filled:** Date, amount, category, property, bank_reference (DD = Direct Debit reference), payment_method, counterparty_name
+**Result:** System auto-generates descriptions from bank_reference, categorizes as utilities
+
+#### 🧾 **General Expenses (Management/Agency Costs)**
+
+**Scenario: You paid for property management expense**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+20/02/2025,-350.00,"Safety certificates - annual inspection",expense,compliance,"Block Property - Boden House",,,,,,"Bank Transfer","Gas Safe Inspector","Annual gas safety checks",OLD_ACCOUNT
+```
+**What's filled:** Date, negative amount, description, category, property, payment_method, counterparty_name, notes
+**Result:** Records compliance expense
+
+### 🎯 Quick Decision Guide
+
+**"Should I import this?"**
+1. ✅ **Has money left/entered your bank?** → Yes, import it
+2. ❌ **Is it a bill you received but haven't paid?** → No, don't import (wait until paid)
+3. ❌ **Is it money someone owes you but hasn't paid?** → No, don't import (wait until received)
+4. ❌ **Is it a future scheduled payment?** → No, don't import (wait until it executes)
 
 ---
 
