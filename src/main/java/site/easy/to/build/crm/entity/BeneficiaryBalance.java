@@ -12,8 +12,10 @@
  */
 package site.easy.to.build.crm.entity;
 
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -25,6 +27,7 @@ import java.time.LocalDateTime;
         columnNames = {"customer_id", "property_id", "balance_date"}
     )
 )
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 public class BeneficiaryBalance {
 
     @Id
