@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
     )
 )
 @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class BeneficiaryBalance {
 
     @Id
