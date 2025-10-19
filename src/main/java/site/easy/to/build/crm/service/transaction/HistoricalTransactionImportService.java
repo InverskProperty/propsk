@@ -1728,10 +1728,19 @@ public class HistoricalTransactionImportService {
                     continue;
                 }
 
-                // Validate transaction type
+                // Validate transaction type - with smart inference if not provided
                 TransactionType transactionType;
                 try {
-                    transactionType = parseTransactionType(typeStr);
+                    if (typeStr != null && !typeStr.isEmpty()) {
+                        // Parse explicitly provided transaction type
+                        transactionType = parseTransactionType(typeStr);
+                    } else {
+                        // Infer transaction type from context (same logic as quick import)
+                        String beneficiaryType = getValue(values, columnMap, "beneficiary_type");
+                        String incomingAmountStr = getValue(values, columnMap, "incoming_transaction_amount");
+                        transactionType = inferTransactionType(amount, beneficiaryType, incomingAmountStr);
+                        log.debug("🔍 [REVIEW-VALIDATE] Line {}: Inferred transaction type as {} from context", lineNumber, transactionType);
+                    }
                     review.getParsedData().put("parsedType", transactionType.name()); // Convert enum to string for JSON
                 } catch (IllegalArgumentException e) {
                     review.setStatus(ReviewStatus.VALIDATION_ERROR);
