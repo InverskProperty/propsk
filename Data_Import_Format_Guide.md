@@ -123,7 +123,8 @@ transaction_date,amount,description,transaction_type,category,property_reference
 28/01/2025,-1500.00,"Payment to owner - January",,owner_payment,,"John Smith",,beneficiary_payment,,"TXN-123456","Bank Transfer","John Smith","Monthly distribution",OLD_ACCOUNT
 ```
 **What's filled:** Date, negative amount, customer_reference (owner name), beneficiary_type=beneficiary_payment, bank_reference (if from bank statement)
-**Result:** Decreases owner balance by £1,500, records actual payment made
+**What's blank:** transaction_type (system infers "payment" from beneficiary_payment)
+**Result:** Type inferred as "payment", decreases owner balance by £1,500, records actual payment made
 
 #### 🔧 **Contractor & Supplier Payments**
 
@@ -136,10 +137,11 @@ Wait until you actually pay the invoice
 **Scenario 2: You PAID the contractor invoice**
 ```csv
 transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
-15/02/2025,-150.00,"Boiler repair",expense,maintenance,"Apartment F - Knighton Hayes",,,contractor,,"BACS-ABC-PLU","Bank Transfer","ABC Plumbing","Emergency repair - invoice #1234",OLD_ACCOUNT
+15/02/2025,-150.00,"Boiler repair",,maintenance,"Apartment F - Knighton Hayes",,,contractor,,"BACS-ABC-PLU","Bank Transfer","ABC Plumbing","Emergency repair - invoice #1234",OLD_ACCOUNT
 ```
-**What's filled:** Date, negative amount, property, beneficiary_type=contractor, counterparty_name, bank_reference
-**Result:** Records expense payment, tracks contractor
+**What's filled:** Date, negative amount, description, category=maintenance, property, beneficiary_type=contractor, counterparty_name, bank_reference
+**What's blank:** transaction_type (system infers "expense" from contractor)
+**Result:** Type inferred as "expense", records contractor payment
 
 **Scenario 3: Paid contractor from bank statement**
 ```csv
@@ -147,7 +149,8 @@ transaction_date,amount,description,transaction_type,category,property_reference
 15/02/2025,-150.00,,,,"Apartment F - Knighton Hayes",,,contractor,,"BACS PAYMENT TO ABC PLUMBING REF INV1234","BACS","ABC Plumbing",,OLD_ACCOUNT
 ```
 **What's filled:** Date, amount, property, beneficiary_type=contractor, bank_reference (full bank description), payment_method, counterparty_name
-**Result:** System uses bank_reference for description, records expense
+**What's blank:** transaction_type (system infers "expense" from contractor), description (auto-generated from bank_reference)
+**Result:** Type inferred as "expense", description auto-generated, records contractor payment
 
 #### 💡 **Utility Bills & Regular Expenses**
 
@@ -161,10 +164,11 @@ Wait until the payment leaves your account
 **Scenario 2: Utility bill PAID**
 ```csv
 transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
-10/02/2025,-89.00,"Thames Water - January",expense,utilities,"Boden House NG10",,,,,,"Direct Debit","Thames Water","Account #12345",OLD_ACCOUNT
+10/02/2025,-89.00,"Thames Water - January",,utilities,"Boden House NG10",,,,,,"Direct Debit","Thames Water","Account #12345",OLD_ACCOUNT
 ```
 **What's filled:** Date, negative amount, description, category=utilities, property, payment_method, counterparty_name
-**Result:** Records utility expense paid
+**What's blank:** transaction_type (system infers "payment" from negative amount)
+**Result:** Type inferred as "payment", records utility expense
 
 **Scenario 3: Multiple utility bills paid (from bank statement)**
 ```csv
@@ -173,18 +177,20 @@ transaction_date,amount,description,transaction_type,category,property_reference
 10/02/2025,-89.00,,,utilities,"123 Main St",,,,,,"DD THAMES WATER ACC12345","Direct Debit","Thames Water",,OLD_ACCOUNT
 15/02/2025,-45.00,,,utilities,"123 Main St",,,,,,"DD EDF ENERGY REF9876","Direct Debit","EDF Energy",,OLD_ACCOUNT
 ```
-**What's filled:** Date, amount, category, property, bank_reference (DD = Direct Debit reference), payment_method, counterparty_name
-**Result:** System auto-generates descriptions from bank_reference, categorizes as utilities
+**What's filled:** Date, amount, category=utilities, property, bank_reference (DD = Direct Debit reference), payment_method, counterparty_name
+**What's blank:** transaction_type (system infers "payment" from negative amount), description (auto-generated from bank_reference)
+**Result:** Type inferred as "payment", descriptions auto-generated from bank_reference, categorized as utilities
 
 #### 🧾 **General Expenses (Management/Agency Costs)**
 
 **Scenario: You paid for property management expense**
 ```csv
 transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
-20/02/2025,-350.00,"Safety certificates - annual inspection",expense,compliance,"Block Property - Boden House",,,,,,"Bank Transfer","Gas Safe Inspector","Annual gas safety checks",OLD_ACCOUNT
+20/02/2025,-350.00,"Safety certificates - annual inspection",,compliance,"Block Property - Boden House",,,,,,"Bank Transfer","Gas Safe Inspector","Annual gas safety checks",OLD_ACCOUNT
 ```
-**What's filled:** Date, negative amount, description, category, property, payment_method, counterparty_name, notes
-**Result:** Records compliance expense
+**What's filled:** Date, negative amount, description, category=compliance, property, payment_method, counterparty_name, notes
+**What's blank:** transaction_type (system infers "payment" from negative amount)
+**Result:** Type inferred as "payment", records compliance expense
 
 ### 🎯 Quick Decision Guide
 
@@ -246,11 +252,26 @@ transaction_date,amount,description,transaction_type,category,property_reference
   - Example: `"Rent payment - 123 Main St"`
 
 - **`transaction_type`** - Type of transaction
-  - **AUTO-INFERRED** if empty from:
-    1. `incoming_transaction_amount` presence → `payment`
-    2. `beneficiary_type` value → `payment` or `expense`
-    3. Amount direction → Positive = `invoice`, Negative = `payment`
-  - Valid values: `payment`, `invoice`, `fee`, `expense`, `maintenance`, `adjustment`, `deposit`, `withdrawal`
+  - **RECOMMENDED:** Leave blank and let system infer (it's smart about context)
+  - **AUTO-INFERRED** if empty using this logic:
+    1. `incoming_transaction_amount` present → `payment` (rent received with auto-split)
+    2. `beneficiary_type=contractor` → `expense` (contractor payment)
+    3. `beneficiary_type=beneficiary/beneficiary_payment` → `payment` (owner allocation/payment)
+    4. Positive amount → `invoice` (money coming in)
+    5. Negative amount → `payment` (money going out)
+    6. Default → `payment`
+
+  **Understanding the Types:**
+  - **`payment`** - Generic type used for MOST transactions (rent received, expenses paid, owner payments)
+  - **`invoice`** - Money coming IN (rent receivable) - use when amount is positive and no incoming_transaction_amount
+  - **`expense`** - Specific outgoing payment for goods/services - auto-set for contractors
+  - **`fee`** - Fees charged/received (management fees, commission)
+  - **`maintenance`** - Maintenance expenses (legacy - system converts to `expense`)
+  - **`adjustment`** - Balance corrections, manual adjustments
+  - **`deposit`** - Deposits held (legacy - system treats as `invoice`)
+  - **`withdrawal`** - Withdrawals (legacy - system treats as `payment`)
+
+  **Key Insight:** "payment" is the catch-all generic type - used for rent received, expenses paid, and owner payments. The system distinguishes these using `beneficiary_type`, `incoming_transaction_amount`, and `category` instead.
 
 #### 📊 Entity Linking & Mapping Fields:
 
