@@ -563,7 +563,7 @@ $(document).ready(function() {
                             </h6>
                             <div class="csv-line">${escapeHtml(review.csvLine)}</div>
 
-                            ${renderParsedData(review)}
+                            ${renderParsedData(review, index)}
                             ${renderPaymentSourceSelector(review, index)}
                             ${renderPropertyOptions(review, index)}
                             ${renderCustomerOptions(review, index)}
@@ -613,21 +613,46 @@ $(document).ready(function() {
         return badges[status] || '';
     }
 
-    function renderParsedData(review) {
+    function renderParsedData(review, index) {
         if (!review.parsedData) return '';
 
         const data = review.parsedData;
+        const currentType = data.parsedType || data.type || '';
+        const currentDescription = data.description || '';
+
         return `
-            <div class="mt-2">
-                <small class="text-muted">
-                    <strong>Date:</strong> ${data.date || 'N/A'} |
-                    <strong>Amount:</strong> ${data.amount || 'N/A'} |
-                    <strong>Type:</strong> ${data.type || 'N/A'}
-                </small>
-                <br>
-                <small class="text-muted">
-                    <strong>Description:</strong> ${escapeHtml(data.description || 'N/A')}
-                </small>
+            <div class="mt-2 p-2 bg-light border rounded">
+                <div class="row">
+                    <div class="col-md-4">
+                        <small class="text-muted"><strong>Date:</strong> ${data.date || 'N/A'}</small>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted"><strong>Amount:</strong> ${data.amount || 'N/A'}</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="small font-weight-bold mb-0">Transaction Type:</label>
+                        <select class="form-control form-control-sm" id="transactionType${index}"
+                                onchange="updateTransactionType(${index})">
+                            <option value="payment" ${currentType === 'payment' ? 'selected' : ''}>Payment</option>
+                            <option value="invoice" ${currentType === 'invoice' ? 'selected' : ''}>Invoice</option>
+                            <option value="expense" ${currentType === 'expense' ? 'selected' : ''}>Expense</option>
+                            <option value="fee" ${currentType === 'fee' ? 'selected' : ''}>Fee</option>
+                            <option value="maintenance" ${currentType === 'maintenance' ? 'selected' : ''}>Maintenance</option>
+                            <option value="adjustment" ${currentType === 'adjustment' ? 'selected' : ''}>Adjustment</option>
+                            <option value="deposit" ${currentType === 'deposit' ? 'selected' : ''}>Deposit</option>
+                            <option value="withdrawal" ${currentType === 'withdrawal' ? 'selected' : ''}>Withdrawal</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-12">
+                        <label class="small font-weight-bold mb-0">Description:</label>
+                        <input type="text" class="form-control form-control-sm" id="description${index}"
+                               value="${escapeHtml(currentDescription)}"
+                               placeholder="Enter transaction description..."
+                               onchange="updateDescription(${index})">
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -1374,6 +1399,36 @@ $(document).ready(function() {
             }
         } else {
             countElement.text('');
+        }
+    };
+
+    // Update transaction type from dropdown
+    window.updateTransactionType = function(index) {
+        const newType = $(`#transactionType${index}`).val();
+        if (reviewQueue.reviews[index]) {
+            reviewQueue.reviews[index].parsedData.parsedType = newType;
+            // Store updated type for backend
+            if (!reviewQueue.reviews[index].overrides) {
+                reviewQueue.reviews[index].overrides = {};
+            }
+            reviewQueue.reviews[index].overrides.transactionType = newType;
+            console.log(`✏️ Updated transaction type to "${newType}" for line ${index}`);
+            localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
+        }
+    };
+
+    // Update description from input
+    window.updateDescription = function(index) {
+        const newDescription = $(`#description${index}`).val();
+        if (reviewQueue.reviews[index]) {
+            reviewQueue.reviews[index].parsedData.description = newDescription;
+            // Store updated description for backend
+            if (!reviewQueue.reviews[index].overrides) {
+                reviewQueue.reviews[index].overrides = {};
+            }
+            reviewQueue.reviews[index].overrides.description = newDescription;
+            console.log(`✏️ Updated description to "${newDescription}" for line ${index}`);
+            localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
         }
     };
 

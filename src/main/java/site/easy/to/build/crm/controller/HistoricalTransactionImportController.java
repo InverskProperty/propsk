@@ -955,6 +955,27 @@ public class HistoricalTransactionImportController {
                 review.getParsedData().putAll(parsedData);
             }
 
+            // Handle user overrides from review UI (transaction type and description)
+            @SuppressWarnings("unchecked")
+            Map<String, Object> overrides = (Map<String, Object>) map.get("overrides");
+            if (overrides != null) {
+                // Override transaction type if user changed it
+                if (overrides.get("transactionType") != null) {
+                    String typeStr = (String) overrides.get("transactionType");
+                    HistoricalTransaction.TransactionType overriddenType =
+                        HistoricalTransaction.TransactionType.valueOf(typeStr);
+                    review.getParsedData().put("parsedType", overriddenType);
+                    log.debug("✏️ User override: transaction type = {}", typeStr);
+                }
+
+                // Override description if user changed it
+                if (overrides.get("description") != null) {
+                    String desc = (String) overrides.get("description");
+                    review.getParsedData().put("description", desc);
+                    log.debug("✏️ User override: description = {}", desc);
+                }
+            }
+
             // Set duplicate info if present
             @SuppressWarnings("unchecked")
             Map<String, Object> duplicateInfo = (Map<String, Object>) map.get("duplicateInfo");
