@@ -39,13 +39,79 @@ Your system has been **significantly enhanced** with simplified imports and auto
 
 ---
 
+## ⚡ **IMPORT PHILOSOPHY - READ THIS FIRST**
+
+### 🎯 Only Import ACTUAL TRANSACTIONS (Money Movements)
+
+**DO Import:**
+- ✅ Rent payments **RECEIVED** (money came in)
+- ✅ Expenses **PAID** (money went out)
+- ✅ Payments to owners **MADE** (money went out)
+- ✅ Bank transfers **COMPLETED** (money moved)
+- ✅ Fees **CHARGED** (money was deducted)
+
+**DO NOT Import:**
+- ❌ Invoices for rent that's **due but unpaid** (your lease system tracks this)
+- ❌ Future rent due dates (not actual transactions)
+- ❌ Balance calculations or arrears totals (these are calculations, not transactions)
+- ❌ "What the tenant owes" unless they actually paid it
+- ❌ Projected or expected payments
+
+### 📊 The CSV Header is a TEMPLATE Showing ALL Possibilities
+
+**The comprehensive header shows every field the system CAN accept - not what you MUST fill in.**
+
+**Fill what you have from your source data:**
+- Source has banking reference? → Fill `bank_reference` column
+- Source has lease reference? → Fill `lease_reference` column
+- Source has property address? → Fill `property_reference` column
+- Source doesn't have these? → **Leave those columns blank**
+
+**Example from bank statement:**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+17/02/2025,740.00,,,,FLAT 5 - 3 WEST GATE,,,,,740.00,"FPS-REF-12345","Bank Transfer",,Rent received,OLD_ACCOUNT
+```
+✅ **Includes**: bank_reference (from bank statement), payment_method (from source)
+✅ **Blank**: description, transaction_type, lease_reference (not in source - system will infer/generate)
+
+**Example from simple spreadsheet:**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+17/02/2025,740.00,,,,FLAT 5 - 3 WEST GATE,,,,,740.00,,,,,OLD_ACCOUNT
+```
+✅ **Includes**: Only date, amount, property, incoming_transaction_amount (what the spreadsheet showed)
+✅ **Blank**: Everything else (spreadsheet didn't have that info)
+
+### 🔍 Real-World Example: Unpaid Rent Period
+
+**Spreadsheet shows:**
+- Rent DUE: £1,125 (on 22nd)
+- Rent RECEIVED: "-" (nothing)
+- Arrears: £1,125
+
+**What to import:**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+```
+**Nothing.** No payment received = no transaction to import. Leave CSV empty or with just headers.
+
+**When the tenant pays later:**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+15/03/2025,1125.00,,,,Apartment F - Knighton Hayes,,,,,1125.00,"FPS-REF-67890","Bank Transfer",,Late payment received,OLD_ACCOUNT
+```
+**Now import it** - money actually moved.
+
+---
+
 ## 1. Historical Transaction Import Formats
 
 ### CSV Format (Simple Import)
 
 **📋 Standard CSV Template (Always Use This Header):**
 
-Include ALL columns in your CSV header - leave fields blank where you don't have data. The system will infer or auto-generate missing values.
+This header shows ALL available fields. Leave blank any fields your source data doesn't provide.
 
 ```csv
 transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
@@ -145,19 +211,29 @@ transaction_date,amount,description,transaction_type,category,property_reference
 - **`subcategory`** - Sub-category for detailed classification
   - Examples: `electricity`, `gas`, `water`, `repairs`, `cleaning`
 
-- **`bank_reference`** - Bank transaction reference
+- **`bank_reference`** - Bank transaction reference (from bank statement)
+  - **Fill if present in source data** (bank statement, banking system export)
+  - **Leave blank if not present** (spreadsheet without banking details)
   - **Used for auto-generating description** if description is empty
-  - Examples: `"FPS JOHN SMITH RENT JAN"`, `"FASTER PMT ABC PLUMBING"`
+  - Examples: `"FPS JOHN SMITH RENT JAN"`, `"FASTER PMT ABC PLUMBING"`, `"REF-12345"`
+  - Typical sources: Bank statement downloads, Xero/QuickBooks exports, banking APIs
 
 - **`payment_method`** - Method of payment
-  - Examples: `"Bank Transfer"`, `"cash"`, `"cheque"`
+  - **Fill if known from source data**
+  - **Leave blank if not specified in source**
+  - Examples: `"Bank Transfer"`, `"Cash"`, `"Cheque"`, `"Direct Debit"`
+  - Typical sources: Bank statements (shows "FPS", "BACS"), accounting exports
 
 - **`counterparty_name`** - Name of other party in transaction
+  - **Fill if present in source data** (who sent/received the money)
+  - **Leave blank if not specified**
   - **Used for auto-generating description** if description is empty
-  - Examples: `"ABC Maintenance Ltd"`, `"John Smith"`
+  - Examples: `"ABC Maintenance Ltd"`, `"John Smith"`, `"Thames Water"`
+  - Typical sources: Bank statements, invoice systems, payment records
 
 - **`source_reference`** - Reference to source document
-  - Examples: `"INV001"`, `"STMT202301"`
+  - **Optional** - use if tracking import batches or source files
+  - Examples: `"INV001"`, `"STMT202301"`, `"IMPORT-2025-01"`
 
 - **`notes`** - Additional notes
   - Format: Free text
@@ -170,23 +246,29 @@ transaction_date,amount,description,transaction_type,category,property_reference
 transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
 ```
 
-#### 🎯 Example 1: Absolute Minimum (Just Date + Amount)
-**Most fields blank - system auto-generates everything:**
+#### 🎯 Example 1: From Bank Statement Export (Banking References Present)
+**Source: Downloaded CSV from online banking - includes banking references and payment methods:**
 ```csv
 transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
-2025-01-22,1125.00,,,,,,,,,,,,
-2025-01-25,-150.00,,,,,,,,,,,,
+17/02/2025,740.00,,,,FLAT 5 - 3 WEST GATE,,,,,740.00,"FPS-12345","Bank Transfer","John Smith",,OLD_ACCOUNT
+19/02/2025,700.00,,,,FLAT 7 - 3 WEST GATE,,,,,700.00,"FPS-67890","Bank Transfer","Sarah Jones",,OLD_ACCOUNT
+20/02/2025,-150.00,,,,,,,,,,"BACS-ABC-PLU","BACS","ABC Plumbing",,OLD_ACCOUNT
 ```
-**Result:** System infers types (payment), generates descriptions like "Payment - £1125.00"
+**What's filled:** Date, amount, property, incoming_transaction_amount, bank_reference, payment_method, counterparty_name (all from bank export)
+**What's blank:** description, transaction_type, lease_reference (not in bank export)
+**Result:** System uses bank_reference for description, infers transaction types, processes payments correctly
 
-#### 📋 Example 2: Bank Statement Data (Some Context)
-**Using bank_reference for better descriptions:**
+#### 📋 Example 2: From Simple Spreadsheet (No Banking References)
+**Source: Property management spreadsheet - only has property, date, amount:**
 ```csv
 transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
-2025-01-22,1125.00,,,,,,,,,"FPS JOHN SMITH RENT JAN",,,
-2025-01-25,-150.00,,,,,,,,,"FASTER PMT ABC PLUMBING",,,
+17/02/2025,740.00,,,,FLAT 5 - 3 WEST GATE,,,,,740.00,,,,,OLD_ACCOUNT
+19/02/2025,700.00,,,,FLAT 7 - 3 WEST GATE,,,,,700.00,,,,,OLD_ACCOUNT
+06/03/2025,-3080.00,,,,"Boden House NG10",,,,,,,,,,OLD_ACCOUNT
 ```
-**Result:** Uses bank_reference as description, infers types automatically
+**What's filled:** Date, amount, property, incoming_transaction_amount (what the spreadsheet had)
+**What's blank:** bank_reference, payment_method, counterparty_name (spreadsheet doesn't track this)
+**Result:** System auto-generates descriptions from property+amount, infers types, processes correctly
 
 #### 💰 Example 3: Rent with Auto-Split (Creates 3 Transactions!)
 **Using incoming_transaction_amount triggers auto-split logic:**
