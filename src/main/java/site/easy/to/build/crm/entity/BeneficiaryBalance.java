@@ -12,6 +12,7 @@
  */
 package site.easy.to.build.crm.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -34,18 +35,20 @@ public class BeneficiaryBalance {
 
     /**
      * The beneficiary (owner) for this balance
+     * Excluded from JSON to prevent infinite recursion
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
-    @JsonIgnoreProperties({"beneficiaryBalances", "properties", "leases", "invoices", "transactions", "hibernateLazyInitializer", "handler"})
+    @JsonIgnore
     private Customer customer;
 
     /**
      * The property this balance relates to
+     * Excluded from JSON to prevent infinite recursion
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id", nullable = false)
-    @JsonIgnoreProperties({"beneficiaryBalances", "customer", "leases", "invoices", "transactions", "hibernateLazyInitializer", "handler"})
+    @JsonIgnore
     private Property property;
 
     // Legacy fields - kept for backward compatibility and query support
