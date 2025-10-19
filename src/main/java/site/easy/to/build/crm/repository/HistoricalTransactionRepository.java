@@ -292,7 +292,12 @@ public interface HistoricalTransactionRepository extends JpaRepository<Historica
      * Find transactions with same bank reference
      */
     List<HistoricalTransaction> findByBankReference(String bankReference);
-    
+
+    /**
+     * Find transaction by source reference (for import deduplication)
+     */
+    Optional<HistoricalTransaction> findBySourceReference(String sourceReference);
+
     /**
      * Check if transaction exists with same key details
      */
@@ -550,4 +555,49 @@ public interface HistoricalTransactionRepository extends JpaRepository<Historica
            "GROUP BY ps.id, ps.name " +
            "ORDER BY ps.name")
     List<Object[]> getPaymentSourceStatistics();
+
+    // ===== BENEFICIARY AND SPLIT TRANSACTION QUERIES =====
+
+    /**
+     * Find transactions by property and date range (by property ID)
+     * Used for calculating net due to owner and beneficiary statements
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.property.id = :propertyId " +
+           "AND ht.transactionDate BETWEEN :startDate AND :endDate " +
+           "AND ht.status = 'active' ORDER BY ht.transactionDate DESC")
+    List<HistoricalTransaction> findByPropertyAndTransactionDateBetween(
+            @Param("propertyId") Long propertyId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
+    /**
+     * Find split payment transactions by incoming transaction ID
+     * Returns all related payments (commission, owner, etc.) for a single rent payment
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.incomingTransactionId = :incomingTransactionId " +
+           "ORDER BY ht.beneficiaryType")
+    List<HistoricalTransaction> findByIncomingTransactionId(@Param("incomingTransactionId") String incomingTransactionId);
+
+    /**
+     * Find transactions by beneficiary type
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.beneficiaryType = :beneficiaryType " +
+           "AND ht.status = 'active' ORDER BY ht.transactionDate DESC")
+    List<HistoricalTransaction> findByBeneficiaryType(@Param("beneficiaryType") String beneficiaryType);
+
+    /**
+     * Find owner payments for a property
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.property = :property " +
+           "AND ht.beneficiaryType = 'beneficiary' " +
+           "AND ht.status = 'active' ORDER BY ht.transactionDate DESC")
+    List<HistoricalTransaction> findOwnerPaymentsByProperty(@Param("property") Property property);
+
+    /**
+     * Find commission payments for a property
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.property = :property " +
+           "AND ht.beneficiaryType = 'agency' " +
+           "AND ht.status = 'active' ORDER BY ht.transactionDate DESC")
+    List<HistoricalTransaction> findCommissionPaymentsByProperty(@Param("property") Property property);
 }

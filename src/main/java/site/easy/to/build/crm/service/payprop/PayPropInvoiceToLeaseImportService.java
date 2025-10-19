@@ -6,11 +6,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.Invoice.InvoiceFrequency;
 import site.easy.to.build.crm.entity.Invoice.SyncStatus;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
@@ -60,6 +63,9 @@ public class PayPropInvoiceToLeaseImportService {
 
     @Autowired
     private PropertyRepository propertyRepository;
+
+    @Autowired
+    private CustomerPropertyAssignmentRepository assignmentRepository;
 
     /**
      * Import all PayProp invoices as lease records
@@ -261,10 +267,23 @@ public class PayPropInvoiceToLeaseImportService {
             invoice.setAccountType(site.easy.to.build.crm.entity.AccountType.individual);
         }
 
-        // Save
+        // Save invoice
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
-        log.info("✅ Imported invoice {} as lease: {} at {} (£{}/{})",
+        // Create corresponding tenant assignment
+        CustomerPropertyAssignment assignment = new CustomerPropertyAssignment();
+        assignment.setCustomer(customer);
+        assignment.setProperty(property);
+        assignment.setAssignmentType(AssignmentType.TENANT);
+        assignment.setStartDate(data.fromDate != null ? data.fromDate : LocalDate.now());
+        assignment.setEndDate(data.toDate);
+        assignment.setCreatedAt(LocalDateTime.now());
+        assignment.setPaypropInvoiceId(savedInvoice.getId().toString());
+        assignment.setSyncStatus("SYNCED");
+
+        assignmentRepository.save(assignment);
+
+        log.info("✅ Imported invoice {} as lease with tenant assignment: {} at {} (£{}/{})",
                 data.paypropId, data.tenantDisplayName, data.propertyName,
                 data.grossAmount, data.frequency);
 

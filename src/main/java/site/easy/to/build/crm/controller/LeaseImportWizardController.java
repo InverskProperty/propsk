@@ -9,11 +9,14 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.service.lease.LeaseImportService;
 import site.easy.to.build.crm.service.property.PropertyService;
@@ -62,6 +65,9 @@ public class LeaseImportWizardController {
 
     @Autowired
     private InvoiceRepository invoiceRepository;
+
+    @Autowired
+    private CustomerPropertyAssignmentRepository assignmentRepository;
 
     /**
      * Show the import wizard page
@@ -823,12 +829,25 @@ public class LeaseImportWizardController {
         // Set invoice type
         lease.setInvoiceType("lease");
 
-        // Save to database
-        invoiceRepository.save(lease);
+        // Save lease to database
+        Invoice savedLease = invoiceRepository.save(lease);
 
-        log.info("✅ Created lease: {} (ID: {}) for property {} and customer {}",
+        // Create corresponding tenant assignment
+        CustomerPropertyAssignment assignment = new CustomerPropertyAssignment();
+        assignment.setCustomer(customer);
+        assignment.setProperty(property);
+        assignment.setAssignmentType(AssignmentType.TENANT);
+        assignment.setStartDate(startDate);
+        assignment.setEndDate(endDate);
+        assignment.setCreatedAt(LocalDateTime.now());
+        assignment.setPaypropInvoiceId(savedLease.getId().toString());
+        assignment.setSyncStatus("LOCAL_ONLY");
+
+        assignmentRepository.save(assignment);
+
+        log.info("✅ Created lease: {} (ID: {}) and tenant assignment for property {} and customer {}",
                 leaseReference != null ? leaseReference : "Generated",
-                lease.getId(),
+                savedLease.getId(),
                 property.getPropertyName(),
                 customer.getName());
     }

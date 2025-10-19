@@ -369,8 +369,121 @@ public class HistoricalTransactionImportService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void saveTransactionInNewTransaction(HistoricalTransaction transaction) {
-        historicalTransactionRepository.save(transaction);
+        // Save the main transaction first
+        HistoricalTransaction saved = historicalTransactionRepository.save(transaction);
         historicalTransactionRepository.flush(); // Force immediate persistence to catch errors
+
+        // Check if we need to create split transactions (beneficiary allocations)
+        if (saved.getIncomingTransactionAmount() != null &&
+            saved.getIncomingTransactionAmount().compareTo(BigDecimal.ZERO) != 0) {
+
+            log.debug("Creating split transactions for incoming amount: {}", saved.getIncomingTransactionAmount());
+            createBeneficiaryAllocationsFromIncoming(saved);
+        }
+    }
+
+    /**
+     * Create beneficiary allocation and agency fee transactions from incoming payment
+     * This mirrors the PayProp batch payment import logic
+     */
+    private void createBeneficiaryAllocationsFromIncoming(HistoricalTransaction incomingTransaction) {
+        BigDecimal incomingAmount = incomingTransaction.getIncomingTransactionAmount();
+        Property property = incomingTransaction.getProperty();
+
+        if (property == null) {
+            log.warn("Cannot create beneficiary allocation - no property linked to transaction {}",
+                    incomingTransaction.getId());
+            return;
+        }
+
+        // Get property owner (beneficiary)
+        Customer owner = getPropertyOwner(property);
+        if (owner == null) {
+            log.warn("Cannot create beneficiary allocation - no owner found for property {}",
+                    property.getPropertyName());
+            return;
+        }
+
+        // Calculate commission (default 15% = 10% management + 5% service)
+        BigDecimal commissionRate = property.getCommissionPercentage() != null ?
+                                    property.getCommissionPercentage() :
+                                    new BigDecimal("15.00");
+
+        BigDecimal commissionAmount = incomingAmount
+                .multiply(commissionRate)
+                .divide(new BigDecimal("100"), 2, BigDecimal.ROUND_HALF_UP);
+
+        // Calculate net due to owner
+        BigDecimal netDueToOwner = incomingAmount.subtract(commissionAmount);
+
+        // 1. Create OWNER ALLOCATION transaction (increases owner balance)
+        HistoricalTransaction ownerAllocation = new HistoricalTransaction();
+        ownerAllocation.setTransactionDate(incomingTransaction.getTransactionDate());
+        ownerAllocation.setAmount(netDueToOwner.negate()); // Negative = allocation to owner
+        ownerAllocation.setDescription("Owner Allocation - " + property.getPropertyName());
+        ownerAllocation.setTransactionType(TransactionType.payment);
+        ownerAllocation.setCategory("owner_allocation");
+        ownerAllocation.setSource(incomingTransaction.getSource());
+        ownerAllocation.setSourceReference(incomingTransaction.getSourceReference() + "-ALLOC");
+
+        // Beneficiary tracking
+        ownerAllocation.setBeneficiaryType("beneficiary");
+        ownerAllocation.setBeneficiaryName(owner.getName());
+
+        // Link to property and customer
+        ownerAllocation.setProperty(property);
+        ownerAllocation.setCustomer(owner);
+        ownerAllocation.setCreatedByUser(incomingTransaction.getCreatedByUser());
+
+        // Link to incoming transaction
+        ownerAllocation.setIncomingTransactionId(incomingTransaction.getId().toString());
+        ownerAllocation.setIncomingTransactionAmount(incomingAmount);
+        ownerAllocation.setImportBatchId(incomingTransaction.getImportBatchId());
+        ownerAllocation.setAccountSource(incomingTransaction.getAccountSource());
+        ownerAllocation.setPaymentSource(incomingTransaction.getPaymentSource());
+
+        historicalTransactionRepository.save(ownerAllocation);
+        log.debug("Created owner allocation: {} - £{}", owner.getName(), netDueToOwner);
+
+        // 2. Create AGENCY FEE transaction (agency income)
+        HistoricalTransaction agencyFee = new HistoricalTransaction();
+        agencyFee.setTransactionDate(incomingTransaction.getTransactionDate());
+        agencyFee.setAmount(commissionAmount.negate()); // Negative = fee collected
+        agencyFee.setDescription("Management Fee - " + commissionRate + "% - " + property.getPropertyName());
+        agencyFee.setTransactionType(TransactionType.fee);
+        agencyFee.setCategory("management_fee");
+        agencyFee.setSource(incomingTransaction.getSource());
+        agencyFee.setSourceReference(incomingTransaction.getSourceReference() + "-FEE");
+
+        // Link to property (not to customer - this is agency income)
+        agencyFee.setProperty(property);
+        agencyFee.setCreatedByUser(incomingTransaction.getCreatedByUser());
+
+        // Link to incoming transaction
+        agencyFee.setIncomingTransactionId(incomingTransaction.getId().toString());
+        agencyFee.setIncomingTransactionAmount(incomingAmount);
+        agencyFee.setImportBatchId(incomingTransaction.getImportBatchId());
+        agencyFee.setAccountSource(incomingTransaction.getAccountSource());
+        agencyFee.setPaymentSource(incomingTransaction.getPaymentSource());
+
+        historicalTransactionRepository.save(agencyFee);
+        log.debug("Created agency fee: £{} ({}%)", commissionAmount, commissionRate);
+
+        log.info("✅ Split incoming £{} → Owner allocation £{} + Agency fee £{}",
+                incomingAmount, netDueToOwner, commissionAmount);
+    }
+
+    /**
+     * Get property owner from property entity
+     */
+    private Customer getPropertyOwner(Property property) {
+        // Get owner using propertyOwnerId
+        if (property.getPropertyOwnerId() != null) {
+            return customerService.findByCustomerId(property.getPropertyOwnerId());
+        }
+
+        log.warn("Property {} has no owner ID set", property.getPropertyName());
+        return null;
     }
 
     /**
@@ -480,21 +593,17 @@ public class HistoricalTransactionImportService {
             throw new IllegalArgumentException("Invalid amount format: " + amountStr);
         }
 
-        // Validate description
-        String description = getValue(values, columnMap, "description");
-        if (description == null || description.isEmpty()) {
-            throw new IllegalArgumentException("description is required");
-        }
+        // Description is OPTIONAL - will be auto-generated if missing
+        // No validation needed
 
-        // Validate transaction_type
+        // Transaction_type is OPTIONAL - will be inferred if missing
         String typeStr = getValue(values, columnMap, "transaction_type");
-        if (typeStr == null || typeStr.isEmpty()) {
-            throw new IllegalArgumentException("transaction_type is required");
-        }
-        try {
-            parseTransactionType(typeStr);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid transaction_type: " + typeStr + " (expected: payment, invoice, fee, transfer, or adjustment)");
+        if (typeStr != null && !typeStr.isEmpty()) {
+            try {
+                parseTransactionType(typeStr);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid transaction_type: " + typeStr + " (expected: payment, invoice, fee, expense, maintenance, adjustment)");
+            }
         }
 
         // Validate payment_source if present
@@ -562,10 +671,39 @@ public class HistoricalTransactionImportService {
         HistoricalTransaction transaction = new HistoricalTransaction();
 
         // Required fields
-        transaction.setTransactionDate(parseDate(getValue(values, columnMap, "transaction_date")));
-        transaction.setAmount(new BigDecimal(getValue(values, columnMap, "amount")));
-        transaction.setDescription(getValue(values, columnMap, "description"));
-        transaction.setTransactionType(parseTransactionType(getValue(values, columnMap, "transaction_type")));
+        LocalDate transactionDate = parseDate(getValue(values, columnMap, "transaction_date"));
+        transaction.setTransactionDate(transactionDate);
+
+        BigDecimal amount = new BigDecimal(getValue(values, columnMap, "amount"));
+        transaction.setAmount(amount);
+
+        // SMART DEFAULTS: Get optional CSV values for defaulting logic
+        String propertyRef = getValue(values, columnMap, "property_reference");
+        String customerRef = getValue(values, columnMap, "customer_reference");
+        String bankReference = getValue(values, columnMap, "bank_reference");
+        String counterpartyName = getValue(values, columnMap, "counterparty_name");
+        String beneficiaryType = getValue(values, columnMap, "beneficiary_type");
+        String incomingAmountStr = getValue(values, columnMap, "incoming_transaction_amount");
+
+        // TRANSACTION TYPE - Smart default if not provided
+        String typeStr = getValue(values, columnMap, "transaction_type");
+        TransactionType transactionType;
+        if (typeStr != null && !typeStr.isEmpty()) {
+            transactionType = parseTransactionType(typeStr);
+        } else {
+            // Infer transaction type from context
+            transactionType = inferTransactionType(amount, beneficiaryType, incomingAmountStr);
+        }
+        transaction.setTransactionType(transactionType);
+
+        // DESCRIPTION - Smart default if not provided
+        String description = getValue(values, columnMap, "description");
+        if (description == null || description.isEmpty()) {
+            description = generateSmartDescription(transactionType, amount, propertyRef,
+                                                   customerRef, bankReference, counterpartyName,
+                                                   beneficiaryType, transactionDate);
+        }
+        transaction.setDescription(description);
 
         // Enhanced dual-source support - Map payment_source column to payment_sources table
         String paymentSourceCode = getValue(values, columnMap, "payment_source");
@@ -576,6 +714,18 @@ public class HistoricalTransactionImportService {
                 // Also store code in account_source for reference
                 transaction.setAccountSource(paymentSourceCode);
             }
+        }
+
+        // Beneficiary tracking for balance system
+        if (beneficiaryType != null && !beneficiaryType.isEmpty()) {
+            transaction.setBeneficiaryType(beneficiaryType);
+        }
+
+        // Incoming transaction tracking for split transactions
+        if (incomingAmountStr != null && !incomingAmountStr.isEmpty()) {
+            BigDecimal incomingAmount = new BigDecimal(incomingAmountStr);
+            transaction.setIncomingTransactionAmount(incomingAmount);
+            // This will be used later to create beneficiary allocations
         }
 
         // Note: Parking spaces are now handled as separate properties
@@ -600,15 +750,13 @@ public class HistoricalTransactionImportService {
         
         transaction.setImportBatchId(batchId);
         transaction.setCreatedByUser(currentUser);
-        
-        // Match property and customer
-        String propertyRef = getValue(values, columnMap, "property_reference");
+
+        // Match property and customer (variables already declared above for smart defaults)
         if (propertyRef != null && !propertyRef.isEmpty()) {
             Property property = findPropertyByReference(propertyRef);
             transaction.setProperty(property);
         }
-        
-        String customerRef = getValue(values, columnMap, "customer_reference");
+
         if (customerRef != null && !customerRef.isEmpty()) {
             Customer customer = findCustomerByReference(customerRef);
             transaction.setCustomer(customer);
@@ -885,6 +1033,90 @@ public class HistoricalTransactionImportService {
         return null;
     }
     
+    /**
+     * Infer transaction type from context when not explicitly provided
+     */
+    private TransactionType inferTransactionType(BigDecimal amount, String beneficiaryType, String incomingAmountStr) {
+        // Priority 1: If incoming transaction amount is present, it's a payment received
+        if (incomingAmountStr != null && !incomingAmountStr.isEmpty()) {
+            return TransactionType.payment;
+        }
+
+        // Priority 2: Infer from beneficiary type
+        if (beneficiaryType != null && !beneficiaryType.isEmpty()) {
+            switch (beneficiaryType.toLowerCase()) {
+                case "beneficiary":
+                    return TransactionType.payment; // Owner allocation
+                case "beneficiary_payment":
+                    return TransactionType.payment; // Payment to owner
+                case "contractor":
+                    return TransactionType.expense; // Payment to contractor
+            }
+        }
+
+        // Priority 3: Infer from amount direction
+        if (amount.compareTo(BigDecimal.ZERO) > 0) {
+            return TransactionType.invoice; // Money in
+        } else if (amount.compareTo(BigDecimal.ZERO) < 0) {
+            return TransactionType.payment; // Money out
+        }
+
+        // Default fallback
+        return TransactionType.payment;
+    }
+
+    /**
+     * Generate smart description when not provided in CSV
+     */
+    private String generateSmartDescription(TransactionType type, BigDecimal amount,
+                                           String propertyRef, String customerRef,
+                                           String bankReference, String counterpartyName,
+                                           String beneficiaryType, LocalDate date) {
+        // Priority 1: Use bank reference if available
+        if (bankReference != null && !bankReference.isEmpty()) {
+            return bankReference;
+        }
+
+        // Priority 2: Use counterparty name if available
+        if (counterpartyName != null && !counterpartyName.isEmpty()) {
+            return counterpartyName;
+        }
+
+        // Priority 3: Generate from beneficiary type
+        if (beneficiaryType != null && !beneficiaryType.isEmpty()) {
+            switch (beneficiaryType.toLowerCase()) {
+                case "beneficiary":
+                    return String.format("Owner Allocation - %s - £%.2f",
+                        propertyRef != null ? propertyRef : "Property",
+                        amount.abs());
+                case "beneficiary_payment":
+                    return String.format("Payment to Owner - %s - £%.2f",
+                        customerRef != null ? customerRef : "Owner",
+                        amount.abs());
+                case "contractor":
+                    return String.format("Contractor Payment - %s - £%.2f",
+                        customerRef != null ? customerRef : "Contractor",
+                        amount.abs());
+            }
+        }
+
+        // Priority 4: Generate from transaction type and context
+        String typeLabel = type != null ? type.getDisplayName() : "Transaction";
+        StringBuilder desc = new StringBuilder(typeLabel);
+
+        if (propertyRef != null && !propertyRef.isEmpty()) {
+            desc.append(" - ").append(propertyRef);
+        }
+
+        if (customerRef != null && !customerRef.isEmpty()) {
+            desc.append(" - ").append(customerRef);
+        }
+
+        desc.append(" - £").append(String.format("%.2f", amount.abs()));
+
+        return desc.toString();
+    }
+
     /**
      * Generate unique batch ID
      */

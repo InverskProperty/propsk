@@ -7,34 +7,99 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import site.easy.to.build.crm.entity.BeneficiaryBalance;
+import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.Property;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface BeneficiaryBalanceRepository extends JpaRepository<BeneficiaryBalance, Long> {
     
-    // ===== BENEFICIARY-BASED QUERIES =====
-    
+    // ===== ENTITY RELATIONSHIP QUERIES (NEW) =====
+
+    /**
+     * Find current balance for customer and property
+     */
+    @Query("SELECT bb FROM BeneficiaryBalance bb WHERE bb.customer = :customer AND bb.property = :property " +
+           "AND bb.balanceDate = (SELECT MAX(bb2.balanceDate) FROM BeneficiaryBalance bb2 " +
+           "WHERE bb2.customer = :customer AND bb2.property = :property)")
+    Optional<BeneficiaryBalance> findCurrentBalance(@Param("customer") Customer customer,
+                                                     @Param("property") Property property);
+
+    /**
+     * Find balance for customer, property and specific date
+     */
+    Optional<BeneficiaryBalance> findByCustomerAndPropertyAndBalanceDate(Customer customer,
+                                                                          Property property,
+                                                                          LocalDate balanceDate);
+
+    /**
+     * Find all balances for a customer
+     */
+    List<BeneficiaryBalance> findByCustomer(Customer customer);
+
+    /**
+     * Find all balances for a property
+     */
+    List<BeneficiaryBalance> findByProperty(Property property);
+
+    /**
+     * Find balances for customer and property
+     */
+    List<BeneficiaryBalance> findByCustomerAndProperty(Customer customer, Property property);
+
+    /**
+     * Find active balances for a customer
+     */
+    @Query("SELECT bb FROM BeneficiaryBalance bb WHERE bb.customer = :customer " +
+           "AND bb.status = 'ACTIVE' ORDER BY bb.balanceDate DESC")
+    List<BeneficiaryBalance> findActiveBalancesByCustomer(@Param("customer") Customer customer);
+
+    /**
+     * Find overdrawn balances (negative) for all properties
+     */
+    @Query("SELECT bb FROM BeneficiaryBalance bb WHERE bb.balanceAmount < 0 " +
+           "AND bb.status = 'ACTIVE' ORDER BY bb.balanceAmount")
+    List<BeneficiaryBalance> findOverdrawnBalances();
+
+    /**
+     * Find balances due for payment (above threshold)
+     */
+    @Query("SELECT bb FROM BeneficiaryBalance bb WHERE bb.balanceAmount > :threshold " +
+           "AND bb.status = 'ACTIVE' ORDER BY bb.balanceAmount DESC")
+    List<BeneficiaryBalance> findBalancesDueForPayment(@Param("threshold") BigDecimal threshold);
+
+    // ===== BENEFICIARY-BASED QUERIES (LEGACY) =====
+
     /**
      * Find balance by beneficiary ID (global balance)
+     * @deprecated Use findCurrentBalance with Customer and Property entities instead
      */
+    @Deprecated
     BeneficiaryBalance findByBeneficiaryId(Long beneficiaryId);
-    
+
     /**
      * Find balance by beneficiary and property (property-specific balance)
+     * @deprecated Use findByCustomerAndProperty instead
      */
+    @Deprecated
     BeneficiaryBalance findByBeneficiaryIdAndPropertyId(Long beneficiaryId, Long propertyId);
-    
+
     /**
      * Find all balances for a beneficiary
+     * @deprecated Use findByCustomer instead
      */
+    @Deprecated
     List<BeneficiaryBalance> findAllByBeneficiaryId(Long beneficiaryId);
-    
+
     /**
      * Find balances for multiple beneficiaries
+     * @deprecated Use findByCustomer instead
      */
+    @Deprecated
     List<BeneficiaryBalance> findByBeneficiaryIdIn(List<Long> beneficiaryIds);
 
     // ===== PROPERTY-BASED QUERIES =====

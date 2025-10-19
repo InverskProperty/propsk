@@ -460,11 +460,17 @@ public class HistoricalTransactionImportController {
     public ResponseEntity<Map<String, Object>> getImportExamples() {
         Map<String, Object> examples = new HashMap<>();
 
-        // CSV Example
-        String csvExample = "transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,bank_reference,payment_method,notes,payment_source\n" +
-                           "2025-01-22,1125.00,\"Rent Due - January 2025\",invoice,rent,\"Apartment F - Knighton Hayes\",Riaz,,,\"Rent due on 22nd\",OLD_ACCOUNT\n" +
-                           "2025-01-22,1125.00,\"Rent Received - January 2025\",payment,rent,\"Apartment F - Knighton Hayes\",Riaz,,,\"Rent received\",OLD_ACCOUNT\n" +
-                           "2025-01-22,-112.50,\"Management Fee - 10%\",fee,commission,\"Apartment F - Knighton Hayes\",,,,\"10% of rent\",OLD_ACCOUNT";
+        // CSV Example - MINIMAL (only required fields)
+        String csvExample = "transaction_date,amount,property_reference,payment_source\n" +
+                           "2025-01-22,1125.00,\"Apartment F - Knighton Hayes\",OLD_ACCOUNT\n" +
+                           "2025-01-25,-956.25,,OLD_ACCOUNT\n" +
+                           "2025-01-20,-150.00,\"Apartment F - Knighton Hayes\",OLD_ACCOUNT";
+
+        // CSV Example - FULL (with all optional fields)
+        String csvExampleFull = "transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,notes,payment_source\n" +
+                           "2025-01-22,1125.00,\"Rent Received - January 2025\",payment,rent,\"Apartment F - Knighton Hayes\",Riaz,,1125.00,,\"Bank Transfer\",\"Rent due on 22nd\",OLD_ACCOUNT\n" +
+                           "2025-01-25,-956.25,\"Payment to Owner\",payment,owner_payment,,\"John Smith\",beneficiary_payment,,,\"Bank Transfer\",,OLD_ACCOUNT\n" +
+                           "2025-01-20,-150.00,\"Plumbing Repair\",expense,maintenance,\"Apartment F - Knighton Hayes\",\"ABC Plumbing\",contractor,,,\"Bank Transfer\",,OLD_ACCOUNT";
 
         // JSON Example
         String jsonExample = "{\n" +
@@ -493,15 +499,35 @@ public class HistoricalTransactionImportController {
                             "  ]\n" +
                             "}";
 
-        examples.put("csv_example", csvExample);
+        examples.put("csv_example_minimal", csvExample);
+        examples.put("csv_example_full", csvExampleFull);
         examples.put("json_example", jsonExample);
-        examples.put("csv_headers", List.of(
-            "transaction_date (required)", "amount (required)", "description (required)",
-            "transaction_type (required)", "category", "property_reference",
-            "customer_reference", "bank_reference", "payment_method", "notes", "payment_source"
+        examples.put("csv_headers_required", List.of(
+            "transaction_date (REQUIRED - Date of transaction)",
+            "amount (REQUIRED - Transaction amount)"
+        ));
+        examples.put("csv_headers_optional", List.of(
+            "description (auto-generated from context if empty)",
+            "transaction_type (inferred from amount/beneficiary_type if empty)",
+            "category (optional - rent, maintenance, etc.)",
+            "property_reference (property name or identifier)",
+            "customer_reference (customer name, email, or identifier)",
+            "beneficiary_type (beneficiary, beneficiary_payment, contractor)",
+            "incoming_transaction_amount (for split transactions)",
+            "lease_reference (link to lease/invoice)",
+            "bank_reference (bank transaction reference)",
+            "payment_method (Bank Transfer, Cash, etc.)",
+            "counterparty_name (who sent/received payment)",
+            "notes (additional notes)",
+            "payment_source (OLD_ACCOUNT, PAYPROP, BOTH)"
         ));
         examples.put("transaction_types", List.of(
             "invoice", "payment", "fee", "expense", "maintenance", "adjustment", "deposit", "withdrawal"
+        ));
+        examples.put("beneficiary_types", List.of(
+            "beneficiary (owner allocation - increases balance)",
+            "beneficiary_payment (payment to owner - decreases balance)",
+            "contractor (payment to contractor)"
         ));
         examples.put("payment_sources", List.of(
             "OLD_ACCOUNT", "PAYPROP", "BOTH"

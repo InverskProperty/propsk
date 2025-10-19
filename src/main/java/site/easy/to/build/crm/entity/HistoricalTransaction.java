@@ -267,6 +267,25 @@ public class HistoricalTransaction {
     @Column(name = "reference", length = 255)
     private String reference;
 
+    // ===== BENEFICIARY TRACKING FIELDS =====
+
+    @Column(name = "beneficiary_type", length = 50)
+    private String beneficiaryType;  // "agency", "beneficiary", "contractor", etc.
+
+    @Column(name = "beneficiary_name", length = 255)
+    private String beneficiaryName;  // Who received the payment
+
+    // ===== INCOMING TRANSACTION TRACKING =====
+
+    @Column(name = "transaction_fee", precision = 10, scale = 2)
+    private BigDecimal transactionFee;  // Separate from service_fee
+
+    @Column(name = "incoming_transaction_amount", precision = 12, scale = 2)
+    private BigDecimal incomingTransactionAmount;  // Original rent amount for split payments
+
+    @Column(name = "incoming_transaction_id", length = 100)
+    private String incomingTransactionId;  // Links split payments back to original
+
     // ===== CONSTRUCTORS =====
     
     public HistoricalTransaction() {
@@ -579,6 +598,25 @@ public class HistoricalTransaction {
 
     public String getReference() { return reference; }
     public void setReference(String reference) { this.reference = reference; }
+
+    public String getBeneficiaryType() { return beneficiaryType; }
+    public void setBeneficiaryType(String beneficiaryType) { this.beneficiaryType = beneficiaryType; }
+
+    public String getBeneficiaryName() { return beneficiaryName; }
+    public void setBeneficiaryName(String beneficiaryName) { this.beneficiaryName = beneficiaryName; }
+
+    public BigDecimal getTransactionFee() { return transactionFee; }
+    public void setTransactionFee(BigDecimal transactionFee) { this.transactionFee = transactionFee; }
+
+    public BigDecimal getIncomingTransactionAmount() { return incomingTransactionAmount; }
+    public void setIncomingTransactionAmount(BigDecimal incomingTransactionAmount) {
+        this.incomingTransactionAmount = incomingTransactionAmount;
+    }
+
+    public String getIncomingTransactionId() { return incomingTransactionId; }
+    public void setIncomingTransactionId(String incomingTransactionId) {
+        this.incomingTransactionId = incomingTransactionId;
+    }
 
     // ===== ENUMS =====
     
