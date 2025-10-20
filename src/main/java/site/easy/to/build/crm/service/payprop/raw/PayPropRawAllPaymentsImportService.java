@@ -154,20 +154,13 @@ public class PayPropRawAllPaymentsImportService {
      * Import payments to database with exact PayProp structure
      */
     private int importPaymentsToDatabase(List<Map<String, Object>> payments) throws SQLException {
-        
-        // Clear existing data for fresh import
-        try (Connection conn = dataSource.getConnection()) {
-            try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM payprop_report_all_payments")) {
-                int deletedCount = stmt.executeUpdate();
-                log.info("Cleared {} existing payment transactions for fresh import", deletedCount);
-            }
-        }
-        
+
         if (payments.isEmpty()) {
             log.warn("No payment transactions to import");
             return 0;
         }
-        
+
+        // Use INSERT ... ON DUPLICATE KEY UPDATE to handle re-imports gracefully
         String insertSql = """
             INSERT INTO payprop_report_all_payments (
                 payprop_id, amount, description, due_date, has_tax, reference,
@@ -181,20 +174,58 @@ public class PayPropRawAllPaymentsImportService {
                 payment_instruction_id, secondary_payment_is_child, secondary_payment_is_parent, secondary_payment_parent_id,
                 reconciliation_date, sync_status
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                amount = VALUES(amount),
+                description = VALUES(description),
+                due_date = VALUES(due_date),
+                has_tax = VALUES(has_tax),
+                reference = VALUES(reference),
+                service_fee = VALUES(service_fee),
+                transaction_fee = VALUES(transaction_fee),
+                tax_amount = VALUES(tax_amount),
+                part_of_amount = VALUES(part_of_amount),
+                beneficiary_payprop_id = VALUES(beneficiary_payprop_id),
+                beneficiary_name = VALUES(beneficiary_name),
+                beneficiary_type = VALUES(beneficiary_type),
+                category_payprop_id = VALUES(category_payprop_id),
+                category_name = VALUES(category_name),
+                incoming_transaction_id = VALUES(incoming_transaction_id),
+                incoming_transaction_amount = VALUES(incoming_transaction_amount),
+                incoming_transaction_deposit_id = VALUES(incoming_transaction_deposit_id),
+                incoming_transaction_reconciliation_date = VALUES(incoming_transaction_reconciliation_date),
+                incoming_transaction_status = VALUES(incoming_transaction_status),
+                incoming_transaction_type = VALUES(incoming_transaction_type),
+                bank_statement_date = VALUES(bank_statement_date),
+                bank_statement_id = VALUES(bank_statement_id),
+                incoming_property_payprop_id = VALUES(incoming_property_payprop_id),
+                incoming_property_name = VALUES(incoming_property_name),
+                incoming_tenant_payprop_id = VALUES(incoming_tenant_payprop_id),
+                incoming_tenant_name = VALUES(incoming_tenant_name),
+                payment_batch_id = VALUES(payment_batch_id),
+                payment_batch_amount = VALUES(payment_batch_amount),
+                payment_batch_status = VALUES(payment_batch_status),
+                payment_batch_transfer_date = VALUES(payment_batch_transfer_date),
+                payment_instruction_id = VALUES(payment_instruction_id),
+                secondary_payment_is_child = VALUES(secondary_payment_is_child),
+                secondary_payment_is_parent = VALUES(secondary_payment_is_parent),
+                secondary_payment_parent_id = VALUES(secondary_payment_parent_id),
+                reconciliation_date = VALUES(reconciliation_date),
+                sync_status = VALUES(sync_status),
+                updated_at = CURRENT_TIMESTAMP
         """;
         
         int attemptedCount = 0;
-        int actuallyInserted = 0;
+        int actuallyUpserted = 0;
         int emptyIdSkipped = 0;
         int mappingErrors = 0;
-        
+
         try (Connection conn = dataSource.getConnection();
              PreparedStatement stmt = conn.prepareStatement(insertSql)) {
-            
+
             for (Map<String, Object> payment : payments) {
                 try {
                     String paymentId = getStringValue(payment, "id");
-                    
+
                     // Handle empty/null IDs (PayProp data quality issue)
                     if (paymentId == null || paymentId.trim().isEmpty()) {
                         emptyIdSkipped++;
@@ -208,17 +239,17 @@ public class PayPropRawAllPaymentsImportService {
                         );
                         continue;
                     }
-                    
+
                     setPaymentParameters(stmt, payment);
                     stmt.addBatch();
                     attemptedCount++;
-                    
+
                     // Execute batch every 25 items
                     if (attemptedCount % 25 == 0) {
-                        int batchInserted = executeBatchWithAccurateCount(stmt, attemptedCount);
-                        actuallyInserted += batchInserted;
+                        int batchUpserted = executeBatchWithAccurateCount(stmt, attemptedCount);
+                        actuallyUpserted += batchUpserted;
                     }
-                    
+
                 } catch (Exception e) {
                     mappingErrors++;
                     issueTracker.recordIssue(
@@ -229,29 +260,30 @@ public class PayPropRawAllPaymentsImportService {
                         e.getMessage(),
                         PayPropImportIssueTracker.FINANCIAL_DATA_MISSING
                     );
-                    log.error("Failed to prepare payment for import: {}", 
+                    log.error("Failed to prepare payment for import: {}",
                         payment.get("id"), e);
                 }
             }
-            
+
             // Execute remaining batch
             if (attemptedCount % 25 != 0) {
-                int finalBatchInserted = executeBatchWithAccurateCount(stmt, attemptedCount);
-                actuallyInserted += finalBatchInserted;
+                int finalBatchUpserted = executeBatchWithAccurateCount(stmt, attemptedCount);
+                actuallyUpserted += finalBatchUpserted;
             }
-            
+
             // Provide accurate summary
             log.info("📊 ACCURATE IMPORT SUMMARY:");
             log.info("   Total fetched from API: {}", payments.size());
             log.info("   Skipped (empty ID): {}", emptyIdSkipped);
             log.info("   Mapping errors: {}", mappingErrors);
-            log.info("   Attempted to insert: {}", attemptedCount);
-            log.info("   Actually inserted: {}", actuallyInserted);
-            log.info("   Failed FK constraints: {}", attemptedCount - actuallyInserted);
-            
+            log.info("   Attempted to upsert: {}", attemptedCount);
+            log.info("   Successfully upserted: {}", actuallyUpserted);
+            log.info("   Failed FK constraints: {}", attemptedCount - actuallyUpserted);
+            log.info("💡 Note: Upsert means INSERT new records or UPDATE existing ones");
+
         }
-        
-        return actuallyInserted;
+
+        return actuallyUpserted;
     }
     
     /**

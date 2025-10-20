@@ -2543,10 +2543,12 @@ public class PayPropFinancialSyncService {
                     deletedTransactions = ps.executeUpdate();
                 }
 
-                // payments.property_id is a BIGINT foreign key, so use subquery
+                // payments.property_id is a BIGINT foreign key, so use derived table to avoid MySQL subquery limitation
                 String deletePaymentsQuery = String.format(
                     "DELETE FROM payments WHERE property_id IN (" +
-                    "  SELECT id FROM properties WHERE payprop_id IS NOT NULL AND payprop_id NOT IN (%s)" +
+                    "  SELECT id FROM (" +
+                    "    SELECT id FROM properties WHERE payprop_id IS NOT NULL AND payprop_id NOT IN (%s)" +
+                    "  ) AS orphaned_properties" +
                     ")",
                     placeholders
                 );
@@ -2559,10 +2561,12 @@ public class PayPropFinancialSyncService {
                     deletedPayments = ps.executeUpdate();
                 }
 
-                // batch_payments.property_id is a BIGINT foreign key, so use subquery
+                // batch_payments.property_id is a BIGINT foreign key, so use derived table to avoid MySQL subquery limitation
                 String deleteBatchPaymentsQuery = String.format(
                     "DELETE FROM batch_payments WHERE property_id IN (" +
-                    "  SELECT id FROM properties WHERE payprop_id IS NOT NULL AND payprop_id NOT IN (%s)" +
+                    "  SELECT id FROM (" +
+                    "    SELECT id FROM properties WHERE payprop_id IS NOT NULL AND payprop_id NOT IN (%s)" +
+                    "  ) AS orphaned_properties" +
                     ")",
                     placeholders
                 );
