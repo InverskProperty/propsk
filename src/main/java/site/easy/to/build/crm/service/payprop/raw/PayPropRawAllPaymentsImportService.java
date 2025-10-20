@@ -210,8 +210,7 @@ public class PayPropRawAllPaymentsImportService {
                 secondary_payment_is_parent = VALUES(secondary_payment_is_parent),
                 secondary_payment_parent_id = VALUES(secondary_payment_parent_id),
                 reconciliation_date = VALUES(reconciliation_date),
-                sync_status = VALUES(sync_status),
-                updated_at = CURRENT_TIMESTAMP
+                sync_status = VALUES(sync_status)
         """;
         
         int attemptedCount = 0;
