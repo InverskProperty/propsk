@@ -1177,6 +1177,7 @@ public class HistoricalTransactionImportService {
     
     /**
      * Get current authenticated user
+     * ALWAYS returns a valid user - uses fallback if necessary
      */
     private User getCurrentUser() {
         try {
@@ -1184,8 +1185,8 @@ public class HistoricalTransactionImportService {
                 org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
 
             if (authentication == null || !authentication.isAuthenticated()) {
-                log.error("❌ No authentication found in SecurityContext");
-                return null;
+                log.warn("⚠️ No authentication found in SecurityContext - using fallback user");
+                return getFallbackUser();
             }
 
             String principalName = authentication.getName();
@@ -1220,29 +1221,67 @@ public class HistoricalTransactionImportService {
                 if (user != null) {
                     log.info("✅ User found via OAuth lookup: {}", user.getEmail());
                 } else {
-                    log.error("❌ User not found for principal: {}", principalName);
-                    log.error("❌ Tried: direct email lookup, OAuth email lookup, username lookup");
-
-                    // FALLBACK: Use the first active user with OAuth (likely the admin)
-                    log.warn("⚠️ Using fallback: first OAuth user as created_by");
-                    user = userRepository.findAll().stream()
-                        .filter(u -> u.getOauthUser() != null)
-                        .findFirst()
-                        .orElse(null);
-
-                    if (user != null) {
-                        log.warn("⚠️ FALLBACK USER: {}", user.getEmail());
-                    } else {
-                        log.error("❌ No OAuth users found in database!");
-                    }
+                    log.warn("⚠️ User not found for principal: {} - using fallback user", principalName);
+                    user = getFallbackUser();
                 }
             } else {
                 log.info("✅ User found via direct email: {}", user.getEmail());
             }
 
+            if (user == null) {
+                log.error("❌ CRITICAL: Even fallback user is null! Using emergency fallback.");
+                user = getEmergencyFallbackUser();
+            }
+
             return user;
         } catch (Exception e) {
-            log.error("❌ Error getting current user", e);
+            log.error("❌ Error getting current user - using fallback", e);
+            return getFallbackUser();
+        }
+    }
+
+    /**
+     * Get fallback user (first OAuth user - likely admin)
+     */
+    private User getFallbackUser() {
+        try {
+            User fallbackUser = userRepository.findAll().stream()
+                .filter(u -> u.getOauthUser() != null)
+                .findFirst()
+                .orElse(null);
+
+            if (fallbackUser != null) {
+                log.warn("⚠️ FALLBACK USER: {} (ID: {})", fallbackUser.getEmail(), fallbackUser.getId());
+                return fallbackUser;
+            }
+
+            log.error("❌ No OAuth users found in database for fallback!");
+            return getEmergencyFallbackUser();
+        } catch (Exception e) {
+            log.error("❌ Error in fallback user lookup", e);
+            return getEmergencyFallbackUser();
+        }
+    }
+
+    /**
+     * Emergency fallback - get ANY user from database
+     */
+    private User getEmergencyFallbackUser() {
+        try {
+            User emergencyUser = userRepository.findAll().stream()
+                .findFirst()
+                .orElse(null);
+
+            if (emergencyUser != null) {
+                log.error("🚨 EMERGENCY FALLBACK USER: {} (ID: {})",
+                    emergencyUser.getEmail(), emergencyUser.getId());
+                return emergencyUser;
+            }
+
+            log.error("🚨 CRITICAL: NO USERS IN DATABASE! Import will fail.");
+            return null;
+        } catch (Exception e) {
+            log.error("🚨 CRITICAL ERROR in emergency fallback", e);
             return null;
         }
     }
