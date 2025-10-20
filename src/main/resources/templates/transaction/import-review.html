@@ -1325,12 +1325,16 @@ $(document).ready(function() {
         $(`#customerMatches${index} .match-option[data-option-id="${customerId}"]`).addClass('selected');
         $(`#customerDropdown${index}`).val(customerId); // Sync dropdown
 
-        // AUTO-MAP: Find all other transactions with the same CSV customer_reference value
+        // AUTO-MAP: Find all other transactions with the same CSV customer_reference value AND same category
         const currentCsvCustomerRef = reviewQueue.reviews[index].parsedData?.customerRef;
+        const currentCategory = reviewQueue.reviews[index].parsedData?.category;
         if (currentCsvCustomerRef && customerId) {
             let autoMappedCount = 0;
             reviewQueue.reviews.forEach((review, i) => {
-                if (i !== index && review.parsedData?.customerRef === currentCsvCustomerRef) {
+                // FIXED: Only auto-map if same customer reference AND same category (rent with rent, expense with expense)
+                if (i !== index &&
+                    review.parsedData?.customerRef === currentCsvCustomerRef &&
+                    review.parsedData?.category === currentCategory) {
                     review.selectedCustomerId = parseInt(customerId);
                     $(`#customerDropdown${i}`).val(customerId);
                     // Update match options visual state
@@ -1340,8 +1344,8 @@ $(document).ready(function() {
                 }
             });
             if (autoMappedCount > 0) {
-                console.log(`🔄 Auto-mapped ${autoMappedCount} other transactions with customer_reference="${currentCsvCustomerRef}"`);
-                showSuccess(`Auto-mapped ${autoMappedCount} other transaction(s) with customer "${currentCsvCustomerRef}"`);
+                console.log(`🔄 Auto-mapped ${autoMappedCount} other ${currentCategory} transactions with customer_reference="${currentCsvCustomerRef}"`);
+                showSuccess(`Auto-mapped ${autoMappedCount} other ${currentCategory} transaction(s) with customer "${currentCsvCustomerRef}"`);
             }
         }
 
@@ -1373,12 +1377,16 @@ $(document).ready(function() {
             $(`#customerMatches${index} .match-option[data-option-id="${customerId}"]`).addClass('selected');
             console.log(`👤 Customer ${customerIdNum} selected from dropdown for transaction ${index}`);
 
-            // AUTO-MAP: Find all other transactions with the same CSV customer_reference value
+            // AUTO-MAP: Find all other transactions with the same CSV customer_reference value AND same category
             const currentCsvCustomerRef = reviewQueue.reviews[index].parsedData?.customerRef;
+            const currentCategory = reviewQueue.reviews[index].parsedData?.category;
             if (currentCsvCustomerRef && customerId) {
                 let autoMappedCount = 0;
                 reviewQueue.reviews.forEach((review, i) => {
-                    if (i !== index && review.parsedData?.customerRef === currentCsvCustomerRef) {
+                    // FIXED: Only auto-map if same customer reference AND same category
+                    if (i !== index &&
+                        review.parsedData?.customerRef === currentCsvCustomerRef &&
+                        review.parsedData?.category === currentCategory) {
                         review.selectedCustomerId = customerIdNum;  // Use the number, not the string
                         $(`#customerDropdown${i}`).val(customerId);
                         // Update match options visual state
@@ -1389,8 +1397,8 @@ $(document).ready(function() {
                     }
                 });
                 if (autoMappedCount > 0) {
-                    console.log(`🔄 Auto-mapped ${autoMappedCount} other transactions with customer_reference="${currentCsvCustomerRef}"`);
-                    showSuccess(`Auto-mapped ${autoMappedCount} other transaction(s) with customer "${currentCsvCustomerRef}"`);
+                    console.log(`🔄 Auto-mapped ${autoMappedCount} other ${currentCategory} transactions with customer_reference="${currentCsvCustomerRef}"`);
+                    showSuccess(`Auto-mapped ${autoMappedCount} other ${currentCategory} transaction(s) with customer "${currentCsvCustomerRef}"`);
                 }
             }
 

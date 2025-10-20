@@ -43,6 +43,32 @@ public class HistoricalTransaction {
     private Customer customer;
 
     /**
+     * Beneficiary - Who receives the payment
+     * For expenses: The supplier/contractor (e.g., Erewash Council, 1 Handyman Ltd)
+     * For owner payments: The property owner receiving payment
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "beneficiary_id")
+    private Customer beneficiary;
+
+    /**
+     * Tenant - Who pays the rent
+     * For rent transactions: The tenant making the payment
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id")
+    private Customer tenant;
+
+    /**
+     * Owner - Property owner context
+     * Auto-populated from property ownership for expenses and rent
+     * Used for owner statements and reporting
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    private Customer owner;
+
+    /**
      * Invoice (Lease) Reference - Links transaction to specific lease agreement
      * Enables lease-level arrears tracking and historical lease analysis
      */
@@ -437,6 +463,15 @@ public class HistoricalTransaction {
 
     public Customer getCustomer() { return customer; }
     public void setCustomer(Customer customer) { this.customer = customer; }
+
+    public Customer getBeneficiary() { return beneficiary; }
+    public void setBeneficiary(Customer beneficiary) { this.beneficiary = beneficiary; }
+
+    public Customer getTenant() { return tenant; }
+    public void setTenant(Customer tenant) { this.tenant = tenant; }
+
+    public Customer getOwner() { return owner; }
+    public void setOwner(Customer owner) { this.owner = owner; }
 
     public Invoice getInvoice() { return invoice; }
     public void setInvoice(Invoice invoice) { this.invoice = invoice; }

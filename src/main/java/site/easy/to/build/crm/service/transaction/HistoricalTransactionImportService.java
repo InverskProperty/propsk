@@ -223,6 +223,9 @@ public class HistoricalTransactionImportService {
 
         // Set transaction level based on property/customer presence
         setTransactionLevel(transaction);
+
+        // ENHANCED: Set beneficiary, tenant, owner based on category and customer
+        setContextualCustomerFields(transaction);
         
         return transaction;
     }
@@ -796,6 +799,9 @@ public class HistoricalTransactionImportService {
 
         // Set transaction level based on property/customer presence
         setTransactionLevel(transaction);
+
+        // ENHANCED: Set beneficiary, tenant, owner based on category and customer
+        setContextualCustomerFields(transaction);
 
         // Link to lease if lease_reference is provided
         String leaseRef = getValue(values, columnMap, "lease_reference");
@@ -2700,6 +2706,9 @@ public class HistoricalTransactionImportService {
 
                 // Set transaction level based on property/customer presence
                 setTransactionLevel(transaction);
+
+                // ENHANCED: Set beneficiary, tenant, owner based on category and customer
+                setContextualCustomerFields(transaction);
                 transaction.setCreatedAt(LocalDateTime.now());
 
                 // Link to lease (if selected) and capture lease details at time of transaction
@@ -2879,6 +2888,61 @@ public class HistoricalTransactionImportService {
             // No property and no customer = portfolio-level
             transaction.setTransactionLevel(TransactionLevel.portfolio);
         }
+    }
+
+    /**
+     * Set contextual customer fields (beneficiary, tenant, owner) based on category
+     * Matches PayProp's structure where different customer roles are separated
+     */
+    private void setContextualCustomerFields(HistoricalTransaction transaction) {
+        Customer customer = transaction.getCustomer();
+        String category = transaction.getCategory();
+        Property property = transaction.getProperty();
+
+        if (customer == null) {
+            return; // No customer to assign
+        }
+
+        // Determine role based on category
+        if ("rent".equalsIgnoreCase(category)) {
+            // For rent: customer is the tenant paying rent
+            transaction.setTenant(customer);
+        } else if (isExpenseCategory(category)) {
+            // For expenses: customer is the beneficiary receiving payment (supplier/contractor)
+            transaction.setBeneficiary(customer);
+        } else if ("owner_payment".equalsIgnoreCase(category)) {
+            // For owner payments: customer is the beneficiary (owner receiving payment)
+            transaction.setBeneficiary(customer);
+        }
+
+        // Auto-populate owner from property ownership for expenses and rent
+        if (property != null && ("rent".equalsIgnoreCase(category) || isExpenseCategory(category))) {
+            Customer propertyOwner = getPropertyOwner(property);
+            if (propertyOwner != null) {
+                transaction.setOwner(propertyOwner);
+            }
+        }
+    }
+
+    /**
+     * Check if category is an expense category
+     */
+    private boolean isExpenseCategory(String category) {
+        if (category == null) return false;
+        String lower = category.toLowerCase();
+        return lower.contains("expense") ||
+               lower.contains("cleaning") ||
+               lower.contains("furnishings") ||
+               lower.contains("furniture") ||
+               lower.contains("maintenance") ||
+               lower.contains("repair") ||
+               lower.contains("management") ||
+               lower.contains("utilities") ||
+               lower.contains("utility") ||
+               lower.contains("compliance") ||
+               lower.contains("agency_fee") ||
+               lower.contains("tax") ||
+               lower.contains("insurance");
     }
 }
 
