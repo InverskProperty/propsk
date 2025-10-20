@@ -1811,6 +1811,43 @@ public class HistoricalTransactionImportService {
                 List<CustomerOption> customerMatches = findCustomerMatches(customerSearchTerm);
                 log.info("👤 [REVIEW-VALIDATE] Line {}: Found {} customer matches for '{}'", lineNumber, customerMatches.size(), customerSearchTerm);
 
+                // SPECIAL HANDLING: For owner payments (beneficiary_payment), automatically add property owner to dropdown
+                String beneficiaryType = getValue(values, columnMap, "beneficiary_type");
+                if (beneficiaryType != null && "beneficiary_payment".equalsIgnoreCase(beneficiaryType.trim())) {
+                    log.debug("💰 [REVIEW-VALIDATE] Line {}: Owner payment detected (beneficiary_payment) - adding property owner to customer options", lineNumber);
+
+                    // If we have a property match, get the owner and add to customer options
+                    if (!propertyMatches.isEmpty()) {
+                        Property matchedProperty = propertyRepository.findById(propertyMatches.get(0).getPropertyId()).orElse(null);
+                        if (matchedProperty != null) {
+                            Customer propertyOwner = getPropertyOwner(matchedProperty);
+                            if (propertyOwner != null) {
+                                log.info("👤 [REVIEW-VALIDATE] Line {}: Found property owner: {} (ID: {})",
+                                    lineNumber, propertyOwner.getName(), propertyOwner.getCustomerId());
+
+                                // Check if owner is already in customer matches
+                                boolean ownerAlreadyMatched = customerMatches.stream()
+                                    .anyMatch(opt -> opt.getCustomerId().equals(propertyOwner.getCustomerId()));
+
+                                if (!ownerAlreadyMatched) {
+                                    // Add owner with high match score (95) to indicate it's the property owner
+                                    CustomerOption ownerOption = new CustomerOption(propertyOwner, 95);
+                                    customerMatches.add(0, ownerOption); // Add at the beginning
+                                    log.info("✅ [REVIEW-VALIDATE] Line {}: Added property owner '{}' to customer options",
+                                        lineNumber, propertyOwner.getName());
+                                } else {
+                                    log.debug("✅ [REVIEW-VALIDATE] Line {}: Property owner already in matches", lineNumber);
+                                }
+                            } else {
+                                log.warn("⚠️ [REVIEW-VALIDATE] Line {}: Owner payment but no owner found for property '{}'",
+                                    lineNumber, matchedProperty.getPropertyName());
+                            }
+                        }
+                    } else {
+                        log.warn("⚠️ [REVIEW-VALIDATE] Line {}: Owner payment but no property matched", lineNumber);
+                    }
+                }
+
                 if (!customerMatches.isEmpty()) {
                     review.getCustomerOptions().addAll(customerMatches);
                     if (customerMatches.size() > 1 && review.getStatus() != ReviewStatus.AMBIGUOUS_PROPERTY) {
@@ -1821,9 +1858,14 @@ public class HistoricalTransactionImportService {
                             lineNumber, customerMatches.get(0).getMatchScore());
                     }
                 } else if (customerSearchTerm != null && !customerSearchTerm.isEmpty()) {
-                    if (review.getStatus() == null) {
-                        review.setStatus(ReviewStatus.MISSING_CUSTOMER);
-                        log.warn("❌ [REVIEW-VALIDATE] Line {}: Customer '{}' not found", lineNumber, customerSearchTerm);
+                    // Only mark as missing if it's not a block-level beneficiary payment to agency
+                    if (beneficiaryType == null || !"beneficiary".equalsIgnoreCase(beneficiaryType.trim())) {
+                        if (review.getStatus() == null) {
+                            review.setStatus(ReviewStatus.MISSING_CUSTOMER);
+                            log.warn("❌ [REVIEW-VALIDATE] Line {}: Customer '{}' not found", lineNumber, customerSearchTerm);
+                        }
+                    } else {
+                        log.debug("ℹ️ [REVIEW-VALIDATE] Line {}: Block-level beneficiary payment - customer is optional", lineNumber);
                     }
                 }
 
