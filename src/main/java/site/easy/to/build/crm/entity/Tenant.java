@@ -29,13 +29,13 @@ public class Tenant {
     @Column(name = "account_type", nullable = false)
     private AccountType accountType;
     
-    // FIXED: Individual name fields - only required when actually used
+    // FIXED: Individual name fields - optional, can be blank
     @Column(name = "first_name", length = 50)
-    @Size(min = 1, max = 50, message = "First name must be 1-50 characters")
+    @Size(max = 50, message = "First name cannot exceed 50 characters")
     private String firstName;
-    
+
     @Column(name = "last_name", length = 50)
-    @Size(min = 1, max = 50, message = "Last name must be 1-50 characters") 
+    @Size(max = 50, message = "Last name cannot exceed 50 characters")
     private String lastName;
     
     // FIXED: Business name validation - controller ensures this is populated
@@ -58,9 +58,10 @@ public class Tenant {
     @Size(max = 15)
     private String phoneNumber;
     
-    // FIXED: Mobile number pattern for UK numbers, made optional
+    // FIXED: Mobile number pattern for international numbers, optional (blank allowed)
+    // Pattern only validates if value is not null/empty
     @Pattern(
-        regexp = "^(\\+[1-9]\\d{1,14}|0[1-9]\\d{8,10}|[1-9]\\d+)$", 
+        regexp = "^$|^(\\+[1-9]\\d{1,14}|0[1-9]\\d{8,10}|[1-9]\\d+)$",
         message = "Invalid mobile number format"
     )
     @Size(max = 15, message = "Mobile number cannot exceed 15 characters")

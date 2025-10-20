@@ -1475,7 +1475,6 @@ public class PayPropSyncOrchestrator {
                 tenant = new Tenant();
                 tenant.setPayPropId(payPropId);
                 tenant.setPayPropCustomerId(tenantComplete.getPayPropId()); // Use PayProp ID as customer ID
-                tenant.setAccountType(AccountType.individual); // Default, can be updated later
                 tenant.setCreatedAt(LocalDateTime.now());
                 log.debug("Creating new Tenant entity for PayProp ID: {}", payPropId);
             }
@@ -1485,17 +1484,49 @@ public class PayPropSyncOrchestrator {
             tenant.setMoveOutDate(tenantComplete.getTenancyEndDate());
             tenant.setUpdatedAt(LocalDateTime.now());
 
-            // Update other basic fields if available
-            if (tenantComplete.getFirstName() != null) {
-                tenant.setFirstName(tenantComplete.getFirstName());
+            // IMPROVED: Smart name handling with multiple fallbacks
+            String firstName = tenantComplete.getFirstName();
+            String lastName = tenantComplete.getLastName();
+            String businessName = tenantComplete.getBusinessName();
+            String displayName = tenantComplete.getDisplayName();
+
+            boolean hasIndividualName = (firstName != null && !firstName.trim().isEmpty()) ||
+                                       (lastName != null && !lastName.trim().isEmpty());
+            boolean hasBusinessName = businessName != null && !businessName.trim().isEmpty();
+
+            // Determine account type and set appropriate name fields
+            if (hasBusinessName) {
+                // Business account
+                tenant.setAccountType(AccountType.business);
+                tenant.setBusinessName(businessName);
+                log.debug("Tenant {} identified as business account: {}", payPropId, businessName);
+            } else if (hasIndividualName) {
+                // Individual account with name data
+                tenant.setAccountType(AccountType.individual);
+                if (firstName != null && !firstName.trim().isEmpty()) {
+                    tenant.setFirstName(firstName);
+                }
+                if (lastName != null && !lastName.trim().isEmpty()) {
+                    tenant.setLastName(lastName);
+                }
+                log.debug("Tenant {} identified as individual account: {} {}", payPropId, firstName, lastName);
+            } else if (displayName != null && !displayName.trim().isEmpty()) {
+                // Fallback: use display_name as lastName for individual account
+                tenant.setAccountType(AccountType.individual);
+                tenant.setLastName(displayName);
+                log.warn("⚠️ Tenant {} has no name data - using display_name '{}' as fallback", payPropId, displayName);
+            } else {
+                // No name data at all - set as individual with blank names (validation now allows this)
+                tenant.setAccountType(AccountType.individual);
+                log.error("⚠️ CRITICAL: Tenant {} has NO name data (no firstName, lastName, businessName, or displayName)", payPropId);
+                log.error("⚠️ This tenant requires manual data entry and review");
             }
-            if (tenantComplete.getLastName() != null) {
-                tenant.setLastName(tenantComplete.getLastName());
-            }
-            if (tenantComplete.getEmail() != null) {
+
+            // Update contact fields if available
+            if (tenantComplete.getEmail() != null && !tenantComplete.getEmail().trim().isEmpty()) {
                 tenant.setEmailAddress(tenantComplete.getEmail());
             }
-            if (tenantComplete.getMobile() != null) {
+            if (tenantComplete.getMobile() != null && !tenantComplete.getMobile().trim().isEmpty()) {
                 tenant.setMobileNumber(tenantComplete.getMobile());
             }
 
