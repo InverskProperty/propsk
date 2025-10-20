@@ -3465,20 +3465,27 @@ public class PortfolioController {
     private AuthenticatedUser getAuthenticatedUser(Authentication authentication) {
         System.out.println("🔍 DEBUG: getAuthenticatedUser called");
         System.out.println("   Authentication type: " + authentication.getClass().getSimpleName());
-        
+
         if (authentication == null) {
             System.out.println("❌ No authentication provided");
             return null;
         }
-        
+
         try {
-            // Try to get OAuth user email first
+            // Try to get email from different auth types
             String email = null;
+
+            // METHOD 1: OAuth2 (Google login)
             if (authentication.getPrincipal() instanceof OAuth2User) {
                 email = ((OAuth2User) authentication.getPrincipal()).getAttribute("email");
                 System.out.println("   OAuth user email: " + email);
             }
-            
+            // METHOD 2: Form-based authentication (customer-login)
+            else {
+                email = authentication.getName(); // Username is email for customer-login
+                System.out.println("   Form auth username/email: " + email);
+            }
+
             // First try to get as Employee User
             try {
                 int userId = authenticationUtils.getLoggedInUserId(authentication);
@@ -3492,19 +3499,20 @@ public class PortfolioController {
             } catch (Exception e) {
                 System.out.println("   No Employee User found, trying Customer...");
             }
-            
-            // If no User found, try Customer
+
+            // If no User found, try Customer by email
             if (email != null && customerService != null) {
                 Customer customer = customerService.findByEmail(email);
                 if (customer != null) {
-                    System.out.println("✅ Found Customer ID: " + customer.getCustomerId() + " (" + customer.getEmail() + ")");
+                    System.out.println("✅ Found Customer ID: " + customer.getCustomerId() + " (" + customer.getEmail() + "), Type: " + customer.getCustomerType());
                     return new AuthenticatedUser(Long.valueOf(customer.getCustomerId()), customer.getEmail(), "CUSTOMER");
                 }
             }
-            
+
             System.out.println("❌ No User or Customer found for authentication");
+            System.out.println("   Tried email: " + email);
             return null;
-            
+
         } catch (Exception e) {
             System.err.println("❌ Error in getAuthenticatedUser: " + e.getMessage());
             e.printStackTrace();
