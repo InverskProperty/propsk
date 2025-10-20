@@ -8,6 +8,7 @@ import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.dto.StatementGenerationRequest;
+import site.easy.to.build.crm.dto.StatementTransactionDto;
 import site.easy.to.build.crm.enums.StatementDataSource;
 import site.easy.to.build.crm.service.tenant.TenantBalanceService;
 import javax.sql.DataSource;
@@ -53,6 +54,12 @@ public class BodenHouseStatementTemplateService {
     private DataSource dataSource;
 
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PayPropTransactionService payPropTransactionService;
+
+    @Autowired
+    private StatementTransactionConverter transactionConverter;
 
     @Autowired
     public void setDataSource(DataSource dataSource) {
@@ -209,14 +216,14 @@ public class BodenHouseStatementTemplateService {
         // Add tenant balance/arrears data
         enhanceWithTenantBalanceData(unit, property);
 
-        // Get financial transactions for this property
-        List<HistoricalTransaction> transactions = getTransactionsForProperty(property, fromDate, toDate);
+        // Get COMBINED transactions for this property (Historical + PayProp)
+        List<StatementTransactionDto> transactions = getCombinedTransactionsForProperty(property, fromDate, toDate);
 
         // Determine payment routing (following your spreadsheet logic)
-        setPaymentRouting(unit, transactions);
+        setPaymentRoutingDto(unit, transactions);
 
-        // Calculate amounts with enhanced PayProp data
-        calculateUnitAmounts(unit, property, transactions);
+        // Calculate amounts with combined data (Historical + PayProp)
+        calculateUnitAmountsDto(unit, property, transactions);
         enhanceWithOwnerPaymentData(unit, property, fromDate, toDate);
 
         // Get expenses for this property with enhanced data
@@ -740,6 +747,45 @@ public class BodenHouseStatementTemplateService {
         return null; // Placeholder
     }
 
+    /**
+     * Get combined transactions for property from BOTH historical and PayProp sources
+     * This is the KEY METHOD that merges pre-PayProp and current PayProp data
+     */
+    private List<StatementTransactionDto> getCombinedTransactionsForProperty(Property property, LocalDate fromDate, LocalDate toDate) {
+        List<StatementTransactionDto> combined = new ArrayList<>();
+
+        try {
+            // 1. Get Historical Transactions (pre-PayProp era, non-PayProp properties)
+            //    Note: Historical transactions can be linked by either property.id OR property.payprop_id
+            if (property.getPayPropId() != null) {
+                List<HistoricalTransaction> historicalTxs = historicalTransactionRepository
+                    .findPropertyTransactionsForStatement(property.getPayPropId(), fromDate, toDate);
+                combined.addAll(transactionConverter.convertHistoricalListToDto(historicalTxs));
+            }
+
+            // 2. Get PayProp Transactions (current PayProp-managed properties)
+            if (property.getPayPropId() != null) {
+                List<StatementTransactionDto> paypropTxs = payPropTransactionService
+                    .getPayPropTransactionsForProperty(property.getPayPropId(), fromDate, toDate);
+                combined.addAll(paypropTxs);
+            }
+
+            // 3. Sort by date (oldest first)
+            combined.sort(Comparator.comparing(StatementTransactionDto::getTransactionDate));
+
+        } catch (Exception e) {
+            System.err.println("Error getting combined transactions for property " + property.getId() + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return combined;
+    }
+
+    /**
+     * LEGACY METHOD - Kept for backward compatibility
+     * New code should use getCombinedTransactionsForProperty()
+     */
+    @Deprecated
     private List<HistoricalTransaction> getTransactionsForProperty(Property property, LocalDate fromDate, LocalDate toDate) {
         try {
             if (property.getPayPropId() != null) {
@@ -782,6 +828,146 @@ public class BodenHouseStatementTemplateService {
                transaction.getPaypropBatchId() != null;
     }
 
+    // ===== NEW CALCULATION METHODS USING StatementTransactionDto =====
+
+    private BigDecimal calculateTotalRentReceivedDto(List<StatementTransactionDto> transactions) {
+        return transactions.stream()
+            .filter(StatementTransactionDto::isRentPayment)
+            .map(StatementTransactionDto::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculatePayPropAmountDto(List<StatementTransactionDto> transactions) {
+        return transactions.stream()
+            .filter(StatementTransactionDto::isRentPayment)
+            .filter(tx -> "PayProp".equalsIgnoreCase(tx.getAccountSource()) || tx.isPayPropTransaction())
+            .map(StatementTransactionDto::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculateOldAccountAmountDto(List<StatementTransactionDto> transactions) {
+        return transactions.stream()
+            .filter(StatementTransactionDto::isRentPayment)
+            .filter(tx -> tx.getAccountSource() != null &&
+                (tx.getAccountSource().contains("Old Account") || tx.getAccountSource().contains("propsk_old")))
+            .map(StatementTransactionDto::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private boolean isRentPaymentDto(StatementTransactionDto tx) {
+        return tx.isRentPayment();
+    }
+
+    private boolean isRobertEllisPaymentDto(StatementTransactionDto tx) {
+        return (tx.getDescription() != null && tx.getDescription().contains("Robert Ellis")) ||
+               (tx.getAccountSource() != null && tx.getAccountSource().contains("robert_ellis"));
+    }
+
+    private boolean isOldAccountPaymentDto(StatementTransactionDto tx) {
+        return (tx.getDescription() != null && tx.getDescription().contains("Old Account")) ||
+               (tx.getAccountSource() != null && tx.getAccountSource().contains("propsk_old"));
+    }
+
+    private boolean isPayPropPaymentDto(StatementTransactionDto tx) {
+        return (tx.getDescription() != null && tx.getDescription().contains("PayProp")) ||
+               (tx.getAccountSource() != null && tx.getAccountSource().contains("propsk_payprop")) ||
+               tx.getPaypropBatchId() != null ||
+               tx.isPayPropTransaction();
+    }
+
+    /**
+     * Set payment routing flags using StatementTransactionDto (NEW VERSION)
+     */
+    private void setPaymentRoutingDto(PropertyUnit unit, List<StatementTransactionDto> transactions) {
+        // Analyze transactions to determine payment routing
+        unit.paidToRobertEllis = false;
+        unit.paidToPropskOldAccount = false;
+        unit.paidToPropskPayProp = false;
+
+        for (StatementTransactionDto transaction : transactions) {
+            if (isRentPaymentDto(transaction)) {
+                if (isRobertEllisPaymentDto(transaction)) {
+                    unit.paidToRobertEllis = true;
+                } else if (isOldAccountPaymentDto(transaction)) {
+                    unit.paidToPropskOldAccount = true;
+                } else if (isPayPropPaymentDto(transaction)) {
+                    unit.paidToPropskPayProp = true;
+                }
+            }
+        }
+    }
+
+    /**
+     * Calculate all unit amounts using StatementTransactionDto (NEW VERSION)
+     * Handles BOTH historical and PayProp transactions
+     */
+    private void calculateUnitAmountsDto(PropertyUnit unit, Property property, List<StatementTransactionDto> transactions) {
+        // Calculate rent received from BOTH sources
+        unit.rentReceivedAmount = calculateTotalRentReceivedDto(transactions);
+        unit.amountReceivedPayProp = calculatePayPropAmountDto(transactions);
+        unit.amountReceivedOldAccount = calculateOldAccountAmountDto(transactions);
+        unit.totalRentReceivedByPropsk = unit.amountReceivedPayProp.add(unit.amountReceivedOldAccount);
+
+        // Commission calculations - split total commission like PayProp would
+        BigDecimal totalCommission = property.getCommissionPercentage() != null ?
+            property.getCommissionPercentage() : new BigDecimal("15.00");
+
+        // Split total commission into management and service components
+        // Business rule: Standard split is 10% management + 5% service = 15% total
+        // For other totals, proportionally adjust management while keeping 5% service
+        if (totalCommission.equals(new BigDecimal("15.00"))) {
+            // Standard case: 10% + 5% = 15%
+            unit.managementFeePercentage = new BigDecimal("10.00");
+            unit.serviceFeePercentage = new BigDecimal("5.00");
+        } else if (totalCommission.equals(new BigDecimal("10.00"))) {
+            // Knighton Hayes case: 10% + 0% = 10% (no service fee)
+            unit.managementFeePercentage = new BigDecimal("10.00");
+            unit.serviceFeePercentage = new BigDecimal("0.00");
+        } else {
+            // Variable rate: subtract 5% service fee, remainder is management
+            unit.serviceFeePercentage = new BigDecimal("5.00");
+            unit.managementFeePercentage = totalCommission.subtract(unit.serviceFeePercentage);
+
+            // Ensure management fee is not negative
+            if (unit.managementFeePercentage.compareTo(BigDecimal.ZERO) < 0) {
+                unit.managementFeePercentage = totalCommission;
+                unit.serviceFeePercentage = BigDecimal.ZERO;
+            }
+        }
+
+        if (unit.rentReceivedAmount.compareTo(BigDecimal.ZERO) > 0) {
+            unit.managementFeeAmount = unit.rentReceivedAmount
+                .multiply(unit.managementFeePercentage)
+                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP)
+                .negate(); // Negative for fees
+
+            unit.serviceFeeAmount = unit.rentReceivedAmount
+                .multiply(unit.serviceFeePercentage)
+                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP)
+                .negate(); // Negative for fees
+        } else {
+            unit.managementFeeAmount = BigDecimal.ZERO;
+            unit.serviceFeeAmount = BigDecimal.ZERO;
+        }
+
+        unit.totalFeesChargedByPropsk = unit.managementFeeAmount.add(unit.serviceFeeAmount);
+
+        // Calculate total expenses
+        unit.totalExpenses = unit.expenses.stream()
+            .map(expense -> expense.amount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Net calculations
+        unit.totalExpensesAndCommission = unit.totalExpenses.add(unit.totalFeesChargedByPropsk.abs());
+        unit.netDueToOwner = unit.rentReceivedAmount.subtract(unit.totalExpensesAndCommission);
+
+        // Outstanding calculation
+        unit.rentDueLessReceived = unit.rentDueAmount.subtract(unit.rentReceivedAmount);
+    }
+
+    // ===== LEGACY CALCULATION METHODS - DEPRECATED =====
+
+    @Deprecated
     private BigDecimal calculateTotalRentReceived(List<HistoricalTransaction> transactions) {
         return transactions.stream()
             .filter(this::isRentPayment)
@@ -789,6 +975,7 @@ public class BodenHouseStatementTemplateService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    @Deprecated
     private BigDecimal calculatePayPropAmount(List<HistoricalTransaction> transactions) {
         return transactions.stream()
             .filter(this::isRentPayment)
@@ -797,6 +984,7 @@ public class BodenHouseStatementTemplateService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    @Deprecated
     private BigDecimal calculateOldAccountAmount(List<HistoricalTransaction> transactions) {
         return transactions.stream()
             .filter(this::isRentPayment)
