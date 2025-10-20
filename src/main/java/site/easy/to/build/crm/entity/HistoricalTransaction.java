@@ -26,7 +26,18 @@ public class HistoricalTransaction {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id")
     private Property property;
-    
+
+    /**
+     * Transaction Level - Indicates scope of transaction
+     * - property: Transaction specific to a single property
+     * - block: Transaction for a block/building (multiple properties)
+     * - owner: Transaction for an owner across their portfolio
+     * - portfolio: Portfolio-wide transaction not tied to specific property
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "transaction_level", length = 20)
+    private TransactionLevel transactionLevel = TransactionLevel.property;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
     private Customer customer;
@@ -420,7 +431,10 @@ public class HistoricalTransaction {
     
     public Property getProperty() { return property; }
     public void setProperty(Property property) { this.property = property; }
-    
+
+    public TransactionLevel getTransactionLevel() { return transactionLevel; }
+    public void setTransactionLevel(TransactionLevel transactionLevel) { this.transactionLevel = transactionLevel; }
+
     public Customer getCustomer() { return customer; }
     public void setCustomer(Customer customer) { this.customer = customer; }
 

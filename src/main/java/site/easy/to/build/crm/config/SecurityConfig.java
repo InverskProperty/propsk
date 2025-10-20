@@ -190,6 +190,10 @@ public class SecurityConfig {
                         .requestMatchers("/css/**").permitAll()
                         .requestMatchers("/save").permitAll()
 
+                        // Actuator endpoints for health checks (Render needs this)
+                        .requestMatchers("/actuator/health", "/hub/actuator/health").permitAll()
+                        .requestMatchers("/actuator/**").authenticated()
+
                         // Debug routes (temporary)
                         .requestMatchers("/debug/**").permitAll()
                         .requestMatchers("/test-password").permitAll()

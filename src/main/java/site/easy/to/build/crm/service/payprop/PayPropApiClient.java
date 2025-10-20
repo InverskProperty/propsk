@@ -650,7 +650,14 @@ public class PayPropApiClient {
             log.debug("✅ Found 'categories' field with {} items", ((List<?>) categories).size());
             return (List<Map<String, Object>>) categories;
         }
-        
+
+        // Try balances field (for beneficiary/tenant balance endpoints)
+        Object balances = responseBody.get("balances");
+        if (balances instanceof List) {
+            log.debug("✅ Found 'balances' field with {} items", ((List<?>) balances).size());
+            return (List<Map<String, Object>>) balances;
+        }
+
         // Try standard items field (for other endpoints)
         Object items = responseBody.get("items");
         if (items instanceof List) {

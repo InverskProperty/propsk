@@ -22,6 +22,7 @@ import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionType;
 import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionSource;
+import site.easy.to.build.crm.entity.TransactionLevel;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.UserRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
@@ -219,6 +220,9 @@ public class HistoricalTransactionImportService {
             Customer customer = findCustomerByReference(node.get("customer_reference").asText());
             transaction.setCustomer(customer);
         }
+
+        // Set transaction level based on property/customer presence
+        setTransactionLevel(transaction);
         
         return transaction;
     }
@@ -789,6 +793,9 @@ public class HistoricalTransactionImportService {
             Customer customer = findCustomerByReference(customerRef);
             transaction.setCustomer(customer);
         }
+
+        // Set transaction level based on property/customer presence
+        setTransactionLevel(transaction);
 
         // Link to lease if lease_reference is provided
         String leaseRef = getValue(values, columnMap, "lease_reference");
@@ -2690,6 +2697,9 @@ public class HistoricalTransactionImportService {
                 transaction.setSource(TransactionSource.historical_import); // Set source field
                 transaction.setCreatedByUser(currentUser);
                 transaction.setImportBatchId(batchId);
+
+                // Set transaction level based on property/customer presence
+                setTransactionLevel(transaction);
                 transaction.setCreatedAt(LocalDateTime.now());
 
                 // Link to lease (if selected) and capture lease details at time of transaction
@@ -2840,6 +2850,34 @@ public class HistoricalTransactionImportService {
             }
             return String.format("Batch %s: %d total, %d successful, %d failed",
                                batchId, totalProcessed, successfulImports, failedImports);
+        }
+    }
+
+    /**
+     * Set transaction level based on property and customer presence
+     * - property: Transaction specific to a single property
+     * - block: Transaction for a block (property is a block property)
+     * - owner: Transaction for an owner across their portfolio (no property)
+     * - portfolio: Portfolio-wide transaction
+     */
+    private void setTransactionLevel(HistoricalTransaction transaction) {
+        Property property = transaction.getProperty();
+        Customer customer = transaction.getCustomer();
+
+        if (property != null) {
+            // Check if property is a block
+            if (property.getPropertyType() != null &&
+                "block".equalsIgnoreCase(property.getPropertyType())) {
+                transaction.setTransactionLevel(TransactionLevel.block);
+            } else {
+                transaction.setTransactionLevel(TransactionLevel.property);
+            }
+        } else if (customer != null) {
+            // No property but has customer = owner-level transaction
+            transaction.setTransactionLevel(TransactionLevel.owner);
+        } else {
+            // No property and no customer = portfolio-level
+            transaction.setTransactionLevel(TransactionLevel.portfolio);
         }
     }
 }

@@ -215,11 +215,12 @@ public class PayPropFinancialSyncService {
     }
 
     /**
-     * Sync owner beneficiaries - SIMPLIFIED
+     * Sync ALL beneficiaries (owners, contractors, utilities, etc.) - FIXED
+     * Previously only synced owners=true, now syncs all beneficiary types
      */
     private Map<String, Object> syncOwnerBeneficiaries() throws Exception {
         return syncPaginatedData(
-            "/export/beneficiaries?owners=true",
+            "/export/beneficiaries",  // FIXED: Removed ?owners=true to get ALL beneficiaries
             this::processBeneficiaryWrapper,
             "beneficiary"
         );
