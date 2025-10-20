@@ -53,10 +53,10 @@ public class PayPropRawBeneficiariesCompleteImportService {
         result.setEndpoint("/export/beneficiaries");
         
         try {
-            // Use the proven working endpoint configuration from your controller
-            String endpoint = "/export/beneficiaries?owners=true&rows=25";
-            
-            log.info("🔄 Starting beneficiaries import using proven working pattern");
+            // Get ALL beneficiaries (owners AND contractors) - don't filter by owners=true
+            String endpoint = "/export/beneficiaries?rows=100";
+
+            log.info("🔄 Starting beneficiaries import (owners + contractors) using proven working pattern");
             
             // Use fetchAllPages (not fetchHistoricalPages) - this is an export endpoint, not report
             List<Map<String, Object>> beneficiaries = apiClient.fetchAllPages(endpoint, 

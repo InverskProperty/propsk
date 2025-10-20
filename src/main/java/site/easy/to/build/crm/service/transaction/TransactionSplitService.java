@@ -319,20 +319,38 @@ public class TransactionSplitService {
         // Update balance based on transaction type
         BigDecimal amount = transaction.getAmount();
         String beneficiaryType = transaction.getBeneficiaryType();
+        String category = transaction.getCategory();
 
         if ("beneficiary".equals(beneficiaryType)) {
-            // Owner allocation - INCREASES balance
-            // Transaction is negative (-£255), so negate to get positive (£255)
-            BigDecimal ownerAllocation = amount.negate();
-            balance.addRentAllocation(ownerAllocation);
-            log.debug("Added rent allocation of £{} to owner balance", ownerAllocation);
+            // PayProp uses "beneficiary" for BOTH owners and contractors
+            // Need to check category to determine if this is owner income or contractor expense
+
+            boolean isOwnerPayment = (category != null &&
+                (category.equalsIgnoreCase("Owner") ||
+                 category.equalsIgnoreCase("owner_allocation") ||
+                 category.equalsIgnoreCase("owner_payment")));
+
+            if (isOwnerPayment) {
+                // Owner allocation - INCREASES balance
+                // Transaction is negative (-£255), so negate to get positive (£255)
+                BigDecimal ownerAllocation = amount.negate();
+                balance.addRentAllocation(ownerAllocation);
+                log.debug("Added rent allocation of £{} to owner balance (category={})", ownerAllocation, category);
+            } else {
+                // Contractor/expense payment - DECREASES balance
+                // Transaction is negative (-£100), so negate to get positive (£100)
+                BigDecimal expenseAmount = amount.negate();
+                balance.deductExpense(expenseAmount);
+                log.debug("Deducted expense of £{} from owner balance (category={})", expenseAmount, category);
+            }
 
         } else if ("contractor".equals(beneficiaryType)) {
+            // Explicit contractor type (backward compatibility for non-PayProp imports)
             // Expense - DECREASES balance
             // Transaction is negative (-£100), so negate to get positive (£100)
             BigDecimal expenseAmount = amount.negate();
             balance.deductExpense(expenseAmount);
-            log.debug("Deducted expense of £{} from owner balance", expenseAmount);
+            log.debug("Deducted contractor expense of £{} from owner balance", expenseAmount);
 
         } else if ("beneficiary_payment".equals(beneficiaryType)) {
             // Payment to owner - DECREASES balance

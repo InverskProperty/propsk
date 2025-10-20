@@ -152,6 +152,15 @@ transaction_date,amount,description,transaction_type,category,property_reference
 **What's blank:** transaction_type (system infers "expense" from contractor), description (auto-generated from bank_reference)
 **Result:** Type inferred as "expense", description auto-generated, records contractor payment
 
+**Scenario 4: PayProp-style contractor payment (unified beneficiary model)**
+```csv
+transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source
+15/02/2025,-150.00,"Boiler repair",,Maintenance,"Apartment F - Knighton Hayes","ABC Plumbing",,beneficiary,,"BACS-ABC-PLU","Bank Transfer","ABC Plumbing","Emergency repair",PAYPROP
+```
+**What's filled:** Date, negative amount, description, category=Maintenance, beneficiary_type=beneficiary (not contractor!), customer_reference (contractor name)
+**What's blank:** transaction_type (system infers "payment")
+**Result:** System sees beneficiary + category=Maintenance → DECREASES owner balance (treats as expense). Compatible with PayProp's unified beneficiary model where contractors are also "beneficiaries"
+
 #### 💡 **Utility Bills & Regular Expenses**
 
 **Scenario 1: Utility bill ARRIVED (unpaid)**
@@ -292,13 +301,18 @@ transaction_date,amount,description,transaction_type,category,property_reference
 #### 💰 Balance Tracking & Split Transactions:
 
 - **`beneficiary_type`** - **NEW!** Controls balance tracking
-  - **`beneficiary`** - Owner allocation (INCREASES owner balance)
-    - Used for: Net due to owner after fees/expenses
+  - **`beneficiary`** - Used for BOTH owner allocations AND contractor/expense payments
+    - **System distinguishes using `category` field:**
+      - If `category=Owner` or `category=owner_allocation` → INCREASES owner balance (money owed TO owner)
+      - If `category=Maintenance`, `category=contractor`, etc. → DECREASES owner balance (expense paid FROM owner allocation)
+    - **PayProp Compatibility:** PayProp uses `beneficiary` for all beneficiary payments (owners, contractors, suppliers)
     - Automatically created when `incoming_transaction_amount` is present
   - **`beneficiary_payment`** - Payment to owner (DECREASES owner balance)
     - Used for: Actual bank transfers to owners
-  - **`contractor`** - Payment to contractor
-    - Used for: Maintenance, repairs, etc.
+    - This is when you PAY the owner what's owed
+  - **`contractor`** - Explicit contractor payment (DECREASES owner balance)
+    - Optional: Use for non-PayProp imports to explicitly mark contractor payments
+    - PayProp uses `beneficiary` + category instead
   - Leave empty for regular transactions (no balance impact)
 
 - **`incoming_transaction_amount`** - **NEW!** Triggers automatic split
