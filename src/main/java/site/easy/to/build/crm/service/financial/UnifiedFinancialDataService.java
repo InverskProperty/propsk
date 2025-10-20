@@ -120,8 +120,14 @@ public class UnifiedFinancialDataService {
 
         Map<String, Object> summary = new HashMap<>();
 
-        // RENT DUE (calculated from invoices/leases)
-        BigDecimal rentDue = rentCalculationService.calculateTotalRentDue(property.getId(), twoYearsAgo, today);
+        // RENT DUE (calculated from invoices/leases) - with error handling
+        BigDecimal rentDue = BigDecimal.ZERO;
+        try {
+            rentDue = rentCalculationService.calculateTotalRentDue(property.getId(), twoYearsAgo, today);
+        } catch (Exception e) {
+            log.warn("Error calculating rent due for property {}: {}", property.getId(), e.getMessage());
+            // Continue with rentDue = 0
+        }
 
         // RENT RECEIVED (actual incoming payments)
         BigDecimal rentReceived = transactions.stream()
