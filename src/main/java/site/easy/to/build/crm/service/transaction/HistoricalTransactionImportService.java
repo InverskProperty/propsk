@@ -1692,8 +1692,18 @@ public class HistoricalTransactionImportService {
                 String typeStr = getValue(values, columnMap, "transaction_type");
                 String propertyRef = getValue(values, columnMap, "property_reference");
                 String customerRef = getValue(values, columnMap, "customer_reference");
+                String counterpartyName = getValue(values, columnMap, "counterparty_name");
                 String category = getValue(values, columnMap, "category");
                 String paymentSourceCode = getValue(values, columnMap, "payment_source");
+
+                // Use counterparty_name as fallback if customer_reference is empty
+                String customerSearchTerm = customerRef;
+                if ((customerSearchTerm == null || customerSearchTerm.isEmpty()) &&
+                    counterpartyName != null && !counterpartyName.isEmpty()) {
+                    customerSearchTerm = counterpartyName;
+                    log.debug("👤 [REVIEW-VALIDATE] Line {}: Using counterparty_name '{}' as customer search term",
+                        lineNumber, counterpartyName);
+                }
 
                 // Store parsed data
                 review.getParsedData().put("date", dateStr);
@@ -1701,7 +1711,7 @@ public class HistoricalTransactionImportService {
                 review.getParsedData().put("description", description);
                 review.getParsedData().put("type", typeStr);
                 review.getParsedData().put("propertyRef", propertyRef);
-                review.getParsedData().put("customerRef", customerRef);
+                review.getParsedData().put("customerRef", customerSearchTerm); // Store the actual search term used
                 review.getParsedData().put("category", category);
                 review.getParsedData().put("paymentSource", paymentSourceCode);
                 log.debug("💳 [REVIEW-VALIDATE] Line {}: CSV payment_source = '{}'", lineNumber, paymentSourceCode);
@@ -1768,10 +1778,10 @@ public class HistoricalTransactionImportService {
                     log.warn("❌ [REVIEW-VALIDATE] Line {}: Property '{}' not found", lineNumber, propertyRef);
                 }
 
-                // Find customer matches
-                log.debug("👤 [REVIEW-VALIDATE] Line {}: Looking for customer '{}'", lineNumber, customerRef);
-                List<CustomerOption> customerMatches = findCustomerMatches(customerRef);
-                log.info("👤 [REVIEW-VALIDATE] Line {}: Found {} customer matches for '{}'", lineNumber, customerMatches.size(), customerRef);
+                // Find customer matches (using either customer_reference or counterparty_name)
+                log.debug("👤 [REVIEW-VALIDATE] Line {}: Looking for customer '{}'", lineNumber, customerSearchTerm);
+                List<CustomerOption> customerMatches = findCustomerMatches(customerSearchTerm);
+                log.info("👤 [REVIEW-VALIDATE] Line {}: Found {} customer matches for '{}'", lineNumber, customerMatches.size(), customerSearchTerm);
 
                 if (!customerMatches.isEmpty()) {
                     review.getCustomerOptions().addAll(customerMatches);
@@ -1782,23 +1792,26 @@ public class HistoricalTransactionImportService {
                         log.debug("✅ [REVIEW-VALIDATE] Line {}: Single customer match found (score: {})",
                             lineNumber, customerMatches.get(0).getMatchScore());
                     }
-                } else if (customerRef != null && !customerRef.isEmpty()) {
+                } else if (customerSearchTerm != null && !customerSearchTerm.isEmpty()) {
                     if (review.getStatus() == null) {
                         review.setStatus(ReviewStatus.MISSING_CUSTOMER);
-                        log.warn("❌ [REVIEW-VALIDATE] Line {}: Customer '{}' not found", lineNumber, customerRef);
+                        log.warn("❌ [REVIEW-VALIDATE] Line {}: Customer '{}' not found", lineNumber, customerSearchTerm);
                     }
                 }
 
-                // Find lease matches (if we have property and customer)
+                // Find lease matches (if we have property - customer is optional for lease search)
                 String leaseRef = getValue(values, columnMap, "lease_reference");
                 review.getParsedData().put("leaseRef", leaseRef);
                 log.debug("📋 [REVIEW-VALIDATE] Line {}: Looking for lease_reference '{}'", lineNumber, leaseRef);
 
-                if (!propertyMatches.isEmpty() && !customerMatches.isEmpty()) {
+                // Search for lease if we have at least property match (customer is optional)
+                if (!propertyMatches.isEmpty()) {
                     Property matchedProperty = propertyRepository.findById(propertyMatches.get(0).getPropertyId()).orElse(null);
-                    Customer matchedCustomer = customerService.findByCustomerId(customerMatches.get(0).getCustomerId());
+                    Customer matchedCustomer = !customerMatches.isEmpty() ?
+                        customerService.findByCustomerId(customerMatches.get(0).getCustomerId()) : null;
 
-                    if (matchedProperty != null && matchedCustomer != null) {
+                    if (matchedProperty != null) {
+                        // Search for lease (customer can be null - lease search will filter by property)
                         List<LeaseOption> leaseMatches = findLeaseMatches(leaseRef, matchedProperty, matchedCustomer, transactionDate);
                         log.info("📋 [REVIEW-VALIDATE] Line {}: Found {} lease matches", lineNumber, leaseMatches.size());
 
