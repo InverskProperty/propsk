@@ -2433,27 +2433,41 @@ public class PortfolioController {
      */
     private Customer getCurrentCustomerFromAuth(Authentication authentication) {
         try {
-            // For OAuth users, check by email first
+            // METHOD 1: For OAuth users (Google login)
             if (authentication.getPrincipal() instanceof OAuth2User) {
                 OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
                 String email = oauth2User.getAttribute("email");
-                
+
                 System.out.println("DEBUG: OAuth user email: " + email);
-                
+
                 if (email != null) {
-                    // Try to find customer by email
                     Customer customer = customerService.findByEmail(email);
                     if (customer != null) {
-                        System.out.println("DEBUG: Found customer by email: " + customer.getCustomerId());
+                        System.out.println("DEBUG: Found customer by OAuth email: " + customer.getCustomerId());
                         return customer;
                     }
                 }
             }
-            
+
+            // METHOD 2: For customer-login (form-based authentication)
+            // The username is the email address
+            String username = authentication.getName();
+            System.out.println("DEBUG: Trying to find customer by username/email: " + username);
+
+            if (username != null && !username.trim().isEmpty()) {
+                Customer customer = customerService.findByEmail(username);
+                if (customer != null) {
+                    System.out.println("DEBUG: Found customer by username: " + customer.getCustomerId() + " (" + customer.getName() + ")");
+                    return customer;
+                }
+            }
+
+            System.out.println("DEBUG: Could not find customer from authentication");
             return null;
-            
+
         } catch (Exception e) {
             System.err.println("Error getting current customer from auth: " + e.getMessage());
+            e.printStackTrace();
             return null;
         }
     }
