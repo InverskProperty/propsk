@@ -80,6 +80,9 @@ public class PayPropSyncOrchestrator {
     @Autowired
     private site.easy.to.build.crm.service.payprop.raw.PayPropRawImportOrchestrator rawImportOrchestrator;
 
+    @Autowired
+    private site.easy.to.build.crm.service.synchronization.TenantCustomerLinkService tenantCustomerLinkService;
+
     @Value("${payprop.sync.batch-size:25}")
     private int batchSize;
 
@@ -202,6 +205,16 @@ public class PayPropSyncOrchestrator {
                 log.info("✅ Tenant relationships: {}", tenantRelationships.isSuccess() ? "SUCCESS" : "FAILED");
             } catch (Exception e) {
                 log.warn("⚠️ Tenant relationships failed (but continuing): {}", e.getMessage());
+            }
+
+            // Step 5.5: Link Tenants to Customers (maintains synchronicity)
+            log.info("🔗 Step 5.5: Linking tenants to customer records...");
+            try {
+                site.easy.to.build.crm.service.synchronization.TenantCustomerLinkService.LinkResult linkResult =
+                    tenantCustomerLinkService.linkAllTenantsToCustomers();
+                log.info("✅ Tenant-customer linking: {}", linkResult.getSummary());
+            } catch (Exception e) {
+                log.warn("⚠️ Tenant-customer linking had errors (but continuing): {}", e.getMessage());
             }
 
             // Set success based on core operations
@@ -355,7 +368,17 @@ public class PayPropSyncOrchestrator {
             // STEP 7: Establish Tenant Relationships
             log.info("🏡 Step 7: Establishing tenant relationships...");
             result.setTenantRelationshipsResult(establishTenantPropertyRelationships());
-            
+
+            // STEP 7.5: Link Tenants to Customers (NEW - maintains synchronicity)
+            log.info("🔗 Step 7.5: Linking tenants to customer records...");
+            try {
+                site.easy.to.build.crm.service.synchronization.TenantCustomerLinkService.LinkResult linkResult =
+                    tenantCustomerLinkService.linkAllTenantsToCustomers();
+                log.info("✅ Tenant-customer linking: {}", linkResult.getSummary());
+            } catch (Exception e) {
+                log.warn("⚠️ Tenant-customer linking had errors (but continuing): {}", e.getMessage());
+            }
+
             // STEP 8: DELEGATED FINANCIAL SYNC - Simple and clean!
             log.info("💰 Step 8: Delegating to comprehensive financial sync service...");
             try {
