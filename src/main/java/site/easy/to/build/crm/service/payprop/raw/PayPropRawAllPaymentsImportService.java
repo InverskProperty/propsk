@@ -11,9 +11,12 @@ import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +42,50 @@ public class PayPropRawAllPaymentsImportService {
     
     @Autowired
     private PayPropImportIssueTracker issueTracker;
-    
+
+    /**
+     * Calculate optimal years to fetch based on oldest tenant move-in date.
+     * Returns a value between 0.5 and 2.0 years.
+     */
+    private double calculateOptimalYearsBack() {
+        try (Connection conn = dataSource.getConnection()) {
+            // Find the oldest tenant move-in date from our database
+            String sql = """
+                SELECT MIN(move_in_date) as oldest_move_in
+                FROM tenants
+                WHERE move_in_date IS NOT NULL
+                """;
+
+            try (PreparedStatement stmt = conn.prepareStatement(sql);
+                 ResultSet rs = stmt.executeQuery()) {
+
+                if (rs.next() && rs.getDate("oldest_move_in") != null) {
+                    LocalDate oldestMoveIn = rs.getDate("oldest_move_in").toLocalDate();
+                    LocalDate today = LocalDate.now();
+
+                    // Calculate years between oldest move-in and today
+                    long daysBetween = ChronoUnit.DAYS.between(oldestMoveIn, today);
+                    double yearsBetween = daysBetween / 365.25;
+
+                    // Cap between 0.5 and 2.0 years, add 10% buffer for safety
+                    double yearsBack = Math.min(2.0, Math.max(0.5, yearsBetween * 1.1));
+
+                    log.info("📊 Oldest tenant move-in: {} ({} days ago = {:.2} years)",
+                        oldestMoveIn, daysBetween, yearsBetween);
+                    log.info("📅 Fetching {:.2} years of transaction history (with 10% buffer, capped at 2 years)",
+                        yearsBack);
+
+                    return yearsBack;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ Could not determine oldest tenant date, defaulting to 1 year: {}", e.getMessage());
+        }
+
+        // Default fallback: 1 year
+        return 1.0;
+    }
+
     /**
      * Import all payment transactions from PayProp /report/all-payments endpoint
      * Uses 93-day filter to get recent payments
@@ -57,10 +103,13 @@ public class PayPropRawAllPaymentsImportService {
             // PayProp's /report/all-payments endpoint requires date ranges
             String baseEndpoint = "/report/all-payments?filter_by=reconciliation_date&include_beneficiary_info=true";
                 
+            // Calculate optimal years back based on oldest tenant
+            double yearsBack = calculateOptimalYearsBack();
+
             log.info("🔄 Starting COMPLETE all-payments import using 93-day historical chunking");
             List<Map<String, Object>> payments = apiClient.fetchHistoricalPages(
-                baseEndpoint, 
-                2, // 2 years back 
+                baseEndpoint,
+                yearsBack,
                 this::processPaymentItem
             );
             

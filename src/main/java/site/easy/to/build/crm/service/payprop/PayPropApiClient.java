@@ -20,6 +20,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 /**
  * PayProp API Client Utility
@@ -37,8 +39,15 @@ public class PayPropApiClient {
     // Constants for API behavior
     private static final int MAX_PAGES = 1000; // Increased from 100 to capture all data
     private static final int DEFAULT_PAGE_SIZE = 25;
-    private static final int RATE_LIMIT_DELAY_MS = 500; // Increased from 250ms to avoid 5 req/sec PayProp limit
-    
+
+    // PayProp rate limit: 5 requests per second (global across all threads)
+    private static final int MAX_REQUESTS_PER_SECOND = 5;
+    private static final long RATE_LIMIT_WINDOW_MS = 1000; // 1 second window
+
+    // Global rate limiter using semaphore (5 permits per second)
+    private static final Semaphore rateLimiter = new Semaphore(MAX_REQUESTS_PER_SECOND, true);
+    private static long lastResetTime = System.currentTimeMillis();
+
     @Autowired
     private RestTemplate restTemplate;
     
@@ -47,7 +56,36 @@ public class PayPropApiClient {
     
     @Value("${payprop.api.base-url}")
     private String payPropApiBase;
-    
+
+    /**
+     * Acquire a rate limit permit before making an API call.
+     * This enforces PayProp's global rate limit of 5 requests per second across all threads.
+     *
+     * The semaphore refills every second with 5 new permits.
+     */
+    private synchronized void acquireRateLimitPermit() {
+        try {
+            // Check if we need to reset the window (every second)
+            long currentTime = System.currentTimeMillis();
+            if (currentTime - lastResetTime >= RATE_LIMIT_WINDOW_MS) {
+                // Reset window - release all permits back to max
+                int availablePermits = rateLimiter.availablePermits();
+                if (availablePermits < MAX_REQUESTS_PER_SECOND) {
+                    rateLimiter.release(MAX_REQUESTS_PER_SECOND - availablePermits);
+                }
+                lastResetTime = currentTime;
+            }
+
+            // Acquire a permit (blocks if none available)
+            if (!rateLimiter.tryAcquire(2, TimeUnit.SECONDS)) {
+                log.warn("⚠️ Rate limit permit acquisition timed out - proceeding anyway");
+            }
+        } catch (InterruptedException e) {
+            log.warn("⚠️ Rate limit interrupted: {}", e.getMessage());
+            Thread.currentThread().interrupt();
+        }
+    }
+
     /**
      * Fetch all pages of data from a PayProp endpoint with automatic pagination
      * 
@@ -64,11 +102,8 @@ public class PayPropApiClient {
         
         while (page <= MAX_PAGES) {
             try {
-                // Rate limiting - wait between API calls (except for first call)
-                if (page > 1) {
-                    Thread.sleep(RATE_LIMIT_DELAY_MS);
-                }
-                
+                // Rate limiting now handled globally in fetchSinglePage via acquireRateLimitPermit()
+
                 // Fetch single page
                 PayPropPageResult result = fetchSinglePage(endpoint, page, DEFAULT_PAGE_SIZE);
                 totalApiCalls++;
@@ -107,11 +142,7 @@ public class PayPropApiClient {
                 }
                 
                 page++;
-                
-            } catch (InterruptedException e) {
-                log.error("Rate limiting interrupted: {}", e.getMessage());
-                Thread.currentThread().interrupt();
-                break;
+
             } catch (Exception e) {
                 log.error("Failed to fetch page {} from {}: {}", page, endpoint, e.getMessage());
 
@@ -180,21 +211,23 @@ public class PayPropApiClient {
      * PayProp report endpoints have a 93-day limit (exclusive), so we chunk the requests into 90-day periods
      *
      * @param baseEndpoint The base API endpoint (e.g., "/report/icdn")
-     * @param yearsBack Number of years of historical data to fetch (e.g., 2)
+     * @param yearsBack Number of years of historical data to fetch (e.g., 1.5)
      * @param mapper Function to transform raw API response items to desired type
      * @return List of all items from all historical chunks
      */
-    public <T> List<T> fetchHistoricalPages(String baseEndpoint, int yearsBack, Function<Map<String, Object>, T> mapper) {
+    public <T> List<T> fetchHistoricalPages(String baseEndpoint, double yearsBack, Function<Map<String, Object>, T> mapper) {
         List<T> allResults = new ArrayList<>();
         LocalDateTime endDate = LocalDateTime.now();
-        LocalDateTime startDate = endDate.minusYears(yearsBack);
-        
-        log.info("🕐 Starting historical chunked fetch from endpoint: {} (going back {} years)", baseEndpoint, yearsBack);
+        LocalDateTime startDate = endDate.minusDays((long)(yearsBack * 365.25));
+
+        log.info("🕐 Starting historical chunked fetch from endpoint: {} (going back {:.2} years)", baseEndpoint, yearsBack);
         
         // Work backwards in 90-day chunks from today (PayProp's 93-day limit appears to be exclusive)
         LocalDateTime currentEnd = endDate;
         int chunkNumber = 0;
         int totalApiCalls = 0;
+        int consecutiveEmptyChunks = 0;
+        final int MAX_CONSECUTIVE_EMPTY_CHUNKS = 3; // Stop after 3 consecutive empty chunks
 
         while (currentEnd.isAfter(startDate)) {
             // Calculate chunk start (90 days before current end to safely stay within PayProp's 93-day limit)
@@ -221,18 +254,27 @@ public class PayPropApiClient {
 
                 log.info("✅ CHUNK {} complete: {} records added", chunkNumber, chunkResults.size());
 
+                // Track consecutive empty chunks for early termination
+                if (chunkResults.isEmpty()) {
+                    consecutiveEmptyChunks++;
+                    log.debug("📊 Empty chunk count: {}/{}", consecutiveEmptyChunks, MAX_CONSECUTIVE_EMPTY_CHUNKS);
+
+                    if (consecutiveEmptyChunks >= MAX_CONSECUTIVE_EMPTY_CHUNKS) {
+                        log.info("🛑 Stopping early: {} consecutive empty chunks detected. No more data available.",
+                            MAX_CONSECUTIVE_EMPTY_CHUNKS);
+                        log.info("💡 This saves unnecessary API calls - older data doesn't exist");
+                        break;
+                    }
+                } else {
+                    // Reset counter when we find data
+                    consecutiveEmptyChunks = 0;
+                }
+
                 // Move to previous chunk (subtract 90 days from current start + 1 second to avoid overlap)
                 currentEnd = chunkStart.minusSeconds(1);
 
-                // Rate limiting between chunks
-                if (currentEnd.isAfter(startDate)) {
-                    Thread.sleep(RATE_LIMIT_DELAY_MS * 2); // Extra delay between chunks
-                }
-                
-            } catch (InterruptedException e) {
-                log.error("Historical chunked fetch interrupted: {}", e.getMessage());
-                Thread.currentThread().interrupt();
-                break;
+                // Rate limiting now handled globally per API call via acquireRateLimitPermit()
+
             } catch (Exception e) {
                 log.error("Failed to fetch historical chunk {} ({} to {}): {}",
                     chunkNumber, chunkStart.toLocalDate(), currentEnd.toLocalDate(), e.getMessage());
@@ -273,12 +315,15 @@ public class PayPropApiClient {
         String url = buildPaginatedUrl(endpoint, page, rows);
         
         try {
+            // Acquire rate limit permit (enforces 5 req/sec globally)
+            acquireRateLimitPermit();
+
             // Create authorized request
             HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
             HttpEntity<String> request = new HttpEntity<>(headers);
-            
+
             log.debug("Fetching page {} from: {}", page, url);
-            
+
             // Make API call
             ResponseEntity<Map> response = restTemplate.exchange(
                 url, 
