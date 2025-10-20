@@ -18,6 +18,8 @@ import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.entity.PaymentSource;
 import site.easy.to.build.crm.entity.Invoice;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
+import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionType;
 import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionSource;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
@@ -25,6 +27,7 @@ import site.easy.to.build.crm.repository.UserRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.PaymentSourceRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
@@ -76,6 +79,9 @@ public class HistoricalTransactionImportService {
 
     @Autowired
     private InvoiceRepository invoiceRepository;
+
+    @Autowired
+    private CustomerPropertyAssignmentRepository assignmentRepository;
 
     @Autowired
     private AuthenticationUtils authenticationUtils;
@@ -474,15 +480,37 @@ public class HistoricalTransactionImportService {
     }
 
     /**
-     * Get property owner from property entity
+     * Get property owner from property entity or customer_property_assignments table
      */
     private Customer getPropertyOwner(Property property) {
-        // Get owner using propertyOwnerId
+        // Try old direct property_owner_id field first (legacy)
         if (property.getPropertyOwnerId() != null) {
-            return customerService.findByCustomerId(property.getPropertyOwnerId());
+            Customer owner = customerService.findByCustomerId(property.getPropertyOwnerId());
+            if (owner != null) {
+                log.debug("Found owner via property_owner_id: {}", owner.getName());
+                return owner;
+            }
         }
 
-        log.warn("Property {} has no owner ID set", property.getPropertyName());
+        // Check customer_property_assignments junction table (modern approach)
+        List<CustomerPropertyAssignment> ownerAssignments =
+            assignmentRepository.findByPropertyIdAndAssignmentType(property.getId(), AssignmentType.OWNER);
+
+        if (!ownerAssignments.isEmpty()) {
+            // Get the primary owner or the first owner if no primary
+            CustomerPropertyAssignment primaryOwner = ownerAssignments.stream()
+                .filter(a -> a.getIsPrimary() != null && a.getIsPrimary())
+                .findFirst()
+                .orElse(ownerAssignments.get(0));
+
+            Customer owner = primaryOwner.getCustomer();
+            log.debug("Found owner via customer_property_assignments: {} (ownership: {}%)",
+                owner.getName(), primaryOwner.getOwnershipPercentage());
+            return owner;
+        }
+
+        log.warn("Property {} has no owner assigned (checked both property_owner_id and assignments)",
+            property.getPropertyName());
         return null;
     }
 
