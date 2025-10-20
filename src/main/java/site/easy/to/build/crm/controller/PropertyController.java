@@ -40,6 +40,7 @@ import site.easy.to.build.crm.service.payprop.LocalToPayPropSyncService;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import site.easy.to.build.crm.entity.AssignmentType;
+import site.easy.to.build.crm.service.financial.UnifiedFinancialDataService;
 
 
 import java.math.BigDecimal;
@@ -69,12 +70,15 @@ public class PropertyController {
     // Optional PayProp services (only available when PayProp is enabled)
     @Autowired(required = false)
     private PayPropSyncService payPropSyncService;
-    
+
     @Autowired(required = false)
     private LocalToPayPropSyncService localToPayPropSyncService;
-    
+
     @Autowired(required = false)
     private PayPropOAuth2Service payPropOAuth2Service;
+
+    @Autowired
+    private UnifiedFinancialDataService unifiedFinancialDataService;
     
     @Value("${crm.data.source:LEGACY}")
     private String dataSource;
@@ -1237,7 +1241,7 @@ public class PropertyController {
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getPropertyFinancialSummary(
             @PathVariable("id") String id,
-            @RequestParam(value = "source", required = false, defaultValue = "auto") String source,
+            @RequestParam(value = "source", required = false, defaultValue = "combined") String source,
             Authentication authentication) {
         try {
             Property property = resolvePropertyById(id);
@@ -1263,44 +1267,35 @@ public class PropertyController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
 
-            // Check data availability for both sources
-            Map<String, Object> availability = checkFinancialDataAvailability(property);
-            boolean hasHistorical = (boolean) availability.get("hasHistoricalData");
-            boolean hasPayProp = (boolean) availability.get("hasPayPropData");
-
             Map<String, Object> response = new HashMap<>();
             response.put("propertyName", property.getPropertyName());
             response.put("propertyId", property.getId());
             response.put("payPropId", property.getPayPropId());
-            response.put("dataAvailability", availability);
 
-            // Determine which source to use
-            String actualSource = source;
-            if ("auto".equals(source)) {
-                // Auto-select: prefer PayProp if available, otherwise historical
-                actualSource = hasPayProp ? "payprop" : (hasHistorical ? "historical" : "none");
-            }
-
-            response.put("selectedSource", actualSource);
-
-            // Fetch data based on source
-            if ("historical".equals(actualSource) && hasHistorical) {
+            // NEW: Use unified financial data service (last 2 years)
+            if ("combined".equals(source) || "auto".equals(source)) {
+                Map<String, Object> unifiedData = unifiedFinancialDataService.getPropertyFinancialSummary(property);
+                response.putAll(unifiedData);
+                response.put("message", "Showing combined historical and PayProp data (last 2 years)");
+                response.put("selectedSource", "combined");
+            } else if ("historical".equals(source)) {
+                // Legacy: historical only
                 Map<String, Object> historicalData = getHistoricalFinancialData(property.getId());
                 response.putAll(historicalData);
-                response.put("message", "Showing historical transactions");
-            } else if ("payprop".equals(actualSource) && hasPayProp) {
+                response.put("message", "Showing historical transactions only");
+                response.put("selectedSource", "historical");
+            } else if ("payprop".equals(source)) {
+                // Legacy: PayProp only
                 Map<String, Object> payPropData = getPayPropFinancialData(property.getPayPropId());
                 response.putAll(payPropData);
-                response.put("message", "Showing PayProp data");
+                response.put("message", "Showing PayProp data only");
+                response.put("selectedSource", "payprop");
             } else {
-                // No data available
-                response.put("totalIncome", 0);
-                response.put("totalExpenses", 0);
-                response.put("totalCommissions", 0);
-                response.put("netOwnerIncome", 0);
-                response.put("transactionCount", 0);
-                response.put("recentTransactions", new ArrayList<>());
-                response.put("message", "No financial data available");
+                // Fallback to combined
+                Map<String, Object> unifiedData = unifiedFinancialDataService.getPropertyFinancialSummary(property);
+                response.putAll(unifiedData);
+                response.put("message", "Showing combined data");
+                response.put("selectedSource", "combined");
             }
 
             return ResponseEntity.ok(response);

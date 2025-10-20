@@ -18,7 +18,10 @@ import site.easy.to.build.crm.service.portfolio.PortfolioBlockService;
 import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
+import site.easy.to.build.crm.service.financial.UnifiedFinancialDataService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
+
+import java.math.BigDecimal;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -56,6 +59,9 @@ public class PropertyOwnerBlockController {
 
     @Autowired
     private PropertyRepository propertyRepository;
+
+    @Autowired
+    private UnifiedFinancialDataService unifiedFinancialDataService;
 
     // ===== AUTHORIZATION HELPERS =====
 
@@ -843,6 +849,129 @@ public class PropertyOwnerBlockController {
             log.error("❌ Failed to fetch assignment overview: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Failed to fetch assignment overview: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get aggregated financial summary for a block
+     * GET /customer-login/blocks/api/{id}/financial
+     */
+    @GetMapping("/api/{id}/financial")
+    @ResponseBody
+    public ResponseEntity<?> getBlockFinancial(@PathVariable Long id, Authentication auth) {
+        log.info("💰 Getting financial summary for block {}", id);
+
+        try {
+            Customer customer = getLoggedInCustomer(auth);
+            if (customer == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+
+            // Check authorization
+            if (!hasAccessToBlock(customer, id)) {
+                log.warn("Customer {} denied access to block {} financials", customer.getCustomerId(), id);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Access denied"));
+            }
+
+            Optional<Block> blockOpt = blockRepository.findById(id);
+            if (!blockOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Block block = blockOpt.get();
+            List<Property> blockProperties = propertyBlockAssignmentRepository.findPropertiesByBlockIdOrdered(id);
+
+            // For delegated users, filter to only properties they have access to
+            if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
+                List<Property> userProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+                Set<Long> userPropertyIds = userProperties.stream()
+                    .map(Property::getId)
+                    .collect(Collectors.toSet());
+
+                blockProperties = blockProperties.stream()
+                    .filter(p -> userPropertyIds.contains(p.getId()))
+                    .collect(Collectors.toList());
+            }
+
+            // Aggregate financial data across all properties in the block
+            BigDecimal totalRentDue = BigDecimal.ZERO;
+            BigDecimal totalRentReceived = BigDecimal.ZERO;
+            BigDecimal totalRentArrears = BigDecimal.ZERO;
+            BigDecimal totalExpenses = BigDecimal.ZERO;
+            BigDecimal totalCommissions = BigDecimal.ZERO;
+            BigDecimal totalNetOwnerIncome = BigDecimal.ZERO;
+            int totalTransactions = 0;
+
+            List<Map<String, Object>> propertyFinancials = new ArrayList<>();
+
+            for (Property property : blockProperties) {
+                Map<String, Object> propertySummary = unifiedFinancialDataService.getPropertyFinancialSummary(property);
+
+                // Extract and sum financial metrics
+                BigDecimal rentDue = (BigDecimal) propertySummary.getOrDefault("rentDue", BigDecimal.ZERO);
+                BigDecimal rentReceived = (BigDecimal) propertySummary.getOrDefault("rentReceived", BigDecimal.ZERO);
+                BigDecimal rentArrears = (BigDecimal) propertySummary.getOrDefault("rentArrears", BigDecimal.ZERO);
+                BigDecimal expenses = (BigDecimal) propertySummary.getOrDefault("totalExpenses", BigDecimal.ZERO);
+                BigDecimal commissions = (BigDecimal) propertySummary.getOrDefault("totalCommissions", BigDecimal.ZERO);
+                BigDecimal netIncome = (BigDecimal) propertySummary.getOrDefault("netOwnerIncome", BigDecimal.ZERO);
+                int txCount = (Integer) propertySummary.getOrDefault("transactionCount", 0);
+
+                totalRentDue = totalRentDue.add(rentDue);
+                totalRentReceived = totalRentReceived.add(rentReceived);
+                totalRentArrears = totalRentArrears.add(rentArrears);
+                totalExpenses = totalExpenses.add(expenses);
+                totalCommissions = totalCommissions.add(commissions);
+                totalNetOwnerIncome = totalNetOwnerIncome.add(netIncome);
+                totalTransactions += txCount;
+
+                // Add property summary to response
+                Map<String, Object> propData = new HashMap<>();
+                propData.put("propertyId", property.getId());
+                propData.put("propertyName", property.getPropertyName());
+                propData.put("rentDue", rentDue);
+                propData.put("rentReceived", rentReceived);
+                propData.put("rentArrears", rentArrears);
+                propData.put("expenses", expenses);
+                propData.put("commissions", commissions);
+                propData.put("netOwnerIncome", netIncome);
+                propertyFinancials.add(propData);
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("blockId", id);
+            response.put("blockName", block.getName());
+            response.put("propertyCount", blockProperties.size());
+
+            // Aggregated totals
+            response.put("totalRentDue", totalRentDue);
+            response.put("totalRentReceived", totalRentReceived);
+            response.put("totalRentArrears", totalRentArrears);
+            response.put("totalExpenses", totalExpenses);
+            response.put("totalCommissions", totalCommissions);
+            response.put("totalNetOwnerIncome", totalNetOwnerIncome);
+            response.put("totalTransactions", totalTransactions);
+
+            // Per-property breakdown
+            response.put("properties", propertyFinancials);
+
+            // Date range (2 years)
+            response.put("dateRange", Map.of(
+                "from", java.time.LocalDate.now().minusYears(2).toString(),
+                "to", java.time.LocalDate.now().toString()
+            ));
+
+            log.info("✅ Block {} financial summary: {} properties, £{} rent due, £{} received",
+                id, blockProperties.size(), totalRentDue, totalRentReceived);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to get financial summary for block {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to get block financial data: " + e.getMessage()));
         }
     }
 

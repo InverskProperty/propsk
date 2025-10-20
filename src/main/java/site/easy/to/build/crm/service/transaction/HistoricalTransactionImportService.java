@@ -226,7 +226,20 @@ public class HistoricalTransactionImportService {
 
         // ENHANCED: Set beneficiary, tenant, owner based on category and customer
         setContextualCustomerFields(transaction);
-        
+
+        // AUTO-POPULATE: For rent payments, automatically set incoming_transaction_amount
+        if (!node.has("incoming_transaction_amount")) {
+            if (isRentPayment(transaction.getTransactionType(), transaction.getCategory()) &&
+                transaction.getAmount() != null &&
+                transaction.getAmount().compareTo(BigDecimal.ZERO) > 0) {
+                transaction.setIncomingTransactionAmount(transaction.getAmount());
+                log.debug("Auto-populated incoming_transaction_amount for JSON rent payment: £{}", transaction.getAmount());
+            }
+        } else {
+            // Use provided incoming_transaction_amount
+            transaction.setIncomingTransactionAmount(new BigDecimal(node.get("incoming_transaction_amount").asText()));
+        }
+
         return transaction;
     }
     
@@ -484,6 +497,25 @@ public class HistoricalTransactionImportService {
 
         log.info("✅ Split incoming £{} → Owner allocation £{} + Agency fee £{}",
                 incomingAmount, netDueToOwner, commissionAmount);
+    }
+
+    /**
+     * Check if transaction is a rent payment (for auto-splitting)
+     */
+    private boolean isRentPayment(TransactionType transactionType, String category) {
+        if (transactionType == null) return false;
+
+        // Check if it's a payment or invoice type
+        boolean isPaymentType = transactionType == TransactionType.payment ||
+                                transactionType == TransactionType.invoice;
+
+        // Check category
+        boolean isRentCategory = category != null &&
+                                (category.equalsIgnoreCase("rent") ||
+                                 category.equalsIgnoreCase("rental_payment") ||
+                                 category.equalsIgnoreCase("rental"));
+
+        return isPaymentType && isRentCategory;
     }
 
     /**
@@ -761,6 +793,13 @@ public class HistoricalTransactionImportService {
             BigDecimal incomingAmount = new BigDecimal(incomingAmountStr);
             transaction.setIncomingTransactionAmount(incomingAmount);
             // This will be used later to create beneficiary allocations
+        } else {
+            // AUTO-POPULATE: For rent payments, automatically set incoming_transaction_amount
+            // to trigger automatic split into owner allocation + management fee
+            if (isRentPayment(transactionType, transaction.getCategory()) && amount.compareTo(BigDecimal.ZERO) > 0) {
+                transaction.setIncomingTransactionAmount(amount);
+                log.debug("Auto-populated incoming_transaction_amount for rent payment: £{}", amount);
+            }
         }
 
         // Note: Parking spaces are now handled as separate properties

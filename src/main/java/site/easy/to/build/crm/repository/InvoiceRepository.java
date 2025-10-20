@@ -335,4 +335,18 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
      * Check if internal reference is already used
      */
     boolean existsByInternalReference(String internalReference);
+
+    /**
+     * Find all invoices for a property that overlap with a date range
+     * Used for calculating total rent due in a period
+     */
+    @Query("SELECT i FROM Invoice i WHERE i.property.id = :propertyId " +
+           "AND i.startDate <= :endDate " +
+           "AND (i.endDate IS NULL OR i.endDate >= :startDate) " +
+           "AND i.isActive = true AND i.deletedAt IS NULL")
+    List<Invoice> findByPropertyIdAndDateRange(
+        @Param("propertyId") Long propertyId,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
 }
