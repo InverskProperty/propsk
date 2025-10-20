@@ -1811,12 +1811,17 @@ public class HistoricalTransactionImportService {
                 List<CustomerOption> customerMatches = findCustomerMatches(customerSearchTerm);
                 log.info("👤 [REVIEW-VALIDATE] Line {}: Found {} customer matches for '{}'", lineNumber, customerMatches.size(), customerSearchTerm);
 
-                // SPECIAL HANDLING: For owner payments (beneficiary_payment), automatically add property owner to dropdown
+                // SPECIAL HANDLING: For owner payments, automatically add owners/beneficiaries to dropdown
                 String beneficiaryType = getValue(values, columnMap, "beneficiary_type");
-                if (beneficiaryType != null && "beneficiary_payment".equalsIgnoreCase(beneficiaryType.trim())) {
-                    log.debug("💰 [REVIEW-VALIDATE] Line {}: Owner payment detected (beneficiary_payment) - adding property owner to customer options", lineNumber);
+                // category already declared above at line 1724
+                boolean isOwnerPayment = (beneficiaryType != null && "beneficiary_payment".equalsIgnoreCase(beneficiaryType.trim())) ||
+                                         (category != null && "owner_payment".equalsIgnoreCase(category.trim()));
 
-                    // If we have a property match, get the owner and add to customer options
+                if (isOwnerPayment) {
+                    log.debug("💰 [REVIEW-VALIDATE] Line {}: Owner payment detected (beneficiary_type='{}', category='{}') - adding owners to customer options",
+                        lineNumber, beneficiaryType, category);
+
+                    // OPTION 1: If we have a property match, add the specific property owner
                     if (!propertyMatches.isEmpty()) {
                         Property matchedProperty = propertyRepository.findById(propertyMatches.get(0).getPropertyId()).orElse(null);
                         if (matchedProperty != null) {
@@ -1835,16 +1840,25 @@ public class HistoricalTransactionImportService {
                                     customerMatches.add(0, ownerOption); // Add at the beginning
                                     log.info("✅ [REVIEW-VALIDATE] Line {}: Added property owner '{}' to customer options",
                                         lineNumber, propertyOwner.getName());
-                                } else {
-                                    log.debug("✅ [REVIEW-VALIDATE] Line {}: Property owner already in matches", lineNumber);
                                 }
-                            } else {
-                                log.warn("⚠️ [REVIEW-VALIDATE] Line {}: Owner payment but no owner found for property '{}'",
-                                    lineNumber, matchedProperty.getPropertyName());
                             }
                         }
-                    } else {
-                        log.warn("⚠️ [REVIEW-VALIDATE] Line {}: Owner payment but no property matched", lineNumber);
+                    }
+
+                    // OPTION 2: If no property OR no customer matches yet, show ALL property owners/beneficiaries
+                    if (customerMatches.isEmpty()) {
+                        log.debug("👥 [REVIEW-VALIDATE] Line {}: No customer matches found - loading all property owners", lineNumber);
+                        List<Customer> allOwners = customerService.findAll().stream()
+                            .filter(c -> c.getIsPropertyOwner() != null && c.getIsPropertyOwner())
+                            .toList();
+
+                        for (Customer owner : allOwners) {
+                            // Add with score 80 to indicate it's a general owner (not property-specific)
+                            CustomerOption ownerOption = new CustomerOption(owner, 80);
+                            customerMatches.add(ownerOption);
+                        }
+
+                        log.info("✅ [REVIEW-VALIDATE] Line {}: Added {} property owners to customer options", lineNumber, allOwners.size());
                     }
                 }
 
