@@ -567,6 +567,7 @@ $(document).ready(function() {
                             ${renderPaymentSourceSelector(review, index)}
                             ${renderPropertyOptions(review, index)}
                             ${renderCustomerOptions(review, index)}
+                            ${renderLeaseSelector(review, index)}
                             ${renderDuplicateInfo(review, index)}
                             ${renderErrorMessage(review)}
                         </div>
@@ -990,6 +991,72 @@ $(document).ready(function() {
         return html;
     }
 
+    function renderLeaseSelector(review, index) {
+        // Only show lease selector if we have lease options or auto-selected lease
+        if (!review.leaseOptions || review.leaseOptions.length === 0) {
+            // If no lease options AND no auto-selected lease, don't show anything
+            if (!review.selectedLeaseReference) {
+                return '';
+            }
+        }
+
+        let html = '<div class="mt-3">';
+
+        // If we have an auto-selected lease (perfect match), show it with green indicator
+        if (review.selectedLeaseReference && review.leaseOptions && review.leaseOptions.length > 0) {
+            const autoSelected = review.leaseOptions.find(opt => opt.leaseReference === review.selectedLeaseReference);
+            if (autoSelected && autoSelected.matchScore === 100) {
+                html += `
+                    <div class="alert alert-success py-2 px-3" style="font-size: 13px;">
+                        <i class="fas fa-check-circle"></i> <strong>Auto-selected lease:</strong> ${escapeHtml(autoSelected.leaseReference)}
+                        <br><small class="text-muted">
+                            ${escapeHtml(autoSelected.propertyName || '')} | ${escapeHtml(autoSelected.customerName || '')} | £${autoSelected.rentAmount || 'N/A'}
+                        </small>
+                    </div>
+                `;
+            }
+        }
+
+        html += '<div class="row">';
+        html += '<div class="col-md-12"><strong>Lease Agreement:</strong>';
+        if (review.selectedLeaseReference) {
+            html += ' <span class="badge badge-success status-badge ml-2">✓ Linked</span>';
+        }
+        html += '</div>';
+        html += '</div>';
+
+        // Show suggested lease matches as clickable boxes
+        if (review.leaseOptions && review.leaseOptions.length > 0) {
+            html += `<div class="mt-2" id="leaseMatches${index}">`;
+            html += '<small class="text-muted font-weight-bold">AVAILABLE LEASES:</small>';
+            review.leaseOptions.forEach((option, optIndex) => {
+                const selected = review.selectedLeaseReference === option.leaseReference ? 'selected' : '';
+                const startDate = option.leaseStartDate ? new Date(option.leaseStartDate).toLocaleDateString() : 'N/A';
+                const endDate = option.leaseEndDate ? new Date(option.leaseEndDate).toLocaleDateString() : 'Ongoing';
+                html += `
+                    <div class="match-option ${selected}" data-index="${index}" data-lease-ref="${escapeHtml(option.leaseReference)}" onclick="selectLease(${index}, '${escapeHtml(option.leaseReference)}')">
+                        <strong>${escapeHtml(option.leaseReference)}</strong>
+                        ${option.matchScore === 100 ? '<span class="badge badge-success ml-2">Perfect Match</span>' : ''}
+                        <span class="match-score">${option.matchScore}% match</span>
+                        <br>
+                        <small class="text-muted">
+                            ${escapeHtml(option.propertyName || '')} | ${escapeHtml(option.customerName || '')}
+                            <br>
+                            £${option.rentAmount || 'N/A'}/month | ${startDate} - ${endDate}
+                        </small>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        } else {
+            // No leases available
+            html += `<div class="mt-2"><small class="text-muted">No lease agreements found for this property/customer combination.</small></div>`;
+        }
+
+        html += '</div>';
+        return html;
+    }
+
     function renderPaymentSourceSelector(review, index) {
         // Always show payment source selector for every transaction
         let html = `<div class="mt-3">
@@ -1353,6 +1420,42 @@ $(document).ready(function() {
             reviewQueue.reviews[index].selectedCustomerId = null;
             console.log(`⚠️ Cleared selectedCustomerId for index ${index}`);
         }
+        updateReadiness();
+    };
+
+    // Lease selection handler
+    window.selectLease = function(index, leaseReference) {
+        console.log(`📄 Selecting lease "${leaseReference}" for transaction ${index}`);
+
+        reviewQueue.reviews[index].selectedLeaseReference = leaseReference;
+
+        // Update visual state - highlight selected lease
+        $(`#leaseMatches${index} .match-option`).removeClass('selected');
+        $(`#leaseMatches${index} .match-option[data-lease-ref="${leaseReference}"]`).addClass('selected');
+
+        // AUTO-MAP: Find all other transactions with the same CSV lease_reference value
+        const currentCsvLeaseRef = reviewQueue.reviews[index].parsedData?.leaseRef;
+        if (currentCsvLeaseRef && leaseReference) {
+            let autoMappedCount = 0;
+            reviewQueue.reviews.forEach((review, i) => {
+                if (i !== index && review.parsedData?.leaseRef === currentCsvLeaseRef) {
+                    review.selectedLeaseReference = leaseReference;
+                    // Update match options visual state
+                    $(`#leaseMatches${i} .match-option`).removeClass('selected');
+                    $(`#leaseMatches${i} .match-option[data-lease-ref="${leaseReference}"]`).addClass('selected');
+                    autoMappedCount++;
+                }
+            });
+            if (autoMappedCount > 0) {
+                console.log(`🔄 Auto-mapped ${autoMappedCount} other transactions with lease_reference="${currentCsvLeaseRef}"`);
+                showSuccess(`Auto-mapped ${autoMappedCount} other transaction(s) to lease "${leaseReference}"`);
+            }
+        }
+
+        // Save updated review queue to localStorage
+        localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
+        console.log(`💾 Saved lease selection to localStorage: ${leaseReference}`);
+
         updateReadiness();
     };
 
