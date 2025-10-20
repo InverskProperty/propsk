@@ -2326,7 +2326,7 @@ public class PortfolioController {
      */
     private void prepareCreateFormModel(Model model, Authentication authentication) {
         System.out.println("Preparing create form model...");
-        
+
         try {
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 // Managers can see all property owners
@@ -2366,8 +2366,47 @@ public class PortfolioController {
                 }
                 model.addAttribute("isManager", false);
             } else {
+                // DELEGATED USER or other customer-facing user
+                try {
+                    Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+                    if (currentCustomer != null && currentCustomer.getCustomerType() == CustomerType.DELEGATED_USER) {
+                        // Delegated user - find their associated property owner via property assignments
+                        List<Property> delegatedProperties = propertyService.findPropertiesByCustomerAssignments(currentCustomer.getCustomerId());
+
+                        if (!delegatedProperties.isEmpty()) {
+                            // Get the property owner from the first property
+                            Property firstProperty = delegatedProperties.get(0);
+                            Long ownerId = firstProperty.getPropertyOwnerId();
+
+                            if (ownerId != null) {
+                                Customer associatedOwner = customerService.findByCustomerId(ownerId);
+                                if (associatedOwner != null) {
+                                    model.addAttribute("propertyOwners", Arrays.asList(associatedOwner));
+                                    model.addAttribute("currentCustomer", currentCustomer);
+                                    model.addAttribute("isDelegatedUser", true);
+                                    System.out.println("✅ Added associated property owner for delegated user: " + associatedOwner.getName());
+                                } else {
+                                    System.out.println("❌ Could not find property owner customer with ID: " + ownerId);
+                                    model.addAttribute("propertyOwners", new ArrayList<>());
+                                }
+                            } else {
+                                System.out.println("❌ First property has no property_owner_id");
+                                model.addAttribute("propertyOwners", new ArrayList<>());
+                            }
+                        } else {
+                            System.out.println("❌ Delegated user has no property assignments");
+                            model.addAttribute("propertyOwners", new ArrayList<>());
+                        }
+                    } else {
+                        System.out.println("❌ User is not a delegated user or customer not found");
+                        model.addAttribute("propertyOwners", new ArrayList<>());
+                    }
+                } catch (Exception e) {
+                    System.out.println("❌ Error loading delegated user data: " + e.getMessage());
+                    e.printStackTrace();
+                    model.addAttribute("propertyOwners", new ArrayList<>());
+                }
                 model.addAttribute("isManager", false);
-                model.addAttribute("propertyOwners", new ArrayList<>());
             }
             
             model.addAttribute("portfolioTypes", PortfolioType.values());

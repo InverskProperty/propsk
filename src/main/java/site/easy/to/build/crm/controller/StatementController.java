@@ -846,14 +846,17 @@ public class StatementController {
     public ResponseEntity<List<Map<String, String>>> getAvailableAccountSources() {
         try {
             List<Map<String, String>> sources = Arrays.stream(StatementDataSource.values())
-                .map(source -> Map.of(
-                    "key", source.name(),
-                    "displayName", source.getDisplayName(),
-                    "description", source.getDescription(),
-                    "accountSourceValue", source.getAccountSourceValue(),
-                    "isHistorical", String.valueOf(source.isHistorical()),
-                    "isLive", String.valueOf(source.isLive())
-                ))
+                .map(source -> {
+                    Map<String, String> sourceMap = new HashMap<>();
+                    sourceMap.put("key", source.name());
+                    sourceMap.put("displayName", source.getDisplayName());
+                    sourceMap.put("description", source.getDescription());
+                    sourceMap.put("accountSourceValue", source.getAccountSourceValue());
+                    sourceMap.put("isHistorical", String.valueOf(source.isHistorical()));
+                    sourceMap.put("isUnified", String.valueOf(source.isUnified()));
+                    sourceMap.put("isPayProp", String.valueOf(source.isPayProp()));
+                    return sourceMap;
+                })
                 .collect(Collectors.toList());
 
             return ResponseEntity.ok(sources);

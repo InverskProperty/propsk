@@ -119,6 +119,7 @@ public class StatementGenerationRequest {
         if (includedDataSources == null) {
             return false;
         }
-        return includedDataSources.stream().anyMatch(StatementDataSource::isLive);
+        // SIMPLIFIED: PayProp or Unified = live data
+        return includedDataSources.stream().anyMatch(s -> s.isPayProp() || s.isUnified());
     }
 }

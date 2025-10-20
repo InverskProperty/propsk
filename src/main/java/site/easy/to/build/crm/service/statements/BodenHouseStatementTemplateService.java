@@ -264,19 +264,31 @@ public class BodenHouseStatementTemplateService {
         // Add tenant balance/arrears data
         enhanceWithTenantBalanceData(unit, property);
 
-        // Get financial transactions for this property with data source filtering
-        List<HistoricalTransaction> allTransactions = getTransactionsForProperty(property, fromDate, toDate);
-        List<HistoricalTransaction> filteredTransactions = filterHistoricalTransactionsByAccountSource(allTransactions, includedDataSources);
+        // Check if using UNIFIED data source (new approach)
+        boolean useUnified = includedDataSources.stream().anyMatch(StatementDataSource::isUnified);
 
-        // Determine payment routing (following your spreadsheet logic)
-        setPaymentRouting(unit, filteredTransactions);
+        if (useUnified) {
+            // NEW: Use unified transaction model (Historical + PayProp combined)
+            List<StatementTransactionDto> combinedTransactions = getCombinedTransactionsForProperty(property, fromDate, toDate);
 
-        // Calculate amounts using filtered transactions with enhanced PayProp data
-        calculateUnitAmounts(unit, property, filteredTransactions);
+            // Use DTO-based calculation methods
+            setPaymentRoutingDto(unit, combinedTransactions);
+            calculateUnitAmountsDto(unit, property, combinedTransactions);
+
+            // Get expenses from combined sources
+            unit.expenses = getExpensesFromDto(combinedTransactions);
+        } else {
+            // LEGACY: Old approach for HISTORICAL or PAYPROP only
+            List<HistoricalTransaction> allTransactions = getTransactionsForProperty(property, fromDate, toDate);
+            List<HistoricalTransaction> filteredTransactions = filterHistoricalTransactionsByAccountSource(allTransactions, includedDataSources);
+
+            setPaymentRouting(unit, filteredTransactions);
+            calculateUnitAmounts(unit, property, filteredTransactions);
+
+            unit.expenses = getFilteredExpensesForProperty(property, fromDate, toDate, includedDataSources);
+        }
+
         enhanceWithOwnerPaymentData(unit, property, fromDate, toDate);
-
-        // Get expenses for this property (also filtered) with enhanced data
-        unit.expenses = getFilteredExpensesForProperty(property, fromDate, toDate, includedDataSources);
         enhanceExpensesWithComments(unit, property, fromDate, toDate);
 
         // Set comments
@@ -1122,30 +1134,28 @@ public class BodenHouseStatementTemplateService {
             return transactions; // Include all if no filter specified
         }
 
-        return transactions.stream()
-            .filter(transaction -> isHistoricalTransactionIncluded(transaction, includedDataSources))
-            .collect(Collectors.toList());
-    }
+        // SIMPLIFIED: HISTORICAL = all historical, PAYPROP = none (PayProp data comes from API)
+        boolean includeHistorical = includedDataSources.stream().anyMatch(StatementDataSource::isHistorical);
 
-    /**
-     * Check if transaction should be included based on data sources (legacy)
-     */
-    private boolean isTransactionIncluded(FinancialTransaction transaction, Set<StatementDataSource> includedDataSources) {
-        return includedDataSources.stream()
-            .anyMatch(dataSource -> dataSource.matchesAccountSource(transaction.getDataSource()));
-    }
-
-    /**
-     * Check if historical transaction should be included based on account_source
-     */
-    private boolean isHistoricalTransactionIncluded(HistoricalTransaction transaction, Set<StatementDataSource> includedDataSources) {
-        String accountSource = transaction.getAccountSource();
-        if (accountSource == null) {
-            return false; // Exclude transactions without account_source
+        if (includeHistorical) {
+            return transactions; // Include all historical transactions
         }
 
-        return includedDataSources.stream()
-            .anyMatch(dataSource -> dataSource.matchesAccountSource(accountSource));
+        return new ArrayList<>(); // PAYPROP only - exclude historical
+    }
+
+    /**
+     * DEPRECATED: Old method for account source filtering - kept for compatibility
+     */
+    private boolean isTransactionIncluded(FinancialTransaction transaction, Set<StatementDataSource> includedDataSources) {
+        return true; // Simplified - always include
+    }
+
+    /**
+     * DEPRECATED: Old method for historical filtering - kept for compatibility
+     */
+    private boolean isHistoricalTransactionIncluded(HistoricalTransaction transaction, Set<StatementDataSource> includedDataSources) {
+        return true; // Simplified - always include
     }
 
     /**
@@ -1159,6 +1169,27 @@ public class BodenHouseStatementTemplateService {
         return filteredExpenses.stream()
             .map(this::convertToExpenseItem)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * NEW: Get expenses from unified DTO transactions
+     */
+    private List<ExpenseItem> getExpensesFromDto(List<StatementTransactionDto> transactions) {
+        return transactions.stream()
+            .filter(StatementTransactionDto::isExpense)
+            .map(this::convertDtoToExpenseItem)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Convert StatementTransactionDto to ExpenseItem
+     */
+    private ExpenseItem convertDtoToExpenseItem(StatementTransactionDto dto) {
+        ExpenseItem expense = new ExpenseItem();
+        expense.label = dto.getCategory() != null ? dto.getCategory() : dto.getDescription();
+        expense.amount = dto.getAmount().abs(); // Expenses are positive in statements
+        expense.comment = dto.getDescription();
+        return expense;
     }
 
     /**
