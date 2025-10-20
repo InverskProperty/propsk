@@ -2703,6 +2703,22 @@ public class HistoricalTransactionImportService {
 
                 log.info("✅ Successfully imported transaction from line {}", review.getLineNumber());
 
+            } catch (jakarta.validation.ConstraintViolationException cve) {
+                log.error("❌ ❌ ❌ CONSTRAINT VIOLATION ON LINE {}", review.getLineNumber());
+                log.error("❌ Constraint violations:");
+                cve.getConstraintViolations().forEach(violation -> {
+                    log.error("   - Field: {} | Invalid value: {} | Message: {}",
+                        violation.getPropertyPath(),
+                        violation.getInvalidValue(),
+                        violation.getMessage());
+                });
+                log.error("❌ Full exception:", cve);
+
+                String errorMsg = cve.getConstraintViolations().stream()
+                    .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                    .collect(java.util.stream.Collectors.joining(", "));
+                result.addError("Line " + review.getLineNumber() + ": Validation failed - " + errorMsg);
+                result.incrementFailed();
             } catch (Exception e) {
                 log.error("❌ ❌ ❌ EXCEPTION OCCURRED WHILE PROCESSING LINE {}", review.getLineNumber());
                 log.error("❌ Exception type: {}", e.getClass().getName());
