@@ -2181,19 +2181,24 @@ public class PayPropSyncOrchestrator {
                 return relationships;
             }
             
-            // Query raw beneficiaries export data
+            // Query beneficiaries with their properties from the properties_json field
+            // This extracts property relationships from the JSON array stored with each beneficiary
             String sql = """
                 SELECT DISTINCT
-                    b.payprop_id as owner_id,
-                    p.payprop_id as property_id,
+                    bc.payprop_id as owner_id,
+                    JSON_UNQUOTE(JSON_EXTRACT(property, '$.id')) as property_id,
                     'OWNER' as ownership_type,
                     100.0 as ownership_percentage
-                FROM payprop_export_beneficiaries b
-                CROSS JOIN payprop_export_properties p
-                WHERE b.payprop_id IS NOT NULL
-                AND p.payprop_id IS NOT NULL
-                AND b.beneficiary_type = 'beneficiary'
-                LIMIT 100
+                FROM payprop_export_beneficiaries_complete bc
+                CROSS JOIN JSON_TABLE(
+                    bc.properties_json,
+                    '$[*]' COLUMNS(
+                        property JSON PATH '$'
+                    )
+                ) as properties
+                WHERE bc.payprop_id IS NOT NULL
+                AND bc.properties_json IS NOT NULL
+                AND JSON_LENGTH(bc.properties_json) > 0
                 """;
                 
             jdbcTemplate.query(sql, rs -> {
