@@ -2649,10 +2649,39 @@ public class HistoricalTransactionImportService {
 
                 // Create transaction
                 log.info("🔨 Creating HistoricalTransaction entity...");
+
+                // Ensure description is not blank - generate default if needed
+                String finalDescription = description;
+                if (finalDescription == null || finalDescription.trim().isEmpty()) {
+                    // Generate smart default based on transaction type and context
+                    StringBuilder defaultDesc = new StringBuilder();
+
+                    if (transactionType != null) {
+                        defaultDesc.append(transactionType.getDisplayName());
+                    } else {
+                        defaultDesc.append("Transaction");
+                    }
+
+                    if (property != null) {
+                        defaultDesc.append(" - ").append(property.getPropertyName());
+                    }
+
+                    if (customer != null) {
+                        defaultDesc.append(" - ").append(customer.getName());
+                    }
+
+                    if (category != null && !category.isEmpty()) {
+                        defaultDesc.append(" (").append(category).append(")");
+                    }
+
+                    finalDescription = defaultDesc.toString();
+                    log.warn("⚠️ Description was blank - generated default: '{}'", finalDescription);
+                }
+
                 HistoricalTransaction transaction = new HistoricalTransaction();
                 transaction.setTransactionDate(transactionDate);
                 transaction.setAmount(amount);
-                transaction.setDescription(description);
+                transaction.setDescription(finalDescription);
                 transaction.setTransactionType(transactionType);
                 transaction.setCategory(category);  // Set category field
                 transaction.setProperty(property);

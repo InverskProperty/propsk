@@ -507,8 +507,9 @@ public class PayPropEntityResolutionService {
             } else if (displayName != null && !displayName.trim().isEmpty()) {
                 customer.setName(displayName);
             } else {
-                customer.setName("Unnamed Business");
-                log.warn("Creating business customer without business_name or display_name: {}", data.get("id"));
+                customer.setName("Unnamed Business (Incomplete Data - Needs Review)");
+                log.error("⚠️ CRITICAL: Creating business customer with NO business_name or display_name! PayProp ID: {}", data.get("id"));
+                log.error("⚠️ This business beneficiary has incomplete data and should be reviewed manually");
             }
         }
 
@@ -547,9 +548,10 @@ public class PayPropEntityResolutionService {
             return "Customer - " + email;
         }
 
-        // Priority 4: Absolute fallback
-        log.error("Creating customer with no name information at all");
-        return "Unnamed Customer";
+        // Priority 4: Absolute fallback - this indicates incomplete data from PayProp
+        log.error("⚠️ CRITICAL: Creating customer with NO name information! This beneficiary has incomplete data and should be reviewed manually.");
+        log.error("⚠️ Recommendation: Skip import or mark for manual data entry");
+        return "Unnamed Customer (Incomplete Data - Needs Review)";
     }
 
     /**

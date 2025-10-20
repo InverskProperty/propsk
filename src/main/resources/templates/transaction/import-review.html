@@ -654,6 +654,16 @@ $(document).ready(function() {
                                onchange="updateDescription(${index})">
                     </div>
                 </div>
+                <div class="row mt-2">
+                    <div class="col-md-12">
+                        <label class="small font-weight-bold mb-0">Category (Optional):</label>
+                        <input type="text" class="form-control form-control-sm" id="category${index}"
+                               value="${escapeHtml(data.category || '')}"
+                               placeholder="e.g., rent, owner_payment, maintenance..."
+                               onchange="updateCategory(${index})">
+                        <small class="form-text text-muted">Examples: rent, owner_payment, agency_fee, maintenance, utilities</small>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -1531,6 +1541,21 @@ $(document).ready(function() {
             }
             reviewQueue.reviews[index].overrides.description = newDescription;
             console.log(`✏️ Updated description to "${newDescription}" for line ${index}`);
+            localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
+        }
+    };
+
+    // Update category from input
+    window.updateCategory = function(index) {
+        const newCategory = $(`#category${index}`).val();
+        if (reviewQueue.reviews[index]) {
+            reviewQueue.reviews[index].parsedData.category = newCategory;
+            // Store updated category for backend
+            if (!reviewQueue.reviews[index].overrides) {
+                reviewQueue.reviews[index].overrides = {};
+            }
+            reviewQueue.reviews[index].overrides.category = newCategory;
+            console.log(`✏️ Updated category to "${newCategory}" for line ${index}`);
             localStorage.setItem('reviewData', JSON.stringify(reviewQueue));
         }
     };
