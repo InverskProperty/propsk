@@ -31,6 +31,7 @@ import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
+import site.easy.to.build.crm.service.payprop.PayPropInvoiceLinkingService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.io.BufferedReader;
@@ -89,7 +90,10 @@ public class HistoricalTransactionImportService {
 
     @Autowired
     private site.easy.to.build.crm.service.user.UserService userService;
-    
+
+    @Autowired
+    private PayPropInvoiceLinkingService payPropInvoiceLinkingService;
+
     private final ObjectMapper objectMapper;
     
     public HistoricalTransactionImportService() {
@@ -226,6 +230,60 @@ public class HistoricalTransactionImportService {
 
         // ENHANCED: Set beneficiary, tenant, owner based on category and customer
         setContextualCustomerFields(transaction);
+
+        // Link to lease - Try explicit lease_reference first, then intelligent matching
+        Invoice lease = null;
+        String leaseRef = node.has("lease_reference") ? node.get("lease_reference").asText() : null;
+
+        // Strategy 1: Explicit lease reference lookup
+        if (leaseRef != null && !leaseRef.isEmpty()) {
+            Optional<Invoice> leaseOpt = invoiceRepository.findByLeaseReference(leaseRef.trim());
+            if (leaseOpt.isPresent()) {
+                lease = leaseOpt.get();
+                log.debug("✅ JSON transaction linked to lease via reference: {}", leaseRef);
+            } else {
+                log.warn("⚠️ JSON: Lease reference '{}' not found - attempting intelligent matching", leaseRef);
+            }
+        }
+
+        // Strategy 2: Intelligent matching fallback (for rent transactions with property/customer/date)
+        if (lease == null && transaction.getCategory() != null &&
+            "rent".equalsIgnoreCase(transaction.getCategory().trim()) &&
+            transaction.getProperty() != null && transaction.getTransactionDate() != null) {
+
+            String tenantPayPropId = null;
+            if (transaction.getCustomer() != null &&
+                transaction.getCustomer().getPayPropEntityId() != null) {
+                tenantPayPropId = transaction.getCustomer().getPayPropEntityId();
+            }
+
+            lease = payPropInvoiceLinkingService.findInvoiceForTransaction(
+                transaction.getProperty(),
+                tenantPayPropId,
+                transaction.getTransactionDate()
+            );
+
+            if (lease != null) {
+                log.info("✅ JSON: Auto-matched lease {} for rent transaction: property={}, customer={}, date={}",
+                         lease.getLeaseReference(),
+                         transaction.getProperty().getPropertyName(),
+                         transaction.getCustomer() != null ? transaction.getCustomer().getName() : "unknown",
+                         transaction.getTransactionDate());
+            } else {
+                log.warn("⚠️ JSON: Could not auto-match lease for rent transaction: property={}, customer={}, date={} - transaction will import without lease link",
+                         transaction.getProperty().getPropertyName(),
+                         transaction.getCustomer() != null ? transaction.getCustomer().getName() : "unknown",
+                         transaction.getTransactionDate());
+            }
+        }
+
+        // Set lease details if matched
+        if (lease != null) {
+            transaction.setInvoice(lease);
+            transaction.setLeaseStartDate(lease.getStartDate());
+            transaction.setLeaseEndDate(lease.getEndDate());
+            transaction.setRentAmountAtTransaction(lease.getAmount());
+        }
 
         // AUTO-POPULATE: For rent payments, automatically set incoming_transaction_amount
         if (!node.has("incoming_transaction_amount")) {
@@ -842,20 +900,58 @@ public class HistoricalTransactionImportService {
         // ENHANCED: Set beneficiary, tenant, owner based on category and customer
         setContextualCustomerFields(transaction);
 
-        // Link to lease if lease_reference is provided
+        // Link to lease - Try explicit lease_reference first, then intelligent matching
+        Invoice lease = null;
         String leaseRef = getValue(values, columnMap, "lease_reference");
+
+        // Strategy 1: Explicit lease reference lookup
         if (leaseRef != null && !leaseRef.isEmpty()) {
-            Optional<Invoice> lease = invoiceRepository.findByLeaseReference(leaseRef.trim());
-            if (lease.isPresent()) {
-                Invoice leaseEntity = lease.get();
-                transaction.setInvoice(leaseEntity);
-                transaction.setLeaseStartDate(leaseEntity.getStartDate());
-                transaction.setLeaseEndDate(leaseEntity.getEndDate());
-                transaction.setRentAmountAtTransaction(leaseEntity.getAmount());
-                log.debug("✅ Transaction linked to lease: {}", leaseRef);
+            Optional<Invoice> leaseOpt = invoiceRepository.findByLeaseReference(leaseRef.trim());
+            if (leaseOpt.isPresent()) {
+                lease = leaseOpt.get();
+                log.debug("✅ Transaction linked to lease via reference: {}", leaseRef);
             } else {
-                log.warn("⚠️ Lease reference '{}' not found - transaction will import without lease link", leaseRef);
+                log.warn("⚠️ Lease reference '{}' not found - attempting intelligent matching", leaseRef);
             }
+        }
+
+        // Strategy 2: Intelligent matching fallback (for rent transactions with property/customer/date)
+        if (lease == null && transaction.getCategory() != null &&
+            "rent".equalsIgnoreCase(transaction.getCategory().trim()) &&
+            transaction.getProperty() != null && transaction.getTransactionDate() != null) {
+
+            String tenantPayPropId = null;
+            if (transaction.getCustomer() != null &&
+                transaction.getCustomer().getPayPropEntityId() != null) {
+                tenantPayPropId = transaction.getCustomer().getPayPropEntityId();
+            }
+
+            lease = payPropInvoiceLinkingService.findInvoiceForTransaction(
+                transaction.getProperty(),
+                tenantPayPropId,
+                transaction.getTransactionDate()
+            );
+
+            if (lease != null) {
+                log.info("✅ Auto-matched lease {} for rent transaction: property={}, customer={}, date={}",
+                         lease.getLeaseReference(),
+                         transaction.getProperty().getPropertyName(),
+                         transaction.getCustomer() != null ? transaction.getCustomer().getName() : "unknown",
+                         transaction.getTransactionDate());
+            } else {
+                log.warn("⚠️ Could not auto-match lease for rent transaction: property={}, customer={}, date={} - transaction will import without lease link",
+                         transaction.getProperty().getPropertyName(),
+                         transaction.getCustomer() != null ? transaction.getCustomer().getName() : "unknown",
+                         transaction.getTransactionDate());
+            }
+        }
+
+        // Set lease details if matched
+        if (lease != null) {
+            transaction.setInvoice(lease);
+            transaction.setLeaseStartDate(lease.getStartDate());
+            transaction.setLeaseEndDate(lease.getEndDate());
+            transaction.setRentAmountAtTransaction(lease.getAmount());
         }
 
         return transaction;
