@@ -73,35 +73,90 @@ public class PortfolioControllerBase {
     // ===== SHARED UTILITY METHODS =====
     
     /**
-     * Check if user can edit a specific portfolio
+     * Check if user has access to view a portfolio (supports delegated users)
      */
-    protected boolean canUserEditPortfolio(Long portfolioId, Authentication authentication) {
-        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") || 
+    protected boolean hasPortfolioAccess(Long portfolioId, Authentication authentication) {
+        // Managers and employees always have access
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
             AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
             return true;
         }
-        
+
         try {
             Portfolio portfolio = portfolioService.findById(portfolioId);
             if (portfolio == null) return false;
-            
+
             // Handle customer authentication
-            if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") || 
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") ||
+                AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+
+                String email = null;
+                if (authentication.getPrincipal() instanceof OAuth2User) {
+                    email = ((OAuth2User) authentication.getPrincipal()).getAttribute("email");
+                } else {
+                    email = authentication.getName();
+                }
+
+                if (email != null) {
+                    Customer customer = customerService.findByEmail(email);
+                    if (customer != null) {
+                        // Direct owner check
+                        if (portfolio.getPropertyOwnerId() != null &&
+                            portfolio.getPropertyOwnerId().equals(customer.getCustomerId().intValue())) {
+                            return true;
+                        }
+
+                        // Delegated user check
+                        if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
+                            java.util.List<Property> delegatedProperties =
+                                propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+
+                            boolean hasOwnerProperties = delegatedProperties.stream()
+                                .anyMatch(p -> p.getPropertyOwnerId() != null &&
+                                             p.getPropertyOwnerId().equals(portfolio.getPropertyOwnerId()));
+
+                            return hasOwnerProperties;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if user can edit a specific portfolio
+     */
+    protected boolean canUserEditPortfolio(Long portfolioId, Authentication authentication) {
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
+            AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE")) {
+            return true;
+        }
+
+        try {
+            Portfolio portfolio = portfolioService.findById(portfolioId);
+            if (portfolio == null) return false;
+
+            // Handle customer authentication
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") ||
                 AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
                 String email = ((OAuth2User) authentication.getPrincipal()).getAttribute("email");
                 if (email != null) {
                     Customer customer = customerService.findByEmail(email);
                     if (customer != null) {
                         Long customerId = Long.valueOf(customer.getCustomerId());
-                        return portfolio.getPropertyOwnerId() != null && 
+                        return portfolio.getPropertyOwnerId() != null &&
                                portfolio.getPropertyOwnerId().equals(customerId.intValue());
                     }
                 }
             }
-            
+
             // Fallback for User entities
             int userId = authenticationUtils.getLoggedInUserId(authentication);
-            return portfolio.getPropertyOwnerId() != null && 
+            return portfolio.getPropertyOwnerId() != null &&
                    portfolio.getPropertyOwnerId().equals(userId);
         } catch (Exception e) {
             return false;

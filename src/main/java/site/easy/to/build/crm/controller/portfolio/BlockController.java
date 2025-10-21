@@ -261,8 +261,15 @@ public class BlockController extends PortfolioControllerBase {
     @ResponseBody
     public ResponseEntity<?> getBlocksWithPropertyCounts(@PathVariable Long portfolioId, Authentication auth) {
         log.info("📊 Getting blocks with property counts for portfolio {}", portfolioId);
-        
+
         try {
+            // Check portfolio access for customers
+            if (!hasPortfolioAccess(portfolioId, auth)) {
+                log.warn("❌ Access denied to portfolio {} blocks", portfolioId);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Access denied to this portfolio"));
+            }
+
             List<BlockWithPropertyCount> blocksWithCounts = portfolioBlockService.getBlocksWithPropertyCounts(portfolioId);
             
             List<Map<String, Object>> blockResponses = blocksWithCounts.stream()
