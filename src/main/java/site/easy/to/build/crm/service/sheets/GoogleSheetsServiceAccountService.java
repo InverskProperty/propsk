@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.FinancialTransaction;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.Invoice;
@@ -866,8 +867,18 @@ public class GoogleSheetsServiceAccountService {
         data.setToDate(toDate);
         data.setPortfolioName("PROPERTY PORTFOLIO");
 
-        // Get properties for this owner
-        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        // Get properties - handle both property owners and delegated users
+        List<Property> properties;
+        if (propertyOwner.getCustomerType() == CustomerType.DELEGATED_USER) {
+            // For delegated users, get properties they have access to via customer_property_assignments
+            System.out.println("📊 Delegated user detected - loading assigned properties for customer: " + propertyOwner.getCustomerId());
+            properties = propertyService.findPropertiesByCustomerAssignments(propertyOwner.getCustomerId());
+        } else {
+            // For property owners, get their owned properties
+            System.out.println("📊 Property owner detected - loading owned properties for customer: " + propertyOwner.getCustomerId());
+            properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        }
+        System.out.println("📊 Found " + properties.size() + " properties for statement");
         data.setProperties(properties);
 
         // Build rental data for each property

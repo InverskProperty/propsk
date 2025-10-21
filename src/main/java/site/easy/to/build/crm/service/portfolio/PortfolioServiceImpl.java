@@ -15,6 +15,8 @@ import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
+import site.easy.to.build.crm.service.financial.UnifiedFinancialDataService;
+import site.easy.to.build.crm.dto.StatementTransactionDto;
 // Removed TagNamespaceService import - using direct tag generation to match PayPropPortfolioSyncService
 
 import java.math.BigDecimal;
@@ -58,9 +60,13 @@ public class PortfolioServiceImpl implements PortfolioService {
     
     @Autowired(required = false)
     private PayPropOAuth2Service payPropOAuth2Service;
-    
+
+    // Add UnifiedFinancialDataService for actual transaction data
+    @Autowired(required = false)
+    private UnifiedFinancialDataService unifiedFinancialDataService;
+
     // Removed TagNamespaceService autowiring - using direct tag generation to match PayPropPortfolioSyncService
-    
+
     @Value("${payprop.enabled:false}")
     private boolean payPropEnabled;
     
@@ -611,25 +617,51 @@ public class PortfolioServiceImpl implements PortfolioService {
         BigDecimal actualIncome = BigDecimal.ZERO;
         int totalTenants = 0;
         int syncedProperties = 0;
-        
+
+        // Calculate date range for last month of actual data
+        LocalDate endDate = calculationDate;
+        LocalDate startDate = calculationDate.minusMonths(1);
+
         for (Property property : properties) {
             if (property.isActive()) {
                 // Check occupancy using your existing tenant service
                 List<Tenant> activeTenantsForProperty = tenantService.findActiveTenantsForProperty(property.getId());
                 if (!activeTenantsForProperty.isEmpty()) {
                     occupiedCount++;
-                    actualIncome = actualIncome.add(property.getMonthlyPayment() != null ? 
-                        property.getMonthlyPayment() : BigDecimal.ZERO);
                     totalTenants += activeTenantsForProperty.size();
+
+                    // Get ACTUAL rent received from UnifiedFinancialDataService
+                    if (unifiedFinancialDataService != null) {
+                        try {
+                            List<StatementTransactionDto> transactions = unifiedFinancialDataService
+                                .getPropertyTransactions(property, startDate, endDate);
+
+                            BigDecimal rentReceived = transactions.stream()
+                                .filter(StatementTransactionDto::isRentPayment)
+                                .map(StatementTransactionDto::getAmount)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                            actualIncome = actualIncome.add(rentReceived);
+                        } catch (Exception e) {
+                            System.err.println("Error getting actual rent for property " + property.getId() + ": " + e.getMessage());
+                            // Fallback to monthly payment field
+                            actualIncome = actualIncome.add(property.getMonthlyPayment() != null ?
+                                property.getMonthlyPayment() : BigDecimal.ZERO);
+                        }
+                    } else {
+                        // Fallback if service not available
+                        actualIncome = actualIncome.add(property.getMonthlyPayment() != null ?
+                            property.getMonthlyPayment() : BigDecimal.ZERO);
+                    }
                 } else {
                     vacantCount++;
                 }
-                
-                // Calculate total rent potential
+
+                // Calculate total rent potential (expected rent from all properties)
                 if (property.getMonthlyPayment() != null) {
                     totalRent = totalRent.add(property.getMonthlyPayment());
                 }
-                
+
                 // PayProp sync status (only check if PayProp is enabled)
                 if (payPropEnabled && property.isPayPropSynced()) {
                     syncedProperties++;
