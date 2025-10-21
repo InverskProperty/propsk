@@ -75,12 +75,14 @@ public class LeaseBalanceCalculationService {
                 return calculateQuarterlyRentDue(lease.getAmount(), effectiveStart, effectiveEnd);
             case yearly:
                 return calculateYearlyRentDue(lease.getAmount(), effectiveStart, effectiveEnd);
-            case once_off:
+            case one_time:
                 // If lease start is within period, charge full amount
                 if (!leaseStart.isBefore(periodStart) && !leaseStart.isAfter(periodEnd)) {
                     return lease.getAmount();
                 }
                 return BigDecimal.ZERO;
+            case daily:
+                return calculateDailyRentDue(lease.getAmount(), effectiveStart, effectiveEnd);
             default:
                 return BigDecimal.ZERO;
         }
@@ -146,6 +148,14 @@ public class LeaseBalanceCalculationService {
         // Prorate for partial year
         BigDecimal dailyRate = yearlyAmount.divide(new BigDecimal("365"), 6, RoundingMode.HALF_UP);
         return dailyRate.multiply(new BigDecimal(days)).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Calculate daily rent due
+     */
+    private BigDecimal calculateDailyRentDue(BigDecimal dailyAmount, LocalDate start, LocalDate end) {
+        long days = ChronoUnit.DAYS.between(start, end) + 1; // Inclusive
+        return dailyAmount.multiply(new BigDecimal(days)).setScale(2, RoundingMode.HALF_UP);
     }
 
     /**
