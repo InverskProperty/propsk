@@ -14,12 +14,17 @@ import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.FinancialTransaction;
 import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
+import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.enums.StatementDataSource;
 import site.easy.to.build.crm.util.RentCyclePeriodCalculator;
 import site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod;
+import site.easy.to.build.crm.service.financial.UnifiedFinancialDataService;
+import site.easy.to.build.crm.service.invoice.RentCalculationService;
+import site.easy.to.build.crm.dto.StatementTransactionDto;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -36,6 +41,9 @@ public class GoogleSheetsServiceAccountService {
     private final CustomerService customerService;
     private final PropertyService propertyService;
     private final FinancialTransactionRepository financialTransactionRepository;
+    private final UnifiedFinancialDataService unifiedFinancialDataService;
+    private final RentCalculationService rentCalculationService;
+    private final InvoiceRepository invoiceRepository;
 
     @Value("${GOOGLE_SERVICE_ACCOUNT_KEY}")
     private String serviceAccountKey;
@@ -46,10 +54,16 @@ public class GoogleSheetsServiceAccountService {
     @Autowired
     public GoogleSheetsServiceAccountService(CustomerService customerService,
                                            PropertyService propertyService,
-                                           FinancialTransactionRepository financialTransactionRepository) {
+                                           FinancialTransactionRepository financialTransactionRepository,
+                                           UnifiedFinancialDataService unifiedFinancialDataService,
+                                           RentCalculationService rentCalculationService,
+                                           InvoiceRepository invoiceRepository) {
         this.customerService = customerService;
         this.propertyService = propertyService;
         this.financialTransactionRepository = financialTransactionRepository;
+        this.unifiedFinancialDataService = unifiedFinancialDataService;
+        this.rentCalculationService = rentCalculationService;
+        this.invoiceRepository = invoiceRepository;
     }
 
     /**
@@ -880,15 +894,45 @@ public class GoogleSheetsServiceAccountService {
         rentalData.setUnitNumber(extractUnitNumber(property));
         rentalData.setProperty(property);
 
-        // Get tenant info
-        Customer tenant = getTenantForProperty(property.getId());
+        // Get tenant info from active lease
+        Invoice activeLease = getActiveLeaseForProperty(property.getId(), fromDate, toDate);
+        Customer tenant = null;
+        if (activeLease != null && activeLease.getCustomer() != null) {
+            tenant = activeLease.getCustomer();
+            rentalData.setStartDate(activeLease.getStartDate());
+        } else {
+            // Fallback to old method
+            tenant = getTenantForProperty(property.getId());
+            rentalData.setStartDate(tenant != null ? tenant.getMoveInDate() : null);
+        }
         rentalData.setTenantName(tenant != null ? tenant.getName() : "Vacant");
-        rentalData.setStartDate(tenant != null ? tenant.getMoveInDate() : null);
 
-        // Set rent amounts
-        BigDecimal monthlyRent = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
-        rentalData.setRentAmount(monthlyRent);
-        rentalData.setRentDue(monthlyRent);
+        // Calculate ACTUAL rent due from invoices/leases using RentCalculationService
+        BigDecimal rentDue = BigDecimal.ZERO;
+        try {
+            rentDue = rentCalculationService.calculateTotalRentDue(property.getId(), fromDate, toDate);
+            System.out.println("📊 Property " + property.getPropertyName() + " rent DUE: £" + rentDue);
+        } catch (Exception e) {
+            System.err.println("Error calculating rent due for property " + property.getId() + ": " + e.getMessage());
+        }
+        rentalData.setRentDue(rentDue);
+
+        // Get ACTUAL rent received from unified data (both historical + PayProp)
+        BigDecimal rentReceived = BigDecimal.ZERO;
+        try {
+            List<StatementTransactionDto> transactions = unifiedFinancialDataService
+                .getPropertyTransactions(property, fromDate, toDate);
+
+            rentReceived = transactions.stream()
+                .filter(StatementTransactionDto::isRentPayment)
+                .map(StatementTransactionDto::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            System.out.println("📊 Property " + property.getPropertyName() + " rent RECEIVED: £" + rentReceived);
+        } catch (Exception e) {
+            System.err.println("Error calculating rent received for property " + property.getId() + ": " + e.getMessage());
+        }
+        rentalData.setRentAmount(rentReceived);
 
         // Set fee percentages
         BigDecimal managementPercentage = property.getCommissionPercentage() != null ?
@@ -899,6 +943,30 @@ public class GoogleSheetsServiceAccountService {
         rentalData.setServiceFeePercentage(servicePercentage);
 
         return rentalData;
+    }
+
+    /**
+     * Get active lease for a property during the specified date range
+     */
+    private Invoice getActiveLeaseForProperty(Long propertyId, LocalDate fromDate, LocalDate toDate) {
+        try {
+            Property property = propertyService.getPropertyById(propertyId);
+            if (property == null) {
+                return null;
+            }
+
+            List<Invoice> leases = invoiceRepository.findByProperty(property);
+
+            // Find lease that overlaps with the statement period
+            return leases.stream()
+                .filter(lease -> lease.getStartDate() != null && lease.getEndDate() != null)
+                .filter(lease -> !lease.getStartDate().isAfter(toDate) && !lease.getEndDate().isBefore(fromDate))
+                .findFirst()
+                .orElse(null);
+        } catch (Exception e) {
+            System.err.println("Error finding active lease for property " + propertyId + ": " + e.getMessage());
+            return null;
+        }
     }
 
     private List<List<Object>> buildEnhancedPropertyOwnerStatementValues(PropertyOwnerStatementData data) {
@@ -1265,13 +1333,34 @@ public class GoogleSheetsServiceAccountService {
     }
 
     private BigDecimal calculateTotalRent(List<Property> properties, LocalDate fromDate, LocalDate toDate) {
-        return properties.stream()
-            .filter(property -> property.getMonthlyPayment() != null)
-            .map(Property::getMonthlyPayment)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Use unified data service to get actual rent RECEIVED from both historical and PayProp data
+        BigDecimal totalRentReceived = BigDecimal.ZERO;
+
+        for (Property property : properties) {
+            try {
+                // Get all transactions for this property in the date range
+                List<StatementTransactionDto> transactions = unifiedFinancialDataService
+                    .getPropertyTransactions(property, fromDate, toDate);
+
+                // Sum up rent payments (incoming transactions)
+                BigDecimal propertyRent = transactions.stream()
+                    .filter(StatementTransactionDto::isRentPayment)
+                    .map(StatementTransactionDto::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                totalRentReceived = totalRentReceived.add(propertyRent);
+
+                System.out.println("📊 Property " + property.getPropertyName() + " rent received: £" + propertyRent);
+            } catch (Exception e) {
+                System.err.println("Error calculating rent for property " + property.getId() + ": " + e.getMessage());
+            }
+        }
+
+        return totalRentReceived;
     }
 
     private BigDecimal calculateTotalExpenses(List<Property> properties, LocalDate fromDate, LocalDate toDate) {
+        // Use unified data service to get actual expenses from both historical and PayProp data
         BigDecimal totalExpenses = BigDecimal.ZERO;
 
         for (Property property : properties) {
@@ -1283,13 +1372,19 @@ public class GoogleSheetsServiceAccountService {
 
     private BigDecimal calculatePropertyExpenses(Property property, LocalDate fromDate, LocalDate toDate) {
         try {
-            String propertyPayPropId = property.getPayPropId();
-            if (propertyPayPropId != null) {
-                return financialTransactionRepository
-                    .sumExpensesForProperty(propertyPayPropId, fromDate, toDate);
-            }
+            // Get all transactions for this property in the date range
+            List<StatementTransactionDto> transactions = unifiedFinancialDataService
+                .getPropertyTransactions(property, fromDate, toDate);
 
-            return BigDecimal.ZERO;
+            // Sum up expenses (use absolute value since expenses are stored as negative)
+            BigDecimal propertyExpenses = transactions.stream()
+                .filter(StatementTransactionDto::isExpense)
+                .map(tx -> tx.getAmount().abs())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            System.out.println("📊 Property " + property.getPropertyName() + " expenses: £" + propertyExpenses);
+
+            return propertyExpenses;
         } catch (Exception e) {
             System.err.println("Error calculating expenses for property " + property.getId() + ": " + e.getMessage());
             return BigDecimal.ZERO;
