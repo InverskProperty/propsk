@@ -915,6 +915,41 @@ public class PropertyOwnerController {
             // Get unified financial summary (last 2 years)
             Map<String, Object> financialSummary = unifiedFinancialDataService.getPropertyFinancialSummary(property);
 
+            // FILTER transactions to show ONLY rent payments FROM tenant (not owner payments or commissions)
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> allTransactions = (List<Map<String, Object>>) financialSummary.get("recentTransactions");
+            if (allTransactions != null) {
+                List<Map<String, Object>> rentPaymentsOnly = allTransactions.stream()
+                    .filter(tx -> {
+                        String category = (String) tx.get("category");
+                        String type = (String) tx.get("type");
+                        String description = (String) tx.get("description");
+
+                        // Only include RENT PAYMENTS (incoming from tenant)
+                        // EXCLUDE: Owner payments, Commission, expenses
+                        if (category != null) {
+                            String catLower = category.toLowerCase();
+                            if (catLower.contains("owner") || catLower.contains("commission") ||
+                                catLower.contains("agency") || catLower.contains("beneficiary")) {
+                                return false;
+                            }
+                        }
+
+                        if (description != null) {
+                            String descLower = description.toLowerCase();
+                            if (descLower.contains("landlord payment") || descLower.contains("management fee")) {
+                                return false;
+                            }
+                        }
+
+                        // Include rent payments and similar incoming transactions
+                        return true;
+                    })
+                    .collect(java.util.stream.Collectors.toList());
+
+                financialSummary.put("recentTransactions", rentPaymentsOnly);
+            }
+
             // Add property info
             Map<String, Object> response = new HashMap<>();
             response.put("propertyId", property.getId());

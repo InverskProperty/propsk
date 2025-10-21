@@ -1025,11 +1025,17 @@ public class GoogleSheetsServiceAccountService {
         int dataStartRow = values.size() + 1;
 
         for (PropertyRentalData rental : data.getRentalData()) {
-            List<FinancialTransaction> transactions = financialTransactionRepository
-                .findPropertyTransactionsForStatement(rental.getProperty().getPayPropId(), data.getFromDate(), data.getToDate());
+            // IMPORTANT: Use the already-calculated values from UnifiedFinancialDataService
+            // Do NOT recalculate from FinancialTransaction (PayProp only) - causes duplicates!
+            BigDecimal rentDue = rental.getRentDue();
+            BigDecimal rentReceived = rental.getRentAmount();  // This was calculated using UnifiedFinancialDataService
 
-            BigDecimal rentDue = rental.getRentDue();  // Fixed: was using getRentAmount() which contains rentReceived
-            BigDecimal rentReceived = calculateActualRentReceived(transactions);
+            // Still need PayProp transactions for dates and batch info
+            List<FinancialTransaction> transactions = new ArrayList<>();
+            if (rental.getProperty().getPayPropId() != null) {
+                transactions = financialTransactionRepository
+                    .findPropertyTransactionsForStatement(rental.getProperty().getPayPropId(), data.getFromDate(), data.getToDate());
+            }
 
             int currentRow = values.size() + 1;
             String managementFeeFormula = "=-F" + currentRow + "*0.1";
