@@ -76,7 +76,7 @@
                                             <tbody>
                                                 <tr th:each="portfolio : ${portfolios}">
                                                     <td th:text="${portfolio.name}">Portfolio Name</td>
-                                                    <td th:text="${portfolio.properties?.size() ?: 0}">0</td>
+                                                    <td th:text="${portfolioPropertyCounts[portfolio.id] ?: 0}">0</td>
                                                     <td><span class="badge bg-success">Active</span></td>
                                                     <td>
                                                         <a th:href="@{/portfolio/{id}(id=${portfolio.id})}" class="btn btn-sm btn-primary">View Details</a>

@@ -1510,15 +1510,32 @@ public class PropertyOwnerController {
                     } else {
                         portfolios = portfolioService.findPortfoliosForPropertyOwnerWithBlocks(customer.getCustomerId());
                     }
+
+                    // Add property counts for each portfolio
+                    java.util.Map<Long, Integer> portfolioPropertyCounts = new java.util.HashMap<>();
+                    for (Portfolio portfolio : portfolios) {
+                        try {
+                            List<Property> portfolioProperties = portfolioService.getPropertiesForPortfolio(portfolio.getId());
+                            portfolioPropertyCounts.put(portfolio.getId(), portfolioProperties.size());
+                            System.out.println("📊 Portfolio " + portfolio.getName() + " has " + portfolioProperties.size() + " properties");
+                        } catch (Exception e) {
+                            System.err.println("Error getting properties for portfolio " + portfolio.getId() + ": " + e.getMessage());
+                            portfolioPropertyCounts.put(portfolio.getId(), 0);
+                        }
+                    }
+
                     model.addAttribute("portfolios", portfolios);
+                    model.addAttribute("portfolioPropertyCounts", portfolioPropertyCounts);
                     model.addAttribute("portfolioSystemEnabled", true);
                 } else {
                     model.addAttribute("portfolios", List.of());
+                    model.addAttribute("portfolioPropertyCounts", new java.util.HashMap<>());
                     model.addAttribute("portfolioSystemEnabled", false);
                 }
             } catch (Exception e) {
                 System.err.println("Error loading portfolio data: " + e.getMessage());
                 model.addAttribute("portfolios", List.of());
+                model.addAttribute("portfolioPropertyCounts", new java.util.HashMap<>());
                 model.addAttribute("portfolioSystemEnabled", false);
             }
             

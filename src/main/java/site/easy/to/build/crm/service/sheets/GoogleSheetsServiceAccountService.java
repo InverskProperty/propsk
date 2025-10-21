@@ -879,12 +879,7 @@ public class GoogleSheetsServiceAccountService {
             properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
         }
 
-        // CRITICAL: Filter out BLOCK properties (virtual properties used for grouping, not actual rentable units)
-        properties = properties.stream()
-            .filter(p -> !"BLOCK".equals(p.getPropertyType()))
-            .collect(Collectors.toList());
-
-        System.out.println("📊 Found " + properties.size() + " rentable properties for statement (excluded BLOCK properties)");
+        System.out.println("📊 Found " + properties.size() + " properties for statement (including BLOCK properties for expenses)");
         data.setProperties(properties);
 
         // Build rental data for each property
