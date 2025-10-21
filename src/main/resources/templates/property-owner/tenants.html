@@ -368,7 +368,9 @@
                                                         data-end-date=${assignment.endDate != null ? #temporals.format(assignment.endDate, 'dd/MM/yyyy') : 'Ongoing'}">
                                             <i class="fas fa-eye"></i> View Details
                                         </button>
-                                        <button class="btn btn-outline-secondary btn-sm ml-2" onclick="showComingSoon('Rent History')">
+                                        <button class="btn btn-outline-secondary btn-sm ml-2"
+                                                th:attr="data-property-id=${assignment.property != null ? assignment.property.id : null}"
+                                                onclick="showRentHistory(this)">
                                             <i class="fas fa-history"></i> Rent History
                                         </button>
                                     </div>
@@ -801,6 +803,145 @@ function saveFinancialTracking() {
 }
 
 // Initialize page
+// NEW: Show rent history modal with unified financial data
+function showRentHistory(button) {
+    const propertyId = button.getAttribute('data-property-id');
+
+    if (!propertyId) {
+        alert('Property information not available');
+        return;
+    }
+
+    // Show loading modal
+    const loadingModal = `
+        <div class="modal fade" id="rentHistoryModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-history"></i> Rent History</h5>
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading rent history...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Remove existing modal if present
+    $('#rentHistoryModal').remove();
+    $('body').append(loadingModal);
+    $('#rentHistoryModal').modal('show');
+
+    // Fetch rent history
+    $.ajax({
+        url: '/property-owner/rent-history',
+        method: 'GET',
+        data: { propertyId: propertyId },
+        success: function(response) {
+            if (response.success && response.financialData) {
+                const data = response.financialData;
+                const transactions = data.recentTransactions || [];
+
+                let transactionsHtml = '';
+                if (transactions.length > 0) {
+                    transactionsHtml = '<div class="table-responsive"><table class="table table-sm table-hover">';
+                    transactionsHtml += '<thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr></thead><tbody>';
+
+                    transactions.forEach(tx => {
+                        const amount = parseFloat(tx.amount || 0);
+                        const amountClass = amount >= 0 ? 'text-success' : 'text-danger';
+                        transactionsHtml += `
+                            <tr>
+                                <td>${tx.date || '-'}</td>
+                                <td>${tx.description || '-'}</td>
+                                <td><span class="badge badge-secondary">${tx.category || tx.type || '-'}</span></td>
+                                <td class="${amountClass}">£${Math.abs(amount).toFixed(2)}</td>
+                            </tr>
+                        `;
+                    });
+
+                    transactionsHtml += '</tbody></table></div>';
+                } else {
+                    transactionsHtml = '<p class="text-muted">No transaction history available for this property.</p>';
+                }
+
+                const modalContent = `
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title"><i class="fas fa-history"></i> Rent History - ${response.propertyName || 'Property'}</h5>
+                        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <small class="text-muted">Rent Due</small>
+                                        <h5 class="mb-0">£${(data.rentDue || 0).toFixed(2)}</h5>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <small class="text-muted">Rent Received</small>
+                                        <h5 class="mb-0 text-success">£${(data.rentReceived || 0).toFixed(2)}</h5>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <small class="text-muted">Arrears</small>
+                                        <h5 class="mb-0 ${(data.rentArrears || 0) > 0 ? 'text-danger' : 'text-success'}">
+                                            £${Math.abs(data.rentArrears || 0).toFixed(2)}
+                                        </h5>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <small class="text-muted">Net Income</small>
+                                        <h5 class="mb-0">£${(data.netOwnerIncome || 0).toFixed(2)}</h5>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h6 class="mt-4">Recent Transactions (Last 2 Years)</h6>
+                        ${transactionsHtml}
+
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle"></i> Showing financial data from ${data.dateRange?.from || ''} to ${data.dateRange?.to || ''}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    </div>
+                `;
+
+                $('#rentHistoryModal .modal-content').html(modalContent);
+            } else {
+                $('#rentHistoryModal .modal-body').html('<p class="text-danger">Error loading rent history.</p>');
+            }
+        },
+        error: function(xhr) {
+            let errorMsg = 'Error loading rent history';
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+                errorMsg = xhr.responseJSON.error;
+            }
+            $('#rentHistoryModal .modal-body').html(`<p class="text-danger">${errorMsg}</p>`);
+        }
+    });
+}
+
 $(document).ready(function() {
     // Add event listener for checkbox change
     $('#modalPayPropManages').on('change', toggleDateRangeSection);

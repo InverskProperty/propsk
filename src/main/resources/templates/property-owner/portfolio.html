@@ -79,7 +79,7 @@
                                                     <td th:text="${portfolio.properties?.size() ?: 0}">0</td>
                                                     <td><span class="badge bg-success">Active</span></td>
                                                     <td>
-                                                        <button class="btn btn-sm btn-primary">View Details</button>
+                                                        <a th:href="@{/portfolio/{id}(id=${portfolio.id})}" class="btn btn-sm btn-primary">View Details</a>
                                                     </td>
                                                 </tr>
                                             </tbody>

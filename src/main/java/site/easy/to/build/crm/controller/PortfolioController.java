@@ -1556,8 +1556,17 @@ public class PortfolioController {
 
             System.out.println("✅ Found " + allProperties.size() + " total properties, " + properties.size() + " actual leasable properties (excluded " + (allProperties.size() - properties.size()) + " block properties)");
 
-            // Calculate analytics (only for actual leasable properties)
-            PortfolioAnalytics analytics = portfolioService.calculatePortfolioAnalytics(id, LocalDate.now());
+            // Calculate analytics (only for actual leasable properties) - with error handling
+            PortfolioAnalytics analytics = null;
+            try {
+                analytics = portfolioService.calculatePortfolioAnalytics(id, LocalDate.now());
+            } catch (Exception e) {
+                System.err.println("❌ Error calculating portfolio analytics: " + e.getMessage());
+                e.printStackTrace();
+                // Create empty analytics to prevent page crash
+                analytics = new PortfolioAnalytics(id, LocalDate.now());
+                analytics.setTotalProperties(properties.size());
+            }
 
             // Create simple portfolio statistics (for backwards compatibility)
             Map<String, Object> stats = new HashMap<>();

@@ -58,6 +58,7 @@ import site.easy.to.build.crm.service.statements.XLSXStatementService;
 import site.easy.to.build.crm.service.sheets.GoogleSheetsServiceAccountService;
 import site.easy.to.build.crm.service.drive.CustomerDriveOrganizationService;
 import site.easy.to.build.crm.service.drive.SharedDriveFileService;
+import site.easy.to.build.crm.service.financial.UnifiedFinancialDataService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.Set;
@@ -109,6 +110,9 @@ public class PropertyOwnerController {
 
     @Autowired
     private SharedDriveFileService sharedDriveFileService;
+
+    @Autowired
+    private UnifiedFinancialDataService unifiedFinancialDataService;
 
     @Autowired
     public PropertyOwnerController(PropertyService propertyService,
@@ -866,12 +870,64 @@ public class PropertyOwnerController {
             model.addAttribute("pageTitle", "My Tenants");
 
             return "property-owner/tenants";
-            
+
         } catch (Exception e) {
             System.err.println("❌ ERROR in viewTenants: " + e.getMessage());
             e.printStackTrace();
             model.addAttribute("error", "Error loading tenants: " + e.getMessage());
             return "error/500";
+        }
+    }
+
+    /**
+     * Get rent history for a specific property (unified financial data)
+     * GET /property-owner/rent-history?propertyId={id}
+     */
+    @GetMapping("/property-owner/rent-history")
+    @ResponseBody
+    public ResponseEntity<?> getRentHistory(
+            @RequestParam("propertyId") Long propertyId,
+            Authentication authentication) {
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+
+            // Verify customer has access to this property
+            List<Property> customerProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            boolean hasAccess = customerProperties.stream()
+                .anyMatch(p -> p.getId().equals(propertyId));
+
+            if (!hasAccess) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Access denied"));
+            }
+
+            // Get the property
+            Property property = propertyService.findById(propertyId);
+            if (property == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Get unified financial summary (last 2 years)
+            Map<String, Object> financialSummary = unifiedFinancialDataService.getPropertyFinancialSummary(property);
+
+            // Add property info
+            Map<String, Object> response = new HashMap<>();
+            response.put("propertyId", property.getId());
+            response.put("propertyName", property.getPropertyName());
+            response.put("propertyAddress", property.getFullAddress());
+            response.put("financialData", financialSummary);
+            response.put("success", true);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Error loading rent history: " + e.getMessage()));
         }
     }
 
@@ -1670,11 +1726,40 @@ public class PropertyOwnerController {
                 System.out.println("❌ DEBUG: No property breakdown data found!");
             }
             
-            // 📋 Get recent transactions (last 10) - FIXED: Added date parameter
-            Pageable recentLimit = PageRequest.of(0, 10);
+            // 📋 Get recent transactions (last 3 months) using UNIFIED data
             LocalDate threeMonthsAgo = LocalDate.now().minusMonths(3);
-            List<FinancialTransaction> recentTransactions = financialTransactionRepository
-                .getPropertyOwnerRecentTransactions(customer.getCustomerId(), threeMonthsAgo, recentLimit);
+            LocalDate today = LocalDate.now();
+            List<FinancialTransaction> recentTransactions = new ArrayList<>();
+
+            // Use unified financial data instead of old financial_transactions table
+            try {
+                for (Property property : customerProperties) {
+                    List<site.easy.to.build.crm.dto.StatementTransactionDto> propertyTransactions =
+                        unifiedFinancialDataService.getPropertyTransactions(property, threeMonthsAgo, today);
+
+                    // Convert to FinancialTransaction for compatibility
+                    for (site.easy.to.build.crm.dto.StatementTransactionDto dto : propertyTransactions) {
+                        FinancialTransaction ft = new FinancialTransaction();
+                        ft.setTransactionDate(dto.getTransactionDate());
+                        ft.setDescription(dto.getDescription());
+                        ft.setAmount(dto.getAmount());
+                        ft.setTransactionType(dto.getTransactionType() != null ? dto.getTransactionType() : "");
+                        ft.setPropertyId(property.getPayPropId());
+                        ft.setPropertyName(property.getPropertyName());
+                        recentTransactions.add(ft);
+                    }
+                }
+
+                // Sort by date descending and limit to 50
+                recentTransactions.sort((a, b) -> b.getTransactionDate().compareTo(a.getTransactionDate()));
+                if (recentTransactions.size() > 50) {
+                    recentTransactions = recentTransactions.subList(0, 50);
+                }
+
+                System.out.println("✅ Retrieved " + recentTransactions.size() + " transactions from unified data (last 3 months)");
+            } catch (Exception e) {
+                System.err.println("⚠️ Error getting unified transactions, falling back to empty list: " + e.getMessage());
+            }
             
             // 📊 Calculate additional metrics
             BigDecimal commissionRate = totalRent.compareTo(BigDecimal.ZERO) > 0 ? 
@@ -1940,6 +2025,7 @@ public class PropertyOwnerController {
             Authentication authentication) {
 
         System.out.println("🔍 Filtering financials - Portfolio: " + portfolioId + ", Data Source: " + dataSource);
+        System.out.println("ℹ️  NOTE: dataSource filter is deprecated - now using unified financial data");
 
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
