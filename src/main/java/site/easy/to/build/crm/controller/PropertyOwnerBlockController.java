@@ -136,8 +136,18 @@ public class PropertyOwnerBlockController {
                         return false; // Owner doesn't own this portfolio
                     }
                 } else if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
-                    // Delegated users need property assignments (checked below)
-                    // Continue to property-level check
+                    // Delegated users: Check if they have access to properties from the portfolio's owner
+                    List<Property> delegatedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+                    boolean hasOwnerProperties = delegatedProperties.stream()
+                        .anyMatch(p -> p.getPropertyOwnerId() != null &&
+                                     p.getPropertyOwnerId().equals(portfolio.getPropertyOwnerId()));
+
+                    if (!hasOwnerProperties) {
+                        log.debug("Delegated user {} has no properties from portfolio owner {}",
+                            customer.getCustomerId(), portfolio.getPropertyOwnerId());
+                        return false; // Delegated user has no properties from this portfolio's owner
+                    }
+                    // Continue to property-level check below
                 }
             }
 

@@ -3329,7 +3329,39 @@ public class PortfolioController {
 
                     if (email != null) {
                         Customer customer = customerService.findByEmail(email);
-                        if (customer == null || !portfolio.getPropertyOwnerId().equals(customer.getCustomerId())) {
+                        if (customer == null) {
+                            response.put("error", "Access denied to this portfolio");
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+                        }
+
+                        // Check access: Either direct owner OR delegated user with assigned properties from this owner
+                        boolean hasAccess = false;
+
+                        // Direct owner check
+                        if (portfolio.getPropertyOwnerId().equals(customer.getCustomerId())) {
+                            hasAccess = true;
+                            System.out.println("✅ Portfolio access granted: Direct owner");
+                        }
+                        // Delegated user check
+                        else if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
+                            // Get properties assigned to this delegated user
+                            List<Property> delegatedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+
+                            // Check if any of these properties belong to the portfolio's owner
+                            boolean hasOwnerProperties = delegatedProperties.stream()
+                                .anyMatch(p -> p.getPropertyOwnerId() != null &&
+                                             p.getPropertyOwnerId().equals(portfolio.getPropertyOwnerId()));
+
+                            if (hasOwnerProperties) {
+                                hasAccess = true;
+                                System.out.println("✅ Portfolio access granted: Delegated user with owner's properties");
+                            }
+                        }
+
+                        if (!hasAccess) {
+                            System.out.println("❌ Portfolio access denied: Customer " + customer.getCustomerId() +
+                                             " (type: " + customer.getCustomerType() + ") does not have access to portfolio owned by " +
+                                             portfolio.getPropertyOwnerId());
                             response.put("error", "Access denied to this portfolio");
                             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
                         }

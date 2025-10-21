@@ -2150,12 +2150,190 @@ public class CustomerController {
         return "redirect:/employee/customer/" + id;
     }
 
+    // ===== PASSWORD MANAGEMENT FOR CUSTOMERS =====
+
+    /**
+     * Admin reset password to default (123)
+     * ONLY for admin/manager users
+     */
+    @PostMapping("/{id:[0-9]+}/reset-password")
+    @ResponseBody
+    public ResponseEntity<?> resetPasswordToDefault(@PathVariable("id") Long id,
+                                                     Authentication authentication) {
+        try {
+            // Check if user has admin/manager role
+            boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN") ||
+                                auth.getAuthority().equals("ROLE_SUPER_ADMIN") ||
+                                auth.getAuthority().equals("ROLE_MANAGER"));
+
+            if (!isAdmin) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Admin access required"));
+            }
+
+            Customer customer = customerService.findByCustomerId(id);
+            if (customer == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Customer not found"));
+            }
+
+            // Get or create customer login info
+            CustomerLoginInfo loginInfo = customerLoginInfoService.findByEmail(customer.getEmail());
+
+            if (loginInfo == null) {
+                // Create new login info
+                loginInfo = new CustomerLoginInfo();
+                loginInfo.setUsername(customer.getEmail());
+                loginInfo.setCustomer(customer);
+                loginInfo.setCreatedAt(LocalDateTime.now());
+            }
+
+            // Reset password to "123"
+            String defaultPassword = "123";
+            loginInfo.setPassword(EmailTokenUtils.encodePassword(defaultPassword));
+            loginInfo.setPasswordSet(true);
+            loginInfo.setToken(null); // Clear any existing token
+            loginInfo.setTokenExpiresAt(null);
+
+            customerLoginInfoService.save(loginInfo);
+
+            System.out.println("✅ Password reset to default for customer: " + customer.getEmail());
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Password reset to '123' for " + customer.getEmail(),
+                "email", customer.getEmail()
+            ));
+
+        } catch (Exception e) {
+            System.err.println("❌ Error resetting password: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Error resetting password: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Send password setup email for existing customer (useful for owners who haven't set up login yet)
+     */
+    @PostMapping("/{id:[0-9]+}/send-password-setup")
+    public String sendPasswordSetupEmail(@PathVariable("id") Long id,
+                                        Authentication authentication,
+                                        RedirectAttributes redirectAttributes) {
+        try {
+            Customer customer = customerService.findByCustomerId(id);
+            if (customer == null) {
+                redirectAttributes.addFlashAttribute("errorMessage", "Customer not found");
+                return "redirect:/employee/customer/dashboard";
+            }
+
+            // Check if customer already has login info
+            CustomerLoginInfo existingLoginInfo = customerLoginInfoService.findByEmail(customer.getEmail());
+
+            if (existingLoginInfo != null && existingLoginInfo.isPasswordSet()) {
+                redirectAttributes.addFlashAttribute("warningMessage",
+                    "Customer already has password set. Use password reset instead.");
+                return "redirect:/employee/customer/" + id;
+            }
+
+            // Generate or update token
+            CustomerLoginInfo loginInfo;
+            if (existingLoginInfo != null) {
+                loginInfo = existingLoginInfo;
+            } else {
+                loginInfo = new CustomerLoginInfo();
+                loginInfo.setUsername(customer.getEmail());
+                loginInfo.setCustomer(customer);
+                loginInfo.setCreatedAt(LocalDateTime.now());
+            }
+
+            // Generate new token
+            String token = EmailTokenUtils.generateToken();
+            loginInfo.setToken(token);
+            loginInfo.setTokenExpiresAt(EmailTokenUtils.createExpirationTime(72)); // 72 hours
+            loginInfo.setPasswordSet(false);
+
+            customerLoginInfoService.save(loginInfo);
+
+            // Determine customer type
+            String customerType = "customer";
+            if (Boolean.TRUE.equals(customer.getIsPropertyOwner())) {
+                customerType = "property owner";
+            } else if (Boolean.TRUE.equals(customer.getIsTenant())) {
+                customerType = "tenant";
+            } else if (Boolean.TRUE.equals(customer.getIsContractor())) {
+                customerType = "contractor";
+            }
+
+            // Send password setup email
+            if (emailService.isGmailApiAvailable(authentication)) {
+                boolean emailSent = sendPasswordSetupEmailToCustomer(customer, token, customerType, authentication);
+
+                if (emailSent) {
+                    redirectAttributes.addFlashAttribute("successMessage",
+                        "Password setup email sent to " + customer.getEmail() + "!");
+                } else {
+                    redirectAttributes.addFlashAttribute("warningMessage",
+                        "Password setup link created but email could not be sent. Token: " + token);
+                }
+            } else {
+                redirectAttributes.addFlashAttribute("successMessage",
+                    "Password setup link created. Please manually send this link to the customer: " +
+                    "/set-password?token=" + token);
+            }
+
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage",
+                "Error sending password setup email: " + e.getMessage());
+        }
+
+        return "redirect:/employee/customer/" + id;
+    }
+
+    /**
+     * Send password setup email to customer
+     */
+    private boolean sendPasswordSetupEmailToCustomer(Customer customer, String token,
+                                                     String customerType, Authentication authentication) {
+        try {
+            String subject = "Set Up Your Password - " + capitalizeFirst(customerType) + " Portal Access";
+            String portalInstructions = getPortalInstructions(customerType);
+            String baseUrl = "https://spoutproperty-hub.onrender.com"; // Your production URL
+
+            String message = String.format(
+                "Dear %s,\n\n" +
+                "Welcome to Spout Property Hub! Your %s account is ready.\n\n" +
+                "Please click the link below to set up your password and access your portal:\n\n" +
+                "%s/set-password?token=%s\n\n" +
+                "This link will expire in 72 hours.\n\n" +
+                "%s\n\n" +
+                "Once you've set your password, you can log in at:\n" +
+                "%s/customer-login\n\n" +
+                "If you did not expect this email or have any questions, please contact us.\n\n" +
+                "Best regards,\n" +
+                "The Spout Property Hub Team",
+                customer.getName() != null ? customer.getName() : "Customer",
+                customerType,
+                baseUrl,
+                token,
+                portalInstructions,
+                baseUrl
+            );
+
+            return emailService.sendEmailToCustomer(customer, subject, message, authentication);
+
+        } catch (Exception e) {
+            System.err.println("Error sending password setup email: " + e.getMessage());
+            return false;
+        }
+    }
+
     // ===== UTILITY METHODS =====
-    
+
     /**
      * Helper method for sending customer type-specific welcome emails
      */
-    private boolean sendCustomerWelcomeEmail(Customer customer, String tempPassword, 
+    private boolean sendCustomerWelcomeEmail(Customer customer, String tempPassword,
                                            String customerType, Authentication authentication) {
         try {
             String subject = "Welcome to PropertyManager - " + capitalizeFirst(customerType) + " Portal Access";
