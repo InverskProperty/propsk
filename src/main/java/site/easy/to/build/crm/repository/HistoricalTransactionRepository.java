@@ -600,4 +600,30 @@ public interface HistoricalTransactionRepository extends JpaRepository<Historica
            "AND ht.beneficiaryType = 'agency' " +
            "AND ht.status = 'active' ORDER BY ht.transactionDate DESC")
     List<HistoricalTransaction> findCommissionPaymentsByProperty(@Param("property") Property property);
+
+    // ===== LEASE-BASED QUERIES =====
+
+    /**
+     * Find payment transactions by invoice (lease) ID and date range
+     * Used for lease-based statement generation
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.invoice.id = :invoiceId " +
+           "AND ht.transactionType = 'payment' " +
+           "AND ht.transactionDate BETWEEN :startDate AND :endDate " +
+           "AND ht.status = 'active' ORDER BY ht.transactionDate")
+    List<HistoricalTransaction> findPaymentsByInvoiceIdAndDateRange(@Param("invoiceId") Long invoiceId,
+                                                                     @Param("startDate") LocalDate startDate,
+                                                                     @Param("endDate") LocalDate endDate);
+
+    /**
+     * Find expense transactions by invoice (lease) ID and date range
+     * Used for lease-based statement generation
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.invoice.id = :invoiceId " +
+           "AND ht.transactionType = 'expense' " +
+           "AND ht.transactionDate BETWEEN :startDate AND :endDate " +
+           "AND ht.status = 'active' ORDER BY ht.transactionDate")
+    List<HistoricalTransaction> findExpensesByInvoiceIdAndDateRange(@Param("invoiceId") Long invoiceId,
+                                                                     @Param("startDate") LocalDate startDate,
+                                                                     @Param("endDate") LocalDate endDate);
 }

@@ -88,16 +88,25 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Payment> findByPropertyIdIn(List<Long> propertyIds);
 
     // ===== TENANT-BASED QUERIES (RENT PAYMENTS) =====
-    
+
     /**
      * Find all rent payments from a specific tenant
      */
     List<Payment> findByTenantId(Long tenantId);
-    
+
     /**
      * Find tenant payments within date range
      */
     List<Payment> findByTenantIdAndPaymentDateBetween(Long tenantId, LocalDate startDate, LocalDate endDate);
+
+    // ===== INVOICE/LEASE-BASED QUERIES =====
+
+    /**
+     * Find payments by invoice (lease) ID and date range
+     * Used for lease-based statement generation
+     */
+    @Query("SELECT p FROM Payment p WHERE p.invoiceId = :invoiceId AND p.paymentDate BETWEEN :startDate AND :endDate ORDER BY p.paymentDate")
+    List<Payment> findByInvoiceIdAndPaymentDateBetween(@Param("invoiceId") Long invoiceId, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
     
     /**
      * Find all rent payments (payments from tenants)

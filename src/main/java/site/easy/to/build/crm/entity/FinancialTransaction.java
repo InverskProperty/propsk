@@ -120,7 +120,7 @@ public class FinancialTransaction {
     private LocalDateTime updatedAt;
     
     // ===== BATCH PAYMENT RELATIONSHIP =====
-    
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "batch_payment_id")
     private BatchPayment batchPayment;
@@ -130,6 +130,16 @@ public class FinancialTransaction {
 
     @Column(name = "batch_sequence_number")
     private Integer batchSequenceNumber;
+
+    // ===== LEASE REFERENCE =====
+
+    /**
+     * Link to the lease (Invoice) this transaction belongs to
+     * Enables lease-based financial tracking and statement generation
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "invoice_id")
+    private Invoice invoice;
     
     // ===== CONSTRUCTORS =====
     
@@ -269,6 +279,9 @@ public class FinancialTransaction {
 
     public Integer getBatchSequenceNumber() { return batchSequenceNumber; }
     public void setBatchSequenceNumber(Integer batchSequenceNumber) { this.batchSequenceNumber = batchSequenceNumber; }
+
+    public Invoice getInvoice() { return invoice; }
+    public void setInvoice(Invoice invoice) { this.invoice = invoice; }
     
     // ===== UTILITY METHODS =====
     

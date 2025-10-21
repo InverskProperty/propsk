@@ -631,4 +631,18 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "ORDER BY pr.property_name",
            nativeQuery = true)
     List<Object[]> getPropertyOwnerPropertyBreakdownDirect(@Param("customerId") Long customerId);
+
+    // ===== LEASE-BASED QUERIES =====
+
+    /**
+     * Find expense transactions by invoice (lease) ID and date range
+     * Used for lease-based statement generation
+     */
+    @Query("SELECT ft FROM FinancialTransaction ft WHERE ft.invoice.id = :invoiceId " +
+           "AND (ft.transactionType LIKE '%EXPENSE%' OR ft.categoryName LIKE '%Maintenance%' OR ft.categoryName LIKE '%Repair%' OR ft.categoryName LIKE '%Clean%') " +
+           "AND ft.transactionDate BETWEEN :startDate AND :endDate " +
+           "ORDER BY ft.transactionDate")
+    List<FinancialTransaction> findExpensesByInvoiceIdAndDateRange(@Param("invoiceId") Long invoiceId,
+                                                                    @Param("startDate") LocalDate startDate,
+                                                                    @Param("endDate") LocalDate endDate);
 }

@@ -1141,4 +1141,79 @@ public class StatementController {
             return "redirect:/statements";
         }
     }
+
+    /**
+     * Generate LEASE-BASED statement for property owner
+     * Each row represents a single lease instead of a property
+     * NEW: Supports lease-centric financial reporting
+     */
+    @PostMapping("/property-owner/lease-based")
+    public String generateLeaseBasedStatement(
+            @RequestParam("propertyOwnerId") Integer propertyOwnerId,
+            @RequestParam("fromDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam("toDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            Authentication authentication,
+            RedirectAttributes redirectAttributes) {
+
+        System.out.println("🔄 Generating LEASE-BASED statement for property owner: " + propertyOwnerId);
+        System.out.println("   Period: " + fromDate + " to " + toDate);
+
+        try {
+            // Check authorization
+            Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
+
+            // Authorization check
+            if (currentCustomer != null && currentCustomer.getIsPropertyOwner() != null && currentCustomer.getIsPropertyOwner()) {
+                // Property owner can only see their own statements
+                if (!currentCustomer.getCustomerId().equals(propertyOwnerId.longValue())) {
+                    redirectAttributes.addFlashAttribute("error", "You can only generate statements for your own properties.");
+                    return "redirect:/statements";
+                }
+            } else if (!isAdminOrEmployee(authentication)) {
+                // Only admin or employee can generate for others
+                redirectAttributes.addFlashAttribute("error", "Access denied. You must be an admin or employee to generate statements for other property owners.");
+                return "redirect:/statements";
+            }
+
+            // Get property owner
+            Customer propertyOwner = customerService.findByCustomerId(propertyOwnerId.longValue());
+            if (propertyOwner == null) {
+                redirectAttributes.addFlashAttribute("error", "Property owner not found.");
+                return "redirect:/statements";
+            }
+
+            System.out.println("✅ Found property owner: " + propertyOwner.getName());
+
+            // Get OAuth user for Google Sheets API (if using OAuth)
+            OAuthUser oAuthUser = null;
+            if (authentication != null && authentication.getPrincipal() instanceof OAuth2User) {
+                OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
+                String email = oauth2User.getAttribute("email");
+                if (email != null) {
+                    oAuthUser = oAuthUserService.findBtEmail(email); // Note: typo in service method name
+                }
+            }
+
+            // Generate lease-based statement
+            System.out.println("📊 Calling createLeaseBasedStatement...");
+            String spreadsheetId = statementService.createLeaseBasedStatement(
+                oAuthUser, propertyOwner, fromDate, toDate);
+
+            System.out.println("✅ Lease-based statement created: " + spreadsheetId);
+
+            // Success message with link to Google Sheets
+            String sheetsUrl = "https://docs.google.com/spreadsheets/d/" + spreadsheetId;
+            redirectAttributes.addFlashAttribute("success",
+                "Lease-based statement generated successfully! <a href='" + sheetsUrl + "' target='_blank'>View in Google Sheets</a>");
+
+            return "redirect:/statements";
+
+        } catch (Exception e) {
+            System.err.println("❌ Error generating lease-based statement: " + e.getMessage());
+            e.printStackTrace();
+            redirectAttributes.addFlashAttribute("error",
+                "Error generating lease-based statement: " + e.getMessage());
+            return "redirect:/statements";
+        }
+    }
 }

@@ -46,6 +46,9 @@ public class GoogleSheetsStatementService {
     private final CustomerPropertyAssignmentRepository assignmentRepository;
     private final BodenHouseStatementTemplateService bodenHouseTemplateService;
 
+    @Autowired
+    private site.easy.to.build.crm.service.statements.LeaseStatementService leaseStatementService;
+
     @Value("${GOOGLE_SERVICE_ACCOUNT_KEY:}")
     private String serviceAccountKey;
 
@@ -1773,6 +1776,247 @@ public class GoogleSheetsStatementService {
 
             System.out.println("✅ Applied Boden House formatting to Google Sheets");
         }
+    }
+
+    /**
+     * Creates a lease-based property owner statement in Google Sheets
+     * Each row represents a single lease rather than a property
+     *
+     * @param oAuthUser OAuth credentials (if using OAuth approach)
+     * @param propertyOwner The property owner
+     * @param fromDate Statement period start
+     * @param toDate Statement period end
+     * @return Spreadsheet ID
+     */
+    public String createLeaseBasedStatement(OAuthUser oAuthUser, Customer propertyOwner,
+                                           LocalDate fromDate, LocalDate toDate)
+            throws IOException, GeneralSecurityException {
+
+        System.out.println("📊 Creating LEASE-BASED statement for: " + propertyOwner.getName());
+
+        String spreadsheetId;
+        Sheets sheetsService;
+
+        // Try shared drive approach first (preferred), fallback to OAuth2
+        if (serviceAccountKey != null && !serviceAccountKey.trim().isEmpty()) {
+            System.out.println("📊 Using shared drive approach with service account");
+            spreadsheetId = createLeaseSpreadsheetInSharedDrive(propertyOwner, fromDate, toDate);
+            sheetsService = createServiceAccountSheetsService();
+        } else if (oAuthUser != null) {
+            System.out.println("📊 Using OAuth2 approach (fallback)");
+            sheetsService = getSheetsService(oAuthUser);
+
+            // Create new spreadsheet
+            Spreadsheet spreadsheet = new Spreadsheet()
+                .setProperties(new SpreadsheetProperties()
+                    .setTitle("LEASE Statement - " + propertyOwner.getName() + " - " +
+                             fromDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy")) + " to " +
+                             toDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy")))
+                    .setLocale("en_GB")
+                    .setTimeZone("Europe/London"));
+
+            Spreadsheet createdSheet = sheetsService.spreadsheets().create(spreadsheet).execute();
+            spreadsheetId = createdSheet.getSpreadsheetId();
+        } else {
+            throw new IllegalStateException("No authentication method available. Please configure OAuth2 or service account.");
+        }
+
+        // Populate with lease-based data
+        populateLeaseBasedStatementData(sheetsService, spreadsheetId, propertyOwner, fromDate, toDate);
+
+        String sheetUrl = "https://docs.google.com/spreadsheets/d/" + spreadsheetId;
+        System.out.println("✅ Created lease-based statement: " + sheetUrl);
+
+        return spreadsheetId;
+    }
+
+    /**
+     * Create spreadsheet in shared drive for lease-based statement
+     */
+    private String createLeaseSpreadsheetInSharedDrive(Customer propertyOwner, LocalDate fromDate, LocalDate toDate)
+            throws IOException, GeneralSecurityException {
+
+        // Create Drive service for shared drive operations
+        String formattedKey = getFormattedServiceAccountKey();
+        GoogleCredential driveCredential = GoogleCredential
+            .fromStream(new java.io.ByteArrayInputStream(formattedKey.getBytes()))
+            .createScoped(Collections.singleton(DriveScopes.DRIVE));
+
+        Drive driveService = new Drive.Builder(
+            GoogleNetHttpTransport.newTrustedTransport(),
+            GsonFactory.getDefaultInstance(),
+            driveCredential)
+            .setApplicationName("CRM Property Management")
+            .build();
+
+        com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File()
+            .setName("LEASE Statement - " + propertyOwner.getName() + " - " +
+                    fromDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy")) + " to " +
+                    toDate.format(DateTimeFormatter.ofPattern("dd MMM yyyy")))
+            .setMimeType("application/vnd.google-apps.spreadsheet")
+            .setParents(Collections.singletonList(SHARED_DRIVE_ID));
+
+        com.google.api.services.drive.model.File file = driveService.files()
+            .create(fileMetadata)
+            .setSupportsAllDrives(true)
+            .setFields("id")
+            .execute();
+
+        System.out.println("📄 Created spreadsheet in shared drive: " + file.getId());
+        return file.getId();
+    }
+
+    /**
+     * Populate spreadsheet with lease-based data
+     */
+    private void populateLeaseBasedStatementData(Sheets sheetsService, String spreadsheetId,
+                                                 Customer propertyOwner, LocalDate fromDate, LocalDate toDate)
+            throws IOException {
+
+        System.out.println("📝 Populating lease-based statement data...");
+
+        List<List<Object>> rows = new ArrayList<>();
+
+        // Header rows
+        rows.add(Arrays.asList("PROPSK LTD"));
+        rows.add(Arrays.asList("1 Poplar Court, Greensward Lane, Hockley, England, SS5 5JB"));
+        rows.add(Arrays.asList("Company number 15933011"));
+        rows.add(Arrays.asList(""));
+        rows.add(Arrays.asList("STATEMENT"));
+        rows.add(Arrays.asList(""));
+        rows.add(Arrays.asList("CLIENT:", propertyOwner.getName()));
+        rows.add(Arrays.asList("Date BOP:", fromDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))));
+        rows.add(Arrays.asList("Date EOP:", toDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))));
+        rows.add(Arrays.asList(""));
+
+        // Column headers
+        rows.add(Arrays.asList(
+            "Lease Reference",
+            "Unit No.",
+            "Tenant",
+            "Tenancy Start Date",
+            "Tenancy End Date",
+            "Rent Due Date",
+            "Rent Due Amount",
+            "Rent Received Date",
+            "Rent Received Amount",
+            "Management Fee (%)",
+            "Management Fee Amount",
+            "Expense 1 Label",
+            "Expense 1 Amount",
+            "Expense 1 Comment",
+            "Expense 2 Label",
+            "Expense 2 Amount",
+            "Expense 2 Comment",
+            "Expense 3 Label",
+            "Expense 3 Amount",
+            "Expense 3 Comment",
+            "Expense 4 Label",
+            "Expense 4 Amount",
+            "Expense 4 Comment",
+            "Total Expenses",
+            "Net Due to Landlord",
+            "Rent Due Less Received",
+            "Tenant Balance"
+        ));
+
+        // Generate actual lease data using LeaseStatementService
+        Map<Long, List<site.easy.to.build.crm.dto.LeaseStatementRow>> leasesByProperty =
+            leaseStatementService.generateLeaseStatementForOwner(propertyOwner, fromDate, toDate);
+
+        System.out.println("Generated lease data for " + leasesByProperty.size() + " properties");
+
+        // Group by property
+        for (Map.Entry<Long, List<site.easy.to.build.crm.dto.LeaseStatementRow>> entry : leasesByProperty.entrySet()) {
+            List<site.easy.to.build.crm.dto.LeaseStatementRow> leaseRows = entry.getValue();
+
+            if (leaseRows.isEmpty()) {
+                continue;
+            }
+
+            // Add property header
+            String propertyName = leaseRows.get(0).getPropertyName();
+            rows.add(Arrays.asList(""));
+            rows.add(Arrays.asList("PROPERTY:", propertyName));
+            rows.add(Arrays.asList(""));
+
+            // Add lease rows
+            for (site.easy.to.build.crm.dto.LeaseStatementRow lease : leaseRows) {
+                List<Object> row = new ArrayList<>();
+
+                row.add(lease.getLeaseReference() != null ? lease.getLeaseReference() : "");
+                row.add(lease.getUnitNumber() != null ? lease.getUnitNumber() : "");
+                row.add(lease.getTenantName() != null ? lease.getTenantName() : "");
+                row.add(lease.getTenancyStartDate() != null ?
+                       lease.getTenancyStartDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : "");
+                row.add(lease.getTenancyEndDate() != null ?
+                       lease.getTenancyEndDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : "");
+                row.add(lease.getRentDueDay() != null ? lease.getRentDueDay() : "");
+                row.add(lease.getRentDueAmount() != null ? lease.getRentDueAmount() : BigDecimal.ZERO);
+                row.add(lease.getRentReceivedDate() != null ?
+                       lease.getRentReceivedDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "");
+                row.add(lease.getRentReceivedAmount() != null ? lease.getRentReceivedAmount() : BigDecimal.ZERO);
+                row.add(lease.getManagementFeePercentage() != null ?
+                       lease.getManagementFeePercentage() + "%" : "");
+                row.add(lease.getManagementFeeAmount() != null ?
+                       lease.getManagementFeeAmount().negate() : BigDecimal.ZERO); // Negative for deduction
+
+                // Add up to 4 expenses
+                List<site.easy.to.build.crm.dto.LeaseStatementRow.ExpenseItem> expenses = lease.getExpenses();
+                for (int i = 0; i < 4; i++) {
+                    if (i < expenses.size()) {
+                        site.easy.to.build.crm.dto.LeaseStatementRow.ExpenseItem expense = expenses.get(i);
+                        row.add(expense.getLabel() != null ? expense.getLabel() : "");
+                        row.add(expense.getAmount() != null ? expense.getAmount().negate() : BigDecimal.ZERO);
+                        row.add(expense.getComment() != null ? expense.getComment() : "");
+                    } else {
+                        row.add(""); // Label
+                        row.add(""); // Amount
+                        row.add(""); // Comment
+                    }
+                }
+
+                row.add(lease.getTotalExpenses() != null ? lease.getTotalExpenses().negate() : BigDecimal.ZERO);
+                row.add(lease.getNetDueToLandlord() != null ? lease.getNetDueToLandlord() : BigDecimal.ZERO);
+                row.add(lease.getRentDueLessReceived() != null ? lease.getRentDueLessReceived() : BigDecimal.ZERO);
+                row.add(lease.getTenantBalance() != null ? lease.getTenantBalance() : BigDecimal.ZERO);
+
+                rows.add(row);
+            }
+
+            // Add property totals
+            Map<String, BigDecimal> propertyTotals = leaseStatementService.calculateStatementTotals(leaseRows);
+            rows.add(Arrays.asList("")); // Blank row
+            List<Object> totalsRow = new ArrayList<>();
+            totalsRow.add("TOTALS - " + propertyName);
+            totalsRow.add(""); // Unit
+            totalsRow.add(""); // Tenant
+            totalsRow.add(""); // Start date
+            totalsRow.add(""); // End date
+            totalsRow.add(""); // Rent due day
+            totalsRow.add(propertyTotals.get("totalRentDue"));
+            totalsRow.add(""); // Received date
+            totalsRow.add(propertyTotals.get("totalRentReceived"));
+            totalsRow.add(""); // Fee %
+            totalsRow.add(propertyTotals.get("totalManagementFees").negate());
+            // Skip expense columns
+            for (int i = 0; i < 12; i++) totalsRow.add("");
+            totalsRow.add(propertyTotals.get("totalExpenses").negate());
+            totalsRow.add(propertyTotals.get("totalNetToLandlord"));
+            totalsRow.add(propertyTotals.get("totalRentDue").subtract(propertyTotals.get("totalRentReceived")));
+            totalsRow.add(propertyTotals.get("totalBalance"));
+
+            rows.add(totalsRow);
+        }
+
+        // Write to sheet
+        ValueRange body = new ValueRange().setValues(rows);
+        sheetsService.spreadsheets().values()
+            .update(spreadsheetId, "Sheet1!A1", body)
+            .setValueInputOption("USER_ENTERED")
+            .execute();
+
+        System.out.println("✅ Populated lease-based statement with " + rows.size() + " rows");
     }
 
 }

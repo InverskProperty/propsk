@@ -349,4 +349,19 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
+
+    /**
+     * Find all invoices (leases) for a property that overlap with a date range
+     * Used for lease-based statement generation
+     */
+    @Query("SELECT i FROM Invoice i WHERE i.property = :property " +
+           "AND i.startDate <= :endDate " +
+           "AND (i.endDate IS NULL OR i.endDate >= :startDate) " +
+           "AND i.isActive = true AND i.deletedAt IS NULL " +
+           "ORDER BY i.startDate, i.leaseReference")
+    List<Invoice> findByPropertyAndDateRangeOverlap(
+        @Param("property") Property property,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
 }
