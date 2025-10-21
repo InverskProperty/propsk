@@ -160,6 +160,27 @@
 
                 <!-- Properties in Block -->
                 <div class="col-lg-8">
+                    <!-- Financial Summary Card -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-line"></i> Financial Summary
+                                <button class="btn btn-sm btn-light float-right" onclick="loadBlockFinancials()">
+                                    <i class="fas fa-sync"></i> Refresh
+                                </button>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="financialSummaryContainer">
+                                <div class="text-center py-3">
+                                    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                                    <p class="text-muted mt-2">Loading financial data...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Properties List Card -->
                     <div class="card">
                         <div class="card-header bg-success text-white">
                             <h5 class="mb-0">
@@ -195,6 +216,7 @@ const csrfHeader = /*[[${_csrf.headerName}]]*/ '';
 
 $(document).ready(function() {
     loadBlockProperties();
+    loadBlockFinancials();
 });
 
 function loadBlockProperties() {
@@ -276,7 +298,131 @@ function getStatusColor(status) {
 }
 
 function viewProperty(propertyId) {
-    window.location.href = `/property-owner/properties/${propertyId}`;
+    window.location.href = `/property-owner/property-details/${propertyId}`;
+}
+
+function loadBlockFinancials() {
+    fetch(`/customer-login/blocks/api/${blockId}/financial`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayFinancialSummary(data);
+            } else {
+                $('#financialSummaryContainer').html(`
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Failed to load financial data: ${data.error || 'Unknown error'}
+                    </div>
+                `);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading financials:', error);
+            $('#financialSummaryContainer').html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-times-circle"></i>
+                    Error loading financial data
+                </div>
+            `);
+        });
+}
+
+function displayFinancialSummary(data) {
+    const summary = data.summary;
+    const properties = data.propertyFinancials || [];
+
+    let html = `
+        <div class="row mb-3">
+            <div class="col-md-3 col-sm-6 mb-2">
+                <div class="text-center p-3 bg-light rounded">
+                    <h6 class="text-muted mb-1">Total Rent Due</h6>
+                    <h4 class="text-primary mb-0">£${formatCurrency(summary.totalRentDue)}</h4>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6 mb-2">
+                <div class="text-center p-3 bg-light rounded">
+                    <h6 class="text-muted mb-1">Total Received</h6>
+                    <h4 class="text-success mb-0">£${formatCurrency(summary.totalRentReceived)}</h4>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6 mb-2">
+                <div class="text-center p-3 bg-light rounded">
+                    <h6 class="text-muted mb-1">Arrears</h6>
+                    <h4 class="text-${summary.totalRentArrears > 0 ? 'danger' : 'success'} mb-0">
+                        £${formatCurrency(summary.totalRentArrears)}
+                    </h4>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6 mb-2">
+                <div class="text-center p-3 bg-light rounded">
+                    <h6 class="text-muted mb-1">Net Owner Income</h6>
+                    <h4 class="text-info mb-0">£${formatCurrency(summary.totalNetOwnerIncome)}</h4>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-2">
+                <div class="text-center p-2 bg-light rounded">
+                    <small class="text-muted">Total Expenses</small>
+                    <h5 class="text-warning mb-0">£${formatCurrency(summary.totalExpenses)}</h5>
+                </div>
+            </div>
+            <div class="col-md-6 mb-2">
+                <div class="text-center p-2 bg-light rounded">
+                    <small class="text-muted">Total Commissions</small>
+                    <h5 class="text-secondary mb-0">£${formatCurrency(summary.totalCommissions)}</h5>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Add property breakdown if available
+    if (properties.length > 0) {
+        html += `
+            <hr class="my-3">
+            <h6 class="text-muted mb-2">
+                <i class="fas fa-chart-bar"></i> Per-Property Breakdown
+                <small class="text-muted">(${properties.length} properties)</small>
+            </h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th class="text-right">Rent Due</th>
+                            <th class="text-right">Received</th>
+                            <th class="text-right">Arrears</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        properties.forEach(prop => {
+            const arrearsClass = prop.rentArrears > 0 ? 'text-danger' : 'text-success';
+            html += `
+                <tr onclick="viewProperty(${prop.propertyId})" style="cursor: pointer;">
+                    <td>${prop.propertyName}</td>
+                    <td class="text-right">£${formatCurrency(prop.rentDue)}</td>
+                    <td class="text-right text-success">£${formatCurrency(prop.rentReceived)}</td>
+                    <td class="text-right ${arrearsClass}">£${formatCurrency(prop.rentArrears)}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    $('#financialSummaryContainer').html(html);
+}
+
+function formatCurrency(value) {
+    if (!value) return '0.00';
+    return parseFloat(value).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 </script>
 

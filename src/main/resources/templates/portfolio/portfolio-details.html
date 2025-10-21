@@ -935,9 +935,18 @@ function renderBlocksWithProperties(container, blocks, assignedProperties) {
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Block Properties -->
                     <div id="block-${block.id}" class="collapse ${collapseClass}">
+                        <!-- Block Financial Summary -->
+                        <div class="bg-light border-bottom p-2">
+                            <div id="block-financial-${block.id}" class="row">
+                                <div class="col-12 text-center text-muted small">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading financial data...
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="p-3">
                             ${renderBlockProperties(blockProperties, block.id)}
                         </div>
@@ -946,8 +955,69 @@ function renderBlocksWithProperties(container, blocks, assignedProperties) {
             </div>
         `;
     });
-    
+
     container.innerHTML = html;
+
+    // Load financial data for each block
+    blocks.forEach(block => {
+        loadBlockFinancialSummary(block.id);
+    });
+}
+
+// Load financial summary for a block
+function loadBlockFinancialSummary(blockId) {
+    fetch(`/customer-login/blocks/api/${blockId}/financial`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayBlockFinancialSummary(blockId, data.summary);
+            } else {
+                $(`#block-financial-${blockId}`).html(`
+                    <div class="col-12 text-center text-muted small">
+                        <i class="fas fa-exclamation-triangle"></i> Financial data unavailable
+                    </div>
+                `);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading block financials:', error);
+            $(`#block-financial-${blockId}`).html(`
+                <div class="col-12 text-center text-muted small">
+                    <i class="fas fa-times"></i> Error loading financial data
+                </div>
+            `);
+        });
+}
+
+// Display financial summary for a block in portfolio view
+function displayBlockFinancialSummary(blockId, summary) {
+    const html = `
+        <div class="col-md-3 col-sm-6 text-center">
+            <small class="text-muted d-block">Rent Due</small>
+            <strong class="text-primary">£${formatMoney(summary.totalRentDue)}</strong>
+        </div>
+        <div class="col-md-3 col-sm-6 text-center">
+            <small class="text-muted d-block">Received</small>
+            <strong class="text-success">£${formatMoney(summary.totalRentReceived)}</strong>
+        </div>
+        <div class="col-md-3 col-sm-6 text-center">
+            <small class="text-muted d-block">Arrears</small>
+            <strong class="${summary.totalRentArrears > 0 ? 'text-danger' : 'text-success'}">
+                £${formatMoney(summary.totalRentArrears)}
+            </strong>
+        </div>
+        <div class="col-md-3 col-sm-6 text-center">
+            <small class="text-muted d-block">Net Income</small>
+            <strong class="text-info">£${formatMoney(summary.totalNetOwnerIncome)}</strong>
+        </div>
+    `;
+    $(`#block-financial-${blockId}`).html(html);
+}
+
+// Format money helper
+function formatMoney(value) {
+    if (!value) return '0.00';
+    return parseFloat(value).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 // Render properties within a block

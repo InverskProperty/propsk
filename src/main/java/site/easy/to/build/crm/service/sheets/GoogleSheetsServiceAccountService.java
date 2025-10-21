@@ -878,7 +878,13 @@ public class GoogleSheetsServiceAccountService {
             System.out.println("📊 Property owner detected - loading owned properties for customer: " + propertyOwner.getCustomerId());
             properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
         }
-        System.out.println("📊 Found " + properties.size() + " properties for statement");
+
+        // CRITICAL: Filter out BLOCK properties (virtual properties used for grouping, not actual rentable units)
+        properties = properties.stream()
+            .filter(p -> !"BLOCK".equals(p.getPropertyType()))
+            .collect(Collectors.toList());
+
+        System.out.println("📊 Found " + properties.size() + " rentable properties for statement (excluded BLOCK properties)");
         data.setProperties(properties);
 
         // Build rental data for each property
@@ -1027,7 +1033,7 @@ public class GoogleSheetsServiceAccountService {
             List<FinancialTransaction> transactions = financialTransactionRepository
                 .findPropertyTransactionsForStatement(rental.getProperty().getPayPropId(), data.getFromDate(), data.getToDate());
 
-            BigDecimal rentDue = rental.getRentAmount();
+            BigDecimal rentDue = rental.getRentDue();  // Fixed: was using getRentAmount() which contains rentReceived
             BigDecimal rentReceived = calculateActualRentReceived(transactions);
 
             int currentRow = values.size() + 1;
@@ -1229,10 +1235,19 @@ public class GoogleSheetsServiceAccountService {
         String type = transaction.getTransactionType();
         String category = transaction.getCategoryName();
 
+        // EXCLUDE owner payments and commission payments - these are NOT expenses!
+        if (category != null) {
+            String catLower = category.toLowerCase();
+            // Skip if it's an owner payment or commission
+            if (catLower.contains("beneficiary") || catLower.contains("owner") ||
+                catLower.contains("commission") || catLower.contains("agency")) {
+                return false;
+            }
+        }
+
+        // ONLY include actual expenses: contractors, maintenance, utilities, etc.
         if (type != null) {
             return type.equals("payment_to_contractor") ||
-                   type.equals("payment_to_beneficiary") ||
-                   type.equals("payment_to_agency") ||
                    type.equals("payment_property_account") ||
                    type.equals("payment_deposit_account") ||
                    type.equals("debit_note") ||
@@ -1246,10 +1261,10 @@ public class GoogleSheetsServiceAccountService {
                    catLower.contains("repair") ||
                    catLower.contains("clean") ||
                    catLower.contains("contractor") ||
-                   catLower.contains("service") ||
                    catLower.contains("utilities") ||
                    catLower.contains("insurance") ||
-                   catLower.contains("management");
+                   catLower.contains("furnishing") ||
+                   catLower.contains("other");
         }
 
         return false;
