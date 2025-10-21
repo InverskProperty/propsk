@@ -118,33 +118,34 @@ public class PortfolioControllerBase {
 
                         // Delegated user check
                         if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
+                            // Get properties assigned to this delegated user
                             java.util.List<Property> delegatedProperties =
                                 propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
 
-                            System.out.println("🔍 hasPortfolioAccess: Delegated user has " + delegatedProperties.size() + " properties");
-                            System.out.println("🔍 hasPortfolioAccess: Looking for properties with owner_id=" + portfolio.getPropertyOwnerId());
+                            System.out.println("🔍 hasPortfolioAccess: Delegated user has " + delegatedProperties.size() + " assigned properties");
 
-                            // Log first few property owners for debugging
-                            delegatedProperties.stream().limit(5).forEach(p ->
-                                System.out.println("🔍   Property " + p.getId() + " (" + p.getPropertyName() + ") owner_id=" + p.getPropertyOwnerId())
-                            );
+                            // Get properties in the portfolio
+                            java.util.List<Property> portfolioProperties =
+                                portfolioService.getPropertiesForPortfolio(portfolioId);
 
-                            boolean hasOwnerProperties = delegatedProperties.stream()
+                            System.out.println("🔍 hasPortfolioAccess: Portfolio has " + portfolioProperties.size() + " properties");
+
+                            // Check if delegated user has ANY property that's in this portfolio
+                            java.util.Set<Long> delegatedPropertyIds = delegatedProperties.stream()
+                                .map(Property::getId)
+                                .collect(java.util.stream.Collectors.toSet());
+
+                            boolean hasPortfolioProperties = portfolioProperties.stream()
                                 .anyMatch(p -> {
-                                    boolean matches = p.getPropertyOwnerId() != null &&
-                                                    p.getPropertyOwnerId().equals(portfolio.getPropertyOwnerId());
+                                    boolean matches = delegatedPropertyIds.contains(p.getId());
                                     if (matches) {
-                                        System.out.println("✅ hasPortfolioAccess: Found matching property: " + p.getId() + " owner: " + p.getPropertyOwnerId());
+                                        System.out.println("✅ hasPortfolioAccess: Delegated user has property " + p.getId() + " in portfolio");
                                     }
                                     return matches;
                                 });
 
-                            System.out.println("🔍 hasPortfolioAccess: Delegated user access result: " + hasOwnerProperties);
-
-                            if (!hasOwnerProperties) {
-                                System.out.println("❌ hasPortfolioAccess: No properties found with owner_id=" + portfolio.getPropertyOwnerId());
-                            }
-                            return hasOwnerProperties;
+                            System.out.println("🔍 hasPortfolioAccess: Delegated user portfolio access result: " + hasPortfolioProperties);
+                            return hasPortfolioProperties;
                         } else {
                             System.out.println("❌ hasPortfolioAccess: Customer is not delegated user and doesn't own portfolio");
                         }
