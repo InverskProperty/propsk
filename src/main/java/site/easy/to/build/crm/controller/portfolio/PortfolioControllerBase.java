@@ -84,7 +84,12 @@ public class PortfolioControllerBase {
 
         try {
             Portfolio portfolio = portfolioService.findById(portfolioId);
-            if (portfolio == null) return false;
+            if (portfolio == null) {
+                System.out.println("🔍 hasPortfolioAccess: Portfolio " + portfolioId + " not found");
+                return false;
+            }
+
+            System.out.println("🔍 hasPortfolioAccess: Portfolio " + portfolioId + " owner: " + portfolio.getPropertyOwnerId());
 
             // Handle customer authentication
             if (AuthorizationUtil.hasRole(authentication, "ROLE_CUSTOMER") ||
@@ -97,12 +102,17 @@ public class PortfolioControllerBase {
                     email = authentication.getName();
                 }
 
+                System.out.println("🔍 hasPortfolioAccess: Customer email: " + email);
+
                 if (email != null) {
                     Customer customer = customerService.findByEmail(email);
                     if (customer != null) {
+                        System.out.println("🔍 hasPortfolioAccess: Customer ID: " + customer.getCustomerId() + ", Type: " + customer.getCustomerType());
+
                         // Direct owner check
                         if (portfolio.getPropertyOwnerId() != null &&
                             portfolio.getPropertyOwnerId().equals(customer.getCustomerId().intValue())) {
+                            System.out.println("✅ hasPortfolioAccess: Direct owner match!");
                             return true;
                         }
 
@@ -111,18 +121,37 @@ public class PortfolioControllerBase {
                             java.util.List<Property> delegatedProperties =
                                 propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
 
-                            boolean hasOwnerProperties = delegatedProperties.stream()
-                                .anyMatch(p -> p.getPropertyOwnerId() != null &&
-                                             p.getPropertyOwnerId().equals(portfolio.getPropertyOwnerId()));
+                            System.out.println("🔍 hasPortfolioAccess: Delegated user has " + delegatedProperties.size() + " properties");
 
+                            boolean hasOwnerProperties = delegatedProperties.stream()
+                                .anyMatch(p -> {
+                                    boolean matches = p.getPropertyOwnerId() != null &&
+                                                    p.getPropertyOwnerId().equals(portfolio.getPropertyOwnerId());
+                                    if (matches) {
+                                        System.out.println("✅ hasPortfolioAccess: Found matching property: " + p.getId() + " owner: " + p.getPropertyOwnerId());
+                                    }
+                                    return matches;
+                                });
+
+                            System.out.println("🔍 hasPortfolioAccess: Delegated user access result: " + hasOwnerProperties);
                             return hasOwnerProperties;
+                        } else {
+                            System.out.println("❌ hasPortfolioAccess: Customer is not delegated user and doesn't own portfolio");
                         }
+                    } else {
+                        System.out.println("❌ hasPortfolioAccess: Customer not found by email");
                     }
+                } else {
+                    System.out.println("❌ hasPortfolioAccess: Email is null");
                 }
+            } else {
+                System.out.println("❌ hasPortfolioAccess: User doesn't have CUSTOMER or PROPERTY_OWNER role");
             }
 
             return false;
         } catch (Exception e) {
+            System.err.println("❌ hasPortfolioAccess: Exception: " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
