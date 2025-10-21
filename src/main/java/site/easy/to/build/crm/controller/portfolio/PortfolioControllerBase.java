@@ -109,9 +109,9 @@ public class PortfolioControllerBase {
                     if (customer != null) {
                         System.out.println("🔍 hasPortfolioAccess: Customer ID: " + customer.getCustomerId() + ", Type: " + customer.getCustomerType());
 
-                        // Direct owner check
+                        // Direct owner check - FIXED: Compare Long to Integer properly
                         if (portfolio.getPropertyOwnerId() != null &&
-                            portfolio.getPropertyOwnerId().equals(customer.getCustomerId().intValue())) {
+                            portfolio.getPropertyOwnerId().longValue() == customer.getCustomerId().longValue()) {
                             System.out.println("✅ hasPortfolioAccess: Direct owner match!");
                             return true;
                         }
