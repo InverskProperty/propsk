@@ -1661,74 +1661,79 @@ public class PropertyOwnerController {
                     .collect(java.util.stream.Collectors.joining(", ")));
             }
 
-            // 🚀 NEW: Get real PayProp financial data using verified queries
-            Object[] financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummary(customer.getCustomerId());
+            // 🚀 NEW: Get UNIFIED financial data from Historical + PayProp combined (last 2 years)
+            LocalDate twoYearsAgo = LocalDate.now().minusYears(2);
+            LocalDate today = LocalDate.now();
 
-            // 🔍 DEBUG: Check the actual structure of the returned data
-            if (financialSummary != null) {
-                System.out.println("🔍 DEBUG: Financial summary array length: " + financialSummary.length);
-                for (int i = 0; i < financialSummary.length; i++) {
-                    Object item = financialSummary[i];
-                    System.out.println("🔍 DEBUG: Item " + i + ": " + item + " (Type: " + (item != null ? item.getClass().getSimpleName() : "null") + ")");
+            BigDecimal totalRent = BigDecimal.ZERO;
+            BigDecimal totalCommission = BigDecimal.ZERO;
+            BigDecimal totalNetToOwner = BigDecimal.ZERO;
+            Long totalTransactions = 0L;
+
+            // Map to hold property-level financial data
+            Map<String, Map<String, Object>> propertyFinancialMap = new HashMap<>();
+
+            try {
+                System.out.println("💰 Calculating unified financial summary for all properties (last 2 years)...");
+
+                for (Property property : customerProperties) {
+                    // Get unified financial summary for this property
+                    Map<String, Object> propSummary = unifiedFinancialDataService.getPropertyFinancialSummary(property);
+
+                    // Extract totals
+                    BigDecimal propRentReceived = (BigDecimal) propSummary.getOrDefault("rentReceived", BigDecimal.ZERO);
+                    BigDecimal propExpenses = (BigDecimal) propSummary.getOrDefault("totalExpenses", BigDecimal.ZERO);
+                    BigDecimal propCommissions = (BigDecimal) propSummary.getOrDefault("totalCommissions", BigDecimal.ZERO);
+                    BigDecimal propNetIncome = (BigDecimal) propSummary.getOrDefault("netOwnerIncome", BigDecimal.ZERO);
+                    Integer propTxCount = (Integer) propSummary.getOrDefault("transactionCount", 0);
+
+                    // Aggregate to totals
+                    totalRent = totalRent.add(propRentReceived);
+                    totalCommission = totalCommission.add(propCommissions);
+                    totalNetToOwner = totalNetToOwner.add(propNetIncome);
+                    totalTransactions += propTxCount;
+
+                    // Store property-level data for breakdown table
+                    Map<String, Object> propData = new HashMap<>();
+                    propData.put("propertyName", property.getPropertyName());
+                    propData.put("payPropId", property.getPayPropId());
+                    propData.put("totalRent", propRentReceived);
+                    propData.put("totalCommission", propCommissions);
+                    propData.put("totalNetToOwner", propNetIncome);
+                    propData.put("transactionCount", propTxCount);
+
+                    propertyFinancialMap.put(property.getPayPropId(), propData);
+
+                    System.out.println("  ✅ " + property.getPropertyName() + " - Rent: £" + propRentReceived +
+                                     ", Commission: £" + propCommissions + ", Net: £" + propNetIncome +
+                                     ", Transactions: " + propTxCount);
                 }
-            } else {
-                System.out.println("🔍 DEBUG: Financial summary is null");
+
+                System.out.println("💰 UNIFIED Financial Summary - Rent: £" + totalRent + ", Commission: £" + totalCommission +
+                                 ", Net: £" + totalNetToOwner + ", Transactions: " + totalTransactions);
+
+            } catch (Exception e) {
+                System.err.println("⚠️ Error calculating unified financial summary: " + e.getMessage());
+                e.printStackTrace();
             }
 
-            // FALLBACK: If portfolio-based query returns no data, use direct customer assignment query
-            if (financialSummary == null || financialSummary.length == 0 || parseFinancialValue(financialSummary, 0).compareTo(BigDecimal.ZERO) == 0) {
-                System.out.println("🔄 Portfolio-based financial summary returned no data, trying direct customer assignment query...");
-                financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummaryDirect(customer.getCustomerId());
-                System.out.println("🔄 Direct financial summary: " + (financialSummary != null ? java.util.Arrays.toString(financialSummary) : "NULL"));
-
-                // ADDITIONAL DEBUG: Test if the expected customer 1984 data exists
-                if (customer.getCustomerId().equals(1984L)) {
-                    System.out.println("🔍 EXPECTED for Customer 1984: Should see ~£259,448.38 total rent");
-                    System.out.println("🔍 PayProp properties for 1984 should include: 7QZGPmabJ9, RwXxg7kmJA, mn18KO44X9");
-                }
-            }
-            
-            // 💰 Parse financial summary (total_rent, total_commission, total_net_to_owner, transaction_count)
-            // ✅ FIXED: Safe parsing of financial data that may contain scientific notation
-            BigDecimal totalRent = parseFinancialValue(financialSummary, 0);
-            BigDecimal totalCommission = parseFinancialValue(financialSummary, 1);
-            BigDecimal totalNetToOwner = parseFinancialValue(financialSummary, 2);
-            Long totalTransactions = parseTransactionCount(financialSummary, 3);
-            
-            System.out.println("💰 Financial Summary - Rent: £" + totalRent + ", Commission: £" + totalCommission + 
-                             ", Net: £" + totalNetToOwner + ", Transactions: " + totalTransactions);
-
-            // 🏠 Get property-level financial breakdown
-            System.out.println("🔍 DEBUG: Getting property breakdown for customer " + customer.getCustomerId());
-            List<Object[]> propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdown(customer.getCustomerId());
-            System.out.println("🔍 DEBUG: Portfolio-based property breakdown count: " + (propertyBreakdown != null ? propertyBreakdown.size() : "NULL"));
-
-            // FALLBACK: If portfolio-based property breakdown returns no data, use direct customer assignment query
-            if (propertyBreakdown == null || propertyBreakdown.isEmpty()) {
-                System.out.println("🔄 Portfolio-based property breakdown returned no data, trying direct customer assignment query...");
-                propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdownDirect(customer.getCustomerId());
-                System.out.println("🔄 Direct property breakdown count: " + (propertyBreakdown != null ? propertyBreakdown.size() : "NULL"));
+            // Convert propertyFinancialMap to List<Object[]> format for compatibility with existing code
+            List<Object[]> propertyBreakdown = new ArrayList<>();
+            for (Map<String, Object> propData : propertyFinancialMap.values()) {
+                Object[] row = new Object[6];
+                row[0] = propData.get("propertyName");
+                row[1] = propData.get("payPropId");
+                row[2] = propData.get("totalRent");
+                row[3] = propData.get("totalCommission");
+                row[4] = propData.get("totalNetToOwner");
+                row[5] = propData.get("transactionCount");
+                propertyBreakdown.add(row);
             }
 
-            // DEBUG: Show property breakdown data
-            if (propertyBreakdown != null && !propertyBreakdown.isEmpty()) {
-                System.out.println("🔍 DEBUG: Property breakdown data (first 5 rows):");
-                for (int i = 0; i < Math.min(5, propertyBreakdown.size()); i++) {
-                    Object[] row = propertyBreakdown.get(i);
-                    System.out.println("   Row " + i + ": " + (row.length > 0 ? "name=" + row[0] : "empty") +
-                                     ", " + (row.length > 1 ? "payprop_id=" + row[1] : "no_id") +
-                                     ", " + (row.length > 2 ? "rent=" + row[2] : "no_rent") +
-                                     ", " + (row.length > 3 ? "commission=" + row[3] : "no_commission") +
-                                     ", " + (row.length > 4 ? "net=" + row[4] : "no_net") +
-                                     ", " + (row.length > 5 ? "transactions=" + row[5] : "no_transactions"));
-                }
-            } else {
-                System.out.println("❌ DEBUG: No property breakdown data found!");
-            }
-            
+            System.out.println("🏠 Property breakdown created with " + propertyBreakdown.size() + " properties from UNIFIED data");
+
             // 📋 Get recent transactions (last 3 months) using UNIFIED data
             LocalDate threeMonthsAgo = LocalDate.now().minusMonths(3);
-            LocalDate today = LocalDate.now();
             List<FinancialTransaction> recentTransactions = new ArrayList<>();
 
             // Use unified financial data instead of old financial_transactions table
@@ -2015,6 +2020,7 @@ public class PropertyOwnerController {
 
     /**
      * Enhanced Financials with Portfolio and Data Source Filtering
+     * NOW USES UNIFIED FINANCIAL DATA (Historical + PayProp combined)
      */
     @GetMapping("/property-owner/financials/filter")
     @ResponseBody
@@ -2025,7 +2031,7 @@ public class PropertyOwnerController {
             Authentication authentication) {
 
         System.out.println("🔍 Filtering financials - Portfolio: " + portfolioId + ", Data Source: " + dataSource);
-        System.out.println("ℹ️  NOTE: dataSource filter is deprecated - now using unified financial data");
+        System.out.println("ℹ️  NOTE: dataSource filter is deprecated - now using UNIFIED financial data (Historical + PayProp)");
 
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
@@ -2033,55 +2039,98 @@ public class PropertyOwnerController {
                 return Map.of("error", "Customer not found");
             }
 
-            // Get financial data with filters
-            Object[] financialSummary;
-            List<Object[]> propertyBreakdown;
+            // Get all customer properties
+            List<Property> allProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
 
+            // Filter properties by portfolio if specified
+            List<Property> filteredProperties = allProperties;
             if (portfolioId != null) {
-                // Filter by specific portfolio
-                financialSummary = financialTransactionRepository.getPortfolioFinancialSummary(portfolioId);
-                propertyBreakdown = financialTransactionRepository.getPortfolioPropertyBreakdown(portfolioId);
-            } else {
-                // Try portfolio-based queries first
-                financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummary(customer.getCustomerId());
-                propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdown(customer.getCustomerId());
+                Portfolio portfolio = portfolioService.findById(portfolioId);
+                if (portfolio != null && portfolio.getProperties() != null) {
+                    Set<Long> portfolioPropertyIds = portfolio.getProperties().stream()
+                        .map(Property::getId)
+                        .collect(Collectors.toSet());
 
-                // FALLBACK: If portfolio-based queries return no data, use direct customer assignment queries
-                if ((financialSummary == null || financialSummary.length == 0 || parseFinancialValue(financialSummary, 0).compareTo(BigDecimal.ZERO) == 0) &&
-                    (propertyBreakdown == null || propertyBreakdown.isEmpty())) {
-                    System.out.println("🔄 Portfolio-based queries returned no data, trying direct customer assignment queries...");
-                    financialSummary = financialTransactionRepository.getPropertyOwnerFinancialSummaryDirect(customer.getCustomerId());
-                    propertyBreakdown = financialTransactionRepository.getPropertyOwnerPropertyBreakdownDirect(customer.getCustomerId());
-                    System.out.println("🔄 Direct query results - Summary: " + (financialSummary != null ? java.util.Arrays.toString(financialSummary) : "NULL"));
-                    System.out.println("🔄 Direct query results - Breakdown count: " + (propertyBreakdown != null ? propertyBreakdown.size() : "NULL"));
+                    filteredProperties = allProperties.stream()
+                        .filter(p -> portfolioPropertyIds.contains(p.getId()))
+                        .collect(Collectors.toList());
+
+                    System.out.println("🔍 Filtered to " + filteredProperties.size() + " properties in portfolio " + portfolio.getName());
                 }
             }
 
-            // Get properties for enhanced data
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            // Calculate unified financial summary for filtered properties
+            LocalDate twoYearsAgo = LocalDate.now().minusYears(2);
+            LocalDate today = LocalDate.now();
 
-            // DEBUG: Check what data we're getting
-            System.out.println("🔍 Customer ID: " + customer.getCustomerId());
-            System.out.println("🔍 Properties count: " + properties.size());
-            System.out.println("🔍 Financial summary result: " + (financialSummary != null ? java.util.Arrays.toString(financialSummary) : "NULL"));
-            System.out.println("🔍 Property breakdown count: " + (propertyBreakdown != null ? propertyBreakdown.size() : "NULL"));
+            BigDecimal totalRent = BigDecimal.ZERO;
+            BigDecimal totalCommission = BigDecimal.ZERO;
+            BigDecimal totalNetToOwner = BigDecimal.ZERO;
+            Long totalTransactions = 0L;
 
-            // Parse financial data
-            BigDecimal totalRent = parseFinancialValue(financialSummary, 0);
-            BigDecimal totalCommission = parseFinancialValue(financialSummary, 1);
-            BigDecimal totalNetToOwner = parseFinancialValue(financialSummary, 2);
-            Long totalTransactions = parseTransactionCount(financialSummary, 3);
+            // Map to hold property-level financial data
+            Map<String, Map<String, Object>> propertyFinancialMap = new HashMap<>();
 
-            System.out.println("🔍 Parsed totals - Rent: " + totalRent + ", Commission: " + totalCommission + ", Net: " + totalNetToOwner + ", Transactions: " + totalTransactions);
+            try {
+                System.out.println("💰 Calculating UNIFIED financial summary for " + filteredProperties.size() + " filtered properties...");
+
+                for (Property property : filteredProperties) {
+                    // Get unified financial summary for this property
+                    Map<String, Object> propSummary = unifiedFinancialDataService.getPropertyFinancialSummary(property);
+
+                    // Extract totals
+                    BigDecimal propRentReceived = (BigDecimal) propSummary.getOrDefault("rentReceived", BigDecimal.ZERO);
+                    BigDecimal propCommissions = (BigDecimal) propSummary.getOrDefault("totalCommissions", BigDecimal.ZERO);
+                    BigDecimal propNetIncome = (BigDecimal) propSummary.getOrDefault("netOwnerIncome", BigDecimal.ZERO);
+                    Integer propTxCount = (Integer) propSummary.getOrDefault("transactionCount", 0);
+
+                    // Aggregate to totals
+                    totalRent = totalRent.add(propRentReceived);
+                    totalCommission = totalCommission.add(propCommissions);
+                    totalNetToOwner = totalNetToOwner.add(propNetIncome);
+                    totalTransactions += propTxCount;
+
+                    // Store property-level data for breakdown table
+                    Map<String, Object> propData = new HashMap<>();
+                    propData.put("propertyName", property.getPropertyName());
+                    propData.put("payPropId", property.getPayPropId());
+                    propData.put("totalRent", propRentReceived);
+                    propData.put("totalCommission", propCommissions);
+                    propData.put("totalNetToOwner", propNetIncome);
+                    propData.put("transactionCount", propTxCount);
+
+                    propertyFinancialMap.put(property.getPayPropId(), propData);
+                }
+
+                System.out.println("💰 UNIFIED Filtered Summary - Rent: £" + totalRent + ", Commission: £" + totalCommission +
+                                 ", Net: £" + totalNetToOwner + ", Transactions: " + totalTransactions);
+
+            } catch (Exception e) {
+                System.err.println("⚠️ Error calculating unified filtered financial summary: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+            // Convert propertyFinancialMap to List<Object[]> format for compatibility
+            List<Object[]> propertyBreakdown = new ArrayList<>();
+            for (Map<String, Object> propData : propertyFinancialMap.values()) {
+                Object[] row = new Object[6];
+                row[0] = propData.get("propertyName");
+                row[1] = propData.get("payPropId");
+                row[2] = propData.get("totalRent");
+                row[3] = propData.get("totalCommission");
+                row[4] = propData.get("totalNetToOwner");
+                row[5] = propData.get("transactionCount");
+                propertyBreakdown.add(row);
+            }
 
             BigDecimal commissionRate = totalRent.compareTo(BigDecimal.ZERO) > 0 ?
                 totalCommission.multiply(BigDecimal.valueOf(100)).divide(totalRent, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
 
             // Create enhanced properties data for frontend
             List<Portfolio> portfolios = List.of(); // For filtering, we don't need all portfolios
-            List<Map<String, Object>> enhancedProperties = createEnhancedPropertiesData(properties, propertyBreakdown, portfolios);
+            List<Map<String, Object>> enhancedProperties = createEnhancedPropertiesData(filteredProperties, propertyBreakdown, portfolios);
 
-            System.out.println("🔍 DEBUG: Created " + enhancedProperties.size() + " enhanced properties for filtered response");
+            System.out.println("🔍 Created " + enhancedProperties.size() + " enhanced properties for filtered response (UNIFIED data)");
 
             // Return filtered data
             Map<String, Object> result = new HashMap<>();
@@ -2091,12 +2140,13 @@ public class PropertyOwnerController {
             result.put("totalTransactions", totalTransactions);
             result.put("commissionRate", commissionRate);
             result.put("propertyBreakdown", propertyBreakdown);
-            result.put("enhancedProperties", enhancedProperties); // Add enhanced properties for frontend
+            result.put("enhancedProperties", enhancedProperties);
 
             return result;
 
         } catch (Exception e) {
             System.err.println("❌ Error in filtered financials: " + e.getMessage());
+            e.printStackTrace();
             return Map.of("error", e.getMessage());
         }
     }

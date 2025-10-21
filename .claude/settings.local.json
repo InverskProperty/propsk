@@ -30,7 +30,8 @@
       "mcp__render__list_deploys",
       "mcp__render__get_deploy",
       "mcp__render__list_services",
-      "mcp__render__list_logs"
+      "mcp__render__list_logs",
+      "Bash(\"C:\\Program Files\\MySQL\\MySQL Server 9.3\\bin\\mysql.exe\" -u root -p12345 -D crm -e \"SELECT DATE_FORMAT(transaction_date, ''%Y-%m'') as month, transaction_type, category, beneficiary_type, COUNT(*) as count, SUM(amount) as total FROM historical_transactions WHERE transaction_date >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH) GROUP BY month, transaction_type, category, beneficiary_type ORDER BY month DESC, count DESC LIMIT 30;\")"
     ],
     "deny": [],
     "ask": [],
