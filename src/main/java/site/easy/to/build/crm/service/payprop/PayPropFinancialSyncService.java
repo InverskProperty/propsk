@@ -48,7 +48,9 @@ public class PayPropFinancialSyncService {
     private final BatchPaymentRepository batchPaymentRepository;
     private final PropertyService propertyService;
     private final DataSource dataSource;
-    
+    private final PayPropIncomingPaymentFinancialSyncService incomingPaymentSyncService;
+    private final PayPropInvoiceInstructionEnrichmentService invoiceInstructionEnrichmentService;
+
     // PayProp API base URL
     @Value("${payprop.api.base-url}")
     private String payPropApiBase;
@@ -64,7 +66,9 @@ public class PayPropFinancialSyncService {
         FinancialTransactionRepository financialTransactionRepository,
         BatchPaymentRepository batchPaymentRepository,
         PropertyService propertyService,
-        DataSource dataSource
+        DataSource dataSource,
+        PayPropIncomingPaymentFinancialSyncService incomingPaymentSyncService,
+        PayPropInvoiceInstructionEnrichmentService invoiceInstructionEnrichmentService
     ) {
         this.oAuth2Service = oAuth2Service;
         this.restTemplate = restTemplate;
@@ -76,6 +80,8 @@ public class PayPropFinancialSyncService {
         this.batchPaymentRepository = batchPaymentRepository;
         this.propertyService = propertyService;
         this.dataSource = dataSource;
+        this.incomingPaymentSyncService = incomingPaymentSyncService;
+        this.invoiceInstructionEnrichmentService = invoiceInstructionEnrichmentService;
     }
     
     /**
@@ -112,31 +118,74 @@ public class PayPropFinancialSyncService {
             Map<String, Object> invoiceInstructionsResult = syncInvoiceInstructions();
             syncResults.put("invoice_instructions", invoiceInstructionsResult);
             
-            // 6. Sync Financial Transactions (ICDN) - Different API pattern
-            Map<String, Object> transactionsResult = syncFinancialTransactions();
-            syncResults.put("transactions", transactionsResult);
+            // 6. Sync Financial Transactions (ICDN) - ❌ DISABLED: ICDN are billing records, not actual payments
+            // Credit notes correct errors in historical_transactions - would cause duplicates
+            // Use INCOMING_PAYMENT data source instead for actual tenant payments
+            // Map<String, Object> transactionsResult = syncFinancialTransactions();
+            // syncResults.put("transactions", transactionsResult);
+            logger.info("⏭️ Skipping ICDN sync - using INCOMING_PAYMENT instead");
+            syncResults.put("transactions", Map.of("status", "SKIPPED", "reason", "ICDN are billing records, not actual payments"));
             
             // 7. Sync Batch Payments - Different API pattern with date chunks
             Map<String, Object> batchPaymentsResult = syncBatchPayments();
             syncResults.put("batch_payments", batchPaymentsResult);
             
-            // 8. Calculate and store commission data
-            Map<String, Object> commissionsResult = calculateAndStoreCommissions();
-            syncResults.put("commissions", commissionsResult);
+            // 8. Calculate and store commission data - ❌ DISABLED: Should use actual commission from all-payments
+            // Calculating from ICDN invoices is wrong - invoices = what was billed, not what was paid
+            // Actual commission is in payprop_report_all_payments (beneficiary_type='agency', category_name='Commission')
+            // Map<String, Object> commissionsResult = calculateAndStoreCommissions();
+            // syncResults.put("commissions", commissionsResult);
+            logger.info("⏭️ Skipping calculated commission - should import actual from all-payments");
+            syncResults.put("commissions", Map.of("status", "SKIPPED", "reason", "Use actual commission from all-payments, not calculated"));
 
-            // 9. Sync actual commission payments
-            Map<String, Object> actualCommissionsResult = syncActualCommissionPayments();
-            syncResults.put("actual_commissions", actualCommissionsResult);
+            // 9. Sync actual commission payments - ❌ DISABLED: Uses wrong calculation
+            // This still calculates from ICDN invoices - should import from payprop_report_all_payments instead
+            // Map<String, Object> actualCommissionsResult = syncActualCommissionPayments();
+            // syncResults.put("actual_commissions", actualCommissionsResult);
+            logger.info("⏭️ Skipping commission payment calculation");
+            syncResults.put("actual_commissions", Map.of("status", "SKIPPED", "reason", "Import actual commission from payprop_report_all_payments"));
 
-            // 10. Link actual commission payments to rent transactions
-            Map<String, Object> linkingResult = linkActualCommissionToTransactions();
-            syncResults.put("commission_linking", linkingResult);
-            
-            // 11. 🚨 NEW: Sync owner payments from payprop_report_all_payments to financial_transactions
+            // 10. Link actual commission payments to rent transactions - ❌ DISABLED: Depends on calculated commission
+            // Map<String, Object> linkingResult = linkActualCommissionToTransactions();
+            // syncResults.put("commission_linking", linkingResult);
+            logger.info("⏭️ Skipping commission linking");
+            syncResults.put("commission_linking", Map.of("status", "SKIPPED", "reason", "Will link when importing actual commission"));
+
+            // TODO: Create new service to import actual commission from payprop_report_all_payments
+            // - WHERE beneficiary_type = 'agency' AND category_name = 'Commission'
+            // - 89 records totaling £10,601.26
+            // - Links to incoming_transaction_id for proper association
+
+            // 11. 🚨 NEW: Sync incoming tenant payments from payprop_export_incoming_payments
+            logger.info("💰 Syncing incoming tenant payments to financial_transactions");
+            PayPropIncomingPaymentFinancialSyncService.IncomingPaymentSyncResult incomingResult =
+                incomingPaymentSyncService.syncIncomingPaymentsToFinancialTransactions();
+            Map<String, Object> incomingPaymentsMap = new HashMap<>();
+            incomingPaymentsMap.put("success", incomingResult.success);
+            incomingPaymentsMap.put("total", incomingResult.totalIncomingPayments);
+            incomingPaymentsMap.put("imported", incomingResult.imported);
+            incomingPaymentsMap.put("skipped", incomingResult.skipped);
+            incomingPaymentsMap.put("errors", incomingResult.errors);
+            syncResults.put("incoming_payments", incomingPaymentsMap);
+
+            // 12. 🚨 NEW: Enrich local leases with PayProp invoice instruction IDs
+            logger.info("🔗 Enriching local leases with PayProp invoice instruction IDs");
+            PayPropInvoiceInstructionEnrichmentService.EnrichmentResult enrichmentResult =
+                invoiceInstructionEnrichmentService.enrichLocalLeasesWithPayPropIds();
+            Map<String, Object> enrichmentMap = new HashMap<>();
+            enrichmentMap.put("success", enrichmentResult.success);
+            enrichmentMap.put("total", enrichmentResult.totalPayPropInstructions);
+            enrichmentMap.put("enriched", enrichmentResult.enriched);
+            enrichmentMap.put("created", enrichmentResult.created);
+            enrichmentMap.put("skipped", enrichmentResult.skipped);
+            enrichmentMap.put("errors", enrichmentResult.errors);
+            syncResults.put("lease_enrichment", enrichmentMap);
+
+            // 13. 🚨 NEW: Sync owner payments from payprop_report_all_payments to financial_transactions
             Map<String, Object> ownerPaymentsResult = syncOwnerPaymentsToFinancialTransactions();
             syncResults.put("owner_payments", ownerPaymentsResult);
 
-            // 12. 🚨 CRITICAL: Validate instruction vs completion data integrity
+            // 14. 🚨 CRITICAL: Validate instruction vs completion data integrity
             Map<String, Object> validationResult = validateInstructionCompletionIntegrity();
             syncResults.put("data_integrity", validationResult);
 

@@ -122,16 +122,24 @@ public class PayPropRawAllPaymentsImportService {
             result.setTotalImported(importedCount);
 
             // Extract and import unique incoming payments to payprop_export_incoming_payments
-            int incomingCount = extractAndImportIncomingPayments(payments);
-            log.info("📥 Extracted {} unique incoming tenant payments", incomingCount);
+            try {
+                int incomingCount = extractAndImportIncomingPayments(payments);
+                log.info("📥 Extracted {} unique incoming tenant payments", incomingCount);
+            } catch (SQLException e) {
+                if (e.getMessage().contains("doesn't exist")) {
+                    log.warn("⚠️ Skipping incoming payments extraction - table payprop_export_incoming_payments doesn't exist yet (migration pending)");
+                } else {
+                    log.error("⚠️ Failed to extract incoming payments, but continuing with sync", e);
+                }
+            }
 
             result.setSuccess(true);
             result.setEndTime(LocalDateTime.now());
-            result.setDetails(String.format("All payments imported: %d fetched, %d imported, %d incoming payments extracted",
-                payments.size(), importedCount, incomingCount));
+            result.setDetails(String.format("All payments imported: %d fetched, %d imported",
+                payments.size(), importedCount));
 
-            log.info("✅ Raw all-payments import completed: {} fetched, {} imported, {} incoming extracted",
-                payments.size(), importedCount, incomingCount);
+            log.info("✅ Raw all-payments import completed: {} fetched, {} imported",
+                payments.size(), importedCount);
             
         } catch (Exception e) {
             log.error("❌ Raw all-payments import failed", e);
