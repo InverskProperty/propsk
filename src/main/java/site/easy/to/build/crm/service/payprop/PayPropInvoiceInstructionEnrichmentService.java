@@ -3,6 +3,7 @@ package site.easy.to.build.crm.service.payprop;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import site.easy.to.build.crm.entity.Customer;
@@ -33,6 +34,7 @@ import java.util.Optional;
  * - Local lease can be found via PayProp IDs
  * - PayProp transactions can map to local lease structure
  */
+@ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Service
 public class PayPropInvoiceInstructionEnrichmentService {
 
