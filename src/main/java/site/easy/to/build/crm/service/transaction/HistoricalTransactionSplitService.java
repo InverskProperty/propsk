@@ -136,7 +136,7 @@ public class HistoricalTransactionSplitService {
                     HistoricalTransaction saved = historicalTransactionRepository.save(rentPayment);
 
                     // Create the split transactions
-                    createBeneficiaryAllocationsFromIncoming(saved);
+                    createBeneficiaryAllocationsFromIncomingInternal(saved);
                 }
 
                 succeeded++;
@@ -184,10 +184,18 @@ public class HistoricalTransactionSplitService {
     }
 
     /**
+     * PUBLIC method to create beneficiary allocation and agency fee from incoming rent payment
+     * Called by PayPropIncomingPaymentImportService
+     */
+    public void createBeneficiaryAllocationsFromIncoming(HistoricalTransaction incomingTransaction) {
+        createBeneficiaryAllocationsFromIncomingInternal(incomingTransaction);
+    }
+
+    /**
      * Create beneficiary allocation and agency fee from rent payment
      * (Duplicated from HistoricalTransactionImportService to avoid circular dependency)
      */
-    private void createBeneficiaryAllocationsFromIncoming(HistoricalTransaction incomingTransaction) {
+    private void createBeneficiaryAllocationsFromIncomingInternal(HistoricalTransaction incomingTransaction) {
         BigDecimal incomingAmount = incomingTransaction.getIncomingTransactionAmount();
         Property property = incomingTransaction.getProperty();
 

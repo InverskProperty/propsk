@@ -64,12 +64,13 @@ public class PayPropRawImportOrchestrator {
     
     @Autowired
     private PayPropRawProcessingSummaryImportService processingSummaryImportService;
-    
+
     @Autowired
     private PropertyRentCalculationService rentCalculationService;
-    
+
     @Autowired
     private PayPropImportIssueTracker issueTracker;
+
     
     /**
      * Execute complete PayProp raw import and business logic processing
@@ -105,14 +106,16 @@ public class PayPropRawImportOrchestrator {
                 throw new RuntimeException("Invoice instructions import failed: " + invoicesResult.getErrorMessage());
             }
             
-            // Import ALL payment transactions (this is where the missing £1,100 should be!)
+            // Import ALL payment transactions (includes nested incoming payment extraction)
             PayPropRawImportResult allPaymentsResult = allPaymentsImportService.importAllPayments();
             orchestrationResult.addImportResult("all_payments", allPaymentsResult);
-            
+
             if (!allPaymentsResult.isSuccess()) {
                 throw new RuntimeException("All payments import failed: " + allPaymentsResult.getErrorMessage());
             }
-            
+
+            log.info("✅ All payments imported (includes extraction of incoming tenant payments to payprop_export_incoming_payments)");
+
             // Import payment distributions
             PayPropRawImportResult paymentsResult = paymentsImportService.importAllPayments();
             orchestrationResult.addImportResult("payments", paymentsResult);
@@ -356,7 +359,7 @@ public class PayPropRawImportOrchestrator {
         public void addImportResult(String endpoint, PayPropRawImportResult result) {
             this.importResults.put(endpoint, result);
         }
-        
+
         public Duration getDuration() {
             if (startTime == null || endTime == null) {
                 return Duration.ZERO;

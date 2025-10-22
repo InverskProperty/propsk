@@ -119,14 +119,18 @@ public class PayPropRawAllPaymentsImportService {
             // Import to database
             int importedCount = importPaymentsToDatabase(payments);
             result.setTotalImported(importedCount);
-            
+
+            // Extract and import unique incoming payments to payprop_export_incoming_payments
+            int incomingCount = extractAndImportIncomingPayments(payments);
+            log.info("📥 Extracted {} unique incoming tenant payments", incomingCount);
+
             result.setSuccess(true);
             result.setEndTime(LocalDateTime.now());
-            result.setDetails(String.format("All payments imported: %d fetched, %d imported", 
-                payments.size(), importedCount));
-            
-            log.info("✅ Raw all-payments import completed: {} fetched, {} imported", 
-                payments.size(), importedCount);
+            result.setDetails(String.format("All payments imported: %d fetched, %d imported, %d incoming payments extracted",
+                payments.size(), importedCount, incomingCount));
+
+            log.info("✅ Raw all-payments import completed: {} fetched, {} imported, {} incoming extracted",
+                payments.size(), importedCount, incomingCount);
             
         } catch (Exception e) {
             log.error("❌ Raw all-payments import failed", e);
@@ -556,6 +560,111 @@ public class PayPropRawAllPaymentsImportService {
         }
     }
     
+    /**
+     * Extract unique incoming payments and import to payprop_export_incoming_payments
+     * Processes nested incoming_transaction data from payment allocations
+     */
+    private int extractAndImportIncomingPayments(List<Map<String, Object>> payments) throws SQLException {
+        // Deduplicate incoming payments (same incoming_transaction_id appears in multiple allocations)
+        Map<String, Map<String, Object>> uniqueIncoming = new HashMap<>();
+
+        for (Map<String, Object> payment : payments) {
+            String incomingId = getNestedStringValue(payment, "incoming_transaction", "id");
+
+            if (incomingId != null && !incomingId.isEmpty()) {
+                // First occurrence wins (could also merge data if needed)
+                uniqueIncoming.putIfAbsent(incomingId, payment);
+            }
+        }
+
+        if (uniqueIncoming.isEmpty()) {
+            log.info("No incoming payments to extract");
+            return 0;
+        }
+
+        log.info("Found {} unique incoming payments in {} allocation records",
+            uniqueIncoming.size(), payments.size());
+
+        // Insert to payprop_export_incoming_payments
+        String insertSql = """
+            INSERT INTO payprop_export_incoming_payments (
+                payprop_id,
+                amount,
+                reconciliation_date,
+                transaction_type,
+                transaction_status,
+                tenant_payprop_id,
+                tenant_name,
+                property_payprop_id,
+                property_name,
+                deposit_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                amount = VALUES(amount),
+                reconciliation_date = VALUES(reconciliation_date),
+                transaction_type = VALUES(transaction_type),
+                transaction_status = VALUES(transaction_status),
+                tenant_payprop_id = VALUES(tenant_payprop_id),
+                tenant_name = VALUES(tenant_name),
+                property_payprop_id = VALUES(property_payprop_id),
+                property_name = VALUES(property_name),
+                deposit_id = VALUES(deposit_id),
+                updated_at = CURRENT_TIMESTAMP
+            """;
+
+        int insertedCount = 0;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(insertSql)) {
+
+            for (Map<String, Object> payment : uniqueIncoming.values()) {
+                String incomingId = getNestedStringValue(payment, "incoming_transaction", "id");
+                BigDecimal amount = getNestedBigDecimalValue(payment, "incoming_transaction", "amount");
+                java.sql.Date reconDate = getNestedDateValue(payment, "incoming_transaction", "reconciliation_date");
+                String propertyId = getNestedStringValue(payment, "incoming_transaction", "property", "id");
+
+                // Skip if missing required fields
+                if (incomingId == null || amount == null || reconDate == null || propertyId == null) {
+                    log.debug("Skipping incomplete incoming payment: id={}, amount={}, date={}, property={}",
+                        incomingId, amount, reconDate, propertyId);
+                    continue;
+                }
+
+                stmt.setString(1, incomingId);
+                stmt.setBigDecimal(2, amount);
+                stmt.setDate(3, reconDate);
+                stmt.setString(4, getNestedStringValue(payment, "incoming_transaction", "type"));
+                stmt.setString(5, getNestedStringValue(payment, "incoming_transaction", "status"));
+                stmt.setString(6, getNestedStringValue(payment, "incoming_transaction", "tenant", "id"));
+                stmt.setString(7, getNestedStringValue(payment, "incoming_transaction", "tenant", "name"));
+                stmt.setString(8, propertyId);
+                stmt.setString(9, getNestedStringValue(payment, "incoming_transaction", "property", "name"));
+                stmt.setString(10, getNestedStringValue(payment, "incoming_transaction", "deposit_id"));
+
+                stmt.addBatch();
+                insertedCount++;
+
+                // Execute batch every 50 items
+                if (insertedCount % 50 == 0) {
+                    stmt.executeBatch();
+                }
+            }
+
+            // Execute remaining batch
+            if (insertedCount % 50 != 0) {
+                stmt.executeBatch();
+            }
+
+            log.info("✅ Inserted/updated {} incoming payments to payprop_export_incoming_payments", insertedCount);
+
+        } catch (SQLException e) {
+            log.error("Failed to insert incoming payments", e);
+            throw e;
+        }
+
+        return insertedCount;
+    }
+
     /**
      * Extract specific foreign key constraint details from error message
      */
