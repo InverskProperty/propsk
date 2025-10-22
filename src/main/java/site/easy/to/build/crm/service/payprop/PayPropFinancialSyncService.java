@@ -48,8 +48,8 @@ public class PayPropFinancialSyncService {
     private final BatchPaymentRepository batchPaymentRepository;
     private final PropertyService propertyService;
     private final DataSource dataSource;
-    private final PayPropIncomingPaymentFinancialSyncService incomingPaymentSyncService;
-    private final PayPropInvoiceInstructionEnrichmentService invoiceInstructionEnrichmentService;
+    private PayPropIncomingPaymentFinancialSyncService incomingPaymentSyncService;
+    private PayPropInvoiceInstructionEnrichmentService invoiceInstructionEnrichmentService;
 
     // PayProp API base URL
     @Value("${payprop.api.base-url}")
@@ -66,9 +66,7 @@ public class PayPropFinancialSyncService {
         FinancialTransactionRepository financialTransactionRepository,
         BatchPaymentRepository batchPaymentRepository,
         PropertyService propertyService,
-        DataSource dataSource,
-        PayPropIncomingPaymentFinancialSyncService incomingPaymentSyncService,
-        PayPropInvoiceInstructionEnrichmentService invoiceInstructionEnrichmentService
+        DataSource dataSource
     ) {
         this.oAuth2Service = oAuth2Service;
         this.restTemplate = restTemplate;
@@ -80,7 +78,15 @@ public class PayPropFinancialSyncService {
         this.batchPaymentRepository = batchPaymentRepository;
         this.propertyService = propertyService;
         this.dataSource = dataSource;
+    }
+
+    @Autowired(required = false)
+    public void setIncomingPaymentSyncService(PayPropIncomingPaymentFinancialSyncService incomingPaymentSyncService) {
         this.incomingPaymentSyncService = incomingPaymentSyncService;
+    }
+
+    @Autowired(required = false)
+    public void setInvoiceInstructionEnrichmentService(PayPropInvoiceInstructionEnrichmentService invoiceInstructionEnrichmentService) {
         this.invoiceInstructionEnrichmentService = invoiceInstructionEnrichmentService;
     }
     
@@ -157,29 +163,39 @@ public class PayPropFinancialSyncService {
             // - Links to incoming_transaction_id for proper association
 
             // 11. 🚨 NEW: Sync incoming tenant payments from payprop_export_incoming_payments
-            logger.info("💰 Syncing incoming tenant payments to financial_transactions");
-            PayPropIncomingPaymentFinancialSyncService.IncomingPaymentSyncResult incomingResult =
-                incomingPaymentSyncService.syncIncomingPaymentsToFinancialTransactions();
-            Map<String, Object> incomingPaymentsMap = new HashMap<>();
-            incomingPaymentsMap.put("success", incomingResult.success);
-            incomingPaymentsMap.put("total", incomingResult.totalIncomingPayments);
-            incomingPaymentsMap.put("imported", incomingResult.imported);
-            incomingPaymentsMap.put("skipped", incomingResult.skipped);
-            incomingPaymentsMap.put("errors", incomingResult.errors);
-            syncResults.put("incoming_payments", incomingPaymentsMap);
+            if (incomingPaymentSyncService != null) {
+                logger.info("💰 Syncing incoming tenant payments to financial_transactions");
+                PayPropIncomingPaymentFinancialSyncService.IncomingPaymentSyncResult incomingResult =
+                    incomingPaymentSyncService.syncIncomingPaymentsToFinancialTransactions();
+                Map<String, Object> incomingPaymentsMap = new HashMap<>();
+                incomingPaymentsMap.put("success", incomingResult.success);
+                incomingPaymentsMap.put("total", incomingResult.totalIncomingPayments);
+                incomingPaymentsMap.put("imported", incomingResult.imported);
+                incomingPaymentsMap.put("skipped", incomingResult.skipped);
+                incomingPaymentsMap.put("errors", incomingResult.errors);
+                syncResults.put("incoming_payments", incomingPaymentsMap);
+            } else {
+                logger.warn("⚠️ IncomingPaymentSyncService not available - skipping");
+                syncResults.put("incoming_payments", Map.of("status", "UNAVAILABLE", "reason", "Service not autowired"));
+            }
 
             // 12. 🚨 NEW: Enrich local leases with PayProp invoice instruction IDs
-            logger.info("🔗 Enriching local leases with PayProp invoice instruction IDs");
-            PayPropInvoiceInstructionEnrichmentService.EnrichmentResult enrichmentResult =
-                invoiceInstructionEnrichmentService.enrichLocalLeasesWithPayPropIds();
-            Map<String, Object> enrichmentMap = new HashMap<>();
-            enrichmentMap.put("success", enrichmentResult.success);
-            enrichmentMap.put("total", enrichmentResult.totalPayPropInstructions);
-            enrichmentMap.put("enriched", enrichmentResult.enriched);
-            enrichmentMap.put("created", enrichmentResult.created);
-            enrichmentMap.put("skipped", enrichmentResult.skipped);
-            enrichmentMap.put("errors", enrichmentResult.errors);
-            syncResults.put("lease_enrichment", enrichmentMap);
+            if (invoiceInstructionEnrichmentService != null) {
+                logger.info("🔗 Enriching local leases with PayProp invoice instruction IDs");
+                PayPropInvoiceInstructionEnrichmentService.EnrichmentResult enrichmentResult =
+                    invoiceInstructionEnrichmentService.enrichLocalLeasesWithPayPropIds();
+                Map<String, Object> enrichmentMap = new HashMap<>();
+                enrichmentMap.put("success", enrichmentResult.success);
+                enrichmentMap.put("total", enrichmentResult.totalPayPropInstructions);
+                enrichmentMap.put("enriched", enrichmentResult.enriched);
+                enrichmentMap.put("created", enrichmentResult.created);
+                enrichmentMap.put("skipped", enrichmentResult.skipped);
+                enrichmentMap.put("errors", enrichmentResult.errors);
+                syncResults.put("lease_enrichment", enrichmentMap);
+            } else {
+                logger.warn("⚠️ InvoiceInstructionEnrichmentService not available - skipping");
+                syncResults.put("lease_enrichment", Map.of("status", "UNAVAILABLE", "reason", "Service not autowired"));
+            }
 
             // 13. 🚨 NEW: Sync owner payments from payprop_report_all_payments to financial_transactions
             Map<String, Object> ownerPaymentsResult = syncOwnerPaymentsToFinancialTransactions();
