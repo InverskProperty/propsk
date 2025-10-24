@@ -2609,13 +2609,14 @@ public class PayPropFinancialSyncService {
                     deletedTransactions = ps.executeUpdate();
                 }
 
-                // payments.property_id is a BIGINT foreign key, so use derived table to avoid MySQL subquery limitation
+                // payments.property_id is a BIGINT foreign key
+                // Use JOIN instead of subquery to avoid MySQL column reference issue
                 String deletePaymentsQuery = String.format(
-                    "DELETE FROM payments WHERE property_id IN (" +
-                    "  SELECT id FROM (" +
-                    "    SELECT id FROM properties WHERE payprop_id IS NOT NULL AND payprop_id NOT IN (%s)" +
-                    "  ) AS orphaned_properties" +
-                    ")",
+                    "DELETE p FROM payments p " +
+                    "INNER JOIN properties prop ON p.property_id = prop.id " +
+                    "WHERE prop.payprop_id IS NOT NULL " +
+                    "AND prop.payprop_id NOT IN (%s) " +
+                    "AND p.payprop_payment_id IS NOT NULL",
                     placeholders
                 );
 
@@ -2627,13 +2628,13 @@ public class PayPropFinancialSyncService {
                     deletedPayments = ps.executeUpdate();
                 }
 
-                // batch_payments.property_id is a BIGINT foreign key, so use derived table to avoid MySQL subquery limitation
+                // batch_payments.property_id is a BIGINT foreign key
+                // Use JOIN instead of subquery to avoid MySQL column reference issue
                 String deleteBatchPaymentsQuery = String.format(
-                    "DELETE FROM batch_payments WHERE property_id IN (" +
-                    "  SELECT id FROM (" +
-                    "    SELECT id FROM properties WHERE payprop_id IS NOT NULL AND payprop_id NOT IN (%s)" +
-                    "  ) AS orphaned_properties" +
-                    ")",
+                    "DELETE bp FROM batch_payments bp " +
+                    "INNER JOIN properties prop ON bp.property_id = prop.id " +
+                    "WHERE prop.payprop_id IS NOT NULL " +
+                    "AND prop.payprop_id NOT IN (%s)",
                     placeholders
                 );
 

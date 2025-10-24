@@ -573,16 +573,22 @@ public class PayPropSyncOrchestrator {
             // STRATEGY 1: Try reading from database first (faster, uses Step 0 data)
             log.info("🔗 Attempting to extract relationships from database...");
             try {
+                // FIX: payprop_export_payments doesn't have beneficiary_payprop_id
+                // Must join with payprop_report_all_payments to get actual PayProp IDs
                 String sql = """
-                    SELECT
-                        beneficiary as beneficiary_id,
-                        property_payprop_id,
-                        gross_percentage,
-                        property_name
-                    FROM payprop_export_payments
-                    WHERE category = 'Owner'
-                    AND enabled = 1
-                    AND sync_status = 'active'
+                    SELECT DISTINCT
+                        ap.beneficiary_payprop_id as beneficiary_id,
+                        ep.property_payprop_id,
+                        ep.gross_percentage,
+                        ep.property_name
+                    FROM payprop_export_payments ep
+                    INNER JOIN payprop_report_all_payments ap
+                        ON ep.property_payprop_id = ap.property_payprop_id
+                        AND ep.beneficiary = ap.beneficiary_name
+                    WHERE ep.category = 'Owner'
+                    AND ep.enabled = 1
+                    AND ep.sync_status = 'active'
+                    AND ap.beneficiary_payprop_id IS NOT NULL
                     """;
 
                 jdbcTemplate.query(sql, rs -> {
