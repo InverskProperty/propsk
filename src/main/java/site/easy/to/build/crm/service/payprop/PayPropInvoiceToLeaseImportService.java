@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
+import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.Invoice.InvoiceFrequency;
@@ -291,17 +292,91 @@ public class PayPropInvoiceToLeaseImportService {
     }
 
     /**
-     * Find customer by PayProp tenant ID
+     * Find customer by PayProp tenant ID, creating placeholder if not found
      */
     private Customer findOrResolveCustomer(String tenantPayPropId, String displayName) {
         if (tenantPayPropId == null) {
             return null;
         }
 
-        // Try to find by payprop_entity_id in customer table
-        return customerRepository.findByPayPropEntityId(tenantPayPropId);
+        // Try to find existing customer
+        Customer existing = customerRepository.findByPayPropEntityId(tenantPayPropId);
+        if (existing != null) {
+            return existing;
+        }
 
-        // TODO: If not found, could create placeholder customer or try to match by name
+        // Customer not found - check payprop_export_tenants for more info
+        Map<String, String> tenantInfo = fetchTenantInfo(tenantPayPropId);
+
+        // Create placeholder customer
+        log.warn("⚠️ Customer not found for PayProp tenant {}. Creating placeholder customer: {}",
+                 tenantPayPropId, displayName);
+
+        Customer newCustomer = new Customer();
+        newCustomer.setName(displayName != null ? displayName : "PayProp Tenant " + tenantPayPropId);
+        newCustomer.setPayPropEntityId(tenantPayPropId);
+        newCustomer.setCustomerType(CustomerType.TENANT);
+        newCustomer.setIsTenant(true);
+
+        // Add tenant info if available
+        if (tenantInfo != null) {
+            newCustomer.setEmail(tenantInfo.get("email"));
+            newCustomer.setPhone(tenantInfo.get("phone"));
+            newCustomer.setFirstName(tenantInfo.get("first_name"));
+            newCustomer.setLastName(tenantInfo.get("last_name"));
+        }
+
+        // Set sync metadata
+        newCustomer.setDataSource(site.easy.to.build.crm.entity.DataSource.PAYPROP);
+        newCustomer.setNotes("Auto-created from PayProp invoice instruction. Tenant not found in customer database.");
+        newCustomer.setCountry("United Kingdom");
+        newCustomer.setCountryCode("GB");
+        newCustomer.setCreatedAt(LocalDateTime.now());
+
+        // PayProp sync fields
+        newCustomer.setPayPropSynced(true);
+        newCustomer.setPayPropLastSync(LocalDateTime.now());
+        newCustomer.setPayPropSyncStatus(site.easy.to.build.crm.entity.SyncStatus.synced);
+
+        // Save and return
+        Customer saved = customerRepository.save(newCustomer);
+        log.info("✅ Created placeholder customer ID {} for PayProp tenant {}",
+                 saved.getCustomerId(), tenantPayPropId);
+
+        return saved;
+    }
+
+    /**
+     * Fetch additional tenant info from payprop_export_tenants table
+     */
+    private Map<String, String> fetchTenantInfo(String tenantPayPropId) {
+        try (Connection conn = dataSource.getConnection()) {
+            String sql = """
+                SELECT first_name, last_name, email_address, mobile_number
+                FROM payprop_export_tenants
+                WHERE payprop_id = ?
+                LIMIT 1
+                """;
+
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, tenantPayPropId);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        Map<String, String> info = new HashMap<>();
+                        info.put("first_name", rs.getString("first_name"));
+                        info.put("last_name", rs.getString("last_name"));
+                        info.put("email", rs.getString("email_address"));
+                        info.put("phone", rs.getString("mobile_number"));
+                        return info;
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            log.warn("Could not fetch tenant info for {}: {}", tenantPayPropId, e.getMessage());
+        }
+
+        return null;
     }
 
     /**
