@@ -575,6 +575,7 @@ public class PayPropSyncOrchestrator {
             try {
                 // FIX: payprop_export_payments doesn't have beneficiary_payprop_id
                 // Must join with payprop_report_all_payments to get actual PayProp IDs
+                // Use COALESCE to handle potential nulls and TRIM to handle whitespace differences
                 String sql = """
                     SELECT DISTINCT
                         ap.beneficiary_payprop_id as beneficiary_id,
@@ -584,11 +585,13 @@ public class PayPropSyncOrchestrator {
                     FROM payprop_export_payments ep
                     INNER JOIN payprop_report_all_payments ap
                         ON ep.property_payprop_id = ap.property_payprop_id
-                        AND ep.beneficiary = ap.beneficiary_name
+                        AND TRIM(COALESCE(ep.beneficiary, '')) = TRIM(COALESCE(ap.beneficiary_name, ''))
                     WHERE ep.category = 'Owner'
                     AND ep.enabled = 1
                     AND ep.sync_status = 'active'
                     AND ap.beneficiary_payprop_id IS NOT NULL
+                    AND ep.beneficiary IS NOT NULL
+                    AND ap.beneficiary_name IS NOT NULL
                     """;
 
                 jdbcTemplate.query(sql, rs -> {

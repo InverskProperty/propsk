@@ -216,12 +216,23 @@ public class PayPropInvoiceInstructionEnrichmentService {
         lease.setPaypropCustomerId(instruction.tenantPaypropId);
         lease.setPaypropLastSync(LocalDateTime.now());
 
-        // Set category if available
-        if (instruction.categoryName != null && !instruction.categoryName.isEmpty()) {
+        // Set category - categoryId is REQUIRED by validation
+        if (instruction.categoryId != null && !instruction.categoryId.isEmpty()) {
+            lease.setCategoryId(instruction.categoryId);
             lease.setCategoryName(instruction.categoryName);
         } else {
-            lease.setCategoryName("Rent"); // Default category
+            // Fallback to a default - use "RENT" as category ID if PayProp doesn't provide one
+            lease.setCategoryId("RENT");
+            lease.setCategoryName(instruction.categoryName != null ? instruction.categoryName : "Rent");
         }
+
+        // Set description - REQUIRED by validation
+        String description = String.format("Lease for %s - Tenant: %s - £%s %s",
+            property.getAddressLine1() != null ? property.getAddressLine1() : instruction.propertyName,
+            customer.getName(),
+            instruction.amount,
+            instruction.frequency != null ? instruction.frequency : "monthly");
+        lease.setDescription(description);
 
         // Metadata
         lease.setCreatedAt(LocalDateTime.now());
@@ -273,7 +284,8 @@ public class PayPropInvoiceInstructionEnrichmentService {
                 is_active_instruction,
                 property_name,
                 tenant_display_name,
-                category_name
+                category_name,
+                category_payprop_id
             FROM payprop_export_invoices
             WHERE is_active_instruction = 1
             ORDER BY property_payprop_id, tenant_payprop_id
@@ -302,6 +314,7 @@ public class PayPropInvoiceInstructionEnrichmentService {
                 instruction.propertyName = rs.getString("property_name");
                 instruction.tenantName = rs.getString("tenant_display_name");
                 instruction.categoryName = rs.getString("category_name");
+                instruction.categoryId = rs.getString("category_payprop_id");
 
                 instructions.add(instruction);
             }
@@ -355,5 +368,6 @@ public class PayPropInvoiceInstructionEnrichmentService {
         String propertyName;
         String tenantName;
         String categoryName;
+        String categoryId;
     }
 }

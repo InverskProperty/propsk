@@ -2616,7 +2616,7 @@ public class PayPropFinancialSyncService {
                     "INNER JOIN properties prop ON p.property_id = prop.id " +
                     "WHERE prop.payprop_id IS NOT NULL " +
                     "AND prop.payprop_id NOT IN (%s) " +
-                    "AND p.payprop_payment_id IS NOT NULL",
+                    "AND p.pay_prop_payment_id IS NOT NULL",
                     placeholders
                 );
 
