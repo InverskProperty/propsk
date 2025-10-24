@@ -134,14 +134,27 @@ public class PayPropInvoiceInstructionEnrichmentService {
                             skipped++;
                         }
                     } else {
-                        // No existing lease - just track for now
-                        // You can decide later if you want to auto-create leases from PayProp
-                        log.debug("ℹ️ No local lease found for property {} + customer {} - instruction {}",
-                            property.getAddressLine1(), customer != null ? customer.getName() : "unknown",
-                            instruction.paypropId);
-                        skipped++;
-                        result.addSkipped(instruction.paypropId,
-                            "No local lease for property: " + property.getAddressLine1());
+                        // No existing lease - AUTO-CREATE from PayProp instruction
+                        if (customer == null) {
+                            // Can't create lease without tenant
+                            log.debug("ℹ️ Cannot create lease for instruction {} - tenant not found", instruction.paypropId);
+                            skipped++;
+                            result.addSkipped(instruction.paypropId, "No tenant found for instruction");
+                            continue;
+                        }
+
+                        try {
+                            Invoice newLease = createLeaseFromPayPropInstruction(instruction, property, customer);
+                            invoiceRepository.save(newLease);
+                            created++;
+                            log.info("✅ Created new lease from PayProp instruction: {} for {} at {}",
+                                newLease.getLeaseReference(), customer.getName(), property.getAddressLine1());
+                        } catch (Exception createEx) {
+                            log.error("❌ Failed to auto-create lease from instruction {}: {}",
+                                instruction.paypropId, createEx.getMessage());
+                            errors++;
+                            result.addError(instruction.paypropId, "Failed to create lease: " + createEx.getMessage());
+                        }
                     }
 
                 } catch (Exception e) {
@@ -167,6 +180,78 @@ public class PayPropInvoiceInstructionEnrichmentService {
         }
 
         return result;
+    }
+
+    /**
+     * Create a new lease (Invoice) from PayProp invoice instruction
+     */
+    private Invoice createLeaseFromPayPropInstruction(
+            PayPropInvoiceInstruction instruction,
+            Property property,
+            Customer customer) {
+
+        Invoice lease = new Invoice();
+
+        // Generate lease reference from PayProp instruction ID
+        lease.setLeaseReference("PAYPROP-" + instruction.paypropId);
+
+        // Link to property and customer
+        lease.setProperty(property);
+        lease.setCustomer(customer);
+
+        // Financial details from instruction
+        lease.setAmount(instruction.amount);
+        lease.setFrequency(mapFrequencyFromPayProp(instruction.frequency));
+        lease.setPaymentDay(instruction.paymentDay);
+
+        // Date range from instruction
+        lease.setStartDate(instruction.fromDate);
+        lease.setEndDate(instruction.toDate); // May be null for ongoing leases
+
+        // Set as active based on instruction
+        lease.setIsActive(instruction.isActive != null ? instruction.isActive : true);
+
+        // PayProp linkage
+        lease.setPaypropId(instruction.paypropId);
+        lease.setPaypropCustomerId(instruction.tenantPaypropId);
+        lease.setPaypropLastSync(LocalDateTime.now());
+
+        // Set category if available
+        if (instruction.categoryName != null && !instruction.categoryName.isEmpty()) {
+            lease.setCategoryName(instruction.categoryName);
+        } else {
+            lease.setCategoryName("Rent"); // Default category
+        }
+
+        // Metadata
+        lease.setCreatedAt(LocalDateTime.now());
+
+        log.debug("📝 Created lease object: {} for property {} + customer {}",
+            lease.getLeaseReference(), property.getAddressLine1(), customer.getName());
+
+        return lease;
+    }
+
+    /**
+     * Map PayProp frequency string to Invoice.InvoiceFrequency enum
+     */
+    private Invoice.InvoiceFrequency mapFrequencyFromPayProp(String paypropFrequency) {
+        if (paypropFrequency == null) {
+            return Invoice.InvoiceFrequency.monthly; // Default
+        }
+
+        return switch (paypropFrequency.toLowerCase()) {
+            case "monthly", "m" -> Invoice.InvoiceFrequency.monthly;
+            case "weekly", "w" -> Invoice.InvoiceFrequency.weekly;
+            case "quarterly", "q" -> Invoice.InvoiceFrequency.quarterly;
+            case "yearly", "annual", "y", "a" -> Invoice.InvoiceFrequency.yearly;
+            case "daily", "d" -> Invoice.InvoiceFrequency.daily;
+            case "one_time", "once" -> Invoice.InvoiceFrequency.one_time;
+            default -> {
+                log.warn("⚠️ Unknown PayProp frequency '{}', defaulting to monthly", paypropFrequency);
+                yield Invoice.InvoiceFrequency.monthly;
+            }
+        };
     }
 
     /**
