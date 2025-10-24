@@ -2628,13 +2628,19 @@ public class PayPropFinancialSyncService {
                     deletedPayments = ps.executeUpdate();
                 }
 
-                // batch_payments.property_id is a BIGINT foreign key
-                // Use JOIN instead of subquery to avoid MySQL column reference issue
+                // batch_payments cleanup: join through payments table to reach properties
+                // batch_payments are linked to customers, but we can find orphaned ones
+                // by checking if ANY of their child payments reference orphaned properties
                 String deleteBatchPaymentsQuery = String.format(
                     "DELETE bp FROM batch_payments bp " +
-                    "INNER JOIN properties prop ON bp.property_id = prop.id " +
-                    "WHERE prop.payprop_id IS NOT NULL " +
-                    "AND prop.payprop_id NOT IN (%s)",
+                    "WHERE bp.payprop_batch_id IS NOT NULL " +
+                    "AND EXISTS ( " +
+                    "  SELECT 1 FROM payments p " +
+                    "  INNER JOIN properties prop ON p.property_id = prop.id " +
+                    "  WHERE p.batch_payment_id = bp.id " +
+                    "  AND prop.payprop_id IS NOT NULL " +
+                    "  AND prop.payprop_id NOT IN (%s) " +
+                    ")",
                     placeholders
                 );
 
