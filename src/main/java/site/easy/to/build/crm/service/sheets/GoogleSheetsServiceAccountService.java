@@ -21,6 +21,7 @@ import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.enums.StatementDataSource;
+import site.easy.to.build.crm.service.statements.BodenHouseStatementTemplateService;
 import site.easy.to.build.crm.util.RentCyclePeriodCalculator;
 import site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod;
 import site.easy.to.build.crm.service.financial.UnifiedFinancialDataService;
@@ -45,6 +46,7 @@ public class GoogleSheetsServiceAccountService {
     private final UnifiedFinancialDataService unifiedFinancialDataService;
     private final RentCalculationService rentCalculationService;
     private final InvoiceRepository invoiceRepository;
+    private final BodenHouseStatementTemplateService bodenHouseTemplateService;
 
     @Value("${GOOGLE_SERVICE_ACCOUNT_KEY}")
     private String serviceAccountKey;
@@ -58,13 +60,15 @@ public class GoogleSheetsServiceAccountService {
                                            FinancialTransactionRepository financialTransactionRepository,
                                            UnifiedFinancialDataService unifiedFinancialDataService,
                                            RentCalculationService rentCalculationService,
-                                           InvoiceRepository invoiceRepository) {
+                                           InvoiceRepository invoiceRepository,
+                                           BodenHouseStatementTemplateService bodenHouseTemplateService) {
         this.customerService = customerService;
         this.propertyService = propertyService;
         this.financialTransactionRepository = financialTransactionRepository;
         this.unifiedFinancialDataService = unifiedFinancialDataService;
         this.rentCalculationService = rentCalculationService;
         this.invoiceRepository = invoiceRepository;
+        this.bodenHouseTemplateService = bodenHouseTemplateService;
     }
 
     /**
@@ -330,9 +334,9 @@ public class GoogleSheetsServiceAccountService {
         // Step 2: Create Sheets service for populating data (UpdateValues has 0% error rate)
         Sheets service = createSheetsService();
 
-        // Build enhanced statement data with full structure
-        PropertyOwnerStatementData data = buildPropertyOwnerStatementData(propertyOwner, fromDate, toDate);
-        List<List<Object>> values = buildEnhancedPropertyOwnerStatementValues(data);
+        // Build statement data using shared BodenHouseStatementTemplateService
+        System.out.println("📊 ServiceAccount: Using BodenHouseStatementTemplateService for unified template");
+        List<List<Object>> values = bodenHouseTemplateService.generatePropertyOwnerStatement(propertyOwner, fromDate, toDate);
 
         // Update the sheet with data using USER_ENTERED to enable formulas
         ValueRange body = new ValueRange().setValues(values);
@@ -341,8 +345,8 @@ public class GoogleSheetsServiceAccountService {
             .setValueInputOption("USER_ENTERED") // This enables formulas!
             .execute();
 
-        // Apply enhanced formatting with currency, colors, and borders
-        applyEnhancedPropertyOwnerStatementFormatting(service, spreadsheetId, data);
+        // Apply Boden House formatting (matching the template)
+        applyBodenHouseGoogleSheetsFormatting(service, spreadsheetId);
 
         // Make the spreadsheet public (viewable by anyone with link)
         BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
@@ -388,10 +392,15 @@ public class GoogleSheetsServiceAccountService {
 
             System.out.println("📊 ServiceAccount: Generating sheet " + (i + 1) + "/" + periods.size() + ": " + sheetName);
 
-            // Build statement data for this period
-            PropertyOwnerStatementData data = buildPropertyOwnerStatementData(
-                propertyOwner, period.getStartDate(), period.getEndDate());
-            List<List<Object>> values = buildEnhancedPropertyOwnerStatementValues(data);
+            // Build statement data for this period using shared template service
+            List<List<Object>> values;
+            if (includedDataSources != null && !includedDataSources.isEmpty()) {
+                values = bodenHouseTemplateService.generatePropertyOwnerStatement(
+                    propertyOwner, period.getStartDate(), period.getEndDate(), includedDataSources);
+            } else {
+                values = bodenHouseTemplateService.generatePropertyOwnerStatement(
+                    propertyOwner, period.getStartDate(), period.getEndDate());
+            }
 
             int sheetId;
             if (i == 0) {
@@ -410,7 +419,7 @@ public class GoogleSheetsServiceAccountService {
                 .execute();
 
             // Apply formatting to this sheet
-            applyBodenHouseGoogleSheetsFormattingToSheet(sheetsService, spreadsheetId, sheetId, data);
+            applyBodenHouseGoogleSheetsFormattingToSheet(sheetsService, spreadsheetId, sheetId);
 
             System.out.println("✅ ServiceAccount: Completed sheet: " + sheetName);
         }
@@ -475,45 +484,115 @@ public class GoogleSheetsServiceAccountService {
     }
 
     /**
+     * Apply Boden House formatting to the default sheet (Sheet ID 0)
+     */
+    private void applyBodenHouseGoogleSheetsFormatting(Sheets sheetsService, String spreadsheetId)
+            throws IOException {
+        applyBodenHouseGoogleSheetsFormattingToSheet(sheetsService, spreadsheetId, 0);
+    }
+
+    /**
      * Apply Boden House formatting to a specific sheet
      */
     private void applyBodenHouseGoogleSheetsFormattingToSheet(Sheets sheetsService, String spreadsheetId,
-                                                              int sheetId, PropertyOwnerStatementData data)
+                                                              int sheetId)
             throws IOException {
         List<Request> requests = new ArrayList<>();
 
-        // Header formatting (rows 0-6)
-        requests.add(new Request().setRepeatCell(new RepeatCellRequest()
-            .setRange(new GridRange()
-                .setSheetId(sheetId)
-                .setStartRowIndex(0)
-                .setEndRowIndex(6))
-            .setCell(new CellData().setUserEnteredFormat(new CellFormat()
-                .setTextFormat(new TextFormat().setBold(true).setFontSize(12))
-                .setBackgroundColor(new Color().setRed(0.9f).setGreen(0.95f).setBlue(1.0f))))
-            .setFields("userEnteredFormat.textFormat.bold,userEnteredFormat.textFormat.fontSize,userEnteredFormat.backgroundColor")));
-
-        // Currency formatting for amount columns
-        int[] currencyColumns = {3, 5, 6, 7, 8, 10};
-        for (int col : currencyColumns) {
-            requests.add(new Request().setRepeatCell(new RepeatCellRequest()
+        // Format company header (PROPSK LTD section) - rows 30-36, column 37 (AL)
+        requests.add(new Request()
+            .setRepeatCell(new RepeatCellRequest()
                 .setRange(new GridRange()
                     .setSheetId(sheetId)
-                    .setStartRowIndex(13)
-                    .setEndRowIndex(50)
-                    .setStartColumnIndex(col)
-                    .setEndColumnIndex(col + 1))
-                .setCell(new CellData().setUserEnteredFormat(new CellFormat()
-                    .setNumberFormat(new NumberFormat()
-                        .setType("CURRENCY")
-                        .setPattern("£#,##0.00"))))
-                .setFields("userEnteredFormat.numberFormat")));
+                    .setStartRowIndex(30)
+                    .setEndRowIndex(36)
+                    .setStartColumnIndex(37)
+                    .setEndColumnIndex(38))
+                .setCell(new CellData()
+                    .setUserEnteredFormat(new CellFormat()
+                        .setTextFormat(new TextFormat()
+                            .setBold(true)
+                            .setFontSize(12)
+                            .setFontFamily("Calibri"))
+                        .setHorizontalAlignment("RIGHT")))
+                .setFields("userEnteredFormat(textFormat,horizontalAlignment)")));
+
+        // Format column headers - row 39 (0-indexed)
+        requests.add(new Request()
+            .setRepeatCell(new RepeatCellRequest()
+                .setRange(new GridRange()
+                    .setSheetId(sheetId)
+                    .setStartRowIndex(39)
+                    .setEndRowIndex(40)
+                    .setStartColumnIndex(0)
+                    .setEndColumnIndex(38))
+                .setCell(new CellData()
+                    .setUserEnteredFormat(new CellFormat()
+                        .setTextFormat(new TextFormat()
+                            .setBold(true)
+                            .setFontSize(10)
+                            .setFontFamily("Calibri"))
+                        .setHorizontalAlignment("CENTER")
+                        .setVerticalAlignment("MIDDLE")
+                        .setWrapStrategy("WRAP")
+                        .setBackgroundColor(new Color()
+                            .setRed(0.9f)
+                            .setGreen(0.9f)
+                            .setBlue(0.9f))
+                        .setBorders(new Borders()
+                            .setTop(new Border().setStyle("SOLID").setWidth(1))
+                            .setBottom(new Border().setStyle("SOLID").setWidth(1))
+                            .setLeft(new Border().setStyle("SOLID").setWidth(1))
+                            .setRight(new Border().setStyle("SOLID").setWidth(1)))))
+                .setFields("userEnteredFormat")));
+
+        // Format currency columns (Boden House 38-column format)
+        int[] currencyColumns = {5, 10, 11, 12, 13, 15, 17, 18, 20, 22, 24, 26, 28, 30, 31, 32, 33, 34, 36};
+        for (int col : currencyColumns) {
+            requests.add(new Request()
+                .setRepeatCell(new RepeatCellRequest()
+                    .setRange(new GridRange()
+                        .setSheetId(sheetId)
+                        .setStartRowIndex(40)
+                        .setEndRowIndex(1000)
+                        .setStartColumnIndex(col)
+                        .setEndColumnIndex(col + 1))
+                    .setCell(new CellData()
+                        .setUserEnteredFormat(new CellFormat()
+                            .setNumberFormat(new NumberFormat()
+                                .setType("CURRENCY")
+                                .setPattern("£#,##0.00;(£#,##0.00)"))
+                            .setHorizontalAlignment("RIGHT")))
+                    .setFields("userEnteredFormat(numberFormat,horizontalAlignment)")));
+        }
+
+        // Format percentage columns (commission rates, etc.)
+        int[] percentageColumns = {14, 16};
+        for (int col : percentageColumns) {
+            requests.add(new Request()
+                .setRepeatCell(new RepeatCellRequest()
+                    .setRange(new GridRange()
+                        .setSheetId(sheetId)
+                        .setStartRowIndex(40)
+                        .setEndRowIndex(1000)
+                        .setStartColumnIndex(col)
+                        .setEndColumnIndex(col + 1))
+                    .setCell(new CellData()
+                        .setUserEnteredFormat(new CellFormat()
+                            .setNumberFormat(new NumberFormat()
+                                .setType("PERCENT")
+                                .setPattern("0.00%"))
+                            .setHorizontalAlignment("CENTER")))
+                    .setFields("userEnteredFormat")));
         }
 
         // Execute formatting
-        BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
-            .setRequests(requests);
-        sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
+        if (!requests.isEmpty()) {
+            BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
+                .setRequests(requests);
+            sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
+            System.out.println("✅ Applied Boden House formatting to sheet ID: " + sheetId);
+        }
     }
 
     /**
