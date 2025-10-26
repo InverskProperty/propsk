@@ -301,10 +301,11 @@ public class GoogleSheetsServiceAccountService {
             spreadsheetId = file.getId();
             System.out.println("✅ ServiceAccount: Spreadsheet created in shared drive! ID: " + spreadsheetId);
 
-            // Give the property owner access to their statement (optional)
+            // Give the property owner access to their statement
             String customerEmail = propertyOwner.getEmail();
             if (customerEmail != null && !customerEmail.isEmpty()) {
                 try {
+                    // Try to grant access to specific user email
                     com.google.api.services.drive.model.Permission customerPermission = new com.google.api.services.drive.model.Permission();
                     customerPermission.setRole("reader"); // Can view but not edit
                     customerPermission.setType("user");
@@ -316,11 +317,44 @@ public class GoogleSheetsServiceAccountService {
                         .execute();
 
                     System.out.println("✅ ServiceAccount: Property owner (" + customerEmail + ") granted access to their statement");
-                } catch (Exception customerAccessError) {
-                    System.err.println("⚠️ ServiceAccount: Could not grant access to customer: " + customerAccessError.getMessage());
+                } catch (Exception userPermissionError) {
+                    // Fallback: If user-specific permission fails (e.g., email not a Google account),
+                    // make the sheet accessible to anyone with the link
+                    System.out.println("⚠️ ServiceAccount: User-specific permission failed for " + customerEmail + ": " + userPermissionError.getMessage());
+                    System.out.println("📊 ServiceAccount: Falling back to 'anyone with link' access...");
+
+                    try {
+                        com.google.api.services.drive.model.Permission anyonePermission = new com.google.api.services.drive.model.Permission();
+                        anyonePermission.setRole("reader");
+                        anyonePermission.setType("anyone");  // Anyone with the link can view
+
+                        driveService.permissions().create(spreadsheetId, anyonePermission)
+                            .setSupportsAllDrives(true)
+                            .execute();
+
+                        System.out.println("✅ ServiceAccount: Sheet accessible via link (anyone with link can view)");
+                        System.out.println("💡 ServiceAccount: Customer " + customerEmail + " should create a Google account to receive direct access in future");
+                    } catch (Exception fallbackError) {
+                        System.err.println("❌ ServiceAccount: Both user permission and 'anyone with link' fallback failed: " + fallbackError.getMessage());
+                        System.err.println("⚠️ ServiceAccount: Sheet created but may not be accessible to customer!");
+                    }
                 }
             } else {
-                System.err.println("⚠️ ServiceAccount: Customer email not found - cannot grant access");
+                // No email provided - make accessible via link by default
+                System.out.println("⚠️ ServiceAccount: Customer email not found - using 'anyone with link' access");
+                try {
+                    com.google.api.services.drive.model.Permission anyonePermission = new com.google.api.services.drive.model.Permission();
+                    anyonePermission.setRole("reader");
+                    anyonePermission.setType("anyone");
+
+                    driveService.permissions().create(spreadsheetId, anyonePermission)
+                        .setSupportsAllDrives(true)
+                        .execute();
+
+                    System.out.println("✅ ServiceAccount: Sheet accessible via link (anyone with link can view)");
+                } catch (Exception e) {
+                    System.err.println("❌ ServiceAccount: Failed to make sheet publicly accessible: " + e.getMessage());
+                }
             }
 
         } catch (IOException e) {
@@ -632,43 +666,77 @@ public class GoogleSheetsServiceAccountService {
     }
 
     /**
-     * Grant access to property owner
+     * Grant access to property owner with fallback to "anyone with link"
      */
     private void grantAccessToPropertyOwner(String spreadsheetId, Customer propertyOwner)
             throws IOException, GeneralSecurityException {
         String customerEmail = propertyOwner.getEmail();
-        if (customerEmail == null || customerEmail.isEmpty()) {
-            System.err.println("⚠️ ServiceAccount: Customer email not found - cannot grant access");
-            return;
-        }
 
-        try {
-            String formattedKey = getFormattedServiceAccountKey();
-            GoogleCredential driveCredential = GoogleCredential
-                .fromStream(new ByteArrayInputStream(formattedKey.getBytes()))
-                .createScoped(Collections.singleton(DriveScopes.DRIVE));
+        String formattedKey = getFormattedServiceAccountKey();
+        GoogleCredential driveCredential = GoogleCredential
+            .fromStream(new ByteArrayInputStream(formattedKey.getBytes()))
+            .createScoped(Collections.singleton(DriveScopes.DRIVE));
 
-            Drive driveService = new Drive.Builder(
-                GoogleNetHttpTransport.newTrustedTransport(),
-                GsonFactory.getDefaultInstance(),
-                driveCredential)
-                .setApplicationName("CRM Property Management")
-                .build();
+        Drive driveService = new Drive.Builder(
+            GoogleNetHttpTransport.newTrustedTransport(),
+            GsonFactory.getDefaultInstance(),
+            driveCredential)
+            .setApplicationName("CRM Property Management")
+            .build();
 
-            com.google.api.services.drive.model.Permission customerPermission =
-                new com.google.api.services.drive.model.Permission();
-            customerPermission.setRole("reader");
-            customerPermission.setType("user");
-            customerPermission.setEmailAddress(customerEmail);
+        if (customerEmail != null && !customerEmail.isEmpty()) {
+            try {
+                // Try to grant access to specific user email
+                com.google.api.services.drive.model.Permission customerPermission =
+                    new com.google.api.services.drive.model.Permission();
+                customerPermission.setRole("reader");
+                customerPermission.setType("user");
+                customerPermission.setEmailAddress(customerEmail);
 
-            driveService.permissions().create(spreadsheetId, customerPermission)
-                .setSupportsAllDrives(true)
-                .setSendNotificationEmail(false)
-                .execute();
+                driveService.permissions().create(spreadsheetId, customerPermission)
+                    .setSupportsAllDrives(true)
+                    .setSendNotificationEmail(false)
+                    .execute();
 
-            System.out.println("✅ ServiceAccount: Property owner (" + customerEmail + ") granted access");
-        } catch (Exception e) {
-            System.err.println("⚠️ ServiceAccount: Could not grant access to customer: " + e.getMessage());
+                System.out.println("✅ ServiceAccount: Property owner (" + customerEmail + ") granted access");
+            } catch (Exception userPermissionError) {
+                // Fallback: If user-specific permission fails, make accessible via link
+                System.out.println("⚠️ ServiceAccount: User-specific permission failed for " + customerEmail + ": " + userPermissionError.getMessage());
+                System.out.println("📊 ServiceAccount: Falling back to 'anyone with link' access...");
+
+                try {
+                    com.google.api.services.drive.model.Permission anyonePermission =
+                        new com.google.api.services.drive.model.Permission();
+                    anyonePermission.setRole("reader");
+                    anyonePermission.setType("anyone");
+
+                    driveService.permissions().create(spreadsheetId, anyonePermission)
+                        .setSupportsAllDrives(true)
+                        .execute();
+
+                    System.out.println("✅ ServiceAccount: Sheet accessible via link (anyone with link can view)");
+                    System.out.println("💡 ServiceAccount: Customer " + customerEmail + " should create a Google account to receive direct access in future");
+                } catch (Exception fallbackError) {
+                    System.err.println("❌ ServiceAccount: Both user permission and 'anyone with link' fallback failed: " + fallbackError.getMessage());
+                }
+            }
+        } else {
+            // No email provided - make accessible via link by default
+            System.out.println("⚠️ ServiceAccount: Customer email not found - using 'anyone with link' access");
+            try {
+                com.google.api.services.drive.model.Permission anyonePermission =
+                    new com.google.api.services.drive.model.Permission();
+                anyonePermission.setRole("reader");
+                anyonePermission.setType("anyone");
+
+                driveService.permissions().create(spreadsheetId, anyonePermission)
+                    .setSupportsAllDrives(true)
+                    .execute();
+
+                System.out.println("✅ ServiceAccount: Sheet accessible via link (anyone with link can view)");
+            } catch (Exception e) {
+                System.err.println("❌ ServiceAccount: Failed to make sheet publicly accessible: " + e.getMessage());
+            }
         }
     }
 
