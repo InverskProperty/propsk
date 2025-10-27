@@ -132,7 +132,6 @@ public class LeaseImportWizardController {
                 List<PropertyMatch> allMatches = allProperties.stream()
                     .map(property -> new PropertyMatch(property, 100))
                     .sorted((a, b) -> a.propertyName.compareToIgnoreCase(b.propertyName))
-                    .limit(50) // Limit to first 50 for performance
                     .collect(Collectors.toList());
 
                 return ResponseEntity.ok(Map.of(
@@ -187,7 +186,6 @@ public class LeaseImportWizardController {
                 List<CustomerMatch> allMatches = allCustomers.stream()
                     .map(customer -> new CustomerMatch(customer, 100))
                     .sorted((a, b) -> a.name.compareToIgnoreCase(b.name))
-                    .limit(50) // Limit to first 50 for performance
                     .collect(Collectors.toList());
 
                 return ResponseEntity.ok(Map.of(
@@ -217,7 +215,7 @@ public class LeaseImportWizardController {
                     score = Math.max(score, nameScore);
                 }
 
-                if (score > 40) { // Only show decent matches
+                if (score > 30) { // Only show decent matches (lowered from 40 to catch partial name matches)
                     matches.add(new CustomerMatch(customer, score));
                 }
             }
