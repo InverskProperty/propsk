@@ -11,9 +11,12 @@ import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
+import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 
@@ -62,6 +65,9 @@ public class LeaseImportService {
 
     @Autowired
     private CustomerService customerService;
+
+    @Autowired
+    private CustomerPropertyAssignmentRepository assignmentRepository;
 
     private static final DateTimeFormatter[] DATE_FORMATTERS = {
         DateTimeFormatter.ofPattern("yyyy-MM-dd"),
@@ -135,10 +141,21 @@ public class LeaseImportService {
 
                     // Create lease (Invoice entity)
                     Invoice lease = createLease(row, property, customer, createdByUser);
-                    invoiceRepository.save(lease);
+                    Invoice savedLease = invoiceRepository.save(lease);
+
+                    // Create corresponding tenant assignment
+                    CustomerPropertyAssignment assignment = new CustomerPropertyAssignment();
+                    assignment.setCustomer(customer);
+                    assignment.setProperty(property);
+                    assignment.setAssignmentType(AssignmentType.TENANT);
+                    assignment.setStartDate(lease.getStartDate());
+                    assignment.setEndDate(lease.getEndDate());
+                    assignment.setCreatedAt(LocalDateTime.now());
+                    assignment.setSyncStatus("LOCAL_ONLY");
+                    assignmentRepository.save(assignment);
 
                     result.incrementSuccessful();
-                    log.info("✅ Line {}: Created lease {} for {} at {}",
+                    log.info("✅ Line {}: Created lease {} and tenant assignment for {} at {}",
                             lineNumber, row.leaseReference, customer.getName(), property.getPropertyName());
 
                 } catch (Exception e) {
