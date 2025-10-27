@@ -285,21 +285,20 @@ public class GoogleSheetsServiceAccountService {
                 .setApplicationName("CRM Property Management")
                 .build();
 
-            System.out.println("📊 ServiceAccount: Creating spreadsheet in shared drive: " + SHARED_DRIVE_ID);
+            System.out.println("📊 ServiceAccount: Creating spreadsheet in My Drive for anonymous access");
 
-            // Create spreadsheet file in shared drive
+            // Create spreadsheet file in service account's My Drive for anonymous access
             com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
             fileMetadata.setName(title);
             fileMetadata.setMimeType("application/vnd.google-apps.spreadsheet");
-            fileMetadata.setParents(Collections.singletonList(SHARED_DRIVE_ID));
+            // NOTE: No parent set = creates in service account's My Drive (allows anonymous "anyone with link" access)
 
             com.google.api.services.drive.model.File file = driveService.files()
                 .create(fileMetadata)
-                .setSupportsAllDrives(true)  // Required for shared drives
                 .execute();
 
             spreadsheetId = file.getId();
-            System.out.println("✅ ServiceAccount: Spreadsheet created in shared drive! ID: " + spreadsheetId);
+            System.out.println("✅ ServiceAccount: Spreadsheet created in My Drive! ID: " + spreadsheetId);
 
             // Give the property owner access to their statement
             String customerEmail = propertyOwner.getEmail();
@@ -312,7 +311,6 @@ public class GoogleSheetsServiceAccountService {
                     customerPermission.setEmailAddress(customerEmail);
 
                     driveService.permissions().create(spreadsheetId, customerPermission)
-                        .setSupportsAllDrives(true)  // Required for shared drives
                         .setSendNotificationEmail(false)  // Don't notify customer by email
                         .execute();
 
@@ -329,7 +327,6 @@ public class GoogleSheetsServiceAccountService {
                         anyonePermission.setType("anyone");  // Anyone with the link can view
 
                         driveService.permissions().create(spreadsheetId, anyonePermission)
-                            .setSupportsAllDrives(true)
                             .execute();
 
                         System.out.println("✅ ServiceAccount: Sheet accessible via link (anyone with link can view)");
@@ -348,7 +345,6 @@ public class GoogleSheetsServiceAccountService {
                     anyonePermission.setType("anyone");
 
                     driveService.permissions().create(spreadsheetId, anyonePermission)
-                        .setSupportsAllDrives(true)
                         .execute();
 
                     System.out.println("✅ ServiceAccount: Sheet accessible via link (anyone with link can view)");
@@ -646,21 +642,20 @@ public class GoogleSheetsServiceAccountService {
             .setApplicationName("CRM Property Management")
             .build();
 
-        System.out.println("📊 ServiceAccount: Creating multi-period spreadsheet in shared drive: " + SHARED_DRIVE_ID);
+        System.out.println("📊 ServiceAccount: Creating multi-period spreadsheet in My Drive for anonymous access");
 
-        // Create spreadsheet file in shared drive
+        // Create spreadsheet file in service account's My Drive for anonymous access
         com.google.api.services.drive.model.File fileMetadata = new com.google.api.services.drive.model.File();
         fileMetadata.setName(title);
         fileMetadata.setMimeType("application/vnd.google-apps.spreadsheet");
-        fileMetadata.setParents(Collections.singletonList(SHARED_DRIVE_ID));
+        // NOTE: No parent set = creates in service account's My Drive (allows anonymous "anyone with link" access)
 
         com.google.api.services.drive.model.File file = driveService.files()
             .create(fileMetadata)
-            .setSupportsAllDrives(true)
             .execute();
 
         String spreadsheetId = file.getId();
-        System.out.println("✅ ServiceAccount: Multi-period spreadsheet created in shared drive! ID: " + spreadsheetId);
+        System.out.println("✅ ServiceAccount: Multi-period spreadsheet created in My Drive! ID: " + spreadsheetId);
 
         return spreadsheetId;
     }
@@ -694,7 +689,6 @@ public class GoogleSheetsServiceAccountService {
                 customerPermission.setEmailAddress(customerEmail);
 
                 driveService.permissions().create(spreadsheetId, customerPermission)
-                    .setSupportsAllDrives(true)
                     .setSendNotificationEmail(false)
                     .execute();
 
@@ -711,7 +705,6 @@ public class GoogleSheetsServiceAccountService {
                     anyonePermission.setType("anyone");
 
                     driveService.permissions().create(spreadsheetId, anyonePermission)
-                        .setSupportsAllDrives(true)
                         .execute();
 
                     System.out.println("✅ ServiceAccount: Sheet accessible via link (anyone with link can view)");
@@ -730,7 +723,6 @@ public class GoogleSheetsServiceAccountService {
                 anyonePermission.setType("anyone");
 
                 driveService.permissions().create(spreadsheetId, anyonePermission)
-                    .setSupportsAllDrives(true)
                     .execute();
 
                 System.out.println("✅ ServiceAccount: Sheet accessible via link (anyone with link can view)");
