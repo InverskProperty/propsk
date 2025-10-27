@@ -72,7 +72,7 @@ public class Invoice {
     
     @Column(name = "amount", precision = 10, scale = 2, nullable = false)
     @NotNull(message = "Amount is required")
-    @DecimalMin(value = "0.01", message = "Amount must be positive")
+    @DecimalMin(value = "0.00", inclusive = true, message = "Amount cannot be negative")
     private BigDecimal amount;
     
     @Column(name = "vat_included", nullable = false)
