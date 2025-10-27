@@ -169,8 +169,11 @@
                                             <button type="submit" class="btn btn-primary btn-lg" id="csvSubmitBtn">
                                                 <i class="fas fa-file-csv"></i> Import CSV File
                                             </button>
+                                            <button type="button" class="btn btn-success btn-lg ml-2" onclick="window.location.href='/employee/transaction/import/template'">
+                                                <i class="fas fa-download"></i> Download Simple Template
+                                            </button>
                                             <button type="button" class="btn btn-info btn-lg ml-2" onclick="showCsvExample()">
-                                                <i class="fas fa-eye"></i> View CSV Example
+                                                <i class="fas fa-eye"></i> View Example
                                             </button>
                                         </div>
 
@@ -421,34 +424,54 @@
                             
                             <h6><strong>Required Fields:</strong></h6>
                             <ul class="list-unstyled small">
-                                <li>• <code>transaction_date</code></li>
-                                <li>• <code>amount</code> (negative for payments out)</li>
-                                <li>• <code>description</code></li>
-                                <li>• <code>transaction_type</code></li>
+                                <li>• <code>transaction_date</code> - Date in YYYY-MM-DD format</li>
+                                <li>• <code>amount</code> - Decimal (negative for payments out)</li>
                             </ul>
-                            
-                            <h6><strong>Optional Fields:</strong></h6>
+
+                            <h6><strong>Recommended Fields:</strong></h6>
                             <ul class="list-unstyled small">
-                                <li>• <code>category</code>, <code>subcategory</code></li>
-                                <li>• <code>property_reference</code></li>
-                                <li>• <code>customer_reference</code></li>
-                                <li>• <code>bank_reference</code></li>
-                                <li>• <code>payment_method</code></li>
-                                <li>• <code>notes</code></li>
+                                <li>• <code>lease_reference</code> - <strong class="text-success">Highly Recommended!</strong> Links to specific lease (e.g., LEASE-BH-F1-2025)</li>
+                                <li>• <code>category</code> - rent, maintenance, commission (helps with auto-matching)</li>
+                                <li>• <code>property_reference</code> - Property name/address (fuzzy matched)</li>
+                                <li>• <code>customer_reference</code> - Customer name/email (fuzzy matched)</li>
                             </ul>
-                            
-                            <h6><strong>Property Matching:</strong></h6>
+
+                            <h6><strong>Other Optional Fields:</strong></h6>
+                            <ul class="list-unstyled small">
+                                <li>• <code>description</code>, <code>transaction_type</code> (auto-generated if blank)</li>
+                                <li>• <code>subcategory</code>, <code>bank_reference</code>, <code>payment_method</code>, <code>notes</code></li>
+                            </ul>
+
+                            <div class="alert alert-info small mt-2 mb-2">
+                                <strong><i class="fas fa-lightbulb"></i> Tip:</strong> Include <code>lease_reference</code> to automatically link rent payments to leases.
+                                Use format: <code>LEASE-{CODE}-{UNIT}-{YEAR}</code> (e.g., LEASE-BH-F1-2025)
+                            </div>
+
+                            <h6><strong>Automatic Lease Matching:</strong></h6>
                             <p class="small text-muted">
-                                Properties are matched by name, address, or postcode.
-                                Use exact property names for best results.
+                                If you don't provide <code>lease_reference</code>, the system will automatically
+                                try to match rent transactions to leases using property + customer + date.
+                                For best results, include <code>category="rent"</code>, <code>property_reference</code>, and <code>customer_reference</code>.
                             </p>
-                            
-                            <h6><strong>Customer Matching:</strong></h6>
-                            <p class="small text-muted">
-                                Customers are matched by email address or name.
-                                Email addresses provide the most accurate matching.
+                            <p class="small text-success mb-2">
+                                <strong>Tip:</strong> Manual <code>lease_reference</code> is more reliable than auto-matching!
                             </p>
-                            
+
+                            <details class="mt-2 mb-2">
+                                <summary class="small" style="cursor: pointer;"><strong><i class="fas fa-cog"></i> Advanced Fields (Click to expand)</strong></summary>
+                                <div class="alert alert-secondary small mt-2 mb-0">
+                                    <p class="mb-1"><strong>Advanced Import Fields:</strong></p>
+                                    <ul class="small mb-2">
+                                        <li><code>incoming_transaction_amount</code> - For rent payments, triggers automatic commission/owner split</li>
+                                        <li><code>beneficiary_type</code> - Balance tracking (agency, beneficiary, contractor, beneficiary_payment)</li>
+                                        <li><code>counterparty_name</code> - Entity involved (for contractor payments, bank names)</li>
+                                        <li><code>payment_source</code> - Link to payment source (OLD_ACCOUNT, BANK_STATEMENT, etc.)</li>
+                                        <li><code>payprop_property_id</code>, <code>payprop_tenant_id</code>, <code>payprop_transaction_id</code> - PayProp enrichment</li>
+                                    </ul>
+                                    <p class="mb-0"><small><strong>Note:</strong> Most users don't need these fields. Use them only if you understand their purpose.</small></p>
+                                </div>
+                            </details>
+
                             <h6><strong>Transaction Types:</strong></h6>
                             <div class="small">
                                 <span class="badge badge-primary">payment</span>

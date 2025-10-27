@@ -460,17 +460,26 @@ public class HistoricalTransactionImportController {
     public ResponseEntity<Map<String, Object>> getImportExamples() {
         Map<String, Object> examples = new HashMap<>();
 
-        // CSV Template - ALL AVAILABLE FIELDS
-        // Include ALL columns in your CSV header - leave fields blank where you don't have data
-        // System will infer missing values from context (transaction_type, description, etc.)
-        String csvExample = "transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,beneficiary_type,incoming_transaction_amount,bank_reference,payment_method,counterparty_name,notes,payment_source\n" +
-                           "2025-01-22,1125.00,\"Rent - January 2025\",payment,rent,\"Apartment F - Knighton Hayes\",Riaz,\"LEASE-APT-F-2025\",,1125.00,,\"Bank Transfer\",,\"Rent due on 22nd\",OLD_ACCOUNT\n" +
-                           "2025-01-25,-956.25,\"Payment to Owner\",payment,owner_payment,,\"John Smith\",,beneficiary_payment,,,\"Bank Transfer\",,\"Monthly payment\",OLD_ACCOUNT\n" +
-                           "2025-01-20,-150.00,\"Plumbing Repair\",expense,maintenance,\"Apartment F - Knighton Hayes\",\"ABC Plumbing\",\"LEASE-APT-F-2025\",contractor,,,\"Bank Transfer\",\"ABC Plumbing\",,OLD_ACCOUNT\n" +
-                           "2025-02-01,500.00,,,,,,,,500.00,,,,,OLD_ACCOUNT";
+        // BEGINNER: Minimal template (2 required fields only)
+        String csvExampleMinimal = "transaction_date,amount\n" +
+                                  "2025-05-06,795.00\n" +
+                                  "2025-05-15,740.00\n" +
+                                  "2025-05-20,-150.00\n";
 
-        // Same template - for backward compatibility
-        String csvExampleFull = csvExample;
+        // INTERMEDIATE: Recommended template (7 most useful fields)
+        String csvExampleRecommended = "transaction_date,amount,description,category,property_reference,customer_reference,lease_reference\n" +
+                                      "2025-05-06,795.00,Rent - May 2025,rent,FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO,LEASE-BH-F1-2025\n" +
+                                      "2025-05-06,-119.25,Management fee,commission,FLAT 1 - 3 WEST GATE,,\n" +
+                                      "2025-05-15,740.00,Rent - May 2025,rent,FLAT 2 - 3 WEST GATE,MR M K J AL BAYAT,LEASE-BH-F2-2025\n";
+
+        // ADVANCED: Full template with all available fields
+        String csvExampleFull = "transaction_date,amount,description,transaction_type,category,property_reference,customer_reference,lease_reference,incoming_transaction_amount,payment_method,notes,payprop_property_id,payprop_tenant_id\n" +
+                               "2025-01-22,1125.00,\"Rent - January 2025\",payment,rent,\"Apartment F - Knighton Hayes\",Riaz,\"LEASE-APT-F-2025\",1125.00,\"Bank Transfer\",\"Rent due on 22nd\",PPR_12345,PPT_67890\n" +
+                               "2025-01-25,-956.25,\"Payment to Owner\",payment,owner_payment,,\"John Smith\",,,,\"Bank Transfer\",\"Monthly payment\",,\n" +
+                               "2025-01-20,-150.00,\"Plumbing Repair\",expense,maintenance,\"Apartment F - Knighton Hayes\",\"ABC Plumbing\",\"LEASE-APT-F-2025\",,,,,\n";
+
+        // Backward compatibility - use recommended as default
+        String csvExample = csvExampleRecommended;
 
         // JSON Example
         String jsonExample = "{\n" +
@@ -499,8 +508,14 @@ public class HistoricalTransactionImportController {
                             "  ]\n" +
                             "}";
 
+        // Tiered examples for different user levels
+        examples.put("csv_example_minimal", csvExampleMinimal);
+        examples.put("csv_example_recommended", csvExampleRecommended);
+        examples.put("csv_example_full", csvExampleFull);
+
+        // Backward compatibility
         examples.put("csv_example", csvExample);
-        examples.put("csv_example_full", csvExampleFull); // Backward compatibility
+
         examples.put("json_example", jsonExample);
 
         // Field documentation - ALWAYS include ALL fields in CSV header, leave blank where no data
@@ -508,20 +523,29 @@ public class HistoricalTransactionImportController {
             "transaction_date - Date of transaction (REQUIRED)",
             "amount - Transaction amount in decimal format (REQUIRED)"
         ));
+        examples.put("csv_fields_recommended", List.of(
+            "lease_reference - HIGHLY RECOMMENDED! Links to specific lease (e.g., LEASE-BH-F1-2025)",
+            "category - rent/maintenance/commission (helps with auto-matching)",
+            "property_reference - Property name/address (fuzzy matched)",
+            "customer_reference - Customer name/email (fuzzy matched)"
+        ));
         examples.put("csv_fields_optional", List.of(
             "description - Transaction description (auto-generated if blank)",
             "transaction_type - payment/invoice/expense/fee/maintenance/adjustment/deposit/withdrawal (inferred if blank)",
-            "category - rent/maintenance/commission/owner_payment etc. (optional)",
-            "property_reference - Property name/address (fuzzy matched to existing properties)",
-            "customer_reference - Customer name/email/ID (fuzzy matched to existing customers)",
-            "lease_reference - Lease/invoice reference (auto-links to lease if found)",
+            "subcategory - Additional categorization",
             "beneficiary_type - beneficiary/beneficiary_payment/contractor (for balance tracking)",
             "incoming_transaction_amount - Original payment amount before splits (triggers auto-split logic)",
-            "bank_reference - Bank transaction reference (optional)",
-            "payment_method - Bank Transfer/Cash/Cheque etc. (optional)",
+            "bank_reference - Bank transaction reference",
+            "payment_method - Bank Transfer/Cash/Cheque etc.",
             "counterparty_name - Who sent/received payment (used in auto-description)",
-            "notes - Additional notes (optional)",
-            "payment_source - OLD_ACCOUNT/PAYPROP/BOTH (optional)"
+            "notes - Additional notes",
+            "payment_source - OLD_ACCOUNT/PAYPROP/BOTH"
+        ));
+        examples.put("csv_fields_payprop", List.of(
+            "payprop_property_id - PayProp property ID for enrichment (e.g., PPR_12345)",
+            "payprop_tenant_id - PayProp tenant ID for enrichment (e.g., PPT_67890)",
+            "payprop_beneficiary_id - PayProp beneficiary ID for enrichment",
+            "payprop_transaction_id - PayProp transaction ID for deduplication"
         ));
         examples.put("transaction_types", List.of(
             "invoice", "payment", "fee", "expense", "maintenance", "adjustment", "deposit", "withdrawal"
@@ -545,6 +569,23 @@ public class HistoricalTransactionImportController {
         ));
 
         return ResponseEntity.ok(examples);
+    }
+
+    /**
+     * Download simple CSV template
+     */
+    @GetMapping("/import/template")
+    public ResponseEntity<byte[]> downloadTemplate() {
+        // Simple 7-column template (recommended fields)
+        String template = "transaction_date,amount,description,category,property_reference,customer_reference,lease_reference\n" +
+                         "2025-05-06,795.00,Rent - May 2025,rent,FLAT 1 - 3 WEST GATE,MS O SMOLIARENKO,LEASE-BH-F1-2025\n" +
+                         "2025-05-06,-119.25,Management fee,commission,FLAT 1 - 3 WEST GATE,,\n" +
+                         "2025-05-15,740.00,Rent - May 2025,rent,FLAT 2 - 3 WEST GATE,MR M K J AL BAYAT,LEASE-BH-F2-2025\n";
+
+        return ResponseEntity.ok()
+            .header("Content-Disposition", "attachment; filename=transaction_import_template.csv")
+            .header("Content-Type", "text/csv")
+            .body(template.getBytes());
     }
 
     // ===== HUMAN VERIFICATION WORKFLOW =====

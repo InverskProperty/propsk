@@ -285,6 +285,20 @@ public class HistoricalTransactionImportService {
             transaction.setRentAmountAtTransaction(lease.getAmount());
         }
 
+        // PayProp enrichment fields (optional) - allows JSON imports to include PayProp IDs
+        if (node.has("payprop_property_id") && !node.get("payprop_property_id").asText().isEmpty()) {
+            transaction.setPaypropPropertyId(node.get("payprop_property_id").asText());
+        }
+        if (node.has("payprop_tenant_id") && !node.get("payprop_tenant_id").asText().isEmpty()) {
+            transaction.setPaypropTenantId(node.get("payprop_tenant_id").asText());
+        }
+        if (node.has("payprop_beneficiary_id") && !node.get("payprop_beneficiary_id").asText().isEmpty()) {
+            transaction.setPaypropBeneficiaryId(node.get("payprop_beneficiary_id").asText());
+        }
+        if (node.has("payprop_transaction_id") && !node.get("payprop_transaction_id").asText().isEmpty()) {
+            transaction.setPaypropTransactionId(node.get("payprop_transaction_id").asText());
+        }
+
         // AUTO-POPULATE: For rent payments, automatically set incoming_transaction_amount
         if (!node.has("incoming_transaction_amount")) {
             if (isRentPayment(transaction.getTransactionType(), transaction.getCategory()) &&
@@ -952,6 +966,31 @@ public class HistoricalTransactionImportService {
             transaction.setLeaseStartDate(lease.getStartDate());
             transaction.setLeaseEndDate(lease.getEndDate());
             transaction.setRentAmountAtTransaction(lease.getAmount());
+        }
+
+        // PayProp enrichment fields (optional) - allows CSV imports to include PayProp IDs
+        String paypropPropertyId = getValue(values, columnMap, "payprop_property_id");
+        if (paypropPropertyId != null && !paypropPropertyId.isEmpty()) {
+            transaction.setPaypropPropertyId(paypropPropertyId);
+            log.debug("Set PayProp property ID: {}", paypropPropertyId);
+        }
+
+        String paypropTenantId = getValue(values, columnMap, "payprop_tenant_id");
+        if (paypropTenantId != null && !paypropTenantId.isEmpty()) {
+            transaction.setPaypropTenantId(paypropTenantId);
+            log.debug("Set PayProp tenant ID: {}", paypropTenantId);
+        }
+
+        String paypropBeneficiaryId = getValue(values, columnMap, "payprop_beneficiary_id");
+        if (paypropBeneficiaryId != null && !paypropBeneficiaryId.isEmpty()) {
+            transaction.setPaypropBeneficiaryId(paypropBeneficiaryId);
+            log.debug("Set PayProp beneficiary ID: {}", paypropBeneficiaryId);
+        }
+
+        String paypropTransactionId = getValue(values, columnMap, "payprop_transaction_id");
+        if (paypropTransactionId != null && !paypropTransactionId.isEmpty()) {
+            transaction.setPaypropTransactionId(paypropTransactionId);
+            log.debug("Set PayProp transaction ID: {}", paypropTransactionId);
         }
 
         return transaction;
