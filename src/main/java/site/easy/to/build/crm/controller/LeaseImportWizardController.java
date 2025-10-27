@@ -507,8 +507,8 @@ public class LeaseImportWizardController {
 
                     BigDecimal rentAmount = new BigDecimal(rentAmountStr);
 
-                    if (rentAmount.compareTo(BigDecimal.ZERO) <= 0) {
-                        throw new IllegalArgumentException("Rent amount must be greater than zero, got: " + rentAmount);
+                    if (rentAmount.compareTo(BigDecimal.ZERO) < 0) {
+                        throw new IllegalArgumentException("Rent amount cannot be negative, got: " + rentAmount);
                     }
 
                     // Validate and parse payment day
@@ -544,10 +544,13 @@ public class LeaseImportWizardController {
                             Invoice toDelete = existingLease.get();
                             toDelete.setDeletedAt(LocalDateTime.now());
                             toDelete.setIsActive(false);
+                            // Change lease_reference to avoid UNIQUE constraint conflict
+                            String oldReference = toDelete.getLeaseReference();
+                            toDelete.setLeaseReference(oldReference + "_REPLACED_" + System.currentTimeMillis());
                             invoiceRepository.save(toDelete);
 
-                            log.info("🔄 Replaced existing lease ID: {} with new lease: {}",
-                                    existingLeaseId, leaseReference);
+                            log.info("🔄 Replaced existing lease ID: {} (old ref: {}) with new lease: {}",
+                                    existingLeaseId, oldReference, leaseReference);
                             replacedCount++;
                         } else {
                             log.warn("⚠️ Could not find existing lease ID {} to replace, creating new instead",
