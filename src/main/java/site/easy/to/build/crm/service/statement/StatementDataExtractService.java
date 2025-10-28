@@ -127,9 +127,11 @@ public class StatementDataExtractService {
         // Get leases based on customer type
         List<Invoice> invoices;
 
-        if (customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.PROPERTY_OWNER) {
-            // For property owners: Get leases for properties they OWN
-            log.info("Customer {} is PROPERTY_OWNER, getting leases for owned properties", customerId);
+        if (customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.PROPERTY_OWNER ||
+            customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.DELEGATED_USER) {
+            // For property owners and delegated users: Get leases for properties they OWN
+            log.info("Customer {} is {} getting leases for owned properties",
+                customerId, customer.getCustomerType());
 
             List<Long> ownedPropertyIds = customerPropertyAssignmentRepository
                 .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.OWNER);
@@ -262,9 +264,11 @@ public class StatementDataExtractService {
         // Get transactions based on customer type
         List<HistoricalTransaction> transactions;
 
-        if (customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.PROPERTY_OWNER) {
-            // For property owners: Get transactions for properties they OWN
-            log.info("Customer {} is PROPERTY_OWNER, filtering by owned properties", customerId);
+        if (customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.PROPERTY_OWNER ||
+            customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.DELEGATED_USER) {
+            // For property owners and delegated users: Get transactions for properties they OWN
+            log.info("Customer {} is {}, filtering by owned properties",
+                customerId, customer.getCustomerType());
 
             // Get property IDs owned by this customer
             List<Long> ownedPropertyIds = customerPropertyAssignmentRepository
