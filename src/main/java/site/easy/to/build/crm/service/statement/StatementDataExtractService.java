@@ -234,12 +234,39 @@ public class StatementDataExtractService {
             return new ArrayList<>();
         }
 
-        // Get transactions for this customer
-        List<HistoricalTransaction> transactions = historicalTransactionRepository.findByCustomer(customer).stream()
-            .filter(t -> t.getInvoice() != null)
-            .filter(t -> startDate == null || !t.getTransactionDate().isBefore(startDate))
-            .filter(t -> endDate == null || !t.getTransactionDate().isAfter(endDate))
-            .collect(Collectors.toList());
+        // Get transactions based on customer type
+        List<HistoricalTransaction> transactions;
+
+        if (customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.PROPERTY_OWNER) {
+            // For property owners: Get transactions for properties they OWN
+            log.info("Customer {} is PROPERTY_OWNER, filtering by owned properties", customerId);
+
+            // Get all invoices (leases) for this customer's properties
+            List<Invoice> ownerInvoices = invoiceRepository.findAll().stream()
+                .filter(inv -> inv.getProperty() != null)
+                .filter(inv -> inv.getProperty().getOwners() != null)
+                .filter(inv -> inv.getProperty().getOwners().stream()
+                    .anyMatch(owner -> owner.getCustomerId().equals(customerId)))
+                .collect(Collectors.toList());
+
+            log.info("Found {} invoices for properties owned by customer {}", ownerInvoices.size(), customerId);
+
+            // Get transactions for those invoices
+            transactions = historicalTransactionRepository.findAll().stream()
+                .filter(t -> t.getInvoice() != null)
+                .filter(t -> ownerInvoices.stream().anyMatch(inv -> inv.getId().equals(t.getInvoice().getId())))
+                .filter(t -> startDate == null || !t.getTransactionDate().isBefore(startDate))
+                .filter(t -> endDate == null || !t.getTransactionDate().isAfter(endDate))
+                .collect(Collectors.toList());
+        } else {
+            // For tenants: Get transactions where they are the customer
+            log.info("Customer {} is TENANT, filtering by customer_id", customerId);
+            transactions = historicalTransactionRepository.findByCustomer(customer).stream()
+                .filter(t -> t.getInvoice() != null)
+                .filter(t -> startDate == null || !t.getTransactionDate().isBefore(startDate))
+                .filter(t -> endDate == null || !t.getTransactionDate().isAfter(endDate))
+                .collect(Collectors.toList());
+        }
 
         log.info("Found {} transactions for customer {}", transactions.size(), customerId);
 
