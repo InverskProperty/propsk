@@ -51,6 +51,9 @@ public class PayPropHistoricalDataImportService {
     @Autowired
     private PayPropCategoryMappingService categoryMappingService;
 
+    @Autowired
+    private PayPropInvoiceLinkingService payPropInvoiceLinkingService;
+
     // PayProp date format
     private static final DateTimeFormatter PAYPROP_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
@@ -277,6 +280,28 @@ public class PayPropHistoricalDataImportService {
         String mappedCategory = categoryMappingService.mapHistoricalCategory(imported.transactionType, imported.category);
         ht.setCategory(mappedCategory);
         ht.setSource(HistoricalTransaction.TransactionSource.historical_import);
+
+        // Link to invoice (lease) if available
+        // Note: customerReference is a string name, not PayProp ID, so we pass null for tenant matching
+        // The service will fall back to property + date matching
+        Invoice invoice = payPropInvoiceLinkingService.findInvoiceForTransaction(
+            property,
+            null,  // We don't have tenant PayProp ID from historical import
+            imported.transactionDate
+        );
+
+        if (invoice != null) {
+            ht.setInvoice(invoice);
+            ht.setLeaseStartDate(invoice.getStartDate());
+            ht.setLeaseEndDate(invoice.getEndDate());
+            ht.setRentAmountAtTransaction(invoice.getAmount());
+
+            logger.debug("Linked transaction {} to invoice {} (lease: {})",
+                imported.description, invoice.getId(), invoice.getLeaseReference());
+        } else {
+            logger.debug("No invoice found for transaction {} on property {} dated {}",
+                imported.description, property.getPropertyName(), imported.transactionDate);
+        }
 
         // Source tracking
         ht.setSourceReference(imported.bankReference);

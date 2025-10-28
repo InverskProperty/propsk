@@ -63,6 +63,9 @@ public class PayPropPaymentImportService {
     @Autowired
     private TransactionSplitService transactionSplitService;
 
+    @Autowired
+    private PayPropInvoiceLinkingService payPropInvoiceLinkingService;
+
     /**
      * Import all PayProp batch payments
      * Creates both owner allocations and actual payment transactions
@@ -172,6 +175,27 @@ public class PayPropPaymentImportService {
         txn.setProperty(property);
         txn.setCustomer(owner);
         txn.setCreatedByUser(currentUser);
+
+        // Link to invoice (lease) if available
+        // Owner allocations are property-specific, so we can link them to the active lease
+        site.easy.to.build.crm.entity.Invoice invoice = payPropInvoiceLinkingService.findInvoiceForTransaction(
+            property,
+            owner.getPayPropEntityId(),  // Owner's PayProp ID for matching
+            allocation.dueDate
+        );
+
+        if (invoice != null) {
+            txn.setInvoice(invoice);
+            txn.setLeaseStartDate(invoice.getStartDate());
+            txn.setLeaseEndDate(invoice.getEndDate());
+            txn.setRentAmountAtTransaction(invoice.getAmount());
+
+            log.debug("  ✓ Linked allocation to invoice {} (lease: {})",
+                invoice.getId(), invoice.getLeaseReference());
+        } else {
+            log.debug("  ⚠ No invoice found for allocation on property {} dated {}",
+                allocation.propertyName, allocation.dueDate);
+        }
 
         // PayProp tracking
         txn.setPaypropTransactionId(allocation.paypropId);
