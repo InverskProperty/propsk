@@ -8,10 +8,12 @@ import site.easy.to.build.crm.dto.statement.CustomerDTO;
 import site.easy.to.build.crm.dto.statement.LeaseMasterDTO;
 import site.easy.to.build.crm.dto.statement.PropertyDTO;
 import site.easy.to.build.crm.dto.statement.TransactionDTO;
+import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.HistoricalTransaction;
 import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
@@ -46,6 +48,9 @@ public class StatementDataExtractService {
 
     @Autowired
     private CustomerRepository customerRepository;
+
+    @Autowired
+    private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
 
     /**
      * Extract lease master data (all leases)
@@ -119,10 +124,30 @@ public class StatementDataExtractService {
             return new ArrayList<>();
         }
 
-        // Get all leases for this customer
-        List<Invoice> invoices = invoiceRepository.findByCustomer(customer).stream()
-            .filter(i -> i.getLeaseReference() != null && !i.getLeaseReference().trim().isEmpty())
-            .collect(Collectors.toList());
+        // Get leases based on customer type
+        List<Invoice> invoices;
+
+        if (customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.PROPERTY_OWNER) {
+            // For property owners: Get leases for properties they OWN
+            log.info("Customer {} is PROPERTY_OWNER, getting leases for owned properties", customerId);
+
+            List<Long> ownedPropertyIds = customerPropertyAssignmentRepository
+                .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.OWNER);
+
+            log.info("Found {} properties owned by customer {}", ownedPropertyIds.size(), customerId);
+
+            invoices = invoiceRepository.findAll().stream()
+                .filter(i -> i.getProperty() != null)
+                .filter(i -> ownedPropertyIds.contains(i.getProperty().getId()))
+                .filter(i -> i.getLeaseReference() != null && !i.getLeaseReference().trim().isEmpty())
+                .collect(Collectors.toList());
+        } else {
+            // For tenants: Get leases where they are the customer
+            log.info("Customer {} is TENANT, getting leases where they are the customer", customerId);
+            invoices = invoiceRepository.findByCustomer(customer).stream()
+                .filter(i -> i.getLeaseReference() != null && !i.getLeaseReference().trim().isEmpty())
+                .collect(Collectors.toList());
+        }
 
         log.info("Found {} leases for customer {}", invoices.size(), customerId);
 
@@ -241,12 +266,17 @@ public class StatementDataExtractService {
             // For property owners: Get transactions for properties they OWN
             log.info("Customer {} is PROPERTY_OWNER, filtering by owned properties", customerId);
 
-            // Get all invoices (leases) for this customer's properties
+            // Get property IDs owned by this customer
+            List<Long> ownedPropertyIds = customerPropertyAssignmentRepository
+                .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.OWNER);
+
+            log.info("Found {} properties owned by customer {}", ownedPropertyIds.size(), customerId);
+
+            // Get all invoices (leases) for those properties
             List<Invoice> ownerInvoices = invoiceRepository.findAll().stream()
                 .filter(inv -> inv.getProperty() != null)
-                .filter(inv -> inv.getProperty().getOwners() != null)
-                .filter(inv -> inv.getProperty().getOwners().stream()
-                    .anyMatch(owner -> owner.getCustomerId().equals(customerId)))
+                .filter(inv -> ownedPropertyIds.contains(inv.getProperty().getId()))
+                .filter(inv -> inv.getLeaseReference() != null && !inv.getLeaseReference().trim().isEmpty())
                 .collect(Collectors.toList());
 
             log.info("Found {} invoices for properties owned by customer {}", ownerInvoices.size(), customerId);
