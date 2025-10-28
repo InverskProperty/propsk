@@ -14,6 +14,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -95,6 +97,138 @@ public class ExcelStatementGeneratorService {
 
         log.info("Customer statement workbook created successfully");
         return workbook;
+    }
+
+    /**
+     * Generate statement with custom period start day (e.g., 22nd-21st periods)
+     *
+     * @param startDate Statement period start
+     * @param endDate Statement period end
+     * @param periodStartDay Day of month when period starts (1-31)
+     * @return Excel workbook with custom periods
+     */
+    public Workbook generateStatementWithCustomPeriods(LocalDate startDate, LocalDate endDate, int periodStartDay) {
+        log.info("Generating statement with custom periods (start day: {}) from {} to {}", periodStartDay, startDate, endDate);
+
+        Workbook workbook = new XSSFWorkbook();
+
+        // Extract data
+        List<LeaseMasterDTO> leaseMaster = dataExtractService.extractLeaseMaster();
+        List<TransactionDTO> transactions = dataExtractService.extractTransactions(startDate, endDate);
+
+        log.info("Extracted {} leases and {} transactions", leaseMaster.size(), transactions.size());
+
+        // Create sheets with custom periods
+        createLeaseMasterSheet(workbook, leaseMaster);
+        createTransactionsSheet(workbook, transactions);
+        createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        createMonthlyStatementSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+
+        log.info("Statement workbook with custom periods created successfully");
+        return workbook;
+    }
+
+    /**
+     * Generate statement for customer with custom periods
+     *
+     * @param customerId Customer ID
+     * @param startDate Statement period start
+     * @param endDate Statement period end
+     * @param periodStartDay Day of month when period starts
+     * @return Excel workbook for this customer with custom periods
+     */
+    public Workbook generateStatementForCustomerWithCustomPeriods(Long customerId, LocalDate startDate,
+                                                                  LocalDate endDate, int periodStartDay) {
+        log.info("Generating statement for customer {} with custom periods (start day: {})", customerId, periodStartDay);
+
+        Workbook workbook = new XSSFWorkbook();
+
+        // Extract data for this customer
+        List<LeaseMasterDTO> leaseMaster = dataExtractService.extractLeaseMasterForCustomer(customerId);
+        List<TransactionDTO> transactions = dataExtractService.extractTransactionsForCustomer(
+            customerId, startDate, endDate);
+
+        log.info("Extracted {} leases and {} transactions for customer {}",
+                leaseMaster.size(), transactions.size(), customerId);
+
+        // Create sheets with custom periods
+        createLeaseMasterSheet(workbook, leaseMaster);
+        createTransactionsSheet(workbook, transactions);
+        createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        createMonthlyStatementSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+
+        log.info("Customer statement workbook with custom periods created successfully");
+        return workbook;
+    }
+
+    /**
+     * Helper class for custom periods (e.g., 22nd-21st)
+     */
+    private static class CustomPeriod {
+        LocalDate periodStart;
+        LocalDate periodEnd;
+        int periodDays;
+
+        public CustomPeriod(LocalDate start, LocalDate end) {
+            this.periodStart = start;
+            this.periodEnd = end;
+            this.periodDays = (int) ChronoUnit.DAYS.between(start, end) + 1;
+        }
+    }
+
+    /**
+     * Generate custom periods based on start day (e.g., 22nd of each month)
+     */
+    private List<CustomPeriod> generateCustomPeriods(LocalDate start, LocalDate end, int periodStartDay) {
+        List<CustomPeriod> periods = new ArrayList<>();
+
+        // Find first period start on or after the start date
+        LocalDate periodStart = LocalDate.of(start.getYear(), start.getMonthValue(),
+                                            Math.min(periodStartDay, start.lengthOfMonth()));
+
+        // If we're past the period start day in the first month, start there
+        if (periodStart.isBefore(start)) {
+            // Move to next month's period start
+            periodStart = periodStart.plusMonths(1);
+            periodStart = LocalDate.of(periodStart.getYear(), periodStart.getMonthValue(),
+                                      Math.min(periodStartDay, periodStart.lengthOfMonth()));
+        } else if (start.getDayOfMonth() > periodStartDay) {
+            // Start date is after period start day, so next period starts next month
+            periodStart = periodStart.plusMonths(1);
+            periodStart = LocalDate.of(periodStart.getYear(), periodStart.getMonthValue(),
+                                      Math.min(periodStartDay, periodStart.lengthOfMonth()));
+        }
+
+        // Actually, let's align to the first period that contains or starts after the start date
+        periodStart = LocalDate.of(start.getYear(), start.getMonthValue(),
+                                  Math.min(periodStartDay, start.lengthOfMonth()));
+        if (periodStart.isBefore(start)) {
+            periodStart = start;
+        }
+
+        while (!periodStart.isAfter(end)) {
+            // Period ends one day before next month's start day
+            LocalDate nextMonthStart = periodStart.plusMonths(1);
+            // Handle month boundaries (e.g., Feb 22 -> March 22)
+            nextMonthStart = LocalDate.of(nextMonthStart.getYear(), nextMonthStart.getMonthValue(),
+                                         Math.min(periodStartDay, nextMonthStart.lengthOfMonth()));
+            LocalDate periodEnd = nextMonthStart.minusDays(1);
+
+            // Adjust if period end exceeds overall end date
+            if (periodEnd.isAfter(end)) {
+                periodEnd = end;
+            }
+
+            periods.add(new CustomPeriod(periodStart, periodEnd));
+
+            // Move to next period
+            periodStart = periodEnd.plusDays(1);
+        }
+
+        log.info("Generated {} custom periods with start day {}", periods.size(), periodStartDay);
+        return periods;
     }
 
     /**
@@ -582,6 +716,385 @@ public class ExcelStatementGeneratorService {
         }
 
         log.info("MONTHLY_STATEMENT sheet created with {} rows", rowNum - 1);
+    }
+
+    // ============================================================================
+    // Custom Period Sheet Creation Methods
+    // ============================================================================
+
+    /**
+     * Create RENT_DUE sheet with custom periods and accurate calendar-day pro-rating
+     * Uses actual month days instead of fixed 30-day months
+     */
+    private void createRentDueSheetWithCustomPeriods(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
+                                                    LocalDate startDate, LocalDate endDate, int periodStartDay) {
+        log.info("Creating RENT_DUE sheet with custom periods (start day: {})", periodStartDay);
+
+        Sheet sheet = workbook.createSheet("RENT_DUE");
+
+        // Header row
+        Row header = sheet.createRow(0);
+        String[] headers = {
+            "lease_id", "lease_reference", "property_name", "period_start", "period_end",
+            "period_days", "lease_start", "lease_end", "monthly_rent", "rent_due_day",
+            "lease_days_in_period", "prorated_rent_due",
+            "management_fee", "service_fee", "total_commission", "net_to_owner"
+        };
+
+        CellStyle headerStyle = createHeaderStyle(workbook);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = header.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Styles
+        CellStyle dateStyle = createDateStyle(workbook);
+        CellStyle currencyStyle = createCurrencyStyle(workbook);
+
+        int rowNum = 1;
+
+        // Generate custom periods
+        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
+
+        // Generate rows for each lease × custom period
+        for (LeaseMasterDTO lease : leaseMaster) {
+            LocalDate leaseStart = lease.getStartDate();
+            LocalDate leaseEnd = lease.getEndDate();
+            int rentDueDay = leaseStart != null ? leaseStart.getDayOfMonth() : periodStartDay;
+
+            for (CustomPeriod period : periods) {
+                // Check if lease overlaps with this period
+                boolean leaseActive = (leaseEnd == null || !period.periodEnd.isBefore(leaseStart))
+                                   && !period.periodStart.isAfter(leaseEnd != null ? leaseEnd : period.periodEnd);
+
+                if (leaseActive) {
+                    Row row = sheet.createRow(rowNum);
+                    int col = 0;
+
+                    // A: lease_id
+                    row.createCell(col++).setCellValue(lease.getLeaseId());
+
+                    // B: lease_reference
+                    row.createCell(col++).setCellValue(lease.getLeaseReference());
+
+                    // C: property_name
+                    row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+
+                    // D: period_start
+                    Cell periodStartCell = row.createCell(col++);
+                    periodStartCell.setCellValue(period.periodStart);
+                    periodStartCell.setCellStyle(dateStyle);
+
+                    // E: period_end
+                    Cell periodEndCell = row.createCell(col++);
+                    periodEndCell.setCellValue(period.periodEnd);
+                    periodEndCell.setCellStyle(dateStyle);
+
+                    // F: period_days
+                    row.createCell(col++).setCellValue(period.periodDays);
+
+                    // G: lease_start
+                    Cell leaseStartCell = row.createCell(col++);
+                    if (leaseStart != null) {
+                        leaseStartCell.setCellValue(leaseStart);
+                        leaseStartCell.setCellStyle(dateStyle);
+                    }
+
+                    // H: lease_end
+                    Cell leaseEndCell = row.createCell(col++);
+                    if (leaseEnd != null) {
+                        leaseEndCell.setCellValue(leaseEnd);
+                        leaseEndCell.setCellStyle(dateStyle);
+                    }
+
+                    // I: monthly_rent
+                    Cell monthlyRentCell = row.createCell(col++);
+                    if (lease.getMonthlyRent() != null) {
+                        monthlyRentCell.setCellValue(lease.getMonthlyRent().doubleValue());
+                        monthlyRentCell.setCellStyle(currencyStyle);
+                    }
+
+                    // J: rent_due_day
+                    row.createCell(col++).setCellValue(rentDueDay);
+
+                    // K: lease_days_in_period (FORMULA - simple overlap calculation)
+                    row.createCell(col++).setCellFormula(String.format(
+                        "MAX(0, MIN(IF(ISBLANK(H%d), E%d, H%d), E%d) - MAX(G%d, D%d) + 1)",
+                        rowNum + 1, rowNum + 1, rowNum + 1, // lease_end or period_end
+                        rowNum + 1, // period_end
+                        rowNum + 1, rowNum + 1 // lease_start, period_start
+                    ));
+
+                    // L: prorated_rent_due (FORMULA - accurate calendar day pro-rating)
+                    // Uses actual days in the anchor month for pro-rating
+                    Cell proratedRentCell = row.createCell(col++);
+                    proratedRentCell.setCellFormula(String.format(
+                        "IF(K%d>0, ROUND(I%d * (K%d / DAY(EOMONTH(D%d, 0))), 2), 0)",
+                        rowNum + 1, // lease_days check
+                        rowNum + 1, // monthly_rent
+                        rowNum + 1, // lease_days_in_period
+                        rowNum + 1  // period_start for EOMONTH
+                    ));
+                    proratedRentCell.setCellStyle(currencyStyle);
+
+                    // M: management_fee (10%)
+                    Cell mgmtFeeCell = row.createCell(col++);
+                    mgmtFeeCell.setCellFormula(String.format("L%d * %.2f", rowNum + 1, MANAGEMENT_FEE_PCT.doubleValue()));
+                    mgmtFeeCell.setCellStyle(currencyStyle);
+
+                    // N: service_fee (5%)
+                    Cell svcFeeCell = row.createCell(col++);
+                    svcFeeCell.setCellFormula(String.format("L%d * %.2f", rowNum + 1, SERVICE_FEE_PCT.doubleValue()));
+                    svcFeeCell.setCellStyle(currencyStyle);
+
+                    // O: total_commission (15%)
+                    Cell totalCommCell = row.createCell(col++);
+                    totalCommCell.setCellFormula(String.format("M%d + N%d", rowNum + 1, rowNum + 1));
+                    totalCommCell.setCellStyle(currencyStyle);
+
+                    // P: net_to_owner
+                    Cell netToOwnerCell = row.createCell(col++);
+                    netToOwnerCell.setCellFormula(String.format("L%d - O%d", rowNum + 1, rowNum + 1));
+                    netToOwnerCell.setCellStyle(currencyStyle);
+
+                    rowNum++;
+                }
+            }
+        }
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        log.info("RENT_DUE sheet created with {} rows (custom periods)", rowNum - 1);
+    }
+
+    /**
+     * Create RENT_RECEIVED sheet with custom periods
+     */
+    private void createRentReceivedSheetWithCustomPeriods(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
+                                                         LocalDate startDate, LocalDate endDate, int periodStartDay) {
+        log.info("Creating RENT_RECEIVED sheet with custom periods");
+
+        Sheet sheet = workbook.createSheet("RENT_RECEIVED");
+
+        // Header row
+        Row header = sheet.createRow(0);
+        String[] headers = {
+            "lease_id", "lease_reference", "property_name", "period_start", "period_end", "total_received"
+        };
+
+        CellStyle headerStyle = createHeaderStyle(workbook);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = header.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Styles
+        CellStyle dateStyle = createDateStyle(workbook);
+        CellStyle currencyStyle = createCurrencyStyle(workbook);
+
+        int rowNum = 1;
+
+        // Generate custom periods
+        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
+
+        // Generate rows for each lease × custom period
+        for (LeaseMasterDTO lease : leaseMaster) {
+            LocalDate leaseStart = lease.getStartDate();
+            LocalDate leaseEnd = lease.getEndDate();
+
+            for (CustomPeriod period : periods) {
+                boolean leaseActive = (leaseEnd == null || !period.periodEnd.isBefore(leaseStart))
+                                   && !period.periodStart.isAfter(leaseEnd != null ? leaseEnd : period.periodEnd);
+
+                if (leaseActive) {
+                    Row row = sheet.createRow(rowNum);
+                    int col = 0;
+
+                    // A: lease_id
+                    row.createCell(col++).setCellValue(lease.getLeaseId());
+
+                    // B: lease_reference
+                    row.createCell(col++).setCellValue(lease.getLeaseReference());
+
+                    // C: property_name
+                    row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+
+                    // D: period_start
+                    Cell periodStartCell = row.createCell(col++);
+                    periodStartCell.setCellValue(period.periodStart);
+                    periodStartCell.setCellStyle(dateStyle);
+
+                    // E: period_end
+                    Cell periodEndCell = row.createCell(col++);
+                    periodEndCell.setCellValue(period.periodEnd);
+                    periodEndCell.setCellStyle(dateStyle);
+
+                    // F: total_received (SUMIFS formula with custom period dates)
+                    Cell totalReceivedCell = row.createCell(col++);
+                    String sumFormula = String.format(
+                        "SUMIFS(TRANSACTIONS!H:H, TRANSACTIONS!C:C, A%d, TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d)",
+                        rowNum + 1, rowNum + 1, rowNum + 1
+                    );
+                    totalReceivedCell.setCellFormula(sumFormula);
+                    totalReceivedCell.setCellStyle(currencyStyle);
+
+                    rowNum++;
+                }
+            }
+        }
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        log.info("RENT_RECEIVED sheet created with {} rows (custom periods)", rowNum - 1);
+    }
+
+    /**
+     * Create MONTHLY_STATEMENT sheet with custom periods
+     */
+    private void createMonthlyStatementSheetWithCustomPeriods(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
+                                                             LocalDate startDate, LocalDate endDate, int periodStartDay) {
+        log.info("Creating MONTHLY_STATEMENT sheet with custom periods");
+
+        Sheet sheet = workbook.createSheet("MONTHLY_STATEMENT");
+
+        // Header row
+        Row header = sheet.createRow(0);
+        String[] headers = {
+            "lease_reference", "property_name", "customer_name", "period",
+            "rent_due", "rent_received", "arrears", "management_fee", "service_fee",
+            "total_commission", "net_to_owner", "cumulative_arrears"
+        };
+
+        CellStyle headerStyle = createHeaderStyle(workbook);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = header.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Styles
+        CellStyle dateStyle = createDateStyle(workbook);
+        CellStyle currencyStyle = createCurrencyStyle(workbook);
+
+        int rowNum = 1;
+
+        // Generate custom periods
+        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
+
+        // Generate rows for each lease × custom period
+        for (LeaseMasterDTO lease : leaseMaster) {
+            LocalDate leaseStart = lease.getStartDate();
+            LocalDate leaseEnd = lease.getEndDate();
+
+            for (CustomPeriod period : periods) {
+                boolean leaseActive = (leaseEnd == null || !period.periodEnd.isBefore(leaseStart))
+                                   && !period.periodStart.isAfter(leaseEnd != null ? leaseEnd : period.periodEnd);
+
+                if (leaseActive) {
+                    Row row = sheet.createRow(rowNum);
+                    int col = 0;
+
+                    // A: lease_reference
+                    row.createCell(col++).setCellValue(lease.getLeaseReference());
+
+                    // B: property_name
+                    row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+
+                    // C: customer_name
+                    row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
+
+                    // D: period (formatted as "Dec 22 - Jan 21")
+                    String periodLabel = period.periodStart.format(DateTimeFormatter.ofPattern("MMM dd")) + " - " +
+                                       period.periodEnd.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"));
+                    row.createCell(col++).setCellValue(periodLabel);
+
+                    // E: rent_due (VLOOKUP to RENT_DUE sheet)
+                    Cell rentDueCell = row.createCell(col++);
+                    rentDueCell.setCellFormula(String.format(
+                        "IFERROR(INDEX(RENT_DUE!L:L, MATCH(1, (RENT_DUE!A:A=\"%s\") * (RENT_DUE!D:D=DATE(%d,%d,%d)), 0)), 0)",
+                        lease.getLeaseReference(),
+                        period.periodStart.getYear(),
+                        period.periodStart.getMonthValue(),
+                        period.periodStart.getDayOfMonth()
+                    ));
+                    rentDueCell.setCellStyle(currencyStyle);
+
+                    // F: rent_received (VLOOKUP to RENT_RECEIVED sheet)
+                    Cell rentReceivedCell = row.createCell(col++);
+                    rentReceivedCell.setCellFormula(String.format(
+                        "IFERROR(INDEX(RENT_RECEIVED!F:F, MATCH(1, (RENT_RECEIVED!A:A=\"%s\") * (RENT_RECEIVED!D:D=DATE(%d,%d,%d)), 0)), 0)",
+                        lease.getLeaseReference(),
+                        period.periodStart.getYear(),
+                        period.periodStart.getMonthValue(),
+                        period.periodStart.getDayOfMonth()
+                    ));
+                    rentReceivedCell.setCellStyle(currencyStyle);
+
+                    // G: arrears (formula: due - received)
+                    Cell arrearsCell = row.createCell(col++);
+                    arrearsCell.setCellFormula(String.format("E%d - F%d", rowNum + 1, rowNum + 1));
+                    arrearsCell.setCellStyle(currencyStyle);
+
+                    // H: management_fee (VLOOKUP to RENT_DUE)
+                    Cell mgmtFeeCell = row.createCell(col++);
+                    mgmtFeeCell.setCellFormula(String.format(
+                        "IFERROR(INDEX(RENT_DUE!M:M, MATCH(1, (RENT_DUE!A:A=\"%s\") * (RENT_DUE!D:D=DATE(%d,%d,%d)), 0)), 0)",
+                        lease.getLeaseReference(),
+                        period.periodStart.getYear(),
+                        period.periodStart.getMonthValue(),
+                        period.periodStart.getDayOfMonth()
+                    ));
+                    mgmtFeeCell.setCellStyle(currencyStyle);
+
+                    // I: service_fee (VLOOKUP to RENT_DUE)
+                    Cell svcFeeCell = row.createCell(col++);
+                    svcFeeCell.setCellFormula(String.format(
+                        "IFERROR(INDEX(RENT_DUE!N:N, MATCH(1, (RENT_DUE!A:A=\"%s\") * (RENT_DUE!D:D=DATE(%d,%d,%d)), 0)), 0)",
+                        lease.getLeaseReference(),
+                        period.periodStart.getYear(),
+                        period.periodStart.getMonthValue(),
+                        period.periodStart.getDayOfMonth()
+                    ));
+                    svcFeeCell.setCellStyle(currencyStyle);
+
+                    // J: total_commission (formula: mgmt + svc)
+                    Cell totalCommCell = row.createCell(col++);
+                    totalCommCell.setCellFormula(String.format("H%d + I%d", rowNum + 1, rowNum + 1));
+                    totalCommCell.setCellStyle(currencyStyle);
+
+                    // K: net_to_owner (formula: received - commission)
+                    Cell netToOwnerCell = row.createCell(col++);
+                    netToOwnerCell.setCellFormula(String.format("F%d - J%d", rowNum + 1, rowNum + 1));
+                    netToOwnerCell.setCellStyle(currencyStyle);
+
+                    // L: cumulative_arrears (formula: running sum)
+                    Cell cumArrearsCell = row.createCell(col++);
+                    if (rowNum == 1) {
+                        cumArrearsCell.setCellFormula(String.format("G%d", rowNum + 1));
+                    } else {
+                        cumArrearsCell.setCellFormula(String.format("L%d + G%d", rowNum, rowNum + 1));
+                    }
+                    cumArrearsCell.setCellStyle(currencyStyle);
+
+                    rowNum++;
+                }
+            }
+        }
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        log.info("MONTHLY_STATEMENT sheet created with {} rows (custom periods)", rowNum - 1);
     }
 
     // ============================================================================

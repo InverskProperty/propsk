@@ -49,11 +49,12 @@ public class OptionCStatementController {
     /**
      * Generate owner statement for specific customer (Excel with formulas)
      *
-     * Example: GET /api/statements/option-c/owner/123/excel?startDate=2025-01-01&endDate=2025-12-31
+     * Example: GET /api/statements/option-c/owner/123/excel?startDate=2025-01-01&endDate=2025-12-31&periodStartDay=22
      *
      * @param customerId Customer ID
      * @param startDate Statement period start (format: yyyy-MM-dd)
      * @param endDate Statement period end (format: yyyy-MM-dd)
+     * @param periodStartDay Day of month when period starts (1-31). Default=1 (calendar months). Use 22 for 22nd-21st periods.
      * @return Excel file download with formulas
      */
     @GetMapping("/owner/{customerId}/excel")
@@ -61,13 +62,23 @@ public class OptionCStatementController {
     public ResponseEntity<byte[]> generateOwnerStatement(
             @PathVariable Long customerId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "1") Integer periodStartDay) {
 
-        log.info("📊 Option C: Generating Excel statement for customer {} from {} to {}", customerId, startDate, endDate);
+        log.info("📊 Option C: Generating Excel statement for customer {} from {} to {} (period start day: {})",
+                 customerId, startDate, endDate, periodStartDay);
 
         try {
             // Generate workbook with formulas (Option C)
-            Workbook workbook = excelGenerator.generateStatementForCustomer(customerId, startDate, endDate);
+            Workbook workbook;
+            if (periodStartDay == 1) {
+                // Use calendar months (existing behavior)
+                workbook = excelGenerator.generateStatementForCustomer(customerId, startDate, endDate);
+            } else {
+                // Use custom periods (e.g., 22nd-21st)
+                workbook = excelGenerator.generateStatementForCustomerWithCustomPeriods(
+                    customerId, startDate, endDate, periodStartDay);
+            }
 
             // Convert to byte array
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -106,23 +117,33 @@ public class OptionCStatementController {
     /**
      * Generate statement for all customers (Excel with formulas)
      *
-     * Example: GET /api/statements/option-c/all/excel?startDate=2025-01-01&endDate=2025-12-31
+     * Example: GET /api/statements/option-c/all/excel?startDate=2025-01-01&endDate=2025-12-31&periodStartDay=22
      *
      * @param startDate Statement period start (format: yyyy-MM-dd)
      * @param endDate Statement period end (format: yyyy-MM-dd)
+     * @param periodStartDay Day of month when period starts (1-31). Default=1 (calendar months). Use 22 for 22nd-21st periods.
      * @return Excel file download with formulas
      */
     @GetMapping("/all/excel")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> generateAllStatements(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "1") Integer periodStartDay) {
 
-        log.info("📊 Option C: Generating Excel statement for all customers from {} to {}", startDate, endDate);
+        log.info("📊 Option C: Generating Excel statement for all customers from {} to {} (period start day: {})",
+                 startDate, endDate, periodStartDay);
 
         try {
             // Generate workbook with formulas (all customers)
-            Workbook workbook = excelGenerator.generateStatement(startDate, endDate);
+            Workbook workbook;
+            if (periodStartDay == 1) {
+                // Use calendar months (existing behavior)
+                workbook = excelGenerator.generateStatement(startDate, endDate);
+            } else {
+                // Use custom periods (e.g., 22nd-21st)
+                workbook = excelGenerator.generateStatementWithCustomPeriods(startDate, endDate, periodStartDay);
+            }
 
             // Convert to byte array
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -158,14 +179,17 @@ public class OptionCStatementController {
     /**
      * Generate statement for current month (convenience endpoint)
      *
-     * Example: GET /api/statements/option-c/owner/123/excel/current-month
+     * Example: GET /api/statements/option-c/owner/123/excel/current-month?periodStartDay=22
      *
      * @param customerId Customer ID
+     * @param periodStartDay Optional period start day (default=1)
      * @return Excel file download for current month
      */
     @GetMapping("/owner/{customerId}/excel/current-month")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'OWNER', 'ADMIN', 'MANAGER')")
-    public ResponseEntity<byte[]> generateOwnerStatementCurrentMonth(@PathVariable Long customerId) {
+    public ResponseEntity<byte[]> generateOwnerStatementCurrentMonth(
+            @PathVariable Long customerId,
+            @RequestParam(defaultValue = "1") Integer periodStartDay) {
 
         LocalDate now = LocalDate.now();
         LocalDate startDate = now.withDayOfMonth(1);
@@ -174,20 +198,23 @@ public class OptionCStatementController {
         log.info("📊 Option C: Generating current month statement for customer {}: {} to {}",
                 customerId, startDate, endDate);
 
-        return generateOwnerStatement(customerId, startDate, endDate);
+        return generateOwnerStatement(customerId, startDate, endDate, periodStartDay);
     }
 
     /**
      * Generate statement for current year (convenience endpoint)
      *
-     * Example: GET /api/statements/option-c/owner/123/excel/current-year
+     * Example: GET /api/statements/option-c/owner/123/excel/current-year?periodStartDay=22
      *
      * @param customerId Customer ID
+     * @param periodStartDay Optional period start day (default=1)
      * @return Excel file download for current year
      */
     @GetMapping("/owner/{customerId}/excel/current-year")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'OWNER', 'ADMIN', 'MANAGER')")
-    public ResponseEntity<byte[]> generateOwnerStatementCurrentYear(@PathVariable Long customerId) {
+    public ResponseEntity<byte[]> generateOwnerStatementCurrentYear(
+            @PathVariable Long customerId,
+            @RequestParam(defaultValue = "1") Integer periodStartDay) {
 
         LocalDate now = LocalDate.now();
         LocalDate startDate = LocalDate.of(now.getYear(), 1, 1);
@@ -196,20 +223,23 @@ public class OptionCStatementController {
         log.info("📊 Option C: Generating current year statement for customer {}: {} to {}",
                 customerId, startDate, endDate);
 
-        return generateOwnerStatement(customerId, startDate, endDate);
+        return generateOwnerStatement(customerId, startDate, endDate, periodStartDay);
     }
 
     /**
      * Generate statement for last month (convenience endpoint)
      *
-     * Example: GET /api/statements/option-c/owner/123/excel/last-month
+     * Example: GET /api/statements/option-c/owner/123/excel/last-month?periodStartDay=22
      *
      * @param customerId Customer ID
+     * @param periodStartDay Optional period start day (default=1)
      * @return Excel file download for last month
      */
     @GetMapping("/owner/{customerId}/excel/last-month")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'OWNER', 'ADMIN', 'MANAGER')")
-    public ResponseEntity<byte[]> generateOwnerStatementLastMonth(@PathVariable Long customerId) {
+    public ResponseEntity<byte[]> generateOwnerStatementLastMonth(
+            @PathVariable Long customerId,
+            @RequestParam(defaultValue = "1") Integer periodStartDay) {
 
         LocalDate now = LocalDate.now();
         LocalDate startDate = now.minusMonths(1).withDayOfMonth(1);
@@ -218,7 +248,7 @@ public class OptionCStatementController {
         log.info("📊 Option C: Generating last month statement for customer {}: {} to {}",
                 customerId, startDate, endDate);
 
-        return generateOwnerStatement(customerId, startDate, endDate);
+        return generateOwnerStatement(customerId, startDate, endDate, periodStartDay);
     }
 
     /**
@@ -239,16 +269,21 @@ public class OptionCStatementController {
             "- Users can see, verify, and modify formulas\n\n" +
             "Features:\n" +
             "- 100% invoice linking (all rent payments linked to leases)\n" +
-            "- Pro-rating formulas for partial months\n" +
+            "- Pro-rating formulas with accurate calendar-day calculations\n" +
+            "- Custom reporting periods (e.g., 22nd-21st) with periodStartDay parameter\n" +
             "- Commission calculations (10% management + 5% service = 15%)\n" +
             "- Arrears tracking with running totals\n" +
             "- Multiple sheets: LEASE_MASTER, TRANSACTIONS, RENT_DUE, RENT_RECEIVED, MONTHLY_STATEMENT\n\n" +
             "Endpoints:\n" +
-            "- GET /api/statements/option-c/owner/{customerId}/excel?startDate={date}&endDate={date}\n" +
-            "- GET /api/statements/option-c/all/excel?startDate={date}&endDate={date}\n" +
+            "- GET /api/statements/option-c/owner/{customerId}/excel?startDate={date}&endDate={date}&periodStartDay={day}\n" +
+            "- GET /api/statements/option-c/all/excel?startDate={date}&endDate={date}&periodStartDay={day}\n" +
             "- GET /api/statements/option-c/owner/{customerId}/excel/current-month\n" +
             "- GET /api/statements/option-c/owner/{customerId}/excel/current-year\n" +
-            "- GET /api/statements/option-c/owner/{customerId}/excel/last-month"
+            "- GET /api/statements/option-c/owner/{customerId}/excel/last-month\n\n" +
+            "Custom Period Examples:\n" +
+            "- periodStartDay=1 (default): Calendar months (1st-31st/30th/28th)\n" +
+            "- periodStartDay=22: Custom periods (22nd-21st)\n" +
+            "- Pro-rating uses actual calendar days (not fixed 30-day months)"
         );
     }
 }
