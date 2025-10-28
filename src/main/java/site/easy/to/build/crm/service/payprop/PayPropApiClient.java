@@ -2,6 +2,7 @@ package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -31,6 +32,7 @@ import java.util.concurrent.TimeUnit;
  * - Error handling
  * - Response mapping
  */
+@ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Component
 public class PayPropApiClient {
     

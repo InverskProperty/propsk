@@ -439,8 +439,11 @@ public class LeaseImportService {
         lease.setFrequency(Invoice.InvoiceFrequency.monthly); // Monthly
         lease.setPaymentDay(Integer.parseInt(row.paymentDayStr));
 
-        // Lease reference
-        lease.setLeaseReference(row.leaseReference);
+        // Store CSV lease reference as external reference (for mapping historical transactions)
+        if (row.leaseReference != null && !row.leaseReference.isEmpty()) {
+            lease.setExternalReference(row.leaseReference);
+        }
+        // Note: leaseReference will be auto-generated as "LEASE-{id}" after save
 
         // Category
         lease.setCategoryId("rent");

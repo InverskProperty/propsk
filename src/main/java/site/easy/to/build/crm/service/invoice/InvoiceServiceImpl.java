@@ -165,11 +165,20 @@ public class InvoiceServiceImpl implements InvoiceService {
             invoice.setSyncStatus(SyncStatus.pending);
         }
         
-        // Save and return
+        // Save invoice
         Invoice savedInvoice = invoiceRepository.save(invoice);
-        log.info("Created invoice: ID {}, Amount: {}, Description: '{}'", 
-                savedInvoice.getId(), savedInvoice.getAmount(), savedInvoice.getDescription());
-        
+
+        // Auto-generate uniform lease reference if not already set
+        if (savedInvoice.getLeaseReference() == null || savedInvoice.getLeaseReference().isEmpty()) {
+            savedInvoice.setLeaseReference("LEASE-" + savedInvoice.getId());
+            savedInvoice = invoiceRepository.save(savedInvoice);
+            log.info("Generated lease reference: {}", savedInvoice.getLeaseReference());
+        }
+
+        log.info("Created invoice: ID {}, Lease Ref: {}, Amount: {}, Description: '{}'",
+                savedInvoice.getId(), savedInvoice.getLeaseReference(),
+                savedInvoice.getAmount(), savedInvoice.getDescription());
+
         return savedInvoice;
     }
     

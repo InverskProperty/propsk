@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.service.payprop;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -23,10 +24,11 @@ import java.util.stream.Collectors;
 
 /**
  * Local to PayProp Sync Service
- * 
+ *
  * Syncs local entities to PayProp using tested API patterns from our staging tests.
  * Based on successful entity creation patterns discovered through API testing.
  */
+@ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 @Service
 @Transactional
 public class LocalToPayPropSyncService {

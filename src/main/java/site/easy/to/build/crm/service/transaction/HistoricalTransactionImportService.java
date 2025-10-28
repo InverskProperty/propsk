@@ -2407,9 +2407,17 @@ public class HistoricalTransactionImportService {
 
         // If lease_reference is provided, try exact lookup first
         if (leaseRef != null && !leaseRef.trim().isEmpty()) {
+            // Try primary lease reference (our uniform LEASE-{id})
             Optional<Invoice> exactLease = invoiceRepository.findByLeaseReference(leaseRef.trim());
             if (exactLease.isPresent()) {
                 matches.add(new LeaseOption(exactLease.get(), 100));
+                return matches;
+            }
+
+            // Try external reference (PayProp, CSV imports)
+            Optional<Invoice> externalLease = invoiceRepository.findByExternalReference(leaseRef.trim());
+            if (externalLease.isPresent()) {
+                matches.add(new LeaseOption(externalLease.get(), 100));
                 return matches;
             }
         }
@@ -2423,8 +2431,11 @@ public class HistoricalTransactionImportService {
         List<Invoice> leases = invoiceRepository.findByPropertyAndCustomerOrderByStartDateDesc(property, customer);
 
         for (Invoice lease : leases) {
-            // Skip leases without lease_reference (not properly set up)
-            if (lease.getLeaseReference() == null || lease.getLeaseReference().isEmpty()) {
+            // Skip leases without any reference (not properly set up)
+            // Accept leases with either our uniform leaseReference OR external reference
+            boolean hasLeaseRef = lease.getLeaseReference() != null && !lease.getLeaseReference().isEmpty();
+            boolean hasExternalRef = lease.getExternalReference() != null && !lease.getExternalReference().isEmpty();
+            if (!hasLeaseRef && !hasExternalRef) {
                 continue;
             }
 

@@ -192,8 +192,9 @@ public class PayPropInvoiceInstructionEnrichmentService {
 
         Invoice lease = new Invoice();
 
-        // Generate lease reference from PayProp instruction ID
-        lease.setLeaseReference("PAYPROP-" + instruction.paypropId);
+        // Store PayProp reference as external reference (not as primary lease_reference)
+        lease.setExternalReference("PAYPROP-" + instruction.paypropId);
+        // Note: leaseReference will be auto-generated as "LEASE-{id}" after save
 
         // Link to property and customer
         lease.setProperty(property);

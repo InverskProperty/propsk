@@ -42,10 +42,10 @@ public class CustomerAssignmentController {
     
     @Autowired
     private CustomerPropertyAssignmentRepository assignmentRepository;
-    
-    @Autowired
+
+    @Autowired(required = false)
     private LocalToPayPropSyncService localToPayPropSyncService;
-    
+
     @Autowired
     private UserService userService;
     
@@ -164,22 +164,24 @@ public class CustomerAssignmentController {
             if (syncToPayProp) {
                 try {
                     String syncResult = null;
-                    
-                    if (assignmentType == AssignmentType.OWNER) {
-                        // Sync customer as PayProp beneficiary
-                        System.out.println("🔄 Syncing customer as PayProp beneficiary...");
-                        syncResult = localToPayPropSyncService.syncCustomerAsBeneficiaryToPayProp(customer);
-                        System.out.println("✅ Customer synced as PayProp beneficiary: " + syncResult);
-                        
-                    } else if (assignmentType == AssignmentType.TENANT) {
-                        // Sync customer as PayProp tenant
-                        System.out.println("🔄 Syncing customer as PayProp tenant...");
-                        syncResult = localToPayPropSyncService.syncCustomerAsTenantToPayProp(customer);
-                        System.out.println("✅ Customer synced as PayProp tenant: " + syncResult);
+
+                    if (localToPayPropSyncService != null) {
+                        if (assignmentType == AssignmentType.OWNER) {
+                            // Sync customer as PayProp beneficiary
+                            System.out.println("🔄 Syncing customer as PayProp beneficiary...");
+                            syncResult = localToPayPropSyncService.syncCustomerAsBeneficiaryToPayProp(customer);
+                            System.out.println("✅ Customer synced as PayProp beneficiary: " + syncResult);
+
+                        } else if (assignmentType == AssignmentType.TENANT) {
+                            // Sync customer as PayProp tenant
+                            System.out.println("🔄 Syncing customer as PayProp tenant...");
+                            syncResult = localToPayPropSyncService.syncCustomerAsTenantToPayProp(customer);
+                            System.out.println("✅ Customer synced as PayProp tenant: " + syncResult);
+                        }
                     }
-                    
+
                     if (syncResult != null) {
-                        redirectAttributes.addFlashAttribute("success", 
+                        redirectAttributes.addFlashAttribute("success",
                             "Assignment created and customer synced to PayProp successfully! PayProp ID: " + syncResult);
                     } else {
                         redirectAttributes.addFlashAttribute("warning", 

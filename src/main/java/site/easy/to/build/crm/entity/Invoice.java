@@ -186,12 +186,12 @@ public class Invoice {
     public void prePersist() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
-        
+
         // Set frequency code for PayProp sync
         if (this.frequencyCode == null) {
             this.frequencyCode = this.frequency.name();
         }
-        
+
         // Auto-set payment day for monthly/quarterly/yearly invoices
         if (this.paymentDay == null && this.frequency.requiresPaymentDay()) {
             this.paymentDay = 1; // Default to 1st of month
