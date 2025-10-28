@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(mvn clean compile:*)",
-      "Bash(python query_db.py:*)"
+      "Bash(python query_db.py:*)",
+      "Bash(export DATABASE_URL:*)",
+      "Bash(export DB_USERNAME=\"root\")",
+      "Bash(export DB_PASSWORD:*)",
+      "Bash(export:*)",
+      "Bash(export PAYPROP_ENABLED=\"false\")",
+      "Bash(export APP_BASE_URL:*)",
+      "Bash(export COMPANY_NAME=\"Propsk\")",
+      "Bash(mvn spring-boot:run:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": [],
