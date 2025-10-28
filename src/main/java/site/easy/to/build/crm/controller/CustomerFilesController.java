@@ -36,7 +36,7 @@ public class CustomerFilesController {
     @Autowired
     public CustomerFilesController(CustomerService customerService,
                                  CustomerDriveOrganizationService customerDriveOrganizationService,
-                                 PayPropSyncOrchestrator payPropSyncOrchestrator,
+                                 @Autowired(required = false) PayPropSyncOrchestrator payPropSyncOrchestrator,
                                  GoogleSheetsStatementService googleSheetsStatementService,
                                  AuthenticationUtils authenticationUtils) {
         this.customerService = customerService;
@@ -218,24 +218,29 @@ public class CustomerFilesController {
     public ResponseEntity<Map<String, String>> syncPayPropFiles(@PathVariable Long customerId,
                                                                Authentication authentication) {
         try {
+            if (payPropSyncOrchestrator == null) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", "PayProp integration is not enabled"));
+            }
+
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             Customer customer = customerService.findByCustomerId(customerId);
-            
+
             if (customer == null) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Customer not found"));
             }
-            
+
             // Use the integrated PayPropSyncOrchestrator approach
             var result = payPropSyncOrchestrator.syncPayPropFiles(oAuthUser, oAuthUser.getUserId().longValue());
 
-            
+
             if (result.isSuccess()) {
                 return ResponseEntity.ok(Map.of("success", "PayProp files synced successfully"));
             } else {
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "File sync completed with errors: " + result.getMessage()));
             }
-            
+
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Error syncing PayProp files: " + e.getMessage()));
@@ -248,8 +253,13 @@ public class CustomerFilesController {
     @PostMapping("/admin/sync-all-payprop")
     public ResponseEntity<Map<String, String>> syncAllPayPropFiles(Authentication authentication) {
         try {
+            if (payPropSyncOrchestrator == null) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", "PayProp integration is not enabled"));
+            }
+
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-            
+
             // Run comprehensive sync including files in background thread
             new Thread(() -> {
                 try {
@@ -259,9 +269,9 @@ public class CustomerFilesController {
                     System.err.println("Error in comprehensive PayProp sync: " + e.getMessage());
                 }
             }).start();
-            
+
             return ResponseEntity.ok(Map.of("success", "Comprehensive PayProp sync started in background"));
-            
+
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Error starting PayProp sync: " + e.getMessage()));
