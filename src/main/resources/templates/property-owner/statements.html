@@ -125,21 +125,42 @@
                                             <!-- Form Fields (shared by both buttons) -->
                                             <div class="mt-3" id="propertyOwnerForm">
                                                 <div class="row">
-                                                    <div class="col-md-4">
+                                                    <div class="col-md-3">
                                                         <label for="fromDate1">From Date:</label>
                                                         <input type="date" id="fromDate1" name="fromDate" class="form-control"
                                                                th:value="${defaultFromDate}" required>
                                                     </div>
-                                                    <div class="col-md-4">
+                                                    <div class="col-md-3">
                                                         <label for="toDate1">To Date:</label>
                                                         <input type="date" id="toDate1" name="toDate" class="form-control"
                                                                th:value="${defaultToDate}" required>
                                                     </div>
-                                                    <div class="col-md-4">
+                                                    <div class="col-md-3">
+                                                        <label for="periodStartDay1">Period Start Day:</label>
+                                                        <select id="periodStartDay1" name="periodStartDay" class="form-control">
+                                                            <option value="1" selected>1st (Calendar Months)</option>
+                                                            <option value="22">22nd (22nd-21st periods)</option>
+                                                            <option value="25">25th (25th-24th periods)</option>
+                                                            <option value="28">28th (28th-27th periods)</option>
+                                                        </select>
+                                                        <small class="text-muted">Custom reporting periods</small>
+                                                    </div>
+                                                    <div class="col-md-3">
                                                         <label>Property Owner:</label>
                                                         <input type="hidden" id="propertyOwnerId1" name="propertyOwnerId" th:value="${customer.customerId}">
                                                         <input type="text" class="form-control" th:value="${customer.name}" disabled>
                                                         <small class="text-muted">Your account</small>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Period Info -->
+                                                <div class="row mt-2">
+                                                    <div class="col-12">
+                                                        <div class="alert alert-info py-2">
+                                                            <i class="fas fa-info-circle"></i>
+                                                            <strong>Period Start Day:</strong> Select when your rental period starts each month.
+                                                            <span id="periodExplanation">Calendar months (1st-31st)</span>
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -319,6 +340,38 @@
         // Set default dates to current month
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Statements page loaded for property owner');
+
+            // Update period explanation when dropdown changes
+            const periodStartDaySelect = document.getElementById('periodStartDay1');
+            const periodExplanation = document.getElementById('periodExplanation');
+
+            if (periodStartDaySelect && periodExplanation) {
+                periodStartDaySelect.addEventListener('change', function() {
+                    const day = this.value;
+                    let explanation = '';
+
+                    if (day === '1') {
+                        explanation = 'Calendar months (1st-31st). Pro-rating uses actual calendar days.';
+                    } else {
+                        const nextDay = parseInt(day) - 1;
+                        explanation = `Custom periods (${day}${getDaySuffix(day)}-${nextDay}${getDaySuffix(nextDay)}). Example: Dec ${day} - Jan ${nextDay}. Pro-rating uses actual calendar days.`;
+                    }
+
+                    periodExplanation.textContent = explanation;
+                });
+            }
+
+            // Helper function for day suffix
+            function getDaySuffix(day) {
+                const d = parseInt(day);
+                if (d > 3 && d < 21) return 'th';
+                switch (d % 10) {
+                    case 1: return 'st';
+                    case 2: return 'nd';
+                    case 3: return 'rd';
+                    default: return 'th';
+                }
+            }
         });
 
         // CSRF Token for form submissions
@@ -331,12 +384,32 @@
             const fromDate = document.getElementById('fromDate1').value;
             const toDate = document.getElementById('toDate1').value;
             const propertyOwnerId = document.getElementById('propertyOwnerId1').value;
+            const periodStartDay = document.getElementById('periodStartDay1').value;
 
             if (!fromDate || !toDate) {
                 alert('Please select both from and to dates');
                 return;
             }
 
+            // Use Option C endpoint with custom period support
+            const url = `/api/statements/option-c/owner/${propertyOwnerId}/excel?startDate=${fromDate}&endDate=${toDate}&periodStartDay=${periodStartDay}`;
+
+            // Create a temporary link to trigger download
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `statement_customer_${propertyOwnerId}_${fromDate}_${toDate}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Show success message
+            setTimeout(() => {
+                alert('Statement download started! Check your downloads folder.');
+            }, 500);
+
+            return;
+
+            // OLD CODE BELOW - Keeping for reference, can be removed
             // Create a form and submit it for XLSX download
             const form = document.createElement('form');
             form.method = 'POST';
