@@ -68,7 +68,7 @@
                                 </div>
 
                                 <!-- Date Range -->
-                                <div class="col-md-3">
+                                <div class="col-md-2">
                                     <div class="mb-3">
                                         <label for="fromDate" class="form-label">
                                             <i class="bi bi-calendar"></i> From Date
@@ -77,13 +77,36 @@
                                                th:value="${defaultFromDate}" required>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-md-2">
                                     <div class="mb-3">
                                         <label for="toDate" class="form-label">
                                             <i class="bi bi-calendar"></i> To Date
                                         </label>
                                         <input type="date" class="form-control" id="toDate" name="toDate"
                                                th:value="${defaultToDate}" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        <label for="periodStartDay" class="form-label">
+                                            <i class="bi bi-calendar-range"></i> Period Start Day
+                                        </label>
+                                        <select class="form-select" id="periodStartDay" name="periodStartDay">
+                                            <option value="1" selected>1st (Calendar)</option>
+                                            <option value="22">22nd-21st</option>
+                                            <option value="25">25th-24th</option>
+                                            <option value="28">28th-27th</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Period Explanation -->
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <div class="alert alert-info py-2">
+                                        <i class="bi bi-info-circle"></i>
+                                        <strong>Period Structure:</strong> <span id="periodExplanation">Calendar months (1st-31st). Pro-rating uses actual calendar days.</span>
                                     </div>
                                 </div>
                             </div>
@@ -166,15 +189,19 @@
                                 <div class="col-12">
                                     <h6><i class="bi bi-download"></i> Generate Statement</h6>
                                     <div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-success" onclick="generateStatement('property-owner', 'xlsx')">
-                                            <i class="bi bi-file-earmark-excel"></i> Property Owner XLSX
+                                        <button type="button" class="btn btn-success btn-lg" onclick="generateStatement('property-owner', 'xlsx')">
+                                            <i class="bi bi-file-earmark-excel"></i> Download Statement (Option C)
                                         </button>
-                                        <button type="button" class="btn btn-info" onclick="generateStatement('property-owner', 'google-sheets')">
-                                            <i class="bi bi-google"></i> Property Owner Google Sheets
-                                        </button>
-                                        <button type="button" class="btn btn-warning" onclick="generateStatement('portfolio', 'xlsx')">
-                                            <i class="bi bi-collection"></i> Portfolio XLSX
-                                        </button>
+                                    </div>
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            <i class="bi bi-info-circle"></i> Using Option C: Formula-based Excel with custom period support and accurate pro-rating
+                                        </small>
+                                    </div>
+                                    <div class="mt-2">
+                                        <small class="text-warning">
+                                            <i class="bi bi-exclamation-triangle"></i> <strong>Note:</strong> Google Sheets and Portfolio formats coming soon with Option C
+                                        </small>
                                     </div>
                                 </div>
                             </div>
@@ -239,6 +266,38 @@
             });
 
             updatePreview();
+
+            // Period Start Day explanation update
+            const periodStartDaySelect = document.getElementById('periodStartDay');
+            const periodExplanation = document.getElementById('periodExplanation');
+
+            if (periodStartDaySelect && periodExplanation) {
+                periodStartDaySelect.addEventListener('change', function() {
+                    const day = this.value;
+                    let explanation = '';
+
+                    if (day === '1') {
+                        explanation = 'Calendar months (1st-31st). Pro-rating uses actual calendar days.';
+                    } else {
+                        const nextDay = parseInt(day) - 1;
+                        explanation = `Custom periods (${day}${getDaySuffix(day)}-${nextDay}${getDaySuffix(nextDay)}). Example: Dec ${day} - Jan ${nextDay}. Pro-rating uses actual calendar days.`;
+                    }
+
+                    periodExplanation.textContent = explanation;
+                });
+            }
+
+            // Helper function for day suffix
+            function getDaySuffix(day) {
+                const d = parseInt(day);
+                if (d > 3 && d < 21) return 'th';
+                switch (d % 10) {
+                    case 1: return 'st';
+                    case 2: return 'nd';
+                    case 3: return 'rd';
+                    default: return 'th';
+                }
+            }
         });
 
         function generateStatement(type, format) {
@@ -251,15 +310,18 @@
                 return;
             }
 
+            // Get form values
+            const propertyOwnerId = formData.get('propertyOwnerId');
+            const fromDate = formData.get('fromDate');
+            const toDate = formData.get('toDate');
+            const periodStartDay = formData.get('periodStartDay') || '1';
+
             // Check if at least one data source is selected
             const selectedSources = formData.getAll('dataSources');
             if (selectedSources.length === 0) {
                 alert('Please select at least one data source.');
                 return;
             }
-
-            // Build URL
-            const baseUrl = `/admin/enhanced-statements/${type}/${format}`;
 
             // Show loading
             const resultsSection = document.getElementById('resultsSection');
@@ -269,29 +331,23 @@
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Generating...</span>
                     </div>
-                    <p class="mt-2">Generating statement with selected data sources...</p>
+                    <p class="mt-2">Generating statement with Option C (formula-based Excel)...</p>
+                    <small class="text-muted">Note: Using custom period support with accurate calendar-day pro-rating</small>
                 </div>
             `;
             resultsSection.style.display = 'block';
 
             if (format === 'xlsx') {
-                // For XLSX, create a form and submit to download
-                const downloadForm = document.createElement('form');
-                downloadForm.method = 'POST';
-                downloadForm.action = baseUrl;
+                // Use Option C endpoint with custom period support
+                const url = `/api/statements/option-c/owner/${propertyOwnerId}/excel?startDate=${fromDate}&endDate=${toDate}&periodStartDay=${periodStartDay}`;
 
-                // Add all form data to download form
-                for (let [key, value] of formData.entries()) {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = value;
-                    downloadForm.appendChild(input);
-                }
-
-                document.body.appendChild(downloadForm);
-                downloadForm.submit();
-                document.body.removeChild(downloadForm);
+                // Create temporary link to trigger download
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `statement_optionc_customer_${propertyOwnerId}_${fromDate}_${toDate}.xlsx`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
 
                 // Update results
                 setTimeout(() => {
@@ -299,41 +355,53 @@
                         <div class="alert alert-success">
                             <i class="bi bi-download"></i> Excel file download started!
                             <br><small>Check your downloads folder for the generated statement.</small>
+                            <hr>
+                            <p class="mb-1"><strong>Statement Details:</strong></p>
+                            <ul class="mb-0">
+                                <li>Period: ${fromDate} to ${toDate}</li>
+                                <li>Period Start Day: ${periodStartDay}${getDaySuffix(periodStartDay)}</li>
+                                <li>Format: Option C (formulas included)</li>
+                                <li>Pro-rating: Accurate calendar days</li>
+                            </ul>
+                            <hr>
+                            <small class="text-info">
+                                <i class="bi bi-info-circle"></i> <strong>Note:</strong> Data source filtering will be added in a future update.
+                                Currently uses all available transaction data.
+                            </small>
                         </div>
                     `;
                 }, 1000);
 
-            } else if (format === 'google-sheets') {
-                // For Google Sheets, use fetch to get the URL
-                fetch(baseUrl, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        throw new Error(data.error);
+                // Helper for suffix (need to define in this scope)
+                function getDaySuffix(day) {
+                    const d = parseInt(day);
+                    if (d > 3 && d < 21) return 'th';
+                    switch (d % 10) {
+                        case 1: return 'st';
+                        case 2: return 'nd';
+                        case 3: return 'rd';
+                        default: return 'th';
                     }
+                }
 
-                    resultsContent.innerHTML = `
-                        <div class="alert alert-success">
-                            <h6><i class="bi bi-google"></i> Google Sheets Created Successfully!</h6>
-                            <p><strong>Data Sources:</strong> ${data.dataSources}</p>
-                            <a href="${data.url}" target="_blank" class="btn btn-primary">
-                                <i class="bi bi-box-arrow-up-right"></i> Open Google Sheets
-                            </a>
-                            <br><br>
-                            <small class="text-muted">Spreadsheet ID: ${data.spreadsheetId}</small>
-                        </div>
-                    `;
-                })
-                .catch(error => {
-                    resultsContent.innerHTML = `
-                        <div class="alert alert-danger">
-                            <i class="bi bi-exclamation-triangle"></i> Error: ${error.message}
-                        </div>
-                    `;
-                });
+            } else if (format === 'google-sheets') {
+                // Google Sheets not yet supported with Option C
+                resultsContent.innerHTML = `
+                    <div class="alert alert-warning">
+                        <h6><i class="bi bi-exclamation-triangle"></i> Google Sheets Not Yet Supported with Option C</h6>
+                        <p>Google Sheets generation with custom period support and Option C formulas is coming soon.</p>
+                        <p class="mb-0"><small>For now, please use the XLSX download option and upload to Google Drive if needed.</small></p>
+                    </div>
+                `;
+            } else if (format === 'portfolio') {
+                // Portfolio not yet supported with Option C
+                resultsContent.innerHTML = `
+                    <div class="alert alert-warning">
+                        <h6><i class="bi bi-exclamation-triangle"></i> Portfolio Format Not Yet Supported with Option C</h6>
+                        <p>Portfolio statements with custom period support and Option C formulas are coming soon.</p>
+                        <p class="mb-0"><small>For now, please generate individual property owner statements.</small></p>
+                    </div>
+                `;
             }
         }
     </script>
