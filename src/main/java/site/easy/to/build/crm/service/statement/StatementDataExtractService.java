@@ -135,10 +135,20 @@ public class StatementDataExtractService {
             log.error("🔍 DEBUG: Customer {} is {}, getting leases for owned properties",
                 customerId, customer.getCustomerType());
 
-            List<Long> ownedPropertyIds = customerPropertyAssignmentRepository
+            // Get properties where customer is OWNER or MANAGER (same logic as PropertyService)
+            List<Long> ownerPropertyIds = customerPropertyAssignmentRepository
                 .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.OWNER);
+            List<Long> managerPropertyIds = customerPropertyAssignmentRepository
+                .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.MANAGER);
 
-            log.error("🔍 DEBUG: Found {} properties owned by customer {}, IDs: {}", ownedPropertyIds.size(), customerId, ownedPropertyIds);
+            // Combine and deduplicate
+            List<Long> ownedPropertyIds = new ArrayList<>();
+            ownedPropertyIds.addAll(ownerPropertyIds);
+            ownedPropertyIds.addAll(managerPropertyIds);
+            ownedPropertyIds = ownedPropertyIds.stream().distinct().collect(Collectors.toList());
+
+            log.error("🔍 DEBUG: Found {} OWNER + {} MANAGER = {} total properties for customer {}, IDs: {}",
+                ownerPropertyIds.size(), managerPropertyIds.size(), ownedPropertyIds.size(), customerId, ownedPropertyIds);
 
             invoices = invoiceRepository.findAll().stream()
                 .filter(i -> i.getProperty() != null)
@@ -276,11 +286,20 @@ public class StatementDataExtractService {
             log.error("🔍 DEBUG: Customer {} is {}, filtering transactions by owned properties",
                 customerId, customer.getCustomerType());
 
-            // Get property IDs owned by this customer
-            List<Long> ownedPropertyIds = customerPropertyAssignmentRepository
+            // Get property IDs where customer is OWNER or MANAGER (same logic as PropertyService)
+            List<Long> ownerPropertyIds = customerPropertyAssignmentRepository
                 .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.OWNER);
+            List<Long> managerPropertyIds = customerPropertyAssignmentRepository
+                .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.MANAGER);
 
-            log.error("🔍 DEBUG: Found {} owned properties for transactions for customer {}", ownedPropertyIds.size(), customerId);
+            // Combine and deduplicate
+            List<Long> ownedPropertyIds = new ArrayList<>();
+            ownedPropertyIds.addAll(ownerPropertyIds);
+            ownedPropertyIds.addAll(managerPropertyIds);
+            ownedPropertyIds = ownedPropertyIds.stream().distinct().collect(Collectors.toList());
+
+            log.error("🔍 DEBUG: Found {} OWNER + {} MANAGER = {} total properties for transactions for customer {}",
+                ownerPropertyIds.size(), managerPropertyIds.size(), ownedPropertyIds.size(), customerId);
 
             // Get all invoices (leases) for those properties
             List<Invoice> ownerInvoices = invoiceRepository.findAll().stream()
