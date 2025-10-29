@@ -195,6 +195,13 @@ public class StatementDataExtractService {
             leaseMaster.add(dto);
         }
 
+        // Log lease_id distribution to match against transaction invoice_ids
+        log.error("🔍 DEBUG: Lease_id distribution for customer {}: {}",
+            customerId,
+            leaseMaster.stream()
+                .map(l -> "lease_id=" + l.getLeaseId() + " ref=" + l.getLeaseReference() + " property=" + l.getPropertyName())
+                .collect(Collectors.toList()));
+
         log.info("Extracted {} lease master records for customer {}", leaseMaster.size(), customerId);
         return leaseMaster;
     }
@@ -351,6 +358,13 @@ public class StatementDataExtractService {
 
             transactionDTOs.add(dto);
         }
+
+        // Log invoice_id distribution to understand why Monthly Statement shows £0.00
+        log.error("🔍 DEBUG: Transaction invoice_id distribution for customer {}: {}",
+            customerId,
+            transactionDTOs.stream()
+                .map(t -> "invoice_id=" + t.getInvoiceId() + " amount=" + t.getAmount())
+                .collect(Collectors.toList()));
 
         log.info("Extracted {} transaction records for customer {}", transactionDTOs.size(), customerId);
         return transactionDTOs;
