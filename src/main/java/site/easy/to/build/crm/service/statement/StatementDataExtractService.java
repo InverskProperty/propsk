@@ -13,11 +13,13 @@ import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.HistoricalTransaction;
 import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.UnifiedTransaction;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
+import site.easy.to.build.crm.repository.UnifiedTransactionRepository;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -42,6 +44,9 @@ public class StatementDataExtractService {
 
     @Autowired
     private HistoricalTransactionRepository historicalTransactionRepository;
+
+    @Autowired
+    private UnifiedTransactionRepository unifiedTransactionRepository;
 
     @Autowired
     private PropertyRepository propertyRepository;
@@ -219,49 +224,44 @@ public class StatementDataExtractService {
      * @return List of transactions
      */
     public List<TransactionDTO> extractTransactions(LocalDate startDate, LocalDate endDate) {
-        log.info("Extracting transactions from {} to {}...", startDate, endDate);
+        log.info("✨ Extracting UNIFIED transactions (historical + PayProp) from {} to {}...", startDate, endDate);
 
-        // Get all transactions with invoice_id populated (100% of rent payments)
-        List<HistoricalTransaction> transactions;
+        // Get all transactions with invoice_id populated from unified_transactions
+        // This includes BOTH historical AND PayProp data
+        List<UnifiedTransaction> transactions;
 
         if (startDate != null && endDate != null) {
             // Filter by date range
-            transactions = historicalTransactionRepository.findAll().stream()
-                .filter(t -> t.getInvoice() != null)
-                .filter(t -> !t.getTransactionDate().isBefore(startDate))
-                .filter(t -> !t.getTransactionDate().isAfter(endDate))
-                .collect(Collectors.toList());
+            transactions = unifiedTransactionRepository.findByTransactionDateBetween(startDate, endDate);
         } else {
-            // All transactions with invoice_id
-            transactions = historicalTransactionRepository.findAll().stream()
-                .filter(t -> t.getInvoice() != null)
-                .collect(Collectors.toList());
+            // All transactions with invoice_id (unified table already filters for invoice_id IS NOT NULL)
+            transactions = unifiedTransactionRepository.findByInvoiceIdIsNotNull();
         }
 
-        log.info("Found {} transactions with invoice_id", transactions.size());
+        log.info("✨ Found {} UNIFIED transactions (HISTORICAL + PAYPROP)", transactions.size());
 
         List<TransactionDTO> transactionDTOs = new ArrayList<>();
 
-        for (HistoricalTransaction ht : transactions) {
+        for (UnifiedTransaction ut : transactions) {
             TransactionDTO dto = new TransactionDTO();
 
-            dto.setTransactionId(ht.getId());
-            dto.setTransactionDate(ht.getTransactionDate());
-            dto.setInvoiceId(ht.getInvoice() != null ? ht.getInvoice().getId() : null);
-            dto.setPropertyId(ht.getProperty() != null ? ht.getProperty().getId() : null);
-            dto.setCustomerId(ht.getCustomer() != null ? ht.getCustomer().getCustomerId() : null);
-            dto.setCategory(ht.getCategory());
-            dto.setTransactionType(ht.getTransactionType() != null ? ht.getTransactionType().name() : null);
-            dto.setAmount(ht.getAmount());
-            dto.setDescription(ht.getDescription());
-            dto.setLeaseStartDate(ht.getLeaseStartDate());
-            dto.setLeaseEndDate(ht.getLeaseEndDate());
-            dto.setRentAmountAtTransaction(ht.getRentAmountAtTransaction());
+            dto.setTransactionId(ut.getId());
+            dto.setTransactionDate(ut.getTransactionDate());
+            dto.setInvoiceId(ut.getInvoiceId());
+            dto.setPropertyId(ut.getPropertyId());
+            dto.setCustomerId(ut.getCustomerId());
+            dto.setCategory(ut.getCategory());
+            dto.setTransactionType(null); // UnifiedTransaction doesn't have transactionType
+            dto.setAmount(ut.getAmount());
+            dto.setDescription(ut.getDescription());
+            dto.setLeaseStartDate(ut.getLeaseStartDate());
+            dto.setLeaseEndDate(ut.getLeaseEndDate());
+            dto.setRentAmountAtTransaction(ut.getRentAmountAtTransaction());
 
             transactionDTOs.add(dto);
         }
 
-        log.info("Extracted {} transaction records", transactionDTOs.size());
+        log.info("✨ Extracted {} UNIFIED transaction records (shows historical + PayProp data)", transactionDTOs.size());
         return transactionDTOs;
     }
 
@@ -274,87 +274,41 @@ public class StatementDataExtractService {
      * @return List of transactions for this customer
      */
     public List<TransactionDTO> extractTransactionsForCustomer(Long customerId, LocalDate startDate, LocalDate endDate) {
-        log.error("🔍 DEBUG: Extracting transactions for customer {} from {} to {}...", customerId, startDate, endDate);
+        log.info("✨ UNIFIED: Extracting transactions for customer {} from {} to {}...", customerId, startDate, endDate);
 
         Customer customer = customerRepository.findById(customerId).orElse(null);
         if (customer == null) {
-            log.error("🔍 DEBUG: Customer {} not found for transactions - returning empty list", customerId);
+            log.error("Customer {} not found - returning empty list", customerId);
             return new ArrayList<>();
         }
 
-        log.error("🔍 DEBUG: Customer {} found for transactions, type={}", customerId, customer.getCustomerType());
+        log.info("✨ UNIFIED: Customer {} found, type={}", customerId, customer.getCustomerType());
 
-        // Get transactions based on customer type
-        List<HistoricalTransaction> transactions;
+        // Use unified_transactions repository's built-in query
+        // This automatically handles OWNER + MANAGER assignments and filters by date range
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository
+            .findByCustomerOwnedPropertiesAndDateRange(customerId, startDate, endDate);
 
-        if (customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.PROPERTY_OWNER ||
-            customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.DELEGATED_USER) {
-            // For property owners and delegated users: Get transactions for properties they OWN
-            log.error("🔍 DEBUG: Customer {} is {}, filtering transactions by owned properties",
-                customerId, customer.getCustomerType());
-
-            // Get property IDs where customer is OWNER or MANAGER (same logic as PropertyService)
-            List<Long> ownerPropertyIds = customerPropertyAssignmentRepository
-                .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.OWNER);
-            List<Long> managerPropertyIds = customerPropertyAssignmentRepository
-                .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.MANAGER);
-
-            // Combine and deduplicate into final variable for lambda
-            final List<Long> ownedPropertyIds = new ArrayList<>();
-            ownedPropertyIds.addAll(ownerPropertyIds);
-            ownedPropertyIds.addAll(managerPropertyIds);
-            final List<Long> deduplicatedIds = ownedPropertyIds.stream().distinct().collect(Collectors.toList());
-
-            log.error("🔍 DEBUG: Found {} OWNER + {} MANAGER = {} total properties for transactions for customer {}",
-                ownerPropertyIds.size(), managerPropertyIds.size(), deduplicatedIds.size(), customerId);
-
-            // Get all invoices (leases) for those properties
-            List<Invoice> ownerInvoices = invoiceRepository.findAll().stream()
-                .filter(inv -> inv.getProperty() != null)
-                .filter(inv -> ownedPropertyIds.contains(inv.getProperty().getId()))
-                .filter(inv -> inv.getLeaseReference() != null && !inv.getLeaseReference().trim().isEmpty())
-                .collect(Collectors.toList());
-
-            log.error("🔍 DEBUG: Found {} invoices for owned properties for customer {}", ownerInvoices.size(), customerId);
-
-            // Get transactions for those invoices
-            transactions = historicalTransactionRepository.findAll().stream()
-                .filter(t -> t.getInvoice() != null)
-                .filter(t -> ownerInvoices.stream().anyMatch(inv -> inv.getId().equals(t.getInvoice().getId())))
-                .filter(t -> startDate == null || !t.getTransactionDate().isBefore(startDate))
-                .filter(t -> endDate == null || !t.getTransactionDate().isAfter(endDate))
-                .collect(Collectors.toList());
-
-            log.error("🔍 DEBUG: Found {} transactions after filtering for customer {}", transactions.size(), customerId);
-        } else {
-            // For tenants: Get transactions where they are the customer
-            log.error("🔍 DEBUG: Customer {} is TENANT, filtering transactions by customer_id", customerId);
-            transactions = historicalTransactionRepository.findByCustomer(customer).stream()
-                .filter(t -> t.getInvoice() != null)
-                .filter(t -> startDate == null || !t.getTransactionDate().isBefore(startDate))
-                .filter(t -> endDate == null || !t.getTransactionDate().isAfter(endDate))
-                .collect(Collectors.toList());
-        }
-
-        log.error("🔍 DEBUG: Total {} transactions extracted for customer {}", transactions.size(), customerId);
+        log.info("✨ UNIFIED: Found {} transactions (HISTORICAL + PAYPROP) for customer {}",
+            transactions.size(), customerId);
 
         List<TransactionDTO> transactionDTOs = new ArrayList<>();
 
-        for (HistoricalTransaction ht : transactions) {
+        for (UnifiedTransaction ut : transactions) {
             TransactionDTO dto = new TransactionDTO();
 
-            dto.setTransactionId(ht.getId());
-            dto.setTransactionDate(ht.getTransactionDate());
-            dto.setInvoiceId(ht.getInvoice() != null ? ht.getInvoice().getId() : null);
-            dto.setPropertyId(ht.getProperty() != null ? ht.getProperty().getId() : null);
-            dto.setCustomerId(ht.getCustomer() != null ? ht.getCustomer().getCustomerId() : null);
-            dto.setCategory(ht.getCategory());
-            dto.setTransactionType(ht.getTransactionType() != null ? ht.getTransactionType().name() : null);
-            dto.setAmount(ht.getAmount());
-            dto.setDescription(ht.getDescription());
-            dto.setLeaseStartDate(ht.getLeaseStartDate());
-            dto.setLeaseEndDate(ht.getLeaseEndDate());
-            dto.setRentAmountAtTransaction(ht.getRentAmountAtTransaction());
+            dto.setTransactionId(ut.getId());
+            dto.setTransactionDate(ut.getTransactionDate());
+            dto.setInvoiceId(ut.getInvoiceId());
+            dto.setPropertyId(ut.getPropertyId());
+            dto.setCustomerId(ut.getCustomerId());
+            dto.setCategory(ut.getCategory());
+            dto.setTransactionType(null); // UnifiedTransaction doesn't have transactionType
+            dto.setAmount(ut.getAmount());
+            dto.setDescription(ut.getDescription());
+            dto.setLeaseStartDate(ut.getLeaseStartDate());
+            dto.setLeaseEndDate(ut.getLeaseEndDate());
+            dto.setRentAmountAtTransaction(ut.getRentAmountAtTransaction());
 
             transactionDTOs.add(dto);
         }
