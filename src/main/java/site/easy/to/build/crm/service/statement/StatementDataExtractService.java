@@ -141,14 +141,14 @@ public class StatementDataExtractService {
             List<Long> managerPropertyIds = customerPropertyAssignmentRepository
                 .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.MANAGER);
 
-            // Combine and deduplicate
-            List<Long> ownedPropertyIds = new ArrayList<>();
+            // Combine and deduplicate into final variable for lambda
+            final List<Long> ownedPropertyIds = new ArrayList<>();
             ownedPropertyIds.addAll(ownerPropertyIds);
             ownedPropertyIds.addAll(managerPropertyIds);
-            ownedPropertyIds = ownedPropertyIds.stream().distinct().collect(Collectors.toList());
+            final List<Long> deduplicatedIds = ownedPropertyIds.stream().distinct().collect(Collectors.toList());
 
             log.error("🔍 DEBUG: Found {} OWNER + {} MANAGER = {} total properties for customer {}, IDs: {}",
-                ownerPropertyIds.size(), managerPropertyIds.size(), ownedPropertyIds.size(), customerId, ownedPropertyIds);
+                ownerPropertyIds.size(), managerPropertyIds.size(), deduplicatedIds.size(), customerId, deduplicatedIds);
 
             invoices = invoiceRepository.findAll().stream()
                 .filter(i -> i.getProperty() != null)
@@ -292,14 +292,14 @@ public class StatementDataExtractService {
             List<Long> managerPropertyIds = customerPropertyAssignmentRepository
                 .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.MANAGER);
 
-            // Combine and deduplicate
-            List<Long> ownedPropertyIds = new ArrayList<>();
+            // Combine and deduplicate into final variable for lambda
+            final List<Long> ownedPropertyIds = new ArrayList<>();
             ownedPropertyIds.addAll(ownerPropertyIds);
             ownedPropertyIds.addAll(managerPropertyIds);
-            ownedPropertyIds = ownedPropertyIds.stream().distinct().collect(Collectors.toList());
+            final List<Long> deduplicatedIds = ownedPropertyIds.stream().distinct().collect(Collectors.toList());
 
             log.error("🔍 DEBUG: Found {} OWNER + {} MANAGER = {} total properties for transactions for customer {}",
-                ownerPropertyIds.size(), managerPropertyIds.size(), ownedPropertyIds.size(), customerId);
+                ownerPropertyIds.size(), managerPropertyIds.size(), deduplicatedIds.size(), customerId);
 
             // Get all invoices (leases) for those properties
             List<Invoice> ownerInvoices = invoiceRepository.findAll().stream()
