@@ -17,7 +17,8 @@
       "Bash(curl:*)",
       "mcp__render__list_workspaces",
       "mcp__render__list_logs",
-      "mcp__render__list_deploys"
+      "mcp__render__list_deploys",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": [],
