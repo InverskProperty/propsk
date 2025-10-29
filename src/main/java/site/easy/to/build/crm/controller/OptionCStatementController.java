@@ -58,7 +58,7 @@ public class OptionCStatementController {
      * @return Excel file download with formulas
      */
     @GetMapping("/owner/{customerId}/excel")
-    @PreAuthorize("hasAnyRole('EMPLOYEE', 'OWNER', 'ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'PROPERTY_OWNER', 'ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> generateOwnerStatement(
             @PathVariable Long customerId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
@@ -186,7 +186,7 @@ public class OptionCStatementController {
      * @return Excel file download for current month
      */
     @GetMapping("/owner/{customerId}/excel/current-month")
-    @PreAuthorize("hasAnyRole('EMPLOYEE', 'OWNER', 'ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'PROPERTY_OWNER', 'ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> generateOwnerStatementCurrentMonth(
             @PathVariable Long customerId,
             @RequestParam(defaultValue = "1") Integer periodStartDay) {
@@ -211,7 +211,7 @@ public class OptionCStatementController {
      * @return Excel file download for current year
      */
     @GetMapping("/owner/{customerId}/excel/current-year")
-    @PreAuthorize("hasAnyRole('EMPLOYEE', 'OWNER', 'ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'PROPERTY_OWNER', 'ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> generateOwnerStatementCurrentYear(
             @PathVariable Long customerId,
             @RequestParam(defaultValue = "1") Integer periodStartDay) {
@@ -236,7 +236,7 @@ public class OptionCStatementController {
      * @return Excel file download for last month
      */
     @GetMapping("/owner/{customerId}/excel/last-month")
-    @PreAuthorize("hasAnyRole('EMPLOYEE', 'OWNER', 'ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'PROPERTY_OWNER', 'ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> generateOwnerStatementLastMonth(
             @PathVariable Long customerId,
             @RequestParam(defaultValue = "1") Integer periodStartDay) {
