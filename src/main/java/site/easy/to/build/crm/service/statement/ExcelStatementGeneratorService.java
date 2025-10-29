@@ -140,16 +140,18 @@ public class ExcelStatementGeneratorService {
      */
     public Workbook generateStatementForCustomerWithCustomPeriods(Long customerId, LocalDate startDate,
                                                                   LocalDate endDate, int periodStartDay) {
-        log.info("Generating statement for customer {} with custom periods (start day: {})", customerId, periodStartDay);
+        log.error("🔍 DEBUG: Generating statement for customer {} with custom periods (start day: {})", customerId, periodStartDay);
 
         Workbook workbook = new XSSFWorkbook();
 
         // Extract data for this customer
+        log.error("🔍 DEBUG: About to extract lease master for customer {}", customerId);
         List<LeaseMasterDTO> leaseMaster = dataExtractService.extractLeaseMasterForCustomer(customerId);
+        log.error("🔍 DEBUG: About to extract transactions for customer {} from {} to {}", customerId, startDate, endDate);
         List<TransactionDTO> transactions = dataExtractService.extractTransactionsForCustomer(
             customerId, startDate, endDate);
 
-        log.info("Extracted {} leases and {} transactions for customer {}",
+        log.error("🔍 DEBUG: Extracted {} leases and {} transactions for customer {}",
                 leaseMaster.size(), transactions.size(), customerId);
 
         // Create sheets with custom periods

@@ -116,13 +116,15 @@ public class StatementDataExtractService {
      * @return List of lease master records for this customer
      */
     public List<LeaseMasterDTO> extractLeaseMasterForCustomer(Long customerId) {
-        log.info("Extracting lease master data for customer {}...", customerId);
+        log.error("🔍 DEBUG: Extracting lease master data for customer {}...", customerId);
 
         Customer customer = customerRepository.findById(customerId).orElse(null);
         if (customer == null) {
-            log.warn("Customer {} not found", customerId);
+            log.error("🔍 DEBUG: Customer {} not found - returning empty list", customerId);
             return new ArrayList<>();
         }
+
+        log.error("🔍 DEBUG: Customer {} found, type={}", customerId, customer.getCustomerType());
 
         // Get leases based on customer type
         List<Invoice> invoices;
@@ -130,28 +132,30 @@ public class StatementDataExtractService {
         if (customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.PROPERTY_OWNER ||
             customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.DELEGATED_USER) {
             // For property owners and delegated users: Get leases for properties they OWN
-            log.info("Customer {} is {} getting leases for owned properties",
+            log.error("🔍 DEBUG: Customer {} is {}, getting leases for owned properties",
                 customerId, customer.getCustomerType());
 
             List<Long> ownedPropertyIds = customerPropertyAssignmentRepository
                 .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.OWNER);
 
-            log.info("Found {} properties owned by customer {}", ownedPropertyIds.size(), customerId);
+            log.error("🔍 DEBUG: Found {} properties owned by customer {}, IDs: {}", ownedPropertyIds.size(), customerId, ownedPropertyIds);
 
             invoices = invoiceRepository.findAll().stream()
                 .filter(i -> i.getProperty() != null)
                 .filter(i -> ownedPropertyIds.contains(i.getProperty().getId()))
                 .filter(i -> i.getLeaseReference() != null && !i.getLeaseReference().trim().isEmpty())
                 .collect(Collectors.toList());
+
+            log.error("🔍 DEBUG: After filtering invoices for customer {}: {} leases found", customerId, invoices.size());
         } else {
             // For tenants: Get leases where they are the customer
-            log.info("Customer {} is TENANT, getting leases where they are the customer", customerId);
+            log.error("🔍 DEBUG: Customer {} is TENANT, getting leases where they are the customer", customerId);
             invoices = invoiceRepository.findByCustomer(customer).stream()
                 .filter(i -> i.getLeaseReference() != null && !i.getLeaseReference().trim().isEmpty())
                 .collect(Collectors.toList());
         }
 
-        log.info("Found {} leases for customer {}", invoices.size(), customerId);
+        log.error("🔍 DEBUG: Total {} leases found for customer {}", invoices.size(), customerId);
 
         List<LeaseMasterDTO> leaseMaster = new ArrayList<>();
 
@@ -253,13 +257,15 @@ public class StatementDataExtractService {
      * @return List of transactions for this customer
      */
     public List<TransactionDTO> extractTransactionsForCustomer(Long customerId, LocalDate startDate, LocalDate endDate) {
-        log.info("Extracting transactions for customer {} from {} to {}...", customerId, startDate, endDate);
+        log.error("🔍 DEBUG: Extracting transactions for customer {} from {} to {}...", customerId, startDate, endDate);
 
         Customer customer = customerRepository.findById(customerId).orElse(null);
         if (customer == null) {
-            log.warn("Customer {} not found", customerId);
+            log.error("🔍 DEBUG: Customer {} not found for transactions - returning empty list", customerId);
             return new ArrayList<>();
         }
+
+        log.error("🔍 DEBUG: Customer {} found for transactions, type={}", customerId, customer.getCustomerType());
 
         // Get transactions based on customer type
         List<HistoricalTransaction> transactions;
@@ -267,14 +273,14 @@ public class StatementDataExtractService {
         if (customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.PROPERTY_OWNER ||
             customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.DELEGATED_USER) {
             // For property owners and delegated users: Get transactions for properties they OWN
-            log.info("Customer {} is {}, filtering by owned properties",
+            log.error("🔍 DEBUG: Customer {} is {}, filtering transactions by owned properties",
                 customerId, customer.getCustomerType());
 
             // Get property IDs owned by this customer
             List<Long> ownedPropertyIds = customerPropertyAssignmentRepository
                 .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.OWNER);
 
-            log.info("Found {} properties owned by customer {}", ownedPropertyIds.size(), customerId);
+            log.error("🔍 DEBUG: Found {} owned properties for transactions for customer {}", ownedPropertyIds.size(), customerId);
 
             // Get all invoices (leases) for those properties
             List<Invoice> ownerInvoices = invoiceRepository.findAll().stream()
@@ -283,7 +289,7 @@ public class StatementDataExtractService {
                 .filter(inv -> inv.getLeaseReference() != null && !inv.getLeaseReference().trim().isEmpty())
                 .collect(Collectors.toList());
 
-            log.info("Found {} invoices for properties owned by customer {}", ownerInvoices.size(), customerId);
+            log.error("🔍 DEBUG: Found {} invoices for owned properties for customer {}", ownerInvoices.size(), customerId);
 
             // Get transactions for those invoices
             transactions = historicalTransactionRepository.findAll().stream()
@@ -292,9 +298,11 @@ public class StatementDataExtractService {
                 .filter(t -> startDate == null || !t.getTransactionDate().isBefore(startDate))
                 .filter(t -> endDate == null || !t.getTransactionDate().isAfter(endDate))
                 .collect(Collectors.toList());
+
+            log.error("🔍 DEBUG: Found {} transactions after filtering for customer {}", transactions.size(), customerId);
         } else {
             // For tenants: Get transactions where they are the customer
-            log.info("Customer {} is TENANT, filtering by customer_id", customerId);
+            log.error("🔍 DEBUG: Customer {} is TENANT, filtering transactions by customer_id", customerId);
             transactions = historicalTransactionRepository.findByCustomer(customer).stream()
                 .filter(t -> t.getInvoice() != null)
                 .filter(t -> startDate == null || !t.getTransactionDate().isBefore(startDate))
@@ -302,7 +310,7 @@ public class StatementDataExtractService {
                 .collect(Collectors.toList());
         }
 
-        log.info("Found {} transactions for customer {}", transactions.size(), customerId);
+        log.error("🔍 DEBUG: Total {} transactions extracted for customer {}", transactions.size(), customerId);
 
         List<TransactionDTO> transactionDTOs = new ArrayList<>();
 
