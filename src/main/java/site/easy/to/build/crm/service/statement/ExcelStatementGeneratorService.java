@@ -649,18 +649,18 @@ public class ExcelStatementGeneratorService {
                     monthCell.setCellValue(monthStart);
                     monthCell.setCellStyle(dateStyle);
 
-                    // Column E: rent_due (VLOOKUP to RENT_DUE sheet)
+                    // Column E: rent_due (SUMIFS to RENT_DUE sheet - simpler than array formula)
                     Cell rentDueCell = row.createCell(col++);
                     rentDueCell.setCellFormula(String.format(
-                        "IFERROR(INDEX(RENT_DUE!H:H, MATCH(1, (RENT_DUE!A:A=%d) * (RENT_DUE!D:D=D%d), 0)), 0)",
+                        "SUMIFS(RENT_DUE!H:H, RENT_DUE!A:A, %d, RENT_DUE!D:D, D%d)",
                         lease.getLeaseId(), rowNum + 1
                     ));
                     rentDueCell.setCellStyle(currencyStyle);
 
-                    // Column F: rent_received (VLOOKUP to RENT_RECEIVED sheet)
+                    // Column F: rent_received (SUMIFS to RENT_RECEIVED sheet - simpler than array formula)
                     Cell rentReceivedCell = row.createCell(col++);
                     rentReceivedCell.setCellFormula(String.format(
-                        "IFERROR(INDEX(RENT_RECEIVED!F:F, MATCH(1, (RENT_RECEIVED!A:A=%d) * (RENT_RECEIVED!D:D=D%d), 0)), 0)",
+                        "SUMIFS(RENT_RECEIVED!F:F, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!D:D, D%d)",
                         lease.getLeaseId(), rowNum + 1
                     ));
                     rentReceivedCell.setCellStyle(currencyStyle);
@@ -670,18 +670,18 @@ public class ExcelStatementGeneratorService {
                     arrearsCell.setCellFormula(String.format("E%d - F%d", rowNum + 1, rowNum + 1));
                     arrearsCell.setCellStyle(currencyStyle);
 
-                    // Column H: management_fee (VLOOKUP to RENT_DUE)
+                    // Column H: management_fee (SUMIFS to RENT_DUE)
                     Cell mgmtFeeCell = row.createCell(col++);
                     mgmtFeeCell.setCellFormula(String.format(
-                        "IFERROR(INDEX(RENT_DUE!I:I, MATCH(1, (RENT_DUE!A:A=%d) * (RENT_DUE!D:D=D%d), 0)), 0)",
+                        "SUMIFS(RENT_DUE!I:I, RENT_DUE!A:A, %d, RENT_DUE!D:D, D%d)",
                         lease.getLeaseId(), rowNum + 1
                     ));
                     mgmtFeeCell.setCellStyle(currencyStyle);
 
-                    // Column I: service_fee (VLOOKUP to RENT_DUE)
+                    // Column I: service_fee (SUMIFS to RENT_DUE)
                     Cell svcFeeCell = row.createCell(col++);
                     svcFeeCell.setCellFormula(String.format(
-                        "IFERROR(INDEX(RENT_DUE!J:J, MATCH(1, (RENT_DUE!A:A=%d) * (RENT_DUE!D:D=D%d), 0)), 0)",
+                        "SUMIFS(RENT_DUE!J:J, RENT_DUE!A:A, %d, RENT_DUE!D:D, D%d)",
                         lease.getLeaseId(), rowNum + 1
                     ));
                     svcFeeCell.setCellStyle(currencyStyle);
