@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import site.easy.to.build.crm.entity.*;
+import site.easy.to.build.crm.event.PayPropDataSyncedEvent;
 import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.property.PropertyService;
 
@@ -48,6 +50,7 @@ public class PayPropFinancialSyncService {
     private final BatchPaymentRepository batchPaymentRepository;
     private final PropertyService propertyService;
     private final DataSource dataSource;
+    private final ApplicationEventPublisher eventPublisher;
     private PayPropIncomingPaymentFinancialSyncService incomingPaymentSyncService;
     private PayPropInvoiceInstructionEnrichmentService invoiceInstructionEnrichmentService;
     private PayPropInvoiceLinkingService invoiceLinkingService;
@@ -67,7 +70,8 @@ public class PayPropFinancialSyncService {
         FinancialTransactionRepository financialTransactionRepository,
         BatchPaymentRepository batchPaymentRepository,
         PropertyService propertyService,
-        DataSource dataSource
+        DataSource dataSource,
+        ApplicationEventPublisher eventPublisher
     ) {
         this.oAuth2Service = oAuth2Service;
         this.restTemplate = restTemplate;
@@ -79,6 +83,7 @@ public class PayPropFinancialSyncService {
         this.batchPaymentRepository = batchPaymentRepository;
         this.propertyService = propertyService;
         this.dataSource = dataSource;
+        this.eventPublisher = eventPublisher;
     }
 
     @Autowired(required = false)
@@ -212,16 +217,30 @@ public class PayPropFinancialSyncService {
             syncResults.put("data_integrity", validationResult);
 
             syncResults.put("status", "SUCCESS");
-            syncResults.put("sync_time", LocalDateTime.now());
-            
+            LocalDateTime syncTime = LocalDateTime.now();
+            syncResults.put("sync_time", syncTime);
+
             logger.info("✅ Comprehensive financial sync completed successfully");
-            
+
+            // Fire event to trigger automatic unified_transactions rebuild
+            try {
+                // Calculate total records processed from sync results
+                int totalRecordsProcessed = calculateTotalRecordsFromSyncResults(syncResults);
+
+                PayPropDataSyncedEvent event = new PayPropDataSyncedEvent(
+                    this, totalRecordsProcessed, syncTime, "COMPREHENSIVE_FINANCIAL_SYNC", true);
+                eventPublisher.publishEvent(event);
+                logger.info("📢 Published PayPropDataSyncedEvent for automatic unified rebuild");
+            } catch (Exception eventError) {
+                logger.warn("⚠️ Failed to publish sync event (sync still successful): {}", eventError.getMessage());
+            }
+
         } catch (Exception e) {
             logger.error("❌ Comprehensive financial sync failed", e);
             syncResults.put("status", "FAILED");
             syncResults.put("error", e.getMessage());
         }
-        
+
         return syncResults;
     }
 
@@ -2808,6 +2827,51 @@ public class PayPropFinancialSyncService {
                 property.getPayPropId(), e.getMessage());
             // Don't throw - allow sync to continue even if tracking update fails
         }
+    }
+
+    /**
+     * Calculate total records processed from sync results map.
+     * Looks for common count fields in nested result maps.
+     */
+    private int calculateTotalRecordsFromSyncResults(Map<String, Object> syncResults) {
+        int total = 0;
+
+        // Iterate through sync results and sum up record counts
+        for (Map.Entry<String, Object> entry : syncResults.entrySet()) {
+            if (entry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> resultMap = (Map<String, Object>) entry.getValue();
+
+                // Look for common count fields
+                if (resultMap.containsKey("processed")) {
+                    total += getIntValue(resultMap.get("processed"));
+                } else if (resultMap.containsKey("total")) {
+                    total += getIntValue(resultMap.get("total"));
+                } else if (resultMap.containsKey("synced")) {
+                    total += getIntValue(resultMap.get("synced"));
+                }
+            }
+        }
+
+        return total > 0 ? total : 1; // Return at least 1 to indicate sync occurred
+    }
+
+    /**
+     * Safely extract integer value from object
+     */
+    private int getIntValue(Object value) {
+        if (value instanceof Integer) {
+            return (Integer) value;
+        } else if (value instanceof Long) {
+            return ((Long) value).intValue();
+        } else if (value instanceof String) {
+            try {
+                return Integer.parseInt((String) value);
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        }
+        return 0;
     }
 
     /**

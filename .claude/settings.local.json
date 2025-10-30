@@ -18,7 +18,10 @@
       "mcp__render__list_workspaces",
       "mcp__render__list_logs",
       "mcp__render__list_deploys",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "mcp__render__get_deploy",
+      "Bash(javac:*)",
+      "Bash(java:*)"
     ],
     "deny": [],
     "ask": [],

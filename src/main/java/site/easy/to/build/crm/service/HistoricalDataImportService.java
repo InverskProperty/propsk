@@ -1,10 +1,12 @@
 package site.easy.to.build.crm.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import site.easy.to.build.crm.event.HistoricalDataImportedEvent;
 
 import javax.sql.DataSource;
 import java.io.BufferedReader;
@@ -33,6 +35,9 @@ public class HistoricalDataImportService {
 
     @Autowired
     private DataSource dataSource;
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     /**
      * Import historical data from CSV file
@@ -74,6 +79,14 @@ public class HistoricalDataImportService {
 
             log.info("✅ Historical data import completed: {} processed, {} inserted, {} errors",
                 totalProcessed, successfulInserts, errors);
+
+            // Fire event to trigger automatic unified_transactions rebuild
+            if (successfulInserts > 0) {
+                HistoricalDataImportedEvent event = new HistoricalDataImportedEvent(
+                    this, successfulInserts, LocalDateTime.now(), "HISTORICAL_IMPORT");
+                eventPublisher.publishEvent(event);
+                log.info("📢 Published HistoricalDataImportedEvent for automatic unified rebuild");
+            }
 
         } catch (Exception e) {
             log.error("❌ Historical data import failed", e);

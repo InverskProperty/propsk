@@ -4,8 +4,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import site.easy.to.build.crm.event.PayPropDataSyncedEvent;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.FinancialTransaction;
 import site.easy.to.build.crm.entity.Invoice;
@@ -55,6 +57,9 @@ public class PayPropIncomingPaymentFinancialSyncService {
 
     @Autowired
     private PayPropInvoiceLinkingService invoiceLinkingService;
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     /**
      * Import incoming tenant payments to financial_transactions
@@ -136,6 +141,18 @@ public class PayPropIncomingPaymentFinancialSyncService {
 
             log.info("✅ Incoming payment sync complete: {} imported, {} skipped, {} errors",
                 imported, skipped, errors);
+
+            // Fire event to trigger automatic unified_transactions rebuild
+            if (imported > 0) {
+                try {
+                    PayPropDataSyncedEvent event = new PayPropDataSyncedEvent(
+                        this, imported, java.time.LocalDateTime.now(), "INCOMING_PAYMENTS_SYNC", true);
+                    eventPublisher.publishEvent(event);
+                    log.info("📢 Published PayPropDataSyncedEvent for automatic unified rebuild");
+                } catch (Exception eventError) {
+                    log.warn("⚠️ Failed to publish sync event (sync still successful): {}", eventError.getMessage());
+                }
+            }
 
         } catch (Exception e) {
             log.error("❌ Incoming payment sync failed", e);

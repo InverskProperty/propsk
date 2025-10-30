@@ -172,7 +172,7 @@ public class UnifiedTransactionRebuildService {
             LEFT JOIN properties p ON ft.property_id = p.payprop_id
             LEFT JOIN invoices i ON ft.invoice_id = i.id
             WHERE ft.invoice_id IS NOT NULL
-              AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV')
+              AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV', 'ICDN_ACTUAL')
         """;
 
         return jdbcTemplate.update(sql, batchId);
@@ -328,7 +328,7 @@ public class UnifiedTransactionRebuildService {
             LEFT JOIN properties p ON ft.property_id = p.payprop_id
             LEFT JOIN invoices i ON ft.invoice_id = i.id
             WHERE ft.invoice_id IS NOT NULL
-              AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV')
+              AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV', 'ICDN_ACTUAL')
               AND ft.updated_at > ?
         """;
 
