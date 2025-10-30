@@ -50,6 +50,7 @@ public class PayPropFinancialSyncService {
     private final DataSource dataSource;
     private PayPropIncomingPaymentFinancialSyncService incomingPaymentSyncService;
     private PayPropInvoiceInstructionEnrichmentService invoiceInstructionEnrichmentService;
+    private PayPropInvoiceLinkingService invoiceLinkingService;
 
     // PayProp API base URL
     @Value("${payprop.api.base-url}")
@@ -89,7 +90,12 @@ public class PayPropFinancialSyncService {
     public void setInvoiceInstructionEnrichmentService(PayPropInvoiceInstructionEnrichmentService invoiceInstructionEnrichmentService) {
         this.invoiceInstructionEnrichmentService = invoiceInstructionEnrichmentService;
     }
-    
+
+    @Autowired(required = false)
+    public void setInvoiceLinkingService(PayPropInvoiceLinkingService invoiceLinkingService) {
+        this.invoiceLinkingService = invoiceLinkingService;
+    }
+
     /**
      * Main method to sync all comprehensive financial data from PayProp
      */
@@ -856,11 +862,42 @@ public class PayPropFinancialSyncService {
                 transaction.setCategoryId((String) category.get("id"));
                 transaction.setCategoryName((String) category.get("name"));
             }
-            
+
+            // 🔗 CRITICAL FIX: Link to invoice (lease) for statement generation
+            if (invoiceLinkingService != null && transaction.getPropertyId() != null) {
+                try {
+                    // Find property in our system
+                    Optional<Property> propertyOpt = propertyRepository.findByPayPropId(transaction.getPropertyId());
+                    if (propertyOpt.isPresent()) {
+                        Property localProperty = propertyOpt.get();
+
+                        // Try to find invoice/lease
+                        Invoice invoice = invoiceLinkingService.findInvoiceForTransaction(
+                            localProperty,
+                            null, // Customer not directly available here, linking service will find by property
+                            null, // PayProp invoice ID not in ICDN data
+                            transactionDate
+                        );
+
+                        if (invoice != null) {
+                            transaction.setInvoice(invoice);
+                            logger.debug("✅ Linked ICDN transaction {} to invoice {} (lease: {})",
+                                payPropId, invoice.getId(), invoice.getLeaseReference());
+                        } else {
+                            logger.debug("⚠️ No invoice found for ICDN transaction {} - property: {}",
+                                payPropId, localProperty.getId());
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.warn("⚠️ Failed to link ICDN transaction {} to invoice: {}",
+                        payPropId, e.getMessage());
+                }
+            }
+
             // Audit fields
             transaction.setCreatedAt(LocalDateTime.now());
             transaction.setUpdatedAt(LocalDateTime.now());
-            
+
             return transaction;
             
         } catch (Exception e) {
@@ -1156,11 +1193,42 @@ public class PayPropFinancialSyncService {
                     logger.debug("Invalid transaction_fee format: {}", transactionFeeObj);
                 }
             }
-            
+
+            // 🔗 CRITICAL FIX: Link to invoice (lease) for statement generation
+            if (invoiceLinkingService != null && transaction.getPropertyId() != null) {
+                try {
+                    // Find property in our system
+                    Optional<Property> propertyOpt = propertyRepository.findByPayPropId(transaction.getPropertyId());
+                    if (propertyOpt.isPresent()) {
+                        Property localProperty = propertyOpt.get();
+
+                        // Try to find invoice/lease
+                        Invoice invoice = invoiceLinkingService.findInvoiceForTransaction(
+                            localProperty,
+                            null, // Customer not directly available, linking service will find by property
+                            null, // PayProp invoice ID not in batch payment data
+                            transaction.getTransactionDate()
+                        );
+
+                        if (invoice != null) {
+                            transaction.setInvoice(invoice);
+                            logger.debug("✅ Linked batch payment {} to invoice {} (lease: {})",
+                                transaction.getPayPropTransactionId(), invoice.getId(), invoice.getLeaseReference());
+                        } else {
+                            logger.debug("⚠️ No invoice found for batch payment {} - property: {}",
+                                transaction.getPayPropTransactionId(), localProperty.getId());
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.warn("⚠️ Failed to link batch payment {} to invoice: {}",
+                        transaction.getPayPropTransactionId(), e.getMessage());
+                }
+            }
+
             // Set audit fields
             transaction.setCreatedAt(LocalDateTime.now());
             transaction.setUpdatedAt(LocalDateTime.now());
-            
+
             return transaction;
             
         } catch (Exception e) {

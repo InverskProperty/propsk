@@ -57,10 +57,14 @@ public interface CustomerPropertyAssignmentRepository extends JpaRepository<Cust
     // ✅ NEW: Get properties for an owner ordered by block display_order
     // Properties in blocks are ordered by display_order, standalone properties are ordered alphabetically
     // Note: MySQL doesn't support NULLS LAST, so we use "IS NULL" trick (NULL=1, non-NULL=0, sorts NULLs last)
-    @Query("SELECT DISTINCT cpa.property FROM CustomerPropertyAssignment cpa " +
+    // FIXED: Use GROUP BY instead of DISTINCT with MIN() aggregates to make ORDER BY columns compatible
+    @Query("SELECT cpa.property FROM CustomerPropertyAssignment cpa " +
            "LEFT JOIN PropertyBlockAssignment pba ON cpa.property.id = pba.property.id AND pba.isActive = true " +
            "WHERE cpa.customer.customerId = :customerId AND cpa.assignmentType = :assignmentType " +
-           "ORDER BY CASE WHEN pba.displayOrder IS NULL THEN 1 ELSE 0 END, pba.displayOrder ASC, cpa.property.propertyName ASC")
+           "GROUP BY cpa.property.id " +
+           "ORDER BY MIN(CASE WHEN pba.displayOrder IS NULL THEN 1 ELSE 0 END), " +
+                    "MIN(pba.displayOrder), " +
+                    "MIN(cpa.property.propertyName)")
     List<site.easy.to.build.crm.entity.Property> findPropertiesByCustomerIdAndAssignmentTypeOrdered(
             @Param("customerId") Long customerId,
             @Param("assignmentType") AssignmentType assignmentType);

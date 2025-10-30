@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.FinancialTransaction;
+import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
@@ -51,6 +52,9 @@ public class PayPropIncomingPaymentFinancialSyncService {
 
     @Autowired
     private CustomerRepository customerRepository;
+
+    @Autowired
+    private PayPropInvoiceLinkingService invoiceLinkingService;
 
     /**
      * Import incoming tenant payments to financial_transactions
@@ -241,6 +245,25 @@ public class PayPropIncomingPaymentFinancialSyncService {
                 payment.tenantPaypropId,
                 payment.depositId != null ? payment.depositId : "N/A");
             transaction.setDescription(fullDescription);
+        }
+
+        // 🔗 CRITICAL FIX: Link to invoice (lease) for statement generation
+        Invoice invoice = invoiceLinkingService.findInvoiceForTransaction(
+            property,
+            tenant,
+            null, // Incoming payments don't have PayProp invoice ID
+            payment.reconciliationDate
+        );
+
+        if (invoice != null) {
+            transaction.setInvoice(invoice);
+            log.info("✅ Linked incoming payment {} to invoice {} (lease: {})",
+                payment.paypropId, invoice.getId(), invoice.getLeaseReference());
+        } else {
+            log.warn("⚠️ No invoice found for incoming payment {} - property: {}, tenant: {}",
+                payment.paypropId,
+                property.getId(),
+                tenant != null ? tenant.getCustomerId() : "NULL");
         }
 
         return transaction;
